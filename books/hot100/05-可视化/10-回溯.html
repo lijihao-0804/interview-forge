@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10-回溯算法可视化</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;background:#f0f2f5;color:#333;padding:20px}
+  h1{text-align:center;margin-bottom:28px;font-size:28px;color:#1a1a2e}
+  .container{max-width:1500px;margin:0 auto}
+
+  .sort-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;justify-content:center}
+  .sort-tab{padding:6px 14px;border:2px solid #ddd;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;background:#fff;white-space:nowrap}
+  .sort-tab:hover{border-color:#6c63ff;color:#6c63ff}
+  .sort-tab.active{background:linear-gradient(135deg,#4a6cf7,#6c63ff);color:#fff;border-color:transparent}
+
+  .panel{display:none;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden;margin-bottom:20px}
+  .panel.active{display:block}
+  .panel-header{padding:16px 24px;background:linear-gradient(135deg,#4a6cf7,#6c63ff);color:#fff}
+  .panel-header h2{font-size:20px;margin-bottom:2px}
+  .panel-header .sub{font-size:12px;opacity:.85}
+
+  .top-tags{display:flex;flex-wrap:wrap;gap:6px;padding:8px 24px;background:#f8f9fd;border-bottom:1px solid #eee;font-size:12px}
+  .top-tags span{background:#fff;padding:2px 10px;border-radius:6px;border:1px solid #e0e3eb}
+
+  .notes-section{padding:10px 24px;border-bottom:1px solid #eee;max-height:150px;overflow-y:auto;font-size:13px;line-height:1.7;color:#555}
+  .notes-section h3{font-size:14px;color:#4a6cf7;margin:6px 0 3px}
+  .notes-section h3:first-child{margin-top:0}
+  .notes-section h4{font-size:13px;color:#e67e22;margin:4px 0 2px}
+  .notes-section ul{padding-left:18px;margin:2px 0}
+  .notes-section li{margin:1px 0}
+  .notes-section code{background:#f0f2f5;padding:1px 5px;border-radius:3px;font-size:12px;color:#e74c3c;font-family:'Consolas',monospace}
+  .notes-section strong{color:#333}
+
+  .input-section{padding:8px 24px;background:#f8f9fd;border-bottom:1px solid #eee}
+  .input-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px}
+  .input-row label{font-weight:600;color:#555;white-space:nowrap}
+  .input-row input[type="text"],.input-row input[type="number"]{padding:4px 8px;border:1.5px solid #d0d5dd;border-radius:5px;font-size:13px;font-family:'Consolas',monospace;outline:none;transition:border-color .2s}
+  .input-row input:focus{border-color:#4a6cf7;box-shadow:0 0 0 2px rgba(74,108,247,.15)}
+  .input-row .input-error{border-color:#f44336!important;background:#fff5f5}
+  .btn-apply{padding:4px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;background:#4a6cf7;color:#fff;transition:all .15s}
+  .btn-apply:hover{background:#3b5de7}
+  .btn-reset-input{padding:4px 10px;border:1px solid #d0d5dd;border-radius:5px;cursor:pointer;font-size:12px;background:#fff}
+  .btn-reset-input:hover{background:#f5f6fa;border-color:#999}
+  .preset-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:12px}
+  .preset-label{color:#888;font-size:11px}
+  .preset-btn{padding:1px 10px;border-radius:10px;border:1px solid #d0d5dd;cursor:pointer;font-size:11px;background:#fff;transition:all .15s}
+  .preset-btn:hover{border-color:#4a6cf7;color:#4a6cf7;background:#f0f4ff}
+  .preset-btn.active{background:#4a6cf7;color:#fff;border-color:#4a6cf7}
+  .input-err-msg{color:#f44336;font-size:12px;margin-top:2px;display:none}
+  .input-err-msg.show{display:block}
+
+  .content{display:flex;flex-direction:row;min-height:400px}
+  @media(max-width:960px){.content{flex-direction:column}}
+
+  .code-section{flex:1;min-width:0;border-right:1px solid #eee}
+  @media(max-width:960px){.code-section{border-right:none;border-bottom:1px solid #eee}}
+  .code-scroll{overflow:auto;max-height:480px}
+  .code-scroll pre{margin:0;padding:0;font-family:'JetBrains Mono','Fira Code','Consolas',monospace;font-size:12px;line-height:1.5}
+  .code-scroll code{display:block;padding:8px 0}
+  .code-line{display:block;white-space:pre;padding:0 12px 0 0}
+  .code-line .lineno{display:inline-block;width:36px;text-align:right;padding:0 8px 0 12px;user-select:none;color:#999}
+  .code-line.highlight-line{background:#fff3cd}
+  .code-line.highlight-line .lineno{color:#b8860b;font-weight:bold}
+
+  .vis-section{flex:1;min-width:0;display:flex;flex-direction:column;background:#fafbff}
+  .vis-canvas-wrap{flex:1;padding:12px 16px 8px;min-height:280px;display:flex;flex-direction:column;gap:8px}
+
+  .vis-msg{padding:6px 14px;font-size:13px;font-weight:500;color:#333;background:#f0f4ff;border-radius:5px;min-height:30px;border-left:3px solid #4a6cf7}
+  .vis-msg.success{border-left-color:#4caf50;background:#f0faf0}
+  .vis-msg.info{border-left-color:#00bcd4}
+  .row-label{font-size:11px;font-weight:600;color:#666;margin-bottom:2px}
+
+  /* Shared */
+  .flex-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 0}
+  .flex-col{display:flex;flex-direction:column;gap:4px}
+  .badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge-blue{background:#e3f2fd;color:#1565c0}
+  .badge-orange{background:#fff3e0;color:#e65100}
+  .badge-green{background:#e8f5e9;color:#2e7d32}
+  .badge-red{background:#fce4ec;color:#c62828}
+  .badge-purple{background:#f3e5f5;color:#7b1fa2}
+  .badge-gray{background:#f5f5f5;color:#888}
+  .path-box{display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+  .path-item{background:#4a6cf7;color:#fff;padding:2px 10px;border-radius:4px;font-weight:600;font-size:14px}
+  .path-arrow{color:#bbb;font-weight:700;font-size:16px}
+  .used-grid{display:flex;flex-wrap:wrap;gap:4px}
+  .used-item{width:36px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:12px;font-weight:600;background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9}
+  .used-item.used{background:#fce4ec;color:#c62828;border-color:#ef9a9a}
+  .val-tag{display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px;font-weight:600;background:#e3f2fd;color:#1565c0;border:2px solid transparent;transition:all .3s}
+  .val-tag.active{background:#fff3e0;border-color:#ff9800;color:#e65100;transform:scale(1.05)}
+  .val-tag.done{opacity:.5}
+  .val-tag.used-tag{background:#f5f5f5;color:#bbb;border-color:#eee}
+  .results-scroll{max-height:60px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;padding:2px 0;font-size:12px}
+  .result-item{background:#f5f6fa;padding:1px 6px;border-radius:3px;border:1px solid #e0e3eb}
+
+  /* Board grid */
+  .board-grid{display:inline-grid;gap:2px;padding:4px}
+  .board-cell{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-weight:700;font-size:15px;background:#f5f6fa;border:2px solid #e0e3eb;transition:all .3s}
+  .board-cell.matched{background:#e8f5e9;border-color:#4caf50;color:#2e7d32}
+  .board-cell.current{background:#fff3e0;border-color:#ff9800;color:#e65100;transform:scale(1.1);z-index:1}
+  .board-cell.visited{background:#fce4ec;border-color:#f44336;color:#c62828}
+  .board-cell.waiting{opacity:.5}
+
+  /* N-Queens */
+  .queen-grid{display:inline-grid;gap:2px;padding:4px}
+  .queen-cell{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-weight:700;font-size:16px;background:#fff;border:1.5px solid #ddd;transition:all .3s}
+  .queen-cell.queen{background:#fff3e0;border-color:#ff9800;color:#e65100;font-size:20px}
+  .queen-cell.conflict{background:#fce4ec;border-color:#f44336}
+  .queen-cell.row-current{background:#e3f2fd;border-color:#4a6cf7}
+  .queen-cell.safe{background:#e8f5e9;border-color:#4caf50}
+  .queen-cell.dark{background:#f0f0f0}
+
+  /* Progress bars */
+  .prog-bar-wrap{background:#f5f5f5;border-radius:8px;height:18px;position:relative;overflow:hidden;width:140px;display:inline-block;vertical-align:middle}
+  .prog-fill{height:100%;border-radius:8px;transition:width .4s}
+  .prog-fill.green{background:linear-gradient(90deg,#4caf50,#8bc34a)}
+  .prog-fill.blue{background:linear-gradient(90deg,#4a6cf7,#6c63ff)}
+  .prog-label{position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#333;line-height:18px}
+
+  .controls{padding:8px 16px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid #eee;background:#fafbfc}
+  .controls button{padding:4px 12px;border:1px solid #d0d5dd;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;transition:all .15s}
+  .controls button:hover{background:#f5f6fa;border-color:#4a6cf7}
+  .controls button:disabled{opacity:.4;cursor:not-allowed}
+  .controls .btn-primary{background:#4a6cf7;color:#fff;border-color:#4a6cf7}
+  .controls .btn-primary:hover{background:#3b5de7}
+  .controls .btn-primary:disabled{background:#a0b4f7;border-color:#a0b4f7}
+  .step-info{font-size:12px;color:#888;margin-left:auto}
+
+  .complexity-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 24px;background:#f8f9fd;border-top:1px solid #eee;font-size:12px}
+  .complexity-bar span{background:#fff;padding:2px 10px;border-radius:5px;border:1px solid #e0e3eb}
+  .complexity-bar strong{color:#333}
+  .complexity-bar code{background:#f0f2f5;padding:1px 4px;border-radius:3px;font-size:11px;color:#e74c3c}
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>10-回溯算法可视化</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>🌲 回溯算法可视化</h1>
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">全排列</div>
+  <div class="sort-tab" data-idx="1">子集</div>
+  <div class="sort-tab" data-idx="2">电话号码</div>
+  <div class="sort-tab" data-idx="3">组合总和</div>
+  <div class="sort-tab" data-idx="4">括号生成</div>
+  <div class="sort-tab" data-idx="5">单词搜索</div>
+  <div class="sort-tab" data-idx="6">N 皇后</div>
+</div>
+<div id="panels"></div>
+</div>
+
+<script>
+// ==================== 问题数据 ====================
+const P = [
+  {
+    id:'permute',name:'46. 全排列 (Permutations)',tags:['used数组','决策树','DFS'],
+    notesHTML:`<h3>📌 核心题意</h3><p>给定不含重复数字的数组 <code>nums</code>，返回所有可能的全排列。</p><h3>🧠 思考过程</h3><p>用 <strong>used 数组</strong>标记已选数字，每次从剩余数字中挑选一个，递归深入，回溯撤销。</p><p>关键：<strong>做选择 → 递归 → 撤销选择</strong> 的三段式闭环。</p>`,
+    subNotesHTML:`<strong>⏱ O(N×N!)</strong> &nbsp;·&nbsp; <strong>💡 必考：</strong><code>res.add(new ArrayList<>(path))</code> 必须深拷贝！否则回溯会清空结果。&nbsp;·&nbsp; <strong>追问：</strong>有重复数字时（LC 47）→ <strong>排序 + 剪枝</strong> <code>i>0 && nums[i]==nums[i-1] && !used[i-1]</code>`,
+    code:`public List<List<Integer>> permute(int[] nums) {
+    List<List<Integer>> res = new ArrayList<>();
+    backtrack(nums, new boolean[nums.length],
+              new ArrayList<>(), res);
+    return res;
+}
+void backtrack(int[] nums, boolean[] used,
+    List<Integer> path, List<List<Integer>> res) {
+    if (path.size() == nums.length) {
+        res.add(new ArrayList<>(path)); return;
+    }
+    for (int i = 0; i < nums.length; i++) {
+        if (used[i]) continue;
+        path.add(nums[i]); used[i] = true;
+        backtrack(nums, used, path, res);
+        path.remove(path.size()-1); used[i] = false;
+    }
+}`
+  },
+  {
+    id:'subset',name:'78. 子集 (Subsets)',tags:['startIndex','所有节点','组合'],
+    notesHTML:`<h3>📌 核心题意</h3><p>返回数组所有可能的子集（幂集）。</p><h3>🧠 思考过程</h3><p>与全排列<strong>本质区别</strong>：子集收集<strong>所有节点</strong>（而非叶子）。用 <strong>startIndex</strong> 控制不回头。</p>`,
+    subNotesHTML:`<strong>⏱ O(N×2^N)</strong> &nbsp;·&nbsp; <strong>口诀：</strong>排列用 <code>used</code>，组合/子集用 <code>startIndex</code>。&nbsp;·&nbsp; <strong>追问：</strong>有重复数字（LC 90）→ <code>i>startIndex && nums[i]==nums[i-1]</code> 树层剪枝。`,
+    code:`public List<List<Integer>> subsets(int[] nums) {
+    List<List<Integer>> res = new ArrayList<>();
+    backtrack(nums, 0, new ArrayList<>(), res);
+    return res;
+}
+void backtrack(int[] nums, int start,
+    List<Integer> path, List<List<Integer>> res) {
+    res.add(new ArrayList<>(path)); // 所有节点
+    for (int i = start; i < nums.length; i++) {
+        path.add(nums[i]);
+        backtrack(nums, i + 1, path, res);
+        path.remove(path.size() - 1);
+    }
+}`
+  },
+  {
+    id:'phone',name:'17. 电话号码字母组合',tags:['映射','StringBuilder','回溯'],
+    notesHTML:`<h3>📌 核心题意</h3><p>给定数字串（2-9），返回所有可能的字母组合。</p><h3>🧠 思考过程</h3><p>深度=数字长度，宽度=字母数。<strong>index</strong> 控制当前处理第几个数字。用 <code>StringBuilder</code> 复用内存。</p>`,
+    subNotesHTML:`<strong>⏱ O(3^N×4^M)</strong> &nbsp;·&nbsp; <strong>⚠ 边界：</strong>输入 <code>""</code> 返回 <code>[]</code> 而非 <code>[""]</code>。&nbsp;·&nbsp; <strong>品味：</strong><code>StringBuilder</code> + <code>deleteCharAt</code> 复用内存，优于 String 拼接。`,
+    code:`public List<String> letterCombinations(String d) {
+    if (d.isEmpty()) return new ArrayList<>();
+    String[] map = {"","","abc","def","ghi","jkl",
+                    "mno","pqrs","tuv","wxyz"};
+    List<String> res = new ArrayList<>();
+    backtrack(d, 0, new StringBuilder(), map, res);
+    return res;
+}
+void backtrack(String d, int idx, StringBuilder sb,
+    String[] map, List<String> res) {
+    if (idx == d.length()) {
+        res.add(sb.toString()); return;
+    }
+    String letters = map[d.charAt(idx)-'0'];
+    for (int i = 0; i < letters.length(); i++) {
+        sb.append(letters.charAt(i));
+        backtrack(d, idx+1, sb, map, res);
+        sb.deleteCharAt(sb.length()-1);
+    }
+}`
+  },
+  {
+    id:'combo',name:'39. 组合总和 (Combination Sum)',tags:['startIndex','可重复','排序剪枝'],
+    notesHTML:`<h3>📌 核心题意</h3><p>无重复数组，找出所有和为 target 的组合。<strong>同一个数字可无限重复选取</strong>。</p><h3>🧠 思考过程</h3><p>用 <strong>startIndex = i</strong>（而非 i+1）实现可重复。排序后加 <strong>break 剪枝</strong>。</p>`,
+    subNotesHTML:`<strong>⏱ O(S)</strong>（S=所有解长度和）&nbsp;·&nbsp; <strong>💡 核心剪枝：</strong>排序后 <code>if (c[i] > remain) break;</code> 不进下一层。&nbsp;·&nbsp; <strong>追问：</strong>每个数字只用一次（LC 40）→ <code>i+1</code> + 树层去重。`,
+    code:`public List<List<Integer>> combinationSum(
+    int[] candidates, int target) {
+    List<List<Integer>> res = new ArrayList<>();
+    Arrays.sort(candidates); // 剪枝前提
+    backtrack(candidates, target, 0,
+              new ArrayList<>(), res);
+    return res;
+}
+void backtrack(int[] c, int remain, int start,
+    List<Integer> path, List<List<Integer>> res) {
+    if (remain == 0) {
+        res.add(new ArrayList<>(path)); return;
+    }
+    for (int i = start; i < c.length; i++) {
+        if (c[i] > remain) break; // 🌟 剪枝
+        path.add(c[i]);
+        backtrack(c, remain-c[i], i, path, res);
+        path.remove(path.size()-1);
+    }
+}`
+  },
+  {
+    id:'paren',name:'22. 括号生成 (Generate Parentheses)',tags:['双规则','剪枝','卡特兰数'],
+    notesHTML:`<h3>📌 核心题意</h3><p>生成 n 对括号的所有合法组合。</p><h3>🧠 思考过程</h3><p>两条天规：① <strong>左括号没用完</strong>随时可放；② 右括号<strong>比左括号少</strong>时才能放。</p>`,
+    subNotesHTML:`<strong>⏱ O(4^N/√N)</strong>（卡特兰数）&nbsp;·&nbsp; <strong>💡 品味：</strong>用 <code>StringBuilder</code> 而非 String 拼接，避免创建大量临时对象。&nbsp;·&nbsp; <strong>追问：</strong>DP 解法 → <code>(a)b</code> 分解，a+b=n-1。`,
+    code:`public List<String> generateParenthesis(int n) {
+    List<String> res = new ArrayList<>();
+    backtrack(n, 0, 0, new StringBuilder(), res);
+    return res;
+}
+void backtrack(int n, int l, int r,
+    StringBuilder sb, List<String> res) {
+    if (l == n && r == n) {
+        res.add(sb.toString()); return;
+    }
+    if (l < n) { // 天规一
+        sb.append('(');
+        backtrack(n, l+1, r, sb, res);
+        sb.deleteCharAt(sb.length()-1);
+    }
+    if (r < l) { // 天规二
+        sb.append(')');
+        backtrack(n, l, r+1, sb, res);
+        sb.deleteCharAt(sb.length()-1);
+    }
+}`
+  },
+  {
+    id:'word',name:'79. 单词搜索 (Word Search)',tags:['DFS','原地标记','网格'],
+    notesHTML:`<h3>📌 核心题意</h3><p>判断单词是否存在于字符网格中（相邻格构成，不可重用）。</p><h3>🧠 思考过程</h3><p><strong>原地标记</strong>：用 <code>'#'</code> 标记已访问格子，回溯时恢复。上下左右四个方向 DFS。</p>`,
+    subNotesHTML:`<strong>⏱ O(M×N×3^L)</strong> &nbsp;·&nbsp; <strong>💡 原地标记：</strong><code>board[r][c] = '#'</code> 代替 visited 数组。&nbsp;·&nbsp; <strong>追问：</strong>搜索多个单词（LC 212）→ 结合<strong>前缀树 Trie</strong> 批量剪枝。`,
+    code:`public boolean exist(char[][] b, String word) {
+    for (int r = 0; r < b.length; r++)
+        for (int c = 0; c < b[0].length; c++)
+            if (b[r][c] == word.charAt(0)
+                && dfs(b, r, c, word, 0))
+                return true;
+    return false;
+}
+boolean dfs(char[][] b, int r, int c,
+            String w, int idx) {
+    if (idx == w.length()) return true;
+    if (r<0||c<0||r>=b.length||c>=b[0].length
+        || b[r][c] != w.charAt(idx)) return false;
+    char tmp = b[r][c]; b[r][c] = '#';
+    boolean found = dfs(b,r-1,c,w,idx+1)
+                 || dfs(b,r+1,c,w,idx+1)
+                 || dfs(b,r,c-1,w,idx+1)
+                 || dfs(b,r,c+1,w,idx+1);
+    b[r][c] = tmp; // 还原
+    return found;
+}`
+  },
+  {
+    id:'queen',name:'51. N 皇后 (N-Queens)',tags:['对角线','冲突检测','O(N!)'],
+    notesHTML:`<h3>📌 核心题意</h3><p>将 N 个皇后放在 N×N 棋盘上，使彼此不能相互攻击。</p><h3>🧠 思考过程</h3><p><strong>逐行放置</strong>，用三个布尔数组 <code>cols, diag1, diag2</code> 实现 O(1) 冲突检测。diag1 = row-col+n-1, diag2 = row+col。</p>`,
+    subNotesHTML:`<strong>⏱ O(N!)</strong> &nbsp;·&nbsp; <strong>💡 O(1) 查杀：</strong>主对角线 <code>row-col</code> 为常数，副对角线 <code>row+col</code> 为常数。&nbsp;·&nbsp; <strong>追问：</strong>位运算优化（LC 52）→ 3 个 int 代替布尔数组。`,
+    code:`public List<List<String>> solveNQueens(int n) {
+    List<List<String>> res = new ArrayList<>();
+    char[][] b = new char[n][n];
+    for (char[] r : b) Arrays.fill(r, '.');
+    boolean[] cols = new boolean[n];
+    boolean[] d1 = new boolean[2*n-1];
+    boolean[] d2 = new boolean[2*n-1];
+    backtrack(b, 0, n, cols, d1, d2, res);
+    return res;
+}
+void backtrack(char[][] b, int row, int n,
+    boolean[] cols, boolean[] d1, boolean[] d2,
+    List<List<String>> res) {
+    if (row == n) { res.add(toList(b)); return; }
+    for (int c = 0; c < n; c++) {
+        int i1 = row - c + n - 1, i2 = row + c;
+        if (cols[c] || d1[i1] || d2[i2]) continue;
+        b[row][c]='Q'; cols[c]=d1[i1]=d2[i2]=true;
+        backtrack(b, row+1, n, cols, d1, d2, res);
+        b[row][c]='.'; cols[c]=d1[i1]=d2[i2]=false;
+    }
+}`
+  }
+];
+
+// ==================== Step Builders ====================
+
+function buildPermuteSteps(inputNums) {
+  const nums = (inputNums&&inputNums.length)?inputNums:[1,2,3];
+  const steps=[], res=[];
+  function push(o){steps.push({nums:nums.slice(),path:o.path.slice(),used:o.used.slice(),action:o.action,chosenIdx:o.chosenIdx,results:res.map(r=>r.slice()),line:o.line,msg:o.msg})}
+  function sim(used,path){
+    if(path.length===nums.length){res.push(path.slice());push({path,used,action:'found',chosenIdx:-1,line:4,msg:'🎉 找到排列 ['+path.join(',')+']'});return}
+    for(let i=0;i<nums.length;i++){
+      if(used[i])continue;
+      path.push(nums[i]);used[i]=true;
+      push({path,used,action:'choose',chosenIdx:i,line:6,msg:'→ 选择 nums['+i+']='+nums[i]+'  路径 ['+path.join(',')+']'});
+      sim(used,path);
+      path.pop();used[i]=false;
+      push({path,used,action:'backtrack',chosenIdx:i,line:8,msg:'← 回溯：撤销 nums['+i+']='+nums[i]+'  路径 ['+path.join(',')+']'});
+    }
+  }
+  push({path:[],used:new Array(nums.length).fill(false),action:'start',chosenIdx:-1,results:[],line:1,msg:'开始全排列 nums=['+nums.join(',')+']'});
+  sim(new Array(nums.length).fill(false),[]);
+  push({path:[],used:[],action:'done',chosenIdx:-1,results:res.map(r=>r.slice()),line:0,msg:'✅ 完成！共 '+res.length+' 个排列'});
+  return steps;
+}
+
+function buildSubsetSteps(inputNums) {
+  const nums=(inputNums&&inputNums.length)?inputNums:[1,2,3];
+  const steps=[],res=[];
+  function push(o){steps.push({nums:nums.slice(),path:o.path.slice(),start:o.start,action:o.action,chosenIdx:o.chosenIdx,results:res.map(r=>r.slice()),line:o.line,msg:o.msg})}
+  function sim(start,path){
+    res.push(path.slice());
+    push({path,start,action:'collect',chosenIdx:-1,line:3,msg:'📥 收集子集 ['+path.join(',')+']'});
+    for(let i=start;i<nums.length;i++){
+      path.push(nums[i]);
+      push({path,start,action:'choose',chosenIdx:i,line:5,msg:'→ 选择 nums['+i+']='+nums[i]+'  startIndex='+start+' 路径 ['+path.join(',')+']'});
+      sim(i+1,path);
+      path.pop();
+      push({path,start,action:'backtrack',chosenIdx:i,line:7,msg:'← 回溯：弹出 nums['+i+']='+nums[i]+'  路径 ['+path.join(',')+']'});
+    }
+  }
+  push({path:[],start:0,action:'start',chosenIdx:-1,results:[],line:1,msg:'开始生成子集 nums=['+nums.join(',')+']'});
+  sim(0,[]);
+  push({path:[],start:0,action:'done',chosenIdx:-1,results:res.map(r=>r.slice()),line:0,msg:'✅ 完成！共 '+res.length+' 个子集'});
+  return steps;
+}
+
+function buildPhoneSteps(inputDigits) {
+  const digits=(inputDigits!==undefined&&inputDigits!==null&&inputDigits!=='')?inputDigits:'23';
+  const map=['','','abc','def','ghi','jkl','mno','pqrs','tuv','wxyz'];
+  const steps=[],res=[];
+  if(!digits||digits.length===0){
+    steps.push({digits:'',path:'',idx:0,action:'empty',results:[],line:0,msg:'输入为空 → 返回 []'});
+    return steps;
+  }
+  function push(o){steps.push({digits,path:o.path,idx:o.idx,letters:o.letters,action:o.action,chosen:o.chosen,results:res.slice(),line:o.line,msg:o.msg})}
+  function sim(idx,path){
+    if(idx===digits.length){res.push(path);push({idx,path,letters:'',action:'found',chosen:'',line:4,msg:'🎉 找到组合 "'+path+'"'});return}
+    const d=parseInt(digits[idx]),letters=map[d];
+    push({idx,path,letters,action:'enter',chosen:'',line:2,msg:'📞 数字 '+digits[idx]+' → "'+letters+'"  idx='+idx});
+    for(let i=0;i<letters.length;i++){
+      const ch=letters[i];
+      const newPath=path+ch;
+      push({idx,path,letters,action:'choose',chosen:ch,line:6,msg:'→ 选择 "'+ch+'"  当前路径 "'+newPath+'"'});
+      sim(idx+1,newPath);
+      push({idx,path,letters,action:'backtrack',chosen:ch,line:8,msg:'← 回溯 "'+ch+'"  回到 "'+path+'"'});
+    }
+  }
+  push({digits,path:'',idx:0,letters:'',action:'start',chosen:'',results:[],line:1,msg:'开始处理数字 "'+digits+'"'});
+  sim(0,'');
+  push({digits,path:'',idx:digits.length,action:'done',results:res.slice(),line:0,msg:'✅ 完成！共 '+res.length+' 种组合'});
+  return steps;
+}
+
+function buildComboSteps(inputCandidates,inputTarget) {
+  const c=(inputCandidates&&inputCandidates.length)?inputCandidates:[2,3,6,7];
+  const target=inputTarget||7;
+  const sorted=c.slice().sort((a,b)=>a-b);
+  const steps=[],res=[];
+  function push(o){steps.push({candidates:sorted.slice(),path:o.path.slice(),remain:o.remain,start:o.start,action:o.action,chosenIdx:o.chosenIdx,results:res.map(r=>r.slice()),pruneIdx:o.pruneIdx,line:o.line,msg:o.msg})}
+  function sim(remain,start,path){
+    if(remain===0){res.push(path.slice());push({path,remain,start,action:'found',chosenIdx:-1,pruneIdx:-1,line:3,msg:'🎯 达成目标！组合 ['+path.join(',')+']'});return}
+    for(let i=start;i<sorted.length;i++){
+      if(sorted[i]>remain){push({path,remain,start,action:'prune',chosenIdx:-1,pruneIdx:i,line:6,msg:'✂️ 剪枝：c['+i+']='+sorted[i]+' > '+remain+' 后面全砍！'});break}
+      path.push(sorted[i]);
+      push({path,remain,start,action:'choose',chosenIdx:i,pruneIdx:-1,line:7,msg:'→ 选 '+sorted[i]+'  剩余='+(remain-sorted[i])+'  路径 ['+path.join(',')+']'});
+      sim(remain-sorted[i],i,path);
+      path.pop();
+      push({path,remain,start,action:'backtrack',chosenIdx:i,pruneIdx:-1,line:9,msg:'← 回溯 '+sorted[i]+'  路径 ['+path.join(',')+']'});
+    }
+  }
+  push({path:[],remain:target,start:0,action:'start',chosenIdx:-1,pruneIdx:-1,results:[],line:1,msg:'开始目标 '+target+'  candidates=['+sorted.join(',')+']（已排序）'});
+  sim(target,0,[]);
+  push({path:[],remain:target,start:0,action:'done',chosenIdx:-1,pruneIdx:-1,results:res.map(r=>r.slice()),line:0,msg:'✅ 完成！共 '+res.length+' 种组合'});
+  return steps;
+}
+
+function buildParenSteps(inputN) {
+  const n=inputN||3;
+  if(n<1){return [{path:'',l:0,r:0,action:'empty',results:[],line:0,msg:'n='+n+' 无法生成'}]}
+  const steps=[],res=[];
+  function push(o){steps.push({n,path:o.path,l:o.l,r:o.r,action:o.action,results:res.slice(),line:o.line,msg:o.msg})}
+  function sim(l,r,path){
+    if(l===n&&r===n){res.push(path);push({path,l,r,action:'found',line:3,msg:'🎉 "'+path+'"  ✓ 左='+l+' 右='+r});return}
+    if(l<n){
+      push({path,l,r,action:'tryLeft',line:5,msg:'尝试 (  左='+l+'→'+(l+1)+'  右='+r+'  "'+path+'("'});
+      sim(l+1,r,path+'(');
+      push({path,l,r,action:'backLeft',line:7,msg:'← 回溯 (  回退到 "'+path+'"'});
+    }
+    if(r<l){
+      push({path,l,r,action:'tryRight',line:9,msg:'尝试 )  左='+l+'  右='+r+'→'+(r+1)+'  "'+path+')"'});
+      sim(l,r+1,path+')');
+      push({path,l,r,action:'backRight',line:11,msg:'← 回溯 )  回退到 "'+path+'"'});
+    }
+  }
+  push({path:'',l:0,r:0,action:'start',results:[],line:1,msg:'开始生成 n='+n+' 对括号'});
+  sim(0,0,'');
+  push({path:'',l:n,r:n,action:'done',results:res.slice(),line:0,msg:'✅ 完成！共 '+res.length+' 种组合'});
+  return steps;
+}
+
+function buildWordSteps(inputBoard,inputWord) {
+  const board = inputBoard||[['A','B','C','E'],['S','F','C','S'],['A','D','E','E']];
+  const word = inputWord||'ABCCED';
+  const R=board.length,C=board[0].length;
+  const steps=[];
+  function push(o){steps.push({board:o.board.map(r=>r.slice()),word,pos:o.pos?[o.pos[0],o.pos[1]]:null,matched:o.matched,dir:o.dir,action:o.action,found:o.found,line:o.line,msg:o.msg})}
+
+  // deep copy board
+  const b=board.map(r=>r.slice());
+
+  function dfs(r,c,idx,curBoard,path){
+    if(idx===word.length){push({board:curBoard.map(r=>r.slice()),pos:[r,c],matched:idx,dir:'',action:'found',found:true,line:3,msg:'🎉 完全匹配 "'+word+'"！'});return true}
+    if(r<0||c<0||r>=R||c>=C||curBoard[r][c]!==word[idx])return false;
+    const tmp=curBoard[r][c];curBoard[r][c]='#';
+    push({board:curBoard.map(r=>r.slice()),pos:[r,c],matched:idx+1,dir:'',action:'match',found:false,line:8,msg:'✓ 匹配 '+word[idx]+' 位置 ('+r+','+c+')  进度 '+idx+'/'+word.length});
+
+    const dirs=[[-1,0,'↑'],[1,0,'↓'],[0,-1,'←'],[0,1,'→']];
+    for(const[dr,dc,dirLabel]of dirs){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<R&&nc>=0&&nc<C&&curBoard[nr][nc]!=='#'){
+        push({board:curBoard.map(r=>r.slice()),pos:[nr,nc],matched:idx+1,dir:dirLabel,action:'explore',found:false,line:10,msg:'🔍 探索 '+dirLabel+' ('+nr+','+nc+')  查找 '+word[idx+1]});
+      }
+      if(dfs(nr,nc,idx+1,curBoard,path+word[idx]))return true;
+    }
+
+    curBoard[r][c]=tmp;
+    push({board:curBoard.map(r=>r.slice()),pos:[r,c],matched:idx,dir:'',action:'restore',found:false,line:12,msg:'↩ 还原 ('+r+','+c+')='+tmp+'  回溯到 idx='+idx});
+    return false;
+  }
+
+  let found=false;
+  push({board:b.map(r=>r.slice()),word,pos:null,matched:0,dir:'',action:'start',found:false,line:1,msg:'搜索 "'+word+'" 在 '+R+'x'+C+' 网格中'});
+
+  for(let r=0;r<R&&!found;r++){
+    for(let c=0;c<C&&!found;c++){
+      if(b[r][c]===word[0]){
+        push({board:b.map(r=>r.slice()),pos:[r,c],matched:0,dir:'',action:'foundStart',found:false,line:2,msg:'🔍 找到起点 '+word[0]+' 在 ('+r+','+c+')'});
+        found=dfs(r,c,0,b,'');
+      }
+    }
+  }
+  if(!found){
+    push({board:b.map(r=>r.slice()),word,pos:null,matched:0,dir:'',action:'notfound',found:false,line:0,msg:'❌ 未找到 "'+word+'"'});
+  }
+  return steps;
+}
+
+function buildQueenSteps(inputN) {
+  const n=inputN||4;
+  const steps=[],res=[];
+  function push(o){
+    const flat=o.board.map(r=>r.slice());
+    steps.push({n,board:flat,row:o.row,col:o.col,action:o.action,cols:o.cols.slice(),d1:o.d1.slice(),d2:o.d2.slice(),solutions:res.map(r=>r.slice()),line:o.line,msg:o.msg})}
+  function toList(b){const r=[];for(let i=0;i<n;i++)r.push(b[i].join(''));return r}
+
+  function sim(row,board,cols,d1,d2){
+    if(row===n){res.push(toList(board));push({board,row,cols,d1,d2,action:'found',col:-1,line:4,msg:'👑 解法 '+(res.length)+' 找到！'});return}
+    push({board,row,col:-1,action:'enterRow',cols,d1,d2,line:2,msg:'➡️ 进入第 '+row+' 行'});
+    for(let c=0;c<n;c++){
+      const id1=row-c+n-1,id2=row+c;
+      if(cols[c]||d1[id1]||d2[id2]){
+        push({board,row,col:c,action:'conflict',cols,d1,d2,line:7,msg:'✖ ('+row+','+c+') 冲突！ col='+c+(cols[c]?'列占':d1[id1]?'主对角':'副对角')});
+        continue;
+      }
+      board[row][c]='Q';cols[c]=d1[id1]=d2[id2]=true;
+      push({board,row,col:c,action:'place',cols,d1,d2,line:8,msg:'👑 放置皇后在 ('+row+','+c+')'});
+      sim(row+1,board,cols,d1,d2);
+      board[row][c]='.';cols[c]=d1[id1]=d2[id2]=false;
+      push({board,row,col:c,action:'remove',cols,d1,d2,line:10,msg:'↩ 移除皇后 ('+row+','+c+')'});
+    }
+  }
+  const empty=Array.from({length:n},()=>Array(n).fill('.'));
+  push({board:empty,row:-1,col:-1,action:'start',cols:Array(n).fill(false),d1:Array(2*n-1).fill(false),d2:Array(2*n-1).fill(false),solutions:[],line:1,msg:'开始 '+n+' 皇后问题'});
+  sim(0,empty,Array(n).fill(false),Array(2*n-1).fill(false),Array(2*n-1).fill(false));
+  push({board:empty,row:n,col:-1,action:'done',cols:[],d1:[],d2:[],solutions:res.slice(),line:0,msg:'✅ 完成！共 '+res.length+' 种解法'});
+  return steps;
+}
+
+// ==================== Renderers ====================
+
+function rPermute(canvas,s){
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='done'?'success':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">📊 数组 nums <span style="font-weight:400;color:#888">（灰色=已使用）</span></div><div class="flex-row">';
+  s.nums.forEach((v,i)=>{
+    let c='val-tag'+(s.used&&s.used[i]?' used-tag':'');
+    h+='<span class="'+c+'">'+v+'</span>';
+  });
+  h+='</div><div class="row-label">🚩 used 数组</div><div class="used-grid">';
+  (s.used||[]).forEach((u,i)=>{
+    h+='<div class="used-item'+(u?' used':'')+'">'+(u?'✗':'○')+'</div>';
+  });
+  h+='</div><div class="row-label">📦 当前路径</div><div class="path-box">';
+  if(s.path&&s.path.length){s.path.forEach((v,i)=>{if(i>0)h+='<span class="path-arrow">→</span>';h+='<span class="path-item">'+v+'</span>'})}
+  else h+='<span style="color:#aaa;font-size:13px">（空）</span>';
+  h+='</div><div class="row-label" style="margin-top:4px">📋 已收集结果 ('+s.results.length+')</div><div class="results-scroll">';
+  if(s.results.length){s.results.forEach(r=>{h+='<span class="result-item">['+r.join(',')+']</span>'})}
+  else h+='<span style="color:#aaa;font-size:12px">暂无</span>';
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+function rSubset(canvas,s){
+  let h='<div class="vis-msg '+(s.action==='collect'||s.action==='done'?'success':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">📊 数组 nums <span style="font-weight:400;color:#888">（←startIndex='+s.start+'）</span></div><div class="flex-row">';
+  s.nums.forEach((v,i)=>{
+    let c='val-tag';if(i<s.start)c+=' done';else if(i===s.start)c+=' active';
+    h+='<span class="'+c+'" style="position:relative">'+v+(i===s.start?'<span style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:10px;color:#ff9800;font-weight:700">▲</span>':'')+'</span>';
+  });
+  h+='</div><div class="row-label">📦 当前路径</div><div class="path-box">';
+  if(s.path&&s.path.length){s.path.forEach((v,i)=>{if(i>0)h+='<span class="path-arrow">→</span>';h+='<span class="path-item">'+v+'</span>'})}
+  else h+='<span style="color:#aaa;font-size:13px">（空）</span>';
+  h+='</div><div class="row-label" style="margin-top:4px">📋 已收集子集 ('+s.results.length+')</div><div class="results-scroll">';
+  s.results.forEach(r=>{h+='<span class="result-item">['+r.join(',')+']</span>'});
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+function rPhone(canvas,s){
+  if(s.action==='empty'){canvas.innerHTML='<div class="vis-msg">输入为空 → 返回 []</div>';return}
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='done'?'success':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">📞 数字映射</div><div style="display:flex;flex-wrap:wrap;gap:4px;font-size:12px">';
+  const map=['','','abc','def','ghi','jkl','mno','pqrs','tuv','wxyz'];
+  for(let i=2;i<=9;i++)h+='<span style="background:#f5f6fa;padding:1px 6px;border-radius:3px;border:1px solid #e0e3eb">'+i+'→'+map[i]+'</span>';
+  h+='</div><div class="row-label" style="margin-top:4px">🔤 处理进度</div><div class="flex-row">';
+  for(let i=0;i<s.digits.length;i++){
+    const d=parseInt(s.digits[i]);
+    let c='val-tag';if(i<s.idx)c+=' done';else if(i===s.idx)c+=' active';
+    h+='<span class="'+c+'">'+s.digits[i]+' → '+map[d]+'</span>';
+  }
+  h+='</div><div class="row-label">📦 当前路径</div><div class="path-box">';
+  if(s.path){h+='<span style="background:#4a6cf7;color:#fff;padding:3px 12px;border-radius:4px;font-weight:600;font-size:15px">"'+(s.path||'')+'"</span>';}
+  else h+='<span style="color:#aaa;font-size:13px">（空）</span>';
+  h+='</div><div class="row-label" style="margin-top:4px">📋 已收集结果 ('+s.results.length+')</div><div class="results-scroll">';
+  if(s.results.length){s.results.forEach(r=>{h+='<span class="result-item">"'+r+'"</span>'})}
+  else h+='<span style="color:#aaa;font-size:12px">暂无</span>';
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+function rCombo(canvas,s){
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='done'?'success':s.action==='prune'?'':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">📊 候选数组（已排序） <span style="font-weight:400;color:#888"> | 剩余目标：<b style="color:#e74c3c">'+s.remain+'</b> | startIndex='+s.start+'</span></div><div class="flex-row">';
+  s.candidates.forEach((v,i)=>{
+    let c='val-tag';
+    if(s.action==='prune'&&i>=s.pruneIdx)c+=' done';
+    else if(i<s.start)c+=' done';
+    else if(i===s.chosenIdx&&s.action==='choose')c+=' active';
+    h+='<span class="'+c+'">'+v+'</span>';
+  });
+  h+='</div>';
+  if(s.action==='prune'&&s.pruneIdx>=0){
+    h+='<div style="background:#fff5f5;border:1px solid #fce4ec;border-radius:5px;padding:4px 10px;font-size:12px;color:#c62828">✂️ c['+s.pruneIdx+']='+s.candidates[s.pruneIdx]+' > '+s.remain+' → break 砍掉后面</div>';
+  }
+  h+='<div class="row-label">📦 当前路径</div><div class="path-box">';
+  if(s.path&&s.path.length){s.path.forEach((v,i)=>{if(i>0)h+='<span class="path-arrow">→</span>';h+='<span class="path-item">'+v+'</span>'})}
+  else h+='<span style="color:#aaa;font-size:13px">（空）</span>';
+  h+='</div><div class="row-label" style="margin-top:4px">📋 已收集组合 ('+s.results.length+')</div><div class="results-scroll">';
+  s.results.forEach(r=>{h+='<span class="result-item">['+r.join(',')+']</span>'});
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+function rParen(canvas,s){
+  if(s.action==='empty'){canvas.innerHTML='<div class="vis-msg">n='+s.n+' 无法生成括号</div>';return}
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='done'?'success':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">📊 括号进度（n='+s.n+'）</div><div class="flex-col">';
+  h+='<div style="display:flex;align-items:center;gap:8px;font-size:13px"><span>左 (</span><div class="prog-bar-wrap"><div class="prog-fill blue" style="width:'+(s.l/s.n*100)+'%"></div><div class="prog-label">'+s.l+'/'+s.n+'</div></div></div>';
+  h+='<div style="display:flex;align-items:center;gap:8px;font-size:13px"><span>右 )</span><div class="prog-bar-wrap"><div class="prog-fill green" style="width:'+(s.r/s.n*100)+'%"></div><div class="prog-label">'+s.r+'/'+s.n+'</div></div></div>';
+  h+='</div>';
+  const canAddLeft=s.l<s.n,canAddRight=s.r<s.l;
+  h+='<div style="display:flex;gap:10px;font-size:12px;padding:4px 0"><span>天规一：左没用完→放 ( '+(canAddLeft?'✅':'⛔')+'</span><span>天规二：右<左→放 ) '+(canAddRight?'✅':'⛔')+'</span></div>';
+  h+='<div class="row-label">📦 当前字符串</div><div style="font-size:18px;font-weight:700;font-family:Consolas,monospace;padding:4px 0;letter-spacing:2px">'+(s.path||'')+'</div>';
+  h+='<div class="row-label">📋 已收集结果 ('+s.results.length+')</div><div class="results-scroll">';
+  if(s.results.length){s.results.forEach(r=>{h+='<span class="result-item">"'+r+'"</span>'})}
+  else h+='<span style="color:#aaa;font-size:12px">暂无</span>';
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+function rWord(canvas,s){
+  const R=s.board.length,C=s.board[0].length;
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='notfound'?'': s.action==='match'?'success':'info')+'">'+(s.action==='notfound'?'❌ ':s.action==='found'?'🎉 ':s.action==='match'?'✓ ':'')+s.msg+'</div>';
+  h+='<div class="row-label">📝 单词</div><div class="flex-row" style="font-family:Consolas,monospace;font-size:15px;font-weight:700;letter-spacing:2px">';
+  for(let i=0;i<s.word.length;i++){
+    let bg=i<s.matched?'#e8f5e9':i===s.matched?'#fff3e0':'#f5f5f5';
+    let cl=i<s.matched?'#2e7d32':i===s.matched?'#e65100':'#bbb';
+    h+='<span style="background:'+bg+';color:'+cl+';padding:2px 6px;border-radius:3px">'+s.word[i]+'</span>';
+  }
+  h+='</div><div class="row-label">🗺 网格</div><div class="board-grid" style="grid-template-columns:repeat('+C+',36px)">';
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+    let cls='board-cell';
+    const ch=s.board[r][c];
+    if(ch==='#')cls+=' visited';
+    else if(s.pos&&s.pos[0]===r&&s.pos[1]===c&&s.action==='match')cls+=' current';
+    else if(s.pos&&s.pos[0]===r&&s.pos[1]===c)cls+=' matched';
+    h+='<div class="'+cls+'">'+(ch==='#'?'✗':ch)+'</div>';
+  }
+  h+='</div>';
+  if(s.dir){h+='<div style="font-size:13px;padding:2px 0">探索方向：<b>'+s.dir+'</b></div>'}
+  canvas.innerHTML=h;
+}
+
+function rQueen(canvas,s){
+  let h='<div class="vis-msg '+(s.action==='found'||s.action==='done'?'success':s.action==='conflict'?'':'info')+'">'+s.msg+'</div>';
+  h+='<div class="row-label">👑 N='+s.n+' 棋盘'+(s.row>=0?' | 当前行：'+s.row:'')+'</div>';
+  h+='<div class="queen-grid" style="grid-template-columns:repeat('+s.n+',34px)">';
+  for(let r=0;r<s.n;r++)for(let c=0;c<s.n;c++){
+    let cls='queen-cell'+((r+c)%2===0?' dark':'');
+    if(s.board&&s.board[r][c]==='Q')cls+=' queen';
+    else if(s.row===r)cls+=' row-current';
+    if(s.action==='conflict'&&s.row===r&&s.col===c)cls+=' conflict';
+    h+='<div class="'+cls+'">'+(s.board&&s.board[r][c]==='Q'?'♛':'')+'</div>';
+  }
+  h+='</div>';
+  if(s.cols&&s.cols.length){
+    h+='<div style="display:flex;flex-wrap:wrap;gap:12px;font-size:11px;padding:4px 0"><div>列: ['+s.cols.map(v=>v?'<b style="color:#c62828">T</b>':'F').join(',')+']</div>';
+    h+='<div>主\\: ['+s.d1.map(v=>v?'<b style="color:#c62828">T</b>':'F').join(',')+']</div>';
+    h+='<div>副/: ['+s.d2.map(v=>v?'<b style="color:#c62828">T</b>':'F').join(',')+']</div></div>';
+  }
+  h+='<div class="row-label">📋 解法 ('+s.solutions.length+')</div><div class="results-scroll">';
+  if(s.solutions.length){s.solutions.forEach((sol,i)=>{h+='<span class="result-item">解法'+(i+1)+'</span>'})}
+  else h+='<span style="color:#aaa;font-size:12px">暂无</span>';
+  h+='</div>';
+  canvas.innerHTML=h;
+}
+
+// ==================== Parsers ====================
+function parseNumList(s){return s.split(',').map(x=>x.trim()).filter(x=>x!=='').map(Number)}
+function parseStrList(s){return s.split(',').map(x=>x.trim())}
+
+// ==================== DOM ====================
+const panelData=[];
+
+function initPanel(idx){
+  const data=P[idx];
+  const panel=document.createElement('div');
+  panel.className='panel'+(idx===0?' active':'');
+  panel.id='panel-'+idx;
+
+  const codeStr=data.code.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const clines=codeStr.split('\n');
+  let codeHTML='<pre><code>';
+  clines.forEach((line,i)=>{
+    const ln=i+1;
+    codeHTML+='<div class="code-line" data-line="'+ln+'"><span class="lineno">'+ln+'</span>'+line+'</div>';
+  });
+  codeHTML+='</code></pre>';
+  const tagsHTML=data.tags.map(t=>'<span>🏷 '+t+'</span>').join('');
+
+  // Input config for each problem
+  const inputCfgs=[
+    {fields:[{id:'nums',label:'nums',def:'1,2,3',ph:'1,2,3',w:'160px'}],presets:[{label:'默认',v:{nums:'1,2,3'}},{label:'4元素',v:{nums:'1,2,3,4'}},{label:'含1',v:{nums:'1'}}]},
+    {fields:[{id:'nums',label:'nums',def:'1,2,3',ph:'1,2,3',w:'160px'}],presets:[{label:'默认',v:{nums:'1,2,3'}},{label:'含1',v:{nums:'1'}},{label:'4元素',v:{nums:'1,2,3,4'}}]},
+    {fields:[{id:'digits',label:'digits',def:'23',ph:'如 23',w:'100px'}],presets:[{label:'默认',v:{digits:'23'}},{label:'3位',v:{digits:'234'}},{label:'含7/9',v:{digits:'79'}},{label:'单数字',v:{digits:'2'}}]},
+    {fields:[{id:'candidates',label:'candidates',def:'2,3,6,7',ph:'2,3,6,7',w:'160px'},{id:'target',label:'target',def:'7',ph:'7',w:'60px'}],presets:[{label:'默认',v:{candidates:'2,3,6,7',target:'7'}},{label:'大剪枝',v:{candidates:'2,3,5',target:'8'}},{label:'重复选',v:{candidates:'2',target:'6'}}]},
+    {fields:[{id:'n',label:'n',def:'3',ph:'3',w:'60px'}],presets:[{label:'默认',v:{n:'3'}},{label:'n=1',v:{n:'1'}},{label:'n=4',v:{n:'4'}}]},
+    {fields:[],presets:[{label:'ABCCED',v:{preset:'abcced'}},{label:'SEE',v:{preset:'see'}},{label:'ABCB',v:{preset:'abcb'}}]},
+    {fields:[{id:'n',label:'n',def:'4',ph:'4',w:'60px'}],presets:[{label:'默认',v:{n:'4'}},{label:'n=2',v:{n:'2'}},{label:'n=5',v:{n:'5'}}]}
+  ];
+  const icfg=inputCfgs[idx];
+
+  let inputHTML='';
+  icfg.fields.forEach(f=>{
+    const t=f.type||'text';
+    inputHTML+='<label>'+f.label+' = </label><input type="'+t+'" class="custom-input" data-fid="'+f.id+'" value="'+f.def+'" placeholder="'+(f.ph||'')+'" style="width:'+(f.w||'120px')+'">';
+  });
+  let presetsHTML='<span class="preset-label">预设：</span>';
+  icfg.presets.forEach((p,pi)=>{presetsHTML+='<span class="preset-btn" data-pi="'+pi+'">'+p.label+'</span>'});
+
+  panel.innerHTML=`
+    <div class="panel-header"><h2>${data.name}</h2><div class="sub">${data.notesHTML.replace(/<[^>]+>/g,'').substring(0,120)}...</div></div>
+    <div class="top-tags">${tagsHTML}</div>
+    <div class="notes-section">${data.notesHTML}</div>
+    <div class="input-section">
+      <div class="input-row">${inputHTML}<button class="btn-apply">▶ 应用</button><button class="btn-reset-input">↺ 重置</button></div>
+      <div class="input-err-msg"></div>
+      <div class="preset-row">${presetsHTML}</div>
+    </div>
+    <div class="content">
+      <div class="code-section"><div class="code-scroll">${codeHTML}</div></div>
+      <div class="vis-section"><div class="vis-canvas-wrap" id="canvas-${idx}"></div></div>
+    </div>
+    <div class="controls">
+      <button class="btn-first" data-idx="${idx}">|◀</button>
+      <button class="btn-prev" data-idx="${idx}">◀</button>
+      <button class="btn-next btn-primary" data-idx="${idx}">▶</button>
+      <button class="btn-last" data-idx="${idx}">▶|</button>
+      <button class="btn-auto" data-idx="${idx}">▶ 自动</button>
+      <span class="step-info" id="stepInfo-${idx}">0/0</span>
+    </div>
+    <div class="complexity-bar">${data.subNotesHTML}</div>
+  `;
+  document.getElementById('panels').appendChild(panel);
+
+  const state={steps:[],stepIdx:0,running:false,timer:null};
+  panelData[idx]=state;
+
+  const inputs={};
+  panel.querySelectorAll('.custom-input').forEach(el=>{inputs[el.dataset.fid]=el});
+  const errEl=panel.querySelector('.input-err-msg');
+  const applyBtn=panel.querySelector('.btn-apply');
+  const resetBtn=panel.querySelector('.btn-reset-input');
+  const presetBtns=panel.querySelectorAll('.preset-btn');
+
+  // Input presets for word search
+  const wordPresets={
+    abcced:{board:[['A','B','C','E'],['S','F','C','S'],['A','D','E','E']],word:'ABCCED'},
+    see:{board:[['A','B','C','E'],['S','F','C','S'],['A','D','E','E']],word:'SEE'},
+    abcb:{board:[['A','B','C','E'],['S','F','C','S'],['A','D','E','E']],word:'ABCB'}
+  };
+
+  function render(){
+    const canvas=document.getElementById('canvas-'+idx);
+    if(!state.steps.length)return;
+    const si=Math.min(state.stepIdx,state.steps.length-1);
+    const step=state.steps[si];
+    const renderers=[rPermute,rSubset,rPhone,rCombo,rParen,rWord,rQueen];
+    renderers[idx](canvas,step);
+    const info=document.getElementById('stepInfo-'+idx);
+    if(info)info.textContent=state.stepIdx+'/'+(state.steps.length-1);
+    panel.querySelectorAll('.code-line').forEach(el=>el.classList.remove('highlight-line'));
+    if(step.line>0){const t=panel.querySelector('.code-line[data-line="'+step.line+'"]');if(t)t.classList.add('highlight-line')}
+    updBtns();
+  }
+  function updBtns(){
+    const n=panel.querySelector('.btn-next'),p=panel.querySelector('.btn-prev'),f=panel.querySelector('.btn-first'),l=panel.querySelector('.btn-last');
+    const a1=state.stepIdx<=0,a2=state.stepIdx>=state.steps.length-1;
+    if(f)f.disabled=a1;if(p)p.disabled=a1;if(n)n.disabled=a2;if(l)l.disabled=a2;
+  }
+
+  function applyCustom(){
+    errEl.classList.remove('show');
+    let steps=null;
+    try{
+      switch(idx){
+        case 0:{
+          const raw=inputs.nums.value.trim();
+          if(!raw){errEl.textContent='⚠️ 请输入数字';errEl.classList.add('show');return}
+          const nums=parseNumList(raw);
+          if(nums.some(isNaN))throw 'nums 无效';
+          steps=buildPermuteSteps(nums);
+          break}
+        case 1:{
+          const raw=inputs.nums.value.trim();
+          if(!raw){errEl.textContent='⚠️ 请输入数字';errEl.classList.add('show');return}
+          const nums=parseNumList(raw);
+          if(nums.some(isNaN))throw 'nums 无效';
+          steps=buildSubsetSteps(nums);
+          break}
+        case 2:{
+          const d=inputs.digits.value.trim();
+          if(d&&!/^[2-9]+$/.test(d)){errEl.textContent='⚠️ 仅包含数字 2-9';errEl.classList.add('show');return}
+          steps=buildPhoneSteps(d);
+          break}
+        case 3:{
+          const cr=inputs.candidates.value.trim(),tr=inputs.target.value.trim();
+          if(!cr){errEl.textContent='⚠️ 请输入 candidates';errEl.classList.add('show');return}
+          if(!tr){errEl.textContent='⚠️ 请输入 target';errEl.classList.add('show');return}
+          const c=parseNumList(cr),t=Number(tr);
+          if(c.some(isNaN))throw 'candidates 无效';
+          if(isNaN(t))throw 'target 无效';
+          steps=buildComboSteps(c,t);
+          break}
+        case 4:{
+          const n=parseInt(inputs.n.value);
+          if(isNaN(n)||n<1){errEl.textContent='⚠️ n 必须是 ≥1 的整数';errEl.classList.add('show');return}
+          steps=buildParenSteps(n);
+          break}
+        case 5:steps=buildWordSteps(wordPresets.abcced.board,wordPresets.abcced.word);break;
+        case 6:{
+          const n=parseInt(inputs.n.value);
+          if(isNaN(n)||n<1||n>8){errEl.textContent='⚠️ n 范围 1-8';errEl.classList.add('show');return}
+          steps=buildQueenSteps(n);
+          break}
+      }
+      if(steps){state.steps=steps;state.stepIdx=0;stopAuto();render()}
+    }catch(e){errEl.textContent='⚠️ '+e;errEl.classList.add('show')}
+  }
+
+  function resetDefault(){
+    errEl.classList.remove('show');
+    const ic=inputCfgs[idx];
+    ic.fields.forEach(f=>{if(inputs[f.id])inputs[f.id].value=f.def});
+    applyCustom();
+  }
+
+  function stopAuto(){
+    if(state.timer){clearInterval(state.timer);state.timer=null;state.running=false}
+    const ab=panel.querySelector('.btn-auto');if(ab)ab.textContent='▶ 自动';
+  }
+
+  function applyPreset(pi){
+    const p=inputCfgs[idx].presets[pi];
+    if(!p)return;
+    errEl.classList.remove('show');
+    if(idx===5){ // word search presets
+      const key=p.v.preset;
+      const w=wordPresets[key];
+      if(w)state.steps=buildWordSteps(w.board,w.word);
+      state.stepIdx=0;stopAuto();render();
+      presetBtns.forEach(b=>b.classList.remove('active'));
+      presetBtns[pi].classList.add('active');
+      return;
+    }
+    Object.entries(p.v).forEach(([k,v])=>{if(inputs[k])inputs[k].value=v});
+    presetBtns.forEach(b=>b.classList.remove('active'));
+    presetBtns[pi].classList.add('active');
+    applyCustom();
+  }
+
+  applyBtn.addEventListener('click',applyCustom);
+  resetBtn.addEventListener('click',resetDefault);
+  panel.querySelectorAll('.custom-input').forEach(el=>{el.addEventListener('keydown',e=>{if(e.key==='Enter')applyCustom()})});
+  presetBtns.forEach(b=>{b.addEventListener('click',()=>applyPreset(parseInt(b.dataset.pi)))});
+
+  panel.querySelector('.btn-next').addEventListener('click',()=>{if(state.stepIdx<state.steps.length-1){state.stepIdx++;render()}});
+  panel.querySelector('.btn-prev').addEventListener('click',()=>{if(state.stepIdx>0){state.stepIdx--;render()}});
+  panel.querySelector('.btn-first').addEventListener('click',()=>{state.stepIdx=0;render()});
+  panel.querySelector('.btn-last').addEventListener('click',()=>{state.stepIdx=state.steps.length-1;render()});
+  panel.querySelector('.btn-auto').addEventListener('click',()=>{
+    if(state.running){stopAuto()}else{
+      state.running=true;panel.querySelector('.btn-auto').textContent='⏸';
+      state.timer=setInterval(()=>{
+        if(state.stepIdx<state.steps.length-1){state.stepIdx++;render()}
+        else{stopAuto()}
+      },600);
+    }
+  });
+
+  const ro=new ResizeObserver(()=>render());
+  ro.observe(document.getElementById('canvas-'+idx));
+  state.render=render;
+  panelData[idx]=state;
+  resetDefault();
+}
+
+// Boot
+P.forEach((_,idx)=>initPanel(idx));
+document.querySelectorAll('.sort-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    panelData.forEach(s=>{if(s&&s.timer){clearInterval(s.timer);s.timer=null;s.running=false}});
+    document.querySelectorAll('.sort-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b=>b.textContent='▶ 自动');
+    tab.classList.add('active');
+    const idx=parseInt(tab.dataset.idx);
+    document.getElementById('panel-'+idx).classList.add('active');
+    const s=panelData[idx];
+    if(s&&s.render)setTimeout(()=>s.render(),50);
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>训练中常见问题 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">深度学习与 Transformer</a><span aria-hidden="true">›</span><span aria-current="page">训练中常见问题</span></nav><div class="module-meta">模型与训练 · 第 9 / 18 章</div><h1>训练中常见问题</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>9.1 过拟合</h3>
+<p>表现：训练损失持续下降，验证损失先下降后上升。</p>
+<p>处理方法：</p>
+<ul>
+<li>增加和清洗数据；</li>
+<li>数据增强；</li>
+<li>减小模型；</li>
+<li>Weight Decay、Dropout；</li>
+<li>Early Stopping；</li>
+<li>使用预训练模型。</li>
+</ul>
+<h3>9.1.1 Dropout 为什么只在训练时启用</h3>
+<p>Dropout 训练时随机将部分激活置零，迫使网络不能过度依赖某几个通路。为保持期望尺度，框架通常对保留下来的激活进行缩放。推理时使用完整网络，不再随机屏蔽。</p>
+<p>因此忘记 <code>model.eval()</code> 会让预测随机且性能下降。Dropout 比例太高会造成欠拟合；在 BatchNorm、残差网络和大型预训练模型中，最佳使用方式依架构而异。</p>
+<h3>9.1.2 Weight Decay 与 L2 正则化</h3>
+<p>L2 正则在损失中加入权重平方和，抑制过大参数。Weight Decay 直接在更新时衰减权重。在普通 SGD 中二者常等价，但在 Adam 等自适应优化器中并不完全等价，因此常使用 AdamW 将权重衰减与梯度更新解耦。</p>
+<p>偏置、LayerNorm 参数等常不做 Weight Decay。正则强度必须在验证集上选择。</p>
+<h3>9.2 梯度消失和爆炸</h3>
+<p>深层网络反向传播时，梯度可能越来越小或越来越大。ReLU、合理初始化、残差连接、归一化和梯度裁剪有助于缓解。</p>
+<h3>9.2.1 为什么残差连接能缓解梯度问题</h3>
+<p>在 <span class="math-inline-wrap"><math class="math-inline" aria-label="y=F(x)+x"><mrow><mi>y</mi><mo>=</mo><mi>F</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><mi>x</mi></mrow></math></span> 中，反向梯度包含一条经过 <span class="math-inline-wrap"><math class="math-inline" aria-label="F"><mrow><mi>F</mi></mrow></math></span> 的路径和一条恒等路径。即使 <span class="math-inline-wrap"><math class="math-inline" aria-label="F"><mrow><mi>F</mi></mrow></math></span> 的梯度很小，恒等路径仍能传递信号。这不是保证所有深网都不会梯度消失，但显著改善了优化。</p>
+<p>梯度爆炸可通过初始化、归一化、残差缩放、较小学习率和梯度裁剪缓解。应记录梯度范数；若突然增大，定位对应批次和层。</p>
+<h3>9.3 类别不平衡</h3>
+<p>可使用类别权重、重采样、Focal Loss，并报告精确率、召回率、F1 和 PR-AUC，而不只看准确率。</p>
+<h3>9.3.1 类别不平衡不只靠重采样</h3>
+<p>重采样改变训练分布，类别权重改变损失贡献，阈值调整改变最终决策，三者作用阶段不同。</p>
+<p>过采样少数类可能重复噪声，欠采样多数类会丢信息。使用类别权重后，输出概率可能需要重新校准。评价应使用真实线上类别比例，并报告 PR-AUC、各类召回和混淆矩阵。</p>
+<h3>9.4 学习率不合适</h3>
+<ul>
+<li>太大：损失剧烈波动、出现 NaN；</li>
+<li>太小：损失下降极慢；</li>
+<li>常用 Learning Rate Scheduler 在训练过程中调整学习率。</li>
+</ul>
+<h3>9.5 训练结果无法复现</h3>
+<p>应记录数据、代码、依赖、模型配置、随机种子、硬件和评价方法。GPU 某些运算仍可能存在非确定性。</p>
+<h3>9.5.1 随机性来自哪里</h3>
+<p>随机初始化、数据打乱、数据增强、Dropout、多进程加载和 GPU 并行算法都可能引入随机性。固定 Python、NumPy、PyTorch 和 DataLoader Worker 的种子只能覆盖部分来源。</p>
+<p>完全确定性可能禁用高性能算法。研究复现和生产吞吐的要求不同，应明确记录是否开启确定性模式，而不是承诺所有设备逐位相同。</p>
+<hr />
+<h3>9.6 先排查数据和代码</h3>
+<p>模型不学习时，优先检查：</p>
+<ol>
+<li>标签和输入是否对齐；</li>
+<li>输出 shape 与损失函数是否匹配；</li>
+<li>数据范围和归一化是否合理；</li>
+<li>梯度是否存在、参数是否真的更新；</li>
+<li>在很小数据集上能否过拟合。</li>
+</ol>
+<p>如果模型连几十个样本都无法记住，通常先怀疑实现或数据，而不是正则化不足。</p>
+<hr />
+<h3>9.7 损失不下降时的最小过拟合测试</h3>
+<p>从训练集中只取 10～50 个样本，关闭数据增强和大部分正则化，尝试让模型几乎完全记住它们。如果做不到，优先检查：标签、损失、输出、梯度、数据范围和实现。若能记住小样本却无法泛化，再处理数据量、正则化和模型选择。</p>
+<h3>9.8 NaN 和数值不稳定</h3>
+<p>常见原因有学习率过大、除以零、对非正数取对数、指数溢出、半精度范围不足和梯度爆炸。应定位第一个出现非有限值的层，而不是只在最终损失上用 <code>nan_to_num</code> 掩盖。</p>
+<p>成熟损失函数常使用 LogSumExp 等稳定技巧，因此优先使用框架提供的 <code>CrossEntropyLoss</code>、<code>BCEWithLogitsLoss</code>，不要先 Sigmoid 再手写对数。</p>
+<h3>9.9 数据增强过强也会伤害模型</h3>
+<p>增强必须保持标签。随机水平翻转对普通物体可能合理，对文字、交通标志和医学左右方向可能改变含义。Mixup、CutMix 等通过混合图片和标签提供正则化，但会影响概率解释和定位任务。</p>
+<p>应可视化增强后的样本，确认人仍能正确识别，并在验证集上比较。</p>
+<h3>9.10 预训练模型的输入规范</h3>
+<p>预训练模型往往要求特定颜色通道、分辨率、均值方差、Tokenizer、特殊 Token 和最大长度。使用错误预处理不会总是报错，却可能大幅降低效果。预处理配置应随模型权重一起版本化。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
+<script>const contentId="deep-learning:09",moduleId="deep-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

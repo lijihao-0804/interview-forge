@@ -1,0 +1,204 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>基本语法与类型系统 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 核心：语言根基</a><span aria-hidden="true">›</span><span aria-current="page">基本语法与类型系统</span></nav><div class="module-meta">Java 语言 · 第 3 / 18 章</div><h1>基本语法与类型系统</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>类型系统是 Java 的“世界观”：一切数据要么是基本类型（存在栈上、按值传递），要么是对象引用（指向堆上的对象）。这一章先把类型、包装类和运算符讲清楚，集合与泛型章节都会用到。</p>
+<h3>2.1 八种基本类型</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>字节数</th>
+<th>默认值</th>
+<th>取值范围（节选）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>byte</code></td>
+<td>1</td>
+<td>0</td>
+<td>-128 ~ 127</td>
+</tr>
+<tr>
+<td><code>short</code></td>
+<td>2</td>
+<td>0</td>
+<td>-32768 ~ 32767</td>
+</tr>
+<tr>
+<td><code>int</code></td>
+<td>4</td>
+<td>0</td>
+<td>约 ±21 亿</td>
+</tr>
+<tr>
+<td><code>long</code></td>
+<td>8</td>
+<td>0L</td>
+<td>±9.22e18</td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td>4</td>
+<td>0.0f</td>
+<td>单精度浮点</td>
+</tr>
+<tr>
+<td><code>double</code></td>
+<td>8</td>
+<td>0.0d</td>
+<td>双精度浮点</td>
+</tr>
+<tr>
+<td><code>char</code></td>
+<td>2</td>
+<td><code>'\u0000'</code></td>
+<td>0 ~ 65535（无符号）</td>
+</tr>
+<tr>
+<td><code>boolean</code></td>
+<td>规范未定</td>
+<td>false</td>
+<td>true / false</td>
+</tr>
+</tbody>
+</table>
+<p>要点：</p>
+<ul>
+<li><code>char</code> 是无符号 16 位，Java 内部用 UTF-16 表示字符，所以一个“字符”不总等于一个 Unicode 码点，生僻字或 emoji 需要两个 <code>char</code>（代理对）。</li>
+<li><code>boolean</code> 在 JLS 中没有规定精确大小：HotSpot 中局部变量通常占 4 字节，<code>boolean[]</code> 每个元素占 1 字节。</li>
+<li>浮点默认字面量是 <code>double</code>，写 <code>float f = 1.2;</code> 会编译报错，必须写 <code>1.2f</code>。</li>
+<li>长整型字面量建议加 <code>L</code>：<code>long x = 12345678901L;</code>。</li>
+</ul>
+<h3>2.2 基本类型 vs 引用类型：== 与 equals</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kt">int</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">b</span><span class="p">);</span><span class="w">        </span><span class="c1">// true，基本类型比较的是值</span>
+
+<span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;abc&quot;</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;abc&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">      </span><span class="c1">// false，引用类型 == 比较的是地址</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">s2</span><span class="p">));</span><span class="w"> </span><span class="c1">// true，equals 比较的是内容</span>
+</code></pre></div>
+<p>规则只有一条：<strong><code>==</code> 比较基本类型的值；比较引用类型时只比较“是否指向同一个对象”</strong>。要比较对象内容必须用 <code>equals</code>，而自定义类要比较内容就必须重写 <code>equals</code>（见“Object 与 String”章）。</p>
+<h3>2.3 包装类与自动装箱、拆箱</h3>
+<p>每个基本类型都有对应的包装类：<code>Byte</code>、<code>Short</code>、<code>Integer</code>、<code>Long</code>、<code>Float</code>、<code>Double</code>、<code>Character</code>、<code>Boolean</code>。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">Integer</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span><span class="w">     </span><span class="c1">// 自动装箱：等价于 Integer.valueOf(100)</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w">           </span><span class="c1">// 自动拆箱：等价于 i.intValue()</span>
+</code></pre></div>
+<p>包装类有两个高频考点：</p>
+<p><strong>1. 缓存池</strong>。<code>Integer</code>、<code>Long</code>、<code>Short</code>、<code>Byte</code> 默认缓存 -128~127，<code>Character</code> 缓存 0~127，<code>Boolean</code> 只有 true/false。<code>Integer</code> 缓存上限可用 <code>-XX:AutoBoxCacheMax</code> 调整。<code>valueOf</code> 优先返回缓存对象，<code>new Integer()</code> 一定创建新对象（JDK 9 起该构造器已废弃）。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">Integer</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">b</span><span class="p">);</span><span class="w">  </span><span class="c1">// true，命中缓存</span>
+
+<span class="n">Integer</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">d</span><span class="p">);</span><span class="w">  </span><span class="c1">// false，超出缓存范围，是两个对象</span>
+</code></pre></div>
+<p><strong>2. 拆箱空指针</strong>。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">Integer</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">   </span><span class="c1">// 抛 NullPointerException：拆箱时调用 x.intValue()</span>
+</code></pre></div>
+<p>比较包装类一律用 <code>equals</code> 或拆成基本类型后再比，不要用 <code>==</code> 赌缓存范围。<code>Integer</code> 与 <code>int</code> 混用时 <code>==</code> 会触发自动拆箱，所以 <code>new Integer(100) == 100</code> 为 true。</p>
+<h3>2.4 final、static 与访问修饰符</h3>
+<table>
+<thead>
+<tr>
+<th>修饰符</th>
+<th>修饰类</th>
+<th>修饰方法</th>
+<th>修饰变量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>final</code></td>
+<td>不可被继承</td>
+<td>不可被重写</td>
+<td>引用不可变（对象内容仍可变）</td>
+</tr>
+<tr>
+<td><code>static</code></td>
+<td>只能修饰内部类（静态内部类）</td>
+<td>属于类，不依赖实例</td>
+<td>属于类，只有一份</td>
+</tr>
+<tr>
+<td><code>abstract</code></td>
+<td>抽象类，不可实例化</td>
+<td>抽象方法，只有声明</td>
+<td>不可用</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">final</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Config</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">          </span><span class="c1">// 不能被继承</span>
+
+<span class="kd">class</span> <span class="nc">User</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w">               </span><span class="c1">// 初始化后不可再赋值</span>
+<span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="p">;</span><span class="w">           </span><span class="c1">// 所有实例共享</span>
+
+<span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">reset</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">     </span><span class="c1">// 类方法，通过 类名.方法名 调用</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>访问修饰符控制可见性，从宽到窄：</p>
+<table>
+<thead>
+<tr>
+<th>修饰符</th>
+<th>同类</th>
+<th>同包</th>
+<th>子类</th>
+<th>任意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>public</code></td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>protected</code></td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+<td>否</td>
+</tr>
+<tr>
+<td>默认（包私有）</td>
+<td>是</td>
+<td>是</td>
+<td>否</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>private</code></td>
+<td>是</td>
+<td>否</td>
+<td>否</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<code>protected</code> 的“子类可访问”指的是子类内部通过继承访问，不是说子类能访问父类实例的 protected 字段。</p>
+<h3>2.5 运算符与类型转换</h3>
+<ul>
+<li><strong>类型提升</strong>：运算时 <code>byte</code>/<code>short</code>/<code>char</code> 先提升为 <code>int</code>，所以 <code>byte a = 1; byte b = a + a;</code> 编译报错，要写成 <code>byte b = (byte)(a + a);</code>。</li>
+<li><strong>隐式转换</strong>：小范围向大范围自动转（<code>int → long → float → double</code>）；<code>long → float</code> 精度可能丢失但语法允许。</li>
+<li><strong>强制转换</strong>：大范围向小范围可能截断：<code>int x = 130; byte y = (byte)x;</code> 结果是 -126。</li>
+<li><strong>短路运算</strong>：<code>&amp;&amp;</code>、<code>||</code> 左侧能决定结果时不再计算右侧；<code>&amp;</code>、<code>|</code> 不短路。</li>
+<li><strong>位运算</strong>：<code>&amp;</code> 按位与、<code>|</code> 按位或、<code>^</code> 异或、<code>~</code> 取反；<code>&lt;&lt;</code> 左移补零、<code>&gt;&gt;</code> 右移保留符号位、<code>&gt;&gt;&gt;</code> 无符号右移补零。<code>int</code> 移位距离按 32 取模，<code>long</code> 按 64 取模。</li>
+<li><strong>溢出</strong>：<code>Integer.MAX_VALUE + 1</code> 会回绕成 <code>Integer.MIN_VALUE</code> 且不抛异常；需要检测溢出时用 <code>Math.addExact</code>、<code>Math.multiplyExact</code>（溢出抛 <code>ArithmeticException</code>）。</li>
+<li><strong>三目运算</strong>：<code>条件 ? 表达式1 : 表达式2</code>，两分支类型不一致时可能发生隐式转换，例如 <code>Object o = flag ? 1 : 2.0;</code> 结果是 <code>Double</code>。</li>
+</ul>
+<h3>2.6 面试追问</h3>
+<ul>
+<li>问：<code>Integer a = 200; Integer b = 200; a == b</code> 结果？</li>
+<li>答：false。<code>200</code> 超出 -128~127 缓存范围，<code>valueOf</code> 创建两个不同对象。</li>
+<li>问：自动装箱拆箱的原理？</li>
+<li>答：装箱调用包装类的 <code>valueOf</code>，拆箱调用 <code>intValue</code> 等 xxxValue 方法；拆箱 null 会抛 NPE。</li>
+<li>问：<code>short s1 = 1; s1 = s1 + 1;</code> 能否编译？</li>
+<li>答：不能。<code>s1 + 1</code> 提升为 <code>int</code>，需要强制转换；<code>s1 += 1</code> 可以，因为复合赋值隐含强制转换。</li>
+<li>问：<code>final</code> 修饰的引用能修改对象内容吗？</li>
+<li>答：能。<code>final</code> 只保证引用不再指向别的对象，不保证对象内部状态不变。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-core:03",moduleId="java-core";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

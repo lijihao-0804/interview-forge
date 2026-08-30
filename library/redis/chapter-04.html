@@ -1,0 +1,113 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>持久化：RDB 与 AOF · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Redis：数据结构、缓存与高可用</a><span aria-hidden="true">›</span><span aria-current="page">持久化：RDB 与 AOF</span></nav><div class="module-meta">数据存储 · 第 4 / 8 章</div><h1>持久化：RDB 与 AOF</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>Redis 是内存数据库，重启后内存数据清空；是否丢数据取决于持久化配置与最近一次落盘时机（默认 save 规则下会按条件落盘）。持久化要回答的就是“怎么不丢、丢多少可接受”。</p>
+<h3>3.1 RDB 快照</h3>
+<p>RDB 把内存数据以二进制快照写入磁盘：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">SAVE<span class="w">      </span><span class="c1"># 同步阻塞（生产不用）</span>
+BGSAVE<span class="w">    </span><span class="c1"># fork 子进程后台保存（常用）</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件紧凑、恢复快</td>
+<td>快照间隔期间的数据会丢</td>
+</tr>
+<tr>
+<td>适合备份/迁移</td>
+<td>fork 大实例有短暂阻塞；COW 只复制快照期间脏页，内存占用可能显著上升，需评估</td>
+</tr>
+</tbody>
+</table>
+<p>触发：手动 BGSAVE、自动 save 条件（7.0 起默认 <code>save 3600 1 300 100 60 10000</code>，旧示例 <code>save 900 1</code> 需自行配置）、主从全量同步。</p>
+<p><strong>默认规则翻译成丢失窗口</strong>：<code>save 3600 1 300 100 60 10000</code> = 3600 秒内 1 次、300 秒内 100 次、60 秒内 1 万次变更任一满足就快照，最坏情况重启丢最近 1 小时数据；AOF everysec 的“1 秒”是每秒钟最多丢 1 秒窗口；AOF 重写中途崩溃：旧 AOF 原样保留、临时文件作废，重启仍按旧文件恢复，不会出现半截文件。</p>
+<h3>3.2 AOF 追加日志</h3>
+<p>AOF 把每条<strong>写命令</strong>追加到文件，重启时重放恢复：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">CONFIG<span class="w"> </span>SET<span class="w"> </span>appendonly<span class="w"> </span>yes
+CONFIG<span class="w"> </span>SET<span class="w"> </span>appendfsync<span class="w"> </span>everysec<span class="w">    </span><span class="c1"># always / everysec / no</span>
+</code></pre></div>
+<p>刷盘策略：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>安全性</th>
+<th>性能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>always</td>
+<td>每命令 fsync，最多丢 1 条</td>
+<td>最慢</td>
+</tr>
+<tr>
+<td>everysec</td>
+<td>每秒 fsync，最多丢 1 秒</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>no</td>
+<td>交给操作系统</td>
+<td>最快，可能丢多</td>
+</tr>
+</tbody>
+</table>
+<p>问题：AOF 文件不断变大 → <strong>AOF 重写（rewrite）</strong>：fork 子进程根据当前内存生成最小命令集，替换旧文件。手动触发 <code>BGREWRITEAOF</code>；自动条件 <code>auto-aof-rewrite-percentage</code>（默认 100%）与 <code>auto-aof-rewrite-min-size</code>（默认 64mb）同时满足才触发。</p>
+<h3>3.3 混合持久化（Redis 4.0）</h3>
+<p><code>aof-use-rdb-preamble</code>：4.0 引入时默认关、5.0 起默认开；开启后 AOF 文件 = <strong>RDB 快照头 + 之后的增量命令</strong>，重启时先加载 RDB 再重放增量，兼顾“恢复快”和“丢得少”。7.0 起 AOF 采用多文件架构（base RDB + 增量 AOF + manifest）。</p>
+<p><strong>恢复优先级</strong>：同时存在时优先 AOF（数据更全）。</p>
+<h3>3.4 对比与选型</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>RDB</th>
+<th>AOF</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据完整性</td>
+<td>可能丢一个快照周期</td>
+<td>everysec 最多丢 1 秒</td>
+</tr>
+<tr>
+<td>文件大小</td>
+<td>小</td>
+<td>大（可重写）</td>
+</tr>
+<tr>
+<td>恢复速度</td>
+<td>快</td>
+<td>慢（开启混合持久化后接近 RDB）</td>
+</tr>
+<tr>
+<td>备份友好</td>
+<td>是</td>
+<td>一般</td>
+</tr>
+<tr>
+<td>推荐</td>
+<td>备份/冷备</td>
+<td>生产主持久化</td>
+</tr>
+</tbody>
+</table>
+<p>生产组合：<strong>AOF everysec 为主 + RDB 定时备份</strong>（或 4.0+ 混合持久化）。</p>
+<h3>3.5 面试追问</h3>
+<ul>
+<li>问：RDB 和 AOF 的区别？</li>
+<li>答：RDB 二进制快照、恢复快、丢一个周期；AOF 命令追加、丢得少、文件大；4.0 起可混合。</li>
+<li>问：AOF 刷盘策略怎么选？</li>
+<li>答：everysec 是默认与推荐，最多丢 1 秒；对账/交易场景可 always。</li>
+<li>问：重启恢复用哪个？</li>
+<li>答：AOF 优先，数据更全。</li>
+<li>问：AOF 重写是做什么？</li>
+<li>答：根据当前内存生成最小命令集，压缩文件体积。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-03.html">← 上一章</a><a href="chapter-05.html">下一章 →</a></nav></main></div>
+<script>const contentId="redis:04",moduleId="redis";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

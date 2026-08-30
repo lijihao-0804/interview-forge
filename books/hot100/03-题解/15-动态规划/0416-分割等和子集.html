@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>416. 分割等和子集 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 15-动态规划</div>
+        <h1 id="416">416. 分割等和子集</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分空间压缩版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的关键拷问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/15-动态规划.html">← 动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>0-1 背包</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n·target)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(target)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个 <strong>只包含正整数</strong> 的 <strong>非空</strong> 数组 <code>nums</code> 。请你判断是否可以将这个数组分割成两个子集，使得两个子集的元素和相等。</p>
+<p><a href="https://leetcode.cn/problems/partition-equal-subset-sum/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>容量倒序保证每个数字只使用一次。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（回溯的灾难）</strong>：</p>
+<p>最直观的想法是对每一个数字做抉择：“放入左集合”或“放入右集合”。这就是标准的回溯法（DFS）。</p>
+<p><strong>痛点</strong>：每一个数字都有 2 种选择，时间复杂度高达 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(2^N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mn>2</mn><mi>N</mi></msup><mo>)</mo></mrow></math></span>。如果数组长度超过 30，直接超时到天荒地老。</p>
+</li>
+<li>
+<p><strong>降维破局（数学转换 + 背包登场）</strong>：</p>
+<p>怎么才能让两个集合的和相等？</p>
+<p>显然，整个数组的<strong>总和必须是偶数</strong>！如果总和是奇数，比如 11，你怎么可能把它平分成两个整数？直接判死刑返回 <code>false</code>。</p>
+<p>如果总和是偶数（假设是 22），那么目标就极其明确了：<strong>我们只需要从数组里挑出几个数，让它们的和恰好等于总和的一半（11）即可。</strong></p>
+<p>一旦挑出了和为 11 的子集，剩下的数字自然而然和也是 11。</p>
+<p>这完美的契合了“0-1 背包”的模型：有一个容量为 <code>11</code> 的背包，每个数字是一件物品（重量和价值都是数字本身），每件物品只能用一次，问能不能刚好把背包塞满？</p>
+</li>
+<li>
+<p><strong>核心微操（状态转移方程）</strong>：</p>
+<p>我们定义一个布尔数组 <code>dp[j]</code>：表示<strong>能否从数组中挑出一些数字，使得它们的和恰好等于 <code>j</code></strong>。</p>
+<p>假设我们正准备考虑数字 <code>nums[i]</code>，要更新 <code>dp[j]</code> 时，我们有两种选择：</p>
+<ul>
+<li>
+<p><strong>不把 <code>nums[i]</code> 放入背包</strong>：那能否凑出 <code>j</code>，完全取决于历史记录 <code>dp[j]</code> 本身是不是 <code>true</code>。</p>
+</li>
+<li>
+<p><strong>把 <code>nums[i]</code> 放入背包</strong>：那能否凑出 <code>j</code>，取决于我们在没放它之前，能否凑出 <code>j - nums[i]</code>。也就是看历史记录 <code>dp[j - nums[i]]</code> 是不是 <code>true</code>。</p>
+</li>
+</ul>
+<p>只要这两种情况有一种为 <code>true</code>，现在的 <code>dp[j]</code> 就是 <code>true</code>。</p>
+<p>方程：<span class="math-inline-wrap"><math class="math-inline" aria-label="dp[j] = dp[j] || dp[j - nums[i]]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mspace width=".17em"/><mo>|</mo><mo>|</mo><mspace width=".17em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>j</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mi>nums</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>]</mo></mrow></math></span></p>
+<h3 id="java">Java 实现（满分空间压缩版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canPartition</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">sum</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">num</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 致命剪枝：如果总和是奇数，绝对不可能平分</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// dp[j] 表示能否凑出和为 j 的子集</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[</span><span class="n">target</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 🌟 初始化基石：凑出和为 0 是永远可以的（什么都不选就行）</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 外层循环：遍历每一件“物品”（每个数字）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 🌟 致命工程细节：内层循环【必须倒序遍历】！</span>
+<span class="w">            </span><span class="c1">// 从 target 一直往回退，退到装不下当前物品 nums[i] 为止</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">target</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 状态转移：要么不选当前物品（维持 dp[j]），要么选当前物品（依赖 dp[j - nums[i]]）</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]]</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 性能优化（剪枝）：如果在遍历中途，dp[target] 已经变成 true 了，直接提前胜利下班！</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">target</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">target</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N × target)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mtext>target</mtext><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是数组长度，<span class="math-inline-wrap"><math class="math-inline" aria-label="target"><mrow><mtext>target</mtext></mrow></math></span> 是总和的一半。典型的伪多项式时间复杂度。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(target)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mtext>target</mtext><mo>)</mo></mrow></math></span>。仅仅开辟了一个长度为 <code>target + 1</code> 的一维布尔数组，极致的空间压缩。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的关键拷问）</h3>
+<ul>
+<li><strong>面试面试官最爱抓的破绽：“在『完全背包』（如零钱兑换）里，内层循环是从小到大正序遍历的；为什么在这道『0-1 背包』里，内层循环【必须从大到小倒序遍历】？”</strong></li>
+<li><strong>满分保命回答（时空倒流法则）</strong>：<ul>
+<li>如果我们<strong>正序遍历</strong>：假设当前物品是 <code>2</code>。我们在算 <code>dp[2]</code> 时用到了 <code>dp[0]</code> 变成了 <code>true</code>。紧接着算 <code>dp[4]</code> 时，会去查 <code>dp[2]</code>。此时的 <code>dp[2]</code> 刚刚被这件物品 <code>2</code> 染成了 <code>true</code>，导致 <code>dp[4]</code> 也变成了 <code>true</code>！这等于<strong>把同一件物品 <code>2</code> 用了两次</strong>！这就退化成了“完全背包”问题。</li>
+<li>如果我们<strong>倒序遍历</strong>：算 <code>dp[4]</code> 时去查 <code>dp[2]</code>，此时由于还没遍历到索引 2，所以这个 <code>dp[2]</code> 绝对是<strong>上一轮历史留下来的干净数据</strong>（没有被当前物品污染过）。倒序遍历完美保证了：<strong>在更新当前层的 <code>dp</code> 时，依赖的永远是上一层的状态，从而确保每件物品严格只被使用一次！</strong></li>
+</ul>
+</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0152-乘积最大子数组.html">← 152. 乘积最大子数组</a> · <a href="0032-最长有效括号.html">32. 最长有效括号 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/15-动态规划-0-1 背包问题：倒序遍历演示.html?embed=1" title="416. 分割等和子集的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>62. 不同路径 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 16-多维动态规划</div>
+        <h1 id="62">62. 不同路径</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分一维空间压缩版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的连环计）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/16-多维动态规划.html">← 多维动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>网格路径计数</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>一个机器人位于一个 <code>m x n</code> 网格的左上角（起始点在下图中标记为 “Start” ）。</p>
+<p>机器人每次只能<strong>向下</strong>或者<strong>向右</strong>移动一步。机器人试图达到网格的右下角。</p>
+<p>问总共有多少条不同的路径？</p>
+<p><a href="https://leetcode.cn/problems/unique-paths/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>当前位置方案数来自上方与左方。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（DFS 穷举的死局）</strong>：</p>
+<p>第一直觉往往是回溯法（DFS）：站在起点，要么往下走，要么往右走，一直试探到终点。</p>
+<p><strong>痛点</strong>：随着网格变大，路径数量呈指数级爆炸。比如 20x20 的网格，路径数高达 353 亿条，DFS 会直接超时（TLE）到天荒地老。</p>
+</li>
+<li>
+<p><strong>降维破局（转移方程的推导）</strong>：</p>
+<p>闭上眼睛想一想：机器人是怎么走到终点 <code>(i, j)</code> 的？</p>
+<p>因为规定了只能向右或向下，所以它<strong>必定</strong>是从上面一格 <code>(i-1, j)</code> 走下来的，<strong>或者</strong>是从左边一格 <code>(i, j-1)</code> 走过来的。</p>
+<p>这就意味着：<strong>到达 <code>(i, j)</code> 的路径总数 = 到达上方格子的路径数 + 到达左方格子的路径数！</strong></p>
+<p>完美的状态转移方程诞生：</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = dp[i-1][j] + dp[i][j-1]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo></mrow></math></span></p>
+</li>
+<li>
+<p><strong>核心微操（边界基石的奠定）</strong>：</p>
+<p>有了公式，我们需要推导的“第一推动力”（基底状态）。</p>
+<ul>
+<li><strong>第一行</strong>：机器人要走到第一行的任何一个格子，只能死死地一直往右走。所以第一行所有的格子，路径数都是 <strong>1</strong>。</li>
+<li><strong>第一列</strong>：同理，走到第一列的任何一个格子，只能一直往下走。路径数也全都是 <strong>1</strong>。</li>
+</ul>
+<h3 id="java">Java 实现（满分一维空间压缩版）</h3>
+<blockquote>
+<p>在常规解法中，我们会开辟一个 <code>m x n</code> 的二维数组。但面试面试通常要求优化空间。</p>
+<p><strong>空间降维奥义</strong>：我们在计算第 <code>i</code> 行的 <code>dp</code> 值时，其实只需要用到第 <code>i-1</code> 行（上一行）的数据和当前行刚刚算出的左边的数据。所以，我们<strong>只需要一个一维数组在原地不断滚动更新</strong>即可！</p>
+</blockquote>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">uniquePaths</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// dp 数组代表到达当前行各个列的路径数</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 🌟 边界初始化：第一行的所有格子，都只有 1 条路径（一直向右）</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 从第二行（i = 1）开始，逐行向下计算</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 从第二列（j = 1）开始，逐列向右计算</span>
+<span class="w">            </span><span class="c1">// 注意：第一列永远是 1（一直向下），所以不用管它，直接从 j=1 开始</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 核心状态转移方程在降维后的体现：</span>
+<span class="w">                </span><span class="c1">// 此时的 dp[j] 在等号右边代表的是“上方格子的路径数”（旧数据还没被覆盖）</span>
+<span class="w">                </span><span class="c1">// 此时的 dp[j-1] 代表的是“左方格子的路径数”（刚刚在这轮循环算出来的新数据）</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 算到最后，数组最后一位就是右下角的终点答案</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(m × n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>m</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>。我们需要遍历整个网格的大部分格子。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。我们极其优美地将二维数组压缩成了一个长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 的一维数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的连环计）</h3>
+<ol>
+<li><strong>面试追问 1：“如果网格里有一些【障碍物】（机器人走不过去），代码怎么改？”（对应力扣 63 题：不同路径 II）</strong>
+   - <strong>满分抢答（障碍物结界）</strong>：只需要在状态转移时加一个极简单的判断！
+   - 遇到障碍物的格子，它的路径数直接强行设为 <code>0</code>（死路一条，无法通行）。
+   - 其余的格子照常执行 <span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = dp[i-1][j] + dp[i][j-1]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo></mrow></math></span>。因为障碍物已经是 0 了，它自然不会把路径数贡献给右边和下边的格子，DP 逻辑依然完美自洽！</li>
+<li><strong>面试终极进阶：“你能不用动态规划，在 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(m)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>m</mi><mo>)</mo></mrow></math></span> 的时间复杂度内用纯数学方法算出答案吗？”</strong>
+   - <strong>优化思路（组合数学）</strong>：机器人从左上角走到右下角，无论怎么走，它<strong>总共要走的步数是恒定的</strong>。
+   - 向下一定要走 <span class="math-inline-wrap"><math class="math-inline" aria-label="m - 1"><mrow><mi>m</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn></mrow></math></span> 步，向右一定要走 <span class="math-inline-wrap"><math class="math-inline" aria-label="n - 1"><mrow><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn></mrow></math></span> 步。总步数是 <span class="math-inline-wrap"><math class="math-inline" aria-label="(m - 1) + (n - 1) = m + n - 2"><mrow><mo>(</mo><mi>m</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mo>(</mo><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>m</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>2</mn></mrow></math></span> 步。
+   - 这个问题就变成了：在总共 <span class="math-inline-wrap"><math class="math-inline" aria-label="m + n - 2"><mrow><mi>m</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>2</mn></mrow></math></span> 次移动中，<strong>选出哪 <span class="math-inline-wrap"><math class="math-inline" aria-label="m - 1"><mrow><mi>m</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn></mrow></math></span> 次是向下走的？</strong>（剩下的必然是向右走的）。
+   - 这就是极其标准的组合数公式：<span class="math-inline-wrap"><math class="math-inline" aria-label="C_m+n-2^m-1"><mrow><msup><msub><mi>C</mi><mrow><mi>m</mi><mo>+</mo><mi>n</mi><mo>-</mo><mn>2</mn></mrow></msub><mrow><mi>m</mi><mo>-</mo><mn>1</mn></mrow></msup></mrow></math></span>。
+   - 在面试时如果你能先写出 DP，再抛出组合数学公式手写一个阶乘计算，面试官会直接认为你的算法和数学功底深不可测。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../15-动态规划/0032-最长有效括号.html">← 32. 最长有效括号</a> · <a href="0064-最小路径和.html">64. 最小路径和 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/动态规划状态转移.html?embed=1&amp;mode=paths" title="62. 不同路径的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

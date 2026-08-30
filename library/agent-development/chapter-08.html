@@ -1,0 +1,59 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>RAG 与知识系统 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 开发：从原理到落地</a><span aria-hidden="true">›</span><span aria-current="page">RAG 与知识系统</span></nav><div class="module-meta">Agent 工程 · 第 8 / 23 章</div><h1>RAG 与知识系统</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>RAG 解决的是模型参数中缺少私有、最新或可引用知识的问题。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    D["文档 / 数据"] --&gt; P["解析与清洗"]
+    P --&gt; C["Chunk"]
+    C --&gt; E["Embedding"]
+    E --&gt; V["索引"]
+    Q["用户问题"] --&gt; QR["查询改写"]
+    QR --&gt; V
+    V --&gt; RR["召回 + Rerank"]
+    RR --&gt; CTX["上下文组装"]
+    CTX --&gt; LLM["生成有引用的答案"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<h3>8.1 RAG 的关键技术</h3>
+<ul>
+<li>文档解析：PDF、HTML、Office、表格、OCR；</li>
+<li>Chunking：按标题、语义或业务对象切分；</li>
+<li>Embedding：将文本映射为向量；</li>
+<li>检索：向量、BM25/全文检索或 Hybrid Search；</li>
+<li>Metadata Filter：按租户、权限、时间、文档类型过滤；</li>
+<li>Reranker：对候选文档重新排序；</li>
+<li>Citation：将答案绑定到具体证据；</li>
+<li>评测：Recall@K、MRR、上下文相关性、忠实度和答案正确性。</li>
+</ul>
+<h3>8.2 Agentic RAG</h3>
+<p>传统 RAG 每次固定检索一次；Agentic RAG 让模型决定：</p>
+<ul>
+<li>是否需要检索；</li>
+<li>检索哪个数据源；</li>
+<li>是否改写查询；</li>
+<li>证据不足时是否继续搜索；</li>
+<li>是否调用结构化数据库而非向量库。</li>
+</ul>
+<p>它能提高复杂问题的召回率，但也增加延迟、费用和不确定性。必须限制搜索轮数并记录证据链。</p>
+<hr />
+<h3>8.3 建库阶段决定召回上限</h3>
+<p>RAG 失败经常发生在生成之前。建库要解析 PDF、HTML、Office、表格和 OCR，保留标题、页码、章节、时间及权限元数据，生成稳定 ID，并支持增量更新、删除和版本追踪。若表格已被解析成错乱文本，更强模型也无法恢复原始结构。</p>
+<h3>8.4 Chunking 的真实权衡</h3>
+<p>块太小会把定义和条件分开，块太大则引入噪声并浪费 Token。可按标题、段落、代码函数、表格行组切分。Parent-Child 方法用小块检索以提高定位精度，再返回较大父块保持语义完整。</p>
+<p>不存在通用最佳 Chunk 大小，必须通过实际问题的 Recall@K、答案忠实度和成本评测。</p>
+<h3>8.5 混合检索与重排</h3>
+<p>向量检索擅长语义近似，却可能漏掉错误码、产品编号和人名；BM25 擅长精确词项。Hybrid Search 合并候选，再用 Reranker 同时阅读查询和候选进行精排。Reranker 更准但更贵，通常只处理 Top-N。</p>
+<h3>8.6 查询改写与多步检索</h3>
+<p>系统可以把带指代的对话问题改写为独立问题（消解指代）、展开缩写、拆分复杂问题，或先查实体再查关联记录。改写也可能偏离原意，因此要保留原查询、限制轮数，并在 Trace 中记录全部查询和候选。</p>
+<h3>8.7 权限必须在检索层过滤</h3>
+<p>不能先召回所有租户文档，再提示模型“不要使用无权内容”。搜索请求必须绑定认证上下文，确保无权内容从未进入候选和 Prompt。文档删除或权限变化时，向量索引、关键词索引与缓存都要同步失效。</p>
+<h3>8.8 RAG 评测要拆层</h3>
+<ul>
+<li>解析质量：正文、表格和元数据是否正确；</li>
+<li>召回质量：正确证据是否进入 Top-K；</li>
+<li>排序质量：证据是否足够靠前；</li>
+<li>上下文质量：是否有噪声和冲突；</li>
+<li>忠实度：回答是否只基于证据；</li>
+<li>引用正确性：引用是否支持对应结论。</li>
+</ul>
+<p>证据未召回时应修复解析、查询或检索；证据已在上下文但模型误答时，再调整 Prompt、模型和答案验证。</p>
+<h3>8.9 缓存与知识更新</h3>
+<p>可缓存 Embedding、检索结果和生成答案，但缓存键要包含租户、权限、索引版本、模型和 Prompt 版本。文档更新后必须失效相关缓存，高风险答案不能只依赖旧缓存。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-development:08",moduleId="agent-development";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

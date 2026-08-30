@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>105. 从前序与中序遍历序列构造二叉树 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 08-二叉树</div>
+        <h1 id="105">105. 从前序与中序遍历序列构造二叉树</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-on">Java 实现（哈希表 O(N) 优化版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的隐蔽火力）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/08-二叉树.html">← 二叉树专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>前序指针 + 中序索引表</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定两个整数数组 <code>preorder</code> 和 <code>inorder</code> ，其中 <code>preorder</code> 是二叉树的<strong>先序遍历</strong>， <code>inorder</code> 是同一棵树的<strong>中序遍历</strong>。请你构造并返回这棵二叉树。</p>
+<p><em>(题目保证输入的数据是一棵有效的二叉树，且树中没有重复元素)</em></p>
+<p><a href="https://leetcode.cn/problems/construct-binary-tree-from-preorder-and-inorder-traversal/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>前序决定根，中序决定左右子树边界。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（两份线索的作用分别是什么？）</strong>：</li>
+</ol>
+<ul>
+<li><strong>前序遍历（根 -&gt; 左 -&gt; 右）</strong>：就像是<strong>司令部</strong>。它的第一个元素，<strong>永远是当前整棵树的根节点（老大）</strong>！</li>
+<li><strong>中序遍历（左 -&gt; 中 -&gt; 右）</strong>：就像是<strong>地形图</strong>。如果你在地形图里找到了老大的位置，那么老大<strong>左边</strong>的所有人，全都是左子树的；老大<strong>右边</strong>的所有人，全都是右子树的。</li>
+</ul>
+<ol start="2">
+<li><strong>破局思路（分而治之，层层圈地）</strong>：</li>
+</ol>
+<ul>
+<li>
+<p><strong>第一步（认老大）</strong>：看 <code>preorder</code> 的第一个元素，确定根节点。</p>
+</li>
+<li>
+<p><strong>第二步（划地盘）</strong>：拿着这个老大，去 <code>inorder</code> 里找它的位置（索引 <code>inRoot</code>）。这样我们就知道了左子树有几个人（<code>leftSize = inRoot - inStart</code>）。</p>
+</li>
+<li>
+<p><strong>第三步（分兵派将）</strong>：</p>
+<p>有了左子树的人数 <code>leftSize</code>，我们就可以回到 <code>preorder</code> 里，把属于左子树的将领也圈出来。</p>
+<p>接着，让左边的部分自己去递归建树，右边的部分自己去递归建树。</p>
+</li>
+</ul>
+<ol start="3">
+<li><strong>核心微操（游标的精准计算，最容易错的地方）</strong>：</li>
+</ol>
+<p>假设前序的范围是 <code>[preStart, preEnd]</code>，中序的范围是 <code>[inStart, inEnd]</code>。</p>
+<p>左子树的前序范围：起始位置肯定是老大的后一个 <code>preStart + 1</code>；结束位置是起始位置加上左树人数，即 <code>preStart + leftSize</code>。</p>
+<p>右子树的前序范围：起始位置自然是左树结束的后一个 <code>preStart + leftSize + 1</code>；结束位置是 <code>preEnd</code>。</p>
+<h3 id="java-on">Java 实现（哈希表 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 优化版）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> * int val;</span>
+<span class="cm"> * TreeNode left;</span>
+<span class="cm"> * TreeNode right;</span>
+<span class="cm"> * TreeNode() {}</span>
+<span class="cm"> * TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> * TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> * this.val = val;</span>
+<span class="cm"> * this.left = left;</span>
+<span class="cm"> * this.right = right;</span>
+<span class="cm"> * }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 准备一个全局“雷达”，用来瞬间在 inorder 中找到老大</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">inMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">buildTree</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">inorder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 将中序遍历的值和对应的索引存入哈希表，实现 O(1) 的超快查找</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">inorder</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">inMap</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">inorder</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 开始建树大业！初始范围是整个数组</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">preorder</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">                     </span><span class="n">inorder</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">inorder</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 辅助函数：在指定的前序和中序范围内，构建二叉树</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">preStart</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">preEnd</span><span class="p">,</span>
+<span class="w">                           </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">inorder</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">inStart</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">inEnd</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+
+<span class="w">        </span><span class="c1">// 终止条件：当起始游标跑到了结束游标的右边，说明这块地盘已经没兵了</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">preStart</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">preEnd</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">inStart</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">inEnd</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 【认老大】：前序遍历范围里的第一个元素，就是当前子树的根节点！</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rootVal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">preorder</span><span class="o">[</span><span class="n">preStart</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeNode</span><span class="p">(</span><span class="n">rootVal</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 2. 【找定位】：用哈希表瞬间找到老大在中序遍历里的位置</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">inRoot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">inMap</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">rootVal</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 3. 【点人数】：算出左子树一共分到了几个人</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">inRoot</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">inStart</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 4. 【分封诸侯】：带着计算好的新边界，递归构建左右子树</span>
+<span class="w">        </span><span class="c1">// 左子树的前序阵营：从老大后面一个开始，数 leftSize 个人</span>
+<span class="w">        </span><span class="c1">// 左子树的中序阵营：从最左边开始，到老大前面一个结束</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="n">preStart</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preStart</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="p">,</span>
+<span class="w">                          </span><span class="n">inorder</span><span class="p">,</span><span class="w"> </span><span class="n">inStart</span><span class="p">,</span><span class="w"> </span><span class="n">inRoot</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 右子树的前序阵营：跳过老大和左子树的所有人，剩下的全包</span>
+<span class="w">        </span><span class="c1">// 右子树的中序阵营：从老大后面一个开始，到最右边结束</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="n">preStart</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preEnd</span><span class="p">,</span>
+<span class="w">                           </span><span class="n">inorder</span><span class="p">,</span><span class="w"> </span><span class="n">inRoot</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">inEnd</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 5. 汇报战果</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。由于我们在一开始用 HashMap 存储了中序遍历的索引，每次查找根节点只需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的时间。整个构建过程只需要对每个节点访问一次。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。使用了 HashMap 来存储中序数组的元素和索引映射，消耗 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 空间。同时递归调用栈最深为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>，所以总体空间复杂度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的隐蔽火力）</h3>
+<ol>
+<li><strong>踩坑警告：为什么必须要用 <code>HashMap</code>？</strong>
+   - 在很多新手的代码里，他们会在 <code>build</code> 函数内部写一个 <code>for</code> 循环，去 <code>inorder</code> 数组里挨个找 <code>rootVal</code>。
+   - <strong>致命后果</strong>：如果在递归里嵌套 <code>for</code> 循环，最坏情况下（树退化成链表），每次找老大都要遍历整个数组，时间复杂度会直接飙升到 <strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span></strong>！在 LeetCode 上遇到大数据量会直接超时。面试面试官极度看重这种空间换时间的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 优化嗅觉。</li>
+<li><strong>面试追问：“如果给你的数组里有【重复元素】，这个算法还能奏效吗？”</strong>
+   - <strong>满分抢答</strong>：<strong>不能！</strong> 这个算法的绝对前提是“无重复元素”。如果 <code>inorder</code> 里有两个 <code>3</code>，我们的 HashMap 雷达就懵了，它不知道前序遍历里的老大 <code>3</code> 到底对应中序里的哪个 <code>3</code>。这种情况下，一棵前序和中序序列可能会还原出多种不同的二叉树形态。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0114-二叉树展开为链表.html">← 114. 二叉树展开为链表</a> · <a href="0437-路径总和 III.html">437. 路径总和 III →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>23. 合并 K 个升序链表 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="23-k">23. 合并 K 个升序链表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（优先级队列 / 最小堆版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（进阶的细节）</a><ul>
+<li><a href="#priorityqueue">📝 补充知识点：PriorityQueue (优先队列 / 最小堆)</a></li>
+</ul>
+</li>
+<li><a href="#_7">思路推导</a></li>
+<li><a href="#_8">思路推导</a></li>
+<li><a href="#_9">思路推导</a></li>
+<li><a href="#3-api">补充：掌握它，只需要记住 3 个核心方法（API）</a></li>
+</ul>
+</li>
+<li><a href="#_10">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>最小堆多路归并</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(N log k)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(k)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个链表数组 <code>lists</code>，每个链表都已经按升序排列。</p>
+<p>请你将所有链表合并到一个升序链表中，返回合并后的链表。</p>
+<p><a href="https://leetcode.cn/problems/merge-k-sorted-lists/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>堆中始终只放每条链表当前最小的头节点。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（顺序合并的惨剧）</strong>：</p>
+<p>既然我会“合并两个链表”，那我能不能先合并 1 和 2，把结果再去跟 3 合并，结果再去跟 4 合并……？</p>
+<p><strong>痛点</strong>：极其低效！假设每个链表长度都是 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span>。第一次合并长度变成 <span class="math-inline-wrap"><math class="math-inline" aria-label="2n"><mrow><mn>2</mn><mi>n</mi></mrow></math></span>，第二次变成 <span class="math-inline-wrap"><math class="math-inline" aria-label="3n"><mrow><mn>3</mn><mi>n</mi></mrow></math></span>…… 第一个链表的节点会被反复遍历 <span class="math-inline-wrap"><math class="math-inline" aria-label="k-1"><mrow><mi>k</mi><mo>-</mo><mn>1</mn></mrow></math></span> 次。时间复杂度飙升到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(k^2 · n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>k</mi><mn>2</mn></msup><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>，面对庞大的数据绝对会超时。</p>
+</li>
+<li>
+<p><strong>破局思路 A（利用数据结构：最小堆 / 优先队列）</strong>：</p>
+<p>想象我们在举办一场<strong>多兵团比武</strong>。有 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个排好序的队伍。</p>
+<ul>
+<li><strong>擂台（最小堆）</strong>：我们只需要把这 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个队伍的当前队长（头节点）叫到擂台上。</li>
+<li><strong>打擂</strong>：裁判（优先队列）瞬间挑出这 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个人里最弱（值最小）的一个，把他提出来，编入最终的结果链表。</li>
+<li><strong>替补</strong>：这个最弱的人被调走后，他所在队伍的<strong>下一个人</strong>顶上来，站到擂台上继续比较。</li>
+<li>如此循环，直到所有队伍的人都被抽空！</li>
+</ul>
+</li>
+<li>
+<p><strong>破局思路 B（算法降维：分治法 Divide &amp; Conquer）</strong>：</p>
+<p>参考体育比赛的<strong>淘汰赛赛程表</strong>。</p>
+<p>不需要一个个轮流上。让这 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个链表两两配对，进行“合并两个链表”的比赛。</p>
+<p>第一轮过后，<span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个链表变成了 <span class="math-inline-wrap"><math class="math-inline" aria-label="k/2"><mrow><mi>k</mi><mo>/</mo><mn>2</mn></mrow></math></span> 个；第二轮变成 <span class="math-inline-wrap"><math class="math-inline" aria-label="k/4"><mrow><mi>k</mi><mo>/</mo><mn>4</mn></mrow></math></span> 个…… 直到最后合并成 1 个总冠军！</p>
+<h3 id="java">Java 实现（优先级队列 / 最小堆版）</h3>
+<p><em>(这是面试中最受欢迎、最能体现你熟练掌握高级数据结构的解法)</em></p>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.PriorityQueue</span><span class="p">;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 防御性编程：处理空数组的极端情况</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lists</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 创建一个最小堆（优先队列），容量初始化为 k</span>
+<span class="w">        </span><span class="c1">// 核心逻辑：按照节点的值（val）从小到大排序</span>
+<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">ListNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span>
+<span class="w">            </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="p">,</span>
+<span class="w">            </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">val</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">val</span><span class="p">)</span>
+<span class="w">        </span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 2. 初始化擂台：把所有非空链表的头节点（各队队长）请上擂台</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">head</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 祭出老朋友：虚拟头节点</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 4. 擂台赛开始！只要擂台上还有人，就一直打</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">pq</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 裁判挑出当前擂台上最小的节点</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">minNode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+
+<span class="w">            </span><span class="c1">// 把最小的节点接到大部队后面</span>
+<span class="w">            </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">minNode</span><span class="p">;</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 如果这个队伍后面还有人，让他顶替刚才离开的队长，上擂台！</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">minNode</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">minNode</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 5. 返回总链表的车头</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是所有链表节点的总数，<span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 是链表的条数。每个节点都会且仅会进出堆一次。堆的插入和删除操作时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span>，所以总时间是 <span class="math-inline-wrap"><math class="math-inline" aria-label="N log k"><mrow><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>k</mi><mo>)</mo></mrow></math></span>。优先队列（擂台）里最多只会同时存在 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个节点（每队各一人）。</li>
+</ul>
+<h3 id="_6">易错点与扩展（进阶的细节）</h3>
+<ol>
+<li><strong>踩坑警告：空链表的背刺</strong>
+   - 题目给的 <code>lists</code> 数组里，可能存在 <code>null</code> （比如 <code>[[], [1], []]</code>）。如果你在初始化堆的时候不加 <code>if (head != null)</code> 的判断，直接把 <code>null</code> 塞进 <code>PriorityQueue</code>，运行时会直接抛出 <strong><code>NullPointerException</code></strong>。</li>
+<li><strong>面试追问：“如果让你用【分治法】写，时间复杂度是多少？空间复杂度呢？”</strong>
+   - <strong>秒答</strong>：分治法的时间复杂度同样是 <strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span></strong>。因为每次合并两个链表是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，总共要合并 <span class="math-inline-wrap"><math class="math-inline" aria-label="log k"><mrow><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi></mrow></math></span> 轮（树的高度）。
+   - <strong>进阶对比</strong>：分治法的<strong>空间复杂度更优</strong>！如果是迭代版的分治法，不需要优先队列的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>k</mi><mo>)</mo></mrow></math></span> 空间，空间复杂度可以压缩到极致的 <strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span></strong>。但<strong>最小堆解法</strong>在工程扩展性上更好（比如处理无限数据流（Data Stream）的合并，你无法一开始拿到所有链表进行分治，只能用堆实时处理）。</li>
+</ol>
+<h4 id="priorityqueue">📝 补充知识点：PriorityQueue (优先队列 / 最小堆)</h4>
+<h3 id="_7">思路推导</h3>
+<ul>
+<li><strong>普通队列 (Queue)</strong>：就像在超市排队结账，讲究“先来后到”（FIFO：先进先出）。</li>
+<li><strong>优先队列 (Priority Queue)</strong>：就像医院的急诊室，不看你什么时候来的，而是看“谁的病情最重”。优先级最高的人永远第一个被叫号！</li>
+<li><strong>在 Java 中的默认设定</strong>：Java 的 <code>PriorityQueue</code> 默认是一个“最小堆（Min-Heap）”。也就是说，无论你怎么乱序把数字扔进去，只要你往外拿（出队），<strong>永远是最小的那个数第一个出来！</strong></li>
+</ul>
+<h3 id="_8">思路推导</h3>
+<p>先来看看我们在上一题中写的那句稍微有点复杂的代码：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">ListNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="p">,</span>
+<span class="w">    </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">val</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">val</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<p>如果你只写 <code>PriorityQueue&lt;Integer&gt; pq = new PriorityQueue&lt;&gt;();</code>，Java 知道怎么比较整数大小，一切正常。</p>
+<p><strong>但是，在这个算法里，我们要往里面扔的是 <code>ListNode</code>（链表节点）！</strong></p>
+<p>Java 会懵逼：“你扔给我一堆节点，我怎么知道哪个节点更大、哪个节点更小？” 如果你不告诉它规则，程序运行时直接抛出报错（<code>ClassCastException</code>）。</p>
+<h3 id="_9">思路推导</h3>
+<ol>
+<li><code>lists.length</code>：这是<strong>初始容量</strong>。告诉漏斗大概要装多少个元素（这里最多装 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个队长），避免底层数组频繁扩容，提升性能。</li>
+<li><code>(a, b) -&gt; Integer.compare(a.val, b.val)</code>：这就是大名鼎鼎的比较器（Comparator）的 Lambda 简写。<ul>
+<li>这句话是在教 Java 做人：“当你拿节点 <code>a</code> 和节点 <code>b</code> 比较时，不要管别的，请直接取出它们的里面的数字 <code>a.val</code> 和 <code>b.val</code> 进行比较！谁的 <code>val</code> 小，谁的优先级就高！”</li>
+</ul>
+</li>
+</ol>
+<h3 id="3-api">补充：掌握它，只需要记住 3 个核心方法（API）</h3>
+<p>把 <code>PriorityQueue</code> 想象成一个带有自动排序魔法的盲盒。你只需要记住以下三个动作：</p>
+<ol>
+<li><strong>扔进去：<code>pq.offer(node)</code></strong>
+   - 把一个节点扔进堆里。不管你扔进去的是什么，它会在底层自动调整位置。
+   - <em>时间复杂度</em>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span>（底层是在一棵二叉树上顺着找位置，非常快）。</li>
+<li><strong>拿出来：<code>pq.poll()</code></strong>
+   - 这是最爽的一步。直接调用 <code>poll()</code>，它会把当前堆里<strong>最小的那个节点</strong>拿出来，并且从堆里<strong>删掉</strong>。
+   - <em>时间复杂度</em>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span>（拿走最顶上的元素后，它底层会自动把第二小的元素顶上来）。</li>
+<li><strong>看看不拿：<code>pq.peek()</code></strong>
+   - 仅仅是偷看一下目前最小的元素是谁，但不把它从堆里删掉。
+   - <em>时间复杂度</em>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>（瞬间瞄一眼最顶上的元素）。</li>
+<li><strong>是否为空：<code>pq.isEmpty()</code></strong>
+   - 判断堆里还有没有人。</li>
+</ol>
+<p><strong>👨‍🏫 老师的总结：</strong></p>
+<p>为什么在“合并 K 个链表”中，<code>PriorityQueue</code> 被称为神兵利器？</p>
+<p>假设你有 10000 个链表（<span class="math-inline-wrap"><math class="math-inline" aria-label="k = 10000"><mrow><mi>k</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mn>10000</mn></mrow></math></span>）。</p>
+<p>如果你每次都用一个 <code>for</code> 循环去这 10000 个节点里找最小值，找一次就要看 10000 眼，时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>k</mi><mo>)</mo></mrow></math></span>。</p>
+<p>但如果你用 <code>PriorityQueue</code>，你把 10000 个节点扔进去，由于它是树形结构，每次找最小值并重排，只需要走 <span class="math-inline-wrap"><math class="math-inline" aria-label="log_2(10000)"><mrow><msub><mi mathvariant="normal">log</mi><mn>2</mn></msub><mo>(</mo><mn>10000</mn><mo>)</mo></mrow></math></span> 步，也就是<strong>大约 14 步</strong>！</p>
+<p>从 10000 步优化思路到 14 步，这就是<strong>数据结构的魅力</strong>，也是这道题被称为 Hard 的原因！掌握了它，以后所有的“前 K 个最大/最小元素（Top K）”问题，对你来说都是小菜一碟！</p>
+<h2 id="_10">相邻学习</h2>
+<p><a href="0148-排序链表.html">← 148. 排序链表</a> · <a href="0146-LRU 缓存.html">146. LRU 缓存 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/困难题核心状态实验室.html?embed=1&amp;mode=merge-k" title="23. 合并 K 个升序链表的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

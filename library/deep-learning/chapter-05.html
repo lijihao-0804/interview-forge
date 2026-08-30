@@ -1,0 +1,172 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>CNN：理解图像 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">深度学习与 Transformer</a><span aria-hidden="true">›</span><span aria-current="page">CNN：理解图像</span></nav><div class="module-meta">模型与训练 · 第 5 / 18 章</div><h1>CNN：理解图像</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>全连接网络把每个像素独立连接到下一层，会产生大量参数，也忽略图像的空间邻近关系。卷积神经网络（CNN）使用小型卷积核在图像上滑动，提取局部模式。</p>
+<h3>5.1 卷积的直觉</h3>
+<p>一个卷积核可看作小型特征探测器。某些核对水平边缘响应强，另一些核对纹理、颜色或角点响应强。卷积核参数由训练学习，不需要人工指定。</p>
+<p>CNN 有两个关键特点：</p>
+<ul>
+<li>局部连接：每次只观察邻近区域；</li>
+<li>参数共享：同一个卷积核在整张图上使用。</li>
+</ul>
+<p>这让 CNN 参数更少。更准确地说，理想卷积具有<strong>平移等变性</strong>：输入移动，特征图也相应移动；池化、步幅、全局汇聚和数据增强才带来一定的平移不变性，边界与下采样还会破坏严格等变。</p>
+<h4>一次卷积实际算了什么</h4>
+<p>对 <span class="math-inline-wrap"><math class="math-inline" aria-label="5times5"><mrow><mn>5</mn><mo>×</mo><mn>5</mn></mrow></math></span> 单通道输入取左上角 <span class="math-inline-wrap"><math class="math-inline" aria-label="3times3"><mrow><mn>3</mn><mo>×</mo><mn>3</mn></mrow></math></span> 区域：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="X=bmatrix1&amp;2&amp;00&amp;1&amp;32&amp;1&amp;0bmatrix, K=bmatrix1&amp;0&amp;-11&amp;0&amp;-11&amp;0&amp;-1bmatrix"><mrow><mi>X</mi><mo>=</mo><mrow><mo>[</mo><mtable><mtr><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>2</mn></mrow></mtd><mtd><mrow><mn>0</mn></mrow></mtd></mtr><mtr><mtd><mrow><mn>0</mn></mrow></mtd><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>3</mn></mrow></mtd></mtr><mtr><mtd><mrow><mn>2</mn></mrow></mtd><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>0</mn></mrow></mtd></mtr></mtable><mo>]</mo></mrow><mo>,</mo><mspace width="2em"/><mi>K</mi><mo>=</mo><mrow><mo>[</mo><mtable><mtr><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>0</mn></mrow></mtd><mtd><mrow><mo>-</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>0</mn></mrow></mtd><mtd><mrow><mo>-</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mrow><mn>1</mn></mrow></mtd><mtd><mrow><mn>0</mn></mrow></mtd><mtd><mrow><mo>-</mo><mn>1</mn></mrow></mtd></mtr></mtable><mo>]</mo></mrow></mrow></math></span></p>
+<p>对应输出值是逐元素乘积之和：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="(1times1+2times0+0×(-1))+(0times1+1times0+3×(-1))+(2times1+1times0+0×(-1))=0"><mrow><mo>(</mo><mn>1</mn><mo>×</mo><mn>1</mn><mo>+</mo><mn>2</mn><mo>×</mo><mn>0</mn><mo>+</mo><mn>0</mn><mo>×</mo><mo>(</mo><mo>-</mo><mn>1</mn><mo>)</mo><mo>)</mo><mo>+</mo><mo>(</mo><mn>0</mn><mo>×</mo><mn>1</mn><mo>+</mo><mn>1</mn><mo>×</mo><mn>0</mn><mo>+</mo><mn>3</mn><mo>×</mo><mo>(</mo><mo>-</mo><mn>1</mn><mo>)</mo><mo>)</mo><mo>+</mo><mo>(</mo><mn>2</mn><mo>×</mo><mn>1</mn><mo>+</mo><mn>1</mn><mo>×</mo><mn>0</mn><mo>+</mo><mn>0</mn><mo>×</mo><mo>(</mo><mo>-</mo><mn>1</mn><mo>)</mo><mo>)</mo><mo>=</mo><mn>0</mn></mrow></math></span></p>
+<p>卷积核继续滑到下一区域，重复同一组参数。PyTorch 的 <strong>Conv2d</strong> 数学上实际执行互相关（不翻转核），但深度学习中习惯仍称卷积。</p>
+<p>多通道输入时，一个普通输出通道并非只看一个输入通道：它对所连接的每个输入通道分别卷积，再求和并加 bias。若输入 RGB、输出 16 通道，则有 16 组探测器，每组通常同时读取 R/G/B 三个通道；Depthwise Convolution 才是每个通道独立进行空间卷积。</p>
+<h3>5.2 常见结构</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">图片 → Conv → ReLU → Pool/Stride
+     → Conv → ReLU → 全局池化/全连接 → 类别
+</code></pre></div>
+<ul>
+<li>Channel：不同特征图；</li>
+<li>Kernel Size：卷积核尺寸；</li>
+<li>Stride：每次移动步长；</li>
+<li>Padding：边缘填充；</li>
+<li>Pooling：压缩空间尺寸、扩大感受野。</li>
+</ul>
+<p>随着层数增加，单个神经元间接观察的原图范围扩大，这称为感受野。</p>
+<h3>5.3 图像任务</h3>
+<ul>
+<li>图像分类：整张图是什么；</li>
+<li>目标检测：有哪些物体、在哪里；</li>
+<li>语义分割：每个像素属于什么类别；</li>
+<li>实例分割：进一步区分同类的不同物体。</li>
+</ul>
+<p>现代视觉模型也大量使用 Vision Transformer，但 CNN 的局部结构和高效性仍很重要。</p>
+<hr />
+<h3>5.4 卷积输出尺寸怎样计算</h3>
+<p>对单个空间维度，输入大小为 <span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span>、卷积核为 <span class="math-inline-wrap"><math class="math-inline" aria-label="K"><mrow><mi>K</mi></mrow></math></span>、Padding 为 <span class="math-inline-wrap"><math class="math-inline" aria-label="P"><mrow><mi>P</mi></mrow></math></span>、Stride 为 <span class="math-inline-wrap"><math class="math-inline" aria-label="S"><mrow><mi>S</mi></mrow></math></span>、Dilation 为 <span class="math-inline-wrap"><math class="math-inline" aria-label="D"><mrow><mi>D</mi></mrow></math></span> 时，输出大小为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="lfloorH+2P-D(K-1)-1S+1rfloor"><mrow><mi mathvariant="normal">lfloor</mi><mfrac><mrow><mi>H</mi><mo>+</mo><mn>2</mn><mi>P</mi><mo>-</mo><mi>D</mi><mo>(</mo><mi>K</mi><mo>-</mo><mn>1</mn><mo>)</mo><mo>-</mo><mn>1</mn></mrow><mrow><mi>S</mi></mrow></mfrac><mo>+</mo><mn>1</mn><mi mathvariant="normal">rfloor</mi></mrow></math></span></p>
+<p>Stride 增大通常降低空间分辨率；Padding 可控制边缘和尺寸；Dilation 在不增加参数量的情况下扩大采样范围。输出通道数由显式超参数 <code>out_channels</code> 决定，与输入宽高无关；<code>groups</code> 决定输入、输出通道怎样分组连接，不能把二者混为一谈。</p>
+<p>卷积层参数量约为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="C_out(C_ingroupsK_hK_w+1)"><mrow><msub><mi>C</mi><mrow><mi>out</mi></mrow></msub><mo>(</mo><mfrac><mrow><msub><mi>C</mi><mrow><mi>in</mi></mrow></msub></mrow><mrow><mi>groups</mi></mrow></mfrac><msub><msub><mi>K</mi><mi>hK</mi></msub><mi>w</mi></msub><mo>+</mo><mn>1</mn><mo>)</mo></mrow></math></span></p>
+<p>公式假设启用了 bias；若 <code>bias=False</code>，去掉最后的 1。普通卷积 <code>groups=1</code>；深度卷积通常令 <code>groups=C_in</code>。参数量不随图片宽高变化，这是参数共享的直接结果。</p>
+<h3>5.5 为什么需要残差连接 ResNet</h3>
+<p>网络变深后，理论表达能力增强，但普通深层网络可能比浅层更难优化。残差块不直接学习目标映射 <span class="math-inline-wrap"><math class="math-inline" aria-label="H(x)"><mrow><mi>H</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow></math></span>，而是学习残差 <span class="math-inline-wrap"><math class="math-inline" aria-label="F(x)=H(x)-x"><mrow><mi>F</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mi>H</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>-</mo><mi>x</mi></mrow></math></span>：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="y=F(x)+x"><mrow><mi>y</mi><mo>=</mo><mi>F</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><mi>x</mi></mrow></math></span></p>
+<p>跳跃连接为信息和梯度提供直接通路，使网络更容易学习“保持不变”或小幅修正。残差连接后来也成为 Transformer 等深层架构的重要组成。</p>
+<p>若输入和输出形状不同，需要用投影或下采样对齐后才能相加。</p>
+<h3>5.6 一个小型 CNN 的形状变化</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+
+<span class="n">cnn</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>  <span class="c1"># [B,3,32,32] -&gt; [B,16,32,32]</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">MaxPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>                             <span class="c1"># -&gt; [B,16,16,16]</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>  <span class="c1"># -&gt; [B,32,16,16]</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">AdaptiveAvgPool2d</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>               <span class="c1"># -&gt; [B,32,1,1]</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(),</span>                                <span class="c1"># -&gt; [B,32]</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>                           <span class="c1"># 10 类 logits</span>
+<span class="p">)</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">cnn</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># torch.Size([8, 10])</span>
+</code></pre></div>
+<p><code>AdaptiveAvgPool2d((1,1))</code> 对每个通道汇总空间信息，使分类头不强依赖固定图片尺寸。真正视觉项目通常优先使用预训练 ResNet、EfficientNet 或 ViT，而不是从零训练这个小网络。</p>
+<h3>5.7 目标检测的核心概念</h3>
+<p>检测模型同时回答“是什么”和“在哪里”。输出通常包括边界框、类别和置信度。</p>
+<ul>
+<li>IoU 衡量预测框与真实框的重叠程度；</li>
+<li>NMS 删除大量指向同一物体的重复框；</li>
+<li>Anchor-based 方法从预设框调整位置，Anchor-free 方法直接预测中心或边界；</li>
+<li>AP 是在给定类别与 IoU 判定标准下，随置信度阈值变化得到的 PR 曲线面积；COCO mAP 再对类别及 IoU=0.50:0.95 的多个阈值平均。</li>
+</ul>
+<p>一阶段检测器直接密集预测，通常速度快；二阶段检测器先产生候选区域再分类回归，通常更精细。现代架构边界正在融合，选型应看数据、速度和精度要求。</p>
+<h3>5.8 语义分割与实例分割</h3>
+<p>语义分割为每个像素预测类别，但不区分同类不同实例；实例分割还要分别标出每个物体。医学图像、遥感和自动驾驶常用。</p>
+<p>分割需要保留或恢复空间分辨率，常见 Encoder-Decoder、跳跃连接和上采样结构。指标包括像素准确率、IoU、Dice。类别区域很小时，仅看像素准确率会被大面积背景掩盖。</p>
+<hr />
+<h3>5.9 实战：Fashion-MNIST 图像分类</h3>
+<p>Fashion-MNIST 包含 28×28 灰度服饰图片，共 10 类。下面示例从官方训练集划出验证集；每轮只看验证集，恢复验证集最优权重后才评价一次测试集。首次运行会下载数据。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">from</span> <span class="nn">torch.utils.data</span> <span class="kn">import</span> <span class="n">DataLoader</span><span class="p">,</span> <span class="n">random_split</span>
+<span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">datasets</span><span class="p">,</span> <span class="n">transforms</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="c1"># ToTensor 将像素转到 0～1；Normalize 再将其中心化</span>
+<span class="n">transform</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">Normalize</span><span class="p">((</span><span class="mf">0.5</span><span class="p">,),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,)),</span>
+<span class="p">])</span>
+<span class="n">full_train</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">FashionMNIST</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+<span class="n">test_set</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">FashionMNIST</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+<span class="n">generator</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Generator</span><span class="p">()</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">train_set</span><span class="p">,</span> <span class="n">val_set</span> <span class="o">=</span> <span class="n">random_split</span><span class="p">(</span><span class="n">full_train</span><span class="p">,</span> <span class="p">[</span><span class="mi">54000</span><span class="p">,</span> <span class="mi">6000</span><span class="p">],</span> <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">)</span>
+<span class="n">train_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">train_set</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">val_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">val_set</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+<span class="n">test_loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">test_set</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+
+<span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span> <span class="n">nn</span><span class="o">.</span><span class="n">MaxPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span> <span class="n">nn</span><span class="o">.</span><span class="n">MaxPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(),</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">*</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+<span class="n">loss_fn</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">accuracy</span><span class="p">(</span><span class="n">loader</span><span class="p">):</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="n">correct</span> <span class="o">=</span> <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">images</span><span class="p">,</span> <span class="n">labels</span> <span class="ow">in</span> <span class="n">loader</span><span class="p">:</span>
+            <span class="n">images</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">labels</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">correct</span> <span class="o">+=</span> <span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">images</span><span class="p">)</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">labels</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">correct</span> <span class="o">/</span> <span class="n">total</span>
+
+<span class="n">best_val</span><span class="p">,</span> <span class="n">best_state</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="kc">None</span>
+<span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">images</span><span class="p">,</span> <span class="n">labels</span> <span class="ow">in</span> <span class="n">train_loader</span><span class="p">:</span>
+        <span class="n">images</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">images</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">labels</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">images</span><span class="p">),</span> <span class="n">labels</span><span class="p">)</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+    <span class="n">val_acc</span> <span class="o">=</span> <span class="n">accuracy</span><span class="p">(</span><span class="n">val_loader</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">val_acc</span> <span class="o">&gt;</span> <span class="n">best_val</span><span class="p">:</span>
+        <span class="n">best_val</span> <span class="o">=</span> <span class="n">val_acc</span>
+        <span class="n">best_state</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;epoch=</span><span class="si">{</span><span class="n">epoch</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">, val_accuracy=</span><span class="si">{</span><span class="n">val_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">best_state</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;test_accuracy=</span><span class="si">{</span><span class="n">accuracy</span><span class="p">(</span><span class="n">test_loader</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>代码明确分开了验证集与测试集。实际项目还应将训练轮数增大，并用 patience、min_delta 与最佳 checkpoint 实现 Early Stopping；不能为了得到更好数字而反复查看测试集。</p>
+<p>这个网络经过两次 <code>MaxPool2d(2)</code>，空间尺寸从 28×28 变为 14×14，再变为 7×7，因此全连接层输入是 <code>32 × 7 × 7</code>。若更换输入分辨率，可使用自适应池化避免手工计算尺寸。</p>
+<hr />
+<h3>5.10 从 LeNet 到现代视觉网络</h3>
+<p>理解架构演进比背网络层数更重要：</p>
+<ul>
+<li>LeNet 证明卷积适合手写数字等图像任务；</li>
+<li>AlexNet 借助 GPU、ReLU、Dropout 和大数据推动深度视觉突破；</li>
+<li>VGG 使用重复的 <span class="math-inline-wrap"><math class="math-inline" aria-label="3times3"><mrow><mn>3</mn><mo>×</mo><mn>3</mn></mrow></math></span> 卷积，结构规则但参数和计算量大；</li>
+<li>Inception 在同一层使用不同尺度分支，兼顾多尺度特征；</li>
+<li>ResNet 用残差连接让数十甚至数百层网络更易优化；</li>
+<li>DenseNet 让各层连接到后续多层，促进特征复用；</li>
+<li>MobileNet 使用深度可分离卷积，面向移动端效率；</li>
+<li>EfficientNet 系统地协调网络深度、宽度和输入分辨率；</li>
+<li>Vision Transformer 把图片切成 Patch，使用 Transformer 建模全局关系。</li>
+</ul>
+<p>新架构通常是在表达能力、优化难度、计算量、显存和硬件效率之间重新权衡，而不是简单“层数更多”。</p>
+<h3>5.11 深度可分离卷积</h3>
+<p>标准卷积同时混合空间和通道。深度可分离卷积拆成两步：</p>
+<ol>
+<li>Depthwise Convolution：每个输入通道独立做空间卷积；</li>
+<li>Pointwise Convolution：用 <span class="math-inline-wrap"><math class="math-inline" aria-label="1times1"><mrow><mn>1</mn><mo>×</mo><mn>1</mn></mrow></math></span> 卷积混合通道。</li>
+</ol>
+<p>它显著减少参数和乘加运算，是 MobileNet 等轻量网络的重要组成。理论 FLOPs 降低不一定等比例转化为真实延迟下降，还取决于硬件内核和内存访问。</p>
+<h3>5.12 ViT 怎样处理图片</h3>
+<p>ViT 将图片切成固定大小 Patch，每个 Patch 展平后线性投影为 Token，加上位置与类别 Token，再送入 Transformer Encoder。</p>
+<p>Patch 越小，序列越长、细节越丰富，但注意力成本更高。ViT 的局部归纳偏置比 CNN 弱，原始版本往往更依赖大规模预训练；现代混合架构、增强和训练方法已改善数据效率。</p>
+<p>CNN 和 ViT 不是绝对替代关系。CNN 在小数据、边缘设备和局部特征任务中仍有优势；Transformer 更擅长统一架构和全局建模。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
+<script>const contentId="deep-learning:05",moduleId="deep-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>118. 杨辉三角 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 15-动态规划</div>
+        <h1 id="118">118. 杨辉三角</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分嵌套列表版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的数学连环计）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/15-动态规划.html">← 动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>逐行递推</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n²)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n²)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个非负整数 <code>numRows</code>，生成「杨辉三角」的前 <code>numRows</code> 行。</p>
+<p>在杨辉三角中，每个数是它<strong>左上方</strong>和<strong>右上方</strong>的数的和。</p>
+<p><a href="https://leetcode.cn/problems/pascals-triangle/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>内部元素来自上一行左上与正上方。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（形与实的转换）</strong>：</p>
+<p>杨辉三角在视觉上是一个等腰三角形，但在计算机内存中，我们很难直接建一个等腰三角形。</p>
+<p><strong>破局点</strong>：把它全部<strong>向左对齐</strong>，变成一个“直角三角形”（也就是每一行长度不断加一的二维数组/嵌套列表）。</p>
+<p>排版后你会发现规律：</p>
+<p><code>[1]</code></p>
+<p><code>[1, 1]</code></p>
+<p><code>[1, 2, 1]</code></p>
+<p><code>[1, 3, 3, 1]</code></p>
+</li>
+<li>
+<p><strong>寻找规律（状态转移方程）</strong>：</p>
+<p>经过左对齐后，我们可以极其清晰地总结出两条铁律：</p>
+<ul>
+<li>
+<p><strong>边界铁律</strong>：每一行的第一位（索引 <code>0</code>）和最后一位（索引 <code>i</code>），永远是 <code>1</code>。</p>
+</li>
+<li>
+<p><strong>内部铁律</strong>：对于中间的任何一个数字，它的值等于<strong>上一行的同一列</strong>与<strong>上一行的前一列</strong>之和。</p>
+</li>
+</ul>
+<p>转换为极其标准的状态转移方程：</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = dp[i-1][j-1] + dp[i-1][j]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo></mrow></math></span></p>
+</li>
+<li>
+<p><strong>核心微操（两层循环，步步为营）</strong>：</p>
+<p>外层循环 <code>i</code> 控制行数（从 0 到 <code>numRows - 1</code>）。</p>
+<p>内层循环 <code>j</code> 控制每一行里面的元素（从 0 到 <code>i</code>）。</p>
+<p>根据 <code>j</code> 是不是首尾位置，分别塞入 <code>1</code> 或者执行相加公式即可。</p>
+<h3 id="java">Java 实现（满分嵌套列表版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">generate</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numRows</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 创建一个用于存储整个大三角的嵌套列表</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">triangle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 边界防御</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">numRows</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">triangle</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 外层循环：逐行构建杨辉三角</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numRows</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 准备一个新列表，用来装当前这一行的数字</span>
+<span class="w">            </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">            </span><span class="c1">// 内层循环：逐个生成当前行的数字</span>
+<span class="w">            </span><span class="c1">// 注意：第 i 行有 i + 1 个数字，所以 j &lt;= i</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 边界铁律：每一行的开头和结尾必定是 1</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">row</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="c1">// 内部铁律：中间的数字等于上一行的 (j-1) 和 (j) 位置之和</span>
+<span class="w">                </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 🌟 核心状态转移：向上面的行去借数据</span>
+<span class="w">                    </span><span class="c1">// previousRow 就是 triangle.get(i - 1)</span>
+<span class="w">                    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">previousRow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">triangle</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">leftParent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">previousRow</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">rightParent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">previousRow</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">j</span><span class="p">);</span>
+
+<span class="w">                    </span><span class="n">row</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">leftParent</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">rightParent</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 当前行构建完毕，装入大三角中</span>
+<span class="w">            </span><span class="n">triangle</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">row</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">triangle</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(numRows^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi mathvariant="normal">numRows</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。我们需要生成 <span class="math-inline-wrap"><math class="math-inline" aria-label="numRows × (numRows + 1)2"><mrow><mfrac><mrow><mi mathvariant="normal">numRows</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mo>(</mo><mi mathvariant="normal">numRows</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></math></span> 个元素，每个元素的计算时间是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的加法，属于完美的等差数列求和。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>（如果不考虑返回值的空间）。如果算上用来存放结果的嵌套列表，空间复杂度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(numRows^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi mathvariant="normal">numRows</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的数学连环计）</h3>
+<ol>
+<li><strong>面试追问 1：“如果我不需要整个三角形，我只想要第 <code>rowIndex</code> 行，并且【只允许你使用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(rowIndex)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">rowIndex</mi><mo>)</mo></mrow></math></span> 的额外空间】，该怎么做？”（对应力扣 119 题：杨辉三角 II）</strong>
+   - <strong>满分抢答（滚动数组的艺术）</strong>：这也是面试最爱考的 DP 空间压缩技巧！
+   - 因为第 <code>i</code> 行的计算<strong>仅仅依赖于第 <code>i-1</code> 行</strong>，更早的行全都没用了。所以我们只需要一个一维数组。
+   - <strong>致命细节（倒序遍历）</strong>：更新一维数组时，必须<strong>从后往前遍历</strong>（<code>j</code> 从 <code>i-1</code> 递减到 <code>1</code>）。因为如果你从前往后更新，你刚算出来的 <code>dp[j]</code> 覆盖了旧数据，等会儿算 <code>dp[j+1]</code> 需要用到旧的 <code>dp[j]</code> 时，数据已经被污染了！倒序遍历是原地压缩空间的神级手法。</li>
+<li><strong>面试终极进阶：“你能用纯数学公式，在 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span> 时间内直接算出第 <code>rowIndex</code> 行的每一个数吗？”</strong>
+   - <strong>满分优化思路（组合数学公式）</strong>：杨辉三角的本质其实是<strong>二项式展开的系数</strong>，也就是大名鼎鼎的<strong>组合数 <span class="math-inline-wrap"><math class="math-inline" aria-label="C_n^m"><mrow><msup><msub><mi>C</mi><mi>n</mi></msub><mi>m</mi></msup></mrow></math></span></strong>！
+   - 第 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 行的第 <span class="math-inline-wrap"><math class="math-inline" aria-label="m"><mrow><mi>m</mi></mrow></math></span> 个数（索引从 0 开始），其值严格等于 <span class="math-inline-wrap"><math class="math-inline" aria-label="C_n^m"><mrow><msup><msub><mi>C</mi><mi>n</mi></msub><mi>m</mi></msup></mrow></math></span>。
+   - 根据组合数的递推公式：<span class="math-inline-wrap"><math class="math-inline" aria-label="C_n^m = C_n^m-1 × n - m + 1m"><mrow><msup><msub><mi>C</mi><mi>n</mi></msub><mi>m</mi></msup><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><msup><msub><mi>C</mi><mi>n</mi></msub><mrow><mi>m</mi><mo>-</mo><mn>1</mn></mrow></msup><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mfrac><mrow><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mi>m</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mn>1</mn></mrow><mrow><mi>m</mi></mrow></mfrac></mrow></math></span>。我们甚至不需要哪怕一次加法，直接用乘除法就能在 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span> 内顺推生成特定行的所有数字！</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0070-爬楼梯.html">← 70. 爬楼梯</a> · <a href="0198-打家劫舍.html">198. 打家劫舍 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

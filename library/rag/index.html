@@ -1,0 +1,131 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>RAG：从检索原理到生产实践 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<header class="module-hero">
+  <div>
+    <h1>RAG：从检索原理到生产实践</h1>
+    <div class="module-sub">大模型应用 · 26 章 · 支持多轮学习记录</div>
+    <div class="module-about">从文档接入、分块与 Embedding 讲到检索、重排与答案生成，再进入 Agentic RAG、GraphRAG 以及评测、故障诊断与生产工程。</div>
+    <div id="connection" class="connection">正在连接本地数据库</div>
+  </div>
+  <div class="module-stats">
+    <div class="stat"><span>章数</span><strong>26</strong></div>
+    <div class="stat"><span>已完成</span><strong id="completedCount">0</strong></div>
+    <div class="stat"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
+  </div>
+</header>
+<div id="serverNotice" class="notice" hidden>数据库没有启动。请通过根目录中的“启动学习站.cmd”进入，记录才会写入 SQLite。</div>
+<section class="module-progress" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的章</span><strong id="progressText">0 / 26</strong></div><div id="progressBar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="26" aria-valuenow="0"><div id="progress"></div></div></section>
+<section id="moduleDue" class="module-due" aria-labelledby="moduleDueTitle"><div class="due-head"><h2 id="moduleDueTitle">本模块待复习</h2><span id="moduleDueSummary" class="due-summary">正在读取…</span></div><div id="moduleDueList" class="due-list"></div></section>
+<section class="module-controls" aria-label="筛选章节">
+  <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="标题、方法或简介" autocomplete="off"></div>
+  <div class="field" id="topicWrap"><label for="topic">专题</label><select id="topic"><option value="">全部专题</option></select></div>
+  <div class="field"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
+</section>
+<section class="chapter-grid" id="chapterGrid"></section>
+<div id="empty" class="empty" hidden>没有匹配的内容，请调整搜索词或筛选条件。</div>
+<div id="toast" class="toast" aria-live="polite"></div></div>
+<script>
+const moduleId="rag";
+const chapters=[{"id": "rag:01", "title": "RAG 到底解决什么问题", "url": "rag/chapter-01.html", "intro": "RAG（Retrieval-Augmented Generation，检索增强生成）是在模型生成答案前，先从外部…", "href": "chapter-01.html"}, {"id": "rag:02", "title": "RAG 与相邻技术的边界", "url": "rag/chapter-02.html", "intro": "二者改变的是不同东西。", "href": "chapter-02.html"}, {"id": "rag:03", "title": "完整系统：离线索引与在线问答", "url": "rag/chapter-03.html", "intro": "RAG 有两条流水线。离线流水线回答“知识怎样进入系统”，在线流水线回答“问题怎样找到证据并生成答案”。", "href": "chapter-03.html"}, {"id": "rag:04", "title": "文档接入：先把数据读对", "url": "rag/chapter-04.html", "intro": "检索无法找回解析阶段已经丢失的信息。生产 RAG 中，解析和数据治理常比调用模型更费工作。", "href": "chapter-04.html"}, {"id": "rag:05", "title": "Chunking：知识应以多大单位被检索", "url": "rag/chapter-05.html", "intro": "Chunking 是把长文档分成可检索单元。它同时影响召回和生成：块太小缺上下文，块太大主题混杂、占 token…", "href": "chapter-05.html"}, {"id": "rag:06", "title": "Embedding：把语义映射成向量", "url": "rag/chapter-06.html", "intro": "Embedding 模型把文本映射为固定维度向量。", "href": "chapter-06.html"}, {"id": "rag:07", "title": "稀疏检索：倒排索引、TF-IDF 与 BM25", "url": "rag/chapter-07.html", "intro": "稀疏检索基于词项匹配。它对错误码、产品型号、人名、专有名词和法规编号非常重要。", "href": "chapter-07.html"}, {"id": "rag:08", "title": "向量检索与 ANN 索引", "url": "rag/chapter-08.html", "intro": "精确 KNN 会计算查询向量与全部 $N$ 个向量的距离，复杂度近似 $O(Nd)$。数据量小时它简单且召回无损…", "href": "chapter-08.html"}, {"id": "rag:09", "title": "混合检索与结果融合", "url": "rag/chapter-09.html", "intro": "稀疏检索擅长精确词项，稠密检索擅长语义同义。生产系统常并行运行两者，再融合候选。", "href": "chapter-09.html"}, {"id": "rag:10", "title": "Rerank：把“召回”变成“排序”", "url": "rag/chapter-10.html", "intro": "初次检索目标是高召回：宁可多带候选，也不要漏掉正确证据。Rerank 目标是高精度：把真正能回答问题的内容排在前…", "href": "chapter-10.html"}, {"id": "rag:11", "title": "查询理解与改写", "url": "rag/chapter-11.html", "intro": "用户问题不一定适合直接检索。查询可能依赖对话上下文、包含歧义、过于宽泛，或使用与文档不同的表达。", "href": "chapter-11.html"}, {"id": "rag:12", "title": "上下文构建与答案生成", "url": "rag/chapter-12.html", "intro": "检索结果不能简单 join 后塞给模型。Context Builder 决定模型实际看到哪些证据、以何种顺序看到…", "href": "chapter-12.html"}, {"id": "rag:13", "title": "从两阶段 RAG 到 Agentic RAG", "url": "rag/chapter-13.html", "intro": "固定执行一次检索和一次生成。", "href": "chapter-13.html"}, {"id": "rag:14", "title": "GraphRAG：面向关系与全局问题", "url": "rag/chapter-14.html", "intro": "普通 chunk 检索擅长局部事实。问题“某研究领域有哪些主要主题，它们如何演化”需要跨大量文档聚合实体、关系和…", "href": "chapter-14.html"}, {"id": "rag:15", "title": "表格、数据库与多模态 RAG", "url": "rag/chapter-15.html", "intro": "RAG 的“R”不等于只能检索文本向量。应按照数据的原生结构选择检索和计算方式。", "href": "chapter-15.html"}, {"id": "rag:16", "title": "端到端代码示例", "url": "rag/chapter-16.html", "intro": "下面示例有意不绑定具体商业模型，展示核心数据流。为了便于理解，使用内存列表和精确余弦搜索；生产环境应替换为真实解…", "href": "chapter-16.html"}, {"id": "rag:17", "title": "RAG 评测：不要只看最终答案", "url": "rag/chapter-17.html", "intro": "只问“回答看起来好不好”无法定位问题。RAG 应沿流水线分层评测。", "href": "chapter-17.html"}, {"id": "rag:18", "title": "生产工程：性能、成本与可观测性", "url": "rag/chapter-18.html", "intro": "原型只需“能回答”，生产系统需要在知识更新、并发、故障和成本约束下持续正确。", "href": "chapter-18.html"}, {"id": "rag:19", "title": "安全、权限与数据治理", "url": "rag/chapter-19.html", "intro": "RAG 把外部数据送入模型，也让模型接触企业私有知识。它扩大了攻击面，不能把“提示词写得严格”当作安全措施。", "href": "chapter-19.html"}, {"id": "rag:20", "title": "故障诊断：答案错了究竟错在哪", "url": "rag/chapter-20.html", "intro": "不要看到错误答案就同时调整 chunk size、embedding、Prompt 和模型。一次只定位一个阶段…", "href": "chapter-20.html"}, {"id": "rag:21", "title": "技术选型", "url": "rag/chapter-21.html", "intro": "框架和数据库只是实现手段。先明确数据规模、更新方式、检索类型、权限、延迟、团队能力和运维边界，再选产品。", "href": "chapter-21.html"}, {"id": "rag:22", "title": "完整案例：企业制度问答系统", "url": "rag/chapter-22.html", "intro": "这个案例不追求展示最多框架，而是说明怎样把需求变成可验证系统。", "href": "chapter-22.html"}, {"id": "rag:23", "title": "学习路线与面试题", "url": "rag/chapter-23.html", "intro": "目标：理解离线和在线两条流水线，而不是先记框架。", "href": "chapter-23.html"}, {"id": "rag:24", "title": "一页速查表", "url": "rag/chapter-24.html", "intro": "离线： 数据源 - 解析/OCR - 清洗/结构 - 去重/版本/ACL - Chunk/父子关系 - Embe…", "href": "chapter-24.html"}, {"id": "rag:25", "title": "延伸阅读", "url": "rag/chapter-25.html", "intro": "阅读论文时注意区分“论文中的特定实现”与“工程上借鉴的思想”，也要检查后续版本、勘误和适用数据集。", "href": "chapter-25.html"}, {"id": "rag:26", "title": "结语", "url": "rag/chapter-26.html", "intro": "高质量 RAG 不是“找一个向量数据库，把文本切成 500 字，再写一句只根据资料回答”。它是一套知识工程与检索…", "href": "chapter-26.html"}];
+const topics=[];
+const hasTopics=topics.length>0;
+const grid=document.getElementById('chapterGrid');
+const empty=document.getElementById('empty');
+const search=document.getElementById('search');
+const topic=document.getElementById('topic');
+const status=document.getElementById('status');
+const toast=document.getElementById('toast');
+const topicWrap=document.getElementById('topicWrap');
+const connection=document.getElementById('connection');
+const serverNotice=document.getElementById('serverNotice');
+const moduleDue=document.getElementById('moduleDue');
+const moduleDueList=document.getElementById('moduleDueList');
+const state={online:false,data:{modules:{},contents:{}},due:{today:'',items:{}}};
+if(!hasTopics){topicWrap.hidden=true;topicWrap.style.display='none'}
+topics.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;topic.appendChild(option)});
+function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+function localTime(value){if(!value)return '尚无记录';const date=new Date(value);return `${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`}
+function moduleInfo(){return state.data.modules[moduleId]||{completed:0,total:chapters.length}}
+function contentInfo(id){return state.data.contents[id]||{rounds:0,last_activity_at:null}}
+function dueInfo(id){return state.due.items[id]||null}
+function renderDue(){
+  if(!moduleDue)return;
+  const due=state.due.items;
+  const items=chapters.filter(c=>due[c.id]).map(c=>({...c,due:due[c.id],overdue:due[c.id]<state.due.today}));
+  const overdueCount=items.filter(item=>item.overdue).length;
+  const head=moduleDue.querySelector('.due-summary');
+  if(head)head.textContent=items.length?`本模块 ${items.length} 章到期${overdueCount?`（逾期 ${overdueCount}）`:''}，完成一轮后自动推进下次复习。`:'';
+  moduleDueList.innerHTML=items.length?items.map(item=>`<div class="due-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-date">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="due-empty">本模块暂无到期章节，完成一轮后会自动出现在这里。</div>';
+}
+function updateStats(){
+  const info=moduleInfo();
+  const rounds=chapters.reduce((sum,c)=>sum+Number(contentInfo(c.id).rounds||0),0);
+  document.getElementById('completedCount').textContent=info.completed;
+  document.getElementById('totalRounds').textContent=rounds;
+  const percent=Math.round(info.completed/info.total*100);
+  document.getElementById('progress').style.width=`${percent}%`;
+  document.getElementById('progressText').textContent=`${info.completed} / ${info.total}`;
+  document.getElementById('progressBar').setAttribute('aria-valuenow',String(info.completed));
+}
+function renderCards(){
+  const query=search.value.trim().toLowerCase();
+  const list=chapters.filter(c=>{
+    const rounds=Number(contentInfo(c.id).rounds||0);
+    const due=dueInfo(c.id);
+    const isDue=Boolean(due);
+    const text=`${c.title} ${c.intro||''} ${c.method||''} ${c.category||''}`.toLowerCase();
+    const matchesText=!query||text.includes(query);
+    const matchesTopic=!hasTopics||!topic.value||c.category===topic.value;
+    const matchesStatus=!status.value||(status.value==='new'&&rounds===0)||(status.value==='once'&&rounds===1)||(status.value==='repeat'&&rounds>=2)||(status.value==='due'&&isDue);
+    return matchesText&&matchesTopic&&matchesStatus;
+  });
+  grid.innerHTML=list.map(c=>{
+    const info=contentInfo(c.id);const rounds=Number(info.rounds||0);
+    const due=dueInfo(c.id);const overdue=due&&due<state.due.today;
+    const meta=[];
+    if(c.category)meta.push(`<span class="pill">${esc(c.category)}</span>`);
+    if(c.difficulty)meta.push(`<span class="difficulty-${c.difficulty}">${esc(c.difficulty)}</span>`);
+    const dueBadge=due?`<span class="due-pill ${overdue?'overdue':''}">${overdue?'逾期':'待复习'}</span>`:'';
+    return `<article class="chapter-card ${rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}">${esc(c.title)}</a></h2><span class="round-count">${rounds} 轮</span>${dueBadge}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}">完成一轮</button></div></article>`;
+  }).join('');
+  empty.hidden=list.length!==0;
+  grid.querySelectorAll('[data-chapter]').forEach(button=>button.addEventListener('click',()=>completeChapter(button)));
+}
+async function completeChapter(button){
+  const chapter=chapters.find(item=>item.id===button.dataset.chapter);
+  if(!chapter){button.disabled=false;return}
+  button.disabled=true;button.textContent='记录中…';toast.textContent='';
+  try{
+    const isProblem=Boolean(chapter.problem_id);
+    const payload=isProblem?{problem_id:Number(chapter.problem_id)}:{module_id:moduleId,content_id:chapter.id};
+    const response=await fetch(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||'记录失败');
+    toast.textContent=`已记录「${chapter.title}」的第 ${result.round_no} 轮`;
+    await refresh();
+  }catch(error){toast.textContent=`记录失败：${error.message}`;button.disabled=false;button.textContent='完成一轮'}
+}
+async function refresh(){
+  try{
+    const [libraryResponse,dailyResponse]=await Promise.all([
+      fetch('/api/library',{cache:'no-store'}),
+      fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})
+    ]);
+    if(!libraryResponse.ok||!dailyResponse.ok)throw new Error('database unavailable');
+    state.data=await libraryResponse.json();
+    const daily=await dailyResponse.json();
+    state.due.today=daily.today;
+    state.due.items={};
+    daily.contents.forEach(item=>{state.due.items[item.content_id]=item.due_date});
+    state.online=true;
+    connection.classList.add('online');connection.textContent='SQLite 数据库已连接';serverNotice.hidden=true;
+  }catch(error){
+    state.online=false;
+    state.due.today='';state.due.items={};
+    connection.classList.remove('online');connection.textContent='当前是静态浏览模式';serverNotice.hidden=false;
+  }
+  updateStats();renderDue();renderCards();
+}
+search.addEventListener('input',renderCards);
+[topic,status].forEach(control=>control.addEventListener('change',renderCards));
+refresh();
+</script></body></html>

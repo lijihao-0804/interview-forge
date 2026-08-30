@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>146. LRU 缓存 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="146-lru">146. LRU 缓存</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（手撕底层实现）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试灵魂追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>哈希表 + 双向链表</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(capacity)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>设计并实现一个满足 <strong>LRU (最近最少使用)</strong> 缓存约束的数据结构。</p>
+<ul>
+<li><code>LRUCache(int capacity)</code>：以正整数作为容量 <code>capacity</code> 初始化 LRU 缓存。</li>
+<li><code>int get(int key)</code>：如果关键字 <code>key</code> 存在于缓存中，则返回其值，否则返回 <code>-1</code>。</li>
+<li><code>void put(int key, int value)</code>：如果 <code>key</code> 已经存在，则变更其数据值；如果不存在，则向缓存中插入该组 <code>key-value</code>。如果插入操作导致关键字数量超过 <code>capacity</code>，则应该<strong>逐出</strong>最久未使用的关键字。</li>
+<li><strong>硬性要求</strong>：<code>get</code> 和 <code>put</code> 必须以 <strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span></strong> 的平均时间复杂度运行。</li>
+</ul>
+<p><a href="https://leetcode.cn/problems/lru-cache/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>哈希负责定位，双链表负责 O(1) 调整新旧顺序。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点分析</strong>：<ul>
+<li>要想 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 查找（<code>get</code>），必须得用<strong>哈希表（HashMap）</strong>。</li>
+<li>要想有“最近最少使用”的淘汰机制，必须有<strong>顺序</strong>，并且能频繁地在两头进行移动和删除（新来的放一头，旧的从另一头踢掉）。数组挪动元素是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，不行；普通的单链表删除节点需要找前驱节点，也是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，不行。</li>
+</ul>
+</li>
+<li><strong>破局思路（哈希表 + 双向链表）</strong>：<ul>
+<li>既然单一结构搞不定，我们就把它们拼起来！</li>
+<li>我们构建一个<strong>双向链表</strong>：规定<strong>靠近头部的节点是“最近使用的”</strong>，<strong>靠近尾部的节点是“最久未使用的”</strong>。</li>
+<li>同时用一个 <strong>HashMap</strong>：Key 就是缓存的 Key，Value 直接指向双向链表中的节点（Node）内存地址。</li>
+</ul>
+</li>
+<li><strong>微操推演（四套标准动作）</strong>：<ul>
+<li><strong>遇到 <code>get</code> 且存在</strong>：通过 HashMap 瞬间 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 找到那个节点。不仅返回值，还要<strong>把这个节点从链表当前位置剪下来，重新插到链表头部</strong>（因为它刚被用过，变成“最近使用”了）。</li>
+<li><strong>遇到 <code>put</code> 且已存在</strong>：和 <code>get</code> 类似，先通过 HashMap 找到节点，更新它的值，然后<strong>把它挪到头部</strong>。</li>
+<li><strong>遇到 <code>put</code> 且不存在（缓存未满）</strong>：新建一个节点，把它插入到链表头部，并在 HashMap 中记录。</li>
+<li><strong>遇到 <code>put</code> 且不存在（缓存已满）</strong>：残酷的淘汰来了。直接把<strong>链表尾部</strong>的那个节点咔嚓掉（它就是最久没用的），同时<strong>务必记得从 HashMap 中也删掉对应的 Key</strong>！然后再把新节点插到头部并放入 HashMap。</li>
+</ul>
+</li>
+</ol>
+<h3 id="java">Java 实现（手撕底层实现）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">LRUCache</span><span class="w"> </span><span class="p">{</span>
+
+<span class="w">    </span><span class="c1">// 1. 定义双向链表的节点类</span>
+<span class="w">    </span><span class="kd">class</span> <span class="nc">DLinkedNode</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="w">        </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">        </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="kd">public</span><span class="w"> </span><span class="nf">DLinkedNode</span><span class="p">()</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">        </span><span class="kd">public</span><span class="w"> </span><span class="nf">DLinkedNode</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">_key</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">_value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_key</span><span class="p">;</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">_value</span><span class="p">;}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">cache</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// 使用虚拟头节点和虚拟尾节点，拯救无数繁琐的判空逻辑！</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">tail</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">LRUCache</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">capacity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">capacity</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 初始化双向链表：head &lt;-&gt; tail</span>
+<span class="w">        </span><span class="n">head</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="p">();</span>
+<span class="w">        </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="p">();</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">;</span>
+<span class="w">        </span><span class="n">tail</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 没找到</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 如果找到了，说明该被访问了，把它挪到头部（VIP座）</span>
+<span class="w">        </span><span class="n">moveToHead</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">value</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">put</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cache</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 如果不存在，是个新数据</span>
+<span class="w">            </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">newNode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">);</span>
+<span class="w">            </span><span class="n">cache</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">newNode</span><span class="p">);</span><span class="w"> </span><span class="c1">// 放进 HashMap</span>
+<span class="w">            </span><span class="n">addToHead</span><span class="p">(</span><span class="n">newNode</span><span class="p">);</span><span class="w">      </span><span class="c1">// 放进链表头部</span>
+<span class="w">            </span><span class="n">size</span><span class="o">++</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 如果超标了，执行淘汰机制</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 揪出尾巴前面的那个真实的最后一名</span>
+<span class="w">                </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">removeTail</span><span class="p">();</span>
+<span class="w">                </span><span class="c1">// 极其容易忘的一步：把 HashMap 里的 Key 也删掉！</span>
+<span class="w">                </span><span class="n">cache</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">tail</span><span class="p">.</span><span class="na">key</span><span class="p">);</span>
+<span class="w">                </span><span class="n">size</span><span class="o">--</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 如果存在，只是更新值</span>
+<span class="w">            </span><span class="n">node</span><span class="p">.</span><span class="na">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// 刚被操作过，挪到头部</span>
+<span class="w">            </span><span class="n">moveToHead</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// ================= 以下是极其优雅的链表微操（黑盒化） =================</span>
+
+<span class="w">    </span><span class="c1">// 动作A：把新节点加到头部（head 和第一个真实节点之间）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">addToHead</span><span class="p">(</span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 动作B：把一个节点从链表中硬生生挖出来（前后相连）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">removeNode</span><span class="p">(</span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">prev</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 动作C：把节点挪到头部（= 挖出来 + 加到头部）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">moveToHead</span><span class="p">(</span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">removeNode</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
+<span class="w">        </span><span class="n">addToHead</span><span class="p">(</span><span class="n">node</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 动作D：淘汰真实的尾部节点，并返回它（为了让上层去 HashMap 里删对应的 Key）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="nf">removeTail</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">DLinkedNode</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">prev</span><span class="p">;</span>
+<span class="w">        </span><span class="n">removeNode</span><span class="p">(</span><span class="n">res</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：对于 <code>put</code> 和 <code>get</code> 都是绝对的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(capacity)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">capacity</mi><mo>)</mo></mrow></math></span>。HashMap 和双向链表最多存储 <code>capacity</code> 个元素。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试灵魂追问）</h3>
+<ol>
+<li><strong>送命题：“为什么一定要用【双向】链表？单链表不行吗？”</strong>
+   - <strong>满分抢答</strong>：单链表<strong>绝对不行</strong>。因为当我们用 HashMap 以 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的时间定位到某个节点准备把它移动到头部时（或者准备删除它时），我们必须修改它<strong>前驱节点</strong>的 <code>next</code> 指针！如果是单链表，我们找不到前驱节点，只能从头遍历去找，那时间复杂度就退化成 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 了。双向链表的 <code>prev</code> 指针完美解决了这个问题！</li>
+<li><strong>踩坑警告：为什么 Node 里面除了存 Value，还要存 Key？</strong>
+   - 仔细看代码里的淘汰逻辑：当缓存满了，我们要删掉链表尾部的节点。<strong>删完尾部节点后，我们还必须去 HashMap 里把对应的键值对也删掉！</strong> 如果节点里不存 Key，我们只知道被删的节点长啥样，却不知道拿什么 Key 去 HashMap 里调用 <code>cache.remove(key)</code>。</li>
+<li><strong>进阶的后路：“其实 Java 原生支持 LRU...”</strong>
+   - 在完成手写后，你可以云淡风轻地向面试官提一嘴：“在工程实践中，Java 的 <code>LinkedHashMap</code> 只要重写 <code>removeEldestEntry</code> 方法，5 行代码就能实现一个工业级的 LRU 缓存。” 这能展现出你不仅仅是个做题家，还是个懂 JDK 底层的实战派。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0023-合并 K 个升序链表.html">← 23. 合并 K 个升序链表</a> · <a href="../08-二叉树/0094-二叉树的中序遍历.html">94. 二叉树的中序遍历 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

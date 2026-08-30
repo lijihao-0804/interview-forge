@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>994. 腐烂的橘子 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 09-图论</div>
+        <h1 id="994">994. 腐烂的橘子</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-bfs">Java 实现（多源 BFS 满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（进阶的底层细节）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/09-图论.html">← 图论专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>多源 BFS</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(mn)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 的网格，每个单元格有三种状态：<code>0</code>（空）、<code>1</code>（新鲜橘子）、<code>2</code>（腐烂橘子）。
+每过一分钟，任何与腐烂橘子（上下左右）相邻的新鲜橘子都会腐烂。
+返回直到单元格中没有新鲜橘子为止所必须经过的最小分钟数。如果不可能，返回 <code>-1</code>。</p>
+<p><a href="https://leetcode.cn/problems/rotting-oranges/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>所有初始腐烂橘子同时作为第 0 分钟入队。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<hr />
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（为什么不能用 DFS？）</strong>：
+假设你用 DFS 顺着一个腐烂的橘子一路往下感染，记录了感染某个橘子需要 5 分钟。但其实它的旁边就有一个其他的腐烂橘子，1 分钟就能把它感染。DFS 很难处理这种“多点同时爆发，按最短时间算”的并行逻辑。</li>
+<li><strong>破局思路（超级感染体与分层队列）</strong>：
+想一想我们在「102. 二叉树的层序遍历」里学过的套路：用一个队列（Queue），每次只处理“当前这一层”的所有节点，然后再进入下一层。
+在这道题里，“每一层”就代表着“每一分钟”。
+* <strong>第 0 分钟</strong>：我们把地图上<strong>所有一开始就腐烂的橘子（零号病人）</strong>，全部塞进队列！同时，数一数地图上一共有多少个新鲜橘子（<code>freshCount</code>）。
+* <strong>第 1 分钟开始</strong>：队列里的零号病人们同时出动，向四周喷洒病毒。只要遇到新鲜橘子，就把它变腐烂，然后把这个新感染的橘子<strong>塞进队列的尾部（作为下一分钟的传染源）</strong>，并且新鲜橘子总数减 1。
+* <strong>结束条件</strong>：当队列空了，病毒传不下去了。此时如果 <code>freshCount == 0</code>，说明全都感染了，返回耗费的分钟数；如果 <code>freshCount &gt; 0</code>，说明有橘子藏在死角（周围全是 0 空地），永远无法被感染，返回 <code>-1</code>。</li>
+</ol>
+<h3 id="java-bfs">Java 实现（多源 BFS 满分版）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.LinkedList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Queue</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">orangesRotting</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">Queue</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">freshCount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 1. 战前准备：扫描全图，寻找“零号病人”和“幸存者总数”</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rows</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cols</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 发现腐烂橘子，加入初始队列</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">});</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 统计新鲜橘子数量</span>
+<span class="w">                    </span><span class="n">freshCount</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 如果一开始就没有新鲜橘子，直接返回 0 分钟</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">freshCount</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">minutes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 上下左右四个方向的偏移量（这是网格 BFS/DFS 的标配）</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">directions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{{</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">}};</span>
+
+<span class="w">        </span><span class="c1">// 2. 开始生化危机：只要队列里还有传染源，且还有新鲜橘子，就继续</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">freshCount</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">minutes</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 每一轮大循环代表 1 分钟</span>
+
+<span class="w">            </span><span class="c1">// 🌟 必须锁死当前层的传染源数量！</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">levelSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">levelSize</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">                </span><span class="c1">// 向四个方向试探</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dir</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">directions</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dir</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dir</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">                    </span><span class="c1">// 如果越界，或者不是新鲜橘子，跳过</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nr</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nr</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nc</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">                    </span><span class="p">}</span>
+
+<span class="w">                    </span><span class="c1">// 感染它！</span>
+<span class="w">                    </span><span class="n">grid</span><span class="o">[</span><span class="n">nr</span><span class="o">][</span><span class="n">nc</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">freshCount</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                    </span><span class="c1">// 把新感染的橘子扔进队列，留给下一分钟去发威</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nr</span><span class="p">,</span><span class="w"> </span><span class="n">nc</span><span class="p">});</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 结算：如果还有新鲜橘子，说明有死角，返回 -1</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">freshCount</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">minutes</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。扫描一遍全图需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span>。BFS 过程中，每个格子最多进队一次、出队一次，也是 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span>。整体依然是极速的线性时间。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。最坏情况下（比如全图都是腐烂橘子），队列需要存储 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 个坐标。</li>
+</ul>
+<hr />
+<h3 id="_6">易错点与扩展（进阶的底层细节）</h3>
+<ol>
+<li>
+<p><strong>高级踩坑警告：多算 1 分钟的陷阱</strong>
+* 很多同学在写 <code>while</code> 循环时，条件只写了 <code>while (!queue.isEmpty())</code>，没有加上 <code>freshCount &gt; 0</code>。
+* <strong>致命后果</strong>：假设在第 3 分钟，最后一个新鲜橘子被感染并放进了队列。进入第 4 分钟的循环时，这个刚被感染的橘子出队，向四周一看，没有新鲜橘子了！但是你的 <code>minutes</code> 还是错误地加了 1。这会导致最终返回 4 分钟，而正确答案应该是 3 分钟！
+* <strong>破局方案</strong>：要么把 <code>freshCount &gt; 0</code> 加到 <code>while</code> 条件里（提前止损，最优雅）；要么在最后返回时写 <code>minutes - 1</code>，但你要额外处理一开始全空的边界情况。</p>
+</li>
+<li>
+<p><strong>面试追问：“为什么要叫【多源】BFS？”</strong>
+* <strong>满分回答</strong>：普通的 BFS（比如求迷宫的最短路径）通常只有一个起点，就像从一滴水荡开波纹。而这道题可能有多个起始腐烂橘子，它们<strong>同时</strong>开始向外扩散。这就要求我们在第 0 层把<strong>所有源头</strong>一次性全部放进队列中，让它们处于同一条起跑线上。图论中的“多源最短路径问题”，如果边权相同，都可以用这个套路优化思路。</p>
+</li>
+</ol>
+<hr />
+<h2 id="_7">相邻学习</h2>
+<p><a href="0200-岛屿数量.html">← 200. 岛屿数量</a> · <a href="0207-课程表.html">207. 课程表 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/网格搜索实验室.html?embed=1&amp;mode=bfs" title="994. 腐烂的橘子的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

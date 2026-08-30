@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>41. 缺失的第一个正数 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 05-普通数组</div>
+        <h1 id="41">41. 缺失的第一个正数</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（极易写错的陷阱）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/05-普通数组.html">← 普通数组专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>原地哈希 / 循环置换</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个未排序的整数数组 <code>nums</code>，请你找出其中没有出现的<strong>最小的正整数</strong>。</p>
+<p>（正整数从 1 开始：1, 2, 3...）</p>
+<p><a href="https://leetcode.cn/problems/first-missing-positive/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>值 x 的理想位置是下标 x - 1。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点</strong>：</p>
+<p>想找缺失的数字，直觉上放进 HashSet 里，然后从 1 开始往上数，谁不在 HashSet 里就是谁。但这样空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，不符合要求。</p>
+</li>
+<li>
+<p><strong>破局思路（鸽巢原理/萝卜一个坑）</strong>：</p>
+<ul>
+<li>假设数组长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>。那么缺失的第一个正数<strong>绝对不可能大于 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span></strong>。</li>
+<li><em>为什么？</em> 因为就算数组里塞满了最紧凑的正整数 <code>[1, 2, 3, ..., N]</code>，缺失的也就是 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span>。如果数组里有乱七八糟的负数或大数，缺失的数字只会更小。</li>
+<li>既然答案一定在 <span class="math-inline-wrap"><math class="math-inline" aria-label="[1, N]"><mrow><mo>[</mo><mn>1</mn><mo>,</mo><mspace width=".18em"/><mi>N</mi><mo>]</mo></mrow></math></span> 这个范围内，我们手里刚好有一个长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 的数组！</li>
+<li><strong>灵魂操作</strong>：我们把数组本身当成一个哈希表！<strong>让数字 <code>x</code> 回到它该去的索引位置 <code>x - 1</code> 上。</strong>（即数字 1 放在索引 0，数字 2 放在索引 1... 数字 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 放在索引 <span class="math-inline-wrap"><math class="math-inline" aria-label="N-1"><mrow><mi>N</mi><mo>-</mo><mn>1</mn></mrow></math></span>）。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（以 <code>[3, 4, -1, 1]</code> 为例，N = 4）</strong>：</p>
+<ul>
+<li>遍历数组：</li>
+<li>遇到 <code>3</code>：它应该待在索引 <code>2</code> 的位置。把它和索引 <code>2</code> 的数字（<code>-1</code>）交换。数组变成 <code>[-1, 4, 3, 1]</code>。</li>
+<li>遇到 <code>-1</code>：它是负数，直接无视（不属于 <span class="math-inline-wrap"><math class="math-inline" aria-label="[1, N]"><mrow><mo>[</mo><mn>1</mn><mo>,</mo><mspace width=".18em"/><mi>N</mi><mo>]</mo></mrow></math></span> 的范围）。</li>
+<li>遇到 <code>4</code>：应该待在索引 <code>3</code>。把它和索引 <code>3</code> 的数字（<code>1</code>）交换。数组变成 <code>[-1, 1, 3, 4]</code>。</li>
+<li>新换过来的 <code>1</code>：应该待在索引 <code>0</code>。把它和索引 <code>0</code> 的数字（<code>-1</code>）交换。数组变成 <code>[1, -1, 3, 4]</code>。</li>
+<li>最后，遍历整理好的数组：</li>
+<li>索引 0 是 1（正确）</li>
+<li>索引 1 是 -1（<strong>错误！这里本该是 2</strong>）</li>
+<li>所以，缺失的最小正整数就是 <code>2</code>！</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">firstMissingPositive</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 第一步：原地哈希（把数字放到对应的索引坑位上）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 核心判断：</span>
+<span class="w">            </span><span class="c1">// 1. nums[i] &gt; 0 且 nums[i] &lt;= n：只处理范围在 [1, n] 内的有效数字</span>
+<span class="w">            </span><span class="c1">// 2. nums[nums[i] - 1] != nums[i]：目标位置上的数字如果和当前数字不一样，才需要交换</span>
+<span class="w">            </span><span class="c1">// （注意这里必须用 while，因为换过来的新数字可能还需要继续被交换走）</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 将 nums[i] 交换到它该去的位置：下标为 nums[i] - 1 的地方</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="n">nums</span><span class="o">[</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">temp</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 第二步：遍历寻找第一个“没坑里萝卜”的位置</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 如果索引 i 的位置没有放数字 i+1，说明 i+1 就是缺失的最小正数</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 极端情况：如果数组是完美的 [1, 2, 3, ..., n]，那缺失的就是 n + 1</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。虽然代码里有 <code>for</code> 嵌套 <code>while</code>，但每次进入 <code>while</code> 都会把一个正确的数字放到正确的坑位上，这个过程对每个坑位最多发生一次。所以总的交换次数最多是 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 次。摊销下来时间复杂度就是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。全程只用了一个额外的 <code>temp</code> 变量，完全在原数组上折腾。</li>
+</ul>
+<h3 id="_6">易错点与扩展（极易写错的陷阱）</h3>
+<ol>
+<li><strong>致命陷阱：为什么要用 <code>while</code> 而不是 <code>if</code>？</strong>
+   - 当我们把当前位置 <code>i</code> 的数字交换出去后，换回来的<strong>新数字</strong>可能依然属于 <span class="math-inline-wrap"><math class="math-inline" aria-label="[1, N]"><mrow><mo>[</mo><mn>1</mn><mo>,</mo><mspace width=".18em"/><mi>N</mi><mo>]</mo></mrow></math></span> 的范围，并且没有待在正确的位置上！如果用 <code>if</code>，我们就错过了一次让新数字“回老家”的机会。用 <code>while</code> 才能保证当前坑位拿到完美的萝卜（或者换来废弃的负数/超大数）才会停下。</li>
+<li><strong>死循环防范：<code>nums[nums[i] - 1] != nums[i]</code> 极其重要！</strong>
+   - 如果数组是 <code>[1, 1]</code>。当前索引 0 的数字是 1，待在正确位置。索引 1 的数字是 1，它该去索引 0。
+   - 如果你不加这行判断，代码会不断地把索引 1 的 <code>1</code> 和索引 0 的 <code>1</code> 互相交换，产生<strong>死循环</strong>！这行代码既是交换条件，也是对重复数字的去重过滤。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0238-除自身以外数组的乘积.html">← 238. 除自身以外数组的乘积</a> · <a href="../06-矩阵/0073-矩阵置零.html">73. 矩阵置零 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/困难题核心状态实验室.html?embed=1&amp;mode=first-missing" title="41. 缺失的第一个正数的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

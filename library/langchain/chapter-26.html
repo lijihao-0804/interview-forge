@@ -1,0 +1,324 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangGraph 入门：把隐式循环变成显式状态图 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">LangGraph 入门：把隐式循环变成显式状态图</span></nav><div class="module-meta">大模型应用 · 第 26 / 33 章</div><h1>LangGraph 入门：把隐式循环变成显式状态图</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p><code>create_agent</code> 已经能解决常见 Tool Agent 问题。直接使用 LangGraph 的理由不是“更底层更厉害”，而是业务需要清楚控制状态、分支、循环、并行、持久化或人工审批。</p>
+<h3>26.1 五个基本概念</h3>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>含义</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>State</td>
+<td>整个流程共享的数据结构</td>
+<td>一张持续更新的任务表</td>
+</tr>
+<tr>
+<td>Node</td>
+<td>读取状态并返回部分更新的函数</td>
+<td>一个处理步骤</td>
+</tr>
+<tr>
+<td>Edge</td>
+<td>节点之间的固定连接</td>
+<td>固定流程箭头</td>
+</tr>
+<tr>
+<td>Conditional Edge</td>
+<td>根据函数结果选择下一节点</td>
+<td>if/switch</td>
+</tr>
+<tr>
+<td>Reducer</td>
+<td>多次写同一字段时如何合并</td>
+<td>覆盖、追加或自定义合并</td>
+</tr>
+</tbody>
+</table>
+<p>Graph 在 <code>compile()</code> 之前只是定义；编译后才得到可 <code>invoke/stream</code> 的 Runnable。</p>
+<h3>26.2 第一个完全确定性的状态图</h3>
+<p>先不用模型，理解图本身：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">TypedDict</span>
+
+<span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">END</span><span class="p">,</span> <span class="n">START</span><span class="p">,</span> <span class="n">StateGraph</span>
+
+
+<span class="k">class</span> <span class="nc">ReviewState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">length</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">category</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">result</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">def</span> <span class="nf">count_text</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ReviewState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;length&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">])}</span>
+
+
+<span class="k">def</span> <span class="nf">route_by_length</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ReviewState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="s2">&quot;long&quot;</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="s2">&quot;short&quot;</span> <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;length&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">10</span> <span class="k">else</span> <span class="s2">&quot;long&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">handle_short</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ReviewState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;short&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;短文本，共 </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> 个字符&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">handle_long</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ReviewState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;long&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;长文本，共 </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> 个字符&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="n">builder</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">ReviewState</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;count&quot;</span><span class="p">,</span> <span class="n">count_text</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="n">handle_short</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;long&quot;</span><span class="p">,</span> <span class="n">handle_long</span><span class="p">)</span>
+
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span>
+    <span class="s2">&quot;count&quot;</span><span class="p">,</span>
+    <span class="n">route_by_length</span><span class="p">,</span>
+    <span class="p">{</span><span class="s2">&quot;short&quot;</span><span class="p">:</span> <span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="s2">&quot;long&quot;</span><span class="p">:</span> <span class="s2">&quot;long&quot;</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;long&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+
+<span class="n">review_graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">review_graph</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;LangChain&quot;</span><span class="p">}))</span>
+</code></pre></div>
+<p>输出：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">{
+  &#39;text&#39;: &#39;LangChain&#39;,
+  &#39;length&#39;: 9,
+  &#39;category&#39;: &#39;short&#39;,
+  &#39;result&#39;: &#39;短文本，共 9 个字符&#39;
+}
+</code></pre></div>
+<p>节点返回的是<strong>部分状态更新</strong>，不是必须返回整个 State。没有 Reducer 时，同一字段的新值通常覆盖旧值。</p>
+<p>运行路径为：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    S((START)) --&gt; C["count"]
+    C --&gt;|short| A["handle_short"]
+    C --&gt;|long| B["handle_long"]
+    A --&gt; E((END))
+    B --&gt; E</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<h3>26.3 Reducer 决定“写入”还是“合并”</h3>
+<p>若多个节点都返回 <code>{"logs": [...]}</code>，默认覆盖会丢掉旧日志。可以为字段声明 Reducer：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span><span class="p">,</span> <span class="n">TypedDict</span>
+
+<span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">END</span><span class="p">,</span> <span class="n">START</span><span class="p">,</span> <span class="n">StateGraph</span>
+
+
+<span class="k">class</span> <span class="nc">LogState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">logs</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">double</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">LogState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">value</span><span class="p">,</span> <span class="s2">&quot;logs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;double -&gt; </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]}</span>
+
+
+<span class="k">def</span> <span class="nf">add_three</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">LogState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">3</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">value</span><span class="p">,</span> <span class="s2">&quot;logs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;add_three -&gt; </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]}</span>
+
+
+<span class="n">builder</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">LogState</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="n">double</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;add_three&quot;</span><span class="p">,</span> <span class="n">add_three</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">&quot;double&quot;</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;double&quot;</span><span class="p">,</span> <span class="s2">&quot;add_three&quot;</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;add_three&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+
+<span class="n">log_graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">log_graph</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;logs&quot;</span><span class="p">:</span> <span class="p">[]}))</span>
+</code></pre></div>
+<p>输出：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">{
+  &#39;value&#39;: 13,
+  &#39;logs&#39;: [&#39;double -&gt; 10&#39;, &#39;add_three -&gt; 13&#39;]
+}
+</code></pre></div>
+<p><code>operator.add</code> 对列表表示拼接。Reducer 必须满足业务语义：消息适合追加，当前余额通常适合覆盖，计数器可能适合求和。并行节点会同时写同一字段时，Reducer 尤其重要。</p>
+<h3>26.4 消息状态与显式 Tool Agent 循环</h3>
+<p>LangGraph 提供 <code>MessagesState</code>，它已经定义了带消息合并语义的 <code>messages</code> 字段。下面把第 6 章的手工工具循环写成图：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.tools</span> <span class="kn">import</span> <span class="n">tool</span>
+<span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">END</span><span class="p">,</span> <span class="n">START</span><span class="p">,</span> <span class="n">MessagesState</span><span class="p">,</span> <span class="n">StateGraph</span>
+<span class="kn">from</span> <span class="nn">langgraph.prebuilt</span> <span class="kn">import</span> <span class="n">ToolNode</span><span class="p">,</span> <span class="n">tools_condition</span>
+
+
+<span class="nd">@tool</span>
+<span class="k">def</span> <span class="nf">multiply</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;计算两个整数的乘积。&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+
+
+<span class="n">tools</span> <span class="o">=</span> <span class="p">[</span><span class="n">multiply</span><span class="p">]</span>
+
+<span class="c1"># bind_tools 只把工具名称、说明和参数 Schema 告诉模型；</span>
+<span class="c1"># 这一行不会执行 multiply。</span>
+<span class="n">model_with_tools</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">bind_tools</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">call_model</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">MessagesState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="c1"># state[&quot;messages&quot;] 是截至当前节点的完整消息历史。</span>
+    <span class="c1"># 模型可能返回普通回答，也可能返回带 tool_calls 的 AIMessage。</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">model_with_tools</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">])</span>
+
+    <span class="c1"># MessagesState 为 messages 配置了消息 Reducer。</span>
+    <span class="c1"># 这一条 AIMessage 会被追加，而不是覆盖全部历史。</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">response</span><span class="p">]}</span>
+
+
+<span class="n">builder</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">MessagesState</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">call_model</span><span class="p">)</span>
+
+<span class="c1"># ToolNode 根据 AIMessage.tool_calls 找到同名工具，校验参数，</span>
+<span class="c1"># 执行后把结果包装成带对应 tool_call_id 的 ToolMessage。</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;tools&quot;</span><span class="p">,</span> <span class="n">ToolNode</span><span class="p">(</span><span class="n">tools</span><span class="p">))</span>
+
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">)</span>
+
+<span class="c1"># 有 Tool Call 就去 tools；否则 tools_condition 让图结束。</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="n">tools_condition</span><span class="p">)</span>
+
+<span class="c1"># 模型读取 ToolMessage 后，再决定调用其他工具或输出最终答案。</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;tools&quot;</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">)</span>
+
+<span class="n">tool_graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">tool_graph</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span>
+    <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;计算 37 乘以 19&quot;</span><span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+</code></pre></div>
+<p>预期输出：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">37 乘以 19 等于 703。
+</code></pre></div>
+<p>若打印 <code>result["messages"]</code>，典型轨迹是：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">顺序</th>
+<th>消息类型</th>
+<th>关键内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>HumanMessage</td>
+<td>用户要求计算 37 × 19</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>AIMessage</td>
+<td>普通文本可能为空，但 tool_calls 含 multiply 参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>ToolMessage</td>
+<td>工具真实返回 703，并带匹配的 tool_call_id</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>AIMessage</td>
+<td>模型读取工具结果后组织最终答案</td>
+</tr>
+</tbody>
+</table>
+<p>这个轨迹解释了为什么只打印第一次模型响应时，可能看不到最终自然语言答案：第一次响应的任务是申请调用工具。</p>
+<p><code>tools_condition</code> 检查最后一条 AIMessage：</p>
+<ul>
+<li>若包含工具调用，请求转到 <code>tools</code>；</li>
+<li>若没有工具调用，请求转到 <code>END</code>；</li>
+<li>ToolNode 执行工具并追加 ToolMessage；</li>
+<li>边 <code>tools → model</code> 让模型看到结果后继续判断。</li>
+</ul>
+<p>这就是 Tool Agent 的核心循环。<code>create_agent</code> 在此基础上进一步处理标准状态、Middleware、结构化输出和运行时上下文，通常应优先使用它；只有需要定制图结构时才自己搭建。</p>
+<h3>26.5 Conditional Edge 与 Command 的区别</h3>
+<ul>
+<li>Conditional Edge 把“路由逻辑”放在独立函数中，适合结构清楚的流程；</li>
+<li><code>Command(update=..., goto=...)</code> 可以在一个节点中同时更新状态和决定去向；</li>
+<li>Tool 若要直接跳转或更新图状态，也可返回受支持的 Command；</li>
+<li>路由目标应是开发者预先允许的节点，不能把任意用户文本当节点名。</li>
+</ul>
+<p>简单流程优先用 Conditional Edge，易于阅读和画图；需要把状态更新与动态跳转绑定时再用 Command。</p>
+<h3>26.6 输入、内部状态与输出可以分开</h3>
+<p>图的内部可能需要许多字段，但 API 不必全部暴露。LangGraph 支持为 StateGraph 指定输入和输出 Schema：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TypedDict</span>
+
+<span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">END</span><span class="p">,</span> <span class="n">START</span><span class="p">,</span> <span class="n">StateGraph</span>
+
+
+<span class="k">class</span> <span class="nc">InputState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">user_input</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">InternalState</span><span class="p">(</span><span class="n">InputState</span><span class="p">):</span>
+    <span class="n">normalized</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">internal_score</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="k">class</span> <span class="nc">OutputState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">def</span> <span class="nf">normalize_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">InputState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;normalized&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;user_input&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()}</span>
+
+
+<span class="k">def</span> <span class="nf">answer_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">InternalState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;internal_score&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]),</span>
+        <span class="s2">&quot;answer&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;已处理：</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;normalized&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+
+<span class="n">builder</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span>
+    <span class="n">InternalState</span><span class="p">,</span>
+    <span class="n">input_schema</span><span class="o">=</span><span class="n">InputState</span><span class="p">,</span>
+    <span class="n">output_schema</span><span class="o">=</span><span class="n">OutputState</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;normalize&quot;</span><span class="p">,</span> <span class="n">normalize_node</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;answer&quot;</span><span class="p">,</span> <span class="n">answer_node</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">&quot;normalize&quot;</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;normalize&quot;</span><span class="p">,</span> <span class="s2">&quot;answer&quot;</span><span class="p">)</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;answer&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+
+<span class="n">public_graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">public_graph</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;user_input&quot;</span><span class="p">:</span> <span class="s2">&quot;  LangGraph  &quot;</span><span class="p">}))</span>
+</code></pre></div>
+<p>输出只含公共字段：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">{&#39;answer&#39;: &#39;已处理：langgraph&#39;}
+</code></pre></div>
+<p>这能减少接口耦合，但不等于安全隔离。敏感内部状态仍可能出现在 Checkpoint 或 Trace 中，需要单独配置存储与脱敏。</p>
+<h3>26.7 循环必须有终止证明</h3>
+<p>Agent 图通常存在 <code>model → tools → model</code> 循环。至少要有一项可验证的终止依据：</p>
+<ul>
+<li>模型产生不含 Tool Call 的最终回答；</li>
+<li>状态中的步骤计数达到上限；</li>
+<li>达到时间或费用预算；</li>
+<li>工具连续失败后进入明确错误节点；</li>
+<li>用户取消；</li>
+<li>LangGraph <code>recursion_limit</code> 触发保护。</li>
+</ul>
+<p>调用时可以配置递归上限：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">result</span> <span class="o">=</span> <span class="n">tool_graph</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;完成这个任务&quot;</span><span class="p">}]},</span>
+    <span class="n">config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;recursion_limit&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>递归上限是最后保护，不是正常业务逻辑。频繁触发意味着停止条件、工具描述或图结构需要修复。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-25.html">← 上一章</a><a href="chapter-27.html">下一章 →</a></nav></main></div>
+<script>const contentId="langchain:26",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

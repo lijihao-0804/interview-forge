@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>155. 最小栈 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 12-栈</div>
+        <h1 id="155">155. 最小栈</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（双栈同步满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频加分项）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/12-栈.html">← 栈专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>数据栈 + 最小值栈</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>设计一个支持 <code>push</code> ，<code>pop</code> ，<code>top</code> 操作，并能在常数时间内检索到最小元素的栈。</p>
+<ul>
+<li><code>MinStack()</code> 初始化 MinStack 对象。</li>
+<li><code>void push(int val)</code> 将元素 val 推入堆栈。</li>
+<li><code>void pop()</code> 删除堆栈顶部的元素。</li>
+<li><code>int top()</code> 获取堆栈顶部的元素。</li>
+<li><code>int getMin()</code> 获取堆栈中的最小元素。</li>
+</ul>
+<p><a href="https://leetcode.cn/problems/min-stack/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>辅助栈顶始终是当前所有元素的最小值。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（为什么一个变量不行？）</strong>：</p>
+<p>很多同学第一反应是：这简单啊，我在类里挂一个 <code>int minValue</code> 变量。每次 <code>push</code> 进来新数字，如果它比 <code>minValue</code> 小，我就更新 <code>minValue</code>。</p>
+<p><strong>痛点</strong>：如果这个当前最小的数字被 <code>pop</code> 弹出了呢？比如栈里现在是 <code>[3, 5, 1]</code>，最小是 <code>1</code>。现在把 <code>1</code> 弹出了，请问剩下的数字里谁最小？变量已经失忆了，它不记得在 <code>1</code> 进来之前，历史最小是 <code>3</code>。</p>
+</li>
+<li>
+<p><strong>破局思路（留住历史的罪证：辅助栈）</strong>：</p>
+<p>既然一个变量记不住历史，那我们就<strong>用另一个栈来记录历史的每一次“最小状态”</strong>。</p>
+<ul>
+<li><strong>数据栈（Data Stack）</strong>：老老实实装用户传进来的所有数字。</li>
+<li><strong>最小栈（Min Stack）</strong>：装<strong>对应这一刻</strong>，全栈的最小数字是谁。</li>
+</ul>
+</li>
+<li>
+<p><strong>核心微操（双栈同步战术）</strong>：</p>
+<p>为了让逻辑最严谨、最不容易出错，我们采用“双栈完全同步”的标配打法：</p>
+<ul>
+<li><strong><code>push(val)</code></strong>：数据栈直接入栈 <code>val</code>。最小栈要看一眼：如果当前准备入栈的 <code>val</code> 比我自己的栈顶还要小，那没的说，<code>val</code> 入最小栈；如果 <code>val</code> 比我的栈顶还大，说明它动摇不了当前最小值的地位，那我就<strong>把我自己现有的栈顶复制一份，再次压入栈</strong>！</li>
+<li><strong><code>pop()</code></strong>：两个栈同时弹出栈顶。因为它们是绝对同步的，所以数据栈弹出的同时，最小栈也弹出了那一刻的历史最小值，两边的状态永远对称。</li>
+<li><strong><code>getMin()</code></strong>：直接看一眼最小栈的栈顶，那必然是当前的天下第一小。</li>
+</ul>
+<h3 id="java">Java 实现（双栈同步满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">MinStack</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 数据栈：存放实际数据</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dataStack</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// 辅助栈：存放每次入栈时，栈内的最小值状态</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">minStack</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">MinStack</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">dataStack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">minStack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">push</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">dataStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 如果辅助栈为空，说明是第一个元素，直接作为最小值入栈</span>
+<span class="w">        </span><span class="c1">// 否则，拿当前值 val 和辅助栈栈顶（当前最小值）比较，谁小就压入谁</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">minStack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">minStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">currentMin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">minStack</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">currentMin</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">minStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 🌟 核心工程细节：把老栈顶复制一份压进去，保持两个栈高度绝对一致</span>
+<span class="w">                </span><span class="n">minStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">currentMin</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">pop</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 两个栈必须同生共死，同时弹出</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">dataStack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">dataStack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">            </span><span class="n">minStack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">top</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 获取数据栈的栈顶</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dataStack</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">getMin</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 🌟 O(1) 极速获取：直接看辅助栈的栈顶即可！</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">minStack</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Your MinStack object will be instantiated and called as such:</span>
+<span class="cm"> * MinStack obj = new MinStack();</span>
+<span class="cm"> * obj.push(val);</span>
+<span class="cm"> * obj.pop();</span>
+<span class="cm"> * int param_3 = obj.top();</span>
+<span class="cm"> * int param_4 = obj.getMin();</span>
+<span class="cm"> */</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<code>push</code>、<code>pop</code>、<code>top</code>、<code>getMin</code> <strong>全部为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span></strong>。没有任何循环，纯粹是指针和栈顶的常规操作。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。因为引入了一个和数据栈一样高、同步增长的辅助栈。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频加分项）</h3>
+<ol>
+<li><strong>面试追问 1：“我看你的最小栈在 <code>val &gt; currentMin</code> 时，复制了老栈顶压进去。如果我不想浪费空间复制老栈顶，代码怎么改？”</strong>
+   - <strong>满分抢答（异步不复制流派）</strong>：可以改用“异步模式”。
+   - <code>push</code> 时：只有当 <code>val &lt;= minStack.peek()</code> 时，才把 <code>val</code> 压入最小栈。（注意一定要是 <code>&lt;=</code>, 不能是 <code>&lt;</code>，因为可能有相同的最小值）。
+   - <code>pop</code> 时：只有当 <code>dataStack.peek() == minStack.peek()</code> 时，最小栈才跟着弹出。
+   - <em>面试点评</em>：这种写法节省了一部分空间。但在面试时，<strong>需要非常小心空指针判断以及 <code>Integer</code> 对象的 <code>==</code> 比较坑点（Java 缓存机制中，超出 -128 到 127 必须用 <code>.equals()</code>）</strong>。所以同步双栈依然是最推荐的、抗压稳健的写法。</li>
+<li><strong>终极装杯追问：“如果面试官要求【空间复杂度必须是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>】（不允许开辟任何辅助栈或额外数组），你还能玩得转吗？”</strong>
+   - <strong>神仙写法（差值存储法）</strong>：这是一个极其炫酷的 trick！
+   - 我们的纯数据栈里，<strong>不存原始数据，改存“差值（CurrentValue - CurrentMin）”</strong>。
+   - 同时在外部只用一个 <code>long minValue</code> 变量。
+   - 当入栈一个更小的数时，栈里存入一个负数，并更新 <code>minValue</code>。通过这个负数和当前的 <code>minValue</code>，在 <code>pop</code> 的时候我们可以通过逆向数学公式，反推出<strong>前一个历史最小值</strong>是多少！
+   - 这种解法不需要任何额外空间，如果你能在面试中把差值推导公式手写出来，面试官会直接起立为你鼓掌。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0020-有效的括号.html">← 20. 有效的括号</a> · <a href="0394-字符串解码.html">394. 字符串解码 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

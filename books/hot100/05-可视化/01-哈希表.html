@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>01-哈希表算法可视化</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 28px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1400px; margin: 0 auto; }
+
+  /* Tabs */
+  .sort-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .sort-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; }
+  .sort-tab:hover { border-color: #6c63ff; color: #6c63ff; }
+  .sort-tab.active { background: linear-gradient(135deg, #4a6cf7, #6c63ff); color: #fff; border-color: transparent; }
+
+  /* Panel */
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; margin-bottom: 20px; }
+  .panel.active { display: block; }
+  .panel-header { padding: 20px 28px; background: linear-gradient(135deg, #4a6cf7, #6c63ff); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 4px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; margin-top: 4px; }
+
+  /* Top tags */
+  .top-tags { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 13px; }
+  .top-tags span { background: #fff; padding: 3px 12px; border-radius: 6px; border: 1px solid #e0e3eb; }
+
+  /* Notes content */
+  .notes-section { padding: 16px 28px; border-bottom: 1px solid #eee; max-height: 200px; overflow-y: auto; font-size: 14px; line-height: 1.8; color: #444; }
+  .notes-section h3 { font-size: 16px; color: #4a6cf7; margin: 12px 0 6px; }
+  .notes-section h3:first-child { margin-top: 0; }
+  .notes-section h4 { font-size: 14px; color: #e67e22; margin: 8px 0 4px; }
+  .notes-section ul { padding-left: 20px; margin: 4px 0; }
+  .notes-section li { margin: 2px 0; }
+  .notes-section strong { color: #333; }
+  .notes-section code { background: #f0f2f5; padding: 1px 6px; border-radius: 3px; font-size: 13px; color: #e74c3c; font-family: 'Consolas', monospace; }
+  .notes-section hr { border: none; border-top: 1px solid #e8e8e8; margin: 12px 0; }
+
+  /* ===== Input Section ===== */
+  .input-section { padding: 10px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; }
+  .input-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+  .input-row label { font-weight: 600; color: #555; white-space: nowrap; }
+  .input-row input[type="text"],
+  .input-row input[type="number"] { padding: 5px 10px; border: 1.5px solid #d0d5dd; border-radius: 6px; font-size: 14px; font-family: 'Consolas', monospace; outline: none; transition: border-color .2s; min-width: 60px; }
+  .input-row input[type="text"]:focus,
+  .input-row input[type="number"]:focus { border-color: #4a6cf7; box-shadow: 0 0 0 2px rgba(74,108,247,.15); }
+  .input-row .input-error { border-color: #f44336 !important; background: #fff5f5; }
+  .btn-apply { padding: 5px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; background: #4a6cf7; color: #fff; transition: all .15s; }
+  .btn-apply:hover { background: #3b5de7; }
+  .btn-apply:active { transform: scale(.97); }
+  .btn-reset-input { padding: 5px 12px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .btn-reset-input:hover { background: #f5f6fa; border-color: #999; }
+  .preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; }
+  .preset-label { color: #888; font-size: 12px; }
+  .preset-btn { display: inline-block; padding: 2px 12px; border-radius: 12px; border: 1px solid #d0d5dd; cursor: pointer; font-size: 12px; background: #fff; transition: all .15s; }
+  .preset-btn:hover { border-color: #4a6cf7; color: #4a6cf7; background: #f0f4ff; }
+  .preset-btn.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .input-err-msg { color: #f44336; font-size: 12px; margin-top: 4px; display: none; }
+  .input-err-msg.show { display: block; }
+
+  /* Content: code + vis */
+  .content { display: flex; flex-direction: row; min-height: 440px; }
+  @media (max-width: 960px) { .content { flex-direction: column; } }
+
+  /* Code section */
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; }
+  @media (max-width: 960px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 12px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 44px; text-align: right; padding: 0 12px 0 16px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  /* Visualization section */
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fafbff; }
+  .vis-canvas-wrap { flex: 1; padding: 16px 20px 10px; min-height: 300px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* Shared vis components */
+  .vis-msg { padding: 8px 16px; font-size: 14px; font-weight: 500; color: #333; background: #f0f4ff; border-radius: 6px; min-height: 34px; border-left: 3px solid #4a6cf7; }
+  .vis-msg.success { border-left-color: #4caf50; background: #f0faf0; }
+  .vis-msg.info { border-left-color: #00bcd4; }
+  .vis-msg.error-msg { border-left-color: #f44336; background: #fff5f5; }
+
+  .array-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; justify-content: center; padding: 8px 0; }
+  .array-cell { display: flex; flex-direction: column; align-items: center; min-width: 44px; }
+  .array-cell .idx-label { font-size: 10px; color: #999; margin-bottom: 2px; }
+  .array-cell .val-box { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 700; font-size: 16px; color: #fff; background: #4a6cf7; transition: all .3s; border: 3px solid transparent; }
+  .array-cell .val-box.current { background: #ff9800; border-color: #e65100; transform: scale(1.08); box-shadow: 0 2px 10px rgba(255,152,0,.4); }
+  .array-cell .val-box.found { background: #4caf50; border-color: #2e7d32; transform: scale(1.08); box-shadow: 0 2px 10px rgba(76,175,80,.4); }
+  .array-cell .val-box.muted { background: #b0bec5; }
+  .array-cell .val-box.compare { background: #ff9800; }
+
+  /* HashMap display */
+  .map-container { background: #fff; border: 2px solid #e0e3eb; border-radius: 10px; padding: 10px 14px; margin-top: 4px; }
+  .map-title { font-size: 13px; font-weight: 600; color: #6c63ff; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .map-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .map-pair { background: #f5f6fa; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px; font-size: 13px; font-family: 'Consolas', monospace; transition: all .3s; }
+  .map-pair .key { color: #e74c3c; font-weight: 700; }
+  .map-pair .arrow { color: #999; margin: 0 4px; }
+  .map-pair .val { color: #4a6cf7; font-weight: 700; }
+  .map-pair.found { border-color: #4caf50; background: #e8f5e9; }
+  .map-empty { font-size: 13px; color: #aaa; font-style: italic; padding: 4px 0; }
+
+  /* Formula display */
+  .formula-box { background: #fff; border: 1px dashed #ccc; border-radius: 8px; padding: 8px 14px; text-align: center; font-size: 15px; font-family: 'Consolas', monospace; }
+  .formula-box .highlight-text { color: #e74c3c; font-weight: 700; }
+  .formula-box .found-text { color: #4caf50; font-weight: 700; }
+
+  /* Group Anagrams specific */
+  .str-token { display: inline-block; background: #e3f2fd; color: #1565c0; padding: 2px 10px; border-radius: 4px; font-size: 14px; font-weight: 600; margin: 2px; border: 2px solid transparent; transition: all .3s; }
+  .str-token.current { background: #fff3e0; border-color: #ff9800; color: #e65100; }
+  .str-token.done { opacity: .6; }
+  .group-box { background: #f5f6fa; border: 1px solid #ddd; border-radius: 8px; padding: 6px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .group-box .group-key { background: #6c63ff; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .group-box .group-item { background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+  .group-box .group-item.new { background: #fff3e0; color: #e65100; animation: fadeIn .3s; }
+  @keyframes fadeIn { from { transform: scale(.8); opacity: .5; } to { transform: scale(1); opacity: 1; } }
+
+  /* Longest consecutive specific */
+  .set-grid { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; }
+  .set-num { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 600; font-size: 14px; background: #e3f2fd; color: #1565c0; border: 2px solid #bbdefb; transition: all .3s; }
+  .set-num.start { background: #fff3e0; border-color: #ff9800; color: #e65100; }
+  .set-num.in-seq { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+  .set-num.skipped { background: #f5f5f5; border-color: #eee; color: #bbb; }
+  .set-num.checking { background: #fff3e0; border-color: #ff9800; color: #e65100; transform: scale(1.1); }
+  .set-num.active-check { background: #fce4ec; border-color: #f44336; color: #c62828; }
+
+  .streak-bar-wrap { background: #f5f5f5; border-radius: 10px; height: 20px; position: relative; overflow: hidden; margin: 4px 0; }
+  .streak-bar-fill { height: 100%; background: linear-gradient(90deg, #4caf50, #8bc34a); border-radius: 10px; transition: width .4s; }
+  .streak-label { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 700; color: #333; line-height: 20px; }
+
+  /* Controls */
+  .controls { padding: 12px 20px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #eee; background: #fafbfc; }
+  .controls button { padding: 6px 14px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #4a6cf7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .controls .btn-primary:hover { background: #3b5de7; }
+  .controls .btn-primary:disabled { background: #a0b4f7; border-color: #a0b4f7; }
+  .step-info { font-size: 13px; color: #888; margin-left: auto; }
+
+  /* Complexity / sub-notes */
+  .complexity-bar { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 28px; background: #f8f9fd; border-top: 1px solid #eee; font-size: 13px; }
+  .complexity-bar span { background: #fff; padding: 3px 12px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity-bar strong { color: #333; }
+  .complexity-bar code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #e74c3c; }
+
+  /* Badges */
+  .op-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .op-badge.search { background: #fff3e0; color: #e65100; }
+  .op-badge.found { background: #e8f5e9; color: #2e7d32; }
+  .op-badge.insert { background: #e3f2fd; color: #1565c0; }
+  .op-badge.skip { background: #f5f5f5; color: #999; }
+  .op-badge.start { background: #f3e5f5; color: #7b1fa2; }
+
+  .row-label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 2px; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>01-哈希表算法可视化</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>🔁 哈希表算法可视化</h1>
+
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">1. 两数之和</div>
+  <div class="sort-tab" data-idx="1">2. 字母异位词分组</div>
+  <div class="sort-tab" data-idx="2">3. 最长连续序列</div>
+</div>
+
+<div id="panels"></div>
+</div>
+
+<script>
+// ==================== 问题数据 ====================
+const PROBLEM_DATA = [
+  {
+    id: 'twoSum',
+    name: '1. 两数之和 (Two Sum)',
+    tags: ['哈希表', '一遍哈希', 'O(N)'],
+    notesHTML: `
+      <h3>📌 核心题意</h3>
+      <p>给定一个整数数组 <code>nums</code> 和一个目标值 <code>target</code>，找出<strong>和为目标值</strong>的那<strong>两个</strong>整数，并返回它们的数组下标。假设每种输入只会对应一个答案，且同一个元素不能使用两遍。</p>
+      <h3>🧠 思考过程</h3>
+      <h4>直觉与痛点（暴力解法）</h4>
+      <p>第一反应是用两个嵌套的 <code>for</code> 循环遍历所有数字对。痛点：数组线性查找耗时 <strong>O(N)</strong>，总时间高达 <strong>O(N²)</strong>。</p>
+      <h4>破局思路（引入哈希表）</h4>
+      <p>核心思想：<strong>"边遍历，边查找，边记录"</strong>。</p>
+    `,
+    subNotesHTML: `
+      <strong>⏱ 复杂度：</strong> 时间 O(N) | 空间 O(N) &nbsp;·&nbsp;
+      <strong>💡 面试避坑：</strong> 一遍哈希先查再存，避免自己匹配自己。<br>
+      <strong>追问：</strong> 如果数组已排序 → <strong>双指针</strong>，空间 O(1)。
+    `,
+    inputConfig: {
+      fields: [
+        { id: 'nums', label: 'nums', defaultVal: '2,7,11,15', placeholder: '如 2,7,11,15', width: '220px' },
+        { id: 'target', label: 'target', defaultVal: '9', type: 'number', width: '70px' }
+      ],
+      presets: [
+        { label: '默认', vals: { nums: '2,7,11,15', target: '9' } },
+        { label: '无重复值', vals: { nums: '3,2,4', target: '6' } },
+        { label: '相同值', vals: { nums: '3,3', target: '6' } },
+        { label: '负数', vals: { nums: '-1,-2,-3,-4,-5', target: '-8' } },
+        { label: '大数组', vals: { nums: '1,8,12,5,9,3,7,15,20,6', target: '13' } }
+      ]
+    },
+    javaCode: `public int[] twoSum(int[] nums, int target) {
+    Map<Integer, Integer> map = new HashMap<>();
+    for (int i = 0; i < nums.length; i++) {
+        int complement = target - nums[i];
+        if (map.containsKey(complement)) {
+            return new int[] { map.get(complement), i };
+        }
+        map.put(nums[i], i);
+    }
+    throw new IllegalArgumentException("No solution");
+}`
+  },
+  {
+    id: 'anagram',
+    name: '2. 字母异位词分组 (Group Anagrams)',
+    tags: ['哈希表', '排序', 'computeIfAbsent'],
+    notesHTML: `
+      <h3>📌 核心题意</h3>
+      <p>将字母组成完全相同、但顺序不同的单词归类到同一分组。</p>
+      <h3>🧠 思考过程</h3>
+      <p>提取统一的<strong>"防伪特征码"（排序后的字符串）</strong>作为哈希表的 Key，同类单词必然映射到同一个 Key。</p>
+    `,
+    subNotesHTML: `
+      <strong>⏱ 复杂度：</strong> 时间 O(N·KlogK) | 空间 O(N·K) &nbsp;·&nbsp;
+      <strong>🔑 computeIfAbsent：</strong> 查找 → 不存在则创建新 List 并自动存入 Map → 返回引用 → <code>.add(s)</code>。<br>
+      <strong>⚠ 不能用 getOrDefault 替代：</strong> 不会把新 List 存回 Map，数据会丢失！
+    `,
+    inputConfig: {
+      fields: [
+        { id: 'strs', label: 'strs', defaultVal: 'eat,tea,tan,ate,nat,bat', placeholder: '逗号分隔，如 eat,tea', width: '320px' }
+      ],
+      presets: [
+        { label: '默认', vals: { strs: 'eat,tea,tan,ate,nat,bat' } },
+        { label: '两个一组', vals: { strs: 'abc,bac,cba,def,edf' } },
+        { label: '全部不同', vals: { strs: 'cat,dog,bird,fish' } },
+        { label: '含空串', vals: { strs: 'a,,b,' } },
+        { label: '单个字符', vals: { strs: 'a,b,c,aa,ab,ba' } }
+      ]
+    },
+    javaCode: `public List<List<String>> groupAnagrams(String[] strs) {
+    Map<String, List<String>> map = new HashMap<>();
+    for (String s : strs) {
+        char[] chars = s.toCharArray();
+        Arrays.sort(chars);
+        String key = new String(chars);
+        map.computeIfAbsent(key,
+            k -> new ArrayList<>()).add(s);
+    }
+    return new ArrayList<>(map.values());
+}`
+  },
+  {
+    id: 'longest',
+    name: '3. 最长连续序列 (Longest Consecutive)',
+    tags: ['哈希表', 'HashSet', 'O(N)', '剪枝'],
+    notesHTML: `
+      <h3>📌 核心题意</h3>
+      <p>找出未排序数组中数字连续的最长序列长度。<strong>时间复杂度必须 O(N)</strong>。</p>
+      <h3>🧠 思考过程</h3>
+      <p>全部数字放入 <strong>HashSet</strong> → 只从每个连续序列的<strong>"起点"</strong>开始向上计数（<code>num-1</code> 不在 Set 中即为起点）。</p>
+    `,
+    subNotesHTML: `
+      <strong>⏱ 复杂度：</strong> 时间 O(N) | 空间 O(N) &nbsp;·&nbsp;
+      <strong>💡 灵魂剪枝：</strong> <code>if (!numSet.contains(num - 1))</code> 保证每个数字的 while 最多执行一次，总时间 O(N)。
+    `,
+    inputConfig: {
+      fields: [
+        { id: 'nums', label: 'nums', defaultVal: '100,4,200,1,3,2', placeholder: '如 100,4,200,1,3,2', width: '220px' }
+      ],
+      presets: [
+        { label: '默认', vals: { nums: '100,4,200,1,3,2' } },
+        { label: '倒序', vals: { nums: '5,4,3,2,1' } },
+        { label: '含重复', vals: { nums: '1,2,0,1,3,2' } },
+        { label: '全相邻', vals: { nums: '10,9,8,7,6,5' } },
+        { label: '有间隔', vals: { nums: '0,3,7,2,5,8,4,6,9,1' } },
+        { label: '单个', vals: { nums: '42' } }
+      ]
+    },
+    javaCode: `public int longestConsecutive(int[] nums) {
+    if (nums == null || nums.length == 0) return 0;
+    Set<Integer> numSet = new HashSet<>();
+    for (int num : nums) numSet.add(num);
+    int longestStreak = 0;
+    for (int num : numSet) {
+        if (!numSet.contains(num - 1)) {
+            int currentNum = num;
+            int currentStreak = 1;
+            while (numSet.contains(currentNum + 1)) {
+                currentNum++;
+                currentStreak++;
+            }
+            longestStreak = Math.max(
+                longestStreak, currentStreak);
+        }
+    }
+    return longestStreak;
+}`
+  }
+];
+
+// ==================== Step Builders (accept custom input) ====================
+
+function buildTwoSumSteps(inputNums, inputTarget) {
+  const nums = inputNums || [2, 7, 11, 15];
+  const target = inputTarget || 9;
+  const steps = [];
+  const map = {};
+
+  function push(opts) {
+    steps.push({
+      array: nums.slice(),
+      target: target,
+      currentIdx: opts.currentIdx,
+      currentValue: opts.currentValue,
+      complement: opts.complement,
+      complementExist: opts.complementExist,
+      mapPairs: Object.entries(map).map(([k, v]) => ({ key: parseInt(k), value: v })),
+      found: opts.found || false,
+      resultIndices: opts.resultIndices || [],
+      line: opts.line || 0,
+      msg: opts.msg || '',
+      phase: opts.phase || 'init'
+    });
+  }
+
+  push({ currentIdx: -1, line: 2, msg: '初始化哈希表 Map<Integer, Integer>()', phase: 'init' });
+
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i];
+
+    push({
+      currentIdx: i, currentValue: nums[i], complement, complementExist: false,
+      complementIdx: -1, line: 3, msg: `i=${i}：nums[${i}] = ${nums[i]}，计算 complement = ${target} - ${nums[i]} = ${complement}`,
+      phase: 'calc'
+    });
+
+    const found = map[complement] !== undefined;
+
+    if (found) {
+      push({
+        currentIdx: i, currentValue: nums[i], complement, complementExist: true,
+        complementIdx: map[complement], found: true, resultIndices: [map[complement], i],
+        line: 4, msg: `🔍 在 HashMap 中找到 complement=${complement}！它在索引 ${map[complement]}！`,
+        phase: 'found'
+      });
+      push({
+        currentIdx: i, currentValue: nums[i], complement, complementExist: true,
+        complementIdx: map[complement], found: true, resultIndices: [map[complement], i],
+        line: 5, msg: `🎉 返回 [${map[complement]}, ${i}] → nums[${map[complement]}] + nums[${i}] = ${nums[map[complement]]} + ${nums[i]} = ${target}`,
+        phase: 'result'
+      });
+      break;
+    } else {
+      push({
+        currentIdx: i, currentValue: nums[i], complement, complementExist: false,
+        complementIdx: -1, line: 6, msg: `❌ HashMap 中没有 ${complement}，将 nums[${i}] = ${nums[i]} 存入哈希表`,
+        phase: 'notfound'
+      });
+
+      map[nums[i]] = i;
+
+      push({
+        currentIdx: -1, currentValue: nums[i], complement, complementExist: false,
+        complementIdx: -1,
+        line: 7, msg: `📝 map.put(${nums[i]}, ${i}) → 当前 HashMap：{${Object.entries(map).map(([k,v]) => k+':'+v).join(', ')}}`,
+        phase: 'insert'
+      });
+    }
+  }
+
+  return steps;
+}
+
+function buildAnagramSteps(inputStrs) {
+  const strs = (inputStrs && inputStrs.length) ? inputStrs : ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'];
+  const steps = [];
+  const map = {};
+
+  function push(opts) {
+    steps.push({
+      strs: strs.slice(),
+      currentIdx: opts.currentIdx,
+      currentStr: opts.currentStr || '',
+      sortedKey: opts.sortedKey || '',
+      mapGroups: JSON.parse(JSON.stringify(map)),
+      activeKey: opts.activeKey || '',
+      isNewGroup: opts.isNewGroup || false,
+      line: opts.line || 0,
+      msg: opts.msg || '',
+      done: opts.done || false
+    });
+  }
+
+  push({ currentIdx: -1, line: 2, msg: '初始化哈希表 Map<String, List<String>>()' });
+
+  for (let i = 0; i < strs.length; i++) {
+    const s = strs[i];
+    const chars = s.split('');
+    const sorted = chars.slice().sort();
+    const key = sorted.join('');
+
+    const isNew = !map[key];
+    if (isNew) map[key] = [];
+
+    push({
+      currentIdx: i,
+      currentStr: s,
+      sortedKey: key,
+      mapGroups: JSON.parse(JSON.stringify(map)),
+      activeKey: key,
+      isNewGroup: isNew,
+      line: 3,
+      msg: isNew
+        ? `🆕 "${s}" → 排序 → "${key}"（新分组）`
+        : `✅ "${s}" → 排序 → "${key}"（加入已有分组）`
+    });
+
+    map[key].push(s);
+
+    push({
+      currentIdx: i,
+      currentStr: s,
+      sortedKey: key,
+      mapGroups: JSON.parse(JSON.stringify(map)),
+      activeKey: key,
+      isNewGroup: false,
+      line: 4,
+      msg: `📦 "${s}" → ["${map[key].join('", "')}"]`
+    });
+  }
+
+  const allGroups = Object.values(map);
+  push({
+    currentIdx: -1,
+    mapGroups: JSON.parse(JSON.stringify(map)),
+    line: 6,
+    msg: `🏁 完成！共 ${allGroups.length} 个分组：${allGroups.map(g => '[' + g.join(',') + ']').join('  ')}`,
+    done: true
+  });
+
+  return steps;
+}
+
+function buildLongestSteps(inputNums) {
+  const nums = (inputNums && inputNums.length) ? inputNums : [100, 4, 200, 1, 3, 2];
+  const steps = [];
+  const setValues = [...new Set(nums)].sort((a, b) => a - b);
+  const setLookup = new Set(nums);
+
+  function push(opts) {
+    steps.push({
+      setValues: setValues.slice(),
+      currentNum: opts.currentNum,
+      prevExists: opts.prevExists,
+      isStart: opts.isStart,
+      checkingNext: opts.checkingNext || false,
+      nextNum: opts.nextNum,
+      nextExists: opts.nextExists,
+      sequenceNums: (opts.sequenceNums || []).slice(),
+      currentStreak: opts.currentStreak || 0,
+      longestStreak: opts.longestStreak || 0,
+      line: opts.line || 0,
+      msg: opts.msg || '',
+      done: opts.done || false,
+      highlights: opts.highlights || {},
+      skip: opts.skip || false
+    });
+  }
+
+  push({ currentNum: null, sequenceNums: [], currentStreak: 0, longestStreak: 0, line: 4, msg: '将所有数字放入 HashSet → {' + [...new Set(nums)].join(', ') + '}', highlights: {} });
+
+  let longest = 0;
+
+  for (const num of nums) {
+    const hasPrev = setLookup.has(num - 1);
+    const isStart = !hasPrev;
+
+    push({
+      currentNum: num,
+      prevExists: hasPrev,
+      isStart,
+      checkingNext: false,
+      nextNum: null,
+      nextExists: false,
+      sequenceNums: [],
+      currentStreak: 0,
+      longestStreak: longest,
+      line: 6,
+      msg: hasPrev
+        ? `⏭  检查 ${num}：${num - 1} 在 Set 中 → 不是起点，跳过`
+        : `🌟 检查 ${num}：${num - 1} 不在 Set 中 → ${num} 是起点！`,
+      skip: hasPrev,
+      highlights: { [num]: hasPrev ? 'skipped' : 'start' }
+    });
+
+    if (hasPrev) continue;
+
+    let cur = num;
+    let streak = 1;
+    const seq = [cur];
+
+    while (setLookup.has(cur + 1)) {
+      cur++;
+      streak++;
+      seq.push(cur);
+      push({
+        currentNum: num,
+        isStart: true,
+        checkingNext: true,
+        nextNum: cur,
+        nextExists: true,
+        sequenceNums: seq.slice(),
+        currentStreak: streak,
+        longestStreak: Math.max(longest, streak),
+        line: 8,
+        msg: `✅ ${cur} 在 Set 中！序列扩展为 [${seq.join(' → ')}]，当前长度 ${streak}`,
+        highlights: { [num]: 'start', ...Object.fromEntries(seq.map(n => [n, 'in-seq'])) }
+      });
+    }
+
+    longest = Math.max(longest, streak);
+
+    push({
+      currentNum: num,
+      isStart: true,
+      checkingNext: true,
+      nextNum: cur + 1,
+      nextExists: false,
+      sequenceNums: seq.slice(),
+      currentStreak: streak,
+      longestStreak: longest,
+      line: 10,
+      msg: `❌ ${cur + 1} 不在 Set 中，序列结束。长度 ${streak}，当前最长 ${longest}`,
+      highlights: { [num]: 'start', ...Object.fromEntries(seq.map(n => [n, 'in-seq'])) }
+    });
+  }
+
+  push({ currentNum: null, sequenceNums: [], currentStreak: 0, longestStreak: longest, line: 11, msg: `🏁 完成！最长连续序列长度为 ${longest}`, done: true, highlights: {} });
+
+  return steps;
+}
+
+// ==================== Renderers ====================
+
+function renderTwoSum(canvas, step) {
+  let html = `<div class="vis-msg ${step.phase === 'found' || step.phase === 'result' ? 'success' : 'info'}">${step.msg}</div>`;
+
+  // Array
+  html += `<div class="row-label">📊 数组 nums</div><div class="array-row">`;
+  step.array.forEach((val, i) => {
+    let cls = 'val-box';
+    if (step.found && step.resultIndices.includes(i)) cls += ' found';
+    else if (i === step.currentIdx) cls += ' current';
+    else if (step.phase === 'insert' || step.currentIdx < 0) cls += ' muted';
+    html += `<div class="array-cell"><span class="idx-label">${i}</span><div class="${cls}">${val}</div></div>`;
+  });
+  html += `</div>`;
+
+  // Formula
+  if (step.currentIdx >= 0) {
+    html += `<div class="formula-box">`;
+    html += `target = ${step.target} &nbsp;|&nbsp; nums[${step.currentIdx}] = <span class="highlight-text">${step.currentValue}</span> → complement = <span class="highlight-text">${step.complement}</span>`;
+    if (step.complementExist) {
+      html += ` &nbsp;✅ <span class="found-text">找到！</span>`;
+    }
+    html += `</div>`;
+  }
+
+  // HashMap
+  html += `<div class="map-container"><div class="map-title"><span class="icon">🗂</span> HashMap（Key: 数值 → Value: 下标）</div><div class="map-grid">`;
+  if (step.mapPairs.length === 0) {
+    html += `<div class="map-empty">（空）</div>`;
+  } else {
+    step.mapPairs.forEach(({ key, value }) => {
+      let cls = 'map-pair';
+      if (step.complementExist && key === step.complement) cls += ' found';
+      html += `<div class="${cls}"><span class="key">${key}</span><span class="arrow"> → </span><span class="val">${value}</span></div>`;
+    });
+  }
+  html += `</div></div>`;
+
+  if (step.phase === 'found' || step.phase === 'result') {
+    html += `<div style="margin-top:6px;text-align:center"><span class="op-badge found">🎯 结果 [${step.resultIndices}]</span></div>`;
+  } else if (step.phase === 'insert') {
+    html += `<div style="margin-top:6px;text-align:center"><span class="op-badge insert">存入哈希表</span></div>`;
+  } else if (step.phase === 'calc' || step.phase === 'notfound') {
+    html += `<div style="margin-top:6px;text-align:center"><span class="op-badge search">查找中...</span></div>`;
+  }
+
+  canvas.innerHTML = html;
+}
+
+function renderAnagram(canvas, step) {
+  let html = `<div class="vis-msg ${step.done ? 'success' : 'info'}">${step.msg}</div>`;
+
+  // Input strings
+  html += `<div class="row-label">📝 输入字符串</div><div style="padding:4px 0">`;
+  step.strs.forEach((s, i) => {
+    let cls = 'str-token';
+    if (i < step.currentIdx || step.done) cls += ' done';
+    else if (i === step.currentIdx) cls += ' current';
+    html += `<span class="${cls}">"${s||''}"</span>`;
+  });
+  html += `</div>`;
+
+  // Current step info
+  if (step.currentStr !== undefined && !step.done && step.currentStr !== '') {
+    const chars = step.currentStr.split('');
+    const sorted = chars.slice().sort();
+    html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff;border-radius:8px;border:1px solid #e0e3eb;flex-wrap:wrap;margin:4px 0">`;
+    html += `<span style="font-weight:600;color:#333;">🎯 "${step.currentStr}"</span><span style="color:#999;">→</span>`;
+    html += `<span style="display:flex;gap:2px;">${chars.map(c => `<span style="background:#e3f2fd;padding:1px 6px;border-radius:3px;font-size:13px;font-weight:600">${c||'␣'}</span>`).join('')}</span>`;
+    html += `<span style="color:#999;">→ sort →</span>`;
+    html += `<span style="display:flex;gap:2px;">${sorted.map(c => `<span style="background:#fff3e0;padding:1px 6px;border-radius:3px;font-size:13px;font-weight:600;color:#e65100">${c||'␣'}</span>`).join('')}</span>`;
+    html += `<span style="color:#999;">→</span>`;
+    html += `<span style="background:#6c63ff;color:#fff;padding:2px 10px;border-radius:4px;font-weight:700;font-size:14px;">"${step.sortedKey}"</span>`;
+    html += `</div>`;
+  }
+
+  // HashMap groups
+  html += `<div class="map-container"><div class="map-title"><span class="icon">🗂</span> HashMap 分组结果</div>`;
+  const entries = Object.entries(step.mapGroups);
+  if (entries.length === 0) {
+    html += `<div class="map-empty">（空）</div>`;
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:6px;">`;
+    entries.forEach(([key, items]) => {
+      const isActive = key === step.activeKey;
+      html += `<div class="group-box" style="${isActive ? 'border-color:#ff9800;background:#fff8e1;' : ''}">`;
+      html += `<span class="group-key">${key}</span><span style="color:#999;font-size:12px;">→</span>`;
+      items.forEach((item, idx) => {
+        const isNew = isActive && idx === items.length - 1;
+        html += `<span class="group-item${isNew ? ' new' : ''}">"${item}"</span>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  if (step.done) {
+    html += `<div style="margin-top:6px;text-align:center"><span class="op-badge found">🏁 ${Object.keys(step.mapGroups).length} 个分组</span></div>`;
+  }
+
+  canvas.innerHTML = html;
+}
+
+function renderLongest(canvas, step) {
+  let html = `<div class="vis-msg ${step.done ? 'success' : (step.skip ? '' : 'info')}">${step.msg}</div>`;
+
+  // Set display
+  html += `<div class="row-label">🔢 HashSet 内容</div><div class="set-grid">`;
+  step.setValues.forEach(n => {
+    let cls = 'set-num';
+    if (step.highlights && step.highlights[n] === 'start') cls += ' start';
+    else if (step.highlights && step.highlights[n] === 'in-seq') cls += ' in-seq';
+    else if (step.highlights && step.highlights[n] === 'skipped') cls += ' skipped';
+    else if (step.checkingNext && step.nextNum === n) cls += ' checking';
+    html += `<div class="${cls}">${n}</div>`;
+  });
+  html += `</div>`;
+
+  // Status
+  if (step.currentNum !== null && !step.done) {
+    html += `<div class="formula-box" style="font-size:14px;">`;
+    if (step.skip) {
+      html += `<span>⏭ <strong>${step.currentNum}</strong>：${step.currentNum - 1} 在 Set 中 → 不是起点</span>`;
+    } else if (step.checkingNext) {
+      html += `<span>🔍 检查 <strong>${step.nextNum}</strong>：${step.nextExists ? '✅ 存在！' : '❌ 不存在'}</span>`;
+    } else {
+      html += `<span>🌟 <strong>${step.currentNum}</strong>：${step.currentNum - 1} 不在 Set 中 → 起点！</span>`;
+    }
+    html += `</div>`;
+  }
+
+  // Sequence
+  if (step.sequenceNums && step.sequenceNums.length > 0) {
+    html += `<div style="padding:4px 0"><div class="row-label">📈 当前序列</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">`;
+    step.sequenceNums.forEach((n, i) => {
+      if (i > 0) html += `<span style="color:#999;font-weight:700;">→</span>`;
+      html += `<span style="background:#4caf50;color:#fff;padding:2px 10px;border-radius:4px;font-weight:700;font-size:14px;">${n}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Streak
+  if (step.currentStreak > 0 || step.longestStreak > 0) {
+    const maxPossible = Math.max(...step.setValues) - Math.min(...step.setValues) + 1;
+    const pct = Math.min(100, maxPossible > 0 ? (step.currentStreak / maxPossible) * 100 : 0);
+    html += `<div style="padding:4px 0"><div class="row-label">📊 序列长度</div>`;
+    html += `<div style="display:flex;gap:16px;font-size:13px;margin-bottom:4px;">`;
+    html += `<span>当前: <strong style="color:#ff9800;">${step.currentStreak}</strong></span>`;
+    html += `<span>最长: <strong style="color:#4caf50;">${step.longestStreak}</strong></span>`;
+    html += `</div>`;
+    html += `<div class="streak-bar-wrap"><div class="streak-bar-fill" style="width:${pct}%"></div><div class="streak-label">${step.sequenceNums.join(' → ') || '-'}</div></div>`;
+    html += `</div>`;
+  }
+
+  if (step.done) {
+    html += `<div style="margin-top:6px;text-align:center"><span class="op-badge found">🏆 最长连续序列: ${step.longestStreak}</span></div>`;
+  }
+
+  canvas.innerHTML = html;
+}
+
+// ==================== Parsers ====================
+
+function parseNumList(str) {
+  return str.split(',').map(s => s.trim()).filter(s => s !== '').map(Number);
+}
+
+function parseStrList(str) {
+  return str.split(',').map(s => s.trim());
+}
+
+function parseTwoSumInput(inputs) {
+  const numsStr = inputs.nums.value.trim();
+  const targetStr = inputs.target.value.trim();
+  const errEl = inputs.err;
+
+  if (!numsStr) { errEl.textContent = '⚠️ nums 不能为空'; errEl.classList.add('show'); return null; }
+  if (!targetStr) { errEl.textContent = '⚠️ target 不能为空'; errEl.classList.add('show'); return null; }
+
+  const nums = parseNumList(numsStr);
+  if (nums.length < 2) { errEl.textContent = '⚠️ nums 至少需要 2 个数字'; errEl.classList.add('show'); return null; }
+  if (nums.some(isNaN)) { errEl.textContent = '⚠️ nums 包含无效数字，请用逗号分隔'; errEl.classList.add('show'); return null; }
+
+  const target = Number(targetStr);
+  if (isNaN(target)) { errEl.textContent = '⚠️ target 必须是有效数字'; errEl.classList.add('show'); return null; }
+
+  errEl.classList.remove('show');
+  return { nums, target };
+}
+
+function parseAnagramInput(inputs) {
+  const strsStr = inputs.strs.value.trim();
+  const errEl = inputs.err;
+
+  if (!strsStr) { errEl.textContent = '⚠️ strs 不能为空'; errEl.classList.add('show'); return null; }
+
+  const strs = parseStrList(strsStr).filter(s => true);
+  if (strs.length < 1) { errEl.textContent = '⚠️ 至少需要 1 个字符串'; errEl.classList.add('show'); return null; }
+
+  errEl.classList.remove('show');
+  return strs;
+}
+
+function parseLongestInput(inputs) {
+  const numsStr = inputs.nums.value.trim();
+  const errEl = inputs.err;
+
+  if (!numsStr) { errEl.textContent = '⚠️ nums 不能为空'; errEl.classList.add('show'); return null; }
+
+  const nums = parseNumList(numsStr);
+  if (nums.length < 1) { errEl.textContent = '⚠️ nums 至少需要 1 个数字'; errEl.classList.add('show'); return null; }
+  if (nums.some(isNaN)) { errEl.textContent = '⚠️ nums 包含无效数字，请用逗号分隔'; errEl.classList.add('show'); return null; }
+
+  errEl.classList.remove('show');
+  return nums;
+}
+
+// ==================== DOM Construction ====================
+
+const panelData = [];
+
+function initPanel(idx) {
+  const data = PROBLEM_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  // Code display
+  const codeStr = data.javaCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = codeStr.split('\n');
+  let codeHTML = '<pre><code>';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    codeHTML += `<div class="code-line" data-line="${ln}"><span class="lineno">${ln}</span>${lines[i]}</div>`;
+  }
+  codeHTML += '</code></pre>';
+
+  // Tags
+  const tagsHTML = data.tags.map(t => `<span>🏷 ${t}</span>`).join('');
+
+  // Build input section
+  const cfg = data.inputConfig;
+  let inputFieldsHTML = '';
+  cfg.fields.forEach(f => {
+    const type = f.type || 'text';
+    const w = f.width || '150px';
+    inputFieldsHTML += `<label>${f.label} = [</label>`;
+    inputFieldsHTML += `<input type="${type}" class="custom-input" data-field-id="${f.id}" value="${f.defaultVal}" placeholder="${f.placeholder || ''}" style="width:${w};">`;
+    inputFieldsHTML += `<label>]</label>`;
+  });
+
+  let presetsHTML = '<span class="preset-label">预设：</span>';
+  cfg.presets.forEach((p, pi) => {
+    presetsHTML += `<span class="preset-btn" data-preset-idx="${pi}">${p.label}</span>`;
+  });
+
+  // Full panel template
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}</h2>
+      <div class="sub">${data.notesHTML.replace(/<[^>]+>/g, '').substring(0, 120)}...</div>
+    </div>
+    <div class="top-tags">${tagsHTML}</div>
+    <div class="notes-section">${data.notesHTML}</div>
+    <div class="input-section">
+      <div class="input-row">
+        ${inputFieldsHTML}
+        <button class="btn-apply">▶ 应用</button>
+        <button class="btn-reset-input">↺ 重置</button>
+      </div>
+      <div class="input-err-msg"></div>
+      <div class="preset-row">${presetsHTML}</div>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-scroll">${codeHTML}</div>
+      </div>
+      <div class="vis-section">
+        <div class="vis-canvas-wrap" id="canvas-${idx}"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn-first" data-idx="${idx}">|◀ 首步</button>
+      <button class="btn-prev" data-idx="${idx}">◀ 上一步</button>
+      <button class="btn-next btn-primary" data-idx="${idx}">下一步 ▶</button>
+      <button class="btn-last" data-idx="${idx}">末步 ▶|</button>
+      <button class="btn-auto" data-idx="${idx}">▶ 自动播放</button>
+      <span class="step-info" id="stepInfo-${idx}">步骤 0 / 0</span>
+    </div>
+    <div class="complexity-bar">${data.subNotesHTML}</div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  // State
+  const state = { steps: [], stepIdx: 0, running: false, timer: null };
+  panelData[idx] = state;
+
+  // DOM refs
+  const inputEls = {};
+  panel.querySelectorAll('.custom-input').forEach(el => {
+    inputEls[el.dataset.fieldId] = el;
+  });
+  const errEl = panel.querySelector('.input-err-msg');
+  const applyBtn = panel.querySelector('.btn-apply');
+  const resetInputBtn = panel.querySelector('.btn-reset-input');
+  const presetBtns = panel.querySelectorAll('.preset-btn');
+
+  // Render
+  function render() {
+    const canvas = document.getElementById('canvas-' + idx);
+    if (!state.steps.length) return;
+    const stepIdx = Math.min(state.stepIdx, state.steps.length - 1);
+    const step = state.steps[stepIdx];
+
+    switch (idx) {
+      case 0: renderTwoSum(canvas, step); break;
+      case 1: renderAnagram(canvas, step); break;
+      case 2: renderLongest(canvas, step); break;
+    }
+
+    const info = document.getElementById('stepInfo-' + idx);
+    if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
+
+    panel.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight-line'));
+    if (step.line > 0) {
+      const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+      if (target) target.classList.add('highlight-line');
+    }
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const btns = {
+      first: panel.querySelector('.btn-first'),
+      prev: panel.querySelector('.btn-prev'),
+      next: panel.querySelector('.btn-next'),
+      last: panel.querySelector('.btn-last')
+    };
+    const atFirst = state.stepIdx <= 0;
+    const atLast = state.stepIdx >= state.steps.length - 1;
+    if (btns.first) btns.first.disabled = atFirst;
+    if (btns.prev) btns.prev.disabled = atFirst;
+    if (btns.next) btns.next.disabled = atLast;
+    if (btns.last) btns.last.disabled = atLast;
+  }
+
+  // Read custom input and rebuild steps
+  function applyCustomInput() {
+    errEl.classList.remove('show');
+    let result = null;
+    switch (idx) {
+      case 0: {
+        const parsed = parseTwoSumInput({ nums: inputEls.nums, target: inputEls.target, err: errEl });
+        if (!parsed) return;
+        result = buildTwoSumSteps(parsed.nums, parsed.target);
+        break;
+      }
+      case 1: {
+        const parsed = parseAnagramInput({ strs: inputEls.strs, err: errEl });
+        if (!parsed) return;
+        result = buildAnagramSteps(parsed);
+        break;
+      }
+      case 2: {
+        const parsed = parseLongestInput({ nums: inputEls.nums, err: errEl });
+        if (!parsed) return;
+        result = buildLongestSteps(parsed);
+        break;
+      }
+    }
+    if (result) {
+      state.steps = result;
+      state.stepIdx = 0;
+      if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; }
+      const autoBtn = panel.querySelector('.btn-auto');
+      if (autoBtn) autoBtn.textContent = '▶ 自动播放';
+      render();
+    }
+  }
+
+  // Reset to default
+  function resetToDefault() {
+    errEl.classList.remove('show');
+    const cfg = PROBLEM_DATA[idx].inputConfig;
+    cfg.fields.forEach(f => {
+      if (inputEls[f.id]) inputEls[f.id].value = f.defaultVal;
+    });
+    applyCustomInput();
+  }
+
+  // Set preset values
+  function applyPreset(pi) {
+    const preset = PROBLEM_DATA[idx].inputConfig.presets[pi];
+    if (!preset) return;
+    errEl.classList.remove('show');
+    Object.entries(preset.vals).forEach(([key, val]) => {
+      if (inputEls[key]) inputEls[key].value = val;
+    });
+    // highlight active preset
+    presetBtns.forEach(b => b.classList.remove('active'));
+    presetBtns[pi].classList.add('active');
+    applyCustomInput();
+  }
+
+  // ---- Events ----
+  applyBtn.addEventListener('click', applyCustomInput);
+  resetInputBtn.addEventListener('click', resetToDefault);
+
+  // Enter key in any input triggers apply
+  panel.querySelectorAll('.custom-input').forEach(el => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCustomInput(); });
+  });
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(parseInt(btn.dataset.presetIdx)));
+  });
+
+  // Nav buttons
+  panel.querySelector('.btn-next').addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); }
+  });
+  panel.querySelector('.btn-prev').addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); }
+  });
+  panel.querySelector('.btn-first').addEventListener('click', () => {
+    state.stepIdx = 0; render();
+  });
+  panel.querySelector('.btn-last').addEventListener('click', () => {
+    state.stepIdx = state.steps.length - 1; render();
+  });
+  panel.querySelector('.btn-auto').addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false;
+      panel.querySelector('.btn-auto').textContent = '▶ 自动播放';
+    } else {
+      state.running = true;
+      panel.querySelector('.btn-auto').textContent = '⏸ 暂停';
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) {
+          state.stepIdx++;
+          render();
+        } else {
+          clearInterval(state.timer); state.timer = null;
+          state.running = false;
+          panel.querySelector('.btn-auto').textContent = '▶ 自动播放';
+        }
+      }, 800);
+    }
+  });
+
+  // ResizeObserver
+  const ro = new ResizeObserver(() => render());
+  ro.observe(document.getElementById('canvas-' + idx));
+
+  state.render = render;
+  panelData[idx] = state;
+
+  // Init with default data
+  resetToDefault();
+}
+
+// ==================== Bootstrap ====================
+
+PROBLEM_DATA.forEach((_, idx) => initPanel(idx));
+
+// Tab switching
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelData.forEach(s => {
+      if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; }
+    });
+    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '▶ 自动播放');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    const s = panelData[idx];
+    if (s && s.render) setTimeout(() => s.render(), 50);
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

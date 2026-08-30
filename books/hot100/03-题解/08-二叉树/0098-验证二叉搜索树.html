@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>98. 验证二叉搜索树 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 08-二叉树</div>
+        <h1 id="98">98. 验证二叉搜索树</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#1">解法 1：上下界递归版</a><ul>
+<li><a href="#_3">思路推导</a></li>
+<li><a href="#java-dfs">Java 实现（满分上下界 DFS 版）</a></li>
+<li><a href="#_4">复杂度</a></li>
+<li><a href="#_5">易错点与扩展（面试极其阴险的测试用例）</a></li>
+</ul>
+</li>
+<li><a href="#2">解法 2：中序遍历版</a><ul>
+<li><a href="#_6">思路推导</a></li>
+<li><a href="#_7">思路推导</a></li>
+<li><a href="#java">Java 实现（极简递归版）</a></li>
+<li><a href="#_8">复杂度</a><ul>
+<li><a href="#_9">💡 面试加分项（面试视角）</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_10">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/08-二叉树.html">← 二叉树专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>上下界递归 / 中序</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个二叉树的根节点 <code>root</code> ，判断其是否是一个有效的二叉搜索树（BST）。</p>
+<p><em>有效 BST 的定义</em>：</p>
+<ol>
+<li>节点的左子树只包含<strong>小于</strong>当前节点的数。</li>
+<li>节点的右子树只包含<strong>大于</strong>当前节点的数。</li>
+<li>所有左子树和右子树自身也必须是二叉搜索树。</li>
+</ol>
+<p><a href="https://leetcode.cn/problems/validate-binary-search-tree/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>约束作用于整棵子树，不只是父子节点。</p>
+</blockquote>
+<h2 id="1">解法 1：上下界递归版</h2>
+<h3 id="_3">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与致命陷阱（只顾眼前人）</strong>：</p>
+<p>很多人的第一直觉是写出这样的代码：</p>
+<p><code>if (node.left != null &amp;&amp; node.left.val &gt;= node.val) return false;</code></p>
+<p><strong>痛点</strong>：这只能保证局部合法。 假设有这样一棵树：根节点是 <code>5</code>，右孩子是 <code>6</code>，右孩子的左孩子是 <code>3</code>。</p>
+<p>如果只看局部，<code>3 &lt; 6</code> 没问题，<code>5 &lt; 6</code> 也没问题。但这棵树是<strong>错的</strong>！因为 <code>3</code> 在根节点 <code>5</code> 的右子树里，它本应该大于 <code>5</code> 才对！</p>
+</li>
+<li>
+<p><strong>破局思路 A（天降紧箍咒：上下界透传法）</strong>：</p>
+<p>为了防止底下的小弟“越界”，我们在递归往下走的时候，必须带着<strong>上限</strong>和<strong>下限</strong>。</p>
+<ul>
+<li>对于根节点，它没有限制，范围是 <code>(-∞, +∞)</code>。</li>
+<li>当我往<strong>左</strong>走时，左孩子必须比我小，所以它的上限变成了我的值：范围缩小为 <code>(-∞, root.val)</code>。</li>
+<li>当我往<strong>右</strong>走时，右孩子必须比我大，所以它的下限变成了我的值：范围缩小为 <code>(root.val, +∞)</code>。</li>
+<li>任何一个节点，只要它的值不在设定的 <code>(min, max)</code> 范围内，直接判定为假！</li>
+</ul>
+</li>
+<li>
+<p><strong>破局思路 B（优化思路：中序遍历法）</strong>：</p>
+<p>还记得我们在 108 题学过的核心定理吗？<strong>对一棵合法的 BST 进行中序遍历（左中右），得到的结果必定是一个严格递增的数组！</strong></p>
+<p>所以我们只需要一边中序遍历，一边记录“上一个访问的节点值”。只要发现当前节点的值 <strong>&lt;=</strong> 上一个节点的值，立刻判定非法。</p>
+<h3 id="java-dfs">Java 实现（满分上下界 DFS 版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> * int val;</span>
+<span class="cm"> * TreeNode left;</span>
+<span class="cm"> * TreeNode right;</span>
+<span class="cm"> * TreeNode() {}</span>
+<span class="cm"> * TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> * TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> * this.val = val;</span>
+<span class="cm"> * this.left = left;</span>
+<span class="cm"> * this.right = right;</span>
+<span class="cm"> * }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isValidBST</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 初始状态下，根节点没有任何限制，范围是 Long 的最小值和最大值</span>
+<span class="w">        </span><span class="c1">// 为什么用 Long？请看下方“面试避坑”！</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">validate</span><span class="p">(</span><span class="n">root</span><span class="p">,</span><span class="w"> </span><span class="n">Long</span><span class="p">.</span><span class="na">MIN_VALUE</span><span class="p">,</span><span class="w"> </span><span class="n">Long</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 辅助函数：带着上下界去巡视每一个节点</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">lower</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">upper</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 终止条件：空节点天然是合法的 BST</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 核心校验：如果当前节点的值越界了（不仅包括等于，还包括超出），直接斩立决</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">upper</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 递归向下查岗：</span>
+<span class="w">        </span><span class="c1">// 查左子树：下限不变，上限变成了当前节点的值</span>
+<span class="w">        </span><span class="c1">// 查右子树：下限变成了当前节点的值，上限不变</span>
+<span class="w">        </span><span class="c1">// 左右两边都必须合法，整棵树才合法</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">validate</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">lower</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">validate</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">,</span><span class="w"> </span><span class="n">upper</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_4">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。在最坏情况下，我们要把树里的所有节点都检查一遍，每个节点只访问一次。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span> 是二叉树的高度。空间消耗来自于系统递归调用栈。最差退化成链表时是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，平衡树时是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_5">易错点与扩展（面试极其阴险的测试用例）</h3>
+<ol>
+<li><strong>终极踩坑警告：为什么 <code>lower</code> 和 <code>upper</code> 要用 <code>long</code> 类型？</strong></li>
+</ol>
+<ul>
+<li>如果你把上下界定义为 <code>int min, int max</code>，并且初始传入 <code>Integer.MIN_VALUE</code> 和 <code>Integer.MAX_VALUE</code>，那么恭喜你，你掉进了 LeetCode 和面试面试官最喜欢挖的坑里。</li>
+<li><strong>场景还原</strong>：假如题目给你的树只有一个根节点，它的值恰好就是 <code>2147483647</code>（也就是 <code>Integer.MAX_VALUE</code>）。你的逻辑里有一句 <code>if (node.val &gt;= max)</code>，此时 <code>2147483647 &gt;= 2147483647</code> 成立，程序会错误地返回 <code>false</code>！</li>
+<li><strong>破局方法</strong>：使用 <code>Long.MIN_VALUE</code> 和 <code>Long.MAX_VALUE</code>，在维度上直接碾压 <code>int</code>，从根本上杜绝极值碰撞的 Bug。这是展示你工程严谨性的绝佳加分项！</li>
+</ul>
+<ol start="2">
+<li><strong>面试追问：“如果树里的节点值本身就是 Long 类型的极值呢？你该怎么写？”</strong></li>
+</ol>
+<ul>
+<li>
+<p><strong>满分回答</strong>：那我们就不能用数值类型的极限值来做初始边界了。我们可以把上下界定义为 <code>TreeNode</code> 类型的指针（也就是对象引用）。</p>
+</li>
+<li>
+<p><em>极致严谨的代码片段</em>：</p>
+</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isValid</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">lower</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">upper</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// 判断引用是否为空，不为空再取值比较</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lower</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">lower</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">upper</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">upper</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">isValid</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">lower</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">isValid</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">upper</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code> 这种利用指针传递边界的方法，是真正无懈可击的工业级写法！
+</code></pre></div>
+
+<h2 id="2">解法 2：中序遍历版</h2>
+<h3 id="_6">思路推导</h3>
+<p>按照“左 -&gt; 中 -&gt; 右”的顺序遍历二叉树。</p>
+<p>在遍历的过程中，我们<strong>不需要真的去建一个数组</strong>把所有数字存下来（那样太浪费空间了）。我们只需要雇佣一个“记录员（<code>pre</code> 指针）”<strong>，让他永远记住我们</strong>上一次访问过的节点。</p>
+<p>每次走到一个新节点（<code>curr</code>）时，回头问一下记录员：“我比你上一次记下来的数字大吗？”</p>
+<p>如果大，说明在递增，继续走；如果<strong>小于或等于</strong>，直接报警——发现非法树！</p>
+<h3 id="_7">思路推导</h3>
+<p>假设我们有一个全局变量 <code>TreeNode pre = null;</code>。</p>
+<ol>
+<li><strong>往左走到黑</strong>：先递归验证左子树。如果左子树不合法，直接返回 <code>false</code>。</li>
+<li><strong>处理当前节点</strong>：终于轮到我自己了。拿我的值 <code>root.val</code> 和 <code>pre.val</code> 比一下。<ul>
+<li>如果是合法的，我就对 <code>pre</code> 说：“我的岗站完了，现在交接给你，你变成我吧（<code>pre = root</code>）”。然后让下一个节点去跟我比。</li>
+</ul>
+</li>
+<li><strong>往右走</strong>：再去递归验证右子树。</li>
+</ol>
+<h3 id="java">Java 实现（极简递归版）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> * int val;</span>
+<span class="cm"> * TreeNode left;</span>
+<span class="cm"> * TreeNode right;</span>
+<span class="cm"> * TreeNode() {}</span>
+<span class="cm"> * TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> * TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> * this.val = val;</span>
+<span class="cm"> * this.left = left;</span>
+<span class="cm"> * this.right = right;</span>
+<span class="cm"> * }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 全局记录员：专门记录中序遍历过程中的“上一个节点”</span>
+<span class="w">    </span><span class="c1">// 注意！这里使用 TreeNode 指针，完美避开了用 Long.MIN_VALUE 初始化的极值陷阱！</span>
+<span class="w">    </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">pre</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isValidBST</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 终止条件：空节点天然合法</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 【左】先查左子树。如果左边的小弟已经查出问题了，直接向上汇报 false</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">isLeftValid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">isValidBST</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">isLeftValid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 【中】查自己。这是优化思路的核心所在！</span>
+<span class="w">        </span><span class="c1">// 如果前一个节点存在，并且当前节点的值 &lt;= 前一个节点的值，说明【没有严格递增】！</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pre</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">pre</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w"> </span><span class="c1">// 斩立决！</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 查岗通过，交接棒！把当前节点记作“上一个节点”，准备留给下一个节点去比对</span>
+<span class="w">        </span><span class="n">pre</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 【右】最后去查右子树</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">isValidBST</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_8">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。最坏情况下会把所有节点遍历一遍。但是这种写法有一个极大的优势：<strong>提前阻断（短路）</strong>。一旦在遍历前期发现某个节点不合法，它会立刻一路 <code>return false</code> 退出，不用再傻乎乎地去查后面的节点了！</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>。递归调用栈的最大深度为树的高度 <span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span>。完全没有借用任何数组来存储结果，空间消耗极小。</li>
+</ul>
+<h4 id="_9">💡 面试加分项（面试视角）</h4>
+<p>在这段代码中，最让面试官喜欢的是这一句：<code>TreeNode pre = null;</code>。</p>
+<p>很多半吊子选手会写 <code>long pre = Long.MIN_VALUE;</code>。虽然也能过，但在真正的面向对象编程（OOP）中，<strong>用对象引用（指针）来代表状态，永远比用一个魔术数字（Magic Number 极值）要优雅得多！</strong></p>
+<p>如果面试官问起：“为什么要用 <code>TreeNode</code> 做记录？” 你直接把上一篇笔记里的那个 <code>Integer.MAX_VALUE</code> 节点陷阱抛给他，保证他对你频频点头。</p>
+<h2 id="_10">相邻学习</h2>
+<p><a href="0108-将有序数组转换为二叉搜索树.html">← 108. 将有序数组转换为二叉搜索树</a> · <a href="0230-二叉搜索树中第 K 小的元素.html">230. 二叉搜索树中第 K 小的元素 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

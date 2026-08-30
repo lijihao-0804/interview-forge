@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>1143. 最长公共子序列 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 16-多维动态规划</div>
+        <h1 id="1143">1143. 最长公共子序列</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分标准二维版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的终极审判）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/16-多维动态规划.html">← 多维动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>双序列 DP</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(mn)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定两个字符串 <code>text1</code> 和 <code>text2</code>，返回这两个字符串的最长 <strong>公共子序列</strong> 的长度。</p>
+<p><em>致命概念纠正</em>：<strong>子串（Substring）</strong>要求字符必须连续；而<strong>子序列（Subsequence）</strong>只需保持相对顺序，字符<strong>可以不连续</strong>！</p>
+<p><em>例如</em>：<code>"ace"</code> 是 <code>"abcde"</code> 的子序列，但不是它的子串。</p>
+<p><a href="https://leetcode.cn/problems/longest-common-subsequence/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>字符相同取左上加一，否则取上方与左方最大值。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（双指针的迷茫）</strong>：</p>
+<p>很多人的第一直觉是搞两个指针 <code>i</code> 和 <code>j</code> 分别扫两个字符串，遇到一样的就同时后移。</p>
+<p><strong>痛点</strong>：假设 <code>text1 = "abcde"</code>，<code>text2 = "ace"</code>。你遇到 <code>'a'</code> 匹配了，那如果遇到 <code>text1 = "bsbininm"</code>, <code>text2 = "jmjkbkjkv"</code> 呢？面对错综复杂的交替字符，贪心双指针极容易在错误的字符上“过早绑定”，导致丢掉后面更长的匹配机会。</p>
+</li>
+<li>
+<p><strong>降维破局（二维矩阵的上帝视角）</strong>：</p>
+<p>既然是两个字符串的纠葛，我们需要一个二维的 DP 数组来记录所有的历史状态。</p>
+<p>定义 <code>dp[i][j]</code>：表示 <code>text1</code> 的前 <code>i</code> 个字符和 <code>text2</code> 的前 <code>j</code> 个字符，它们的最长公共子序列的长度。</p>
+</li>
+<li>
+<p><strong>核心微操（状态转移的两种宿命）</strong>：</p>
+<p>当我们看 <code>text1</code> 的第 <code>i</code> 个字符（记为 <code>c1</code>）和 <code>text2</code> 的第 <code>j</code> 个字符（记为 <code>c2</code>）时，只会有两种情况：</p>
+<ul>
+<li><strong>宿命 A（一拍即合：<code>c1 == c2</code>）</strong>：</li>
+</ul>
+<p>太完美了！这两个字符可以手牵手加入 LCS 俱乐部。</p>
+<p>那么当前的 LCS 长度，就是它们俩<strong>都没加入时</strong>的长度（也就是左上角的格子），再加上这新的一对。</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = dp[i-1][j-1] + 1"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mn>1</mn></mrow></math></span></p>
+<ul>
+<li><strong>宿命 B（擦肩而过：<code>c1 != c2</code>）</strong>：</li>
+</ul>
+<p>它们俩不相等，无法配对。那我们就得做出取舍：</p>
+<p>要么让 <code>c1</code> 委屈一下，去看看 <code>text2</code> 前面的字符能不能配上（对应上方的格子 <span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i-1][j]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo></mrow></math></span>）；</p>
+<p>要么让 <code>c2</code> 委屈一下，去看看 <code>text1</code> 前面的字符能不能配上（对应左方的格子 <span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j-1]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo></mrow></math></span>）。</p>
+<p>我们是一个贪心且理智的算法，谁留下来的匹配长度更长，我们就继承谁的遗产！</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = max(dp[i-1][j], dp[i][j-1])"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">max</mi><mo>(</mo><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mo>,</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>)</mo></mrow></math></span></p>
+<h3 id="java">Java 实现（满分标准二维版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">longestCommonSubsequence</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">text1</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">text2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text1</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text2</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 🌟 致命细节：数组长度为什么要 +1？</span>
+<span class="w">        </span><span class="c1">// 因为我们需要一排“空字符串”作为基石（Base Case）。</span>
+<span class="w">        </span><span class="c1">// dp[0][j] 表示 text1 是空字符串时，无论 text2 是什么，LCS 都是 0。</span>
+<span class="w">        </span><span class="c1">// 这极大地简化了边界处理，避免了各种 i-1, j-1 导致的数组越界报错！</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// i 和 j 从 1 开始遍历，对应字符串的第 1 个字符（索引为 0）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 拿出现实的字符进行比对（注意索引偏移，字符索引是 i-1 和 j-1）</span>
+<span class="w">                </span><span class="kt">char</span><span class="w"> </span><span class="n">c1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text1</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="kt">char</span><span class="w"> </span><span class="n">c2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">text2</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">c2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 字符相等：继承左上角历史记录，并且 + 1</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 字符不等：继承上方或左方中较大的那一个</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 矩阵的最右下角，就是两军交战完毕后的最终结果</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">m</span><span class="o">][</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。<span class="math-inline-wrap"><math class="math-inline" aria-label="M"><mrow><mi>M</mi></mrow></math></span> 和 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是两个字符串的长度，我们需要极其均匀地填满整个二维矩阵。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。开辟了一个同等大小的二维 <code>dp</code> 数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的终极审判）</h3>
+<ol>
+<li><strong>面试追问 1：“我看你用了二维矩阵，空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。你能把它优化到一维吗？”</strong>
+   - <strong>满分抢答（滚动数组的极致压榨）</strong>：绝对可以！
+   - 我们观察转移方程，计算第 <code>i</code> 行的 <code>dp</code> 值时，仅仅依赖于“当前行（左边）”<strong>和</strong>“上一行（正上方和左上方）”的数据。
+   - 所以我们完全可以只开辟一个长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span> 的一维数组。在遍历时，用一个临时变量 <code>prev</code> 记住左上角的值（因为会被覆盖），然后不断原地更新这个一维数组。
+   - 空间复杂度瞬间从 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 降维到了 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(min(M, N))"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>M</mi><mo>,</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo><mo>)</mo></mrow></math></span>（把较短的字符串放在内层循环）。</li>
+<li><strong>面试追问 2：“如果我不仅要长度，我还要你把那个具体的【最长公共子序列打印出来】，你怎么做？”</strong>
+   - <strong>架构师级回答（DP 逆向回溯法）</strong>：
+   - 这也是极其高频的拔高题。我们只需要站在矩阵的右下角 <code>dp[m][n]</code>，开始<strong>倒推</strong>寻找来时的路：
+   - 如果 <code>text1[i-1] == text2[j-1]</code>，说明这个字符绝对在 LCS 里！把它记录下来，然后往<strong>左上角</strong>走（<code>i--, j--</code>）。
+   - 如果不相等，说明它不在 LCS 里，那是谁把能量传递给它的？我们比较上方 <code>dp[i-1][j]</code> 和左方 <code>dp[i][j-1]</code>，<strong>谁大就往谁的方向退一步</strong>。
+   - 一路退回原点，收集到的字符倒序打印，就是完美的字符串！</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0005-最长回文子串.html">← 5. 最长回文子串</a> · <a href="0072-编辑距离.html">72. 编辑距离 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/动态规划状态转移.html?embed=1&amp;mode=lcs" title="1143. 最长公共子序列的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>394. 字符串解码 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 12-栈</div>
+        <h1 id="394">394. 字符串解码</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-stringbuilder">Java 实现（满分双栈 StringBuilder 版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的底层拷问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/12-栈.html">← 栈专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>保存外层次数与字符串</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个经过编码的字符串，返回它解码后的字符串。</p>
+<p>编码规则为: <code>k[encoded_string]</code>，表示其中方括号内部的 <code>encoded_string</code> 正好重复 <code>k</code> 次。</p>
+<p><em>例如</em>：输入 <code>s = "3[a2[c]]"</code>，输出 <code>"accaccacc"</code>。</p>
+<p><a href="https://leetcode.cn/problems/decode-string/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>遇到 [ 保存现场，遇到 ] 恢复上一层并展开当前层。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（为什么必须用栈？）</strong>：</p>
+<p>字符串里有嵌套，比如 <code>3[a2[c]]</code>，我们必须先解码最内层的 <code>2[c]</code> 变成 <code>cc</code>，然后再和外面的 <code>a</code> 拼起来变成 <code>acc</code>，最后再把整个 <code>acc</code> 翻 3 倍。</p>
+<p><strong>痛点</strong>：当我们读到 <code>3</code> 和 <code>a</code> 时，我们还不能处理它们，必须把它们“挂起（记住）”<strong>，去处理内层。等内层处理完了，再把它们</strong>“唤醒”<strong>。这种“挂起当前状态，去处理子任务，然后再恢复状态”的机制，完美契合</strong>栈（Stack）。</p>
+</li>
+<li>
+<p><strong>破局思路（双栈战术：数字栈 + 字符串栈）</strong>：</p>
+<p>我们需要准备两个栈，以及两个全局变量：</p>
+<ul>
+<li><code>countStack</code>：专门存倍数（我要重复几次）。</li>
+<li><code>stringStack</code>：专门存<strong>遇到 <code>[</code> 之前的那个半成品字符串</strong>（我要把重复后的结果拼在谁的后面）。</li>
+<li><code>k</code>：记录当前正在计算的倍数。</li>
+<li><code>currStr</code>：记录当前括号里正在拼装的字符串。</li>
+</ul>
+</li>
+<li>
+<p><strong>核心微操（四个分支的精准打击）</strong>：</p>
+<p>遍历字符串，遇到四种不同的字符，执行不同的战术：</p>
+<ul>
+<li><strong>遇到数字</strong>：因为数字可能是多位数（比如 <code>12[a]</code>），所以要用 <code>k = k * 10 + (c - '0')</code> 把数字完整拼出来。</li>
+<li><strong>遇到 <code>[</code>（时空冻结）</strong>：要把当前的倍数 <code>k</code> 压入 <code>countStack</code>，把当前的 <code>currStr</code> 压入 <code>stringStack</code>。然后<strong>清空 <code>k</code> 和 <code>currStr</code></strong>，准备进入全新的内层世界。</li>
+<li><strong>遇到字母</strong>：直接追加到当前世界的 <code>currStr</code> 后面。</li>
+<li><strong>遇到 <code>]</code>（时空缝合）</strong>：当前内层世界拼装完毕了！从 <code>countStack</code> 弹出一个倍数，把 <code>currStr</code> 翻那么多倍。然后从 <code>stringStack</code> 弹出一个“前世”的字符串，把翻倍后的结果拼在它后面，重新赋给 <code>currStr</code>。</li>
+</ul>
+<h3 id="java-stringbuilder">Java 实现（满分双栈 StringBuilder 版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">decodeString</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 存储倍数的栈</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">countStack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 存储之前已经拼好的字符串前缀的栈</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">StringBuilder</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stringStack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 记录当前正在构建的字符串</span>
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">currStr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 记录当前正在计算的倍数</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Character</span><span class="p">.</span><span class="na">isDigit</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 🌟 致命细节：处理多位数字，比如 &quot;100[a]&quot;</span>
+<span class="w">                </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;[&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 遇到左括号，立刻把当前的状态（k 和 currStr）存档（入栈）</span>
+<span class="w">                </span><span class="n">countStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">k</span><span class="p">);</span>
+<span class="w">                </span><span class="n">stringStack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">currStr</span><span class="p">);</span>
+
+<span class="w">                </span><span class="c1">// 存档完毕后，重置状态，准备迎接新括号里的内容</span>
+<span class="w">                </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">                </span><span class="n">currStr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;]&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 遇到右括号，说明当前层的 currStr 已经收集完毕，开始解码！</span>
+<span class="w">                </span><span class="c1">// 1. 取出这一层需要翻倍的次数</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">repeatTimes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">countStack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+
+<span class="w">                </span><span class="c1">// 2. 取出遇到 &#39;[&#39; 之前，上一个维度的老字符串</span>
+<span class="w">                </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">prevStr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stringStack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+
+<span class="w">                </span><span class="c1">// 3. 把当前层的字符串翻倍，拼在老字符串的后面</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">repeatTimes</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">prevStr</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">currStr</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// 4. 更新 currStr，时空缝合完毕！</span>
+<span class="w">                </span><span class="n">currStr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prevStr</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 普通字母，直接收集到当前层的字符串容器里</span>
+<span class="w">                </span><span class="n">currStr</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">c</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">currStr</span><span class="p">.</span><span class="na">toString</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。这里 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 指的是<strong>解码后结果字符串的长度</strong>。虽然看起来只有一个 <code>for</code> 循环，但遇到 <code>]</code> 时的翻倍拼接操作会消耗时间，整体时间严格与最终输出的字符数量成正比。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(S)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>S</mi><mo>)</mo></mrow></math></span>。<span class="math-inline-wrap"><math class="math-inline" aria-label="S"><mrow><mi>S</mi></mrow></math></span> 是字符串中左括号 <code>[</code> 的嵌套层数。栈的深度等于括号的最大嵌套深度。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的底层拷问）</h3>
+<ol>
+<li><strong>踩坑警告：多位数字的陷阱</strong>
+   - 很多同学在写提取数字的代码时，习惯性地写成 <code>k = c - '0'</code>。
+   - 如果测试用例是 <code>12[a]</code>，你的代码走到 <code>2</code> 的时候，就会把 <code>k</code> 覆盖成 2，丢掉了前面的 10！
+   - <strong>必记范式</strong>：在任何需要连续读取数字字符的题里，提取完整数字的黄金公式永远是 <code>k = k * 10 + (c - '0')</code>。</li>
+<li><strong>面试追问：“除了用栈，这题能用【递归】写吗？哪种更好？”</strong>
+   - <strong>满分抢答</strong>：绝对能用递归！因为括号的嵌套本质就是一棵树的深度优先遍历（DFS）。我们可以写一个递归函数，只要遇到 <code>[</code> 就向下递归，遇到 <code>]</code> 就 <code>return</code> 当前层拼接好的字符串。
+   - <strong>两种对比</strong>：<ul>
+<li><strong>栈写法（迭代）</strong>：工程上更稳健，不会因为嵌套过深导致 <code>StackOverflowError</code>（系统栈溢出），所有的栈操作都在堆内存的 <code>Deque</code> 中完成，空间上限更大。</li>
+<li><strong>递归写法</strong>：代码更短、更符合人类数学直觉，但在工业界处理超长恶意嵌套字符串时存在爆栈风险。面试时能把栈的代码用 <code>StringBuilder</code> 写得滴水不漏，是最优选择。</li>
+</ul>
+</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0155-最小栈.html">← 155. 最小栈</a> · <a href="0739-每日温度.html">739. 每日温度 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

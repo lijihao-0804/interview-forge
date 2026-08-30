@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>763. 划分字母区间 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 14-贪心</div>
+        <h1 id="763">763. 划分字母区间</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分两次遍历版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的底层逻辑）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/14-贪心.html">← 贪心专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>最后出现位置</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(字符集)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个由小写字母组成的字符串 <code>s</code>。我们要把这个字符串划分为尽可能多的片段，同一字母<strong>最多出现在一个片段中</strong>。</p>
+<p>注意，划分结果需要满足：将所有划分结果按顺序连接，得到的字符串仍然是 <code>s</code>。</p>
+<p>返回一个表示每个字符串片段的长度的列表。</p>
+<p><em>例如</em>：<code>s = "ababcbacadefegdehijhklij"</code>，输出 <code>[9, 7, 8]</code>（划分为 <code>"ababcbaca"</code>, <code>"defegde"</code>, <code>"hijhklij"</code>）。</p>
+<p><a href="https://leetcode.cn/problems/partition-labels/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>当前片段结束位置是片段内所有字符最后位置的最大值。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<hr />
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（不可分割的羁绊）</strong>：</p>
+<p>题目要求“同一个字母最多只能出现在一个片段中”。这意味着，如果你在片段里包容了字符 <code>'a'</code>，那么这个字符串里<strong>所有的 <code>'a'</code></strong> 都必须被强行拉进这个片段里，一个都不能少！</p>
+<p><strong>痛点</strong>：如果你边看边切，走到 <code>'a'</code> 刚想切一刀，结果发现后面很远的地方还有一个 <code>'a'</code>，你之前的切割就全部作废了。</p>
+</li>
+<li>
+<p><strong>破局思路（先做背调，再划结界）</strong>：</p>
+<p>既然我们要保证包含所有的同类字符，我们为什么不先对所有字符做一次“背景调查”？</p>
+<ul>
+<li><strong>第一遍扫描</strong>：记录下每个字符在字符串中<strong>最后一次出现的索引（Deadline）</strong>。</li>
+<li><strong>第二遍扫描</strong>：我们开始从头划定“结界”（用 <code>start</code> 和 <code>end</code> 两个指针）。</li>
+</ul>
+<p>当我们遍历到字符 <code>c</code> 时，查一下它的 Deadline 在哪。为了包容它，我们的当前片段结界 <code>end</code> 必须<strong>至少</strong>扩展到它的 Deadline。</p>
+<p>如果在扩展的途中，又遇到了其他字符（比如 <code>'b'</code>），且 <code>'b'</code> 的 Deadline 比当前结界还要远，那对不起，结界 <code>end</code> 只能被迫继续向后扩张！</p>
+</li>
+<li>
+<p><strong>核心微操（贪心结算的瞬间）</strong>：</p>
+<p>什么时候这个结界算彻底稳固了？</p>
+<p><strong>当你遍历的当前索引 <code>i</code>，恰好等于当前结界的极限边界 <code>end</code> 时！</strong></p>
+<p>这说明什么？说明在这个结界里，所有的字符都已经齐聚一堂，没有任何一个字符的“分身”流落在结界之外了！此时果断手起刀落，切出一段，然后开启下一个新结界。</p>
+<h3 id="java">Java 实现（满分两次遍历版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">partitionLabels</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 战前背调：记录每个字符最后一次出现的位置（Deadline）</span>
+<span class="w">        </span><span class="c1">// 因为全是小写字母，用长度为 26 的数组完美替代 HashMap，极致提速</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">26</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">last</span><span class="o">[</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;a&#39;</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">partitions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="c1">// 当前片段的起始位置</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">   </span><span class="c1">// 当前片段的最远边界（结界）</span>
+
+<span class="w">        </span><span class="c1">// 2. 遍历字符串，动态扩张结界</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 当前字符的 Deadline 可能会迫使我们的结界向后扩张</span>
+<span class="w">            </span><span class="n">end</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">end</span><span class="p">,</span><span class="w"> </span><span class="n">last</span><span class="o">[</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;a&#39;</span><span class="o">]</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// 🌟 贪心高光时刻：游标 i 终于追赶上了结界的极限！</span>
+<span class="w">            </span><span class="c1">// 说明 [start, end] 区间内的所有字符，都没有出现在这个区间之外</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">end</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 结算当前片段的长度</span>
+<span class="w">                </span><span class="n">partitions</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="c1">// 为下一个片段初始化起点</span>
+<span class="w">                </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">partitions</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。我们仅仅对字符串进行了两次完整的遍历。第一次找最后出现位置，第二次计算区间，非常完美的线性时间。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。或者说是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(Σ)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>Σ</mi><mo>)</mo></mrow></math></span>，其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="Σ = 26"><mrow><mi>Σ</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mn>26</mn></mrow></math></span> 是字符集的大小。数组 <code>last</code> 永远只占 26 个整型空间，与字符串长度无关。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的底层逻辑）</h3>
+<ul>
+<li><strong>面试追问：“这道题其实是另一道极其经典的 Hard / Medium 题的特殊降维版，你能看出来是哪道题吗？”（对应力扣 56 题：合并区间）</strong></li>
+<li><strong>满分架构师级回答</strong>：这道题本质上就是“合并区间”！</li>
+<li>我们记录每个字符的第一次出现位置 <code>first</code> 和最后出现位置 <code>last</code>，那么每个字符就变成了一个区间 <code>[first, last]</code>。</li>
+<li>字符串里有 26 个字符，就等于有 26 个区间。题目要求“同一字母最多出现在一个片段中”，翻译过来就是：把所有有交集的区间全部合并起来！合并后剩下了几个互不相交的大区间，就是我们切出的片段。</li>
+<li>只不过因为字符串遍历的天然有序性，我们<strong>省略了显式构建区间并对区间排序的过程</strong>，直接在第二遍遍历中用 <code>end = Math.max</code> 隐式地完成了区间合并！点破这层本质，面试官会直接对你刮目相看。</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0045-跳跃游戏 II.html">← 45. 跳跃游戏 II</a> · <a href="../15-动态规划/0070-爬楼梯.html">70. 爬楼梯 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

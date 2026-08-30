@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>事务、Lua 与发布订阅 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Redis：数据结构、缓存与高可用</a><span aria-hidden="true">›</span><span aria-current="page">事务、Lua 与发布订阅</span></nav><div class="module-meta">数据存储 · 第 3 / 8 章</div><h1>事务、Lua 与发布订阅</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>2.1 事务：弱事务</h3>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">MULTI
+SET<span class="w"> </span>a<span class="w"> </span><span class="m">1</span>
+INCR<span class="w"> </span>b
+EXEC
+</code></pre></div>
+<p>Redis 事务特点：</p>
+<ul>
+<li>命令排队后<strong>一次性顺序执行</strong>，执行期间不会被其他命令插入；</li>
+<li><strong>不支持回滚</strong>：某条命令执行报错，前面的命令不会撤销（不是 ACID 事务）；</li>
+<li>更像“批处理 + 隔离”；需要<strong>读改写原子性</strong>时用 Lua（原子执行 ≠ 回滚，出错同样不撤销）；</li>
+<li><strong>WATCH 乐观锁</strong>：<code>WATCH key</code> 后执行 MULTI/EXEC，若被监控的 key 在期间被其他客户端修改，EXEC 返回 nil（中止执行），配合重试；<code>DISCARD</code> 取消事务；</li>
+<li>两类错误：队列期的语法错误导致整个事务不执行；执行期的运行错误不中断后续命令、也不回滚。</li>
+</ul>
+<h3>2.2 Lua：原子性脚本</h3>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">EVAL<span class="w"> </span><span class="s2">&quot;return redis.call(&#39;GET&#39;, KEYS[1])&quot;</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>user:1
+</code></pre></div>
+<p>Lua 脚本整体原子执行，是“读改写”场景（如限流、库存扣减、分布式锁释放）的标准手段。</p>
+<div class="codehilite" data-lang="lua"><pre><code class="language-lua"><span class="c1">-- 分布式锁释放：比较值一致才删除</span>
+<span class="kr">if</span> <span class="n">redis</span><span class="p">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;get&#39;</span><span class="p">,</span> <span class="n">KEYS</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="n">ARGV</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="kr">then</span>
+    <span class="kr">return</span> <span class="n">redis</span><span class="p">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;del&#39;</span><span class="p">,</span> <span class="n">KEYS</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="kr">else</span>
+    <span class="kr">return</span> <span class="mi">0</span>
+<span class="kr">end</span>
+</code></pre></div>
+<h3>2.3 限流与延迟队列</h3>
+<ul>
+<li><strong>延迟队列</strong>：ZSet 的 score 存“到期时间戳”，轮询 <code>ZRANGEBYSCORE key -inf now</code> 取到期任务，再 <code>ZREM</code> 移除（两步组合非原子，严格场景在 Lua 内完成取+删）；</li>
+<li><strong>限流</strong>：INCR + EXPIRE 两条命令非原子，用 Lua 实现滑动窗口/令牌桶（如“每用户每秒最多 N 次”在脚本内完成判断与计数）。</li>
+</ul>
+<p><strong>细节</strong>：INCR + EXPIRE 分开写，中间崩溃会让 key 永不过期（用 SET NX EX 或 Lua 一次完成）；MULTI 内部做不了“读改写”（EXEC 前拿不到中间结果），必须 Lua；滑动窗口用 ZSet 按时间戳计数（ZREMRANGEBYSCORE 清窗口）；延迟队列要“先移后做”——先从 ZSet 移除再处理，避免处理失败重复消费（与《消息队列》的重复消费呼应）。</p>
+<h3>2.4 发布订阅与 Stream</h3>
+<ul>
+<li><strong>Pub/Sub</strong>：发布订阅，消息即发即弃，<strong>不持久化</strong>，消费者掉线丢消息；</li>
+<li><strong>Stream</strong>（5.0+）：消息队列，支持持久化、消费者组、ACK，功能接近 Kafka；</li>
+<li>场景：Pub/Sub 做简单通知；可靠消息用 Stream 或外部 MQ。</li>
+</ul>
+<h3>2.5 面试追问</h3>
+<ul>
+<li>问：Redis 事务和 MySQL 事务的区别？</li>
+<li>答：Redis 事务只保证顺序执行，不保证回滚；MySQL 是完整 ACID。</li>
+<li>问：为什么要用 Lua？</li>
+<li>答：多个命令需要原子执行时（读改写），Lua 脚本整体原子。</li>
+<li>问：Pub/Sub 和 Stream 区别？</li>
+<li>答：Pub/Sub 即发即弃不持久化；Stream 持久化、有消费者组和 ACK。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="redis:03",moduleId="redis";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

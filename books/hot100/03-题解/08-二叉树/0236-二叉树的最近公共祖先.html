@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>236. 二叉树的最近公共祖先 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 08-二叉树</div>
+        <h1 id="236">236. 二叉树的最近公共祖先</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（极简后序遍历版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试连环追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/08-二叉树.html">← 二叉树专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>后序递归</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个二叉树, 找到该树中两个指定节点 <code>p</code> 和 <code>q</code> 的最近公共祖先（LCA）。</p>
+<p><em>最近公共祖先定义</em>：“对于有根树 T 的两个节点 p、q，最近公共祖先表示为一个节点 x，满足 x 是 p、q 的祖先且 x 的深度尽可能大（一个节点也可以是它自己的祖先）。”</p>
+<p><a href="https://leetcode.cn/problems/lowest-common-ancestor-of-a-binary-tree/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>左右子树各找到一个目标时，当前节点就是最近公共祖先。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（自顶向下的迷茫）</strong>：</li>
+</ol>
+<p>如果你站在树根往下看，你根本不知道 <code>p</code> 和 <code>q</code> 藏在哪个角落，你很难判断当前节点是不是“最近”的。</p>
+<ol start="2">
+<li><strong>破局思路（自底向上的情报网）</strong>：</li>
+</ol>
+<p>我们要改变策略：<strong>先让小弟们去底下找，找到了再层层往上报！</strong></p>
+<p>要想“先看底下，再处理自己”，这完美契合了后序遍历（左 -&gt; 右 -&gt; 中）的逻辑。</p>
+<ul>
+<li>我们定义一个递归函数：如果我在我这棵子树里发现了 <code>p</code> 或者 <code>q</code>，我就把发现的节点当做“情报”往上汇报。如果啥也没发现，我就汇报 <code>null</code>。</li>
+</ul>
+<ol start="3">
+<li><strong>逻辑推演（四种情报汇聚场景）</strong>：</li>
+</ol>
+<p>假设你是一个父节点，你的左小弟和右小弟分别给你汇报了情报（<code>left</code> 和 <code>right</code>）：</p>
+<ul>
+<li><strong>场景 A（双喜临门）</strong>：<code>left</code> 汇报说找到了（或者本身就是 LCA），<code>right</code> 也汇报说找到了。这说明 <code>p</code> 和 <code>q</code> 刚好分居在你的左右两侧！<strong>那你自己绝对就是最近公共祖先！</strong> 于是你骄傲地把你自己的名字（<code>root</code>）往上报。</li>
+<li><strong>场景 B（左边有戏，右边扑空）</strong>：<code>left</code> 汇报有发现，<code>right</code> 汇报 <code>null</code>。说明目标都在左半区（或者目前只找到一个）。作为上级，你直接把左小弟的情报（<code>left</code>）原封不动地继续往上报。</li>
+<li><strong>场景 C（右边有戏，左边扑空）</strong>：同理，把右小弟的情报（<code>right</code>）往上报。</li>
+<li><strong>场景 D（一无所获）</strong>：两个小弟都报 <code>null</code>，说明你这片地盘压根没有 <code>p</code> 和 <code>q</code>，你也乖乖往上报 <code>null</code>。</li>
+</ul>
+<ol start="4">
+<li><strong>灵魂补丁（如果自己就是目标呢？）</strong>：</li>
+</ol>
+<p>如果我们在往下找的过程中，正好撞见了 <code>p</code> 或者 <code>q</code>，还需要继续往下找它的子树吗？</p>
+<p>不需要！因为题目说了“一个节点也可以是自己的祖先”。如果 <code>p</code> 是 <code>q</code> 的父亲，我们撞见 <code>p</code> 直接返回 <code>p</code> 就行了，就算 <code>q</code> 在它底下，最近公共祖先也就是 <code>p</code> 本身。</p>
+<h3 id="java">Java 实现（极简后序遍历版）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> * int val;</span>
+<span class="cm"> * TreeNode left;</span>
+<span class="cm"> * TreeNode right;</span>
+<span class="cm"> * TreeNode(int x) { val = x; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">lowestCommonAncestor</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">q</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 递归终止条件与“撞见目标”</span>
+<span class="w">        </span><span class="c1">// 如果越过了叶子节点，返回 null</span>
+<span class="w">        </span><span class="c1">// 如果正好撞见 p 或 q，直接把这个节点当做情报返回给上级</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">q</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 深入敌后：去左边和右边打探情报（后序遍历的体现）</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">);</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lowestCommonAncestor</span><span class="p">(</span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 3. 汇总情报，向上汇报</span>
+<span class="w">        </span><span class="c1">// 场景 A：左右两边都传来了好消息，说明 p 和 q 刚好在我两边，我就是 LCA！</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 场景 B &amp; C：如果一边有消息，另一边没消息，就把有消息的那边传上去</span>
+<span class="w">        </span><span class="c1">// 场景 D：如果两边都没消息，刚好 left 和 right 都是 null，随便返回一个 null 即可</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">right</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。在最坏的情况下，我们需要遍历树的所有节点才能找到 <code>p</code> 和 <code>q</code>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span> 是二叉树的高度。空间消耗主要是递归调用的系统栈，最坏情况下（树退化成链表）为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，平均情况为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试连环追问）</h3>
+<ol>
+<li><strong>面试追问 1：“如果这是一棵【二叉搜索树 (BST)】，你有更优的解法吗？”（对应力扣 235 题）</strong>
+   - <strong>满分抢答</strong>：有！因为 BST 左小右大，我们可以利用节点的值进行 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的方向判断。
+   - 从根节点往下：如果 <code>p</code> 和 <code>q</code> 的值都大于根节点，说明 LCA 一定在右子树；如果都小于，LCA 一定在左子树；<strong>如果一小一大，说明它们在根节点的两侧，当前根节点就是 LCA！</strong> 这就变成了从上往下的迭代，时间复杂度降为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>，空间复杂度降为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>！</li>
+<li><strong>面试追问 2：“如果树里的每个节点都有一个指向父节点的 <code>parent</code> 指针呢？”（对应力扣 1650 题）</strong>
+   - <strong>满分抢答</strong>：那这就根本不是二叉树的题了，这就变成了“求两个单链表的相交节点”（力扣 160 题）！
+   - 我们分别从 <code>p</code> 和 <code>q</code> 顺着 <code>parent</code> 指针往上爬，这就相当于两条链表求交点，用双指针法跑两圈就能相遇，空间复杂度直接压缩到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>！</li>
+</ol>
+<hr />
+<h2 id="_7">相邻学习</h2>
+<p><a href="0437-路径总和 III.html">← 437. 路径总和 III</a> · <a href="0124-二叉树中的最大路径和.html">124. 二叉树中的最大路径和 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>207. 课程表 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 09-图论</div>
+        <h1 id="207">207. 课程表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-bfs">Java 实现（邻接表 + 入度表 BFS 满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试变体局）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/09-图论.html">← 图论专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>Kahn 拓扑排序</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(V+E)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(V+E)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>你必须修完 <code>numCourses</code> 门课程。给你一个数组 <code>prerequisites</code>，其中 <code>prerequisites[i] = [ai, bi]</code> 表示如果你想修课程 <code>ai</code>，必须先修课程 <code>bi</code>。</p>
+<p>判断你是否可能修完所有课程？（能则返回 <code>true</code>，存在循环依赖则返回 <code>false</code>）。</p>
+<p><a href="https://leetcode.cn/problems/course-schedule/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每学完一门课就减少后继入度，最终处理数应等于课程数。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（循环死锁）</strong>：</p>
+<p>如果想学 A 必须先学 B，想学 B 必须先学 C，而想学 C 又必须先学 A。这三个课程就形成了一个<strong>死循环（环）</strong>。只要图里有环，你就一门课也学不了。所以，<strong>这道题的本质就是：在一个有向图中，判断是否存在环。</strong></p>
+</li>
+<li>
+<p><strong>破局思路（Kahn 算法 / BFS 入度表法）</strong>：</p>
+<p>想象一下，全学校的学生都在挑课。哪些课是大家可以直接报名的？<strong>显然是那些“不需要任何先修课”的清流课程。</strong></p>
+<p>在图论中，一个节点被指向的边数叫做<strong>入度（In-degree）</strong>。不需要先修课，就意味着它的<strong>入度为 0</strong>。</p>
+<ul>
+<li><strong>第一步（建账本）</strong>：我们统计出所有课程的入度，并把所有入度为 0 的课程推进一个队列（Queue）里。</li>
+<li><strong>第二步（毕业一门，解锁一批）</strong>：从队列里弹出一门入度为 0 的课（代表你修完了这门课）。既然你修完了它，那么所有<strong>以它为先修课的后续课程</strong>，压力都减轻了！我们将这些后续课程的<strong>入度全部减 1</strong>。</li>
+<li><strong>第三步（接力跑）</strong>：在减 1 的过程中，如果发现某门后续课程的入度也变成了 0（代表它的所有先修课你都修完了），那就立刻把它也推进队列。</li>
+<li><strong>结算</strong>：当队列空了，数一数你一共修完了多少门课。如果等于总课程数，皆大欢喜（返回 <code>true</code>）；如果小于总课程数，说明剩下的课掉进了循环依赖的死锁里，谁也无法变成 0（返回 <code>false</code>）。</li>
+</ul>
+<h3 id="java-bfs">Java 实现（邻接表 + 入度表 BFS 满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.LinkedList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Queue</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">canFinish</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numCourses</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 准备数据结构</span>
+<span class="w">        </span><span class="c1">// inDegree 数组：记录每门课的入度（需要多少门先修课）</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">inDegree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">numCourses</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// adj 邻接表：记录每门课是哪些课的先修课（主修课 -&gt; 后续课列表）</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">adj</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">adj</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">());</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 灌入数据，初始化邻接表和入度表</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">req</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">prerequisites</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">course</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">req</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">pre</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">req</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">pre</span><span class="p">).</span><span class="na">add</span><span class="p">(</span><span class="n">course</span><span class="p">);</span><span class="w"> </span><span class="c1">// pre -&gt; course</span>
+<span class="w">            </span><span class="n">inDegree</span><span class="o">[</span><span class="n">course</span><span class="o">]++</span><span class="p">;</span><span class="w">       </span><span class="c1">// 想要学 course，入度加 1</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 将所有入度为 0（无须先修课）的课程放进队列</span>
+<span class="w">        </span><span class="n">Queue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">inDegree</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 记录成功修完的课程数量</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 4. 开始 BFS 拓扑排序</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">            </span><span class="n">count</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 修完一门，计数加 1</span>
+
+<span class="w">            </span><span class="c1">// 拿到当前课程的所有后续课程</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nextCourse</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">adj</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">curr</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">inDegree</span><span class="o">[</span><span class="n">nextCourse</span><span class="o">]--</span><span class="p">;</span><span class="w"> </span><span class="c1">// 后续课程的先修条件达成一个，入度减 1</span>
+
+<span class="w">                </span><span class="c1">// 如果入度被减到了 0，说明所有先修课都修完了，可以入队</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">inDegree</span><span class="o">[</span><span class="n">nextCourse</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">nextCourse</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 5. 如果修完的课程数等于总课程数，说明图里无环，可以全部修完</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">numCourses</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(V + E)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>V</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>E</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="V"><mrow><mi>V</mi></mrow></math></span> 是课程数（顶点），<span class="math-inline-wrap"><math class="math-inline" aria-label="E"><mrow><mi>E</mi></mrow></math></span> 是先修关系数（边）。建图需要遍历一遍所有边，BFS 过程中每个顶点进出队一次，每条边被剥离一次，是标准且极其高效的图遍历时间。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(V + E)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>V</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>E</mi><mo>)</mo></mrow></math></span>。邻接表占用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(V + E)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>V</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>E</mi><mo>)</mo></mrow></math></span> 的空间，入度数组占用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(V)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>V</mi><mo>)</mo></mrow></math></span>，队列最多占用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(V)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>V</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试变体局）</h3>
+<ol>
+<li><strong>面试追问 1：“如果我不单单想知道能不能修完，我还想让你【返回一种合理的修课顺序】，该怎么改？”（对应力扣 210 题：课程表 II）</strong>
+   - <strong>满分抢答</strong>：极其简单！上面的代码框架<strong>一个字都不用改</strong>。我们只需要把那个 <code>int count</code> 计数器，改成一个长为 <code>numCourses</code> 的一维数组 <code>int[] order</code>。每次从队列里 <code>poll()</code> 出一个节点时，顺手按顺序填进 <code>order</code> 数组里。最后判断如果填进去的课数等于 <code>numCourses</code>，返回 <code>order</code>，否则返回空数组。这就是拓扑排序的完全体！</li>
+<li><strong>面试追问 2：“这道题除了 BFS，能用 DFS（深度优先搜索）做吗？”</strong>
+   - <strong>满分抢答</strong>：完全可以。DFS 做这道题的本质是<strong>染色标记法（三色标记法）</strong>。
+   - 我们对每个节点定义三种状态：<code>0</code>（未访问）、<code>1</code>（正在访问中）、<code>2</code>（已经安全访问完毕）。
+   - 顺着某条路径一条道走到黑。如果 DFS 过程中撞见了一个状态为 <code>1</code> 的节点，说明<strong>它在当前这条递归路径里自己碰到了自己</strong>，当场捕获一个环，直接终止并返回 <code>false</code>。如果一条路顺利走到头，就把沿途节点染成 <code>2</code>（安全）。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0994-腐烂的橘子.html">← 994. 腐烂的橘子</a> · <a href="0208-实现 Trie.html">208. 实现 Trie →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

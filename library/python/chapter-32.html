@@ -1,0 +1,99 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>理解大模型 API 的核心概念 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Python 实用入门与 AI 开发</a><span aria-hidden="true">›</span><span aria-current="page">理解大模型 API 的核心概念</span></nav><div class="module-meta">编程基础 · 第 32 / 39 章</div><h1>理解大模型 API 的核心概念</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>调用模型 API 之前，先理解几个高频概念。它们出现在几乎所有模型的文档、账单和报错里。</p>
+<h3>31.1 Token：模型计数的最小单位</h3>
+<p>模型不直接按“字符”理解文本，而是按 Token 计数。Token 可以近似理解为“词的碎片”：</p>
+<ul>
+<li>英文大约 1 个词 ≈ 1~2 个 Token（例如 <code>"Hello"</code> 约 1~2 个 Token）；</li>
+<li>中文通常 1 个字 ≈ 1~2 个 Token，所以同样的内容，中文往往比英文更“贵”；</li>
+<li>Token 数决定费用和上下文窗口占用，不要用 <code>len(text)</code> 代替 Token 计数。</li>
+</ul>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 粗略估算，仅用于预算；精确计数要用厂商的 Tokenizer 或 SDK</span>
+<span class="k">def</span> <span class="nf">rough_tokens</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># 中文场景的粗估</span>
+</code></pre></div>
+<p>厂商 SDK 或 Tokenizer 会给出精确数字，例如响应中的 <code>usage</code> 字段：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span><span class="nt">&quot;prompt_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;completion_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">34</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;total_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">46</span><span class="p">}</span>
+</code></pre></div>
+<h3>31.2 上下文窗口（Context Window）</h3>
+<p>上下文窗口是模型一次能“看到”的 Token 总量（输入 + 输出）。例如 128K 窗口表示输入和输出合计不能超过约 128K Token，超出会报错或截断。</p>
+<p>实际开发时，要为以下内容预留预算：</p>
+<ul>
+<li>系统提示（system prompt）和工具定义；</li>
+<li>对话历史（多轮消息会累积）；</li>
+<li>检索到的文档片段（RAG，见第 32 章）；</li>
+<li>模型输出本身。</li>
+</ul>
+<p>所以长对话通常要<strong>截断或压缩历史</strong>，而不是无限追加。</p>
+<h3>31.3 messages：角色与对话结构</h3>
+<p>大多数聊天模型接收一个消息列表，每条消息有角色：</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>作用</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>system</td>
+<td>设定行为、风格和约束</td>
+<td><code>"你是 Python 老师，回答要简洁"</code></td>
+</tr>
+<tr>
+<td>user</td>
+<td>用户输入</td>
+<td><code>"解释什么是生成器"</code></td>
+</tr>
+<tr>
+<td>assistant</td>
+<td>模型历史回复</td>
+<td>多轮对话时回填</td>
+</tr>
+<tr>
+<td>tool</td>
+<td>工具执行结果</td>
+<td>函数调用后返回给模型（见第 33 章）</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;你是 Python 老师，回答要简洁。&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;解释什么是生成器。&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;生成器是按需产生值的函数，用 yield 暂停。&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;给一个例子。&quot;</span><span class="p">},</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>调用模型时把整个列表发给服务端；保持角色顺序（system → user → assistant 交替），否则有些模型会报错或表现异常。</p>
+<h3>31.4 temperature 与 top_p：控制随机性</h3>
+<ul>
+<li><code>temperature</code> 越高，输出越多样、越“发散”；越低越确定、越可复现。取值范围通常 0~2，默认约 1；</li>
+<li><code>top_p</code> 是另一种采样参数（核采样），与 temperature 二选一调整即可，不必同时微调；</li>
+<li>需要稳定结果（解析、分类、代码）时用低温度（0~0.3）；需要创意写作时用较高温度。</li>
+</ul>
+<h3>31.5 输出长度、流式与费用</h3>
+<ul>
+<li><code>max_tokens</code>（或 <code>max_completion_tokens</code>）限制输出长度，防止模型无限生成；</li>
+<li>流式（<code>stream: true</code>）让内容逐段到达，首字延迟更低，适合打字机效果（见第 25 章）；</li>
+<li>费用 = 输入 Token × 输入单价 + 输出 Token × 输出单价，两者单价通常不同，输出更贵；</li>
+<li>账单异常先查 <code>usage</code> 字段，再查是否有循环调用或历史消息无限累积。</li>
+</ul>
+<h3>31.6 函数调用（Function Calling / Tools）</h3>
+<p>除了返回文本，模型还能“提出要调用某个工具”，由你的程序执行后再把结果交给模型继续推理。这是 Agent 的基础，第 33 章会完整实现。</p>
+<h3>31.7 结构化输出与思考能力</h3>
+<ul>
+<li>结构化输出：用 JSON Schema 约束输出格式，适合需要程序解析的结果（见 17.3）；</li>
+<li>推理模型：部分模型支持“思考过程”，会在回复前内部推理，通常更慢、更贵，但复杂任务更可靠。</li>
+</ul>
+<blockquote>
+<p>记住一个原则：<strong>模型输出永远是“可能出错”的数据</strong>。把它当作外部输入来校验，而不是当作可信代码或事实。</p>
+</blockquote>
+<h3>31.8 本章练习</h3>
+<ol>
+<li>用任意模型 API 打印一次调用的 <code>usage</code> 字段，核对 Token 数与你的估算；</li>
+<li>构造一段多轮 <code>messages</code>（system → user → assistant → user），观察不同模型对角色顺序的要求；</li>
+<li>把 <code>temperature</code> 分别设为 0 和 1.5，各生成 5 次，比较输出差异；</li>
+<li>说出 3 种“上下文窗口超限”的缓解方法（提示：截断、压缩、RAG）。</li>
+</ol>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-31.html">← 上一章</a><a href="chapter-33.html">下一章 →</a></nav></main></div>
+<script>const contentId="python:32",moduleId="python";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

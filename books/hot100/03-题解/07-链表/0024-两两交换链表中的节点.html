@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>24. 两两交换链表中的节点 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="24">24. 两两交换链表中的节点</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（迭代法）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试连环追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>虚拟头 + 局部重连</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个链表，两两交换其中相邻的节点，并返回交换后链表的头节点。</p>
+<p><strong>硬性要求</strong>：你必须在不修改节点内部的值的情况下完成本题（即，只能进行节点实体交换）。</p>
+<p><a href="https://leetcode.cn/problems/swap-nodes-in-pairs/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每轮保存下一组入口，再按固定顺序改三条指针。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（只顾眼前的两人）</strong>：</p>
+<p>假设链表是 <code>1 -&gt; 2 -&gt; 3 -&gt; 4</code>。你想交换 1 和 2，你把 2 的 <code>next</code> 指向 1，1 的 <code>next</code> 指向 3。此时链表变成了 <code>2 -&gt; 1 -&gt; 3 -&gt; 4</code>。看起来成功了。</p>
+<p>接着你想交换 3 和 4。你让 4 指向 3，3 指向 <code>null</code>。</p>
+<p><strong>痛点来了</strong>：1 本来指向 3 的，现在 3 跑到 4 后面去了，1 应该指向 4 才对啊！但是由于你在交换 3 和 4 的时候，找不到 1 了，导致链表在中间<strong>断裂</strong>！</p>
+</li>
+<li>
+<p><strong>破局思路（引入“前驱节点”作见证人）</strong>：</p>
+<p>想要完美交换两个节点，我们必须站在<strong>它们前面的那个节点</strong>上。</p>
+<p>这就又轮到我们的老朋友“虚拟头节点 (Dummy Node)”出场了。</p>
+<ul>
+<li>构建 <code>dummy -&gt; 1 -&gt; 2 -&gt; 3 -&gt; 4</code>。</li>
+<li>我们定义一个 <code>prev</code> 指针，初始指向 <code>dummy</code>。</li>
+<li>每次循环，我们要操作的是 <code>prev</code> 后面的两个节点：<code>node1</code> 和 <code>node2</code>。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（致命四步曲）</strong>：</p>
+<p>假设当前状态是 <code>prev -&gt; node1 -&gt; node2 -&gt; nextNode</code>：</p>
+<ul>
+<li><strong>步骤 1</strong>：让前驱节点拉住新的排头兵。<code>prev.next = node2</code>。</li>
+<li><strong>步骤 2</strong>：让原来的排头兵拉住后面的大部队（防止断链）。<code>node1.next = node2.next</code>。</li>
+<li><strong>步骤 3</strong>：让新的排头兵拉住原来的排头兵（完成反转）。<code>node2.next = node1</code>。</li>
+<li><strong>步骤 4</strong>：前驱节点推进，准备下一轮。<code>prev = node1</code>。</li>
+</ul>
+<h3 id="java">Java 实现（迭代法）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">swapPairs</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 祭出虚拟头节点，化解头节点没有前驱的尴尬</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// prev 充当每对节点前面的那个“见证人”</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 2. 只有当 prev 后面至少还有两个节点时，才有资格进行“两两交换”</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 先用两个临时变量把要交换的两个兄弟提出来，看着清晰</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">node1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">node2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 3. 开始穿针引线（四步曲）</span>
+<span class="w">            </span><span class="c1">// 第一步：见证人牵手第二个人</span>
+<span class="w">            </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node2</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 第二步：第一个人牵手第三个人（也就是第二个人后面的大部队）</span>
+<span class="w">            </span><span class="n">node1</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 第三步：第二个人回头牵手第一个人</span>
+<span class="w">            </span><span class="n">node2</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node1</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 第四步：见证人往前移动两位，也就是移到 node1 的位置，准备下一轮</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 4. 返回真正的链表头节点</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是链表的节点数量。我们需要遍历整个链表，每次处理两个节点。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。我们仅仅用了几个节点指针，没有开辟任何额外空间。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试连环追问）</h3>
+<ul>
+<li>
+<p><strong>面试追问：“你能用【递归】实现吗？代码能精简到几行？”</strong></p>
+</li>
+<li>
+<p><strong>满分回答</strong>：递归的代码极其优雅！这道题本质上可以拆解为：“交换头部的两个节点” + “剩下的链表让递归函数去处理”。</p>
+</li>
+<li>
+<p><strong>神仙级递归代码</strong>：</p>
+</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">swapPairs</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 递归终止条件：如果没有节点，或者只有一个节点，直接返回不用交换</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nextNode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 核心：把头节点指向【后面已经完成两两交换的子链表】</span>
+<span class="w">        </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">swapPairs</span><span class="p">(</span><span class="n">nextNode</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// 把第二个节点指向头节点</span>
+<span class="w">        </span><span class="n">nextNode</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 返回新的头节点（也就是原来的第二个节点）</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">nextNode</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<ul>
+<li><em>点评</em>：虽然递归法空间复杂度会变成 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>（因为系统调用栈的开销），但这段代码体现了极强的“宏观思维”，面试官极其喜欢让你手写这段代码！</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0019-删除链表的倒数第 N 个结点.html">← 19. 删除链表的倒数第 N 个结点</a> · <a href="0025-K 个一组翻转链表.html">25. K 个一组翻转链表 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

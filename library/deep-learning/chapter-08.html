@@ -1,0 +1,34 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>迁移学习与预训练模型 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">深度学习与 Transformer</a><span aria-hidden="true">›</span><span aria-current="page">迁移学习与预训练模型</span></nav><div class="module-meta">模型与训练 · 第 8 / 18 章</div><h1>迁移学习与预训练模型</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>从零训练大型网络需要大量数据和算力。迁移学习先使用在大规模数据上训练好的模型，再适配目标任务。</p>
+<h3>8.1 三种使用方式</h3>
+<ol>
+<li><strong>特征提取</strong>：冻结预训练主干，只训练新的输出层；</li>
+<li><strong>部分微调</strong>：解冻靠后的层，用较小学习率训练；</li>
+<li><strong>全量微调</strong>：更新全部参数，成本和过拟合风险最高。</li>
+</ol>
+<p>数据少时先冻结大部分参数通常更稳。目标数据与预训练数据差异很大时，需要解冻更多层或重新训练。</p>
+<h3>8.2 参数高效微调</h3>
+<p>大型模型可以使用 Adapter、LoRA 等方法，只训练少量新增或低秩参数。这样能降低显存、存储和多任务模型管理成本，但不保证在所有任务上等同于全量微调。</p>
+<h3>8.3 数据增强</h3>
+<p>图像可随机裁剪、翻转和调整颜色；音频可加噪或改变速度；文本增强需要更谨慎，替换词语可能改变标签。</p>
+<p>增强应保持任务语义，并只用于训练集。验证和测试通常使用固定、确定性的预处理。</p>
+<hr />
+<h3>8.4 LoRA 的核心直觉</h3>
+<p>全量微调直接更新大权重矩阵 <span class="math-inline-wrap"><math class="math-inline" aria-label="W"><mrow><mi>W</mi></mrow></math></span>。LoRA 冻结 <span class="math-inline-wrap"><math class="math-inline" aria-label="W"><mrow><mi>W</mi></mrow></math></span>，只学习一个低秩更新：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="W&#x27;=W+αrBA"><mrow><mi>W</mi><mo>′</mo><mo>=</mo><mi>W</mi><mo>+</mo><mfrac><mrow><mi>α</mi></mrow><mrow><mi>r</mi></mrow></mfrac><mi>BA</mi></mrow></math></span></p>
+<p>若原矩阵很大而秩 <span class="math-inline-wrap"><math class="math-inline" aria-label="r"><mrow><mi>r</mi></mrow></math></span> 很小，<span class="math-inline-wrap"><math class="math-inline" aria-label="A"><mrow><mi>A</mi></mrow></math></span>、<span class="math-inline-wrap"><math class="math-inline" aria-label="B"><mrow><mi>B</mi></mrow></math></span> 的参数量远少于 <span class="math-inline-wrap"><math class="math-inline" aria-label="W"><mrow><mi>W</mi></mrow></math></span>。推理时可保留适配器或把更新合并进原权重。</p>
+<p>其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="α/r"><mrow><mi>α</mi><mo>/</mo><mi>r</mi></mrow></math></span> 是常见缩放项。关键参数包括秩 <span class="math-inline-wrap"><math class="math-inline" aria-label="r"><mrow><mi>r</mi></mrow></math></span>、缩放系数 <span class="math-inline-wrap"><math class="math-inline" aria-label="α"><mrow><mi>α</mi></mrow></math></span>、Dropout 以及注入哪些层。秩更大表达能力更强但参数更多。LoRA 减少可训练参数和优化器状态，不一定按相同比例减少前向激活显存。</p>
+<h3>8.5 领域迁移与灾难性遗忘</h3>
+<p>预训练领域与目标领域越接近，迁移通常越容易。自然图片模型迁移到医学影像时，低层边缘特征可能仍有用，高层语义差异却很大。</p>
+<p>微调过强可能破坏原有通用能力，称为灾难性遗忘。可以使用更小学习率、冻结部分层、混合原任务数据、正则化或 Adapter 缓解。选择策略要通过目标任务和保留能力共同评价。</p>
+<h3>8.6 微调数据质量</h3>
+<p>少量高质量、覆盖真实任务的数据通常胜过大量重复或错误样本。需要检查：</p>
+<ul>
+<li>指令与答案是否一致；</li>
+<li>是否包含目标场景和困难边界；</li>
+<li>是否混入测试集或未来信息；</li>
+<li>是否存在隐私、版权和敏感内容；</li>
+<li>模板是否过于单一，导致模型只学会格式。</li>
+</ul>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>
+<script>const contentId="deep-learning:08",moduleId="deep-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

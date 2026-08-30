@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>79. 单词搜索 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="79">79. 单词搜索</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（原地回溯剪枝满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频细节）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>网格 DFS + 原地标记</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn·4ᴸ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(L)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 的字符网格 <code>board</code> 和一个字符串单词 <code>word</code> 。如果 <code>word</code> 存在于网格中，返回 <code>true</code> ；否则，返回 <code>false</code> 。</p>
+<p>单词必须按照字母顺序，通过<strong>相邻的单元格</strong>内的字母构成，其中“相邻”单元格是水平方向或垂直方向相邻的单元格。<strong>同一个单元格内的字母不允许被重复使用</strong>。</p>
+<p><a href="https://leetcode.cn/problems/word-search/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>一个格子在同一路径中只能使用一次，返回前恢复。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（网格上的全排列）</strong>：</p>
+<p>我们需要在地图上先用两层 <code>for</code> 循环作为“雷达”，寻找单词的<strong>第一个字母</strong>（比如单词是 <code>"ABCCED"</code>，先在图里找 <code>'A'</code>）。</p>
+<p>一旦找到起点，就立刻从这个格子发起深度优先搜索（DFS），向它的上下左右四个邻居去高喊：“谁是下一个字母 <code>'B'</code> ？”</p>
+<p><strong>痛点</strong>：因为同一个格子不能重复使用，你走过去之后必须把它标记为“已访问”。但是，如果这条路走到一半发现后面断了，你得退回来去试别的方向，这时候你必须<strong>把刚才标记过的格子再恢复原状</strong>，否则就会断了其他正确路径的活路（这就是“不吃回头草”与“回溯恢复”的博弈）。</p>
+</li>
+<li>
+<p><strong>核心微操（高效的原地标记法）</strong>：</p>
+<p>很多同学为了记录“哪些格子访问过”，会开辟一个 <code>boolean[][] visited</code> 矩阵。</p>
+<p><strong>空间优化</strong>：在真实的工业级面试中，我们可以直接利用原网格进行“位运算标记”<strong>或</strong>“特殊字符替换标记”。</p>
+<ul>
+<li>比如：我们要访问 <code>board[r][c]</code> 时，先把它的原始字符存入临时变量 <code>char temp = board[r][c];</code>。</li>
+<li>然后把这个格子改成一个绝对不可能在单词里出现的特殊符号，比如 <code>board[r][c] = '\0';</code>（空字符）或者 <code>board[r][c] = '#';</code>。</li>
+<li>等上下左右全部递归探路完毕、准备退出当前函数时，再用 <code>board[r][c] = temp;</code> 把原来的字母复原。真正的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 额外空间，品味直接拉满！</li>
+</ul>
+<h3 id="java">Java 实现（原地回溯剪枝满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">exist</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">word</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">board</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">board</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 1. 双重 for 循环，扮演雷达，寻找单词的“大本营”（第一个字母）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rows</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cols</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 只要第一个字母对上了，立刻启动 DFS 深钻</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">board</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">word</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 初始参数：网格，坐标(r,c)，当前要匹配的单词字符索引(0)</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dfs</span><span class="p">(</span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"> </span><span class="c1">// 只要有一条路通了，直接大获全胜！</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">index</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 🌟 终极终止条件：如果当前匹配的索引已经等于单词长度了，说明全词匹配成功！</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">index</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">word</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 边界防御与剪枝</span>
+<span class="w">        </span><span class="c1">// 越界检查，或者当前格子的字母和我们要找的字母不匹配（包括撞见被标记的 &#39;#&#39;）</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">board</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">board</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">board</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">word</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">index</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. --- 开始做选择（原地打标记） ---</span>
+<span class="w">        </span><span class="kt">char</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">board</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">board</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;#&#39;</span><span class="p">;</span><span class="w"> </span><span class="c1">// 把当前格子染成 &#39;#&#39;，防止接下来的递归自己踩到自己，造成死循环</span>
+
+<span class="w">        </span><span class="c1">// 3. --- 纵深探索 ---</span>
+<span class="w">        </span><span class="c1">// 向上下左右四个方向扩散，寻找单词的下一个字母 (index + 1)</span>
+<span class="w">        </span><span class="c1">// 🌟 带有“短路效应”的或运算：只要有一个方向成功了，后面的方向连试都不用试，直接一路返回 true</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">isFound</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dfs</span><span class="p">(</span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="c1">// 上</span>
+<span class="w">                          </span><span class="n">dfs</span><span class="p">(</span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="c1">// 下</span>
+<span class="w">                          </span><span class="n">dfs</span><span class="p">(</span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="c1">// 左</span>
+<span class="w">                          </span><span class="n">dfs</span><span class="p">(</span><span class="n">board</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">word</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">   </span><span class="c1">// 右</span>
+
+<span class="w">        </span><span class="c1">// 4. --- 撤销选择（回溯魔法） ---</span>
+<span class="w">        </span><span class="c1">// 🌟 极其致命！无论有没有找到，都必须把当前格子的字符还原，因为别的分支还要用它！</span>
+<span class="w">        </span><span class="n">board</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">temp</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">isFound</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N × 3^L)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><msup><mn>3</mn><mi>L</mi></msup><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="M, N"><mrow><mi>M</mi><mo>,</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 为网格的行数和列数，<span class="math-inline-wrap"><math class="math-inline" aria-label="L"><mrow><mi>L</mi></mrow></math></span> 为单词 <code>word</code> 的长度。我们需要在网格中遍历 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 个起点。对于每个起点，DFS 探索时，除了第一次有 4 个方向可选，后续由于不能走回头路，每次最多只有 3 个方向可选。所以单次 DFS 的最大分支数是 <span class="math-inline-wrap"><math class="math-inline" aria-label="3^L"><mrow><msup><mn>3</mn><mi>L</mi></msup></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(L)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>L</mi><mo>)</mo></mrow></math></span>。因为我们采用了“原地修改字符”的神仙微操，完全不需要 <code>visited</code> 矩阵。唯一的空间开销来自于系统递归调用栈，其最大深度等于单词的长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="L"><mrow><mi>L</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频细节）</h3>
+<ol>
+<li><strong>踩坑警告（致命错误）：为什么一定要在终止条件里写 <code>index == word.length()</code>，而不是在下面写？</strong>
+   - 很多同学喜欢把终止条件写在函数最开头：<code>if (index == word.length() - 1) return true;</code>。
+   - <strong>致命后果</strong>：如果输入的单词正好只有一个字母（比如 <code>board = [['A']], word = "A"</code>）。你的主循环查到 <code>board[0][0] == 'A'</code>，进入 DFS。此时 <code>index = 0</code>。如果你在开头判定匹配，可能就漏掉了某些边界越界的校验，或者是导致多字符匹配时逻辑错乱。
+   - <strong>最佳规范</strong>：永远让 <code>index</code> 走到 <code>word.length()</code>。当 <code>index</code> 代表“我已经完美匹配完了前 <code>index</code> 个字母”时，逻辑才是最无懈可击的。</li>
+<li><strong>面试追问：“如果我要在网格里同时搜索成千上万个单词呢？你难道要对每个单词都跑一遍这个算法吗？”（对应力扣 212 题：单词搜索 II - Hard 难度）</strong>
+   - <strong>满分抢答（直击高级数据结构精髓）</strong>：那绝对不行！如果单词量巨大，针对每个单词独立搜索会导致严重超时。
+   - <strong>终极融合方案</strong>：我们应该把这道题的“网格回溯 DFS”<strong>和我们之前学过的</strong>「208. 前缀树 (Trie)」进行跨界缝合！
+   - 我们首先把成千上万个待查单词全部织入一棵前缀树中。然后，我们只需对网格的每个格子启动一次 DFS。在网格里每走一步，前缀树的指针也跟着走一步。如果网格里拼出的前缀在前缀树里根本不存在，直接斩断整个网格分支（大面积剪枝）！这属于面试风控、搜索引擎底层的核心算法。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0022-括号生成.html">← 22. 括号生成</a> · <a href="0131-分割回文串.html">131. 分割回文串 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/10-回溯.html?embed=1&amp;panel=5" title="79. 单词搜索的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

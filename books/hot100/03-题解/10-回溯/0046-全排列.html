@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>46. 全排列 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="46">46. 全排列</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（回溯黄金模板）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频连环问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>路径 + used 数组</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n·n!)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个不含重复数字的数组 <code>nums</code> ，返回其 所有可能的全排列 。你可以 <strong>按任意顺序</strong> 返回答案。</p>
+<p><em>例如</em>：输入 <code>[1, 2, 3]</code>，输出 <code>[[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]</code>。</p>
+<p><a href="https://leetcode.cn/problems/permutations/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>同一条路径中每个元素只能使用一次。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（怎么做到不重不漏？）</strong>：</p>
+<p>人在写全排列的时候是怎么写的？先固定 1，然后第二位写 2，第三位写 3。然后退回一步，第二位换成 3，第三位写 2。</p>
+<p><strong>痛点</strong>：对于计算机来说，它需要一套极其严密的逻辑来模拟这种“往前走，走到黑，再退回来换条路”的过程。</p>
+</li>
+<li>
+<p><strong>破局思路（构建多叉决策树）</strong>：</p>
+<p>我们可以把选数字的过程想象成在一棵树上做决策。</p>
+<ul>
+<li>站在树根，你面前有 3 条路：选 1、选 2、选 3。</li>
+<li>假设你选了 1（走入第一条分支），接下来你面前只剩 2 条路：选 2、选 3（因为 1 已经被选过了）。</li>
+<li>假设你接着选了 2，接下来只剩 1 条路：选 3。</li>
+<li>走到底，收集到一个答案 <code>[1, 2, 3]</code>。</li>
+</ul>
+</li>
+<li>
+<p><strong>核心微操（撤销选择的魔法）</strong>：</p>
+<p>当你收集完 <code>[1, 2, 3]</code> 后，你怎么去收集 <code>[1, 3, 2]</code>？</p>
+<p>你必须<strong>倒退（Backtrack）</strong>！从兜里把 3 掏出来放回桌上，再把 2 掏出来放回桌上。然后重新选择 3，接着再选 2。</p>
+<p>这个“做选择 -&gt; 深入探索 -&gt; 撤销选择”的闭环，就是回溯算法的灵魂。</p>
+<h3 id="java">Java 实现（回溯黄金模板）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 全局结果集，用来装所有的排列组合</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">permute</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// currentPath 记录当前走到哪一步了（口袋里装了哪些数字）</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// used 数组是一份“防重名单”，记录哪些数字已经被选过了</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="o">[]</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 开始在决策树上游走</span>
+<span class="w">        </span><span class="n">backtrack</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">,</span><span class="w"> </span><span class="n">used</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 回溯核心函数</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">backtrack</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[]</span><span class="w"> </span><span class="n">used</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 终止条件：当口袋里的数字个数等于数组长度时，说明走到叶子节点了！</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">currentPath</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 🌟 致命细节：必须做一次“深拷贝（Deep Copy）”！</span>
+<span class="w">            </span><span class="c1">// 因为 currentPath 在整个递归过程中只有一份引用，如果直接放进去，后续的撤销操作会把结果集里的数据也清空！</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">currentPath</span><span class="p">));</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 遍历所有可能的选择（站在路口看所有的路）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 如果这个数字已经在口袋里了，直接跳过（走不通的死路）</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">used</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// --- 开始做选择 ---</span>
+<span class="w">            </span><span class="n">currentPath</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span><span class="w"> </span><span class="c1">// 把数字装进口袋</span>
+<span class="w">            </span><span class="n">used</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">           </span><span class="c1">// 在名单上打个勾，表示用过了</span>
+
+<span class="w">            </span><span class="c1">// --- 带着这个选择，继续往下钻（进入下一层决策树） ---</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">,</span><span class="w"> </span><span class="n">used</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// --- 撤销选择（回溯魔法） ---</span>
+<span class="w">            </span><span class="c1">// 走到这里说明下面的路都已经探索完了，我们要退回上一个路口</span>
+<span class="w">            </span><span class="n">currentPath</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">currentPath</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 把刚装进口袋的最后一个数字掏出来</span>
+<span class="w">            </span><span class="n">used</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">                            </span><span class="c1">// 在名单上把勾擦掉，还给后人</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N × N!)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>!</mo><mo>)</mo></mrow></math></span>。全排列的叶子节点总数是 <span class="math-inline-wrap"><math class="math-inline" aria-label="N!"><mrow><mi>N</mi><mo>!</mo></mrow></math></span> 个，每次收集一个结果都需要遍历 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 的长度来做一次拷贝。时间复杂度非常高，但也无法避免，因为结果集本身就有这么大。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。主要消耗在递归调用栈的深度（最大为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>）以及用来记录状态的 <code>used</code> 数组和 <code>currentPath</code> 列表上。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频连环问）</h3>
+<ol>
+<li><strong>踩坑警告（必考考点）：为什么必须写 <code>res.add(new ArrayList&lt;&gt;(path))</code>，而不能直接写 <code>res.add(path)</code>？</strong></li>
+</ol>
+<ul>
+<li><strong>真相</strong>：在 Java 中，对象是<strong>引用传递</strong>。整个递归过程中，大家共用的都是同一个 <code>path</code> 对象的内存地址。</li>
+<li>如果你直接 <code>res.add(path)</code>，虽然当时存进去了 <code>[1, 2, 3]</code>，但随着后续不断执行 <code>remove()</code> 撤销选择，最后整个递归结束时，这个 <code>path</code> 会被清空变成 <code>[]</code>。</li>
+<li>结果就是：你打开最终的 <code>res</code> 列表，会发现里面全是空集 <code>[[], [], [], [], [], []]</code>！使用 <code>new ArrayList&lt;&gt;(path)</code> 相当于给当时的路径拍了一张快照（Snapshot）存进档案库。</li>
+</ul>
+<ol start="2">
+<li><strong>面试追问：“如果给你的 <code>nums</code> 数组里面有【重复数字】（例如 <code>[1, 1, 2]</code>），你该怎么修改代码，保证结果里不出现重复的排列？”（对应力扣 47 题：全排列 II）</strong></li>
+</ol>
+<ul>
+<li>
+<p><strong>满分抢答</strong>：我们需要<strong>排序 + 剪枝</strong>！</p>
+</li>
+<li>
+<p>首先把原数组排个序，让相同的数字挨在一起。然后在 <code>for</code> 循环里加上一句极其巧妙的剪枝逻辑：</p>
+<p><code>if (i &gt; 0 &amp;&amp; nums[i] == nums[i - 1] &amp;&amp; !used[i - 1]) continue;</code></p>
+</li>
+<li>
+<p><em>解释</em>：如果当前数字和前一个数字相同，并且前一个数字<strong>刚刚被撤销（<code>!used[i-1]</code> 为 true）</strong>，说明在这个相同的树层位点上，用前一个数字已经把所有可能性都穷举完了。我们如果再用当前的相同数字，只会产生一模一样的分支，所以直接跳过（剪枝）。</p>
+</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../09-图论/0208-实现 Trie.html">← 208. 实现 Trie</a> · <a href="0078-子集.html">78. 子集 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/10-回溯.html?embed=1&amp;panel=0" title="46. 全排列的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

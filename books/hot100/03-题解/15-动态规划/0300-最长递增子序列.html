@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>300. 最长递增子序列 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 15-动态规划</div>
+        <h1 id="300">300. 最长递增子序列</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#1on2">解法 1：O(n²) 动态规划版</a><ul>
+<li><a href="#_3">思路推导</a></li>
+<li><a href="#java-dp">Java 实现（满分 DP 基础版）</a></li>
+<li><a href="#_4">复杂度</a></li>
+<li><a href="#_5">易错点与扩展（面试的进阶优化思路）</a></li>
+</ul>
+</li>
+<li><a href="#2on-log-n">解法 2：O(n log n) 贪心二分版</a><ul>
+<li><a href="#_6">思路推导</a></li>
+<li><a href="#_7">思路推导</a></li>
+<li><a href="#_8">复杂度</a></li>
+<li><a href="#_9">易错点与扩展（面试的关键追问）</a></li>
+</ul>
+</li>
+<li><a href="#_10">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/15-动态规划.html">← 动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>DP / 贪心二分</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code> ，找到其中最长严格递增子序列的长度。</p>
+<p><em>注意</em>：子序列是由数组派生而来的序列，删除（或不删除）数组中的元素而不改变其余元素的顺序。</p>
+<p><a href="https://leetcode.cn/problems/longest-increasing-subsequence/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>tails[len] 保存该长度递增子序列最小可能结尾。</p>
+</blockquote>
+<h2 id="1on2">解法 1：O(n²) 动态规划版</h2>
+<h3 id="_3">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（为什么不能纯贪心？）</strong>：</p>
+<p>假设数组是 <code>[10, 9, 2, 5, 3, 7, 101, 18]</code>。</p>
+<p>如果纯贪心，遇到大的就选，你可能会选出 <code>[10, 101]</code>（长度 2），但这显然不是最长的。因为你过早地选了太大的数字，透支了未来的潜力。</p>
+</li>
+<li>
+<p><strong>破局思路（动态规划的“强制结尾”哲学）</strong>：</p>
+<p>我们要寻找最长递增子序列，就必须回答一个核心问题：“当我们遇到数字 <code>nums[i]</code> 时，它能接在哪些历史数字的后面？”</p>
+<p>我们定义 <code>dp[i]</code> 为：<strong>以 <code>nums[i]</code> 结尾的</strong>最长递增子序列的长度。</p>
+<p><em>注意</em>：一定要强制以 <code>nums[i]</code> 结尾！因为如果不指明结尾是谁，后面新来的数字根本不知道自己能不能拼上去。</p>
+</li>
+<li>
+<p><strong>核心微操（状态转移方程）</strong>：</p>
+<p>假设我们走到了索引 <code>i</code>，数字是 <code>nums[i]</code>。</p>
+<p>我们回头看前面所有的索引 <code>j</code>（<code>0 &lt;= j &lt; i</code>）：</p>
+<p>只要前面的数字比我小（<code>nums[j] &lt; nums[i]</code>），我就可以毫无顾忌地接在它后面！</p>
+<p>接上去之后，长度就是 <code>dp[j] + 1</code>。</p>
+<p>我们遍历前面所有能接的 <code>j</code>，找出能拼出的最大长度：</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i] = max(dp[i], dp[j] + 1)"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">max</mi><mo>(</mo><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>,</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo></mrow></math></span></p>
+<h3 id="java-dp">Java 实现（满分 DP 基础版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// dp[i] 表示以 nums[i] 结尾的最长递增子序列的长度</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 初始化：每个数字本身自己就能构成一个长度为 1 的子序列</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">dp</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxLength</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 外层循环：确定当前要计算的 dp[i]（即以 nums[i] 结尾）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 内层循环：回头看前面所有的历史数字</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 如果当前数字大于历史数字，说明可以接在它后面！</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 挑战全局最长记录</span>
+<span class="w">            </span><span class="n">maxLength</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxLength</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxLength</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_4">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。两层 <code>for</code> 循环嵌套，对于每个元素，都要回头扫一遍前面的所有元素。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。需要一个长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 的 <code>dp</code> 数组。</li>
+</ul>
+<h3 id="_5">易错点与扩展（面试的进阶优化思路）</h3>
+<ul>
+<li><strong>面试终极追踪：“这道题的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span> 只是及格，你能写出 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 的解法吗？”</strong></li>
+<li><strong>满分抢答（贪心 + 二分查找的“扑克牌算法”）</strong>：</li>
+<li>核心哲学是：<strong>“为了让子序列尽可能长，我们要让序列最后的一个数字尽可能小，这样才能给未来留下更大的上涨空间！”</strong></li>
+<li>我们维护一个名为 <code>tails</code> 的数组。<code>tails[i]</code> 存放的是：<strong>长度为 <code>i+1</code> 的所有递增子序列中，结尾最小的那个数字。</strong></li>
+<li>遍历原数组 <code>nums</code>，对于每一个新来的数字 <code>x</code>：<ol>
+<li>如果 <code>x</code> 比 <code>tails</code> 里面所有的数字都大，太棒了，直接追加在 <code>tails</code> 后面，最长递增子序列的长度 <code>+1</code>。</li>
+<li>🌟 如果 <code>x</code> 没有全部人大，那就<strong>在 <code>tails</code> 里用二分查找，找到第一个大于等于 <code>x</code> 的数字，并用 <code>x</code> 替换掉它！</strong></li>
+</ol>
+</li>
+<li><strong>为什么可以替换？</strong> 因为用一个更小的数字去替换原来的大数字，相当于“拉低了后续接盘的门槛”！序列长度没变，但未来更容易接上新数字了。</li>
+<li><em>致命纠错</em>：面试时一定要提醒面试官，<code>tails</code> 数组的最终形态<strong>并不一定是真实的最长递增子序列</strong>，它只是正确记录了最长子序列的<strong>长度</strong>！</li>
+</ul>
+<h2 id="2on-log-n">解法 2：O(n log n) 贪心二分版</h2>
+<h3 id="_6">思路推导</h3>
+<p>假设你正在收集递增的数字。</p>
+<p>如果你手里有一个长度为 3 的序列 <code>[2, 5, 9]</code>，这时候突然来了一个 <code>7</code>。</p>
+<p>你能把 <code>7</code> 接在 <code>9</code> 后面吗？不能。</p>
+<p>但是！如果你把序列里的 <code>9</code> <strong>替换</strong>成 <code>7</code>，变成 <code>[2, 5, 7]</code>，序列的长度依然是 3，可是你的<strong>结尾门槛被拉低了</strong>！</p>
+<p>未来如果来了一个 <code>8</code>，它接不上 <code>9</code>，但能接在 <code>7</code> 后面！</p>
+<p><strong>核心思想</strong>：为了让子序列尽可能长，我们要让相同长度的子序列的<strong>末尾数字尽可能小</strong>。</p>
+<h3 id="_7">思路推导</h3>
+<p>我们维护一个 <code>tails</code> 数组。</p>
+<p><strong><code>tails[i]</code> 的定义极其严谨：它是所有长度为 <code>i+1</code> 的递增子序列中，结尾最小的那个数字。</strong></p>
+<p><em>极其神奇的特性</em>：这个 <code>tails</code> 数组天然就是<strong>严格递增</strong>的！这也就意味着，我们可以对它使用极速的<strong>二分查找</strong>！</p>
+<ul>
+<li><strong>🎮 核心微操（两步走战略）</strong>：</li>
+</ul>
+<p>遍历原数组 <code>nums</code>，对于每一个新来的数字 <code>num</code>：</p>
+<ol>
+<li><strong>如果它比 <code>tails</code> 里所有的数字都大</strong>：太好了，它直接拓展了我们的最长纪录！把它追加在 <code>tails</code> 数组的最后面，总长度 <code>+1</code>。</li>
+<li><strong>如果它没有比所有人大</strong>：在 <code>tails</code> 数组里，用<strong>二分查找</strong>找到<strong>第一个大于等于 <code>num</code> 的数字</strong>，并毫不留情地用 <code>num</code> 去<strong>替换</strong>掉它！（这就是前面说的“拉低门槛”操作）。</li>
+</ol>
+<ul>
+<li><strong>💻 Java 规范代码（满分二分查找版）</strong>：</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lengthOfLIS</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// tails 数组存储：长度为 i+1 的最长递增子序列的最小结尾数字</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">tails</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// res 记录当前 tails 数组的实际有效长度（也就是当前的最长子序列长度）</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 在 tails 数组的有效范围 [0, res) 内进行二分查找</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tails</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">num</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 如果 mid 处的值比当前数字小，说明应该往右半区找</span>
+<span class="w">                    </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 如果 mid 处的值大于等于当前数字，往左半区收缩</span>
+<span class="w">                    </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 🌟 核心操作：</span>
+<span class="w">            </span><span class="c1">// 1. 如果 left 走到了 res（说明 num 比 tails 里所有的数都大），追加它！</span>
+<span class="w">            </span><span class="c1">// 2. 如果 left 停在中间（说明找到了第一个大于等于 num 的数），替换它！</span>
+<span class="w">            </span><span class="n">tails</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 如果是追加操作，我们的有效长度 res 就增加了</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">res</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 最终 tails 数组的有效长度，就是最长递增子序列的长度</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_8">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span></strong>。外层循环遍历 <code>nums</code> 数组，执行 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 次；内层二分查找在 <code>tails</code> 数组中进行，每次耗时 <span class="math-inline-wrap"><math class="math-inline" aria-label="log N"><mrow><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi></mrow></math></span>。完美结合。</li>
+<li><strong>空间复杂度</strong>：<strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span></strong>。我们开辟了一个长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 的 <code>tails</code> 数组。</li>
+</ul>
+<h3 id="_9">易错点与扩展（面试的关键追问）</h3>
+<ul>
+<li>
+<p><strong>面试面试官最爱挖的坑：“既然 <code>tails</code> 数组记录了最优状态，那遍历结束后，<code>tails</code> 数组里面存的就是那条真实的最长递增子序列吗？”</strong></p>
+</li>
+<li>
+<p><strong>满分避坑回答（绝对不是！）</strong>：</p>
+<p>千万不要掉进这个陷阱！<code>tails</code> 数组<strong>只是长度正确，内容不一定对</strong>！</p>
+<p><em>举个例子</em>：原数组是 <code>[4, 5, 6, 3]</code>。</p>
+<ol>
+<li>
+<p>进 4：<code>tails = [4]</code></p>
+</li>
+<li>
+<p>进 5：<code>tails = [4, 5]</code></p>
+</li>
+<li>
+<p>进 6：<code>tails = [4, 5, 6]</code> (目前最长长度 3，真实序列是 4,5,6)</p>
+</li>
+<li>
+<p>进 3：3 会替换掉 4，此时 <code>tails = [3, 5, 6]</code>。</p>
+</li>
+</ol>
+<p><strong>看清楚了</strong>！虽然长度依然是正确的 3，但 <code>[3, 5, 6]</code> 在原数组中根本不是一个合法的子序列（因为 3 出现在 5 和 6 的后面）！</p>
+<p><code>tails</code> 数组的意义仅仅是：它记录了各种长度下的<strong>最低门槛</strong>，用以推断出最终的<strong>最大长度</strong>。如果面试官让你打印出真实的序列，这种纯粹的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 做法是做不到的，必须额外维护一个 parent 数组来回溯路径！</p>
+</li>
+</ul>
+<h2 id="_10">相邻学习</h2>
+<p><a href="0139-单词拆分.html">← 139. 单词拆分</a> · <a href="0152-乘积最大子数组.html">152. 乘积最大子数组 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

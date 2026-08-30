@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>199. 二叉树的右视图 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 08-二叉树</div>
+        <h1 id="199">199. 二叉树的右视图</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-dfs">Java 实现（DFS 优化思路版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/08-二叉树.html">← 二叉树专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>分层 BFS / 右优先 DFS</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一棵二叉树的根节点 <code>root</code>，想象自己站在它的<strong>右侧</strong>，按照从顶部到底部的顺序，返回从右侧所能看到的节点值。</p>
+<p><a href="https://leetcode.cn/problems/binary-tree-right-side-view/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每一层只记录最后访问或最先访问的右侧节点。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与致命陷阱（右侧盲区）</strong>：</p>
+<p>直觉：只管遍历右节点。</p>
+<p><strong>陷阱</strong>：假设树是这样的：根是 1，左孩子是 2，右孩子是空。2 的左孩子是 4。</p>
+<p>如果你站在这棵树的右边，你能看到什么？你能直接透过空荡荡的右边，看到左侧的 1、2、4！所以，<strong>“右视图”绝对不等于“所有的右孩子”</strong>！</p>
+</li>
+<li>
+<p><strong>破局思路 A（层序遍历 BFS，最稳妥的保底解法）</strong>：</p>
+<p>既然是“从上到下”看，这就完美契合了<strong>层序遍历</strong>的逻辑。</p>
+<p>每一层有那么多节点，我站在右边，肯定只能看到<strong>这一层最右边的那一个（也就是队列里最后一个出队的节点）</strong>，它把前面的兄弟全挡住了！</p>
+<ul>
+<li>用队列一层一层地遍历。</li>
+<li>在每层循环处理时，如果是当前层的<strong>最后一个节点</strong>（即 <code>i == levelSize - 1</code>），就把它塞进最终的结果列表里。</li>
+</ul>
+</li>
+<li>
+<p><strong>破局思路 B（深度优先 DFS，进阶的优化思路）</strong>：</p>
+<p>层序遍历要维护队列，代码稍微有点多。有没有办法用递归瞬间秒杀？</p>
+<p>有！我们平时做 DFS（前序遍历）是“中 -&gt; 左 -&gt; 右”。</p>
+<p>如果我们把顺序反过来，变成“中 -&gt; 右 -&gt; 左”<strong>呢？ 这种神奇的遍历顺序保证了：</strong>我们在向下遍历每一层时，永远是优先访问该层最右侧的节点！<strong> 我们只需要拿一个本子（记录当前的层数/深度），每次到达一个</strong>新深度<strong>时，遇到的</strong>第一个节点，绝对就是这一层最右边的节点！</p>
+<h3 id="java-dfs">Java 实现（DFS 优化思路版）</h3>
+<p><em>(在面试中写出 BFS 能及格，但写出下面这个 DFS 绝对能让面试官眼前一亮)</em></p>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> * int val;</span>
+<span class="cm"> * TreeNode left;</span>
+<span class="cm"> * TreeNode right;</span>
+<span class="cm"> * TreeNode() {}</span>
+<span class="cm"> * TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> * TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> * this.val = val;</span>
+<span class="cm"> * this.left = left;</span>
+<span class="cm"> * this.right = right;</span>
+<span class="cm"> * }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 结果集</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">rightSideView</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 从根节点开始，根节点的深度定义为 0</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">root</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">depth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 终止条件：走到空节点了</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 🌟 核心魔法：判断当前节点是否是该层被访问的“第一人”</span>
+<span class="w">        </span><span class="c1">// 因为我们是“中-&gt;右-&gt;左”遍历，如果当前深度 depth 等于结果集的大小，</span>
+<span class="w">        </span><span class="c1">// 说明这一层还没有任何人被加进结果集，当前节点就是这一层最右边的节点！</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">depth</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">res</span><span class="p">.</span><span class="na">size</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">val</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 优先遍历右子树（让右边的节点先占领结果集）</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">depth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// 然后再遍历左子树（左边的节点即使到了同一层，因为深度已经等于 res.size()，就加不进去了，完美模拟了“被遮挡”）</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">depth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。每个节点仅仅被访问了一次。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>。<span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span> 是树的高度。空间消耗来自于递归的系统调用栈。相比于 BFS（最坏情况下队列需要存储 <span class="math-inline-wrap"><math class="math-inline" aria-label="N/2"><mrow><mi>N</mi><mo>/</mo><mn>2</mn></mrow></math></span> 个节点），DFS 的空间复杂度在树比较宽泛时表现更优秀。</li>
+</ul>
+<h3 id="_6">易错点与扩展</h3>
+<ul>
+<li><strong>逻辑校验：“遮挡效应”是如何在代码里体现的？</strong></li>
+<li>看上面的 DFS 代码，假设深度为 2 的那一层，有右节点 <code>A</code> 和左节点 <code>B</code>。</li>
+<li>程序会先跑到 <code>A</code> 那里。此时 <code>depth == 2</code>，且 <code>res.size() == 2</code>（因为前面 0 层和 1 层各塞了一个），于是 <code>A</code> 被成功塞进 <code>res</code>。此时 <code>res.size()</code> 变成了 <strong>3</strong>。</li>
+<li>等程序回溯再去遍历左侧的 <code>B</code> 时，<code>depth</code> 依然是 2，但此时 <code>res.size()</code> 已经是 3 了！<code>2 == 3</code> 为假，所以 <code>B</code> 不会被加入。这就完美地在逻辑上实现了“右节点遮挡左节点”！</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0230-二叉搜索树中第 K 小的元素.html">← 230. 二叉搜索树中第 K 小的元素</a> · <a href="0114-二叉树展开为链表.html">114. 二叉树展开为链表 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

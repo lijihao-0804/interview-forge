@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>206. 反转链表 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="206">206. 反转链表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（迭代法）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试连环追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>迭代三指针</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你单链表的头节点 <code>head</code> ，请你反转链表，并返回反转后的链表。</p>
+<p><a href="https://leetcode.cn/problems/reverse-linked-list/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>修改 next 前必须先保存原来的后继。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（单向的无奈）</strong>：</p>
+<p>单链表只有 <code>next</code> 指针，只能往后走，不能往回走。我们想让 <code>1 -&gt; 2</code> 变成 <code>1 &lt;- 2</code>，也就是要修改 <code>2</code> 的 <code>next</code> 指针，让它指向 <code>1</code>。</p>
+<p><strong>痛点</strong>：如果你直接写 <code>2.next = 1</code>，那么 <code>2</code> 原本指向 <code>3</code> 的指针就断了！你再也找不到 <code>3</code> 了。</p>
+</li>
+<li>
+<p><strong>破局思路（双指针 + 临时备忘录）</strong>：</p>
+<p>我们需要两个核心指针在前面探路：</p>
+<ul>
+<li><code>prev</code>（前驱节点）：记录当前节点要指向的新主人。刚开始我们在车头，前面没有节点，所以初始值为 <code>null</code>。</li>
+<li><code>curr</code>（当前节点）：记录我们正准备反转的节点。初始值为 <code>head</code>。</li>
+<li><strong>灵魂辅助 <code>next</code>（临时节点）</strong>：在每次准备修改 <code>curr.next</code> 之前，先偷偷把 <code>curr.next</code> 存到 <code>next</code> 里，作为“备忘录”。这样就算链表断开了，我们照样能找到下一步该去哪。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（微操四步曲）</strong>：</p>
+<p>以 <code>1 -&gt; 2 -&gt; 3 -&gt; null</code> 为例：</p>
+<ul>
+<li><strong>准备</strong>：<code>prev = null</code>, <code>curr = 1</code>。</li>
+<li><strong>第一轮反转</strong>：
+   1. 记下后路：<code>next = curr.next</code> (也就是记下 2)。
+   2. 斩断旧缘，指向新欢：<code>curr.next = prev</code> (让 1 指向 null)。
+   3. <code>prev</code> 前进：<code>prev = curr</code> (prev 移到 1)。
+   4. <code>curr</code> 前进：<code>curr = next</code> (curr 移到 2)。</li>
+<li><strong>第二轮反转</strong>：此时 <code>prev=1</code>, <code>curr=2</code>。重复上面四步，2 的 next 会指向 1。</li>
+<li><strong>结束条件</strong>：当 <code>curr</code> 走到 <code>null</code> 时结束。此时的 <code>prev</code> 刚好停留在原来的尾节点（也就是新的头节点）上！</li>
+</ul>
+<h3 id="java">Java 实现（迭代法）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">reverseList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w"> </span><span class="c1">// 前驱节点，初始为 null</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span><span class="w"> </span><span class="c1">// 当前节点，初始为 head</span>
+
+<span class="w">        </span><span class="c1">// 只要当前节点不为空，就继续反转</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 1. 记下后路：保存下一个节点，防止链表断裂丢失</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nextTemp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 2. 穿针引线：把当前节点的 next 指向前一个节点</span>
+<span class="w">            </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 3. 稳步推进：prev 移动到当前节点</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 4. 继续前行：curr 移动到之前保存的下一个节点</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nextTemp</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 当循环结束时，curr 变成了 null，而 prev 刚好停在了原链表的最后一个节点上。</span>
+<span class="w">        </span><span class="c1">// 这个节点就是反转后新链表的头节点！</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。需要把链表中的每个节点都遍历一次。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。只使用了 <code>prev</code>、<code>curr</code>、<code>nextTemp</code> 三个指针变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试连环追问）</h3>
+<ul>
+<li><strong>连环追问 1：代码怎么这么短？你这几行代码有没有处理空链表 (<code>head == null</code>) 或者是只有一个节点的链表？</strong></li>
+<li><strong>满分回答</strong>：完美兼容。如果 <code>head == null</code>，一开始 <code>curr</code> 就是 <code>null</code>，根本不会进 <code>while</code> 循环，直接返回 <code>prev</code>（也就是 <code>null</code>），完全正确；如果只有一个节点，进循环反转一次指向 <code>null</code>，退出返回原节点，也完全正确。不需要写多余的 <code>if</code> 特判。</li>
+<li><strong>连环追问 2：你能用【递归法】实现一遍吗？</strong></li>
+<li>这是面试极其喜欢考的变种。递归的本质是从后往前反转。</li>
+<li><em>核心逻辑</em>：假设除了头节点，后面的子链表都已经反转好了，变成了 <code>1 -&gt; (2 &lt;- 3 &lt;- 4)</code>。此时 <code>1.next</code> 指向的其实是 <code>2</code>。要想把 <code>1</code> 融进去，只需要让 <code>1.next.next = 1</code>（让 2 指向 1），然后断开 1 的旧指针 <code>1.next = null</code>。</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0234-回文链表.html">← 234. 回文链表</a> · <a href="0141-环形链表.html">141. 环形链表 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/链表指针实验室.html?embed=1" title="206. 反转链表的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>15. 三数之和 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 02-双指针</div>
+        <h1 id="15">15. 三数之和</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/02-双指针.html">← 双指针专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>排序 + 固定一点 + 双指针</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n²)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(log n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code>，找出所有和为 <code>0</code> 且<strong>不重复</strong>的三元组。</p>
+<p><em>注意</em>：答案中不可以包含重复的三元组（例如 <code>[-1, 0, 1]</code> 和 <code>[0, 1, -1]</code> 算作同一个）。</p>
+<p><a href="https://leetcode.cn/problems/3sum/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>固定第一数后夹逼，并在三层位置正确去重。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（哈希表硬干）</strong>：</p>
+<p>之前做“两数之和”用了哈希表，那“三数之和”能不能套两层循环，第三个数去哈希表里找？</p>
+<p><strong>痛点</strong>：可以做，但<strong>去重简直是地狱</strong>！因为数组没排序，你很难判断新找到的三元组是不是之前已经找过。如果强行把三元组排序后放进 Set 里去重，不仅代码奇丑无比，甚至会超时。</p>
+</li>
+<li>
+<p><strong>破局思路（排序 + 定一动二）</strong>：</p>
+<p>面对“去重”和“组合”问题，<strong>第一步永远是：把数组排个序！</strong></p>
+<p>排序后，相同的数字全挨在一起，去重变得轻而易举。同时，有序数组天然适合<strong>双指针</strong>。</p>
+<p><strong>核心策略</strong>：先固定一个数（设为 <code>nums[i]</code>），那么问题就瞬间优化思路，变成了：<strong>在 <code>i</code> 后面的有序数组里，用双指针寻找“两数之和等于 <code>-nums[i]</code>”的组合。</strong></p>
+</li>
+<li>
+<p><strong>逻辑推演（以 <code>[-1, 0, 1, 2, -1, -4]</code> 为例）</strong>：</p>
+<ul>
+<li><strong>第一步排序</strong>：变成 <code>[-4, -1, -1, 0, 1, 2]</code>。</li>
+<li><strong>遍历固定 <code>i</code></strong>：</li>
+<li>当 <code>i</code> 指向 <code>-4</code> 时，我们需要在后面找两数之和为 <code>4</code>。左指针 <code>L</code> 指向 <code>-1</code>，右指针 <code>R</code> 指向 <code>2</code>。加起来才 <code>1</code>，太小了，<code>L</code> 右移...</li>
+<li>当 <code>i</code> 指向第一个 <code>-1</code> 时，需要找两数之和为 <code>1</code>。找到 <code>[-1, 0, 1]</code>。</li>
+<li><strong>去重高光时刻</strong>：当 <code>i</code> 指向第二个 <code>-1</code> 时，如果不跳过它，又会找出一遍 <code>[-1, 0, 1]</code>。所以遇到和前一个数相同的 <code>i</code>，直接 <code>continue</code> 跳过！双指针 <code>L</code> 和 <code>R</code> 遇到重复数字也是同理跳过。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">threeSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 1. 灵魂步骤：对数组进行全面排序</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">nums</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 2. 遍历数组，固定第一个数 nums[i]</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 极致剪枝：如果当前排好序的最小数已经大于 0，那后面再怎么加也不可能等于 0 了，直接结束</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">break</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// i 的去重逻辑：如果现在的 i 和上一个 i 的值一样，说明这个数字作为“基准”已经搜过了，跳过</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 3. 优化思路：在 i 之后的区间内，用双指针寻找两数之和等于 -nums[i]</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 找到了一组，加入结果集</span>
+<span class="w">                    </span><span class="n">result</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="p">));</span>
+
+<span class="w">                    </span><span class="c1">// L 和 R 的去重逻辑：跨过所有相同的数字，避免产生重复的三元组</span>
+<span class="w">                    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                    </span><span class="p">}</span>
+
+<span class="w">                    </span><span class="c1">// 去重完毕后，双指针双双向内收缩，继续寻找下一组</span>
+<span class="w">                    </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 和太小，说明左边的数小了，左指针右移</span>
+<span class="w">                    </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 和太大，说明右边的数大了，右指针左移</span>
+<span class="w">                    </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。数组排序的时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。外层遍历 <code>i</code> 需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，内部双指针相向而行遍历剩余数组也需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。嵌套起来是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。综合来看取最高阶 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 或 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。这取决于 Java <code>Arrays.sort()</code> 底层使用的排序算法（快排或 TimSort）所带来的递归栈空间开销。（注意：不计算用来存放结果的 <code>result</code> 列表的空间）。</li>
+</ul>
+<h3 id="_6">易错点与扩展</h3>
+<ol>
+<li><strong>致命陷阱：<code>i</code> 的去重为什么是 <code>nums[i] == nums[i - 1]</code> 而不是 <code>nums[i] == nums[i + 1]</code>？</strong>
+   - 这是无数人栽跟头的地方！假设数组是 <code>[-1, -1, 2]</code>。
+   - 如果是看后面：<code>nums[i] == nums[i + 1]</code>。当 <code>i=0</code> 时，你发现 <code>-1 == -1</code>，你<strong>跳过了第一个 <code>-1</code></strong>。结果导致你错失了合法的 <code>[-1, -1, 2]</code> 组合！
+   - 如果是看前面：<code>nums[i] == nums[i - 1]</code>。当 <code>i=1</code> 时，你发现它和前面的 <code>i=0</code> 长得一样，说明以 <code>-1</code> 打头阵的所有组合都在上一步找过了，此时跳过。这才是真正的去重！</li>
+<li><strong>双指针去重时机的考究</strong>
+   - 在代码中，<code>L</code> 和 <code>R</code> 的去重操作是在 <code>sum == 0</code> 的大括号内部执行的。为什么不在 <code>sum &lt; 0</code> 或 <code>sum &gt; 0</code> 的时候也用 <code>while</code> 去重？
+   - 回答：因为没必要。如果 <code>sum &lt; 0</code>，你写 <code>left++</code> 即使遇到了相同的数字，下一步计算 <code>sum</code> 依然 <code>&lt; 0</code>，循环会自然而然地让它继续 <code>left++</code>，所以不需要单独写一层 <code>while</code> 去跳过，让外层的大 <code>while</code> 自己转就行，代码更简洁。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0011-盛最多水的容器.html">← 11. 盛最多水的容器</a> · <a href="0042-接雨水.html">42. 接雨水 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/02.双指针.html?embed=1&amp;panel=2" title="15. 三数之和的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

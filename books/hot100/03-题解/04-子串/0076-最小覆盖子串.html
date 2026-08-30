@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>76. 最小覆盖子串 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 04-子串</div>
+        <h1 id="76">76. 最小覆盖子串</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#1">解法 1：哈希计数版</a><ul>
+<li><a href="#_3">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_4">复杂度</a></li>
+<li><a href="#_5">易错点与扩展（极其重要）</a></li>
+</ul>
+</li>
+<li><a href="#2">解法 2：数组频次优化版</a><ul>
+<li><a href="#_6">思路推导</a></li>
+<li><a href="#_7">思路推导</a></li>
+<li><a href="#java_1">Java 实现</a></li>
+<li><a href="#_8">复杂度</a></li>
+</ul>
+</li>
+<li><a href="#_9">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/04-子串.html">← 子串专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>可变滑动窗口 + 计数</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(m+n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(字符集)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个字符串 <code>s</code> 、一个字符串 <code>t</code> 。返回 <code>s</code> 中涵盖 <code>t</code> 所有字符的最小子串。如果 <code>s</code> 中不存在涵盖 <code>t</code> 所有字符的子串，则返回空字符串 <code>""</code>。</p>
+<p><em>注意</em>：如果 <code>t</code> 中包含重复字符，我们找的子串中该字符数量必须不少于 <code>t</code> 中的数量。</p>
+<p><a href="https://leetcode.cn/problems/minimum-window-substring/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>右扩直到满足，左缩直到刚好不满足。</p>
+</blockquote>
+<h2 id="1">解法 1：哈希计数版</h2>
+<h3 id="_3">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点</strong>：</p>
+<p>暴力法是枚举 <code>s</code> 的所有子串，然后逐个检查是否包含了 <code>t</code> 的所有字符。时间复杂度高达 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^3)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>3</mn></msup><mo>)</mo></mrow></math></span>。</p>
+</li>
+<li>
+<p><strong>破局思路（双端哈希表 + 滑动窗口）</strong>：</p>
+<p>我们需要两个哈希表（或频次数组）：</p>
+<ul>
+<li><code>need</code>：记录字符串 <code>t</code> 中每个字符需要的数量（目标值）。</li>
+<li><code>window</code>：记录当前滑动窗口中这些目标字符的数量（当前值）。</li>
+<li><strong>灵魂变量 <code>valid</code></strong>：记录窗口中<strong>已经满足要求的字符种类数</strong>。比如 <code>t="AABC"</code>，一共有 3 种字符。当窗口里的 A&gt;=2, B&gt;=1, C&gt;=1 时，<code>valid</code> 就等于 3。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（扩张与收缩的艺术）</strong>：</p>
+<ul>
+<li><strong>第一步（扩张）</strong>：不断增加 <code>right</code> 指针，把新字符加入 <code>window</code>。如果某个字符的数量达到了 <code>need</code> 的要求，<code>valid++</code>。</li>
+<li><strong>第二步（收缩）</strong>：当 <code>valid == need.size()</code> 时，说明我们已经找到了一个合法的覆盖子串！此时，我们先记录下这个子串的长度和位置，然后试图<strong>优化</strong>它。怎么优化？把 <code>left</code> 指针往右移，把没用的字符（或者多余的目标字符）踢出去，直到 <code>valid</code> 变小（不再合法）。</li>
+<li><strong>第三步（循环）</strong>：破坏了合法性后，继续移动 <code>right</code> 寻找下一个合法窗口。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">minWindow</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">t</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 记录目标字符串 t 中每个字符需要的数量</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">need</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 记录当前窗口中目标字符的数量</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">window</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">need</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">need</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">valid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="c1">// 记录窗口中满足 need 条件的字符【种类】数量</span>
+
+<span class="w">        </span><span class="c1">// 记录最小覆盖子串的起始索引及长度</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">minLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// c 是将移入窗口的字符</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">right</span><span class="p">);</span>
+<span class="w">            </span><span class="n">right</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 右指针主动右移</span>
+
+<span class="w">            </span><span class="c1">// 进行窗口内数据的一系列更新</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">need</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">window</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">window</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="c1">// 注意 Integer 比较要用 equals，如果用 == 可能会因为常量池问题报错</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">window</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">c</span><span class="p">).</span><span class="na">equals</span><span class="p">(</span><span class="n">need</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">valid</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 判断左侧窗口是否要收缩（当所有需要的字符种类都达标时）</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">valid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">need</span><span class="p">.</span><span class="na">size</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 在这里更新最小覆盖子串的答案</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">minLen</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">minLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// d 是将移出窗口的字符</span>
+<span class="w">                </span><span class="kt">char</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">left</span><span class="p">);</span>
+<span class="w">                </span><span class="n">left</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 左指针被动右移，开始“榨干水分”</span>
+
+<span class="w">                </span><span class="c1">// 进行窗口内数据的一系列更新</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">need</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">d</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 如果踢出的字符刚好破坏了某个字符的数量要求</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">window</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">d</span><span class="p">).</span><span class="na">equals</span><span class="p">(</span><span class="n">need</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="n">valid</span><span class="o">--</span><span class="p">;</span><span class="w"> </span><span class="c1">// 达标的字符种类减少</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                    </span><span class="n">window</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">d</span><span class="p">,</span><span class="w"> </span><span class="n">window</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 返回最小覆盖子串</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">minLen</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">start</span><span class="p">,</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">minLen</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_4">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(|S| + |T|)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mo>|</mo><mi>S</mi><mo>|</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mo>|</mo><mi>T</mi><mo>|</mo><mo>)</mo></mrow></math></span>。虽然代码里有两个嵌套的 <code>while</code> 循环，但 <code>left</code> 和 <code>right</code> 指针最多都只把字符串 <code>s</code> 遍历了一遍（不会回退），总共 <span class="math-inline-wrap"><math class="math-inline" aria-label="2|S|"><mrow><mn>2</mn><mo>|</mo><mi>S</mi><mo>|</mo></mrow></math></span> 步。加上初始化 <code>need</code> 表的 <span class="math-inline-wrap"><math class="math-inline" aria-label="|T|"><mrow><mo>|</mo><mi>T</mi><mo>|</mo></mrow></math></span> 步，总体是线性的。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(Σ)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>Σ</mi><mo>)</mo></mrow></math></span> 或 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。哈希表最多存储字符集大小的键值对（ASCII 为 128），可视作常数空间。</li>
+</ul>
+<h3 id="_5">易错点与扩展（极其重要）</h3>
+<ol>
+<li><strong>为什么 <code>window.get(c).equals(need.get(c))</code> 必须用 <code>.equals()</code>？</strong>
+   - <strong>连环高频坑</strong>：很多同学在这里写 <code>window.get(c) == need.get(c)</code>。在 Java 中，<code>Map.get()</code> 返回的是 <code>Integer</code> 对象。Java 对 <code>-128</code> 到 <code>127</code> 之间的整数做了缓存，用 <code>==</code> 没问题；但如果测试用例极大，某个字符出现了 200 次，<code>200 == 200</code> 比较的是对象内存地址，结果为 <code>false</code>！直接导致死循环或答案错误。必须用 <code>.equals()</code> 比较数值。</li>
+<li><strong>极致优化（面试真题）</strong>：
+   - 面试官：“用 HashMap 慢了点，能优化吗？”
+   - <strong>回答</strong>：因为题目通常只包含英文字母（甚至只是 ASCII 字符），完全可以抛弃 HashMap，用两个 <code>int[128]</code> 数组来替代 <code>need</code> 和 <code>window</code>。不仅避免了对象创建的开销，也避免了 <code>.equals()</code> 的装箱拆箱陷阱。</li>
+</ol>
+<p>这道题的精髓在于“有效字符种类 (<code>valid</code>)”的管理，它让我们不需要在每次移动窗口时都去遍历比对整个哈希表。</p>
+<p>太棒了！你能主动提出这个优化方向，说明你已经具备了“面试性能调优”的嗅觉。</p>
+<p>在 LeetCode 上，如果使用 <code>HashMap</code>，这道题的运行时间大概在十几毫秒到几十毫秒不等；但如果使用<strong>数组替代哈希表</strong>，运行时间可以直接降到 <strong>2~3 毫秒</strong>，击败 99% 的提交！</p>
+<p>为什么会这么快？</p>
+<ol>
+<li><strong>没有装箱拆箱</strong>：<code>HashMap&lt;Character, Integer&gt;</code> 每次操作都会产生 <code>Integer</code> 对象，带来巨大的内存分配和垃圾回收开销。数组直接操作基本数据类型 <code>int</code>。</li>
+<li><strong>内存寻址极快</strong>：数组在底层是连续内存，通过 ASCII 码作为下标（<code>O(1)</code> 时间）直接访问，没有任何哈希冲突计算。</li>
+</ol>
+<p>更极限的是，我们不仅可以把两个 HashMap 换成两个数组，我们甚至可以<strong>只用一个数组</strong>来完成这极其优雅的操作！</p>
+<p>请查收这份“满血版”的终极优化笔记：</p>
+<h2 id="2">解法 2：数组频次优化版</h2>
+<h3 id="_6">思路推导</h3>
+<p>题目中说明字符串仅由英文字母组成，而所有大小写英文字母的 ASCII 码都在 0~127 之间。因此，我们只需要一个大小为 128 的整型数组 <code>int[] hash = new int[128]</code> 即可。</p>
+<h3 id="_7">思路推导</h3>
+<p>在这个极致优化的版本中，我们不记录“字符种类数”，而是记录“还缺多少个有效字符 (<code>count</code>)”。</p>
+<ul>
+<li><strong>初始化</strong>：先遍历 <code>t</code>，把需要的字符数量记录在 <code>hash</code> 数组中。比如缺 2 个 'A'，<code>hash['A'] = 2</code>。此时 <code>count = t.length()</code>。</li>
+<li><strong>右指针入局（还债）</strong>：<code>right</code> 遍历 <code>s</code>。遇到任何字符 <code>c</code>，我们都让 <code>hash[c]--</code>（把它装进窗口）。<ul>
+<li><em>关键点</em>：如果减之前 <code>hash[c] &gt; 0</code>，说明这是我们<strong>真正需要的</strong>字符！于是 <code>count--</code>（缺的有效字符减少了）。</li>
+<li><em>注</em>：不需要的字符（或者多余的目标字符）被减去后，<code>hash[c]</code> 会变成<strong>负数</strong>，这代表我们在该字符上“产能过剩”了。</li>
+</ul>
+</li>
+<li><strong>左指针出局（丢弃）</strong>：当 <code>count == 0</code> 时，说明窗口合法了！开始移动 <code>left</code> 试图缩小窗口。每次踢出一个字符 <code>d</code>，我们让 <code>hash[d]++</code>（把它拿出窗口）。<ul>
+<li><em>关键点</em>：如果加之后 <code>hash[d] &gt; 0</code>，说明我们刚刚踢掉了一个<strong>不可或缺</strong>的字符，导致原本足够的库存变得不够了！于是 <code>count++</code>（窗口破裂，重新进入扩张阶段）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="java_1">Java 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">minWindow</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">t</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 应对极端情况</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 将字符串转为字符数组，避免循环中频繁调用 charAt() 带来的方法栈开销</span>
+<span class="w">        </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">sChars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">tChars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 2. 初始化大小为 128 的哈希数组，默认全为 0</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">128</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 统计目标字符串 t 中每个字符需要的数量</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">tChars</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">hash</span><span class="o">[</span><span class="n">c</span><span class="o">]++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// count 表示：当前窗口“还差多少个”字符才能完全覆盖 t</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tChars</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">minLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 开始滑动窗口</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">sChars</span><span class="p">.</span><span class="na">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sChars</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 如果 hash[c] &gt; 0，说明这个字符是我们真正需要的</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">hash</span><span class="o">[</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">count</span><span class="o">--</span><span class="p">;</span><span class="w"> </span><span class="c1">// 还差的有效字符数减一</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 不管需不需要，只要进了窗口，就消耗掉一个配额（不需要的字符会变成负数）</span>
+<span class="w">            </span><span class="n">hash</span><span class="o">[</span><span class="n">c</span><span class="o">]--</span><span class="p">;</span>
+<span class="w">            </span><span class="n">right</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 右指针右移</span>
+
+<span class="w">            </span><span class="c1">// 4. 当 count == 0 时，说明当前窗口已经包含了 t 中的所有字符</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 尝试更新最小覆盖子串的记录</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">minLen</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">minLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// 准备把左边界踢出窗口</span>
+<span class="w">                </span><span class="kt">char</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sChars</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">                </span><span class="c1">// 无论如何，踢出窗口配额就要加回来（负数加向 0 靠拢，0 加变正数）</span>
+<span class="w">                </span><span class="n">hash</span><span class="o">[</span><span class="n">d</span><span class="o">]++</span><span class="p">;</span>
+
+<span class="w">                </span><span class="c1">// 如果加完后 hash[d] &gt; 0，说明这个字符是不可或缺的，被踢出后窗口不再合法了</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">hash</span><span class="o">[</span><span class="n">d</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">count</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 还差的有效字符数增加，强制退出内部 while，继续向右扩张</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="n">left</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 左指针右移，完成收缩</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">minLen</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MAX_VALUE</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">start</span><span class="p">,</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">minLen</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_8">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(|S| + |T|)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mo>|</mo><mi>S</mi><mo>|</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mo>|</mo><mi>T</mi><mo>|</mo><mo>)</mo></mrow></math></span>。转化为 <code>char[]</code> 和遍历都只有线性复杂度，且去掉了 <code>HashMap</code> 底层的运算，实际运行速度极快。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。我们只用了一个固定大小为 128 的 <code>int</code> 数组（以及常数个临时变量），无论字符串多长，内存消耗恒定不变。</li>
+</ul>
+<p><strong>👨‍🏫 老师的点评：</strong></p>
+<p>这份代码是滑动窗口在工程应用中的<strong>教科书级实现</strong>。利用“正数代表急需，负数代表过剩，0 代表刚刚好”的逻辑，将复杂的条件判断压缩成了极其精简的加减法。</p>
+<p>你可以把这份代码直接背进你的肌肉记忆里，下次面试如果遇到这题，先写出 HashMap 版本，再“不经意”地向面试官提出：“我觉得这里的 HashMap 可以用 ASCII 数组优化，不仅节省 GC 开销，还能用正负数精简状态变量……”，面试官一定会对你刮目相看！</Character,></p>
+<h2 id="_9">相邻学习</h2>
+<p><a href="0239-滑动窗口最大值.html">← 239. 滑动窗口最大值</a> · <a href="../05-普通数组/0053-最大子数组和.html">53. 最大子数组和 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/困难题核心状态实验室.html?embed=1&amp;mode=min-window" title="76. 最小覆盖子串的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

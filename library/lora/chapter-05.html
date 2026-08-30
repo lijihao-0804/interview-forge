@@ -1,0 +1,84 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>五、模型部署和暴露接口 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LoRA 微调实践</a><span aria-hidden="true">›</span><span aria-current="page">五、模型部署和暴露接口</span></nav><div class="module-meta">模型与训练 · 第 5 / 6 章</div><h1>五、模型部署和暴露接口</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h5>1. 创建新的 conda 虚拟环境用于部署模型</h5>
+<ul>
+<li>创建环境</li>
+</ul>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>fastApi<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
+</code></pre></div>
+<ul>
+<li>激活环境</li>
+</ul>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">conda<span class="w"> </span>activate<span class="w"> </span>fastApi
+</code></pre></div>
+<ul>
+<li>在该环境中下载部署模型需要的依赖</li>
+</ul>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>fastapi<span class="w"> </span>uvicorn<span class="w"> </span>transformers<span class="w"> </span>pytorch
+</code></pre></div>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">pip<span class="w"> </span>install<span class="w"> </span>safetensors<span class="w"> </span>sentencepiece<span class="w"> </span>protobuf
+</code></pre></div>
+<h5>2. 通过 FastAPI 部署模型并暴露 HTTP 接口</h5>
+<ul>
+<li>创建 App 文件夹</li>
+</ul>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">mkdir<span class="w"> </span>App
+</code></pre></div>
+<ul>
+<li>创建 main.py 文件，作为启动应用的入口</li>
+</ul>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">touch<span class="w"> </span>main.py
+</code></pre></div>
+<ul>
+<li>修改 main.py 文件并保存</li>
+</ul>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span> <span class="nn">transformers</span> <span class="kn">import</span> <span class="n">AutoModelForCausalLM</span><span class="p">,</span> <span class="n">AutoTokenizer</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">()</span>
+
+<span class="c1"># 模型路径</span>
+<span class="n">model_path</span> <span class="o">=</span> <span class="s2">&quot;/root/autodl-tmp/Models/deepseek-r1-1.5b-merged&quot;</span>
+
+<span class="c1"># 加载 tokenizer （分词器）</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">AutoTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span>
+
+<span class="c1"># 加载模型并移动到可用设备（GPU/CPU）</span>
+<span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">AutoModelForCausalLM</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">model_path</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/generate&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">generate_text</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="c1"># 使用 tokenizer 编码输入的 prompt</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="n">tokenizer</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">return_tensors</span><span class="o">=</span><span class="s2">&quot;pt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    
+    <span class="c1"># 使用模型生成文本</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">inputs</span><span class="p">[</span><span class="s2">&quot;input_ids&quot;</span><span class="p">],</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+    
+    <span class="c1"># 解码生成的输出</span>
+    <span class="n">generated_text</span> <span class="o">=</span> <span class="n">tokenizer</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">skip_special_tokens</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;generated_text&quot;</span><span class="p">:</span> <span class="n">generated_text</span><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li>进入包含 <code>main.py</code> 文件的目录，然后运行以下命令来启动 FastAPI 应用</li>
+</ul>
+<div class="codehilite"><pre><code>uvicorn main:app --reload --host 0.0.0.0
+</code></pre></div>
+<pre><code>- `main` 是 Python 文件名（要注意不包含 `.py` 扩展名）
+- `app` 是 FastAPI 实例的变量名（代码中 `app = FastAPI()`）
+- `--reload` 使代码更改后可以自动重载，适用于开发环境
+- `host 0.0.0.0`：将 FastAPI 应用绑定到所有可用的网络接口，这样我们的本机就可以通过内网穿透访问该服务
+</code></pre>
+<ul>
+<li>配置端口转发，使得本机可以访问该服务 <a href="https://www.autodl.com/docs/ssh_proxy/">SSH隧道</a></li>
+<li>浏览器输入以下 url，测试服务是否启动成功</li>
+</ul>
+<div class="codehilite"><pre><code>http://localhost:8000/docs
+</code></pre></div>
+<p>![[Pasted image 20250223232930.png]]
+- 或者你也可以通过 postMan 来测试</p>
+<div class="codehilite"><pre><code>http://localhost:8000/generate?prompt=你是谁？
+</code></pre></div>
+<p>![[Pasted image 20250223232958.png]]</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
+<script>const contentId="lora:05",moduleId="lora";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

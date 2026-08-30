@@ -1,0 +1,142 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>评估、性能与生产部署 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">评估、性能与生产部署</span></nav><div class="module-meta">大模型应用 · 第 21 / 33 章</div><h1>评估、性能与生产部署</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>21.1 测什么，而不是只测“答案一样”</h3>
+<p>LLM 输出具有非确定性，集成测试应更多断言结构和行为：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 示例测试思路</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span>
+    <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;产品退款期限是多少？&quot;</span><span class="p">}]</span>
+<span class="p">})</span>
+
+<span class="n">messages</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">]</span>
+<span class="n">tool_names</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">call</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">messages</span>
+    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="s2">&quot;tool_calls&quot;</span><span class="p">,</span> <span class="p">[])</span>
+<span class="p">]</span>
+
+<span class="k">assert</span> <span class="s2">&quot;search_docs&quot;</span> <span class="ow">in</span> <span class="n">tool_names</span>
+<span class="k">assert</span> <span class="n">messages</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">text</span>
+</code></pre></div>
+<p>测试层次：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th style="text-align: right;">是否调用真实模型</th>
+<th>主要断言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>工具单元测试</td>
+<td style="text-align: right;">否</td>
+<td>参数校验、权限、幂等性、错误映射</td>
+</tr>
+<tr>
+<td>检索测试</td>
+<td style="text-align: right;">可不调用聊天模型</td>
+<td>Recall@k、过滤、来源元数据</td>
+</tr>
+<tr>
+<td>Agent 单元测试</td>
+<td style="text-align: right;">使用伪模型/固定响应</td>
+<td>工具轨迹、状态更新、停止条件</td>
+</tr>
+<tr>
+<td>集成测试</td>
+<td style="text-align: right;">是</td>
+<td>schema、关键行为、延迟上限</td>
+</tr>
+<tr>
+<td>端到端评估</td>
+<td style="text-align: right;">是</td>
+<td>正确性、忠实度、安全、费用</td>
+</tr>
+</tbody>
+</table>
+<p>不要断言模型回答必须逐字等于固定句子，除非返回的是严格结构化值。</p>
+<h3>21.2 建立评估数据集</h3>
+<p>每条样本建议包含：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;question&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;退款期限是多少？&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;reference_answer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;签收后 7 天内&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;relevant_doc_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;refund-policy-v3&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;expected_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;search_docs&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;forbidden_claims&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;无条件退款&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;tags&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;policy&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;high-risk&quot;</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>数据集应覆盖正常问题、资料不足、歧义、过期资料、跨文档问题、权限越界、提示词注入和工具故障。</p>
+<h3>21.3 先做确定性评估，再用 LLM Judge</h3>
+<p>优先使用可复现规则：</p>
+<ul>
+<li>schema 是否通过；</li>
+<li>是否调用指定工具；</li>
+<li>是否超过调用预算；</li>
+<li>引用是否属于检索结果；</li>
+<li>数字、日期、ID 是否匹配；</li>
+<li>无答案时是否拒答。</li>
+</ul>
+<p>LLM-as-judge 适合评价语义正确性、完整性和表达质量，但 Judge 自身也会波动，需固定 rubric、抽样人工复核，并记录 Judge 模型版本。</p>
+<h3>21.4 延迟与成本拆解</h3>
+<p>一次 Agent 请求的总延迟近似为：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">总延迟 ≈ Σ模型调用延迟 + Σ串行工具延迟 + 检索/重排 + 框架开销
+</code></pre></div>
+<p>成本近似由每次模型调用的输入/输出 token 累加。常见优化顺序：</p>
+<ol>
+<li>减少不必要的 Agent 循环；</li>
+<li>缩短历史、工具描述和检索上下文；</li>
+<li>固定流程改为单次模型调用或 2-step RAG；</li>
+<li>小模型负责分类、摘要和查询改写，大模型处理困难推理；</li>
+<li>缓存稳定结果，但缓存键必须包含模型、prompt 和数据版本；</li>
+<li>并行互不依赖的只读工具。</li>
+</ol>
+<p>流式输出改善的是用户感知延迟，不一定减少总计算时间或费用。</p>
+<h3>21.5 生产检查表</h3>
+<p><strong>可靠性</strong></p>
+<ul>
+<li>[ ] 模型和工具都有超时；</li>
+<li>[ ] 只对暂时性错误重试，并使用指数退避和 jitter；</li>
+<li>[ ] Agent 有模型调用、工具调用、总时长和费用上限；</li>
+<li>[ ] 写操作幂等，关键步骤使用事务；</li>
+<li>[ ] 供应商不可用时有可接受的降级策略。</li>
+</ul>
+<p><strong>安全与隐私</strong></p>
+<ul>
+<li>[ ] 工具层重新鉴权，不信任模型参数；</li>
+<li>[ ] 多租户数据在查询层强制隔离；</li>
+<li>[ ] 高影响操作需要人工确认；</li>
+<li>[ ] 检索资料和网页按不可信输入处理；</li>
+<li>[ ] Trace、日志和缓存执行脱敏及保留期策略。</li>
+</ul>
+<p><strong>质量</strong></p>
+<ul>
+<li>[ ] 有版本化评估集和发布门槛；</li>
+<li>[ ] 分别监控检索、生成和工具轨迹；</li>
+<li>[ ] 模型、prompt、索引和数据版本可追溯；</li>
+<li>[ ] 用户反馈能回流到失败样本集；</li>
+<li>[ ] 升级 LangChain 或模型前运行回归评估。</li>
+</ul>
+<p><strong>运维</strong></p>
+<ul>
+<li>[ ] 记录请求 ID、thread ID、工具耗时和 token 用量；</li>
+<li>[ ] 指标包含错误率、P95/P99 延迟、每请求成本；</li>
+<li>[ ] 数据库 checkpointer 和 Store 有备份与迁移策略；</li>
+<li>[ ] 文档删除能同步删除索引；</li>
+<li>[ ] 有熔断、限流、告警和应急关闭写工具的开关。</li>
+</ul>
+<h3>21.6 如何阅读一次失败 Trace</h3>
+<p>建议按以下顺序定位：</p>
+<ol>
+<li>用户输入是否歧义或恶意；</li>
+<li>system prompt 与动态 prompt 是否冲突；</li>
+<li>模型实际看到了哪些消息和工具；</li>
+<li>是否选择正确工具与正确参数；</li>
+<li>工具是否返回完整、简洁、可信的结果；</li>
+<li>检索结果是否包含标准依据；</li>
+<li>最终模型是否忠实使用工具结果；</li>
+<li>Middleware 是否裁剪、重试或修改了关键内容；</li>
+<li>哪个步骤贡献了主要延迟和 token。</li>
+</ol>
+<p>只有找到失败发生在哪一层，修改才可能有效。盲目加长 prompt 往往掩盖真正问题。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-20.html">← 上一章</a><a href="chapter-22.html">下一章 →</a></nav></main></div>
+<script>const contentId="langchain:21",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

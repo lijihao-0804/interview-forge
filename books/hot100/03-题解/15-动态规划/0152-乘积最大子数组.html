@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>152. 乘积最大子数组 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 15-动态规划</div>
+        <h1 id="152">152. 乘积最大子数组</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-o1">Java 实现（空间压榨 O(1) 版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的隐藏考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/15-动态规划.html">← 动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>同时维护最大积与最小积</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code> ，请你找出数组中乘积最大的非空连续子数组（该子数组中至少包含一个数字），并返回该子数组所对应的乘积。</p>
+<p><a href="https://leetcode.cn/problems/maximum-product-subarray/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>负数会交换最大与最小角色。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（为什么直接套用 Kadane 算法会翻车？）</strong>：</p>
+<p>在求最大子数组<strong>和</strong>时，我们只要维护一个当前最大和 <code>maxSum</code>，遇到负数直接不要它就行了。</p>
+<p><strong>痛点</strong>：在求<strong>乘积</strong>时，假设当前序列是 <code>[2, 3, -2, 4, -1]</code>。</p>
+<ul>
+<li>
+<p>当走到 <code>4</code> 的时候，前面的连续乘积是 <code>-48</code>。如果按“及时止损”的逻辑，我们肯定丢弃 <code>-48</code>，从 <code>4</code> 重新开始。</p>
+</li>
+<li>
+<p>可是紧接着遇到了 <strong><code>-1</code></strong>！如果我们保留了刚才的深渊 <code>-48</code>，那么 <code>-48 * -1 = 48</code>，再乘以 <code>4</code> 就是 <code>192</code>！</p>
+</li>
+</ul>
+<p>所以，<strong>当前的最小值（绝对值很大的负数），有在未来翻盘成为最大值的巨大潜力</strong>。</p>
+</li>
+<li>
+<p><strong>破局思路（同时记录“巅峰”与“深渊”）</strong>：</p>
+<p>既然最小值能逆袭，那我们在动态规划迭代时，就<strong>不能只贪心地记录最大值，必须同时把最小值也死死记下来</strong>！</p>
+<p>我们维护两个动态规划状态：</p>
+<ul>
+<li><code>maxProd</code>：以当前数字结尾的子数组的<strong>最大</strong>乘积。</li>
+<li><code>minProd</code>：以当前数字结尾的子数组的<strong>最小</strong>乘积（保存可能翻盘的负数火种）。</li>
+</ul>
+</li>
+<li>
+<p><strong>核心微操（绝妙的太极阴阳反转）</strong>：</p>
+<p>当新来的数字 <code>nums[i]</code> 是一个<strong>负数</strong>时：</p>
+<p>它乘以原来的最大值，会变成一个极小的负数（新深渊）；</p>
+<p>它乘以原来的最小值，会变成一个极大的正数（新巅峰）！</p>
+<p><strong>致命技巧</strong>：只要发现 <code>nums[i] &lt; 0</code>，我们直接<strong>把 <code>maxProd</code> 和 <code>minProd</code> 互换</strong>！然后顺理成章地用常规公式更新，代码逻辑直接干净一倍。</p>
+<h3 id="java-o1">Java 实现（空间压榨 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxProduct</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 初始化：由于必须包含至少一个数字，第一天的巅峰和深渊都是 nums[0]</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">minProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 记录全局出现过的最高巅峰</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">globalMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 从第二个数字开始看滚动过山车</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 🌟 核心高光细节：如果当前数字是负数，最大和最小瞬间颠倒</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">num</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">maxProd</span><span class="p">;</span>
+<span class="w">                </span><span class="n">maxProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">minProd</span><span class="p">;</span>
+<span class="w">                </span><span class="n">minProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">temp</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 状态转移方程：</span>
+<span class="w">            </span><span class="c1">// 到底是【自立门户（从 num 开始）】，还是【继承家业（跟前面的乘起来）】</span>
+<span class="w">            </span><span class="n">maxProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">num</span><span class="p">,</span><span class="w"> </span><span class="n">maxProd</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">num</span><span class="p">);</span>
+<span class="w">            </span><span class="n">minProd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">num</span><span class="p">,</span><span class="w"> </span><span class="n">minProd</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">num</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// 每一轮都把当前产生的最大值拿去挑战历史纪录</span>
+<span class="w">            </span><span class="n">globalMax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">globalMax</span><span class="p">,</span><span class="w"> </span><span class="n">maxProd</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">globalMax</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。只需对数组进行一次单向线性扫描，没有任何嵌套循环，效率极高。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。我们极其敏锐地发现当前状态只和前一个状态有关，因此直接用 <code>maxProd</code> 和 <code>minProd</code> 滚动变量代替了 DP 数组，将空间压榨到了常数级别。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的隐藏考点）</h3>
+<ol>
+<li><strong>极度高频坑点：数字 <code>0</code> 的拆台效应</strong>
+   - 数组里如果出现 <code>0</code>（比如 <code>[2, 3, 0, 4]</code>），由于任何数乘以 0 都是 0，它会让 <code>maxProd</code> 和 <code>minProd</code> 瞬间归零。
+   - <strong>无需特殊处理</strong>：我们的代码里有 <code>Math.max(num, ...)</code> 和 <code>Math.min(num, ...)</code>。当走到 <code>0</code> 之后的 <code>4</code> 时，<code>Math.max(4, 0 * 4)</code> 会让代码果断选择 <code>4</code>，相当于自动完成了“原地复活，重新建队”的逻辑。这就是动态规划自适应的优美之处。</li>
+<li><strong>面试追问：“这道题除了双极值 DP，还有什么脑筋急转弯的双向解法吗？”</strong>
+   - <strong>满分抢答（前后缀乘积双向奔赴法）</strong>：这是一个非常惊艳的视角。
+   - 如果一个子数组乘积最大，它要么从左边开始延伸，要么从右边开始延伸。除非中间被 <code>0</code> 截断。
+   - 我们可以算一遍<strong>前缀乘积</strong>，再算一遍<strong>后缀乘积</strong>（遇到 0 就把乘积重置为 1 重新算）。这两波数据的全局最大值，必然就是最大乘积子数组！
+   - 这种解法代码行数极少，而且完全不需要考虑繁琐的负负得正调换，是极具极简美学的面试加分答卷。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0300-最长递增子序列.html">← 300. 最长递增子序列</a> · <a href="0416-分割等和子集.html">416. 分割等和子集 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

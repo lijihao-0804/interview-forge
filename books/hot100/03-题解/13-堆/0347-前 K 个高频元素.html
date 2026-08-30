@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>347. 前 K 个高频元素 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 13-堆</div>
+        <h1 id="347-k">347. 前 K 个高频元素</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-on">Java 实现（满分桶排序版 O(N)）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的连环计）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/13-堆.html">← 堆专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>频次表 + 小顶堆</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log k)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code> 和一个整数 <code>k</code> ，请你返回其中出现频率前 <code>k</code> 高的元素。你可以按 <strong>任意顺序</strong> 返回答案。</p>
+<p><strong>硬性要求</strong>：你所设计算法的时间复杂度 <strong>必须</strong> 优于 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> ，其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是数组大小。</p>
+<p><a href="https://leetcode.cn/problems/top-k-frequent-elements/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>堆按频次比较，只保留频次最高的 k 个键。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（先统后排）</strong>：</p>
+<p>第一步永远是毫无悬念的：用一个哈希表（HashMap）把每个数字出现的次数统计出来。</p>
+<p><strong>痛点</strong>：拿到 <code>&lt;数字, 频率&gt;</code> 的映射后怎么排序？如果把所有条目拿出来做一个全局排序，时间复杂度会变成 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>，直接被题目要求的硬性底线淘汰。</p>
+</li>
+<li>
+<p><strong>破局思路 1（VIP 选秀室重出江湖：小顶堆）</strong>：</p>
+<p>既然是找前 K 大（这里是频率的前 K 大），我们完全可以原封不动地照搬上一题的“容量为 <code>k</code> 的小顶堆”战术！</p>
+<p>把 HashMap 里的条目一个个往小顶堆里塞。<strong>注意：堆里比较的不再是数字本身的大小，而是数字对应的频率！</strong></p>
+<p>如果堆里超过了 <code>k</code> 个人，就把频率最低的那个踢出去。遍历完 HashMap，堆里留下的就是频率最高的 <code>k</code> 个元素。</p>
+<p><em>时间复杂度：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>，完美通关。</em></p>
+</li>
+<li>
+<p><strong>破局思路 2（面试终极魔法：桶排序 Bucket Sort）</strong>：</p>
+<p>面试官微笑地看着你：“<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span> 不错，但你能做到极致的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 吗？”</p>
+<p><strong>优化思路开始</strong>：频率这个东西，有一个天然的上限——一个数字出现的最高频率，撑死也就是数组的总长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>（全数组都是同一个数字）！</p>
+<p>既然频率的值域这么窄（<span class="math-inline-wrap"><math class="math-inline" aria-label="0"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>），我们为什么不建一个<strong>长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span> 的数组（这就是一组水桶）</strong>？</p>
+<ul>
+<li>
+<p><strong>数组的下标（Index）代表频率</strong>。</p>
+</li>
+<li>
+<p><strong>数组里装的内容（Value）代表出现该频率的数字集合</strong>。</p>
+</li>
+</ul>
+<p>这就等于把数据按频率自动归位了！然后我们只需要从后往前（从高频到低频）扫一遍这排水桶，收集到 <code>k</code> 个数字直接下班！</p>
+<h3 id="java-on">Java 实现（满分桶排序版 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>）</h3>
+<p><em>(在面试中，写出小顶堆算及格，写出桶排序是绝对的 Senior 级别)</em></p>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">topKFrequent</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 战前准备：用 HashMap 统计每个数字的出现频率</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">countMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">countMap</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">num</span><span class="p">,</span><span class="w"> </span><span class="n">countMap</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="n">num</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 建立桶数组：下标代表频率，值代表拥有该频率的数字列表</span>
+<span class="w">        </span><span class="c1">// 🌟 致命细节：桶的数量必须是 nums.length + 1，因为如果有数字出现了 N 次，下标需要能取到 N</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;[]</span><span class="w"> </span><span class="n">buckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">List</span><span class="o">[</span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 把 HashMap 里的数据倒进桶里</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">countMap</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">entry</span><span class="p">.</span><span class="na">getKey</span><span class="p">();</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">entry</span><span class="p">.</span><span class="na">getValue</span><span class="p">();</span>
+
+<span class="w">            </span><span class="c1">// 如果这个频率的桶还没建好，先初始化一个 List</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">buckets</span><span class="o">[</span><span class="n">freq</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">buckets</span><span class="o">[</span><span class="n">freq</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 把数字扔进对应频率的桶里</span>
+<span class="w">            </span><span class="n">buckets</span><span class="o">[</span><span class="n">freq</span><span class="o">]</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">num</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 逆向扫桶：从最高频率往下扫，收集前 k 个数字</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 从最右边（最高频）开始往左看</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buckets</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 如果这个频率的桶里有数字</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">buckets</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 把桶里的数字全部收缴，直到收满 k 个为止</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">buckets</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">res</span><span class="o">[</span><span class="n">index</span><span class="o">++]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="p">;</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">index</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span><span class="w"> </span><span class="c1">// 🌟 收满 k 个，立刻准点下班！</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<strong><span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span></strong>。统计频率遍历一遍 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>；把数据倒进水桶遍历一遍不同数字的个数（小于等于 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>）；最后逆向扫一遍桶数组（长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span>）。全程没有比较排序，纯正的线性时间！</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。主要开销在 HashMap 和桶数组 <code>buckets</code> 上，它们的大小都不会超过数组的总长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的连环计）</h3>
+<ul>
+<li><strong>面试追问：“既然桶排序这么快，为什么上一题【第 K 大的元素】我们不用桶排序？”</strong></li>
+<li><strong>满分抢答（直击底层逻辑）</strong>：这取决于<strong>值域的跨度</strong>！</li>
+<li>在这道题里，我们要排序的维度是“频率”。频率的最小是 1，最大是数组长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>，值域非常紧凑，所以可以开辟长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span> 的桶数组，空间消耗极其合理。</li>
+<li>而在上一题里，我们要排序的维度是“数值本身”！如果数组里只有两个数字：<code>[1, 2147483647]</code>。为了这两个数字，难道我要在内存里开辟一个长度为 21 亿的桶数组吗？内存当场就炸毁了。</li>
+<li><strong>一句话总结</strong>：值域紧凑且有明确上限，优先用桶排序（计数排序）；值域跨度巨大或存在负数/浮点数，老老实实用堆（优先级队列）或快速选择。</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0215-数组中的第K个最大元素.html">← 215. 数组中的第K个最大元素</a> · <a href="0295-数据流的中位数.html">295. 数据流的中位数 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

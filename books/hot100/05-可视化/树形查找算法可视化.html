@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>树形查找算法可视化 - Java</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  .sort-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .sort-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; }
+  .sort-tab:hover { border-color: #e96443; color: #e96443; }
+  .sort-tab.active { background: linear-gradient(135deg, #e96443, #904e95); color: #fff; border-color: transparent; }
+
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+  .panel.active { display: block; }
+
+  .panel-header { padding: 20px 28px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 6px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; }
+
+  .complexity { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 14px; }
+  .complexity span { background: #fff; padding: 4px 14px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity .label { color: #888; border: none; background: transparent; padding-left: 0; }
+  .complexity .badge-best { color: #0a7; }
+  .complexity .badge-avg { color: #f90; }
+  .complexity .badge-worst { color: #e44; }
+
+  .content { display: flex; flex-direction: row; min-height: 480px; }
+  @media (max-width: 900px) { .content { flex-direction: column; } }
+
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; position: relative; }
+  @media (max-width: 900px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 13px; color: #666; }
+  .code-header .lang-label { font-weight: 600; color: #4a6cf7; }
+  .copy-btn { padding: 3px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px; background: #fff; }
+  .copy-btn:hover { background: #f0f2f5; }
+
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 12px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 44px; text-align: right; padding: 0 12px 0 16px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vis-canvas-wrap { flex: 1; position: relative; min-height: 320px; overflow: hidden; }
+  .vis-canvas-wrap canvas { display: block; width: 100%; height: 100%; min-height: 320px; }
+
+  .target-info { padding: 8px 20px; font-size: 14px; font-weight: 500; color: #1a1a2e; background: #f0f2ff; border-bottom: 1px solid #e0e0f0; min-height: 36px; }
+  .target-info strong { color: #e96443; }
+
+  .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #fafafa; border-bottom: 1px solid #eee; min-height: 36px; }
+
+  .controls { padding: 12px 20px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #eee; }
+  .controls button { padding: 6px 16px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #4a6cf7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .controls .btn-primary:hover { background: #3b5de7; }
+  .controls .btn-primary:disabled { background: #a0b4f7; border-color: #a0b4f7; }
+  .controls label { font-size: 13px; color: #666; margin-left: 8px; }
+  .controls select { padding: 4px 8px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 100px; vertical-align: middle; }
+  .step-info { font-size: 13px; color: #888; margin-left: auto; }
+
+  .algo-desc { padding: 12px 28px 16px; background: #fafbfc; border-top: 1px solid #eee; font-size: 14px; line-height: 1.7; color: #555; }
+  .algo-desc strong { color: #333; }
+
+  /* 图例 */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 20px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid #ccc; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>树形查找算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>树形 &amp; 高级查找算法可视化（Java）</h1>
+
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">二叉搜索树</div>
+  <div class="sort-tab" data-idx="1">AVL 树</div>
+  <div class="sort-tab" data-idx="2">红黑树</div>
+  <div class="sort-tab" data-idx="3">B 树</div>
+  <div class="sort-tab" data-idx="4">字典树</div>
+  <div class="sort-tab" data-idx="5">哈希表</div>
+</div>
+
+<div id="panels"></div>
+
+</div>
+
+<script>
+// ===================== 算法数据 =====================
+const ALGO_DATA = [
+  {
+    name: "二叉搜索树",
+    nameEn: "Binary Search Tree",
+    timeBest: "O(log n)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(n)",
+    space: "O(n)",
+    desc: "每个节点左子树所有值小于节点值，右子树所有值大于节点值。查找时从根节点出发，比目标大则向左、小则向右，直到找到或到达空节点。最坏情况退化为链表。",
+    javaCode: `class TreeNode {
+    int val;
+    TreeNode left, right;
+    TreeNode(int v) { this.val = v; }
+}
+
+public TreeNode search(TreeNode root, int target) {
+    TreeNode cur = root;
+    while (cur != null) {
+        if (cur.val == target) return cur;
+        else if (target < cur.val) cur = cur.left;
+        else cur = cur.right;
+    }
+    return null;
+}
+
+public TreeNode insert(TreeNode root, int val) {
+    if (root == null) return new TreeNode(val);
+    if (val < root.val)
+        root.left = insert(root.left, val);
+    else if (val > root.val)
+        root.right = insert(root.right, val);
+    return root;
+}`
+  },
+  {
+    name: "AVL 树",
+    nameEn: "AVL Tree",
+    timeBest: "O(log n)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(n)",
+    desc: "自平衡二叉搜索树，每个节点维护平衡因子（左右子树高度差 ≤ 1）。插入后通过左旋、右旋恢复平衡。查找过程与 BST 相同但树高严格 O(log n)。",
+    javaCode: `class AVLNode {
+    int val, height;
+    AVLNode left, right;
+    AVLNode(int v) {
+        this.val = v;
+        this.height = 1;
+    }
+}
+
+// 获取平衡因子
+int getBalance(AVLNode n) {
+    return n == null ? 0
+        : height(n.left) - height(n.right);
+}
+
+// 左旋
+AVLNode leftRotate(AVLNode x) {
+    AVLNode y = x.right;
+    x.right = y.left;
+    y.left = x;
+    updateHeight(x);
+    updateHeight(y);
+    return y;
+}
+
+public AVLNode insert(AVLNode root, int val) {
+    if (root == null) return new AVLNode(val);
+    if (val < root.val)
+        root.left = insert(root.left, val);
+    else if (val > root.val)
+        root.right = insert(root.right, val);
+    else return root;
+    updateHeight(root);
+    int bf = getBalance(root);
+    // LL
+    if (bf > 1 && val < root.left.val)
+        return rightRotate(root);
+    // RR
+    if (bf < -1 && val > root.right.val)
+        return leftRotate(root);
+    // LR
+    if (bf > 1 && val > root.left.val) {
+        root.left = leftRotate(root.left);
+        return rightRotate(root);
+    }
+    // RL
+    if (bf < -1 && val < root.right.val) {
+        root.right = rightRotate(root.right);
+        return leftRotate(root);
+    }
+    return root;
+}`
+  },
+  {
+    name: "红黑树",
+    nameEn: "Red-Black Tree",
+    timeBest: "O(log n)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(n)",
+    desc: "自平衡二叉搜索树。每个节点有红/黑颜色，满足：根黑、叶黑、红节点子节点必黑、任意路径黑节点数相同。查找与 BST 相同，插入后通过旋转+变色保持平衡。",
+    javaCode: `class RBNode {
+    int val;
+    RBNode left, right, parent;
+    boolean isRed; // true=红, false=黑
+    RBNode(int v) {
+        this.val = v;
+        this.isRed = true;
+    }
+}
+
+public RBNode search(RBNode root, int target) {
+    RBNode cur = root;
+    while (cur != null) {
+        if (cur.val == target) return cur;
+        else if (target < cur.val) cur = cur.left;
+        else cur = cur.right;
+    }
+    return null;
+}
+
+// 插入修正（左旋/右旋 + 变色）
+void fixViolation(RBNode root, RBNode n) {
+    RBNode parent, grandparent;
+    while (n != root && n.isRed
+           && n.parent.isRed) {
+        parent = n.parent;
+        grandparent = parent.parent;
+        // 叔节点为红 → 变色
+        if (uncle(parent) != null
+            && uncle(parent).isRed) {
+            parent.isRed = false;
+            uncle(parent).isRed = false;
+            grandparent.isRed = true;
+            n = grandparent;
+        } else { // 叔节点为黑 → 旋转
+            rotateAndRecolor(n);
+        }
+    }
+    root.isRed = false;
+}`
+  },
+  {
+    name: "B 树",
+    nameEn: "B-Tree",
+    timeBest: "O(log n)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(n)",
+    desc: "多路平衡搜索树，每个节点可包含多个关键字和多个子节点。广泛应用于数据库和文件系统（如 MySQL InnoDB 索引）。阶数为 t 时，每个节点最多 2t-1 个关键字，最少 t-1 个。",
+    javaCode: `class BTreeNode {
+    int[] keys;      // 关键字数组
+    int t;           // 最小度数
+    BTreeNode[] children;
+    int n;           // 当前关键字数量
+    boolean leaf;
+
+    BTreeNode(int t, boolean leaf) {
+        this.t = t;
+        this.leaf = leaf;
+        this.keys = new int[2 * t - 1];
+        this.children = new BTreeNode[2 * t];
+        this.n = 0;
+    }
+}
+
+public boolean search(BTreeNode root,
+                      int target) {
+    int i = 0;
+    while (i < root.n && target > root.keys[i])
+        i++;
+    if (i < root.n && root.keys[i] == target)
+        return true;
+    if (root.leaf) return false;
+    return search(root.children[i], target);
+}`
+  },
+  {
+    name: "字典树",
+    nameEn: "Trie (Prefix Tree)",
+    timeBest: "O(|key|)",
+    timeAvg: "O(|key|)",
+    timeWorst: "O(|key|)",
+    space: "O(Σ|key|)",
+    desc: "又称前缀树，用于高效存储和检索字符串集合。每个节点代表一个字符，根节点为空。从根到某个节点的路径拼接起来即为该节点代表的字符串。适用于自动补全、拼写检查。",
+    javaCode: `class TrieNode {
+    TrieNode[] children;
+    boolean isEnd;
+    TrieNode() {
+        children = new TrieNode[26];
+        isEnd = false;
+    }
+}
+
+public class Trie {
+    private TrieNode root;
+    public Trie() { root = new TrieNode(); }
+
+    public void insert(String word) {
+        TrieNode cur = root;
+        for (char c : word.toCharArray()) {
+            int idx = c - 'a';
+            if (cur.children[idx] == null)
+                cur.children[idx] = new TrieNode();
+            cur = cur.children[idx];
+        }
+        cur.isEnd = true;
+    }
+
+    public boolean search(String word) {
+        TrieNode cur = root;
+        for (char c : word.toCharArray()) {
+            int idx = c - 'a';
+            if (cur.children[idx] == null)
+                return false;
+            cur = cur.children[idx];
+        }
+        return cur.isEnd;
+    }
+
+    public boolean startsWith(String prefix) {
+        TrieNode cur = root;
+        for (char c : prefix.toCharArray()) {
+            int idx = c - 'a';
+            if (cur.children[idx] == null)
+                return false;
+            cur = cur.children[idx];
+        }
+        return true;
+    }
+}`
+  },
+  {
+    name: "哈希表",
+    nameEn: "Hash Table",
+    timeBest: "O(1)",
+    timeAvg: "O(1)",
+    timeWorst: "O(n)",
+    space: "O(n)",
+    desc: "通过哈希函数将键映射到数组位置。处理冲突的常用方法有：链地址法（数组+链表）、开放地址法（线性探测、二次探测、双重哈希）。Java 的 HashMap 使用链地址法 + 红黑树优化。",
+    javaCode: `// 链地址法哈希表
+class HashTable {
+    private static class Node {
+        int key, val;
+        Node next;
+        Node(int k, int v) {
+            this.key = k;
+            this.val = v;
+        }
+    }
+
+    private Node[] buckets;
+    private int capacity;
+
+    public HashTable(int cap) {
+        this.capacity = cap;
+        buckets = new Node[cap];
+    }
+
+    private int hash(int key) {
+        return key % capacity;
+    }
+
+    public void put(int key, int value) {
+        int idx = hash(key);
+        Node head = buckets[idx];
+        Node cur = head;
+        while (cur != null) {
+            if (cur.key == key) {
+                cur.val = value;
+                return;
+            }
+            cur = cur.next;
+        }
+        Node newNode = new Node(key, value);
+        newNode.next = head;
+        buckets[idx] = newNode;
+    }
+
+    public int get(int key) {
+        int idx = hash(key);
+        Node cur = buckets[idx];
+        while (cur != null) {
+            if (cur.key == key) return cur.val;
+            cur = cur.next;
+        }
+        return -1;
+    }
+}`
+  }
+];
+
+// ===================== 可视化引擎 =====================
+let panelData = [];
+
+// ---------- 1. BST 节点 ----------
+class TreeNode {
+  constructor(val) {
+    this.val = val;
+    this.left = null;
+    this.right = null;
+    this.x = 0; this.y = 0;
+    this.color = null; // for RBT
+    this.bf = 0; // for AVL
+    this.height = 1; // for AVL
+    this.bfDisplay = 0;
+  }
+}
+
+// ---------- 2. B树节点 ----------
+class BTreeNode {
+  constructor(t, leaf) {
+    this.t = t;
+    this.leaf = leaf;
+    this.keys = [];
+    this.children = [];
+    this.n = 0;
+    this.x = 0; this.y = 0;
+  }
+}
+
+// ---------- 3. Trie节点 ----------
+class TrieNode {
+  constructor(ch) {
+    this.ch = ch;
+    this.children = {};
+    this.isEnd = false;
+    this.x = 0; this.y = 0;
+  }
+}
+
+// ===================== 树布局引擎 =====================
+function layoutBST(node, x, y, xGap) {
+  if (!node) return x;
+  const leftX = layoutBST(node.left, x, y + 60, xGap / 2);
+  node.x = Math.max(leftX + 15, xGap / 2);
+  node.y = y;
+  return layoutBST(node.right, node.x + 30, y + 60, xGap / 2);
+}
+
+function calcTreeWidth(node) {
+  if (!node) return 0;
+  return calcTreeWidth(node.left) + calcTreeWidth(node.right) + 1;
+}
+
+function layoutTree(root, canvasW) {
+  if (!root) return;
+  const total = calcTreeWidth(root);
+  const startX = canvasW / 2;
+  const xGap = Math.min(80, Math.max(30, (canvasW - 40) / total));
+  assignPos(root, startX, 40, xGap);
+}
+
+function assignPos(node, x, y, gap) {
+  if (!node) return;
+  node.x = x; node.y = y;
+  const leftW = calcTreeWidth(node.left);
+  const rightW = calcTreeWidth(node.right);
+  if (node.left) assignPos(node.left, x - (leftW + rightW + 1) * gap / 2 + leftW * gap / 2, y + 55, gap);
+  if (node.right) assignPos(node.right, x + (leftW + rightW + 1) * gap / 2 - rightW * gap / 2, y + 55, gap);
+}
+
+function treeDepth(node) {
+  if (!node) return 0;
+  return 1 + Math.max(treeDepth(node.left), treeDepth(node.right));
+}
+
+// ===================== 绘制函数 =====================
+function drawTree(ctx, root, highlights, dataIdx, extra) {
+  if (!root) return;
+  const h = highlights || {};
+  const nodes = [];
+  const edges = [];
+
+  function traverse(n) {
+    if (!n) return;
+    nodes.push(n);
+    if (n.left) { edges.push([n, n.left]); traverse(n.left); }
+    if (n.right) { edges.push([n, n.right]); traverse(n.right); }
+  }
+  traverse(root);
+
+  // 绘制边
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth = 2;
+  for (const [p, c] of edges) {
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + 20);
+    ctx.lineTo(c.x, c.y - 20);
+    ctx.stroke();
+  }
+
+  // 绘制节点
+  for (const n of nodes) {
+    const isCurrent = h.current === n;
+    const isFound = h.found === n;
+    const isCompare = h.compare && h.compare.has(n);
+    const isPath = h.path && h.path.has(n);
+    const isLeft = h.leftPtr === n;
+    const isRight = h.rightPtr === n;
+    const isUncle = h.uncle === n;
+    const isGrand = h.grandparent === n;
+    const isRotate = h.rotate && h.rotate.has(n);
+
+    let bg = '#4a6cf7';
+    let textColor = '#fff';
+    let borderColor = '#333';
+    let borderW = 2;
+
+    if (isFound) { bg = '#4caf50'; borderW = 3; }
+    else if (isCurrent) { bg = '#ff9800'; borderW = 3; }
+    else if (isCompare) { bg = '#ff9800'; }
+    else if (isRotate) { bg = '#e91e63'; borderW = 3; }
+    else if (isPath) { bg = '#7c4dff'; }
+    else if (isUncle) { bg = '#00bcd4'; }
+    else if (isLeft) { bg = '#00bcd4'; }
+    else if (isRight) { bg = '#e91e63'; }
+    else if (isGrand) { bg = '#9c27b0'; }
+
+    // RBT 颜色
+    if (dataIdx === 2 && n.color) {
+      if (isFound) { bg = '#4caf50'; }
+      else if (isCurrent) { bg = '#ff9800'; }
+      else { bg = n.color === 'red' ? '#e44' : '#555'; textColor = '#fff'; }
+      if (n.color === 'black') textColor = '#fff';
+    }
+
+    // 绘制节点圆
+    const r = extra === 'btree' ? 14 : extra === 'trie' ? 18 : 20;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = borderW;
+    ctx.stroke();
+
+    // 节点内文字
+    ctx.fillStyle = textColor;
+    ctx.font = '13px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let label = n.val !== undefined && n.val !== null ? String(n.val) : '';
+    if (extra === 'trie') label = n.ch || '';
+
+    // B树显示多个key
+    if (extra === 'btree') {
+      // 用矩形代替圆形
+      const kw = 30;
+      const kh = 24;
+      const kKeys = n.keys || [];
+      const totalW = kKeys.length * kw + 4;
+      ctx.fillStyle = bg;
+      ctx.fillRect(n.x - totalW / 2, n.y - kh / 2, totalW, kh);
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = borderW;
+      ctx.strokeRect(n.x - totalW / 2, n.y - kh / 2, totalW, kh);
+      ctx.fillStyle = textColor;
+      ctx.font = '12px Consolas, monospace';
+      for (let ki = 0; ki < kKeys.length; ki++) {
+        ctx.fillText(String(kKeys[ki]), n.x - totalW / 2 + kw / 2 + ki * kw, n.y);
+        if (ki < kKeys.length - 1) {
+          ctx.strokeStyle = '#ddd';
+          ctx.beginPath();
+          ctx.moveTo(n.x - totalW / 2 + kw + ki * kw, n.y - kh / 2);
+          ctx.lineTo(n.x - totalW / 2 + kw + ki * kw, n.y + kh / 2);
+          ctx.stroke();
+        }
+      }
+      label = '';
+    }
+
+    if (label.length <= 2) ctx.fillText(label, n.x, n.y);
+    else if (label.length > 2) ctx.font = '11px Consolas, monospace', ctx.fillText(label, n.x, n.y);
+
+    // AVL 显示平衡因子
+    if (dataIdx === 1 && !isFound && !isCurrent) {
+      ctx.fillStyle = '#888';
+      ctx.font = '10px sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText('BF=' + n.bfDisplay, n.x + 22, n.y - 8);
+    }
+
+    // RBT 显示颜色标签
+    if (dataIdx === 2 && n.color && !isFound && !isCurrent) {
+      ctx.fillStyle = '#888';
+      ctx.font = '10px sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(n.color === 'red' ? '🔴' : '⚫', n.x + 22, n.y - 8);
+    }
+  }
+}
+
+// ===================== 数据生成 =====================
+function generateBST(values) {
+  if (!values || values.length === 0) return null;
+  let root = null;
+  for (const v of values) {
+    root = bstInsert(root, v);
+  }
+  return root;
+}
+
+function bstInsert(root, val) {
+  if (!root) return new TreeNode(val);
+  if (val < root.val) root.left = bstInsert(root.left, val);
+  else if (val > root.val) root.right = bstInsert(root.right, val);
+  return root;
+}
+
+function bstSearchSteps(root, target) {
+  const steps = [];
+  steps.push({ highlights: {}, msg: `从根节点开始查找目标 ${target}`, line: 3 });
+  let cur = root;
+  const pathSet = new Set();
+  while (cur) {
+    pathSet.add(cur);
+    steps.push({ highlights: { current: cur, path: pathSet }, msg: `访问节点 ${cur.val}`, line: 4 });
+    if (cur.val === target) {
+      steps.push({ highlights: { found: cur, path: pathSet }, msg: `✓ 找到目标 ${target}！`, line: 5 });
+      return steps;
+    } else if (target < cur.val) {
+      steps.push({ highlights: { current: cur, path: pathSet, leftPtr: cur.left }, msg: `${target} < ${cur.val}，向左子树查找`, line: 6 });
+      cur = cur.left;
+    } else {
+      steps.push({ highlights: { current: cur, path: pathSet, rightPtr: cur.right }, msg: `${target} > ${cur.val}，向右子树查找`, line: 7 });
+      cur = cur.right;
+    }
+  }
+  steps.push({ highlights: { path: pathSet }, msg: `✗ 未找到目标 ${target}（到达空节点）`, line: 13 });
+  return steps;
+}
+
+// ===================== AVL =====================
+function avlHeight(n) { return n ? n.height : 0; }
+function avlGetBF(n) { return n ? avlHeight(n.left) - avlHeight(n.right) : 0; }
+function avlUpdateHeight(n) { n.height = 1 + Math.max(avlHeight(n.left), avlHeight(n.right)); }
+
+function avlRightRotate(y) {
+  const x = y.left;
+  const T2 = x.right;
+  x.right = y;
+  y.left = T2;
+  avlUpdateHeight(y);
+  avlUpdateHeight(x);
+  return x;
+}
+
+function avlLeftRotate(x) {
+  const y = x.right;
+  const T2 = y.left;
+  y.left = x;
+  x.right = T2;
+  avlUpdateHeight(x);
+  avlUpdateHeight(y);
+  return y;
+}
+
+function avlInsert(root, val, steps, path) {
+  if (!root) {
+    const n = new TreeNode(val);
+    n.bfDisplay = 0;
+    steps.push({ highlights: {}, msg: `插入新节点 ${val}`, line: 11, tree: null, insertVal: val });
+    return n;
+  }
+  path = path || [];
+  path.push(root);
+  steps.push({ highlights: { current: root, path: new Set(path) }, msg: `比较 ${val} 与节点 ${root.val}`, line: 12 });
+  if (val < root.val) {
+    root.left = avlInsert(root.left, val, steps, path);
+  } else if (val > root.val) {
+    root.right = avlInsert(root.right, val, steps, path);
+  } else return root;
+
+  avlUpdateHeight(root);
+  root.bfDisplay = avlGetBF(root);
+  const bf = root.bfDisplay;
+  steps.push({ highlights: { current: root, path: new Set(path) }, msg: `节点 ${root.val} 高度=${root.height}，平衡因子=${bf}`, line: 15 });
+
+  // 检查平衡
+  if (bf > 1 && val < root.left.val) {
+    steps.push({ highlights: { current: root, path: new Set(path), rotate: new Set([root, root.left]) }, msg: `LL 失衡：对 ${root.val} 右旋`, line: 20 });
+    return avlRightRotate(root);
+  }
+  if (bf < -1 && val > root.right.val) {
+    steps.push({ highlights: { current: root, path: new Set(path), rotate: new Set([root, root.right]) }, msg: `RR 失衡：对 ${root.val} 左旋`, line: 23 });
+    return avlLeftRotate(root);
+  }
+  if (bf > 1 && val > root.left.val) {
+    steps.push({ highlights: { current: root, path: new Set(path), rotate: new Set([root, root.left, root.left.right]) }, msg: `LR 失衡：先左旋左子，再右旋`, line: 26 });
+    root.left = avlLeftRotate(root.left);
+    return avlRightRotate(root);
+  }
+  if (bf < -1 && val < root.right.val) {
+    steps.push({ highlights: { current: root, path: new Set(path), rotate: new Set([root, root.right, root.right.left]) }, msg: `RL 失衡：先右旋右子，再左旋`, line: 30 });
+    root.right = avlRightRotate(root.right);
+    return avlLeftRotate(root);
+  }
+  steps.push({ highlights: { current: root, path: new Set(path) }, msg: `节点 ${root.val} 平衡因子=${bf}，无需调整`, line: 33 });
+  return root;
+}
+
+function buildAVLSteps(root, target) {
+  const steps = [];
+  steps.push({ highlights: {}, msg: `开始查找目标 ${target}`, line: 2 });
+  let cur = root;
+  const pathSet = new Set();
+  while (cur) {
+    pathSet.add(cur);
+    steps.push({ highlights: { current: cur, path: pathSet }, msg: `访问节点 ${cur.val}（高度=${cur.height}，平衡因子=${cur.bfDisplay}）`, line: 2 });
+    if (cur.val === target) {
+      steps.push({ highlights: { found: cur, path: pathSet }, msg: `✓ 找到目标 ${target}！`, line: 2 });
+      return steps;
+    } else if (target < cur.val) {
+      steps.push({ highlights: { current: cur, path: pathSet, leftPtr: cur.left }, msg: `${target} < ${cur.val}，向左`, line: 2 });
+      cur = cur.left;
+    } else {
+      steps.push({ highlights: { current: cur, path: pathSet, rightPtr: cur.right }, msg: `${target} > ${cur.val}，向右`, line: 2 });
+      cur = cur.right;
+    }
+  }
+  steps.push({ highlights: { path: pathSet }, msg: `✗ 未找到目标 ${target}`, line: 2 });
+  return steps;
+}
+
+// ===================== RBT =====================
+function rbtBuild(values) {
+  if (!values.length) return null;
+  let root = null;
+  for (const v of values) root = rbtInsert(root, v);
+  if (root) root.color = 'black';
+  return root;
+}
+
+function rbtInsert(root, val) {
+  if (!root) { const n = new TreeNode(val); n.color = 'red'; return n; }
+  if (val < root.val) root.left = rbtInsert(root.left, val);
+  else if (val > root.val) root.right = rbtInsert(root.right, val);
+  else return root;
+  // 左左红红
+  if (isRed(root.left) && isRed(root.left.left)) {
+    if (isRed(root.right)) { flipColors(root); }
+    else { root = rotateRight(root); }
+  }
+  // 左右红红
+  if (isRed(root.left) && isRed(root.left.right)) {
+    if (isRed(root.right)) { flipColors(root); }
+    else { root.left = rotateLeft(root.left); root = rotateRight(root); }
+  }
+  // 右右红红
+  if (isRed(root.right) && isRed(root.right.right)) {
+    if (isRed(root.left)) { flipColors(root); }
+    else { root = rotateLeft(root); }
+  }
+  // 右左红红
+  if (isRed(root.right) && isRed(root.right.left)) {
+    if (isRed(root.left)) { flipColors(root); }
+    else { root.right = rotateRight(root.right); root = rotateLeft(root); }
+  }
+  return root;
+}
+
+function isRed(n) { return n && n.color === 'red'; }
+
+function rotateRight(h) {
+  const x = h.left;
+  h.left = x.right;
+  x.right = h;
+  x.color = h.color;
+  h.color = 'red';
+  return x;
+}
+
+function rotateLeft(h) {
+  const x = h.right;
+  h.right = x.left;
+  x.left = h;
+  x.color = h.color;
+  h.color = 'red';
+  return x;
+}
+
+function flipColors(h) {
+  h.color = 'red';
+  h.left.color = 'black';
+  h.right.color = 'black';
+}
+
+function rbtSearchSteps(root, target) {
+  const steps = [];
+  steps.push({ highlights: {}, msg: `开始查找目标 ${target}（红色节点 ⚠ 需检查规则）`, line: 7 });
+  let cur = root;
+  const pathSet = new Set();
+  while (cur) {
+    pathSet.add(cur);
+    const extra = cur.color === 'red' ? '（红）' : '（黑）';
+    steps.push({ highlights: { current: cur, path: pathSet }, msg: `访问 ${cur.val}${extra}`, line: 8 });
+    if (cur.val === target) {
+      steps.push({ highlights: { found: cur, path: pathSet }, msg: `✓ 找到目标 ${target} ！`, line: 9 });
+      return steps;
+    } else if (target < cur.val) {
+      steps.push({ highlights: { current: cur, path: pathSet }, msg: `${target} < ${cur.val}，向左`, line: 10 });
+      cur = cur.left;
+    } else {
+      steps.push({ highlights: { current: cur, path: pathSet }, msg: `${target} > ${cur.val}，向右`, line: 11 });
+      cur = cur.right;
+    }
+  }
+  steps.push({ highlights: { path: pathSet }, msg: `✗ 未找到目标 ${target}（红黑树查找与 BST 相同）`, line: 12 });
+  return steps;
+}
+
+// ===================== B-Tree =====================
+function bTreeGenerate(t, keys) {
+  const root = new BTreeNode(t, true);
+  for (const k of keys) bTreeInsert(root, k);
+  return root;
+}
+
+function bTreeInsert(root, key) {
+  if (root.n === 2 * root.t - 1) {
+    const s = new BTreeNode(root.t, false);
+    s.children[0] = root;
+    bTreeSplitChild(s, 0, root);
+    bTreeInsertNonFull(s, key);
+    return s;
+  }
+  bTreeInsertNonFull(root, key);
+  return root;
+}
+
+function bTreeSplitChild(parent, idx, child) {
+  const t = child.t;
+  const z = new BTreeNode(t, child.leaf);
+  z.n = t - 1;
+  for (let j = 0; j < t - 1; j++) z.keys[j] = child.keys[j + t];
+  if (!child.leaf) {
+    for (let j = 0; j < t; j++) z.children[j] = child.children[j + t];
+  }
+  child.n = t - 1;
+  for (let j = parent.n; j >= idx + 1; j--) parent.children[j + 1] = parent.children[j];
+  parent.children[idx + 1] = z;
+  for (let j = parent.n - 1; j >= idx; j--) parent.keys[j + 1] = parent.keys[j];
+  parent.keys[idx] = child.keys[t - 1];
+  parent.n++;
+}
+
+function bTreeInsertNonFull(node, key) {
+  let i = node.n - 1;
+  if (node.leaf) {
+    while (i >= 0 && key < node.keys[i]) { node.keys[i + 1] = node.keys[i]; i--; }
+    node.keys[i + 1] = key;
+    node.n++;
+  } else {
+    while (i >= 0 && key < node.keys[i]) i--;
+    i++;
+    if (node.children[i].n === 2 * node.t - 1) {
+      bTreeSplitChild(node, i, node.children[i]);
+      if (key > node.keys[i]) i++;
+    }
+    bTreeInsertNonFull(node.children[i], key);
+  }
+}
+
+function bTreeSearchSteps(root, target, t) {
+  const steps = [];
+  const allNodes = [];
+
+  function collect(n, depth) {
+    if (!n) return;
+    n._depth = depth;
+    allNodes.push(n);
+    if (!n.leaf) for (const c of n.children) collect(c, depth + 1);
+  }
+  collect(root, 0);
+
+  steps.push({ highlights: {}, msg: `开始搜索目标 ${target}，B树阶数 t=${t}（每个节点最多 ${2*t-1} 个关键字）`, line: 8 });
+
+  function doSearch(node, depth) {
+    let i = 0;
+    const path = new Set();
+    while (i < node.n && target > node.keys[i]) i++;
+    steps.push({ highlights: { current: node }, msg: `在节点中查找：第 ${i+1} 个关键字为 ${i < node.n ? node.keys[i] : '无'}`, line: 9 });
+    if (i < node.n && node.keys[i] === target) {
+      steps.push({ highlights: { found: node }, msg: `✓ 找到目标 ${target} ！`, line: 10 });
+      return true;
+    }
+    if (node.leaf) {
+      steps.push({ highlights: {}, msg: `✗ 到达叶节点，未找到目标 ${target}`, line: 11 });
+      return false;
+    }
+    steps.push({ highlights: { current: node }, msg: `进入第 ${i+1} 个子树继续查找`, line: 12 });
+    return doSearch(node.children[i], depth + 1);
+  }
+
+  doSearch(root, 0);
+  return steps;
+}
+
+// BTree layout
+function bTreeLayout(root, canvasW) {
+  if (!root) return;
+  const nodes = [];
+  function collect(n, d) { if (!n) return; nodes.push(n); n._depth = d; if (!n.leaf) for (const c of n.children) collect(c, d + 1); }
+  collect(root, 0);
+  const maxDepth = Math.max(...nodes.map(n => n._depth));
+  const levels = Array.from({length: maxDepth + 1}, () => []);
+  for (const n of nodes) levels[n._depth].push(n);
+  const yGap = Math.min(100, Math.max(50, (320 - 40) / (maxDepth + 1)));
+  let maxCount = 1;
+  for (const lev of levels) maxCount = Math.max(maxCount, lev.length);
+  for (let d = 0; d < levels.length; d++) {
+    const lev = levels[d];
+    const xGap = Math.min(120, Math.max(40, (canvasW - 40) / (lev.length + 1)));
+    for (let i = 0; i < lev.length; i++) {
+      lev[i].x = xGap * (i + 1);
+      lev[i].y = 40 + d * yGap;
+    }
+  }
+}
+
+// ===================== Trie =====================
+let trieNextId = 0;
+
+function trieInsert(root, word) {
+  let cur = root;
+  const path = [cur];
+  for (const ch of word) {
+    if (!cur.children[ch]) {
+      cur.children[ch] = new TrieNode(ch);
+      cur.children[ch].id = trieNextId++;
+    }
+    cur = cur.children[ch];
+    path.push(cur);
+  }
+  cur.isEnd = true;
+  return path;
+}
+
+function trieSearchSteps(root, word, allWords) {
+  const steps = [];
+  const emptyPath = new Set();
+  steps.push({ highlights: {}, msg: `开始在字典树中搜索「${word}」`, line: 13 });
+
+  let cur = root;
+  const visited = new Set();
+
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    visited.add(cur);
+    if (cur.children[ch]) {
+      cur = cur.children[ch];
+      visited.add(cur);
+      steps.push({ highlights: { current: cur, path: visited }, msg: `字符「${ch}」→ 向下查找，当前路径前缀「${word.slice(0, i+1)}」`, line: 14 });
+    } else {
+      steps.push({ highlights: { current: cur, path: visited }, msg: `✗ 字符「${ch}」不存在于字典树中，查找失败`, line: 15 });
+      return steps;
+    }
+  }
+
+  if (cur.isEnd) {
+    steps.push({ highlights: { found: cur, path: visited }, msg: `✓ 找到完整单词「${word}」！`, line: 16 });
+  } else {
+    steps.push({ highlights: { current: cur, path: visited }, msg: `路径存在但「${word}」不是一个完整单词（仅为前缀）`, line: 16 });
+  }
+  return steps;
+}
+
+function trieLayout(root, canvasW, canvasH) {
+  if (!root) return;
+  const nodes = [];
+  function collect(n, d) { nodes.push(n); n._depth = d; for (const ch of Object.values(n.children)) collect(ch, d + 1); }
+  collect(root, 0);
+  const maxDepth = Math.max(...nodes.map(n => n._depth));
+  const levels = Array.from({length: maxDepth + 1}, () => []);
+  for (const n of nodes) levels[n._depth].push(n);
+
+  const yGap = Math.min(80, Math.max(50, (canvasH - 60) / (maxDepth + 1)));
+  for (let d = 0; d < levels.length; d++) {
+    const lev = levels[d];
+    const xGap = Math.min(80, Math.max(30, (canvasW - 20) / (lev.length + 1)));
+    for (let i = 0; i < lev.length; i++) {
+      lev[i].x = xGap * (i + 1) + (d % 2 === 0 ? 0 : xGap / 2);
+      lev[i].y = 30 + d * yGap;
+    }
+  }
+}
+
+function trieDraw(ctx, root, highlights) {
+  if (!root) return;
+  const nodes = [];
+  const edges = [];
+  function collect(n) { nodes.push(n); for (const c of Object.values(n.children)) { edges.push([n, c]); collect(c); } }
+  collect(root);
+
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth = 2;
+  for (const [p, c] of edges) {
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + 16);
+    ctx.lineTo(c.x, c.y - 16);
+    ctx.stroke();
+  }
+
+  for (const n of nodes) {
+    const isCurrent = highlights.current === n;
+    const isFound = highlights.found === n;
+    const isPath = highlights.path && highlights.path.has(n);
+
+    let bg = '#4a6cf7';
+    let textColor = '#fff';
+    let borderW = 2;
+
+    if (isFound) { bg = '#4caf50'; borderW = 3; }
+    else if (isCurrent) { bg = '#ff9800'; borderW = 3; }
+    else if (isPath && n !== root) { bg = '#7c4dff'; }
+
+    const r = 18;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = borderW;
+    ctx.stroke();
+
+    // 字符
+    if (n.ch) {
+      ctx.fillStyle = textColor;
+      ctx.font = '15px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.ch, n.x, n.y);
+    }
+
+    // isEnd 标记
+    if (n.isEnd) {
+      ctx.fillStyle = '#4caf50';
+      ctx.font = '10px sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText('End', n.x + 20, n.y - 10);
+    }
+  }
+}
+
+// ===================== Hash Table =====================
+function hashTableBuild(capacity, pairs) {
+  const table = Array.from({length: capacity}, () => []);
+  for (const [k, v] of pairs) {
+    const idx = k % capacity;
+    table[idx].push({key: k, val: v});
+  }
+  return table;
+}
+
+function hashSearchSteps(table, target) {
+  const steps = [];
+  const cap = table.length;
+  const hashVal = ((target % cap) + cap) % cap;
+  steps.push({ hashIdx: hashVal, table: JSON.parse(JSON.stringify(table)), highlights: [], line: 16, msg: `计算哈希：${target} % ${cap} = ${hashVal}，定位到桶 [${hashVal}]` });
+
+  const bucket = table[hashVal];
+  if (bucket.length === 0) {
+    steps.push({ hashIdx: hashVal, table: JSON.parse(JSON.stringify(table)), highlights: [], line: 17, msg: `桶 [${hashVal}] 为空，目标不存在` });
+    return steps;
+  }
+
+  for (let i = 0; i < bucket.length; i++) {
+    const entry = bucket[i];
+    steps.push({ hashIdx: hashVal, table: JSON.parse(JSON.stringify(table)), highlights: [{bucketIdx: hashVal, entryIdx: i}], line: 18, msg: `遍历桶 [${hashVal}] 第 ${i+1} 个节点：key=${entry.key} ${entry.key === target ? '✓ 匹配！' : '≠ ' + target}` });
+    if (entry.key === target) {
+      steps.push({ hashIdx: hashVal, table: JSON.parse(JSON.stringify(table)), highlights: [{bucketIdx: hashVal, entryIdx: i, found: true}], line: 19, msg: `✓ 找到！key=${target} 对应的值为 ${entry.val}` });
+      return steps;
+    }
+  }
+  steps.push({ hashIdx: hashVal, table: JSON.parse(JSON.stringify(table)), highlights: [{bucketIdx: hashVal, entryIdx: -1}], line: 21, msg: `✗ 未找到 key=${target}` });
+  return steps;
+}
+
+// ===================== 面板构建 =====================
+function initPanel(idx) {
+  const data = ALGO_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  const codeStr = data.javaCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = codeStr.split('\n');
+  let codeHTML = '<pre><code>';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    codeHTML += `<div class="code-line" data-line="${ln}"><span class="lineno">${ln}</span><span class="line-code">${lines[i]}</span></div>`;
+  }
+  codeHTML += '</code></pre>';
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}（${data.nameEn}）</h2>
+      <div class="sub">${data.desc}</div>
+    </div>
+    <div class="complexity">
+      <span class="label">时间复杂度</span>
+      <span><span class="badge-best">●</span> 最优 ${data.timeBest}</span>
+      <span><span class="badge-avg">●</span> 平均 ${data.timeAvg}</span>
+      <span><span class="badge-worst">●</span> 最坏 ${data.timeWorst}</span>
+      <span>空间复杂度 ${data.space}</span>
+      <button class="copy-btn" data-idx="${idx}" style="margin-left:auto;">复制代码</button>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-header"><span class="lang-label">Java</span></div>
+        <div class="code-scroll">${codeHTML}</div>
+      </div>
+      <div class="vis-section">
+        <div class="target-info" id="targetInfo-${idx}"><strong id="targetVal-${idx}">?</strong></div>
+        <div class="legend" id="legend-${idx}"></div>
+        <div class="vis-msg" id="msg-${idx}">点击「重置」生成数据并开始</div>
+        <div class="vis-canvas-wrap"><canvas id="canvas-${idx}"></canvas></div>
+        <div class="controls">
+          <button class="btn-first" data-idx="${idx}">|◀ 首步</button>
+          <button class="btn-prev" data-idx="${idx}">◀ 上一步</button>
+          <button class="btn-next btn-primary" data-idx="${idx}">下一步 ▶</button>
+          <button class="btn-last" data-idx="${idx}">末步 ▶|</button>
+          <button class="btn-auto" data-idx="${idx}">播放 自动</button>
+          <label>速度 <input type="range" class="speed-slider" min="1" max="10" value="5" data-idx="${idx}"></label>
+          <label>操作 <select class="action-select" data-idx="${idx}"></select></label>
+          <button class="btn-reset" data-idx="${idx}">🔄 重置</button>
+          <span class="step-info" id="stepInfo-${idx}">步骤 0 / 0</span>
+        </div>
+      </div>
+    </div>
+    <div class="algo-desc"><strong>算法说明：</strong>${data.desc}</div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  const canvas = panel.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const nextBtn = panel.querySelector('.btn-next');
+  const prevBtn = panel.querySelector('.btn-prev');
+  const firstBtn = panel.querySelector('.btn-first');
+  const lastBtn = panel.querySelector('.btn-last');
+  const autoBtn = panel.querySelector('.btn-auto');
+  const speedSlider = panel.querySelector('.speed-slider');
+  const actionSelect = panel.querySelector('.action-select');
+  const resetBtn = panel.querySelector('.btn-reset');
+
+  const state = {
+    idx: idx,
+    steps: [], stepIdx: 0,
+    tree: null, btree: null, trie: null, hashTable: null,
+    target: null, action: 'search',
+    running: false, timer: null, size: 12
+  };
+  panelData[idx] = state;
+
+  // 不同算法的图例
+  function updateLegend() {
+    const el = document.getElementById('legend-' + idx);
+    if (!el) return;
+    if (idx === 2) { // RBT
+      el.innerHTML = `
+        <span class="legend-item"><span class="legend-dot" style="background:#e44"></span> 红色节点</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#555"></span> 黑色节点</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span> 当前访问</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span> 已找到</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#7c4dff"></span> 查找路径</span>
+      `;
+    } else if (idx === 1) { // AVL
+      el.innerHTML = `
+        <span class="legend-item"><span class="legend-dot" style="background:#4a6cf7"></span> 节点</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span> 当前访问</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#e91e63"></span> 旋转操作</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span> 已找到</span>
+        <span class="legend-item">BF=平衡因子</span>
+      `;
+    } else if (idx === 5) { // Hash
+      el.innerHTML = `
+        <span class="legend-item"><span class="legend-dot" style="background:#4a6cf7"></span> 桶</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span> 当前遍历</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span> 已找到</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#e0e0e0"></span> 空桶</span>
+      `;
+    } else if (idx === 4) { // Trie
+      el.innerHTML = `
+        <span class="legend-item"><span class="legend-dot" style="background:#4a6cf7"></span> 节点</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span> 当前字符</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span> 已找到</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#7c4dff"></span> 已访问路径</span>
+        <span class="legend-item"><span style="color:#4caf50">End</span> 单词结尾</span>
+      `;
+    } else {
+      el.innerHTML = `
+        <span class="legend-item"><span class="legend-dot" style="background:#4a6cf7"></span> 节点</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span> 当前访问</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#4caf50"></span> 已找到</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#00bcd4"></span> 左子树</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#e91e63"></span> 右子树</span>
+      `;
+    }
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    const rect = wrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = rect.width || 500;
+    const h = rect.height || 320;
+    if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+    }
+    return { w, h, dpr };
+  }
+
+  function render() {
+    const { w, h, dpr } = resizeCanvas();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    if (!state.steps.length || state.stepIdx >= state.steps.length) return;
+    const step = state.steps[state.stepIdx];
+    if (!step) return;
+
+    const info = document.getElementById('stepInfo-' + idx);
+    if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
+    const msgEl = document.getElementById('msg-' + idx);
+    if (msgEl) msgEl.textContent = step.msg || '';
+    const targetValEl = document.getElementById('targetVal-' + idx);
+    if (targetValEl) targetValEl.textContent = `🎯 目标值：${state.target !== null && state.target !== undefined ? state.target : ''}`;
+
+    // 高亮代码行
+    const codeLines = panel.querySelectorAll('.code-line');
+    codeLines.forEach(el => el.classList.remove('highlight-line'));
+    if (step.line > 0) {
+      const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+      if (target) target.classList.add('highlight-line');
+    }
+
+    // 根据算法类型绘制
+    if (idx === 5) {
+      drawHashTable(ctx, step, w, h);
+    } else if (idx === 4) {
+      if (state.trie) {
+        trieLayout(state.trie, w, h);
+        trieDraw(ctx, state.trie, step.highlights || {});
+      }
+    } else if (idx === 3) {
+      if (state.btree) {
+        bTreeLayout(state.btree, w);
+        const bNodes = [];
+        function collectB(n) { if (!n) return; bNodes.push(n); if (!n.leaf) for (const c of n.children) collectB(c); }
+        collectB(state.btree);
+        for (const n of bNodes) {
+          const isCurrent = step.highlights && step.highlights.current === n;
+          const isFound = step.highlights && step.highlights.found === n;
+          let bg = '#4a6cf7';
+          if (isFound) bg = '#4caf50';
+          else if (isCurrent) bg = '#ff9800';
+          const kw = 30, kh = 24;
+          const kKeys = n.keys || [];
+          const totalW = kKeys.length * kw + 4;
+          ctx.fillStyle = bg;
+          ctx.fillRect(n.x - totalW / 2, n.y - kh / 2, totalW, kh);
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(n.x - totalW / 2, n.y - kh / 2, totalW, kh);
+          ctx.fillStyle = '#fff';
+          ctx.font = '12px Consolas, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          for (let ki = 0; ki < kKeys.length; ki++) {
+            ctx.fillText(String(kKeys[ki]), n.x - totalW / 2 + kw / 2 + ki * kw, n.y);
+            if (ki < kKeys.length - 1) {
+              ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+              ctx.beginPath();
+              ctx.moveTo(n.x - totalW / 2 + kw + ki * kw, n.y - kh / 2);
+              ctx.lineTo(n.x - totalW / 2 + kw + ki * kw, n.y + kh / 2);
+              ctx.stroke();
+            }
+          }
+        }
+        // 绘制边
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 2;
+        function drawBEdges(n) {
+          if (!n || n.leaf) return;
+          for (let i = 0; i < n.children.length; i++) {
+            const c = n.children[i];
+            if (!c) continue;
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y + 12);
+            ctx.lineTo(c.x, c.y - 12);
+            ctx.stroke();
+            drawBEdges(c);
+          }
+        }
+        drawBEdges(state.btree);
+      }
+    } else {
+      if (state.tree) {
+        layoutTree(state.tree, w);
+        drawTree(ctx, state.tree, step.highlights || {}, idx, null);
+      } else {
+        ctx.fillStyle = '#999';
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('点击「重置」生成树', w / 2, h / 2);
+      }
+    }
+  }
+
+  // ===== 哈希表绘制 =====
+  function drawHashTable(ctx, step, w, h) {
+    const table = step.table || [];
+    const cap = table.length;
+    if (cap === 0) {
+      ctx.fillStyle = '#999';
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('点击「重置」生成数据', w / 2, h / 2);
+      return;
+    }
+
+    const cellW = 70;
+    const cellH = 36;
+    const maxBucketLen = Math.max(...table.map(b => b.length), 1);
+    const totalH = cap * cellH + 10;
+    const startY = Math.max(20, (h - totalH) / 2);
+    const startX = 30;
+
+    // 绘制每行
+    for (let i = 0; i < cap; i++) {
+      const y = startY + i * cellH;
+      // 索引列
+      ctx.fillStyle = '#f0f2f5';
+      ctx.fillRect(startX, y, cellW, cellH - 4);
+      ctx.strokeStyle = '#ddd';
+      ctx.strokeRect(startX, y, cellW, cellH - 4);
+      ctx.fillStyle = '#666';
+      ctx.font = '13px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`[${i}]`, startX + cellW / 2, y + (cellH - 4) / 2);
+
+      // 桶内容（链表）
+      const bucket = table[i];
+      if (bucket.length === 0) {
+        ctx.fillStyle = '#e0e0e0';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('∅', startX + cellW + 12, y + (cellH - 4) / 2);
+      } else {
+        let cx = startX + cellW + 8;
+        for (let bi = 0; bi < bucket.length; bi++) {
+          const entry = bucket[bi];
+          const isHighlight = step.highlights && step.highlights.some(h => h.bucketIdx === i && (h.entryIdx === bi || h.entryIdx === -1));
+          const isFound = step.highlights && step.highlights.some(h => h.bucketIdx === i && h.found);
+          const isEnd = step.highlights && step.highlights.some(h => h.bucketIdx === i && h.entryIdx === -1 && bi >= bucket.length - 1);
+
+          const nw = 70;
+          const nh = cellH - 4;
+          let bg = '#4a6cf7';
+          if (isFound) bg = '#4caf50';
+          else if (isHighlight) bg = '#ff9800';
+          else if (isEnd) bg = '#d0d0d0';
+
+          ctx.fillStyle = bg;
+          ctx.fillRect(cx, y, nw, nh);
+          ctx.strokeStyle = '#aaa';
+          ctx.strokeRect(cx, y, nw, nh);
+          ctx.fillStyle = '#fff';
+          ctx.font = '11px Consolas, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${entry.key}:${entry.val}`, cx + nw / 2, y + nh / 2);
+
+          // 箭头
+          ctx.fillStyle = '#999';
+          ctx.font = '16px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('→', cx + nw + 5, y + nh / 2);
+
+          cx += nw + 16;
+          if (cx > w - 30) break;
+        }
+        // 末尾 null
+        ctx.fillStyle = '#ccc';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('null', cx - 10, y + (cellH - 4) / 2);
+      }
+    }
+
+    // 哈希计算标注
+    if (step.hashIdx !== undefined) {
+      const hy = startY + step.hashIdx * cellH;
+      ctx.fillStyle = '#ff9800';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('← hash bucket', startX + w - 140, hy + cellH / 2);
+      // 高亮该行
+      ctx.fillStyle = 'rgba(255, 152, 0, 0.1)';
+      ctx.fillRect(startX, hy, w - startX - 10, cellH - 4);
+    }
+  }
+
+  // ===== 步骤生成 =====
+  function generate() {
+    state.stepIdx = 0;
+    state.steps = [];
+
+    if (idx === 5) { // Hash Table
+      const cap = Math.max(4, Math.floor(state.size / 2));
+      const maxKey = cap * 5;
+      const pairs = [];
+      const usedKeys = new Set();
+      const numPairs = Math.min(state.size, cap * 2);
+      for (let i = 0; i < numPairs; i++) {
+        let k;
+        do { k = Math.floor(Math.random() * maxKey) + 1; } while (usedKeys.has(k));
+        usedKeys.add(k);
+        pairs.push([k, Math.floor(Math.random() * 1000)]);
+      }
+      state.hashTable = hashTableBuild(cap, pairs);
+      // 70% 选存在的key
+      let target;
+      if (pairs.length > 0 && Math.random() < 0.7) {
+        target = pairs[Math.floor(Math.random() * pairs.length)][0];
+      } else {
+        target = Math.floor(Math.random() * maxKey * 1.5) + 1;
+      }
+      state.target = target;
+      state.steps = hashSearchSteps(state.hashTable, target);
+      render();
+      updateButtons();
+      return;
+    }
+
+    if (idx === 4) { // Trie
+      trieNextId = 0;
+      state.trie = new TrieNode(null);
+
+      const wordList = ['cat', 'car', 'dog', 'do', 'done', 'dot', 'bat', 'bag', 'big', 'dig'];
+      const selected = wordList.slice(0, Math.min(state.size, wordList.length));
+      for (const w of selected) trieInsert(state.trie, w);
+
+      let target;
+      if (Math.random() < 0.6) {
+        target = selected[Math.floor(Math.random() * selected.length)];
+      } else {
+        const prefixes = ['ca', 'do', 'ba', 'bi', 'di', 'da', 'co', 'da'];
+        target = prefixes[Math.floor(Math.random() * prefixes.length)] +
+                 String.fromCharCode(97 + Math.floor(Math.random() * 26));
+      }
+      // 填充操作选择
+      actionSelect.innerHTML = '';
+      const allWords = [...new Set([...selected, ...selected.map(w => w.slice(0, Math.floor(w.length/2)+1))])];
+      const opts = [...new Set([...allWords, 'cat', 'car', 'dog', 'done', 'bat', 'can', 'run', target])];
+      for (const w of opts) {
+        const opt = document.createElement('option');
+        opt.value = w;
+        opt.textContent = w + (selected.includes(w) ? '' : ' (不存在)');
+        if (w === target) opt.selected = true;
+        actionSelect.appendChild(opt);
+      }
+      state.target = target;
+      state.steps = trieSearchSteps(state.trie, target, selected);
+      render();
+      updateButtons();
+      return;
+    }
+
+    if (idx === 3) { // B-Tree
+      const t = 3;
+      const values = [];
+      const count = Math.min(state.size, 12);
+      const usedV = new Set();
+      let bLastV = null;
+      for (let i = 0; i < count; i++) {
+        let v;
+        do { v = Math.floor(Math.random() * 150) + 5; } while (usedV.has(v));
+        usedV.add(v);
+        values.push(v);
+        bLastV = v;
+      }
+      values.sort((a, b) => a - b);
+      state.btree = null;
+      for (const kv of values) state.btree = bTreeInsert(state.btree || new BTreeNode(t, true), kv);
+      state.btree = state.btree || new BTreeNode(t, true);
+
+      let target;
+      if (values.length > 0 && Math.random() < 0.6) {
+        target = values[Math.floor(Math.random() * values.length)];
+      } else {
+        target = Math.floor(Math.random() * (bLastV + 10)) + 1;
+      }
+      state.target = target;
+      state.steps = bTreeSearchSteps(state.btree, target, t);
+      render();
+      updateButtons();
+      return;
+    }
+
+    // BST / AVL / RBT
+    const values = [];
+    const count = Math.min(state.size, 15);
+    const usedVals = new Set();
+    let lastV = null;
+    for (let i = 0; i < count; i++) {
+      let v;
+      do { v = Math.floor(Math.random() * 200) + 5; } while (usedVals.has(v));
+      usedVals.add(v);
+      values.push(v);
+      lastV = v;
+    }
+
+    if (idx === 2) { // RBT
+      state.tree = rbtBuild(values);
+      let target;
+      if (values.length > 0 && Math.random() < 0.7) {
+        target = values[Math.floor(Math.random() * values.length)];
+      } else {
+        target = lastV + Math.floor(Math.random() * 10) + 1;
+      }
+      state.target = target;
+      state.steps = rbtSearchSteps(state.tree, target);
+    } else if (idx === 1) { // AVL
+      const steps = [];
+      state.tree = null;
+      for (const val of values) {
+        state.tree = avlInsert(state.tree, val, steps, []);
+      }
+      state.tree = state.tree;
+      let target;
+      if (values.length > 0 && Math.random() < 0.7) {
+        target = values[Math.floor(Math.random() * values.length)];
+      } else {
+        target = lastV + Math.floor(Math.random() * 10) + 1;
+      }
+      state.target = target;
+      state.steps = buildAVLSteps(state.tree, target);
+    } else { // BST
+      state.tree = generateBST(values);
+      let target;
+      if (values.length > 0 && Math.random() < 0.7) {
+        target = values[Math.floor(Math.random() * values.length)];
+      } else {
+        target = lastV + Math.floor(Math.random() * 10) + 1;
+      }
+      state.target = target;
+      state.steps = bstSearchSteps(state.tree, target);
+    }
+
+    render();
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const atFirst = state.stepIdx <= 0;
+    const atLast = state.stepIdx >= state.steps.length - 1;
+    firstBtn.disabled = atFirst;
+    prevBtn.disabled = atFirst;
+    nextBtn.disabled = atLast;
+    lastBtn.disabled = atLast;
+  }
+
+  // 事件绑定
+  const sizeSelect = document.createElement('select');
+  sizeSelect.className = 'size-select';
+  sizeSelect.innerHTML = '<option value="8">8</option><option value="12" selected>12</option><option value="16">16</option><option value="20">20</option>';
+  // 插入到 actionSelect 前面
+  const controlsEl = panel.querySelector('.controls');
+  const actionLabel = controlsEl.querySelector('label[for]') || controlsEl.querySelector('label');
+  controlsEl.insertBefore(sizeSelect, actionSelect.parentElement || actionSelect);
+  const sizeLabel = document.createElement('label');
+  sizeLabel.textContent = '数据量 ';
+  controlsEl.insertBefore(sizeLabel, sizeSelect);
+  sizeLabel.appendChild(sizeSelect);
+
+  sizeSelect.addEventListener('change', () => {
+    state.size = parseInt(sizeSelect.value);
+    generate();
+  });
+
+  actionSelect.addEventListener('change', () => {
+    if (idx === 4) {
+      state.target = actionSelect.value;
+      const selected = [];
+      function collectWords(n, prefix, set) {
+        if (n.isEnd) set.add(prefix);
+        for (const [ch, child] of Object.entries(n.children)) collectWords(child, prefix + ch, set);
+      }
+      const existSet = new Set();
+      if (state.trie) collectWords(state.trie, '', existSet);
+      state.steps = trieSearchSteps(state.trie, state.target, [...existSet]);
+      state.stepIdx = 0;
+      render();
+      updateButtons();
+    }
+  });
+
+  // 对于非Trie，搜索目标选择器
+  if (idx !== 4 && idx !== 5) {
+    const targetSelect = document.createElement('select');
+    targetSelect.className = 'target-select';
+    controlsEl.insertBefore(targetSelect, resetBtn);
+    const targetLabel = document.createElement('label');
+    targetLabel.textContent = '目标值 ';
+    controlsEl.insertBefore(targetLabel, targetSelect);
+    targetLabel.appendChild(targetSelect);
+
+    targetSelect.addEventListener('change', () => {
+      state.target = parseInt(targetSelect.value);
+      if (idx === 2) state.steps = rbtSearchSteps(state.tree, state.target);
+      else if (idx === 1) state.steps = buildAVLSteps(state.tree, state.target);
+      else state.steps = bstSearchSteps(state.tree, state.target);
+      state.stepIdx = 0;
+      render();
+      updateButtons();
+    });
+
+    // 在生成时填充 targetSelect
+    const origGenerate = generate;
+    generate = function() {
+      origGenerate.call(this);
+      if (state.tree) {
+        const vals = [];
+        function collect(n) { if (!n) return; vals.push(n.val); collect(n.left); collect(n.right); }
+        collect(state.tree);
+        const unique = [...new Set(vals)].sort((a, b) => a - b);
+        targetSelect.innerHTML = '';
+        for (const v of unique) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          if (v === state.target) opt.selected = true;
+          targetSelect.appendChild(opt);
+        }
+        // 添加不存在的选项
+        const nonExist = Math.max(...unique) + Math.floor(Math.random() * 10) + 1;
+        const opt = document.createElement('option');
+        opt.value = nonExist;
+        opt.textContent = nonExist + ' (不存在)';
+        targetSelect.appendChild(opt);
+      }
+    };
+  }
+
+  // B树 target select
+  if (idx === 3) {
+    const targetSelect = document.createElement('select');
+    targetSelect.className = 'target-select';
+    controlsEl.insertBefore(targetSelect, resetBtn);
+    const targetLabel = document.createElement('label');
+    targetLabel.textContent = '目标值 ';
+    controlsEl.insertBefore(targetLabel, targetSelect);
+    targetLabel.appendChild(targetSelect);
+    targetSelect.addEventListener('change', () => {
+      state.target = parseInt(targetSelect.value);
+      state.steps = bTreeSearchSteps(state.btree, state.target, 3);
+      state.stepIdx = 0;
+      render();
+      updateButtons();
+    });
+    const origGenerate = generate;
+    generate = function() {
+      origGenerate.call(this);
+      if (state.btree) {
+        const vals = [];
+        function collectB(n) { if (!n) return; n.keys.forEach(k => vals.push(k)); if (!n.leaf) n.children.forEach(c => collectB(c)); }
+        collectB(state.btree);
+        const unique = [...new Set(vals)].sort((a, b) => a - b);
+        targetSelect.innerHTML = '';
+        for (const v of unique) {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          if (v === state.target) opt.selected = true;
+          targetSelect.appendChild(opt);
+        }
+        const nonExist = (unique.length > 0 ? Math.max(...unique) : 50) + Math.floor(Math.random() * 10) + 1;
+        const opt = document.createElement('option');
+        opt.value = nonExist;
+        opt.textContent = nonExist + ' (不存在)';
+        targetSelect.appendChild(opt);
+      }
+    };
+  }
+
+  // Hash target select
+  if (idx === 5) {
+    const targetSelect = document.createElement('select');
+    targetSelect.className = 'target-select';
+    controlsEl.insertBefore(targetSelect, resetBtn);
+    const targetLabel = document.createElement('label');
+    targetLabel.textContent = '目标键 ';
+    controlsEl.insertBefore(targetLabel, targetSelect);
+    targetLabel.appendChild(targetSelect);
+    targetSelect.addEventListener('change', () => {
+      state.target = parseInt(targetSelect.value);
+      state.steps = hashSearchSteps(state.hashTable, state.target);
+      state.stepIdx = 0;
+      render();
+      updateButtons();
+    });
+    const origGenerate = generate;
+    generate = function() {
+      origGenerate.call(this);
+      if (state.hashTable) {
+        const keys = new Set();
+        for (const bucket of state.hashTable) for (const e of bucket) keys.add(e.key);
+        const sorted = [...keys].sort((a, b) => a - b);
+        targetSelect.innerHTML = '';
+        for (const k of sorted) {
+          const opt = document.createElement('option');
+          opt.value = k;
+          opt.textContent = k;
+          if (k === state.target) opt.selected = true;
+          targetSelect.appendChild(opt);
+        }
+        const nonExist = (sorted.length > 0 ? Math.max(...sorted) : 50) + Math.floor(Math.random() * 10) + 1;
+        const opt = document.createElement('option');
+        opt.value = nonExist;
+        opt.textContent = nonExist + ' (不存在)';
+        targetSelect.appendChild(opt);
+      }
+    };
+  }
+
+  nextBtn.addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+  });
+  prevBtn.addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
+  });
+  firstBtn.addEventListener('click', () => { state.stepIdx = 0; render(); updateButtons(); });
+  lastBtn.addEventListener('click', () => { state.stepIdx = state.steps.length - 1; render(); updateButtons(); });
+  resetBtn.addEventListener('click', generate);
+  autoBtn.addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false;
+      autoBtn.textContent = '播放 自动';
+    } else {
+      state.running = true;
+      autoBtn.textContent = '⏸ 暂停';
+      const speed = parseInt(speedSlider.value);
+      const delay = Math.max(30, 200 - speed * 15);
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) {
+          state.stepIdx++;
+          render();
+          updateButtons();
+        } else {
+          clearInterval(state.timer);
+          state.timer = null;
+          state.running = false;
+          autoBtn.textContent = '播放 自动';
+        }
+      }, delay);
+    }
+  });
+
+  panel.querySelector('.copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(data.javaCode).then(() => {
+      const btn = panel.querySelector('.copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = '✓ 已复制';
+      setTimeout(() => btn.textContent = orig, 1500);
+    }).catch(() => alert('复制失败'));
+  });
+
+  state.render = render;
+  panelData[idx] = state;
+  updateLegend();
+
+  // 初始生成
+  state.size = 12;
+  generate();
+
+  const ro = new ResizeObserver(() => render());
+  ro.observe(canvas.parentElement);
+
+  window.addEventListener('resize', () => render());
+}
+
+// ===================== 启动 =====================
+ALGO_DATA.forEach((_, idx) => {
+  panelData.push(null);
+  initPanel(idx);
+});
+
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '播放 自动');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    const s = panelData[idx];
+    if (s && s.render) s.render();
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Object、equals/hashCode 与 String · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 核心：语言根基</a><span aria-hidden="true">›</span><span aria-current="page">Object、equals/hashCode 与 String</span></nav><div class="module-meta">Java 语言 · 第 5 / 18 章</div><h1>Object、equals/hashCode 与 String</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>所有类的祖先都是 <code>Object</code>，而 <code>String</code> 是 Java 里使用频率最高的类，也是面试最爱深挖的类。这一章讲透两者的底层机制。</p>
+<h3>4.1 Object 的方法总览</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>作用</th>
+<th>注意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>equals(Object)</code></td>
+<td>内容相等比较</td>
+<td>默认是引用比较，需重写</td>
+</tr>
+<tr>
+<td><code>hashCode()</code></td>
+<td>返回散列值</td>
+<td>与 equals 有契约关系</td>
+</tr>
+<tr>
+<td><code>toString()</code></td>
+<td>字符串表示</td>
+<td>默认是 <code>类名@hashCode</code></td>
+</tr>
+<tr>
+<td><code>getClass()</code></td>
+<td>返回运行时 Class</td>
+<td>泛型擦除后取真实类型</td>
+</tr>
+<tr>
+<td><code>clone()</code></td>
+<td>浅拷贝</td>
+<td>protected native，需实现 Cloneable；深拷贝见下方说明</td>
+</tr>
+<tr>
+<td><code>wait()/notify()/notifyAll()</code></td>
+<td>线程等待/唤醒</td>
+<td>必须在 synchronized 块内，见并发课程</td>
+</tr>
+<tr>
+<td><code>finalize()</code></td>
+<td>对象回收前回调</td>
+<td>JDK 9 起弃用，不要使用</td>
+</tr>
+</tbody>
+</table>
+<p><code>clone()</code> 默认是<strong>浅拷贝</strong>：引用字段只复制引用，不复制被引用对象。需要深拷贝时，要么在 <code>clone()</code> 里手动复制每个可变字段，要么用序列化拷贝（实现 <code>Serializable</code> 后写字节再读回），或用拷贝构造器/工厂方法。</p>
+<h3>4.2 equals 的五条契约</h3>
+<p>重写 <code>equals</code> 必须满足：</p>
+<ol>
+<li><strong>自反</strong>：<code>x.equals(x)</code> 为 true；</li>
+<li><strong>对称</strong>：<code>x.equals(y)</code> 与 <code>y.equals(x)</code> 结果一致；</li>
+<li><strong>传递</strong>：<code>x.equals(y)</code>、<code>y.equals(z)</code> 为 true 时，<code>x.equals(z)</code> 必为 true；</li>
+<li><strong>一致</strong>：对象未修改时，多次调用结果一致；</li>
+<li><strong>非空性</strong>：<code>x.equals(null)</code> 为 false。</li>
+</ol>
+<p>标准写法（IDEA 可自动生成）：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Override</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">equals</span><span class="p">(</span><span class="n">Object</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">o</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">getClass</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="na">getClass</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="n">User</span><span class="w"> </span><span class="n">user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">User</span><span class="p">)</span><span class="w"> </span><span class="n">o</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">user</span><span class="p">.</span><span class="na">id</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">name</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">user</span><span class="p">.</span><span class="na">name</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>用 <code>getClass() != o.getClass()</code> 而不是 <code>instanceof</code>，可以避免子类与父类互相 equals 破坏对称性（如 <code>Person</code> 和 <code>Student</code> 用 instanceof 时可能双向为 true，但反过来比较结果不一致）。</p>
+<h3>4.3 hashCode 契约</h3>
+<ul>
+<li>两个对象 <code>equals</code> 相等，<code>hashCode</code> <strong>必须</strong>相等；</li>
+<li>两个对象 <code>hashCode</code> 不等，<code>equals</code> <strong>必然</strong>不等（逆否命题）；</li>
+<li>两个对象 <code>hashCode</code> 相等，<code>equals</code> 可能不等（哈希碰撞，合法）。</li>
+</ul>
+<p>这就是“重写 equals 必须重写 hashCode”的原因：HashMap 等散列容器先用 hashCode 定位桶，再用 equals 精确比较；桶里是 hashCode 相等但内容不同的对象，equals 就会返回 false，导致 <code>map.get(key)</code> 取不到值。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Override</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">hashCode</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">Objects</span><span class="p">.</span><span class="na">hash</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">);</span><span class="w">   </span><span class="c1">// 内部使用 31 作为乘数</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>为什么常用 31：它是奇素数，<code>31 * h + value</code> 在编译器里可优化为 <code>(h &lt;&lt; 5) - h</code>，碰撞率低且计算快。</p>
+<h3>4.4 String 的不可变性与常量池</h3>
+<p><code>String</code> 被 <code>final</code> 修饰，且 JDK 8 内部用 <code>char[]</code> 存储、JDK 9 起改用 <code>byte[] + coder</code>（紧凑字符串，Latin-1 字符只占 1 字节）。所有修改方法都返回新字符串，原对象不变。</p>
+<p><strong>为什么 String 要不可变</strong>：</p>
+<ol>
+<li><strong>缓存安全</strong>：字符串常量池、HashMap 的 key 依赖 hashCode，可变会导致散列失效；</li>
+<li><strong>线程安全</strong>：不可变对象天然可共享，无需同步；</li>
+<li><strong>安全</strong>：类加载器、网络地址、文件路径等敏感字符串不会被意外篡改；</li>
+<li><strong>性能</strong>：常量池复用，避免重复创建。</li>
+</ol>
+<p><strong>字符串常量池（String Pool）</strong>：</p>
+<ul>
+<li>JDK 7 之前位于方法区（PermGen），JDK 7 起移入堆；</li>
+<li>编译期字面量 <code>"abc"</code> 会入池；<code>new String("abc")</code> 在堆上新建对象，不改变池中内容；</li>
+<li><code>intern()</code> 方法把字符串加入池并返回池中的引用。</li>
+</ul>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 常量池中创建/复用</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;abc&quot;</span><span class="p">);</span><span class="w">     </span><span class="c1">// 堆上新建对象</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">      </span><span class="c1">// false</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">.</span><span class="na">intern</span><span class="p">());</span><span class="w"> </span><span class="c1">// true，intern 返回池中引用</span>
+
+<span class="n">String</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;a&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">;</span><span class="w">             </span><span class="c1">// 编译期常量折叠，等价于 &quot;ab&quot;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;ab&quot;</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s4</span><span class="p">);</span><span class="w">      </span><span class="c1">// true</span>
+</code></pre></div>
+<p>高频题：<code>new String("abc")</code> 创建几个对象？</p>
+<ul>
+<li>若常量池中没有 <code>"abc"</code>：创建 2 个（常量池的 <code>"abc"</code> + 堆上的 String 对象；实际还可能包含 <code>char[]</code>，可视为 2 个主要对象）；</li>
+<li>若常量池已有 <code>"abc"</code>：只创建 1 个堆对象。</li>
+</ul>
+<p>拼接细节：JDK 8 的 javac 会把变量拼接编译成 <code>StringBuilder.append</code>；JDK 9 起改用 <code>invokedynamic</code> + <code>StringConcatFactory</code>，但“每次拼接创建新对象”的本质不变，循环内拼接仍应手写 <code>StringBuilder</code>。</p>
+<h3>4.5 StringBuilder 与 StringBuffer</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>String</th>
+<th>StringBuilder</th>
+<th>StringBuffer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>可变</td>
+<td>否</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>线程安全</td>
+<td>是（不可变）</td>
+<td>否</td>
+<td>是（方法加 synchronized）</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>拼接最慢</td>
+<td>最快</td>
+<td>居中</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>常量/少量拼接</td>
+<td>单线程大量拼接</td>
+<td>多线程共享同一对象</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">1000</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">i</span><span class="p">);</span><span class="w">          </span><span class="c1">// 原地修改，不产生中间对象</span>
+<span class="p">}</span>
+<span class="n">String</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">();</span>
+</code></pre></div>
+<p>容量细节：<code>new StringBuilder()</code> 默认容量 16，容量不足时按“旧容量 × 2 + 2”扩容（<code>AbstractStringBuilder</code> 的 grow 逻辑）；能预估大小时用 <code>new StringBuilder(initialCapacity)</code> 预分配，减少扩容复制。</p>
+<h3>4.6 面试追问</h3>
+<ul>
+<li>问：为什么重写 equals 必须重写 hashCode？</li>
+<li>答：散列容器先用 hashCode 定位桶再用 equals 比较；违反契约会导致相同内容的对象放进不同桶，get 不到。</li>
+<li>问：<code>String s = new String("abc")</code> 创建了几个对象？</li>
+<li>答：取决于常量池是否已有 <code>"abc"</code>：没有则 2 个，已有则 1 个堆对象。</li>
+<li>问：<code>intern()</code> 的作用？</li>
+<li>答：把字符串加入常量池（若不在）并返回池中引用，可用于减少重复字符串占用的内存。</li>
+<li>问：String、StringBuilder、StringBuffer 怎么选？</li>
+<li>答：不变内容用 String，单线程拼接用 StringBuilder，多线程共享可变字符串用 StringBuffer。</li>
+<li>问：String 为什么设计成不可变？</li>
+<li>答：常量池与散列缓存安全、天然线程安全、安全敏感场景防篡改、池化提升性能。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-core:05",moduleId="java-core";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

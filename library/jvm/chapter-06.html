@@ -1,0 +1,148 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>垃圾收集器：Serial 到 ZGC · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">JVM：内存区域、垃圾回收与类加载</a><span aria-hidden="true">›</span><span aria-current="page">垃圾收集器：Serial 到 ZGC</span></nav><div class="module-meta">Java 语言 · 第 6 / 12 章</div><h1>垃圾收集器：Serial 到 ZGC</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>收集器是算法的工程实现。校招必须能对比 Serial、Parallel、CMS、G1，并说出 JDK 各版本默认收集器和 ZGC 的定位。</p>
+<h3>5.1 新生代收集器</h3>
+<table>
+<thead>
+<tr>
+<th>收集器</th>
+<th>线程模型</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Serial</td>
+<td>单线程</td>
+<td>客户端默认；简单、停顿可控</td>
+</tr>
+<tr>
+<td>ParNew</td>
+<td>多线程</td>
+<td>Serial 的并行版，CMS 的新生代搭档</td>
+</tr>
+<tr>
+<td>Parallel Scavenge</td>
+<td>多线程</td>
+<td>吞吐优先，可精确控制吞吐量与停顿</td>
+</tr>
+</tbody>
+</table>
+<h3>5.2 老年代收集器</h3>
+<table>
+<thead>
+<tr>
+<th>收集器</th>
+<th>算法</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Serial Old</td>
+<td>标记-整理</td>
+<td>Serial 的老年代版，CMS 失败的兜底</td>
+</tr>
+<tr>
+<td>Parallel Old</td>
+<td>标记-整理</td>
+<td>与 Parallel Scavenge 配套，JDK 8 默认组合</td>
+</tr>
+<tr>
+<td>CMS</td>
+<td>标记-清除</td>
+<td>并发收集、低停顿；JDK 9 弃用，JDK 14 移除</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CMS（Concurrent Mark Sweep）</strong> 四阶段：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">初始标记（STW，只标记 GC Roots 直接引用）→ 并发标记 → 重新标记（STW，修正并发期间变化）→ 并发清除
+</code></pre></div>
+<p>CMS 的问题：标记-清除产生碎片；并发阶段占 CPU；并发失败（Concurrent Mode Failure）时退化为 Serial Old 全停顿；浮动垃圾（标记期间新产生的垃圾留到下次）。</p>
+<h3>5.3 G1：JDK 9+ 默认</h3>
+<p><strong>G1（Garbage First）</strong> 把堆划分为多个大小相等的 <strong>Region</strong>（逻辑分代，物理不连续），可预测停顿：</p>
+<ul>
+<li>每个 Region 可以扮演 Eden/Survivor/Old/Humongous（大对象区）；</li>
+<li>维护各 Region 的回收价值，<strong>优先回收垃圾最多的 Region</strong>（Garbage First 的含义）；</li>
+<li>目标：<code>-XX:MaxGCPauseMillis</code> 指定的停顿时间内尽量多回收；</li>
+<li>触发 Mixed GC 的堆占用阈值 <code>-XX:InitiatingHeapOccupancyPercent</code>（IHOP）默认 45%；<code>-XX:G1HeapWastePercent</code> 默认 5%，可回收空间比例不足时提前结束 Mixed GC；</li>
+<li>采用记忆集维护跨 Region 引用，Young GC 用标记-复制，Mixed GC 处理老年代 Region；</li>
+<li>缺点：大对象（Humongous）处理不如连续堆友好，调参比 Parallel 复杂。</li>
+</ul>
+<h3>5.4 ZGC：超低停顿</h3>
+<p><strong>ZGC</strong>（JDK 11 实验、JDK 15 正式）目标是停顿不超过 10ms，甚至 1ms 级别，且<strong>停顿不随堆大小线性增长</strong>：</p>
+<ul>
+<li>基于<strong>着色指针（colored pointers）</strong>与<strong>读屏障</strong>实现并发转移；</li>
+<li>标记、转移都可以并发执行，几乎全程不 STW；</li>
+<li>适合超大堆（几十 GB 以上）、低延迟场景；</li>
+<li>支持堆上限：JDK 12 前 4TB、JDK 13 起 16TB；着色指针的 4 个状态位（Finalizable/Remapped/Marked0/Marked1）承载标记与重映射信息；</li>
+<li>JDK 21 加入<strong>分代 ZGC</strong>，进一步降低年轻代回收停顿。</li>
+</ul>
+<p><strong>self-healing（自愈）闭环</strong>：读屏障在访问到已被转移的对象时返回新地址并顺手修正旧地址（remap），让访问者参与转移收敛；代价是每次引用访问都要过读屏障（CPU 开销），且堆上限、JDK 版本间行为差异（11→13→15→21）都要说清楚。</p>
+<p><strong>Shenandoah</strong>（JEP 189 实验、JEP 379 JDK 15 正式）：与 ZGC 并列的超低停顿收集器，同样支持并发转移；实现路线不同（无着色指针，靠 Brooks 指针与读屏障），选型时与 ZGC 二选一即可。</p>
+<h3>5.5 收集器选型对比</h3>
+<table>
+<thead>
+<tr>
+<th>收集器</th>
+<th>停顿</th>
+<th>吞吐</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Parallel</td>
+<td>较高</td>
+<td>最高</td>
+<td>JDK 8 默认，批处理、离线任务</td>
+</tr>
+<tr>
+<td>CMS</td>
+<td>较低</td>
+<td>中</td>
+<td>已移除，仅历史</td>
+</tr>
+<tr>
+<td>G1</td>
+<td>可预测</td>
+<td>中高</td>
+<td>JDK 9+ 默认，服务端通用</td>
+</tr>
+<tr>
+<td>ZGC</td>
+<td>极低</td>
+<td>中</td>
+<td>超大堆 + 低延迟</td>
+</tr>
+<tr>
+<td>Shenandoah</td>
+<td>极低</td>
+<td>中</td>
+<td>JDK 15 正式（JEP 379），超低停顿的另一选择</td>
+</tr>
+</tbody>
+</table>
+<p><strong>选型决策链</strong>：先定目标，再选候选，最后说代价，不要一上来背收集器名。</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">吞吐优先（批处理/离线）      → Parallel（开销最小）
+延迟可预测（服务端通用）      → G1（JDK 9+ 默认）
+超低停顿 + 超大堆             → ZGC / Shenandoah（二选一）
+</code></pre></div>
+<ul>
+<li>G1 的代价：Region 元数据、卡表/记忆集带来 <strong>5%~20% 额外内存</strong>，并发标记还占 CPU；小堆（如 4GB 以下）上这些开销占比高，用 Parallel 更划算；</li>
+<li>ZGC 的代价：读屏障影响每次引用访问、堆上限 16TB、JDK 版本间行为有差异（JDK 21 分代 ZGC）；</li>
+<li>面试答法四步：<strong>目标 → 候选 → 代价 → 验证</strong>（如“我要延迟可预测，选 G1；它多占 5~20% 内存，先看堆是否够，再压测对比 YGCT/FGC”）。</li>
+</ul>
+<h3>5.6 面试追问</h3>
+<ul>
+<li>问：JDK 8 和 JDK 17 默认收集器？</li>
+<li>答：JDK 8 默认 Parallel Scavenge + Parallel Old；JDK 9 起默认 G1。</li>
+<li>问：G1 和 CMS 的区别？</li>
+<li>答：G1 分区 + 可预测停顿 + 无碎片；CMS 标记-清除、有碎片，已从 JDK 14 移除。</li>
+<li>问：G1 为什么叫 Garbage First？</li>
+<li>答：按回收价值排序，优先回收垃圾占比最高的 Region，以最小代价控制停顿。</li>
+<li>问：ZGC 为什么停顿低？</li>
+<li>答：着色指针 + 读屏障实现并发标记与转移，几乎不 STW；适合超大堆低延迟。</li>
+<li>问：Full GC 频繁一般是什么原因？</li>
+<li>答：老年代空间不足、晋升过快、大对象过多、内存泄漏；先看 GC 日志和堆使用曲线。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="jvm:06",moduleId="jvm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

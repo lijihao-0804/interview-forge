@@ -1,0 +1,98 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>限流、熔断与降级 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">微服务与高并发：Spring Cloud、限流熔断与秒杀设计</a><span aria-hidden="true">›</span><span aria-current="page">限流、熔断与降级</span></nav><div class="module-meta">分布式与工程 · 第 6 / 9 章</div><h1>限流、熔断与降级</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>5.1 限流算法</h3>
+<table>
+<thead>
+<tr>
+<th>算法</th>
+<th>思路</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定窗口</td>
+<td>每秒计数，超阈值拒绝</td>
+<td>简单，但窗口边界双倍流量</td>
+</tr>
+<tr>
+<td>滑动窗口</td>
+<td>时间窗口细分，统计最近 N 秒</td>
+<td>更平滑，代价是计数多</td>
+</tr>
+<tr>
+<td>令牌桶</td>
+<td>匀速放令牌，桶存积攒令牌</td>
+<td>允许突发流量，主流</td>
+</tr>
+<tr>
+<td>漏桶</td>
+<td>请求入桶匀速流出</td>
+<td>绝对匀速，不能突发</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">令牌桶：系统按 rate 放令牌进桶（桶容量 burst）
+      请求来了取令牌，取到放行、取不到拒绝 → 允许短暂突发
+漏桶：请求先进队列，按固定速率处理 → 平滑但拒绝突发
+</code></pre></div>
+<p>Sentinel 默认用<strong>滑动窗口 + 计数器</strong>；<strong>令牌桶对应冷启动 Warm Up 模式</strong>、<strong>漏桶对应匀速排队模式</strong>；<strong>热点参数</strong>是参数维度限流（如按商品 ID），与流量整形是两类不同的能力。</p>
+<h3>5.2 熔断</h3>
+<p>熔断器三状态：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">CLOSED（关闭）：正常调用
+OPEN（打开）：失败率/慢调用率超阈值 → 快速失败，不再打下游
+HALF_OPEN（半开）：过段时间放少量请求试探，成功则恢复 CLOSED，失败回到 OPEN
+</code></pre></div>
+<p>作用：下游故障时快速失败，给下游恢复时间，防止故障蔓延（雪崩）。</p>
+<h3>5.3 降级</h3>
+<ul>
+<li><strong>主动降级</strong>：大促/高峰主动关掉非核心功能（如推荐位、弹窗），保核心链路；</li>
+<li><strong>被动降级</strong>：依赖故障/超时返回兜底数据（默认值、缓存旧数据、提示“稍后重试”）。</li>
+</ul>
+<h3>5.4 Sentinel vs Hystrix</h3>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>Sentinel</th>
+<th>Hystrix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>状态</td>
+<td>阿里开源，社区维护</td>
+<td>Netflix 已停更维护模式</td>
+</tr>
+<tr>
+<td>控制台</td>
+<td>有可视化控制台、动态规则</td>
+<td>无</td>
+</tr>
+<tr>
+<td>限流能力</td>
+<td>丰富（滑动窗口/Warm Up/匀速排队/热点参数）</td>
+<td>较弱</td>
+</tr>
+<tr>
+<td>隔离</td>
+<td>信号量（并发线程数）</td>
+<td>线程池（默认），可配信号量</td>
+</tr>
+<tr>
+<td>生态</td>
+<td>Spring Cloud Alibaba 标配</td>
+<td>老项目存量</td>
+</tr>
+</tbody>
+</table>
+<p>规则持久化：Sentinel 规则默认存在<strong>内存</strong>（重启即失），生产要推送并持久化到配置中心（Nacos/Apollo），应用启动时拉取。</p>
+<h3>5.5 面试追问</h3>
+<ul>
+<li>问：四种限流算法？</li>
+<li>答：固定窗口、滑动窗口、令牌桶、漏桶；令牌桶允许突发、漏桶匀速。</li>
+<li>问：熔断三状态？</li>
+<li>答：关闭 → 打开 → 半开试探；失败率超阈值打开，试探成功恢复。</li>
+<li>问：降级和熔断区别？</li>
+<li>答：熔断是保护下游的快速失败机制；降级是主动/被动返回兜底结果保核心业务。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="microservices-highconcurrency:06",moduleId="microservices-highconcurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>力扣连接 · Hot 100 学习站</title>
+<style>
+:root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--danger:#c1363e;--danger-soft:#fdeaea}
+@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--danger:#ff969d;--danger-soft:#3a1f24}}
+*{box-sizing:border-box}body{margin:0;color:var(--text);background:var(--bg);font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+.shell{width:min(100% - 32px,880px);margin:auto;padding:26px 0 60px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:0 14px 38px rgba(31,42,68,.07)}
+h1{margin:0 0 6px;font-size:28px}h2{font-size:19px;margin:24px 0 10px}
+.muted{color:var(--muted);font-size:14px}
+a{color:var(--brand);text-decoration:none}
+.step{margin:14px 0;padding:13px 15px;border:1px solid var(--line);border-radius:11px;background:var(--soft)}
+.step b{display:block;margin-bottom:5px}
+code{background:var(--brand-soft);color:var(--brand);padding:.12em .4em;border-radius:5px;font-size:.92em}
+input[type=password]{width:100%;margin:6px 0;padding:9px 11px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--soft);font:inherit}
+button{margin:6px 6px 0 0;padding:8px 14px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel);cursor:pointer;font:inherit}
+button:hover{border-color:var(--brand);color:var(--brand)}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+button.primary:hover{filter:brightness(1.06)}
+button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+#status{margin-top:14px;padding:11px 13px;border-radius:10px;display:none}
+#status.ok{display:block;color:var(--success);background:var(--success-soft);border:1px solid color-mix(in srgb,var(--success) 40%,var(--line))}
+#status.err{display:block;color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb,var(--danger) 40%,var(--line))}
+#syncResult{margin-top:12px;font-size:14px}
+footer{margin-top:22px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="card">
+    <h1>⚡ 力扣连接</h1>
+    <p class="muted">把你在力扣的提交结果同步到学习站：面板显示“今日已 AC / 累计 AC”、题卡出现“已 AC”徽标，AC/WA 会联动复习调度<br>
+    （AC 提示可推进复习；WA 自动标记薄弱并提前进入“今日待复习”）。</p>
+
+    <h2>说明：力扣没有第三方授权（无 OAuth）</h2>
+    <p class="muted">本站无法做“一键授权”，改为<b>导入你的登录会话</b>：会话只保存在本机 SQLite，仅用于同步你的提交记录；可随时一键清除。提交代码仍只在力扣官网进行，本站不会自动提交。</p>
+
+    <h2>四步向导</h2>
+    <div class="step"><b>第一步：打开力扣并登录</b>（用户名密码只交给力扣）<br><button type="button" onclick="window.open('https://leetcode.cn/','_blank')">打开 leetcode.cn</button></div>
+
+    <div class="step"><b>第二步：复制登录 Cookie</b><br>
+      方式 A（推荐）：安装浏览器扩展 <a href="https://chromewebstore.google.com/detail/cookiemate-%E2%80%94-cookie-edito/jdmdgfbbjjdnflajkclafekpcgkaegdi" target="_blank" rel="noopener">CookieMate</a>（或任一 Cookie 查看工具），在 leetcode.cn 上复制 <code>LEETCODE_SESSION</code> 与 <code>csrftoken</code> 的值。<br>
+      方式 B：按 F12 → Application → Cookies → <code>https://leetcode.cn</code>，从列表中找到同名字段复制其值。
+    </div>
+
+    <div class="step"><b>第三步：粘贴到下面并保存</b>
+      <label for="session">LEETCODE_SESSION</label>
+      <input type="password" id="session" autocomplete="off" placeholder="粘贴 LEETCODE_SESSION 的值（很长的一串）">
+      <label for="csrf">csrftoken（可选，一般只读同步可省略）</label>
+      <input type="password" id="csrf" autocomplete="off" placeholder="粘贴 csrftoken 的值">
+      <br>
+      <button type="button" class="primary" id="saveBtn">保存并测试连接</button>
+      <button type="button" id="clearBtn" class="danger">清除凭证</button>
+    </div>
+
+    <div class="step"><b>第四步：同步提交记录</b><br>
+      <button type="button" class="primary" id="syncFullBtn">全量同步（首次：拉全部历史提交）</button>
+      <button type="button" id="syncBtn">增量同步（日常：只拉最近 100 条）</button>
+      <span class="muted">按力扣真实提交时间归档（不会都算到今天）；已同步记录按力扣提交 ID 去重，重复同步不会加多。</span>
+    </div>
+
+    <div id="status"></div>
+    <div id="syncResult" class="muted"></div>
+  </div>
+  <footer><a href="index.html">返回 Hot 100 学习站</a> · <a href="library/index.html">学习书架</a><br>本页功能仅在本机有效；工作目录外请勿粘贴凭证。</footer>
+</div>
+<script>
+const statusBox=document.getElementById('status');
+const syncBox=document.getElementById('syncResult');
+function showStatus(ok,text){statusBox.className=ok?'ok':'err';statusBox.textContent=text;}
+async function api(path,options){
+  const response=await fetch(path,options||{});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||('请求失败 HTTP '+response.status));
+  return data;
+}
+async function loadStatus(){
+  try{
+    const data=await api('/api/leetcode/status');
+    if(data.credentials_saved){
+      if(data.connected){showStatus(true,`已连接：${data.user_name}（已解决 ${data.num_solved} 题）。凭证已保存在本机数据库，刷新页面或重启学习站都不会丢失；要更换时重新粘贴即可。`);}
+      else{showStatus(false,'凭证已保存，但连接测试未通过：'+(data.message||'未知原因'));}
+    }else{showStatus(false,'尚未保存凭证，按上面四步操作。');}
+  }catch(error){showStatus(false,'查询失败：'+error.message);}
+}
+document.getElementById('saveBtn').addEventListener('click',async()=>{
+  const session=document.getElementById('session').value.trim();
+  const csrf=document.getElementById('csrf').value.trim();
+  if(!session){showStatus(false,'请先粘贴 LEETCODE_SESSION');return;}
+  try{
+    const data=await api('/api/leetcode/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({leetcode_session:session,leetcode_csrf:csrf})});
+    if(data.connected){showStatus(true,`连接成功：${data.user_name}（已解决 ${data.num_solved} 题）`);}
+    else{showStatus(false,'保存完成，但测试未通过：'+(data.message||'未知原因'));}
+  }catch(error){showStatus(false,'保存失败：'+error.message);}
+});
+document.getElementById('clearBtn').addEventListener('click',async()=>{
+  try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});showStatus(false,'凭证已清除');syncBox.textContent='';}
+  catch(error){showStatus(false,'清除失败：'+error.message);}
+});
+document.getElementById('syncBtn').addEventListener('click',()=>runSync(false));
+document.getElementById('syncFullBtn').addEventListener('click',()=>runSync(true));
+async function runSync(full){
+  syncBox.textContent=full?'全量同步中（历史较多时需要一会儿）…':'增量同步中…';
+  try{
+    const data=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full})});
+    syncBox.textContent=`已写入提交记录 ${data.submissions_added} 条（本次共读取 ${data.submissions_seen} 条）${data.solved_added?`；已解答兜底补 ${data.solved_added} 条`:''}${data.sync_errors&&data.sync_errors.length?'；注意：'+(data.sync_errors.join('；')):''}`;
+    showStatus(true,full?'全量同步完成，历史提交已按真实日期归档。':'增量同步完成。');
+  }catch(error){syncBox.textContent='';showStatus(false,'同步失败：'+error.message);}
+}
+loadStatus();
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>并发三要素与 Java 内存模型 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">并发三要素与 Java 内存模型</span></nav><div class="module-meta">Java 语言 · 第 3 / 17 章</div><h1>并发三要素与 Java 内存模型</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>并发 bug 的根源只有三个：原子性、可见性、有序性。理解 JMM（Java Memory Model）就是理解 Java 如何约束这三者。</p>
+<h3>2.1 并发问题的三大根源</h3>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>根源</th>
+<th>典型表现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原子性</td>
+<td>线程切换（时间片）</td>
+<td><code>i++</code> 三步操作被打断，计数丢失</td>
+</tr>
+<tr>
+<td>可见性</td>
+<td>CPU 缓存</td>
+<td>一个线程改了变量，另一个线程看不到</td>
+</tr>
+<tr>
+<td>有序性</td>
+<td>编译器和 CPU 重排序</td>
+<td>双重检查锁的“半个对象”问题</td>
+</tr>
+</tbody>
+</table>
+<p>示例：两个线程各执行 10000 次 <code>count++</code>，结果几乎不可能等于 20000，因为 <code>count++</code> 在字节码层面是“读-改-写”三步，不是原子操作。</p>
+<h3>2.2 JMM 是什么</h3>
+<p>JMM 是 Java 语言规范里定义的抽象内存模型，用来约束线程与内存的交互，<strong>不绑定具体硬件</strong>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">线程 A ──工作内存（寄存器/缓存）──┐
+                                 ├── 主内存（共享变量真正所在）
+线程 B ──工作内存（寄存器/缓存）──┘
+</code></pre></div>
+<ul>
+<li>所有共享变量存在<strong>主内存</strong>；</li>
+<li>每个线程有自己的<strong>工作内存</strong>（抽象概念，对应寄存器与 CPU 缓存），读写共享变量前要先在工作内存与主内存之间同步；</li>
+<li>线程不能直接读写其他线程的工作内存，变量传递必须经过主内存。</li>
+</ul>
+<p>JMM 通过三类手段保证并发安全：</p>
+<ol>
+<li><strong>关键字</strong>：<code>volatile</code>、<code>synchronized</code>、<code>final</code>；</li>
+<li><strong>happens-before 规则</strong>：给跨线程的内存操作建立偏序；</li>
+<li><strong>内存屏障</strong>：JVM 在合适位置插入屏障指令，阻止重排序并保证缓存同步。</li>
+</ol>
+<h3>2.3 happens-before 八条规则</h3>
+<p>如果操作 A happens-before 操作 B，那么 A 对内存的写入对 B <strong>可见</strong>，且 A 不会重排到 B 之后。八条规则：</p>
+<ol>
+<li><strong>程序顺序规则</strong>：同一线程内，写在前面的操作 happens-before 后面的操作；</li>
+<li><strong>监视器锁规则</strong>：锁的解锁 happens-before 后续对该锁的加锁（synchronized/Lock）；</li>
+<li><strong>volatile 规则</strong>：volatile 变量的写 happens-before 后续对该变量的读；</li>
+<li><strong>线程启动规则</strong>：<code>Thread.start()</code> 之前的操作 happens-before 新线程中的操作；</li>
+<li><strong>线程终止规则</strong>：线程中的所有操作 happens-before 其他线程从 <code>join()</code> 返回；</li>
+<li><strong>中断规则</strong>：<code>interrupt()</code> 的调用 happens-before 被中断线程检测到中断（抛异常或查到标志）；</li>
+<li><strong>final 规则</strong>：对象构造完成前对 final 字段的写 happens-before 后续通过引用读取该对象；</li>
+<li><strong>传递性</strong>：A happens-before B 且 B happens-before C，则 A happens-before C。</li>
+</ol>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 利用 volatile 规则：写 happens-before 读</span>
+<span class="kd">volatile</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">// 线程 A</span>
+<span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span><span class="w">       </span><span class="c1">// 普通写</span>
+<span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">     </span><span class="c1">// volatile 写</span>
+
+<span class="c1">// 线程 B</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ready</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">      </span><span class="c1">// volatile 读</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">value</span><span class="p">);</span><span class="w">   </span><span class="c1">// 一定看到 42</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3>2.4 as-if-serial 与重排序</h3>
+<p>编译器和 CPU 会做指令重排序，但必须遵守 <strong>as-if-serial</strong>：单线程语义下，重排序不能改变程序结果。重排序对多线程可见，所以需要 volatile/synchronized 来约束。</p>
+<h3>2.5 面试追问</h3>
+<ul>
+<li>问：并发编程的三要素？</li>
+<li>答：原子性（线程切换）、可见性（CPU 缓存）、有序性（重排序）。</li>
+<li>问：JMM 是什么？</li>
+<li>答：Java 语言规范定义的抽象内存模型，用主内存/工作内存、happens-before、内存屏障来约束线程间可见性与重排序。</li>
+<li>问：happens-before 有什么用？</li>
+<li>答：只要两个操作满足 happens-before，前面的写就对后面的读可见；它把“靠经验保证并发”变成“按规则推导保证并发”。</li>
+<li>问：volatile 变量的写读之间能保证什么？</li>
+<li>答：写 happens-before 后续读，读一定能看到该写之前的所有可见操作的结果（配合传递性）。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-concurrency:03",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

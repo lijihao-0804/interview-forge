@@ -1,0 +1,302 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>序列模型与 Transformer · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">深度学习与 Transformer</a><span aria-hidden="true">›</span><span aria-current="page">序列模型与 Transformer</span></nav><div class="module-meta">模型与训练 · 第 6 / 18 章</div><h1>序列模型与 Transformer</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>文本、语音、代码和时间序列都不是无序特征集合。“南京到北京”和“北京到南京”包含相同的词，却表达不同方向；模型必须同时理解内容与位置。本章先解释 RNN 为什么自然、又为什么困难，再逐步推导 Transformer 如何把“沿时间递归”改造成“所有位置直接交互”。</p>
+<h3>6.1 从 RNN 到 LSTM：顺序信息怎样传递</h3>
+<p>普通 RNN 在第 <span class="math-inline-wrap"><math class="math-inline" aria-label="t"><mrow><mi>t</mi></mrow></math></span> 个时间步读取当前输入 <span class="math-inline-wrap"><math class="math-inline" aria-label="x_t"><mrow><msub><mi>x</mi><mi>t</mi></msub></mrow></math></span> 与上一时刻隐藏状态 <span class="math-inline-wrap"><math class="math-inline" aria-label="h_t-1"><mrow><msub><mi>h</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub></mrow></math></span>：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="h_t=tanh(W_xx_t+W_hh_t-1+b_h), y_t=W_yh_t+b_y"><mrow><msub><mi>h</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">tanh</mi><mo>(</mo><msub><msub><mi>W</mi><mi>xx</mi></msub><mi>t</mi></msub><mo>+</mo><msub><msub><mi>W</mi><mi>hh</mi></msub><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>b</mi><mi>h</mi></msub><mo>)</mo><mo>,</mo><mspace width="2em"/><msub><mi>y</mi><mi>t</mi></msub><mo>=</mo><msub><msub><mi>W</mi><mi>yh</mi></msub><mi>t</mi></msub><mo>+</mo><msub><mi>b</mi><mi>y</mi></msub></mrow></math></span></p>
+<p>隐藏状态可理解为“读到当前位置为止的压缩记忆”。同一组参数在所有时间步共享，所以参数量不随序列长度增加，也能处理变长序列。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    H0["初始状态 h₀"] --&gt; H1["h₁"] --&gt; H2["h₂"] --&gt; H3["h₃"]
+    X1["x₁"] --&gt; H1
+    X2["x₂"] --&gt; H2
+    X3["x₃"] --&gt; H3
+    H1 --&gt; Y1["y₁"]
+    H2 --&gt; Y2["y₂"]
+    H3 --&gt; Y3["y₃"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>同一结构可支持 many-to-one 情感分类、many-to-many 序列标注、Encoder-Decoder 翻译，也可在流式任务中复用旧隐藏状态。</p>
+<h4>6.1.1 RNN 为什么难以记住很久以前的信息</h4>
+<p>训练 RNN 时使用沿时间反向传播（BPTT）。从较晚时间回到较早时间，梯度会反复乘 <span class="math-inline-wrap"><math class="math-inline" aria-label="W_h"><mrow><msub><mi>W</mi><mi>h</mi></msub></mrow></math></span> 和激活函数导数：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="partial h_tpartial h_k=prod_i=k+1^tpartial h_ipartial h_i-1"><mrow><mfrac><mrow><mi mathvariant="normal">partial</mi><mspace width=".18em"/><msub><mi>h</mi><mi>t</mi></msub></mrow><mrow><mi mathvariant="normal">partial</mi><mspace width=".18em"/><msub><mi>h</mi><mi>k</mi></msub></mrow></mfrac><mo>=</mo><msup><msub><mi mathvariant="normal">prod</mi><mrow><mi>i</mi><mo>=</mo><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mrow><mi>t</mi></mrow></msup><mfrac><mrow><mi mathvariant="normal">partial</mi><mspace width=".18em"/><msub><mi>h</mi><mi>i</mi></msub></mrow><mrow><mi mathvariant="normal">partial</mi><mspace width=".18em"/><msub><mi>h</mi><mrow><mi>i</mi><mo>-</mo><mn>1</mn></mrow></msub></mrow></mfrac></mrow></math></span></p>
+<p>若这些 Jacobian 的尺度长期小于 1，连乘趋近 0，早期信息几乎得不到训练信号，即梯度消失；长期大于 1 则可能梯度爆炸。梯度裁剪能限制爆炸，却不能恢复已经消失的梯度。</p>
+<h4>6.1.2 LSTM 的门控到底在做什么</h4>
+<p>LSTM 增加细胞状态 <span class="math-inline-wrap"><math class="math-inline" aria-label="c_t"><mrow><msub><mi>c</mi><mi>t</mi></msub></mrow></math></span>，用若干 0～1 的门决定信息流：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="f_t=sigma(W_f[x_t;h_t-1]+b_f)"><mrow><msub><mi>f</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">sigma</mi><mo>(</mo><msub><mi>W</mi><mi>f</mi></msub><mo>[</mo><msub><mi>x</mi><mi>t</mi></msub><mo>;</mo><msub><mi>h</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>]</mo><mo>+</mo><msub><mi>b</mi><mi>f</mi></msub><mo>)</mo></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="i_t=sigma(W_i[x_t;h_t-1]+b_i), tilde c_t=tanh(W_c[x_t;h_t-1]+b_c)"><mrow><msub><mi>i</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">sigma</mi><mo>(</mo><msub><mi>W</mi><mi>i</mi></msub><mo>[</mo><msub><mi>x</mi><mi>t</mi></msub><mo>;</mo><msub><mi>h</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>]</mo><mo>+</mo><msub><mi>b</mi><mi>i</mi></msub><mo>)</mo><mo>,</mo><mspace width="2em"/><mi mathvariant="normal">tilde</mi><mspace width=".18em"/><msub><mi>c</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">tanh</mi><mo>(</mo><msub><mi>W</mi><mi>c</mi></msub><mo>[</mo><msub><mi>x</mi><mi>t</mi></msub><mo>;</mo><msub><mi>h</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>]</mo><mo>+</mo><msub><mi>b</mi><mi>c</mi></msub><mo>)</mo></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="c_t=f_todot c_t-1+i_todottilde c_t"><mrow><msub><mi>c</mi><mi>t</mi></msub><mo>=</mo><msub><mi>f</mi><mi>t</mi></msub><mi mathvariant="normal">odot</mi><mspace width=".18em"/><msub><mi>c</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>i</mi><mi>t</mi></msub><mi mathvariant="normal">odot</mi><mi mathvariant="normal">tilde</mi><mspace width=".18em"/><msub><mi>c</mi><mi>t</mi></msub></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="o_t=sigma(W_o[x_t;h_t-1]+b_o), h_t=o_todottanh(c_t)"><mrow><msub><mi>o</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">sigma</mi><mo>(</mo><msub><mi>W</mi><mi>o</mi></msub><mo>[</mo><msub><mi>x</mi><mi>t</mi></msub><mo>;</mo><msub><mi>h</mi><mrow><mi>t</mi><mo>-</mo><mn>1</mn></mrow></msub><mo>]</mo><mo>+</mo><msub><mi>b</mi><mi>o</mi></msub><mo>)</mo><mo>,</mo><mspace width="2em"/><msub><mi>h</mi><mi>t</mi></msub><mo>=</mo><msub><mi>o</mi><mi>t</mi></msub><mi mathvariant="normal">odot</mi><mi mathvariant="normal">tanh</mi><mo>(</mo><msub><mi>c</mi><mi>t</mi></msub><mo>)</mo></mrow></math></span></p>
+<p>遗忘门 <span class="math-inline-wrap"><math class="math-inline" aria-label="f_t"><mrow><msub><mi>f</mi><mi>t</mi></msub></mrow></math></span> 决定保留多少旧记忆；输入门 <span class="math-inline-wrap"><math class="math-inline" aria-label="i_t"><mrow><msub><mi>i</mi><mi>t</mi></msub></mrow></math></span> 控制写入多少候选信息；输出门 <span class="math-inline-wrap"><math class="math-inline" aria-label="o_t"><mrow><msub><mi>o</mi><mi>t</mi></msub></mrow></math></span> 决定暴露多少记忆。关键是 <span class="math-inline-wrap"><math class="math-inline" aria-label="c_t"><mrow><msub><mi>c</mi><mi>t</mi></msub></mrow></math></span> 中存在加法路径，梯度不必每一步都完全穿过一次 tanh，因此比普通 RNN 更容易保留长程信息。GRU 合并部分状态并减少门，参数更少，但优劣仍应实测。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+
+<span class="n">lstm</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LSTM</span><span class="p">(</span><span class="n">input_size</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">hidden_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+               <span class="n">num_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>       <span class="c1"># [B,T,D]</span>
+<span class="n">output</span><span class="p">,</span> <span class="p">(</span><span class="n">h_n</span><span class="p">,</span> <span class="n">c_n</span><span class="p">)</span> <span class="o">=</span> <span class="n">lstm</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>               <span class="c1"># [8,20,32]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">h_n</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">c_n</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>       <span class="c1"># 均为 [2,8,32]</span>
+</code></pre></div>
+<p>如果序列经过 Padding，不能盲目取 <code>output[:, -1]</code> 做分类，因为最后位置可能只是 PAD。应使用真实长度索引，或在分类时对每个样本取最后一个有效隐藏状态；<code>nn.LSTM</code> 本身不读取 Padding Mask，若要跳过 PAD 参与递归，应使用 <code>pack_padded_sequence</code>，或把 Mask 用于池化和损失。双向 RNN 能看未来，适合理解任务，却不适合因果生成和严格流式预测。</p>
+<h3>6.2 注意力：不再把整段序列压进一个状态</h3>
+<p>RNN 要让远处信息逐步经过中间状态。注意力允许当前位置直接从所有可见位置读取信息：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="Attention(Q,K,V)=softmax(QK^Td_k+M)V"><mrow><mi>Attention</mi><mo>(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo>)</mo><mo>=</mo><mi>softmax</mi><mo>(</mo><mfrac><mrow><msup><mi>QK</mi><mi>T</mi></msup></mrow><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></mfrac><mo>+</mo><mi>M</mi><mo>)</mo><mi>V</mi></mrow></math></span></p>
+<ul>
+<li>Query：当前位置正在寻找什么；</li>
+<li>Key：每个位置用什么特征供别人匹配；</li>
+<li>Value：匹配成功后真正提供的内容。</li>
+</ul>
+<p>三者都由输入经过可学习投影得到：<span class="math-inline-wrap"><math class="math-inline" aria-label="Q=XW_Q"><mrow><mi>Q</mi><mo>=</mo><msub><mi>XW</mi><mi>Q</mi></msub></mrow></math></span>、<span class="math-inline-wrap"><math class="math-inline" aria-label="K=XW_K"><mrow><mi>K</mi><mo>=</mo><msub><mi>XW</mi><mi>K</mi></msub></mrow></math></span>、<span class="math-inline-wrap"><math class="math-inline" aria-label="V=XW_V"><mrow><mi>V</mi><mo>=</mo><msub><mi>XW</mi><mi>V</mi></msub></mrow></math></span>。</p>
+<h4>6.2.1 用极小数字例子走完注意力</h4>
+<p>若某个 Query 与两个 Key 的点积是 <span class="math-inline-wrap"><math class="math-inline" aria-label="[2,0]"><mrow><mo>[</mo><mn>2</mn><mo>,</mo><mn>0</mn><mo>]</mo></mrow></math></span>，暂令缩放因子为 1：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="softmax([2,0])approx[0.881,0.119]"><mrow><mi>softmax</mi><mo>(</mo><mo>[</mo><mn>2</mn><mo>,</mo><mn>0</mn><mo>]</mo><mo>)</mo><mi mathvariant="normal">approx</mi><mo>[</mo><mn>0.881</mn><mo>,</mo><mn>0.119</mn><mo>]</mo></mrow></math></span></p>
+<p>若两个 Value 是 <span class="math-inline-wrap"><math class="math-inline" aria-label="[10,0]"><mrow><mo>[</mo><mn>10</mn><mo>,</mo><mn>0</mn><mo>]</mo></mrow></math></span> 与 <span class="math-inline-wrap"><math class="math-inline" aria-label="[0,4]"><mrow><mo>[</mo><mn>0</mn><mo>,</mo><mn>4</mn><mo>]</mo></mrow></math></span>，则输出为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="0.881[10,0]+0.119[0,4]=[8.81,0.476]"><mrow><mn>0.881</mn><mo>[</mo><mn>10</mn><mo>,</mo><mn>0</mn><mo>]</mo><mo>+</mo><mn>0.119</mn><mo>[</mo><mn>0</mn><mo>,</mo><mn>4</mn><mo>]</mo><mo>=</mo><mo>[</mo><mn>8.81</mn><mo>,</mo><mn>0.476</mn><mo>]</mo></mrow></math></span></p>
+<p>所以注意力不是“挑一个词”，而是对 Value 加权混合。权重反映一次信息聚合，不等价于严格的因果解释。</p>
+<p>若 Q、K 各维方差相近，点积方差随 <span class="math-inline-wrap"><math class="math-inline" aria-label="d_k"><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></math></span> 增长。除以 <span class="math-inline-wrap"><math class="math-inline" aria-label="d_k"><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></math></span> 能避免 Softmax 过早饱和，使训练更稳定。</p>
+<h3>6.3 Self-Attention 的 shape 一步步怎样变化</h3>
+<p>设输入 <span class="math-inline-wrap"><math class="math-inline" aria-label="X"><mrow><mi>X</mi></mrow></math></span> 为 <code>[B,N,d_model]</code>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">X                  [B, N, d_model]
+线性投影 Q,K,V      [B, N, d_model]
+拆成 h 个头         [B, h, N, d_head]
+Q @ Kᵀ             [B, h, N, N]
+Softmax 后 @ V      [B, h, N, d_head]
+拼接所有头           [B, N, d_model]
+输出投影             [B, N, d_model]
+</code></pre></div>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="N× N"><mrow><mi>N</mi><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 矩阵第 <span class="math-inline-wrap"><math class="math-inline" aria-label="i"><mrow><mi>i</mi></mrow></math></span> 行表示第 <span class="math-inline-wrap"><math class="math-inline" aria-label="i"><mrow><mi>i</mi></mrow></math></span> 个 Query 对所有 Key 的读取权重。输出仍保留 N 个 Token，只是每个 Token 已融入上下文。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+
+<span class="k">class</span> <span class="nc">MultiHeadSelfAttention</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d_model</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">d_model</span> <span class="o">%</span> <span class="n">num_heads</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">num_heads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dh</span> <span class="o">=</span> <span class="n">d_model</span> <span class="o">//</span> <span class="n">num_heads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">qkv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">d_model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">blocked_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">if</span> <span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;sequence length must be positive&quot;</span><span class="p">)</span>
+        <span class="n">qkv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">qkv</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dh</span><span class="p">)</span>
+        <span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">qkv</span><span class="o">.</span><span class="n">unbind</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)]</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">q</span> <span class="o">@</span> <span class="n">k</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dh</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">blocked_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># True 表示禁止关注；scores 是 [B,h,N,N]</span>
+            <span class="k">if</span> <span class="n">blocked_mask</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="c1"># 常见输入 [B,N] 代表每个 Query 都屏蔽相同的 Key 集合</span>
+                <span class="n">blocked_mask</span> <span class="o">=</span> <span class="n">blocked_mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">blocked_mask</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;blocked_mask must be [B,N] or [B,h,N,N]&quot;</span><span class="p">)</span>
+            <span class="n">scores</span> <span class="o">=</span> <span class="n">scores</span><span class="o">.</span><span class="n">masked_fill</span><span class="p">(</span><span class="n">blocked_mask</span><span class="p">,</span> <span class="o">-</span><span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="n">weights</span> <span class="o">@</span> <span class="n">v</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">out</span><span class="p">(</span><span class="n">context</span><span class="p">),</span> <span class="n">weights</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">64</span><span class="p">)</span>
+<span class="n">y</span><span class="p">,</span> <span class="n">weights</span> <span class="o">=</span> <span class="n">MultiHeadSelfAttention</span><span class="p">()(</span><span class="n">x</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># [2,5,64] [2,8,5,5]</span>
+</code></pre></div>
+<p>实际项目优先使用框架的优化实现。不同 PyTorch API 对布尔 Mask 的语义可能相反，迁移时必须查对应接口。若某个 Query 的整行 Key 都被屏蔽，该行 Softmax 会退化为 NaN，因此数据里不能有全 PAD 样本，或在屏蔽时至少保留一个有效位置。</p>
+<h3>6.4 多头注意力为什么不是简单重复</h3>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="head_i=Attention(XW_i^Q,XW_i^K,XW_i^V)"><mrow><msub><mi>head</mi><mi>i</mi></msub><mo>=</mo><mi>Attention</mi><mo>(</mo><msup><msub><mi>XW</mi><mi>i</mi></msub><mi>Q</mi></msup><mo>,</mo><msup><msub><mi>XW</mi><mi>i</mi></msub><mi>K</mi></msup><mo>,</mo><msup><msub><mi>XW</mi><mi>i</mi></msub><mi>V</mi></msup><mo>)</mo></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="MHA(X)=Concat(head_1,ldots,head_h)W_O"><mrow><mi>MHA</mi><mo>(</mo><mi>X</mi><mo>)</mo><mo>=</mo><mi>Concat</mi><mo>(</mo><msub><mi>head</mi><mn>1</mn></msub><mo>,</mo><mi mathvariant="normal">ldots</mi><mo>,</mo><msub><mi>head</mi><mi>h</mi></msub><mo>)</mo><msub><mi>W</mi><mi mathvariant="normal">O</mi></msub></mrow></math></span></p>
+<p>不同头使用不同投影，可在不同子空间表达局部邻近、指代或长距离关系。但注意力头不一定有清晰人类语义。固定 <span class="math-inline-wrap"><math class="math-inline" aria-label="d_model"><mrow><msub><mi>d</mi><mrow><mi>model</mi></mrow></msub></mrow></math></span> 时，头越多则每头维度越小，并非头数越多越强。</p>
+<h3>6.5 Mask：模型可以看见谁</h3>
+<ul>
+<li>Padding Mask：阻止有效 Token 读取补齐位置；</li>
+<li>Causal Mask：预测第 <span class="math-inline-wrap"><math class="math-inline" aria-label="t"><mrow><mi>t</mi></mrow></math></span> 个 Token 时屏蔽 <span class="math-inline-wrap"><math class="math-inline" aria-label="t"><mrow><mi>t</mi></mrow></math></span> 之后的位置。</li>
+</ul>
+<p>长度为 4 的 Causal Mask：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">      K0 K1 K2 K3
+Q0     ✓  ×  ×  ×
+Q1     ✓  ✓  ×  ×
+Q2     ✓  ✓  ✓  ×
+Q3     ✓  ✓  ✓  ✓
+</code></pre></div>
+<p>训练语言模型时目标序列虽然全部已知，但 Causal Mask 保证各位置不能偷看未来，于是所有位置可并行计算下一 Token 损失。Mask 方向、shape 或广播错误常不会报错，却会产生虚假的高分。</p>
+<h3>6.6 位置信息：Self-Attention 为什么需要顺序</h3>
+<p>没有位置表示时，同时置换输入顺序，输出也只会相应置换；模型不天然区分第一个与最后一个 Token。原始 Transformer 使用正弦位置编码：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="PE(pos,2i)=sin(pos/10000^2i/d_model)"><mrow><mi>PE</mi><mo>(</mo><mi>pos</mi><mo>,</mo><mn>2</mn><mi>i</mi><mo>)</mo><mo>=</mo><mi mathvariant="normal">sin</mi><mo>(</mo><mi>pos</mi><mo>/</mo><msup><mn>10000</mn><mrow><mn>2</mn><mi>i</mi><mo>/</mo><msub><mi>d</mi><mrow><mi>model</mi></mrow></msub></mrow></msup><mo>)</mo></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="PE(pos,2i+1)=cos(pos/10000^2i/d_model)"><mrow><mi>PE</mi><mo>(</mo><mi>pos</mi><mo>,</mo><mn>2</mn><mi>i</mi><mo>+</mo><mn>1</mn><mo>)</mo><mo>=</mo><mi mathvariant="normal">cos</mi><mo>(</mo><mi>pos</mi><mo>/</mo><msup><mn>10000</mn><mrow><mn>2</mn><mi>i</mi><mo>/</mo><msub><mi>d</mi><mrow><mi>model</mi></mrow></msub></mrow></msup><mo>)</mo></mrow></math></span></p>
+<p>现代模型还使用可学习绝对位置、相对位置偏置、RoPE 和 ALiBi。RoPE 通过旋转 Q/K 子空间，使点积携带相对位置信息。配置支持更长上下文不代表模型在窗口所有位置都同样可靠；训练长度与“中间信息遗失”仍会影响有效上下文。</p>
+<h3>6.7 Transformer Block 内部的数据流</h3>
+<p>现代 Decoder 常采用 Pre-Norm：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    X["输入 X"] --&gt; LN1["Norm"] --&gt; A["Masked Multi-Head Attention"] --&gt; ADD1(("+"))
+    X --&gt; ADD1
+    ADD1 --&gt; R["中间表示"] --&gt; LN2["Norm"] --&gt; F["FFN / MLP"] --&gt; ADD2(("+"))
+    R --&gt; ADD2
+    ADD2 --&gt; Y["输出"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="X&#x27;=X+MHA(Norm(X)), Y=X&#x27;+FFN(Norm(X&#x27;))"><mrow><mi>X</mi><mo>′</mo><mo>=</mo><mi>X</mi><mo>+</mo><mi>MHA</mi><mo>(</mo><mi>Norm</mi><mo>(</mo><mi>X</mi><mo>)</mo><mo>)</mo><mo>,</mo><mspace width="2em"/><mi>Y</mi><mo>=</mo><mi>X</mi><mo>′</mo><mo>+</mo><mi>FFN</mi><mo>(</mo><mi>Norm</mi><mo>(</mo><mi>X</mi><mo>′</mo><mo>)</mo><mo>)</mo></mrow></math></span></p>
+<p>注意力负责 Token 间交换信息；FFN 对每个 Token 独立执行同一非线性变换：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="FFN(x)=W_2phi(W_1x+b_1)+b_2"><mrow><mi>FFN</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><msub><mi>W</mi><mn>2</mn></msub><mi mathvariant="normal">phi</mi><mo>(</mo><msub><mi>W</mi><mn>1</mn></msub><mi>x</mi><mo>+</mo><msub><mi>b</mi><mn>1</mn></msub><mo>)</mo><mo>+</mo><msub><mi>b</mi><mn>2</mn></msub></mrow></math></span></p>
+<p>FFN 通常先升维，再用 GELU/SwiGLU 等筛选特征，最后降回 <span class="math-inline-wrap"><math class="math-inline" aria-label="d_model"><mrow><msub><mi>d</mi><mrow><mi>model</mi></mrow></msub></mrow></math></span>。残差为信息和梯度提供直接通路；LayerNorm/RMSNorm 控制尺度。Pre-Norm 通常更利于深层优化，Post-Norm 是原始论文形式，但结论仍取决于整体训练配方。</p>
+<h3>6.8 Encoder、Decoder 与 Cross-Attention</h3>
+<table>
+<thead>
+<tr>
+<th>结构</th>
+<th>可见范围</th>
+<th>训练目标示例</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Encoder-only</td>
+<td>双向读取整个输入</td>
+<td>Masked LM</td>
+<td>分类、抽取、Embedding</td>
+</tr>
+<tr>
+<td>Decoder-only</td>
+<td>只读取左侧</td>
+<td>Next-Token Prediction</td>
+<td>自回归生成、大语言模型</td>
+</tr>
+<tr>
+<td>Encoder-Decoder</td>
+<td>Encoder 双向；Decoder 因果并读取 Encoder</td>
+<td>条件生成</td>
+<td>翻译、摘要、语音识别</td>
+</tr>
+</tbody>
+</table>
+<p>Cross-Attention 中 Query 来自 Decoder，Key/Value 来自 Encoder。它回答“生成当前目标 Token 时，应从输入哪些位置读取信息”。</p>
+<h3>6.9 语言模型训练：标签怎样构造</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">输入： [BOS, 我, 喜欢, 机器, 学习]
+标签： [我, 喜欢, 机器, 学习, EOS]
+</code></pre></div>
+<p>模型输出词表 logits，shape 为 <code>[B,N,V]</code>，与 <code>[B,N]</code> 标签计算交叉熵。PAD 标签通常设为 <code>ignore_index</code>。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+
+<span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">V</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10000</span>
+<span class="n">logits</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">V</span><span class="p">)</span>
+<span class="n">targets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()(</span>
+    <span class="n">logits</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">V</span><span class="p">),</span> <span class="n">targets</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>训练时真实目标已知，可在 Causal Mask 下同时计算全部位置，这称 Teacher Forcing。推理只能生成一个再追加一个，还要面对自己先前的错误；这种输入分布差异称为暴露偏差。</p>
+<h3>6.10 推理与 KV Cache</h3>
+<p>生成分为两阶段：</p>
+<ol>
+<li>Prefill：一次处理整个 Prompt，建立每层 K/V；</li>
+<li>Decode：每轮处理一个新 Token，并读取缓存的历史 K/V。</li>
+</ol>
+<p>缓存后无需重复计算历史 Token 在各层的隐藏状态、注意力、FFN 和 K/V 投影，但新 Query 仍需读取历史缓存并参与注意力计算。KV Cache 随层数、序列长度、batch 和 K/V 头数占用显存。因此生成服务要同时权衡首 Token 延迟、单 Token 延迟、吞吐与显存。</p>
+<h3>6.11 解码策略不是模型能力本身</h3>
+<ul>
+<li>Greedy：总选最高概率，稳定但可能重复；</li>
+<li>Beam Search：保留多条高分序列，常用于翻译；</li>
+<li>Temperature：<span class="math-inline-wrap"><math class="math-inline" aria-label="softmax(z/T)"><mrow><mi>softmax</mi><mo>(</mo><mi>z</mi><mo>/</mo><mi>T</mi><mo>)</mo></mrow></math></span>，低温更确定，高温更随机；</li>
+<li>Top-k：只在最高的 k 个候选中采样；</li>
+<li>Top-p：选累计概率达到 p 的最小候选集；</li>
+<li>重复惩罚：抑制机械重复，过强会破坏正常表达。</li>
+</ul>
+<p>解码只改变如何从模型已有分布中选择，不能补回模型不知道的事实。事实型任务仍需检索、工具与结果验证。</p>
+<h3>6.12 Transformer 的复杂度</h3>
+<p>标准注意力分数矩阵为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N× N"><mrow><mi>N</mi><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span>，注意力部分计算随长度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2 d_k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mspace width=".18em"/><msub><mi>d</mi><mi>k</mi></msub><mo>)</mo></mrow></math></span>，朴素实现还会保存 <span class="math-inline-wrap"><math class="math-inline" aria-label="[B,h,N,N]"><mrow><mo>[</mo><mi>B</mi><mo>,</mo><mi>h</mi><mo>,</mo><mi>N</mi><mo>,</mo><mi>N</mi><mo>]</mo></mrow></math></span> 分数矩阵，显存占用为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(BhN^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>BhN</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>。整个 Block 还包含投影与 FFN，计算常含 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N d_model^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><msup><msub><mi>d</mi><mrow><mi>model</mi></mrow></msub><mn>2</mn></msup><mo>)</mo></mrow></math></span> 项：短序列、大模型时线性层可能占主导；很长序列时二次注意力更突出。</p>
+<p>滑动窗口、稀疏注意力、状态压缩和 RAG 可减少长序列负担。FlashAttention 不改变精确注意力的数学结果和 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2 d_k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mspace width=".18em"/><msub><mi>d</mi><mi>k</mi></msub><mo>)</mo></mrow></math></span> 计算量级，主要通过分块与减少高带宽显存读写降低实际显存并加速。</p>
+<h3>6.13 RNN、LSTM 与 Transformer 怎么选</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>RNN</th>
+<th>LSTM/GRU</th>
+<th>Transformer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间步并行训练</td>
+<td>差</td>
+<td>差</td>
+<td>好</td>
+</tr>
+<tr>
+<td>长依赖</td>
+<td>较弱</td>
+<td>有改善</td>
+<td>可直接连接可见位置</td>
+</tr>
+<tr>
+<td>流式状态</td>
+<td>天然紧凑</td>
+<td>天然紧凑</td>
+<td>通常依赖增长的 KV Cache</td>
+</tr>
+<tr>
+<td>长序列主要代价</td>
+<td>顺序递归</td>
+<td>顺序递归</td>
+<td>标准注意力二次增长</td>
+</tr>
+<tr>
+<td>小型低延迟流式</td>
+<td>可合适</td>
+<td>常合适</td>
+<td>需要实测</td>
+</tr>
+<tr>
+<td>大规模预训练</td>
+<td>较少</td>
+<td>较少</td>
+<td>主流</td>
+</tr>
+</tbody>
+</table>
+<p>Transformer 并非全面取代 RNN。持续传感器流、边缘设备或只需小状态的任务中，RNN/LSTM 仍可能更经济。</p>
+<h3>6.14 可运行的最小 Transformer 分类器</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+
+<span class="k">class</span> <span class="nc">TinyTransformerClassifier</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vocab_size</span><span class="p">,</span> <span class="n">d_model</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">nhead</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                 <span class="n">num_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_len</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">token_emb</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">d_model</span><span class="p">,</span> <span class="n">padding_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos_emb</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">max_len</span><span class="p">,</span> <span class="n">d_model</span><span class="p">)</span>
+        <span class="n">layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">TransformerEncoderLayer</span><span class="p">(</span>
+            <span class="n">d_model</span><span class="o">=</span><span class="n">d_model</span><span class="p">,</span> <span class="n">nhead</span><span class="o">=</span><span class="n">nhead</span><span class="p">,</span>
+            <span class="n">dim_feedforward</span><span class="o">=</span><span class="mi">4</span> <span class="o">*</span> <span class="n">d_model</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="s2">&quot;gelu&quot;</span><span class="p">,</span> <span class="n">batch_first</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">norm_first</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">TransformerEncoder</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">d_model</span><span class="p">,</span> <span class="n">num_classes</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token_ids</span><span class="p">):</span>
+        <span class="n">B</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">token_ids</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">padding_mask</span> <span class="o">=</span> <span class="n">token_ids</span><span class="o">.</span><span class="n">eq</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">N</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">padding_mask</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;输入不能为空序列，也不能包含全 PAD 样本&quot;</span><span class="p">)</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">token_ids</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">token_emb</span><span class="p">(</span><span class="n">token_ids</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_emb</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">src_key_padding_mask</span><span class="o">=</span><span class="n">padding_mask</span><span class="p">)</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="p">(</span><span class="o">~</span><span class="n">padding_mask</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pooled</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">valid</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">valid</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">pooled</span><span class="p">)</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">TinyTransformerClassifier</span><span class="p">(</span><span class="n">vocab_size</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<span class="n">ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mi">12</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">91</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="mi">7</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">]])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># [2,3]</span>
+</code></pre></div>
+<p>这段代码用于理解 Encoder 分类的数据流。成熟任务通常优先微调预训练模型，而不是从随机参数开始训练。</p>
+<h3>6.15 Transformer 常见误区与排查</h3>
+<ol>
+<li>注意力权重不是严格的因果解释；</li>
+<li>上下文越长不一定越好，无关信息会干扰并增加成本；</li>
+<li>头数越多不一定越强，固定总维度时每头会变窄；</li>
+<li>Mask 不报错不代表正确，广播错误和未来泄漏常很隐蔽；</li>
+<li>KV Cache 消除重复投影，却没有让生成成本与长度无关；</li>
+<li>Transformer 不只有注意力，还依赖 FFN、残差、归一化、位置表示和训练配方；</li>
+<li>训练 loss 低不等于生成事实正确，还需任务评价与证据验证。</li>
+</ol>
+<p>排查时优先打印 Token ID、有效长度、Q/K/V 与注意力 shape、一个实际 Mask 矩阵、标签 shift、PAD 是否进入损失。先让模型过拟合几十个样本，再扩大训练，通常比直接调大模型更能发现实现错误。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="deep-learning:06",moduleId="deep-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

@@ -1,0 +1,356 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>服务化与并发：把 Demo 变成可调用后端 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">服务化与并发：把 Demo 变成可调用后端</span></nav><div class="module-meta">大模型应用 · 第 30 / 33 章</div><h1>服务化与并发：把 Demo 变成可调用后端</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>命令行中成功调用一次 Agent，只能证明基本链路可用。服务化还要处理输入校验、并发、超时、取消、会话隔离、错误映射、日志脱敏和优雅关闭。</p>
+<h3>30.1 服务边界</h3>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    C["客户端"] --&gt; API["FastAPI：校验/认证/限流"]
+    API --&gt; A["LangChain Agent / Chain"]
+    A --&gt; M["模型 API"]
+    A --&gt; T["受控工具"]
+    A --&gt; P[("持久 Checkpointer")]
+    API -. request_id .-&gt; O["Trace / Metrics / Logs"]
+    A -. run metadata .-&gt; O</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>FastAPI 不应直接接收任意模型名、任意 system prompt、工具列表或数据库过滤条件。客户端提供业务输入，服务端决定模型与权限。</p>
+<h3>30.2 最小异步 API</h3>
+<p>安装：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span>fastapi<span class="w"> </span><span class="s2">&quot;uvicorn[standard]&quot;</span><span class="w"> </span>pydantic
+</code></pre></div>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># app.py</span>
+<span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+
+<span class="kn">from</span> <span class="nn">fastapi</span> <span class="kn">import</span> <span class="n">FastAPI</span><span class="p">,</span> <span class="n">HTTPException</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="kn">from</span> <span class="nn">langchain.agents</span> <span class="kn">import</span> <span class="n">create_agent</span>
+<span class="kn">from</span> <span class="nn">langchain.chat_models</span> <span class="kn">import</span> <span class="n">init_chat_model</span>
+<span class="kn">from</span> <span class="nn">langgraph.checkpoint.memory</span> <span class="kn">import</span> <span class="n">InMemorySaver</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;LangChain Assistant&quot;</span><span class="p">)</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">init_chat_model</span><span class="p">(</span>
+    <span class="s2">&quot;openai:gpt-5.4-mini&quot;</span><span class="p">,</span>
+    <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">timeout</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+    <span class="n">max_retries</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">create_agent</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[],</span>
+    <span class="n">system_prompt</span><span class="o">=</span><span class="s2">&quot;你是严谨的技术助手。&quot;</span><span class="p">,</span>
+    <span class="n">checkpointer</span><span class="o">=</span><span class="n">InMemorySaver</span><span class="p">(),</span>
+<span class="p">)</span>
+
+<span class="c1"># 仅限制当前进程的同时在途请求数。</span>
+<span class="n">concurrency_limit</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ChatRequest</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">8000</span><span class="p">)</span>
+    <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;^[A-Za-z0-9_-]+$&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ChatResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/v1/chat&quot;</span><span class="p">,</span> <span class="n">response_model</span><span class="o">=</span><span class="n">ChatResponse</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">chat</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">ChatRequest</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChatResponse</span><span class="p">:</span>
+    <span class="c1"># request_id 关联外部响应、应用日志和 Trace；它不是 thread_id。</span>
+    <span class="n">request_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+
+    <span class="c1"># thread_id 格式已由 Field(pattern=...) 校验；真实服务还要校验会话归属。</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Semaphore 限制当前进程同时在途的请求数。</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">concurrency_limit</span><span class="p">:</span>
+            <span class="c1"># wait_for 设置 Agent 总超时，并兼容 Python 3.10+。</span>
+            <span class="n">state</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span>
+                <span class="n">agent</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span>
+                    <span class="p">{</span>
+                        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span>
+                                <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">message</span><span class="p">,</span>
+                            <span class="p">}</span>
+                        <span class="p">]</span>
+                    <span class="p">},</span>
+                    <span class="n">config</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s2">&quot;configurable&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;thread_id&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">thread_id</span><span class="p">,</span>
+                        <span class="p">},</span>
+                        <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;request_id&quot;</span><span class="p">:</span> <span class="n">request_id</span><span class="p">,</span>
+                        <span class="p">},</span>
+                    <span class="p">},</span>
+                <span class="p">),</span>
+                <span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TimeoutError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">504</span><span class="p">,</span>
+            <span class="n">detail</span><span class="o">=</span><span class="s2">&quot;模型服务超时&quot;</span><span class="p">,</span>
+        <span class="p">)</span> <span class="kn">from</span> <span class="nn">exc</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="c1"># 真实服务在此记录脱敏错误与 request_id。</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">502</span><span class="p">,</span>
+            <span class="n">detail</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;上游服务失败，request_id=</span><span class="si">{</span><span class="n">request_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span> <span class="kn">from</span> <span class="nn">exc</span>
+
+    <span class="k">return</span> <span class="n">ChatResponse</span><span class="p">(</span>
+        <span class="n">answer</span><span class="o">=</span><span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">,</span>
+        <span class="n">request_id</span><span class="o">=</span><span class="n">request_id</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>启动：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">uvicorn<span class="w"> </span>app:app<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
+</code></pre></div>
+<p>调用：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/v1/chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s2">&quot;{\&quot;message\&quot;:\&quot;什么是 Runnable？\&quot;,\&quot;thread_id\&quot;:\&quot;demo_001\&quot;}&quot;</span>
+</code></pre></div>
+<p>返回形态：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;answer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Runnable 是 LangChain 中统一的可执行组件接口……&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;7f98...&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>这次请求依次发生：Pydantic 校验输入 → Semaphore 获取并发名额 → wait_for 启动 60 秒计时 → Agent 读取 thread 状态 → 模型生成 → Checkpointer 保存新状态 → FastAPI 按 ChatResponse 过滤并序列化输出。</p>
+<p>其中 30 秒的模型 <code>timeout</code> 限制单次供应商请求，60 秒限制整次 Agent 运行。后者可能包含多次模型和工具调用，因此两个超时不是重复配置。</p>
+<p>示例中的 <code>InMemorySaver</code> 仍只适合单进程学习。多 Worker 部署必须换共享持久 Checkpointer，否则同一 thread 的历史会随机落到不同进程。</p>
+<h3>30.3 thread ID 不是用户身份</h3>
+<p>示例为了简洁直接接收 thread ID，真实服务应做映射：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">登录身份 + 租户 + 客户端会话 ID
+→ 服务端校验归属
+→ 生成或查询内部 thread ID
+</code></pre></div>
+<p>若只要知道 thread ID 就能恢复对话，会形成越权读取风险。工具查询也必须使用认证中间件得到的真实用户与租户，不能信任模型或请求体声称的 <code>user_id</code>。</p>
+<h3>30.4 流式返回</h3>
+<p>SSE（Server-Sent Events）适合服务器单向发送 token。下面只演示模型文本流，避免把 Agent 的工具事件和 token 混为一种消息：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="kn">from</span> <span class="nn">fastapi.responses</span> <span class="kn">import</span> <span class="n">StreamingResponse</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/v1/chat/stream&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">chat_stream</span><span class="p">(</span>
+    <span class="n">request</span><span class="p">:</span> <span class="n">ChatRequest</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StreamingResponse</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">events</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">message</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">chunk</span><span class="o">.</span><span class="n">text</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+                    <span class="p">{</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">chunk</span><span class="o">.</span><span class="n">text</span><span class="p">},</span>
+                    <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">yield</span> <span class="sa">f</span><span class="s2">&quot;event: token</span><span class="se">\n</span><span class="s2">data: </span><span class="si">{</span><span class="n">payload</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+
+            <span class="k">yield</span> <span class="s2">&quot;event: done</span><span class="se">\n</span><span class="s2">data: </span><span class="si">{}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
+            <span class="c1"># 客户端断开时把取消向上传播。</span>
+            <span class="k">raise</span>
+
+    <span class="k">return</span> <span class="n">StreamingResponse</span><span class="p">(</span>
+        <span class="n">events</span><span class="p">(),</span>
+        <span class="n">media_type</span><span class="o">=</span><span class="s2">&quot;text/event-stream&quot;</span><span class="p">,</span>
+        <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;Cache-Control&quot;</span><span class="p">:</span> <span class="s2">&quot;no-cache&quot;</span><span class="p">},</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>Agent 流还应区分：</p>
+<ul>
+<li>token：给用户逐字显示；</li>
+<li>update：模型、工具、审批等步骤状态；</li>
+<li>error：可展示的错误；</li>
+<li>done：最终完成；</li>
+<li>citation：来源元数据。</li>
+</ul>
+<p>不要把原始内部事件不经筛选全部传给前端，其中可能包含工具参数、内部 Prompt 或敏感结果。</p>
+<h3>30.5 同步、异步和线程池</h3>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型和 HTTP 客户端提供 async API</td>
+<td><code>await ainvoke/astream</code></td>
+</tr>
+<tr>
+<td>短小 CPU 逻辑</td>
+<td>直接执行</td>
+</tr>
+<tr>
+<td>阻塞 SDK 且无法替换</td>
+<td>有界线程池</td>
+</tr>
+<tr>
+<td>大量 CPU 计算</td>
+<td>独立进程或任务队列</td>
+</tr>
+<tr>
+<td>数分钟以上任务</td>
+<td>后台任务系统 + 状态查询</td>
+</tr>
+<tr>
+<td>批量离线评估</td>
+<td>有界并发 + 断点续跑</td>
+</tr>
+</tbody>
+</table>
+<p>不要在 async 接口中直接调用耗时同步网络函数；它会阻塞事件循环。也不要无限 <code>asyncio.gather</code>，应使用 Semaphore 或工作队列限制并发。</p>
+<h3>30.6 工具的 HTTP 超时</h3>
+<p>工具内部也要有独立超时，Agent 的总超时不能替代它：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">httpx</span>
+<span class="kn">from</span> <span class="nn">langchain.tools</span> <span class="kn">import</span> <span class="n">tool</span>
+
+
+<span class="nd">@tool</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">get_public_status</span><span class="p">(</span><span class="n">service</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;查询公开服务状态；只执行只读请求。&quot;&quot;&quot;</span>
+    <span class="n">timeout</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span>
+        <span class="n">connect</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+        <span class="n">read</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">write</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+        <span class="n">pool</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;https://status.example.com/api/services&quot;</span><span class="p">,</span>
+            <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">service</span><span class="p">},</span>
+        <span class="p">)</span>
+        <span class="n">response</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;service&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;service&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>真实服务应复用 HTTP Client 连接池，而不是每次创建；这里写在函数内只是让示例自包含。URL 应由服务端固定或 Allowlist，避免 SSRF。</p>
+<h3>30.7 多实例部署必须共享什么</h3>
+<table>
+<thead>
+<tr>
+<th>资源</th>
+<th style="text-align: right;">能否仅放进程内</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型客户端对象</td>
+<td style="text-align: right;">可以，每个进程一份</td>
+</tr>
+<tr>
+<td>静态 Prompt</td>
+<td style="text-align: right;">可以，但要版本一致</td>
+</tr>
+<tr>
+<td>Checkpoint</td>
+<td style="text-align: right;">不可以</td>
+</tr>
+<tr>
+<td>长期 Store</td>
+<td style="text-align: right;">不可以</td>
+</tr>
+<tr>
+<td>全局限流计数</td>
+<td style="text-align: right;">不可以</td>
+</tr>
+<tr>
+<td>幂等键记录</td>
+<td style="text-align: right;">不可以</td>
+</tr>
+<tr>
+<td>评估数据和版本</td>
+<td style="text-align: right;">应集中管理</td>
+</tr>
+<tr>
+<td>短期本地缓存</td>
+<td style="text-align: right;">可以，但要接受不一致</td>
+</tr>
+</tbody>
+</table>
+<p>水平扩容前要移除对单进程内存状态的依赖。模型客户端、数据库池和 HTTP Client 应在应用生命周期内复用，并在关闭时释放。</p>
+<h3>30.8 生产错误分类</h3>
+<table>
+<thead>
+<tr>
+<th>错误</th>
+<th style="text-align: right;">是否重试</th>
+<th>对用户响应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数校验失败</td>
+<td style="text-align: right;">否</td>
+<td>400；FastAPI/Pydantic 默认常为 422</td>
+</tr>
+<tr>
+<td>未认证或越权</td>
+<td style="text-align: right;">否</td>
+<td>401/403</td>
+</tr>
+<tr>
+<td>供应商限流</td>
+<td style="text-align: right;">延迟后有限重试</td>
+<td>429 或降级</td>
+</tr>
+<tr>
+<td>网络超时</td>
+<td style="text-align: right;">只读操作可有限重试</td>
+<td>504</td>
+</tr>
+<tr>
+<td>Tool 业务拒绝</td>
+<td style="text-align: right;">否</td>
+<td>明确业务原因</td>
+</tr>
+<tr>
+<td>Schema 校验失败</td>
+<td style="text-align: right;">可有限修复一次</td>
+<td>422/502</td>
+</tr>
+<tr>
+<td>Agent 超预算</td>
+<td style="text-align: right;">否</td>
+<td>受控终止并提示</td>
+</tr>
+<tr>
+<td>内部异常</td>
+<td style="text-align: right;">通常否</td>
+<td>500/502 + request ID</td>
+</tr>
+</tbody>
+</table>
+<p>重试次数、退避和 jitter 应集中配置。错误日志包含异常链，但外部响应不泄露堆栈和密钥。</p>
+<h3>30.9 可观测性字段</h3>
+<p>每次请求至少关联：</p>
+<ul>
+<li>request ID、trace ID、thread ID 的安全摘要；</li>
+<li>用户或租户的不可逆标识；</li>
+<li>模型与 Prompt 版本；</li>
+<li>索引和数据版本；</li>
+<li>模型调用次数、工具调用次数；</li>
+<li>输入与输出 token；</li>
+<li>总延迟及模型、检索、工具分段延迟；</li>
+<li>最终状态、错误码和是否降级；</li>
+<li>用户反馈。</li>
+</ul>
+<p>不要把用户原文、完整文档和密钥当成默认日志字段。对 Trace 设置访问控制、保留期和脱敏策略。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-29.html">← 上一章</a><a href="chapter-31.html">下一章 →</a></nav></main></div>
+<script>const contentId="langchain:30",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

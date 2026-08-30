@@ -1,0 +1,88 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>缓存三兄弟与一致性 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Redis：数据结构、缓存与高可用</a><span aria-hidden="true">›</span><span aria-current="page">缓存三兄弟与一致性</span></nav><div class="module-meta">数据存储 · 第 5 / 8 章</div><h1>缓存三兄弟与一致性</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>缓存面试 90% 围绕“三兄弟”和“缓存与数据库一致性”，要能讲现象、原因、方案和 trade-off。</p>
+<h3>4.1 缓存穿透</h3>
+<p><strong>现象</strong>：查询<strong>不存在的数据</strong>，缓存永远不命中，请求全打到数据库。</p>
+<p><strong>解决</strong>：</p>
+<ol>
+<li>参数校验：明显非法的 key 直接拒绝；</li>
+<li><strong>缓存空值</strong>：查不到也缓存空值并设短 TTL，防同一 key 反复打库；</li>
+<li><strong>布隆过滤器</strong>：把所有可能存在的 key 放进过滤器，过滤掉肯定不存在的；代价是有误判率。</li>
+</ol>
+<p><strong>布隆过滤器机制</strong>：一个位数组 + k 个哈希函数，插入把 k 个位都置 1，查询时全 1 才“可能存在”；误判来源是哈希碰撞，且<strong>不能删除</strong>（清一位会影响其他 key）；参数公式 m = −n·ln p / (ln2)²、k = m/n·ln2；落地用 RedisBloom 的 BF.ADD / BF.EXISTS。</p>
+<h3>4.2 缓存击穿</h3>
+<p><strong>现象</strong>：某个<strong>热点 key 过期瞬间</strong>，大量请求同时打数据库。</p>
+<p><strong>解决</strong>：</p>
+<ol>
+<li><strong>互斥锁</strong>：缓存未命中时先拿锁，只有一个线程重建缓存，其他线程等待或返回旧值；</li>
+<li><strong>逻辑过期</strong>：缓存不过期，value 里带逻辑过期时间，发现过期后异步重建；</li>
+<li>热点 key 加“永不过期 + 后台刷新”。</li>
+</ol>
+<p><strong>互斥锁细节</strong>：拿锁后要<strong>双检</strong>（再查一次缓存，避免多个线程都重建）且锁要设超时（防重建线程挂掉死锁）；<strong>逻辑过期数据格式</strong> = value + 过期时间戳（如 <code>{"v": data, "expire": 1700000000}</code>），发现过期后加锁异步重建，请求先返回旧值。</p>
+<h3>4.3 缓存雪崩</h3>
+<p><strong>现象</strong>：<strong>大量 key 同时过期</strong>（或 Redis 挂掉），请求全部打到数据库。</p>
+<p><strong>解决</strong>：</p>
+<ol>
+<li>过期时间加<strong>随机抖动</strong>，避免同一时间点集体失效；</li>
+<li>热点 key 错峰/永不过期；</li>
+<li><strong>多级缓存</strong>（本地缓存 + Redis + DB）；</li>
+<li>Redis 高可用（哨兵/集群，见“集群与高可用”章）；</li>
+<li>数据库侧限流/降级保护。</li>
+</ol>
+<h3>4.4 缓存与数据库一致性</h3>
+<p>目标不是“绝对强一致”，而是<strong>最终一致 + 可接受的窗口</strong>。</p>
+<p><strong>Cache Aside（旁路缓存）</strong>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">读：先查缓存，未命中查库并回填缓存
+写：先更新数据库，再删除缓存
+</code></pre></div>
+<p>为什么更新 DB 后<strong>删缓存</strong>而不是更新缓存：删比更新简单，且能避免并发下旧值覆盖新值。</p>
+<p><strong>A/B 写交错反例（为什么更新缓存会永久脏）</strong>：T1 写 DB=100 → T2 写 DB=200 → T2 写缓存=200 → T1 写缓存=100，最终缓存=100、DB=200，除非下次再更新否则永远不一致；换成“删缓存”后，每次写完 DB 都删，读请求按需回填的一定是当时 DB 的最新值，最坏只是短暂缺失，不会脏。</p>
+<p><strong>延迟双删</strong>：先删缓存 → 更新 DB → 短暂延迟 → 再删一次缓存，兜住“更新 DB 期间有并发读把旧值写回”的窗口。</p>
+<p>延迟多久：取“一次读 + 回填”的最坏时间（通常几百毫秒到 1 秒）。两个坑：① 第二次删可能失败——删缓存要带重试/失败落 MQ 补偿；② 双删只是缩小窗口，不是绝对强一致——它和 Cache Aside 一样是<strong>最终一致</strong>。</p>
+<p><strong>订阅 binlog 最终一致</strong>：应用更新 DB，Canal 订阅 binlog 异步删/更新缓存；DB 是唯一事实源，最终一致。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>一致性窗口</th>
+<th>复杂度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cache Aside（删缓存）</td>
+<td>较小</td>
+<td>低</td>
+</tr>
+<tr>
+<td>延迟双删</td>
+<td>更小</td>
+<td>中</td>
+</tr>
+<tr>
+<td>binlog 订阅（Canal）</td>
+<td>很小</td>
+<td>高</td>
+</tr>
+<tr>
+<td>分布式锁串行化</td>
+<td>几乎强一致</td>
+<td>高，性能差</td>
+</tr>
+</tbody>
+</table>
+<p>如果业务要求强一致（如金额），<strong>不要缓存或不要异步</strong>，直接走 DB。</p>
+<p>另外三种数据更新模式：<strong>Read Through</strong>（读未命中由缓存组件回源并写回）、<strong>Write Through</strong>（先写缓存再同步写 DB）、<strong>Write Behind</strong>（先写缓存异步批量落库，吞吐高但可能丢写）。</p>
+<h3>4.5 面试追问</h3>
+<ul>
+<li>问：穿透、击穿、雪崩的区别？</li>
+<li>答：查不存在的数据 / 热点 key 过期瞬间 / 大量 key 同时失效。</li>
+<li>问：穿透怎么解决？</li>
+<li>答：空值缓存、布隆过滤器、参数校验。</li>
+<li>问：击穿怎么解决？</li>
+<li>答：互斥锁重建、逻辑过期、热点永不过期。</li>
+<li>问：雪崩怎么解决？</li>
+<li>答：过期时间加随机、多级缓存、Redis 高可用、限流降级。</li>
+<li>问：更新 DB 后为什么删缓存？</li>
+<li>答：避免并发下旧值覆盖新值，删比更新简单；延迟双删/binlog 订阅进一步缩窗口。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
+<script>const contentId="redis:05",moduleId="redis";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

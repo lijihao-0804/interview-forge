@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排序算法可视化 - Java</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* 排序卡片导航 */
+  .sort-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .sort-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; }
+  .sort-tab:hover { border-color: #4a6cf7; color: #4a6cf7; }
+  .sort-tab.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+  /* 主面板 */
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+  .panel.active { display: block; }
+
+  .panel-header { padding: 20px 28px; background: linear-gradient(135deg, #4a6cf7, #6c63ff); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 6px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; }
+
+  /* 复杂度信息 */
+  .complexity { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 14px; }
+  .complexity span { background: #fff; padding: 4px 14px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity .label { color: #888; border: none; background: transparent; padding-left: 0; }
+  .complexity .badge-best { color: #0a7; }
+  .complexity .badge-avg { color: #f90; }
+  .complexity .badge-worst { color: #e44; }
+  .complexity .stable-yes { color: #0a7; font-weight: 600; }
+  .complexity .stable-no { color: #e44; font-weight: 600; }
+
+  /* 代码 + 可视化 */
+  .content { display: flex; flex-direction: row; min-height: 420px; }
+  @media (max-width: 900px) { .content { flex-direction: column; } }
+
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; position: relative; }
+  @media (max-width: 900px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 13px; color: #666; }
+  .code-header .lang-label { font-weight: 600; color: #4a6cf7; }
+  .copy-btn { padding: 3px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px; background: #fff; }
+  .copy-btn:hover { background: #f0f2f5; }
+
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 12px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 44px; text-align: right; padding: 0 12px 0 16px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  /* 可视化部分 */
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vis-canvas-wrap { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 20px 20px 10px; min-height: 260px; gap: 3px; }
+  .bar { display: inline-block; border-radius: 3px 3px 0 0; transition: all .15s; position: relative; min-width: 6px; }
+  .bar .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; }
+  .bar.compare { background: #ff9800 !important; }
+  .bar.swap { background: #f44336 !important; }
+  .bar.sorted { background: #4caf50 !important; }
+  .bar.pivot { background: #9c27b0 !important; }
+  .bar.active { background: #00bcd4 !important; }
+
+  /* 消息显示区 */
+  .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #f0f4ff; border-bottom: 1px solid #e0e6f0; min-height: 36px; }
+
+  /* 控制区 */
+  .controls { padding: 12px 20px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #eee; }
+  .controls button { padding: 6px 16px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #4a6cf7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .controls .btn-primary:hover { background: #3b5de7; }
+  .controls .btn-primary:disabled { background: #a0b4f7; border-color: #a0b4f7; }
+  .controls label { font-size: 13px; color: #666; margin-left: 8px; }
+  .controls select { padding: 4px 8px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 100px; vertical-align: middle; }
+  .step-info { font-size: 13px; color: #888; margin-left: auto; }
+
+  /* 算法说明 */
+  .algo-desc { padding: 12px 28px 16px; background: #fafbfc; border-top: 1px solid #eee; font-size: 14px; line-height: 1.7; color: #555; }
+  .algo-desc strong { color: #333; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>排序算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>排序算法可视化（Java）</h1>
+
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">冒泡排序</div>
+  <div class="sort-tab" data-idx="1">选择排序</div>
+  <div class="sort-tab" data-idx="2">插入排序</div>
+  <div class="sort-tab" data-idx="3">希尔排序</div>
+  <div class="sort-tab" data-idx="4">归并排序</div>
+  <div class="sort-tab" data-idx="5">快速排序</div>
+  <div class="sort-tab" data-idx="6">堆排序</div>
+  <div class="sort-tab" data-idx="7">计数排序</div>
+  <div class="sort-tab" data-idx="8">基数排序</div>
+  <div class="sort-tab" data-idx="9">桶排序</div>
+</div>
+
+<div id="panels"></div>
+
+</div>
+
+<script>
+// ===================== 排序算法数据 =====================
+const SORT_DATA = [
+  {
+    name: "冒泡排序",
+    nameEn: "Bubble Sort",
+    timeBest: "O(n)",
+    timeAvg: "O(n²)",
+    timeWorst: "O(n²)",
+    space: "O(1)",
+    stable: true,
+    desc: "重复遍历数组，比较相邻元素并交换逆序对。每轮将当前最大值「冒泡」到末尾。优化：若一轮无交换则提前结束。",
+    javaCode: `public static void bubbleSort(int[] arr) {
+    int n = arr.length;
+    boolean swapped;
+    for (int i = 0; i < n - 1; i++) {
+        swapped = false;
+        for (int j = 0; j < n - 1 - i; j++) {
+            if (arr[j] > arr[j + 1]) {
+                int tmp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = tmp;
+                swapped = true;
+            }
+        }
+        if (!swapped) break;
+    }
+}`
+  },
+  {
+    name: "选择排序",
+    nameEn: "Selection Sort",
+    timeBest: "O(n²)",
+    timeAvg: "O(n²)",
+    timeWorst: "O(n²)",
+    space: "O(1)",
+    stable: false,
+    desc: "每轮从未排序部分选出最小值，放到已排序部分的末尾。简单直观，但无论数据如何都执行 O(n²) 次比较。",
+    javaCode: `public static void selectionSort(int[] arr) {
+    int n = arr.length;
+    for (int i = 0; i < n - 1; i++) {
+        int minIdx = i;
+        for (int j = i + 1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) {
+                minIdx = j;
+            }
+        }
+        if (minIdx != i) {
+            int tmp = arr[i];
+            arr[i] = arr[minIdx];
+            arr[minIdx] = tmp;
+        }
+    }
+}`
+  },
+  {
+    name: "插入排序",
+    nameEn: "Insertion Sort",
+    timeBest: "O(n)",
+    timeAvg: "O(n²)",
+    timeWorst: "O(n²)",
+    space: "O(1)",
+    stable: true,
+    desc: "将数组分为已排序和未排序两部分，每次从未排序部分取一个元素插入到已排序部分的正确位置。数据基本有序时效率极高。",
+    javaCode: `public static void insertionSort(int[] arr) {
+    int n = arr.length;
+    for (int i = 1; i < n; i++) {
+        int key = arr[i];
+        int j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+}`
+  },
+  {
+    name: "希尔排序",
+    nameEn: "Shell Sort",
+    timeBest: "O(n log n)",
+    timeAvg: "O(n log n)",
+    timeWorst: "O(n²)",
+    space: "O(1)",
+    stable: false,
+    desc: "插入排序的改进版。通过增量(gap)分组，对每组进行插入排序，逐步缩小增量直至 1。使数据快速趋于基本有序。",
+    javaCode: `public static void shellSort(int[] arr) {
+    int n = arr.length;
+    for (int gap = n / 2; gap > 0; gap /= 2) {
+        for (int i = gap; i < n; i++) {
+            int key = arr[i];
+            int j = i;
+            while (j >= gap && arr[j - gap] > key) {
+                arr[j] = arr[j - gap];
+                j -= gap;
+            }
+            arr[j] = key;
+        }
+    }
+}`
+  },
+  {
+    name: "归并排序",
+    nameEn: "Merge Sort",
+    timeBest: "O(n log n)",
+    timeAvg: "O(n log n)",
+    timeWorst: "O(n log n)",
+    space: "O(n)",
+    stable: true,
+    desc: "分治思想。将数组递归地对半拆分到单元素，再两两合并成有序数组。稳定、高效，但需要额外 O(n) 空间。",
+    javaCode: `public static void mergeSort(int[] arr, int l, int r) {
+    if (l >= r) return;
+    int m = l + (r - l) / 2;
+    mergeSort(arr, l, m);
+    mergeSort(arr, m + 1, r);
+    merge(arr, l, m, r);
+}
+
+private static void merge(int[] arr, int l, int m, int r) {
+    int[] left = Arrays.copyOfRange(arr, l, m + 1);
+    int[] right = Arrays.copyOfRange(arr, m + 1, r + 1);
+    int i = 0, j = 0, k = l;
+    while (i < left.length && j < right.length)
+        arr[k++] = left[i] <= right[j] ? left[i++] : right[j++];
+    while (i < left.length) arr[k++] = left[i++];
+    while (j < right.length) arr[k++] = right[j++];
+}`
+  },
+  {
+    name: "快速排序",
+    nameEn: "Quick Sort",
+    timeBest: "O(n log n)",
+    timeAvg: "O(n log n)",
+    timeWorst: "O(n²)",
+    space: "O(log n)",
+    stable: false,
+    desc: "分治思想。选一个基准(pivot)，将小于基准的元素放左边、大于的放右边，然后递归排序左右子数组。最坏情况发生在已排序数组（可优化为随机选基准）。",
+    javaCode: `public static void quickSort(int[] arr, int l, int r) {
+    if (l >= r) return;
+    int p = partition(arr, l, r);
+    quickSort(arr, l, p - 1);
+    quickSort(arr, p + 1, r);
+}
+
+private static int partition(int[] arr, int l, int r) {
+    int pivot = arr[r]; // 选最后一个为基准
+    int i = l - 1;
+    for (int j = l; j < r; j++) {
+        if (arr[j] < pivot) {
+            i++;
+            swap(arr, i, j);
+        }
+    }
+    swap(arr, i + 1, r);
+    return i + 1;
+}`
+  },
+  {
+    name: "堆排序",
+    nameEn: "Heap Sort",
+    timeBest: "O(n log n)",
+    timeAvg: "O(n log n)",
+    timeWorst: "O(n log n)",
+    space: "O(1)",
+    stable: false,
+    desc: "利用最大堆性质：建堆后将堆顶（最大值）与末尾交换，缩小堆范围并调整。原地排序，无额外空间。",
+    javaCode: `public static void heapSort(int[] arr) {
+    int n = arr.length;
+    // 建最大堆
+    for (int i = n / 2 - 1; i >= 0; i--)
+        heapify(arr, n, i);
+    // 逐个取出堆顶
+    for (int i = n - 1; i > 0; i--) {
+        swap(arr, 0, i);
+        heapify(arr, i, 0);
+    }
+}
+
+private static void heapify(int[] arr, int n, int i) {
+    int max = i, l = 2*i+1, r = 2*i+2;
+    if (l < n && arr[l] > arr[max]) max = l;
+    if (r < n && arr[r] > arr[max]) max = r;
+    if (max != i) {
+        swap(arr, i, max);
+        heapify(arr, n, max);
+    }
+}`
+  },
+  {
+    name: "计数排序",
+    nameEn: "Counting Sort",
+    timeBest: "O(n+k)",
+    timeAvg: "O(n+k)",
+    timeWorst: "O(n+k)",
+    space: "O(k)",
+    stable: true,
+    desc: "非比较排序。统计每个元素出现次数，计算前缀和确定位置，再输出到结果数组。适用于数据范围 k 较小的情况。",
+    javaCode: `public static void countingSort(int[] arr) {
+    if (arr.length == 0) return;
+    int max = Arrays.stream(arr).max().getAsInt();
+    int min = Arrays.stream(arr).min().getAsInt();
+    int range = max - min + 1;
+    int[] count = new int[range];
+    int[] output = new int[arr.length];
+
+    for (int v : arr) count[v - min]++;
+
+    // 前缀和 → 位置
+    for (int i = 1; i < range; i++)
+        count[i] += count[i - 1];
+
+    // 稳定输出
+    for (int i = arr.length - 1; i >= 0; i--) {
+        int v = arr[i];
+        output[count[v - min] - 1] = v;
+        count[v - min]--;
+    }
+    System.arraycopy(output, 0, arr, 0, arr.length);
+}`
+  },
+  {
+    name: "基数排序",
+    nameEn: "Radix Sort",
+    timeBest: "O(nk)",
+    timeAvg: "O(nk)",
+    timeWorst: "O(nk)",
+    space: "O(n+k)",
+    stable: true,
+    desc: "非比较排序。按位（个位→十位→百位…）依次用计数排序进行排序。k 为最大数字的位数。适合等长数字串。",
+    javaCode: `public static void radixSort(int[] arr) {
+    int max = Arrays.stream(arr).max().getAsInt();
+    for (int exp = 1; max / exp > 0; exp *= 10)
+        countingSortByDigit(arr, exp);
+}
+
+private static void countingSortByDigit(int[] arr, int exp) {
+    int n = arr.length;
+    int[] output = new int[n];
+    int[] count = new int[10];
+    for (int v : arr) count[(v / exp) % 10]++;
+    for (int i = 1; i < 10; i++) count[i] += count[i-1];
+    for (int i = n - 1; i >= 0; i--) {
+        int d = (arr[i] / exp) % 10;
+        output[count[d] - 1] = arr[i];
+        count[d]--;
+    }
+    System.arraycopy(output, 0, arr, 0, n);
+}`
+  },
+  {
+    name: "桶排序",
+    nameEn: "Bucket Sort",
+    timeBest: "O(n+k)",
+    timeAvg: "O(n+k)",
+    timeWorst: "O(n²)",
+    space: "O(n+k)",
+    stable: true,
+    desc: "非比较排序。将元素按范围分到若干桶中，桶内各自排序（可用插入排序），再依次合并。适合均匀分布的数据。",
+    javaCode: `public static void bucketSort(float[] arr) {
+    int n = arr.length;
+    if (n <= 1) return;
+    @SuppressWarnings("unchecked")
+    List<Float>[] buckets = new ArrayList[n];
+    for (int i = 0; i < n; i++)
+        buckets[i] = new ArrayList<>();
+
+    for (float v : arr)
+        buckets[(int)(v * n)].add(v);
+
+    for (List<Float> b : buckets)
+        Collections.sort(b);
+
+    int idx = 0;
+    for (List<Float> b : buckets)
+        for (float v : b)
+            arr[idx++] = v;
+}`
+  }
+];
+
+// ===================== 可视化引擎 =====================
+let currentIdx = 0;
+let animationTimer = null;
+
+function generateRandomArray(size) {
+  const arr = new Array(size);
+  for (let i = 0; i < size; i++) arr[i] = Math.floor(Math.random() * 100) + 1;
+  return arr;
+}
+
+// ---------- 生成步骤序列 ----------
+function buildSteps(sortIdx, rawArr) {
+  const arr = rawArr.slice();
+  const n = arr.length;
+  const steps = [];
+  // 每个 step: { array: [], compares: [i,j], swaps: [i,j], sorted: [i], line: num, type: 'compare'|'swap'|'sorted'|'done' }
+
+  function push(opts) {
+    steps.push({ array: arr.slice(), compares: opts.compares || [], swaps: opts.swaps || [], pivots: opts.pivots || [], active: opts.active || [], sorted: opts.sorted ? opts.sorted.slice() : [], line: opts.line || 0, msg: opts.msg || '' });
+  }
+
+  // 记录完整已排序区间（用于绿色显示）
+  let sortedIndices = [];
+
+  switch (sortIdx) {
+    // ===== 0 - 冒泡排序 =====
+    case 0: {
+      for (let i = 0; i < n - 1; i++) {
+        push({ compares: [], sorted: sortedIndices, line: 4, msg: `——— 第 ${i+1} 轮冒泡 ———` });
+        let swapped = false;
+        for (let j = 0; j < n - 1 - i; j++) {
+          push({ compares: [j, j+1], sorted: sortedIndices, line: 7, msg: `比较 arr[${j}]=${arr[j]} 和 arr[${j+1}]=${arr[j+1]}` });
+          if (arr[j] > arr[j+1]) {
+            [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
+            swapped = true;
+            push({ swaps: [j, j+1], sorted: sortedIndices, line: 9, msg: `交换 → arr[${j}]=${arr[j]}, arr[${j+1}]=${arr[j+1]}` });
+          }
+        }
+        sortedIndices = [n - 1 - i, ...sortedIndices];
+        push({ sorted: sortedIndices, line: 14, msg: `arr[${n-1-i}] 已就位（最大值已冒泡到末尾）` });
+        if (!swapped) {
+          push({ sorted: sortedIndices, line: 14, msg: '本轮无交换，数组已有序，提前结束！' });
+          break;
+        }
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '冒泡排序完成！' });
+      break;
+    }
+    // ===== 1 - 选择排序 =====
+    case 1: {
+      for (let i = 0; i < n - 1; i++) {
+        let minIdx = i;
+        push({ active: [minIdx], sorted: sortedIndices, line: 4, msg: `第 ${i+1} 轮：从 [${i}..${n-1}] 选择最小值，初始 minIdx=${i}` });
+        for (let j = i + 1; j < n; j++) {
+          push({ compares: [j, minIdx], active: [minIdx], sorted: sortedIndices, line: 6, msg: `比较 arr[${j}]=${arr[j]} 与当前最小值 arr[${minIdx}]=${arr[minIdx]}` });
+          if (arr[j] < arr[minIdx]) {
+            minIdx = j;
+            push({ active: [minIdx], sorted: sortedIndices, line: 7, msg: `更新最小值位置 → minIdx=${minIdx}（值为 ${arr[minIdx]}）` });
+          }
+        }
+        if (minIdx !== i) {
+          [arr[i], arr[minIdx]] = [arr[minIdx], arr[i]];
+          push({ swaps: [i, minIdx], sorted: sortedIndices, line: 12, msg: `交换 arr[${i}] 和 arr[${minIdx}] → arr[${i}]=${arr[i]}` });
+        } else {
+          push({ sorted: sortedIndices, line: 0, msg: `arr[${i}] 已经在正确位置，无需交换` });
+        }
+        sortedIndices.push(i);
+        push({ sorted: sortedIndices.slice(), line: 0, msg: `arr[${i}] 已就位` });
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '选择排序完成！' });
+      break;
+    }
+    // ===== 2 - 插入排序 =====
+    case 2: {
+      sortedIndices.push(0);
+      for (let i = 1; i < n; i++) {
+        let key = arr[i];
+        let j = i - 1;
+        push({ active: [i], sorted: sortedIndices, line: 4, msg: `取 key=arr[${i}]=${key}，准备插入到已排序部分 [0..${i-1}]` });
+        push({ compares: [j], active: [i], sorted: sortedIndices, line: 6, msg: `比较 key=${key} 与 arr[${j}]=${arr[j]}` });
+        while (j >= 0 && arr[j] > key) {
+          arr[j + 1] = arr[j];
+          push({ swaps: [j+1], active: [i], sorted: sortedIndices, line: 7, msg: `arr[${j}] > key，右移 → arr[${j+1}]=${arr[j]}` });
+          j--;
+          if (j >= 0) push({ compares: [j], active: [i], sorted: sortedIndices, line: 6, msg: `继续比较 key=${key} 与 arr[${j}]=${arr[j]}` });
+        }
+        arr[j + 1] = key;
+        sortedIndices.push(i);
+        push({ swaps: [j+1], sorted: sortedIndices.slice(), line: 10, msg: `插入 key=${key} 到位置 ${j+1}，arr[0..${i}] 已有序` });
+      }
+      push({ sorted: sortedIndices, line: 0, msg: '插入排序完成！' });
+      break;
+    }
+    // ===== 3 - 希尔排序 =====
+    case 3: {
+      for (let gap = Math.floor(n / 2); gap > 0; gap = Math.floor(gap / 2)) {
+        push({ compares: [], sorted: [], line: 3, msg: `——— 增量 gap=${gap} ———` });
+        for (let i = gap; i < n; i++) {
+          let key = arr[i];
+          let j = i;
+          push({ active: [i], sorted: [], line: 5, msg: `取 key=arr[${i}]=${key}，在同组(gap=${gap})中插入` });
+          while (j >= gap && arr[j - gap] > key) {
+            arr[j] = arr[j - gap];
+            push({ swaps: [j], active: [j-gap], sorted: [], line: 8, msg: `同组中 arr[${j-gap}]=${arr[j-gap]} > key，右移到 arr[${j}]` });
+            j -= gap;
+          }
+          arr[j] = key;
+          push({ swaps: [j], sorted: [], line: 11, msg: `插入 key=${key} 到位置 ${j}` });
+        }
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '希尔排序完成！' });
+      break;
+    }
+    // ===== 4 - 归并排序 =====
+    case 4: {
+      function doMergeSort(l, r) {
+        if (l >= r) return;
+        let m = Math.floor((l + r) / 2);
+        push({ compares: [], sorted: [], line: 2, msg: `拆分 [${l}..${r}] → [${l}..${m}] 和 [${m+1}..${r}]` });
+        doMergeSort(l, m);
+        doMergeSort(m + 1, r);
+        doMerge(l, m, r);
+      }
+      function doMerge(l, m, r) {
+        let left = arr.slice(l, m + 1);
+        let right = arr.slice(m + 1, r + 1);
+        let i = 0, j = 0, k = l;
+        push({ compares: [], sorted: [], line: 13, msg: `合并 [${l}..${m}] 和 [${m+1}..${r}]` });
+        while (i < left.length && j < right.length) {
+          if (left[i] <= right[j]) {
+            arr[k] = left[i]; i++;
+            push({ swaps: [k], sorted: [], line: 14, msg: `取较小值 left[${i-1}]=${left[i-1]} 放入 arr[${k}]` });
+          } else {
+            arr[k] = right[j]; j++;
+            push({ swaps: [k], sorted: [], line: 14, msg: `取较小值 right[${j-1}]=${right[j-1]} 放入 arr[${k}]` });
+          }
+          k++;
+        }
+        while (i < left.length) { arr[k] = left[i]; i++; push({ swaps: [k], sorted: [], line: 15, msg: `左侧剩余 left[${i-1}]=${arr[k]} 放入 arr[${k}]` }); k++; }
+        while (j < right.length) { arr[k] = right[j]; j++; push({ swaps: [k], sorted: [], line: 16, msg: `右侧剩余 right[${j-1}]=${arr[k]} 放入 arr[${k}]` }); k++; }
+        push({ sorted: [], line: 0, msg: `合并完成 [${l}..${r}] 已有序` });
+      }
+      doMergeSort(0, n - 1);
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '归并排序完成！' });
+      break;
+    }
+    // ===== 5 - 快速排序 =====
+    case 5: {
+      function doQuick(l, r) {
+        if (l >= r) return;
+        let p = doPartition(l, r);
+        doQuick(l, p - 1);
+        doQuick(p + 1, r);
+      }
+      function doPartition(l, r) {
+        let pivot = arr[r];
+        let i = l - 1;
+        push({ pivots: [r], sorted: sortedIndices, line: 9, msg: `分区 [${l}..${r}]：选 arr[${r}]=${pivot} 为基准` });
+        for (let j = l; j < r; j++) {
+          push({ compares: [j], pivots: [r], sorted: sortedIndices, line: 12, msg: `比较 arr[${j}]=${arr[j]} 和基准 ${pivot}` });
+          if (arr[j] < pivot) {
+            i++;
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            push({ swaps: [i, j], pivots: [r], sorted: sortedIndices, line: 14, msg: `arr[${j}]=${arr[i]} < ${pivot}，交换到左侧 arr[${i}]` });
+          }
+        }
+        [arr[i+1], arr[r]] = [arr[r], arr[i+1]];
+        push({ swaps: [i+1, r], pivots: [], sorted: sortedIndices, line: 17, msg: `基准归位：arr[${i+1}] ↔ arr[${r}]，基准=${arr[i+1]} 已在正确位置` });
+        return i + 1;
+      }
+      doQuick(0, n - 1);
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '快速排序完成！' });
+      break;
+    }
+    // ===== 6 - 堆排序 =====
+    case 6: {
+      let heapSize = n;
+      function heapify(nn, i) {
+        let max = i, l = 2*i+1, r = 2*i+2;
+        push({ active: [i], sorted: sortedIndices, line: 14, msg: `调整节点 arr[${i}]=${arr[i]}，左子=${l<nn?arr[l]:'-'}，右子=${r<nn?arr[r]:'-'}` });
+        if (l < nn && arr[l] > arr[max]) { max = l; }
+        if (r < nn && arr[r] > arr[max]) { max = r; }
+        if (max !== i) {
+          [arr[i], arr[max]] = [arr[max], arr[i]];
+          push({ swaps: [i, max], sorted: sortedIndices, line: 18, msg: `arr[${max}] 更大，交换 arr[${i}] 和 arr[${max}] → ${arr[i]}、${arr[max]}` });
+          heapify(nn, max);
+        } else {
+          push({ sorted: sortedIndices, line: 0, msg: `节点 arr[${i}] 满足堆性质` });
+        }
+      }
+      push({ sorted: sortedIndices, line: 3, msg: '——— 建堆阶段 ———' });
+      for (let i = Math.floor(n / 2) - 1; i >= 0; i--) heapify(n, i);
+      push({ sorted: sortedIndices, line: 0, msg: '——— 排序阶段 ———' });
+      for (let i = n - 1; i > 0; i--) {
+        [arr[0], arr[i]] = [arr[i], arr[0]];
+        sortedIndices = [i, ...sortedIndices];
+        push({ swaps: [0, i], sorted: sortedIndices, line: 8, msg: `堆顶 arr[0]=${arr[0]} 与 arr[${i}]=${arr[i]} 交换，arr[${i}] 已就位` });
+        heapify(i, 0);
+      }
+      sortedIndices = [0, ...sortedIndices];
+      push({ sorted: sortedIndices, line: 0, msg: '堆排序完成！' });
+      break;
+    }
+    // ===== 7 - 计数排序 =====
+    case 7: {
+      if (n === 0) break;
+      let max = Math.max(...arr);
+      let min = Math.min(...arr);
+      let range = max - min + 1;
+      push({ sorted: [], line: 0, msg: `计数排序：值域 [${min}..${max}]，范围=${range}` });
+      let count = new Array(range).fill(0);
+      let output = new Array(n);
+      for (let v of arr) count[v - min]++;
+      for (let i = 1; i < range; i++) count[i] += count[i-1];
+      for (let i = n - 1; i >= 0; i--) {
+        let v = arr[i];
+        output[count[v - min] - 1] = v;
+        count[v - min]--;
+      }
+      for (let i = 0; i < n; i++) {
+        arr[i] = output[i];
+        push({ swaps: [i], sorted: [], line: 21, msg: `回写 arr[${i}] = ${arr[i]}` });
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '计数排序完成！' });
+      break;
+    }
+    // ===== 8 - 基数排序 =====
+    case 8: {
+      let max = Math.max(...arr);
+      function doCountSort(exp) {
+        let output = new Array(n);
+        let count = new Array(10).fill(0);
+        for (let v of arr) count[Math.floor(v / exp) % 10]++;
+        for (let i = 1; i < 10; i++) count[i] += count[i-1];
+        for (let i = n - 1; i >= 0; i--) {
+          let d = Math.floor(arr[i] / exp) % 10;
+          output[count[d] - 1] = arr[i];
+          count[d]--;
+        }
+        for (let i = 0; i < n; i++) {
+          arr[i] = output[i];
+          push({ swaps: [i], sorted: [], line: 18, msg: `按 ${exp===1?'个':exp===10?'十':'百'} 位 ${exp} 排序：arr[${i}] = ${arr[i]}` });
+        }
+      }
+      for (let exp = 1; Math.floor(max / exp) > 0; exp *= 10) {
+        push({ sorted: [], line: 3, msg: `——— 按 ${exp===1?'个':exp===10?'十':'百'} 位排序（exp=${exp}）———` });
+        doCountSort(exp);
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '基数排序完成！' });
+      break;
+    }
+    // ===== 9 - 桶排序 =====
+    case 9: {
+      let buckets = Array.from({length: n}, () => []);
+      let floatArr = arr.map(v => v / 100);
+      push({ sorted: [], line: 0, msg: `将 ${n} 个元素分配到 ${n} 个桶中` });
+      for (let i = 0; i < n; i++) {
+        let bi = Math.min(Math.floor(floatArr[i] * n), n - 1);
+        buckets[bi].push(floatArr[i]);
+      }
+      push({ sorted: [], line: 0, msg: '各桶内部排序' });
+      for (let b of buckets) b.sort((a, b) => a - b);
+      push({ sorted: [], line: 0, msg: '按序回写所有元素' });
+      let idx = 0;
+      for (let b of buckets) {
+        for (let v of b) {
+          arr[idx] = Math.round(v * 100);
+          push({ swaps: [idx], sorted: [], line: 18, msg: `回写 arr[${idx}] = ${arr[idx]}` });
+          idx++;
+        }
+      }
+      sortedIndices = Array.from({length: n}, (_,i) => i);
+      push({ sorted: sortedIndices, line: 0, msg: '桶排序完成！' });
+      break;
+    }
+  }
+  return steps;
+}
+
+// ---------- DOM 构建 ----------
+let panelData = []; // [{ panelEl, steps, stepIdx, arr, bars, ... }]
+
+function initSortPanel(idx) {
+  const data = SORT_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  const codeStr = data.javaCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = codeStr.split('\n');
+
+  let codeHTML = '<pre><code>';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    const text = lines[i];
+    codeHTML += `<div class="code-line" data-line="${ln}"><span class="lineno">${ln}</span><span class="line-code">${text}</span></div>`;
+  }
+  codeHTML += '</code></pre>';
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}（${data.nameEn}）</h2>
+      <div class="sub">${data.desc}</div>
+    </div>
+    <div class="complexity">
+      <span class="label">时间复杂度</span>
+      <span><span class="badge-best">●</span> 最优 ${data.timeBest}</span>
+      <span><span class="badge-avg">●</span> 平均 ${data.timeAvg}</span>
+      <span><span class="badge-worst">●</span> 最坏 ${data.timeWorst}</span>
+      <span>空间复杂度 ${data.space}</span>
+      <span>稳定性: <span class="${data.stable ? 'stable-yes' : 'stable-no'}">${data.stable ? '✔ 稳定' : '✘ 不稳定'}</span></span>
+      <button class="copy-btn" data-idx="${idx}" style="margin-left:auto;">复制代码</button>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-header">
+          <span class="lang-label">Java</span>
+        </div>
+        <div class="code-scroll">${codeHTML}</div>
+      </div>
+      <div class="vis-section">
+        <div class="vis-msg" id="msg-${idx}">点击「下一步」开始演示</div>
+        <div class="vis-canvas-wrap" id="canvas-${idx}"></div>
+        <div class="controls">
+          <button class="btn-first" data-idx="${idx}">|◀ 首步</button>
+          <button class="btn-prev" data-idx="${idx}">◀ 上一步</button>
+          <button class="btn-next btn-primary" data-idx="${idx}">下一步 ▶</button>
+          <button class="btn-last" data-idx="${idx}">末步 ▶|</button>
+          <button class="btn-auto" data-idx="${idx}">播放 自动</button>
+          <label>速度 <input type="range" class="speed-slider" min="1" max="10" value="5" data-idx="${idx}"></label>
+          <label>数据量 <select class="size-select" data-idx="${idx}">
+            <option value="6">6</option><option value="8">8</option><option value="10" selected>10</option>
+            <option value="15">15</option><option value="20">20</option><option value="30">30</option>
+          </select></label>
+          <button class="btn-reset" data-idx="${idx}">🔄 重置</button>
+          <span class="step-info" id="stepInfo-${idx}">步骤 0 / 0</span>
+        </div>
+      </div>
+    </div>
+    <div class="algo-desc">
+      <strong>算法说明：</strong>${data.desc}
+    </div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  // 重新绑定重置按钮
+  const resetBtn = panel.querySelector('.btn-reset');
+  resetBtn.innerHTML = '🔄 重置';
+  // 注册事件
+  const sizeSelect = panel.querySelector('.size-select');
+  const nextBtn = panel.querySelector('.btn-next');
+  const prevBtn = panel.querySelector('.btn-prev');
+  const firstBtn = panel.querySelector('.btn-first');
+  const lastBtn = panel.querySelector('.btn-last');
+  const autoBtn = panel.querySelector('.btn-auto');
+  const speedSlider = panel.querySelector('.speed-slider');
+
+  const state = { steps: [], stepIdx: 0, arr: [], size: 10, running: false, timer: null };
+  panelData[idx] = state;
+
+  function render() {
+    const canvas = document.getElementById('canvas-' + idx);
+    if (!state.steps.length || state.steps.length === 0) return;
+    const step = state.steps[Math.min(state.stepIdx, state.steps.length - 1)];
+    const arrVals = step.array;
+    const maxVal = Math.max(...arrVals, 1);
+    canvas.innerHTML = '';
+    const _hotCanvasStyle = getComputedStyle(canvas);
+    const _hotPadX = (parseFloat(_hotCanvasStyle.paddingLeft) || 0) + (parseFloat(_hotCanvasStyle.paddingRight) || 0);
+    const _hotPadY = (parseFloat(_hotCanvasStyle.paddingTop) || 0) + (parseFloat(_hotCanvasStyle.paddingBottom) || 0);
+    const W = Math.max(240, canvas.clientWidth - _hotPadX);
+    const H = Math.max(180, canvas.clientHeight - _hotPadY);
+    const barW = Math.max(6, Math.min(40, Math.floor((W - 20) / arrVals.length) - 2));
+
+    arrVals.forEach((v, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = (v / maxVal) * (H - 30) + 'px';
+      bar.style.width = barW + 'px';
+      bar.style.background = '#4a6cf7';
+      if (step.sorted && step.sorted.includes(i)) bar.style.background = '#4caf50';
+      if (step.compares && step.compares.includes(i)) bar.style.background = '#ff9800';
+      if (step.swaps && step.swaps.includes(i)) bar.style.background = '#f44336';
+      if (step.pivots && step.pivots.includes(i)) bar.style.background = '#9c27b0';
+      if (step.active && step.active.includes(i)) bar.style.background = '#00bcd4';
+      const label = document.createElement('span');
+      label.className = 'bar-label';
+      label.textContent = v;
+      bar.appendChild(label);
+      canvas.appendChild(bar);
+    });
+
+    const info = document.getElementById('stepInfo-' + idx);
+    if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
+    const msgEl = document.getElementById('msg-' + idx);
+    if (msgEl) msgEl.textContent = step.msg || '';
+
+    // 高亮代码行
+    const codeLines = panel.querySelectorAll('.code-line');
+    codeLines.forEach(el => el.classList.remove('highlight-line'));
+    if (step.line > 0) {
+      const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+      if (target) target.classList.add('highlight-line');
+    }
+  }
+
+  function resetSteps() {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    state.running = false;
+    autoBtn.textContent = '播放 自动';
+    state.arr = generateRandomArray(state.size);
+    state.steps = buildSteps(idx, state.arr);
+    state.stepIdx = 0;
+    render();
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const atFirst = state.stepIdx <= 0;
+    const atLast = state.stepIdx >= state.steps.length - 1;
+    firstBtn.disabled = atFirst;
+    prevBtn.disabled = atFirst;
+    nextBtn.disabled = atLast;
+    lastBtn.disabled = atLast;
+  }
+
+  sizeSelect.addEventListener('change', () => {
+    state.size = parseInt(sizeSelect.value);
+    resetSteps();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+  });
+  prevBtn.addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
+  });
+  firstBtn.addEventListener('click', () => {
+    state.stepIdx = 0; render(); updateButtons();
+  });
+  lastBtn.addEventListener('click', () => {
+    state.stepIdx = state.steps.length - 1; render(); updateButtons();
+  });
+  resetBtn.addEventListener('click', resetSteps);
+  autoBtn.addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false;
+      autoBtn.textContent = '播放 自动';
+    } else {
+      state.running = true;
+      autoBtn.textContent = '⏸ 暂停';
+      const speed = parseInt(speedSlider.value);
+      const delay = Math.max(20, 120 - speed * 10);
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) {
+          state.stepIdx++;
+          render();
+          updateButtons();
+        } else {
+          clearInterval(state.timer);
+          state.timer = null;
+          state.running = false;
+          autoBtn.textContent = '播放 自动';
+        }
+      }, delay);
+    }
+  });
+
+  // 复制代码
+  panel.querySelector('.copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(data.javaCode).then(() => {
+      const btn = panel.querySelector('.copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = '✓ 已复制';
+      setTimeout(() => btn.textContent = orig, 1500);
+    }).catch(() => alert('复制失败'));
+  });
+
+  // 把 render 和 state 存到 panelData 供 tab 切换时调用
+  state.render = render;
+  panelData[idx] = state;
+
+  // 初始化
+  state.size = 10;
+  resetSteps();
+
+  // resize re-render
+  const ro = new ResizeObserver(() => render());
+  ro.observe(document.getElementById('canvas-' + idx));
+}
+
+// ===================== 启动 =====================
+SORT_DATA.forEach((_, idx) => {
+  panelData.push(null);
+  initSortPanel(idx);
+});
+
+// Tab 切换
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    // 暂停所有面板的自动播放
+    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '播放 自动');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    // 触发渲染（适配新容器尺寸）
+    const s = panelData[idx];
+    if (s && s.render) s.render();
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

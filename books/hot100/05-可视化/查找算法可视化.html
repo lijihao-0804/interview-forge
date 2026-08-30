@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>查找算法可视化 - Java</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* 查找算法导航 */
+  .sort-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .sort-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; }
+  .sort-tab:hover { border-color: #4a6cf7; color: #4a6cf7; }
+  .sort-tab.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+  /* 主面板 */
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+  .panel.active { display: block; }
+
+  .panel-header { padding: 20px 28px; background: linear-gradient(135deg, #e96443, #904e95); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 6px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; }
+
+  /* 复杂度信息 */
+  .complexity { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 14px; }
+  .complexity span { background: #fff; padding: 4px 14px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity .label { color: #888; border: none; background: transparent; padding-left: 0; }
+  .complexity .badge-best { color: #0a7; }
+  .complexity .badge-avg { color: #f90; }
+  .complexity .badge-worst { color: #e44; }
+
+  /* 代码 + 可视化 */
+  .content { display: flex; flex-direction: row; min-height: 420px; }
+  @media (max-width: 900px) { .content { flex-direction: column; } }
+
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; position: relative; }
+  @media (max-width: 900px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 13px; color: #666; }
+  .code-header .lang-label { font-weight: 600; color: #4a6cf7; }
+  .copy-btn { padding: 3px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px; background: #fff; }
+  .copy-btn:hover { background: #f0f2f5; }
+
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 12px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 44px; text-align: right; padding: 0 12px 0 16px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  /* 可视化部分 */
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vis-canvas-wrap { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 20px 20px 10px; min-height: 260px; gap: 3px; }
+  .bar { display: inline-block; border-radius: 3px 3px 0 0; transition: all .15s; position: relative; min-width: 6px; }
+  .bar .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; }
+  .bar.compare { background: #ff9800 !important; }
+  .bar.found { background: #4caf50 !important; }
+  .bar.eliminated { background: #d0d0d0 !important; }
+  .bar.range { background: #4a6cf7 !important; }
+  .bar.mid { background: #9c27b0 !important; }
+  .bar.left { background: #00bcd4 !important; }
+  .bar.right { background: #e91e63 !important; }
+  .bar.target-line { border-top: 3px dashed #e44; }
+
+  /* 目标值提示 */
+  .target-info { padding: 8px 20px; font-size: 14px; font-weight: 500; color: #e96443; background: #fff5f0; border-bottom: 1px solid #ffe0d0; min-height: 36px; }
+  .target-info strong { color: #e44; }
+
+  /* 消息显示区 */
+  .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #f0f4ff; border-bottom: 1px solid #e0e6f0; min-height: 36px; }
+
+  /* 控制区 */
+  .controls { padding: 12px 20px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #eee; }
+  .controls button { padding: 6px 16px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #4a6cf7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .controls .btn-primary:hover { background: #3b5de7; }
+  .controls .btn-primary:disabled { background: #a0b4f7; border-color: #a0b4f7; }
+  .controls label { font-size: 13px; color: #666; margin-left: 8px; }
+  .controls select { padding: 4px 8px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 100px; vertical-align: middle; }
+  .step-info { font-size: 13px; color: #888; margin-left: auto; }
+
+  /* 算法说明 */
+  .algo-desc { padding: 12px 28px 16px; background: #fafbfc; border-top: 1px solid #eee; font-size: 14px; line-height: 1.7; color: #555; }
+  .algo-desc strong { color: #333; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>查找算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>查找算法可视化（Java）</h1>
+
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">顺序查找</div>
+  <div class="sort-tab" data-idx="1">二分查找</div>
+  <div class="sort-tab" data-idx="2">三分查找</div>
+  <div class="sort-tab" data-idx="3">跳跃查找</div>
+  <div class="sort-tab" data-idx="4">指数查找</div>
+  <div class="sort-tab" data-idx="5">插值查找</div>
+  <div class="sort-tab" data-idx="6">斐波那契查找</div>
+  <div class="sort-tab" data-idx="7">分块查找</div>
+</div>
+
+<div id="panels"></div>
+
+</div>
+
+<script>
+// ===================== 查找算法数据 =====================
+const SEARCH_DATA = [
+  {
+    name: "顺序查找",
+    nameEn: "Linear Search",
+    timeBest: "O(1)",
+    timeAvg: "O(n)",
+    timeWorst: "O(n)",
+    space: "O(1)",
+    sorted: false,
+    desc: "从数组第一个元素开始，逐个比较直到找到目标值或遍历完整个数组。简单但效率低，适合小规模或无序数据。",
+    javaCode: `public static int linearSearch(int[] arr, int target) {
+    for (int i = 0; i < arr.length; i++) {
+        if (arr[i] == target) {
+            return i;
+        }
+    }
+    return -1;
+}`
+  },
+  {
+    name: "二分查找",
+    nameEn: "Binary Search",
+    timeBest: "O(1)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "在有序数组中，每次取中间元素与目标比较，根据大小关系将搜索范围缩小一半。高效但要求数据已排序。",
+    javaCode: `public static int binarySearch(int[] arr, int target) {
+    int l = 0, r = arr.length - 1;
+    while (l <= r) {
+        int m = l + (r - l) / 2;
+        if (arr[m] == target) return m;
+        else if (arr[m] < target) l = m + 1;
+        else r = m - 1;
+    }
+    return -1;
+}`
+  },
+  {
+    name: "三分查找",
+    nameEn: "Ternary Search",
+    timeBest: "O(1)",
+    timeAvg: "O(log₃ n)",
+    timeWorst: "O(log₃ n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "在有序数组中，将范围分成三段，通过两个中间点与目标比较，每次排除约 2/3 的范围。适用于单峰函数求极值。",
+    javaCode: `public static int ternarySearch(int[] arr, int target) {
+    int l = 0, r = arr.length - 1;
+    while (l <= r) {
+        int m1 = l + (r - l) / 3;
+        int m2 = r - (r - l) / 3;
+        if (arr[m1] == target) return m1;
+        if (arr[m2] == target) return m2;
+        if (target < arr[m1]) r = m1 - 1;
+        else if (target > arr[m2]) l = m2 + 1;
+        else { l = m1 + 1; r = m2 - 1; }
+    }
+    return -1;
+}`
+  },
+  {
+    name: "跳跃查找",
+    nameEn: "Jump Search",
+    timeBest: "O(1)",
+    timeAvg: "O(√n)",
+    timeWorst: "O(√n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "在有序数组中，先以 √n 为步长跳跃前进，找到目标所在的块后，再在该块内线性查找。介于二分和线性之间。",
+    javaCode: `public static int jumpSearch(int[] arr, int target) {
+    int n = arr.length;
+    int step = (int) Math.sqrt(n);
+    int prev = 0;
+    while (arr[Math.min(step, n) - 1] < target) {
+        prev = step;
+        step += (int) Math.sqrt(n);
+        if (prev >= n) return -1;
+    }
+    for (int i = prev; i < Math.min(step, n); i++) {
+        if (arr[i] == target) return i;
+    }
+    return -1;
+}`
+  },
+  {
+    name: "指数查找",
+    nameEn: "Exponential Search",
+    timeBest: "O(1)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "先以指数增长（1, 2, 4, 8, …）的步长找到目标可能所在的区间（arr[2^k-1] < target），再对该区间进行二分查找。适合无限/超大数组。",
+    javaCode: `public static int exponentialSearch(int[] arr, int target) {
+    if (arr[0] == target) return 0;
+    int i = 1;
+    while (i < arr.length && arr[i] <= target) {
+        i *= 2;
+    }
+    return binarySearch(arr, target, i / 2,
+                        Math.min(i, arr.length - 1));
+}
+
+private static int binarySearch(int[] arr, int t,
+                                int l, int r) {
+    while (l <= r) {
+        int m = l + (r - l) / 2;
+        if (arr[m] == t) return m;
+        else if (arr[m] < t) l = m + 1;
+        else r = m - 1;
+    }
+    return -1;
+}`
+  },
+  {
+    name: "插值查找",
+    nameEn: "Interpolation Search",
+    timeBest: "O(1)",
+    timeAvg: "O(log log n)",
+    timeWorst: "O(n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "改进的二分查找。根据目标值在数组值域中的比例来估算位置（类似查字典），而非固定取中点。适合均匀分布的有序数据。",
+    javaCode: `public static int interpolationSearch(int[] arr, int target) {
+    int l = 0, r = arr.length - 1;
+    while (l <= r && target >= arr[l]
+           && target <= arr[r]) {
+        int pos = l + ((target - arr[l])
+                 * (r - l) / (arr[r] - arr[l]));
+        if (arr[pos] == target) return pos;
+        if (arr[pos] < target) l = pos + 1;
+        else r = pos - 1;
+    }
+    return -1;
+}`
+  },
+  {
+    name: "斐波那契查找",
+    nameEn: "Fibonacci Search",
+    timeBest: "O(1)",
+    timeAvg: "O(log n)",
+    timeWorst: "O(log n)",
+    space: "O(1)",
+    sorted: true,
+    desc: "利用斐波那契数列确定搜索位置。与二分类似但只用加减法（不用除法），在数值较大时避免除法开销。",
+    javaCode: `public static int fibonacciSearch(int[] arr, int target) {
+    int n = arr.length;
+    int f2 = 0, f1 = 1, fib = f1 + f2;
+    while (fib < n) {
+        f2 = f1; f1 = fib; fib = f1 + f2;
+    }
+    int offset = -1;
+    while (fib > 1) {
+        int i = Math.min(offset + f2, n - 1);
+        if (arr[i] < target) {
+            fib = f1; f1 = f2; f2 = fib - f1;
+            offset = i;
+        } else if (arr[i] > target) {
+            fib = f2; f1 = f1 - f2; f2 = fib - f1;
+        } else return i;
+    }
+    if (f1 == 1 && arr[offset + 1] == target)
+        return offset + 1;
+    return -1;
+}`
+  },
+  {
+    name: "分块查找",
+    nameEn: "Block Search",
+    timeBest: "O(1)",
+    timeAvg: "O(√n)",
+    timeWorst: "O(n)",
+    space: "O(√n)",
+    sorted: true,
+    desc: "将有序数组分为若干块，建立索引表（每块的最大值）。先在索引表中用二分找到目标所在块，再在块内线性查找。类似数据库索引思想。",
+    javaCode: `public static int blockSearch(int[] arr, int target) {
+    int n = arr.length;
+    int blockSize = (int) Math.sqrt(n);
+    // 构建索引表（每块最大值和起始下标）
+    int[][] index = new int[(n + blockSize - 1)][2];
+    for (int i = 0; i < index.length; i++) {
+        int start = i * blockSize;
+        int end = Math.min(start + blockSize, n);
+        index[i][0] = arr[end - 1]; // 块最大值
+        index[i][1] = start;         // 块起始下标
+    }
+    // 二分索引表找到目标块
+    int l = 0, r = index.length - 1;
+    while (l <= r) {
+        int m = l + (r - l) / 2;
+        if (index[m][0] >= target) {
+            if (m == 0 || index[m-1][0] < target) {
+                // 在块 m 内线性查找
+                int start = index[m][1];
+                int end = Math.min(start + blockSize, n);
+                for (int i = start; i < end; i++)
+                    if (arr[i] == target) return i;
+                return -1;
+            }
+            r = m - 1;
+        } else l = m + 1;
+    }
+    return -1;
+}`
+  }
+];
+
+// ===================== 可视化引擎 =====================
+let currentIdx = 0;
+let panelData = [];
+
+function generateSortedArray(size) {
+  const arr = new Array(size);
+  let val = 10;
+  for (let i = 0; i < size; i++) {
+    val += Math.floor(Math.random() * 15) + 3;
+    arr[i] = val;
+  }
+  return arr;
+}
+
+function generateRandomArray(size) {
+  const arr = new Array(size);
+  const used = new Set();
+  for (let i = 0; i < size; i++) {
+    let v;
+    do { v = Math.floor(Math.random() * 300) + 5; } while (used.has(v));
+    used.add(v);
+    arr[i] = v;
+  }
+  return arr;
+}
+
+// ---------- 生成步骤序列 ----------
+function buildSteps(searchIdx, rawArr, target) {
+  const arr = rawArr.slice();
+  const n = arr.length;
+  const steps = [];
+  // step: { array, compares:[], found:[], eliminated:[], range:[l,r], mid:[], leftPtr:[], rightPtr:[], line, msg }
+
+  function push(opts) {
+    steps.push({
+      array: arr.slice(),
+      compares: opts.compares || [],
+      found: opts.found || [],
+      eliminated: opts.eliminated !== undefined ? opts.eliminated : currentEliminated(),
+      range: opts.range || [],
+      mid: opts.mid || [],
+      leftPtr: opts.leftPtr || [],
+      rightPtr: opts.rightPtr || [],
+      line: opts.line || 0,
+      msg: opts.msg || '',
+      result: opts.result || null
+    });
+  }
+
+  // 标记某个范围区域为 eliminated（灰色）
+  let eliminated = new Array(n).fill(false);
+
+  function markEliminated(l, r) {
+    for (let i = l; i <= r; i++) eliminated[i] = true;
+  }
+
+  function currentEliminated() {
+    const arr = [];
+    for (let i = 0; i < n; i++) if (eliminated[i]) arr.push(i);
+    return arr;
+  }
+
+  switch (searchIdx) {
+    // ===== 0 - 顺序查找 =====
+    case 0: {
+      push({ line: 2, msg: `开始在数组中查找目标值 ${target}` });
+      for (let i = 0; i < n; i++) {
+        push({ compares: [i], line: 3, msg: `比较 arr[${i}] = ${arr[i]} 与目标 ${target}` });
+        if (arr[i] === target) {
+          push({ found: [i], line: 4, msg: `✓ 找到！目标 ${target} 位于 arr[${i}]` });
+          break;
+        }
+        markEliminated(i, i);
+        push({ eliminated: currentEliminated(), line: 2, msg: `arr[${i}] = ${arr[i]} ≠ ${target}，继续查找` });
+      }
+      if (!steps[steps.length-1].found.length) {
+        push({ line: 7, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 1 - 二分查找 =====
+    case 1: {
+      let l = 0, r = n - 1;
+      push({ range: [l, r], line: 2, msg: `初始搜索范围 [${l}, ${r}]，数组已有序` });
+      while (l <= r) {
+        let m = Math.floor((l + r) / 2);
+        push({ range: [l, r], mid: [m], line: 3, msg: `取中间位置 m = ${m}，arr[${m}] = ${arr[m]}` });
+        if (arr[m] === target) {
+          push({ found: [m], range: [], line: 4, msg: `✓ 找到！目标 ${target} 位于 arr[${m}]` });
+          break;
+        } else if (arr[m] < target) {
+          markEliminated(l, m);
+          push({ mid: [m], range: [m+1, r], eliminated: currentEliminated(), line: 6, msg: `arr[${m}] = ${arr[m]} < ${target}，排除左半部分 [${l}, ${m}]` });
+          l = m + 1;
+        } else {
+          markEliminated(m, r);
+          push({ mid: [m], range: [l, m-1], eliminated: currentEliminated(), line: 7, msg: `arr[${m}] = ${arr[m]} > ${target}，排除右半部分 [${m}, ${r}]` });
+          r = m - 1;
+        }
+      }
+      if (l > r && !steps[steps.length-1].found.length) {
+        push({ eliminated: currentEliminated(), line: 9, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 2 - 三分查找 =====
+    case 2: {
+      let l = 0, r = n - 1;
+      push({ range: [l, r], line: 2, msg: `初始搜索范围 [${l}, ${r}]，数组已有序` });
+      while (l <= r) {
+        let m1 = l + Math.floor((r - l) / 3);
+        let m2 = r - Math.floor((r - l) / 3);
+        push({ range: [l, r], mid: [m1, m2], line: 3, msg: `两个中间点：m1=${m1} (arr=${arr[m1]}), m2=${m2} (arr=${arr[m2]})` });
+        if (arr[m1] === target) {
+          push({ found: [m1], range: [], line: 4, msg: `✓ 找到！目标 ${target} 位于 arr[${m1}]（第一个中间点）` });
+          break;
+        }
+        if (arr[m2] === target) {
+          push({ found: [m2], range: [], line: 5, msg: `✓ 找到！目标 ${target} 位于 arr[${m2}]（第二个中间点）` });
+          break;
+        }
+        if (target < arr[m1]) {
+          markEliminated(m1, r);
+          push({ mid: [m1], range: [l, m1-1], eliminated: currentEliminated(), line: 7, msg: `${target} < arr[${m1}]=${arr[m1]}，排除 [${m1}, ${r}]` });
+          r = m1 - 1;
+        } else if (target > arr[m2]) {
+          markEliminated(l, m2);
+          push({ mid: [m2], range: [m2+1, r], eliminated: currentEliminated(), line: 8, msg: `${target} > arr[${m2}]=${arr[m2]}，排除 [${l}, ${m2}]` });
+          l = m2 + 1;
+        } else {
+          markEliminated(l, m1);
+          markEliminated(m2, r);
+          push({ range: [m1+1, m2-1], eliminated: currentEliminated(), line: 9, msg: `目标在中间段，排除两端，剩余 [${m1+1}, ${m2-1}]` });
+          l = m1 + 1;
+          r = m2 - 1;
+        }
+      }
+      if (l > r && !steps[steps.length-1].found.length) {
+        push({ eliminated: currentEliminated(), line: 0, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 3 - 跳跃查找 =====
+    case 3: {
+      let step = Math.floor(Math.sqrt(n));
+      let prev = 0;
+      push({ range: [0, n-1], line: 3, msg: `步长 step = ⌊√${n}⌋ = ${step}，开始跳跃` });
+      // 跳跃阶段
+      while (prev < n && step <= n && arr[Math.min(step, n) - 1] < target) {
+        push({ range: [prev, Math.min(step, n)-1], compares: [Math.min(step, n)-1], line: 4, msg: `块末尾 arr[${Math.min(step,n)-1}] = ${arr[Math.min(step,n)-1]} < ${target}，继续跳跃` });
+        markEliminated(prev, Math.min(step, n) - 1);
+        prev = step;
+        step += Math.floor(Math.sqrt(n));
+        if (prev >= n) break;
+      }
+      if (prev >= n) {
+        push({ eliminated: currentEliminated(), line: 6, msg: `✗ 超出数组范围，未找到目标 ${target}` });
+        break;
+      }
+      let blockEnd = Math.min(step, n);
+      push({ range: [prev, blockEnd-1], eliminated: currentEliminated(), line: 4, msg: `目标可能在块 [${prev}, ${blockEnd-1}] 中，进行线性查找` });
+      // 线性查找阶段
+      let found = false;
+      for (let i = prev; i < blockEnd; i++) {
+        push({ compares: [i], eliminated: currentEliminated(), line: 8, msg: `在块内线性查找：arr[${i}] = ${arr[i]} ${arr[i] === target ? '✓ 找到！' : '≠ ' + target}` });
+        if (arr[i] === target) {
+          push({ found: [i], eliminated: currentEliminated(), line: 9, msg: `✓ 找到！目标 ${target} 位于 arr[${i}]` });
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        push({ eliminated: currentEliminated(), line: 0, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 4 - 指数查找 =====
+    case 4: {
+      if (arr[0] === target) {
+        push({ found: [0], line: 2, msg: `✓ 找到！目标 ${target} 位于 arr[0]` });
+        break;
+      }
+      let i = 1;
+      push({ compares: [0], line: 2, msg: `检查 arr[0] = ${arr[0]}，不是目标，开始指数扩展` });
+      markEliminated(0, 0);
+      while (i < n && arr[i] <= target) {
+        push({ compares: [i], eliminated: currentEliminated(), line: 4, msg: `指数扩展 i=${i}，arr[${i}] = ${arr[i]} ≤ ${target}，继续` });
+        i *= 2;
+      }
+      let l = Math.floor(i / 2);
+      let r = Math.min(i, n - 1);
+      push({ range: [l, r], eliminated: currentEliminated(), line: 5, msg: `指数范围确定：[${l}, ${r}]，在该范围内二分查找` });
+      // 二分查找阶段
+      let found = false;
+      while (l <= r) {
+        let m = Math.floor((l + r) / 2);
+        push({ range: [l, r], mid: [m], eliminated: currentEliminated(), line: 0, msg: `二分查找：mid=${m}，arr[${m}] = ${arr[m]}` });
+        if (arr[m] === target) {
+          push({ found: [m], range: [], eliminated: currentEliminated(), line: 0, msg: `✓ 找到！目标 ${target} 位于 arr[${m}]` });
+          found = true;
+          break;
+        } else if (arr[m] < target) {
+          markEliminated(l, m);
+          l = m + 1;
+        } else {
+          markEliminated(m, r);
+          r = m - 1;
+        }
+      }
+      if (!found) {
+        push({ eliminated: currentEliminated(), line: 0, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 5 - 插值查找 =====
+    case 5: {
+      let l = 0, r = n - 1;
+      push({ range: [l, r], line: 2, msg: `初始范围 [${l}, ${r}]，arr[${l}]=${arr[l]}，arr[${r}]=${arr[r]}` });
+      let found = false;
+      while (l <= r && target >= arr[l] && target <= arr[r]) {
+        let pos = l + Math.floor((target - arr[l]) * (r - l) / (arr[r] - arr[l]));
+        pos = Math.max(l, Math.min(r, pos));
+        push({ range: [l, r], mid: [pos], line: 3, msg: `估算位置 pos=${pos}（arr[${pos}]=${arr[pos]}），目标 ${target} 在 [${arr[l]},${arr[r]}] 值域中` });
+        if (arr[pos] === target) {
+          push({ found: [pos], range: [], line: 4, msg: `✓ 找到！目标 ${target} 位于 arr[${pos}]` });
+          found = true;
+          break;
+        }
+        if (arr[pos] < target) {
+          markEliminated(l, pos);
+          l = pos + 1;
+          push({ range: [l, r], eliminated: currentEliminated(), line: 6, msg: `arr[${pos}] = ${arr[pos]} < ${target}，排除左侧` });
+        } else {
+          markEliminated(pos, r);
+          r = pos - 1;
+          push({ range: [l, r], eliminated: currentEliminated(), line: 7, msg: `arr[${pos}] = ${arr[pos]} > ${target}，排除右侧` });
+        }
+      }
+      if (!found) {
+        push({ eliminated: currentEliminated(), line: 9, msg: `✗ 未找到目标值 ${target}（目标不在值域范围内）` });
+      }
+      break;
+    }
+
+    // ===== 6 - 斐波那契查找 =====
+    case 6: {
+      let f2 = 0, f1 = 1, fib = f1 + f2;
+      while (fib < n) { f2 = f1; f1 = fib; fib = f1 + f2; }
+      let offset = -1;
+      push({ range: [0, n-1], line: 4, msg: `斐波那契数列初始：f2=${f2}, f1=${f1}, fib=${fib} (需 ≥ ${n})` });
+      let found = false;
+      while (fib > 1) {
+        let i = Math.min(offset + f2, n - 1);
+        push({ range: [offset+1, n-1], mid: [i], line: 7, msg: `i = offset + f2 = ${offset} + ${f2} = ${i}，arr[${i}] = ${arr[i]}` });
+        if (arr[i] < target) {
+          markEliminated(offset + 1, i);
+          fib = f1; f1 = f2; f2 = fib - f1;
+          offset = i;
+          push({ eliminated: currentEliminated(), line: 8, msg: `arr[${i}] < ${target}，排除左侧，fib=${fib}, f1=${f1}, f2=${f2}, offset=${offset}` });
+        } else if (arr[i] > target) {
+          markEliminated(i, n - 1);
+          fib = f2; f1 = f1 - f2; f2 = fib - f1;
+          push({ eliminated: currentEliminated(), line: 10, msg: `arr[${i}] > ${target}，排除右侧，fib=${fib}, f1=${f1}, f2=${f2}` });
+        } else {
+          push({ found: [i], line: 11, msg: `✓ 找到！目标 ${target} 位于 arr[${i}]` });
+          found = true;
+          break;
+        }
+      }
+      if (!found && f1 === 1 && offset + 1 < n && arr[offset + 1] === target) {
+        push({ found: [offset + 1], line: 12, msg: `✓ 找到！目标 ${target} 位于 arr[${offset + 1}]` });
+        found = true;
+      }
+      if (!found) {
+        push({ eliminated: currentEliminated(), line: 13, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+
+    // ===== 7 - 分块查找 =====
+    case 7: {
+      let blockSize = Math.max(1, Math.floor(Math.sqrt(n)));
+      let numBlocks = Math.ceil(n / blockSize);
+      let index = []; // 每块 [最大值, 起始下标]
+      for (let b = 0; b < numBlocks; b++) {
+        let start = b * blockSize;
+        let end = Math.min(start + blockSize, n);
+        index.push([arr[end - 1], start]);
+      }
+      // 显示分块信息
+      let idxStr = index.map((v, i) => `块${i}: [${v[1]}..${Math.min(v[1]+blockSize,n)-1}]max=${v[0]}`).join('，');
+      push({ line: 3, msg: `分块信息（块大小=${blockSize}）：${idxStr}` });
+
+      // 用二分在索引表中查找目标块
+      let found = false;
+      let il = 0, ir = index.length - 1;
+      let targetBlock = -1;
+      while (il <= ir) {
+        let im = Math.floor((il + ir) / 2);
+        push({ range: [0, n-1], line: 10, msg: `索引表二分查找：检查块${im}（最大值=${index[im][0]}）` });
+        if (index[im][0] >= target) {
+          if (im === 0 || index[im-1][0] < target) {
+            targetBlock = im;
+            push({ line: 11, msg: `目标 ${target} 可能位于块${im}（范围 [${index[im][1]}, ${Math.min(index[im][1]+blockSize,n)-1}]）` });
+            break;
+          }
+          ir = im - 1;
+          push({ msg: `块${im}最小值也可能≥目标，继续向左查找` });
+        } else {
+          il = im + 1;
+          push({ msg: `块${im}最大值=${index[im][0]} < ${target}，向右查找` });
+        }
+      }
+      if (targetBlock === -1) {
+        push({ eliminated: Array.from({length:n},(_,i)=>i), line: 0, msg: `✗ 未找到目标值 ${target}` });
+        break;
+      }
+      // 在目标块内线性查找
+      let bStart = index[targetBlock][1];
+      let bEnd = Math.min(bStart + blockSize, n);
+      // 标记其他块为排除
+      for (let b = 0; b < numBlocks; b++) {
+        if (b !== targetBlock) {
+          let s = b * blockSize;
+          let e = Math.min(s + blockSize, n);
+          markEliminated(s, e - 1);
+        }
+      }
+      for (let i = bStart; i < bEnd; i++) {
+        push({ compares: [i], eliminated: currentEliminated(), range: [bStart, bEnd-1], line: 16, msg: `块${targetBlock}内线性查找：arr[${i}] = ${arr[i]} ${arr[i] === target ? '✓ 找到！' : '≠ ' + target}` });
+        if (arr[i] === target) {
+          push({ found: [i], eliminated: currentEliminated(), line: 17, msg: `✓ 找到！目标 ${target} 位于 arr[${i}]` });
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        push({ eliminated: currentEliminated(), line: 0, msg: `✗ 未找到目标值 ${target}` });
+      }
+      break;
+    }
+  }
+  return steps;
+}
+
+// ---------- DOM 构建 ----------
+function initSearchPanel(idx) {
+  const data = SEARCH_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  const codeStr = data.javaCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = codeStr.split('\n');
+
+  let codeHTML = '<pre><code>';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    const text = lines[i];
+    codeHTML += `<div class="code-line" data-line="${ln}"><span class="lineno">${ln}</span><span class="line-code">${text}</span></div>`;
+  }
+  codeHTML += '</code></pre>';
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}（${data.nameEn}）</h2>
+      <div class="sub">${data.desc}</div>
+    </div>
+    <div class="complexity">
+      <span class="label">时间复杂度</span>
+      <span><span class="badge-best">●</span> 最优 ${data.timeBest}</span>
+      <span><span class="badge-avg">●</span> 平均 ${data.timeAvg}</span>
+      <span><span class="badge-worst">●</span> 最坏 ${data.timeWorst}</span>
+      <span>空间复杂度 ${data.space}</span>
+      <span>${data.sorted ? '✔ 需要有序数组' : '✘ 无需有序数组'}</span>
+      <button class="copy-btn" data-idx="${idx}" style="margin-left:auto;">复制代码</button>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-header">
+          <span class="lang-label">Java</span>
+        </div>
+        <div class="code-scroll">${codeHTML}</div>
+      </div>
+      <div class="vis-section">
+        <div class="target-info" id="targetInfo-${idx}">🎯 目标值：<strong id="targetVal-${idx}">?</strong></div>
+        <div class="vis-msg" id="msg-${idx}">点击「重置」生成新数据并开始</div>
+        <div class="vis-canvas-wrap" id="canvas-${idx}"></div>
+        <div class="controls">
+          <button class="btn-first" data-idx="${idx}">|◀ 首步</button>
+          <button class="btn-prev" data-idx="${idx}">◀ 上一步</button>
+          <button class="btn-next btn-primary" data-idx="${idx}">下一步 ▶</button>
+          <button class="btn-last" data-idx="${idx}">末步 ▶|</button>
+          <button class="btn-auto" data-idx="${idx}">播放 自动</button>
+          <label>速度 <input type="range" class="speed-slider" min="1" max="10" value="5" data-idx="${idx}"></label>
+          <label>数据量 <select class="size-select" data-idx="${idx}">
+            <option value="8">8</option><option value="10">10</option><option value="15" selected>15</option>
+            <option value="20">20</option><option value="30">30</option><option value="40">40</option>
+          </select></label>
+          <label>目标值 <select class="target-select" data-idx="${idx}"></select></label>
+          <button class="btn-reset" data-idx="${idx}">🔄 重置</button>
+          <span class="step-info" id="stepInfo-${idx}">步骤 0 / 0</span>
+        </div>
+      </div>
+    </div>
+    <div class="algo-desc">
+      <strong>算法说明：</strong>${data.desc}
+    </div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  const resetBtn = panel.querySelector('.btn-reset');
+  resetBtn.innerHTML = '🔄 重置';
+  const sizeSelect = panel.querySelector('.size-select');
+  const targetSelect = panel.querySelector('.target-select');
+  const nextBtn = panel.querySelector('.btn-next');
+  const prevBtn = panel.querySelector('.btn-prev');
+  const firstBtn = panel.querySelector('.btn-first');
+  const lastBtn = panel.querySelector('.btn-last');
+  const autoBtn = panel.querySelector('.btn-auto');
+  const speedSlider = panel.querySelector('.speed-slider');
+
+  const state = { steps: [], stepIdx: 0, arr: [], size: 15, target: 0, running: false, timer: null };
+  panelData[idx] = state;
+
+  function pickTarget(arr) {
+    // 70% 概率从数组中选一个存在的值
+    if (arr.length > 4 && Math.random() < 0.7) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    // 30% 概率选一个可能不存在的值
+    return arr[Math.floor(Math.random() * arr.length)] + (Math.random() < 0.5 ? 1 : -1) * (Math.floor(Math.random() * 5) + 1);
+  }
+
+  function populateTargetSelect(arr, currentTarget) {
+    targetSelect.innerHTML = '';
+    // 添加数组中的值作为选项
+    const uniqueVals = [...new Set(arr)];
+    // 也添加一些可能不在数组中的值
+    const options = new Set();
+    uniqueVals.forEach(v => options.add(v));
+    // 添加一些测试值
+    if (arr.length > 2) {
+      options.add(arr[0] - 5);  // 比最小值小
+      options.add(arr[arr.length-1] + 5);  // 比最大值大
+      let mid = arr[Math.floor(arr.length / 2)];
+      options.add(mid + 1);
+    }
+    const sortedOpts = [...options].sort((a, b) => a - b);
+    sortedOpts.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v + (uniqueVals.includes(v) ? '' : ' (可能不存在)');
+      if (v === currentTarget) opt.selected = true;
+      targetSelect.appendChild(opt);
+    });
+  }
+
+  function render() {
+    const canvas = document.getElementById('canvas-' + idx);
+    if (!state.steps.length) return;
+    const stepIdx = Math.min(state.stepIdx, state.steps.length - 1);
+    const step = state.steps[stepIdx];
+    if (!step) return;
+    const arrVals = step.array;
+    const maxVal = Math.max(...arrVals, 1);
+    canvas.innerHTML = '';
+    const _hotCanvasStyle = getComputedStyle(canvas);
+    const _hotPadX = (parseFloat(_hotCanvasStyle.paddingLeft) || 0) + (parseFloat(_hotCanvasStyle.paddingRight) || 0);
+    const _hotPadY = (parseFloat(_hotCanvasStyle.paddingTop) || 0) + (parseFloat(_hotCanvasStyle.paddingBottom) || 0);
+    const W = Math.max(240, canvas.clientWidth - _hotPadX);
+    const H = Math.max(180, canvas.clientHeight - _hotPadY);
+    const barW = Math.max(8, Math.min(50, Math.floor((W - 20) / arrVals.length) - 2));
+
+    // 标记目标值的水平参考线
+    arrVals.forEach((v, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = (v / maxVal) * (H - 30) + 'px';
+      bar.style.width = barW + 'px';
+      bar.style.background = '#4a6cf7';
+
+      if (step.found && step.found.includes(i)) bar.style.background = '#4caf50';
+      else if (step.compares && step.compares.includes(i)) bar.style.background = '#ff9800';
+      else if (step.eliminated && step.eliminated.includes(i)) bar.style.background = '#d0d0d0';
+      else if (step.mid && step.mid.includes(i)) bar.style.background = '#9c27b0';
+      else if (step.leftPtr && step.leftPtr.includes(i)) bar.style.background = '#00bcd4';
+      else if (step.rightPtr && step.rightPtr.includes(i)) bar.style.background = '#e91e63';
+      else if (step.range && step.range.length === 2 && i >= step.range[0] && i <= step.range[1]) bar.style.background = '#4a6cf7';
+
+      // 如果值是目标值，标记顶部虚线
+      if (v === state.target) bar.classList.add('target-line');
+
+      const label = document.createElement('span');
+      label.className = 'bar-label';
+      label.textContent = v;
+      bar.appendChild(label);
+      canvas.appendChild(bar);
+    });
+
+    // 目标值水平参考线
+    const targetEl = document.createElement('div');
+    const targetRatio = state.target / maxVal;
+    targetEl.style.cssText = `position:absolute;left:10px;right:10px;bottom:${10 + targetRatio * (H - 30)}px;border-top:2px dashed #e44;pointer-events:none;`;
+    targetEl.title = `目标值 ${state.target}`;
+    // 目标值标注
+
+    const info = document.getElementById('stepInfo-' + idx);
+    if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
+    const msgEl = document.getElementById('msg-' + idx);
+    if (msgEl) msgEl.textContent = step.msg || '';
+    const targetValEl = document.getElementById('targetVal-' + idx);
+    if (targetValEl) targetValEl.textContent = state.target;
+
+    // 高亮代码行
+    const codeLines = panel.querySelectorAll('.code-line');
+    codeLines.forEach(el => el.classList.remove('highlight-line'));
+    if (step.line > 0) {
+      const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+      if (target) target.classList.add('highlight-line');
+    }
+  }
+
+  function resetSteps() {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    state.running = false;
+    autoBtn.textContent = '播放 自动';
+
+    if (data.sorted) {
+      state.arr = generateSortedArray(state.size);
+    } else {
+      state.arr = generateRandomArray(state.size);
+    }
+
+    state.target = pickTarget(state.arr);
+    state.steps = buildSteps(idx, state.arr, state.target);
+    state.stepIdx = 0;
+    populateTargetSelect(state.arr, state.target);
+    render();
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const atFirst = state.stepIdx <= 0;
+    const atLast = state.stepIdx >= state.steps.length - 1;
+    firstBtn.disabled = atFirst;
+    prevBtn.disabled = atFirst;
+    nextBtn.disabled = atLast;
+    lastBtn.disabled = atLast;
+  }
+
+  sizeSelect.addEventListener('change', () => {
+    state.size = parseInt(sizeSelect.value);
+    resetSteps();
+  });
+
+  targetSelect.addEventListener('change', () => {
+    state.target = parseInt(targetSelect.value);
+    state.arr = generateSortedArray(state.size);
+    state.steps = buildSteps(idx, state.arr, state.target);
+    state.stepIdx = 0;
+    render();
+    updateButtons();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+  });
+  prevBtn.addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
+  });
+  firstBtn.addEventListener('click', () => {
+    state.stepIdx = 0; render(); updateButtons();
+  });
+  lastBtn.addEventListener('click', () => {
+    state.stepIdx = state.steps.length - 1; render(); updateButtons();
+  });
+  resetBtn.addEventListener('click', resetSteps);
+  autoBtn.addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false;
+      autoBtn.textContent = '播放 自动';
+    } else {
+      state.running = true;
+      autoBtn.textContent = '⏸ 暂停';
+      const speed = parseInt(speedSlider.value);
+      const delay = Math.max(20, 160 - speed * 12);
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) {
+          state.stepIdx++;
+          render();
+          updateButtons();
+        } else {
+          clearInterval(state.timer);
+          state.timer = null;
+          state.running = false;
+          autoBtn.textContent = '播放 自动';
+        }
+      }, delay);
+    }
+  });
+
+  panel.querySelector('.copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(data.javaCode).then(() => {
+      const btn = panel.querySelector('.copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = '✓ 已复制';
+      setTimeout(() => btn.textContent = orig, 1500);
+    }).catch(() => alert('复制失败'));
+  });
+
+  state.render = render;
+  panelData[idx] = state;
+
+  state.size = 15;
+  resetSteps();
+
+  const ro = new ResizeObserver(() => render());
+  ro.observe(document.getElementById('canvas-' + idx));
+}
+
+// ===================== 启动 =====================
+SEARCH_DATA.forEach((_, idx) => {
+  panelData.push(null);
+  initSearchPanel(idx);
+});
+
+// Tab 切换
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '播放 自动');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    const s = panelData[idx];
+    if (s && s.render) s.render();
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

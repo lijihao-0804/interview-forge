@@ -1,0 +1,138 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>类加载机制与双亲委派 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">JVM：内存区域、垃圾回收与类加载</a><span aria-hidden="true">›</span><span aria-current="page">类加载机制与双亲委派</span></nav><div class="module-meta">Java 语言 · 第 8 / 12 章</div><h1>类加载机制与双亲委派</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>“一个类从字节码到能 new 出对象，中间经历了什么”，是 JVM 面试绕不开的题。</p>
+<h3>7.1 类加载的生命周期</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">加载 → 验证 → 准备 → 解析 → 初始化 → 使用 → 卸载
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>加载</td>
+<td>读取字节码，生成 Class 对象</td>
+</tr>
+<tr>
+<td>验证</td>
+<td>校验字节码格式、语义、符号引用（安全）</td>
+</tr>
+<tr>
+<td>准备</td>
+<td>为静态变量分配内存并设默认值（0/null，final 常量直接赋值）</td>
+</tr>
+<tr>
+<td>解析</td>
+<td>把符号引用替换为直接引用</td>
+</tr>
+<tr>
+<td>初始化</td>
+<td>执行静态变量赋值与静态代码块（触发 <code>&lt;clinit&gt;</code>）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>初始化触发时机</strong>（主动引用）：</p>
+<ul>
+<li><code>new</code>、读写静态字段、调用静态方法；</li>
+<li>反射 <code>Class.forName</code>；</li>
+<li>初始化子类前先初始化父类；</li>
+<li>作为程序入口（main 所在类）；</li>
+<li>使用 MethodHandle、动态语言支持等。</li>
+</ul>
+<p>被动引用（不触发初始化）经典演示：<code>Child.x</code> 只读父类静态字段，只初始化父类、不初始化子类；<code>new Child[10]</code> 只触发数组类的初始化。</p>
+<p>被动引用（不触发初始化）：通过子类引用父类静态字段、定义数组、引用常量（编译期进入常量池）。</p>
+<h3>7.2 三类加载器与双亲委派</h3>
+<table>
+<thead>
+<tr>
+<th>加载器</th>
+<th>加载范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bootstrap ClassLoader</td>
+<td>JDK 核心类库（rt.jar / java.base 模块）</td>
+</tr>
+<tr>
+<td>Extension / Platform ClassLoader</td>
+<td>JDK 扩展库（JDK 9 起更名 Platform）</td>
+</tr>
+<tr>
+<td>Application ClassLoader</td>
+<td>classpath 下的应用类</td>
+</tr>
+</tbody>
+</table>
+<p><strong>双亲委派</strong>：一个类加载请求先交给父加载器，父加载器处理不了才由自己加载。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    app[Application&lt;br/&gt;classpath] --&gt; plat[Platform / Extension]
+    plat --&gt; boot[Bootstrap&lt;br/&gt;核心类库]
+    boot --&gt;|找到则加载| done[完成]
+    boot --&gt;|找不到| plat2[Platform 尝试]
+    plat2 --&gt;|找不到| app2[Application 尝试]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>好处：</p>
+<ol>
+<li><strong>避免重复加载</strong>：同一个类只会被上层的加载器加载一次；</li>
+<li><strong>安全</strong>：核心类库只能由 Bootstrap 加载，应用代码无法用同名类（如 <code>java.lang.String</code>）冒充核心类。</li>
+</ol>
+<p><strong>类唯一性（命名空间）</strong>：同一个全限定名由不同类加载器加载出来是两个不同的类（Class 对象不同、instanceof 判 false）；热部署正是靠新加载器加载新版类来替换旧版本。</p>
+<h3>7.3 打破双亲委派</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>机制</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SPI（服务提供方接口）</td>
+<td>双亲委派下父加载器加载的接口需要子加载器的实现，用线程上下文类加载器（TCCL）反向加载</td>
+<td>JDBC DriverManager</td>
+</tr>
+<tr>
+<td>容器热部署</td>
+<td>每个 WebApp 独立类加载器，卸载类即可替换应用</td>
+<td>Tomcat</td>
+</tr>
+<tr>
+<td>OSGi / 模块化</td>
+<td>类加载器按模块管理依赖</td>
+<td>OSGi 框架</td>
+</tr>
+</tbody>
+</table>
+<p><strong>JDBC 的失败现场</strong>：<code>DriverManager</code> 由 Bootstrap/平台加载器加载，而 MySQL 驱动在应用的 classpath 里（由 Application 加载器加载）。双亲委派下父加载器看不到子加载器的类，直接“接口调用实现”会失败；所以 DriverManager 用 <code>Thread.currentThread().getContextClassLoader()</code>（TCCL，默认是 Application 加载器）反向把驱动类加载进来。把驱动从 classpath 移除、或 TCCL 被改掉时，就会看到 <code>ClassNotFoundException: com.mysql.cj.jdbc.Driver</code>。</p>
+<p><strong>为什么推荐重写 <code>findClass</code> 而不是 <code>loadClass</code></strong>：<code>loadClass</code> 是双亲委派的总入口（内部顺序是 findLoadedClass → 父加载器 → 自己），<code>findClass</code> 只是“自己负责加载字节码”的钩子。自定义加载器只重写 <code>findClass</code>，就能保留双亲委派的查重与安全逻辑，只替换“类从哪来”；直接重写 <code>loadClass</code> 等于绕过整条委派链，容易重复加载、破坏类唯一性。Tomcat 的 WebAppClassLoader 则是“先加载 WEB-INF/classes，再委派”，用这个违背父优先的顺序实现应用隔离与热部署。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 打破双亲委派的通用做法：重写 loadClass，先自己加载，失败再回退父加载器</span>
+<span class="kd">protected</span><span class="w"> </span><span class="n">Class</span><span class="o">&lt;?&gt;</span><span class="w"> </span><span class="n">loadClass</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">resolve</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">ClassNotFoundException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">getClassLoadingLock</span><span class="p">(</span><span class="n">name</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">          </span><span class="c1">// 保证同一类只加载一次</span>
+<span class="w">        </span><span class="n">Class</span><span class="o">&lt;?&gt;</span><span class="w"> </span><span class="n">clazz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">findLoadedClass</span><span class="p">(</span><span class="n">name</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">clazz</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">clazz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">findClass</span><span class="p">(</span><span class="n">name</span><span class="p">);</span><span class="w">                </span><span class="c1">// 先自己加载</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">ClassNotFoundException</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">clazz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">super</span><span class="p">.</span><span class="na">loadClass</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">);</span><span class="w">   </span><span class="c1">// 失败回退双亲委派</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">resolve</span><span class="p">)</span><span class="w"> </span><span class="n">resolveClass</span><span class="p">(</span><span class="n">clazz</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">clazz</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3>7.4 面试追问</h3>
+<ul>
+<li>问：类加载的过程？</li>
+<li>答：加载 → 验证 → 准备 → 解析 → 初始化；其中初始化会执行静态代码块。</li>
+<li>问：什么是双亲委派？</li>
+<li>答：加载请求先交给父加载器，父加载不了才自己加载；保证核心类不被篡改、避免重复加载。</li>
+<li>问：怎么打破双亲委派？</li>
+<li>答：重写 loadClass 先自己加载，或使用线程上下文类加载器（SPI）、容器自定义加载器（Tomcat 热部署）。</li>
+<li>问：什么时候触发类初始化？</li>
+<li>答：new/静态成员访问/静态方法调用、反射、初始化子类先初始化父类、main 类。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>
+<script>const contentId="jvm:08",moduleId="jvm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

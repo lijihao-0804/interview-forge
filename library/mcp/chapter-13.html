@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>两种标准传输 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Function Calling 与 MCP</a><span aria-hidden="true">›</span><span aria-current="page">两种标准传输</span></nav><div class="module-meta">Agent 工程 · 第 13 / 22 章</div><h1>两种标准传输</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p><img alt="本地与远程 MCP 传输" src="assets/d45d788db1-06-mcp-local-remote-transport.jpeg" /></p>
+<h3>13.1 stdio</h3>
+<p>stdio 用于同一机器上的进程通信：</p>
+<ol>
+<li>Client 启动 Server 子进程；</li>
+<li>Client 向 Server 的 <code>stdin</code> 写入 MCP JSON-RPC 消息；</li>
+<li>Server 从 <code>stdout</code> 返回 MCP JSON-RPC 消息；</li>
+<li><code>stderr</code> 可用于日志。</li>
+</ol>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    H[Host / Client] --&gt;|子进程 stdin| S[MCP Server]
+    S --&gt;|子进程 stdout| H
+    S -.日志 stderr.-&gt; L[日志系统]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>重要约束：</p>
+<ul>
+<li>每条消息使用 UTF-8；</li>
+<li>消息按换行分隔，消息内部不得包含实际换行分隔符；</li>
+<li>Server 不能把普通日志写入 stdout，否则会破坏协议流；</li>
+<li>stdio 配置中的命令和环境变量相当于本地代码执行能力，必须信任来源。</li>
+</ul>
+<p>stdio 被选择不是因为它功能最丰富，而是因为它：</p>
+<ul>
+<li>所有主流操作系统和语言都支持；</li>
+<li>无需占用端口；</li>
+<li>子进程生命周期容易由 Host 管理；</li>
+<li>不需要额外网络服务；</li>
+<li>非常适合本地开发工具。</li>
+</ul>
+<h3>13.2 Streamable HTTP</h3>
+<p>Streamable HTTP 是标准远程传输。Server 提供一个同时支持 POST 和 GET 的 MCP endpoint，例如：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">https://example.com/mcp
+</code></pre></div>
+<p>核心行为：</p>
+<ul>
+<li>Client 用 HTTP POST 发送 JSON-RPC 消息；</li>
+<li>Server 可返回 <code>application/json</code> 单一响应；</li>
+<li>Server 也可返回 <code>text/event-stream</code>，通过 SSE 发送多个消息；</li>
+<li>Client 可用 GET 打开 SSE 流，接收 Server 主动请求和通知；</li>
+<li>Server 可通过 <code>Mcp-Session-Id</code> 管理有状态会话；</li>
+<li>HTTP 授权遵循 MCP Authorization 规范。</li>
+</ul>
+<p><img alt="Streamable HTTP 示意" src="assets/4f9ecf4126-07-streamable-http.png" /></p>
+<h3>13.3 HTTP+SSE 与 Streamable HTTP</h3>
+<p>旧的 HTTP+SSE 传输来自 <code>2024-11-05</code> 协议版本，已被 Streamable HTTP 取代。二者的关键差异不是“文本与二进制”，而是连接模型被简化：</p>
+<ul>
+<li>旧方案通常使用独立 SSE endpoint 与 POST endpoint；</li>
+<li>新方案使用单一 MCP endpoint，POST/GET 组合；</li>
+<li>每个 POST 请求可直接获得 JSON 响应，也可开启 SSE 流；</li>
+<li>更容易支持无状态基础 Server、有状态会话和反向通知。</li>
+</ul>
+<h3>13.4 一个重要纠错：Streamable HTTP 不等于任意二进制协议</h3>
+<p>MCP 当前仍使用 UTF-8 JSON-RPC 消息。工具返回图片或音频时，是通过 MCP 内容块表示，例如 base64 数据或资源链接，而不是因为 Streamable HTTP 自动变成了任意二进制 RPC。</p>
+<p>HTTP/2/3 也不是 MCP Streamable HTTP 的必要定义条件。HTTP/1.1 配合 SSE 同样可以实现规范要求。</p>
+<h3>13.5 自定义传输</h3>
+<p>MCP 允许可插拔的自定义传输，但必须保留 MCP 的 JSON-RPC 消息格式和生命周期语义。自定义传输解决特定环境问题，却会降低通用互操作性，因此应谨慎使用。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-12.html">← 上一章</a><a href="chapter-14.html">下一章 →</a></nav></main></div>
+<script>const contentId="mcp:13",moduleId="mcp";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

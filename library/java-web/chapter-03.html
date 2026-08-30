@@ -1,0 +1,85 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Servlet 与 Tomcat · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java Web 基础：Servlet、Tomcat、Maven、Git 与前后端分离</a><span aria-hidden="true">›</span><span aria-current="page">Servlet 与 Tomcat</span></nav><div class="module-meta">Web 与框架 · 第 3 / 7 章</div><h1>Servlet 与 Tomcat</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>2.1 Servlet 是什么</h3>
+<p>Servlet 是运行在 Web 容器中的 Java 组件，处理 HTTP 请求并生成响应。它是 Spring MVC 的前身，理解它的生命周期才能理解框架封装了什么。</p>
+<p><strong>Servlet 与 Java EE / Jakarta EE 的关系</strong>（版本陷阱高发区）：Servlet 4.0 属于 Java EE 8，包名 <code>javax.servlet</code>，配套 Tomcat 9；Java EE 于 2017 年移交 Eclipse 基金会、2018 年更名 <strong>Jakarta EE</strong>，2020 年完成包名 <code>javax.servlet</code> → <code>jakarta.servlet</code> 的更名（Servlet 5.0 / Jakarta EE 9），需要 Tomcat 10+；Servlet 6.0 对应 Jakarta EE 10 / Tomcat 10.1。陷阱题：<strong>Tomcat 10 里 <code>import javax.servlet</code> 编译不过</strong>，老代码要批量改包名。</p>
+<h3>2.2 Servlet 生命周期</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">加载 → 实例化（构造器）→ init()（只调用一次）→ service()（每次请求）→ destroy()（容器关闭）
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@WebServlet</span><span class="p">(</span><span class="s">&quot;/hello&quot;</span><span class="p">)</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">HelloServlet</span><span class="w"> </span><span class="kd">extends</span><span class="w"> </span><span class="n">HttpServlet</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">                          </span><span class="c1">// 初始化，只执行一次</span>
+
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doGet</span><span class="p">(</span><span class="n">HttpServletRequest</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">HttpServletResponse</span><span class="w"> </span><span class="n">resp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">resp</span><span class="p">.</span><span class="na">getWriter</span><span class="p">().</span><span class="na">write</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">destroy</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">                       </span><span class="c1">// 销毁前清理资源</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>要点：</p>
+<ul>
+<li>Servlet 是<strong>单实例多线程</strong>：容器只创建一个实例，多个请求并发调用 service()，所以 Servlet 里的成员变量要注意线程安全；</li>
+<li><code>service()</code> 根据请求方法分派到 doGet/doPost；</li>
+<li><code>@WebServlet</code> 是 Servlet 3.0 注解方式，旧项目用 web.xml 配置。</li>
+<li><strong>默认懒加载</strong>：第一次请求到达才实例化并 init()；<code>@WebServlet(loadOnStartup = 1)</code> 或 web.xml 的 <code>load-on-startup</code> 可让容器启动时就初始化；init 抛 ServletException 的常见原因是初始化资源失败。</li>
+<li><strong>JSP 本质是 Servlet</strong>：首次访问时 JSP 被转译为 Java 再编译成 class，对应 <code>jspInit</code> / <code>jspService</code> / <code>jspDestroy</code>；前后端分离时代 JSP 已边缘化，只作了解。</li>
+</ul>
+<h3>2.3 Filter 与 Listener</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>时机</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filter（过滤器）</td>
+<td>请求进入 Servlet <strong>前/后</strong></td>
+<td>编码、登录校验、日志、跨域</td>
+</tr>
+<tr>
+<td>Listener（监听器）</td>
+<td>应用/会话/请求生命周期事件</td>
+<td>启动初始化、在线统计</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@WebFilter</span><span class="p">(</span><span class="s">&quot;/*&quot;</span><span class="p">)</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">EncodingFilter</span><span class="w"> </span><span class="kd">implements</span><span class="w"> </span><span class="n">Filter</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doFilter</span><span class="p">(</span><span class="n">ServletRequest</span><span class="w"> </span><span class="n">request</span><span class="p">,</span><span class="w"> </span><span class="n">ServletResponse</span><span class="w"> </span><span class="n">response</span><span class="p">,</span><span class="w"> </span><span class="n">FilterChain</span><span class="w"> </span><span class="n">chain</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">request</span><span class="p">.</span><span class="na">setCharacterEncoding</span><span class="p">(</span><span class="s">&quot;UTF-8&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">response</span><span class="p">.</span><span class="na">setCharacterEncoding</span><span class="p">(</span><span class="s">&quot;UTF-8&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">chain</span><span class="p">.</span><span class="na">doFilter</span><span class="p">(</span><span class="n">request</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">);</span><span class="w">       </span><span class="c1">// 放行，形成过滤器链</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>完整执行顺序</strong>：<code>Filter.doFilter</code>（容器级最外层）→ DispatcherServlet → <code>Interceptor.preHandle</code> → Controller → <code>postHandle</code> → <code>afterCompletion</code> → 沿 Filter 链返回。Filter 属 Servlet 规范、先于一切 MVC 组件；Interceptor 属 Spring MVC、在 DispatcherServlet 内部围绕 Handler，两者不要混为一谈。</p>
+<h3>2.4 Tomcat 架构与线程模型</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Tomcat = Connector（连接器，处理网络 IO）+ Container（容器，管理 Servlet）
+</code></pre></div>
+<ul>
+<li><strong>连接器</strong>：监听端口、解析 HTTP 请求、创建 Request/Response；</li>
+<li><strong>容器</strong>：Engine → Host → Context → Wrapper 层级，Servlet 由 Wrapper 管理；</li>
+<li><strong>线程模型</strong>：BIO 时代一连接一线程（Tomcat 8.0 及之前默认 BIO，8.5 起弃用并默认 NIO）；8.5+/9 默认 NIO，用线程池 + 多路复用处理连接，线程数受 <code>maxThreads</code> 限制；</li>
+<li>常见误区澄清：Tomcat <strong>不使用 Netty</strong>，连接器为自研 NIO/NIO2/APR 实现；Netty 常见于自研网关、Spring WebFlux（Reactor Netty）等场景。</li>
+</ul>
+<p><strong>关键默认值</strong>：默认端口 8080（HTTPS 8443）；<code>maxThreads</code> 默认 200；NIO 下 <code>maxConnections</code> 默认 10000；<code>acceptCount</code>（等待队列）默认 100。</p>
+<p><strong>进阶方向（各一句定位）</strong>：异步 Servlet（<code>AsyncContext</code> 释放容器线程，长任务不占线程池）、SSE（<code>text/event-stream</code> 单向服务端推送）、WebSocket（全双工，见《计算机网络》）；这三者都属于加分项，校招先掌握前几节的同步模型。</p>
+<h3>2.5 面试追问</h3>
+<ul>
+<li>问：Servlet 生命周期？</li>
+<li>答：加载 → 实例化 → init → service（每次请求）→ destroy。</li>
+<li>问：Servlet 线程安全吗？</li>
+<li>答：单实例多线程，成员变量需注意；局部变量安全，实例字段要加锁或用 ThreadLocal。</li>
+<li>问：Filter 和 Interceptor 的区别？</li>
+<li>答：Filter 属于 Servlet 规范、作用在整个请求前后；Interceptor 属于 Spring MVC、作用在 Handler 调用前后。</li>
+<li>问：Tomcat 怎么处理高并发？</li>
+<li>答：NIO + 线程池，连接由 Selector 管理，任务交给线程池执行，线程数有上限保护。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-web:03",moduleId="java-web";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

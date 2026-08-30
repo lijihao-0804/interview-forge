@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>78. 子集 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="78">78. 子集</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（子集黄金模板）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频连环问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>起点索引回溯</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n·2ⁿ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code> ，数组中的元素 <strong>互不相同</strong> 。返回该数组所有可能的子集（幂集）。</p>
+<p>解集 <strong>不能</strong> 包含重复的子集。你可以按 <strong>任意顺序</strong> 返回解集。</p>
+<p><em>例如</em>：<code>nums = [1, 2, 3]</code>，输出 <code>[[], [1], [2], [1, 2], [3], [1, 3], [2, 3], [1, 2, 3]]</code>。</p>
+<p><a href="https://leetcode.cn/problems/subsets/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每个递归节点本身就是一个合法子集。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（排列 vs 子集的本质区别）</strong>：</p>
+<p>全排列找的是<strong>叶子节点</strong>（一定要等口袋装满了 3 个数字才算一个结果）。</p>
+<p>但子集找的是<strong>树上的所有节点</strong>！甚至连一开始什么都没装的空树根 <code>[]</code>，也是一个合法的子集。所以，我们走到任何一个节点，都要把它放进结果集里。</p>
+</li>
+<li>
+<p><strong>破局思路（不走回头路的 <code>startIndex</code>）</strong>：</p>
+<p>怎么避免收集了 <code>[1, 2]</code> 之后，又跑去收集 <code>[2, 1]</code> 呢？</p>
+<p>答案是：<strong>永远只向后看！</strong></p>
+<ul>
+<li>
+<p>当你抓了 <code>1</code> 之后，你面前的选项只剩下它后面的 <code>[2, 3]</code>。</p>
+</li>
+<li>
+<p>当你抓了 <code>2</code> 之后，你面前的选项只剩下它后面的 <code>[3]</code>。（绝对不允许再回头去抓 <code>1</code>）</p>
+</li>
+<li>
+<p>当你抓了 <code>3</code> 之后，后面没数字了，这条路就结束了。</p>
+</li>
+</ul>
+<p>为了实现这个“只向后看”的机制，我们在回溯函数里加一个参数 <code>startIndex</code>。每次向下一层递归时，告诉下一层：“你只能从 <code>startIndex + 1</code> 开始挑数字哦！”</p>
+<h3 id="java">Java 实现（子集黄金模板）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">subsets</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 从索引 0 开始挑选</span>
+<span class="w">        </span><span class="n">backtrack</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">backtrack</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">startIndex</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 🌟 核心差异 1：收集树上的【所有节点】</span>
+<span class="w">        </span><span class="c1">// 不需要写终止条件才收集，来到一个新节点，二话不说先把它装进结果集！</span>
+<span class="w">        </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">currentPath</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// 🌟 核心差异 2：用 startIndex 控制遍历的起点，不走回头路</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">startIndex</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// --- 做选择 ---</span>
+<span class="w">            </span><span class="n">currentPath</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// --- 递归进入下一层 ---</span>
+<span class="w">            </span><span class="c1">// 注意！这里传给下一层的是 i + 1，意思是：</span>
+<span class="w">            </span><span class="c1">// 如果我这一层挑了索引为 i 的数字，下一层只能从 i 的后面开始挑！</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// --- 撤销选择（回溯） ---</span>
+<span class="w">            </span><span class="n">currentPath</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">currentPath</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N × 2^N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><msup><mn>2</mn><mi>N</mi></msup><mo>)</mo></mrow></math></span>。一个包含 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 个元素的集合，它的子集一共有 <span class="math-inline-wrap"><math class="math-inline" aria-label="2^N"><mrow><msup><mn>2</mn><mi>N</mi></msup></mrow></math></span> 个。每个子集加入结果集时都需要拷贝一次（拷贝时间与子集长度有关，平均为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N/2"><mrow><mi>N</mi><mo>/</mo><mn>2</mn></mrow></math></span>），所以总时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N × 2^N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><msup><mn>2</mn><mi>N</mi></msup><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。主要消耗在递归调用栈的深度和 <code>currentPath</code> 数组上，最大深度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频连环问）</h3>
+<ol>
+<li><strong>踩坑警告：<code>used</code> 数组和 <code>startIndex</code> 到底怎么选？</strong></li>
+</ol>
+<ul>
+<li>记住这个口诀：<strong>排列问题用 <code>used</code>，组合/子集问题用 <code>startIndex</code>。</strong></li>
+<li>全排列讲究顺序（[1,2] 和 [2,1] 不同），所以每次都要从头开始扫整个数组，靠 <code>used</code> 数组来跳过已经选过的数。</li>
+<li>子集/组合不讲究顺序，为了去重，必须强制规定选取的顺序（比如只能从前往后选），所以靠 <code>startIndex</code> 挡住后面的递归回头看。</li>
+</ul>
+<ol start="2">
+<li><strong>面试追问：“如果给你的 <code>nums</code> 数组里面有【重复数字】（例如 <code>[1, 2, 2]</code>），你该怎么修改代码，保证子集不重复？”（对应力扣 90 题：子集 II）</strong></li>
+</ol>
+<ul>
+<li>
+<p><strong>满分抢答</strong>：依然是<strong>排序 + 剪枝</strong>！</p>
+</li>
+<li>
+<p>先对数组排序：<code>[1, 2, 2]</code>。</p>
+</li>
+<li>
+<p>在 <code>for</code> 循环里加入极其经典的树层剪枝代码：</p>
+<p><code>if (i &gt; startIndex &amp;&amp; nums[i] == nums[i - 1]) continue;</code></p>
+</li>
+<li>
+<p><em>解释</em>：注意这里是 <code>i &gt; startIndex</code> 而不是全排列里的 <code>i &gt; 0</code>。它的意思是：在<strong>同一个树层（同一层 for 循环）</strong>中，如果当前数字和前一个数字一样，说明前一个数字已经把包含该数字的所有子集都找过了，直接跳过。但如果是<strong>树枝向下（递归到了下一层）</strong>，是可以选重复数字的（比如允许出现 <code>[2, 2]</code>）。</p>
+<blockquote>
+<p>笔记中的本地图片未随迁；本题的可视化演示位于页尾「交互演示」部分。</p>
+</blockquote>
+</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0046-全排列.html">← 46. 全排列</a> · <a href="0017-电话号码的字母组合.html">17. 电话号码的字母组合 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/10-回溯.html?embed=1&amp;panel=1" title="78. 子集的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

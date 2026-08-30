@@ -1,0 +1,111 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>二、需求和技术 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LoRA 微调实践</a><span aria-hidden="true">›</span><span aria-current="page">二、需求和技术</span></nav><div class="module-meta">模型与训练 · 第 2 / 6 章</div><h1>二、需求和技术</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h5>1. 企业对于大模型的不同类型个性化需求</h5>
+<ul>
+<li>提高模型对<strong>企业专有信息</strong>的理解、增强模型在<strong>特定行业领域</strong>的知识 - <strong>SFT</strong><ul>
+<li>案例一：希望大模型能更好理解蟹堡王的企业专有知识，如蟹老板的女儿为什么是一头鲸鱼</li>
+<li>案例二：希望大模型能特别精通于汉堡制作，并熟练回答关于汉堡行业的所有问题</li>
+</ul>
+</li>
+<li>提供<strong>个性化和互动性强</strong>的服务 - <strong>RLHF</strong><ul>
+<li>案例三：希望大模型能够基于顾客的反馈调整回答方式，比如生成更二次元风格的回答还是更加学术风格的回答</li>
+</ul>
+</li>
+<li>提高模型对企业专有信息的理解、增强模型在特定行业领域的知识、<strong>获取和生成最新的、实时的信息</strong> - <strong>RAG</strong><ul>
+<li>案例四：希望大模型能够实时获取蟹堡王的最新的促销活动信息和每周菜单更新</li>
+</ul>
+</li>
+</ul>
+<h5>2. SFT（有监督微调）、RLHF（强化学习）、RAG（检索增强生成）</h5>
+<h6>2.1 SFT（Supervised Fine-Tuning）有监督微调</h6>
+<ul>
+<li>通过提供人工标注的数据，进一步训练<strong>预训练模型</strong>，让模型能够更加精准地处理特定领域的任务</li>
+<li>除了“有监督微调”，还有“无监督微调”“自监督微调”，当大家提到“微调”时通常是指有监督微调</li>
+</ul>
+<h6>2.2 RLHF（Reinforcement Learning from Human Feedback）强化学习</h6>
+<ul>
+<li>DPO（Direct Preference Optimization）
+    核心思想：通过 <strong>人类对比选择</strong>（例如：A 选项和 B 选项，哪个更好）直接优化生成模型，使其产生更符合用户需求的结果；调整幅度大
+    ![[Pasted image 20250224205057.png]]</li>
+<li>PPO（Proximal Policy Optimization）
+    核心思想：通过 <strong>奖励信号</strong>（如点赞、点踩）来 <strong>渐进式调整模型的行为策略</strong>；调整幅度小
+    ![[截屏2025-02-24 20.53.22.png]]</li>
+</ul>
+<h6>2.3 RAG（Retrieval-Augmented Generation）检索增强生成</h6>
+<ul>
+<li>将外部信息检索与文本生成结合，帮助模型在生成答案时，实时获取外部信息和最新信息</li>
+</ul>
+<h5>3. 微调还是RAG?</h5>
+<ul>
+<li>微调：<ul>
+<li>适合：拥有非常充足的数据</li>
+<li>能够直接提升模型的固有能力；无需依赖外部检索；</li>
+</ul>
+</li>
+<li>RAG:<ul>
+<li>适合：只有非常非常少的数据；动态更新的数据</li>
+<li>每次回答问题前需耗时检索知识库；回答质量依赖于检索系统的质量；</li>
+</ul>
+</li>
+<li>总结：<ul>
+<li>少量企业私有知识：最好微调和 RAG 都做；资源不足时优先 RAG；</li>
+<li>会动态更新的知识：RAG</li>
+<li>大量垂直领域知识：微调</li>
+</ul>
+</li>
+</ul>
+<h5>4. SFT（有监督微调）</h5>
+<p>通过提供<strong>人工标注</strong>的数据，进一步训练<strong>预训练模型</strong>，让模型能够更加精准地处理<strong>特定领域</strong>的任务
+ - 人工标注的数据</p>
+<div class="codehilite"><pre><code>如：分类系统
+{&quot;image_path&quot;: &quot;path/image1.jpg&quot;, &quot;label&quot;: &quot;SpongeBobSquarePants&quot;}
+{&quot;image_path&quot;: &quot;path/image2.jpg&quot;, &quot;label&quot;: &quot;PatrickStar&quot;}
+</code></pre></div>
+<div class="codehilite"><pre><code>如：对话系统
+{
+    &quot;instruction&quot;: &quot;请问你是谁&quot;,
+    &quot;input&quot;: &quot;&quot;,
+    &quot;output&quot;: &quot;您好，我是蟹堡王的神奇海螺，很高兴为您服务！我可以回答关于蟹堡王和汉堡制作的任何问题，您有什么需要帮助的吗？&quot;
+},
+</code></pre></div>
+<ul>
+<li>预训练模型（基座模型）
+    指已经在大量数据上训练过的模型，也就是我们微调前需要预先下载的开源模型。它具备了较为通用的知识和能力，能够解决一些常见的任务，可以在此基础上进行进一步的微调（fine-tuning）以适应特定的任务或领域</li>
+<li>微调算法的分类<ul>
+<li><strong>全参数微调（Full Fine-Tuning）</strong>：<ul>
+<li>对整个预训练模型进行微调，会更新所有参数。</li>
+<li>优点：因为每个参数都可以调整，通常能得到最佳的性能；能够适应不同任务和场景</li>
+<li>缺点：需要较大的计算资源并且容易出现过拟合</li>
+</ul>
+</li>
+<li><strong>部分参数微调（Partial Fine-Tuning）</strong>：<ul>
+<li>只更新模型的部分参数（例如某些层或模块）</li>
+<li>优点：减少了计算成本；减少过拟合风险；能够以较小的代价获得较好的结果</li>
+<li>缺点：可能无法达到最佳性能</li>
+<li>最著名算法：LoRA</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h5>5. LoRA  微调算法</h5>
+<ul>
+<li>论文阅读：<ul>
+<li>LoRA 开山论文：2021 年 Microsoft Research 提出，首次提出了通过<strong>低秩矩阵分解</strong>的方式来进行<strong>部分参数微调</strong>，极大推动了 AI 技术在多行业的广泛落地应用：<a href="https://arxiv.org/abs/2106.09685">LoRA: Low-Rank Adaptation of Large Language Models</a></li>
+<li>大语言模型开山论文：2017 年 Google Brain 团队发布，标志着 <strong>Transformer</strong> 架构的提出，彻底改变了自然语言处理（NLP）领域，标志着大语言模型时代的开始：<a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a></li>
+</ul>
+</li>
+<li>什么是矩阵的“秩”<ul>
+<li>矩阵的秩（Rank of a matrix）是指矩阵中<strong>线性无关</strong>的行或列的最大数量。简单来说它能反映矩阵所包含的<strong>有效信息量</strong></li>
+</ul>
+</li>
+<li>LoRA 如何做到部分参数微调 ![[Pasted image 20250225121007.png]]</li>
+<li>LoRA 训练结束后通常需要进行权重合并</li>
+</ul>
+<h5>6. 微调常见实现框架</h5>
+<ul>
+<li><a href="https://www.zhihu.com/question/638803488/answer/84354509523">初学者如何对大模型进行微调？</a></li>
+<li><strong>Llama-Factory</strong>：由国内<strong>北航</strong>开源的低代码大模型训练框架，可以实现<strong>零代码微调</strong>，简单易学，功能强大，且目前热度很高，建议新手从这个开始入门</li>
+<li><strong>transformers.Trainer</strong>：由 <strong>Hugging Face</strong> 提供的高层 <strong>API</strong>，适用于各种 NLP 任务的微调，提供标准化的训练流程和多种监控工具，适合需要更多<strong>定制化</strong>的场景，尤其在<strong>部署和生产环境</strong>中表现出色</li>
+<li><strong>DeepSpeed</strong>：由<strong>微软</strong>开发的开源深度学习优化库，适合大规模模型训练和<strong>分布式训练</strong>，在大模型<strong>预训练</strong>和资源密集型训练的时候用得比较多</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
+<script>const contentId="lora:02",moduleId="lora";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

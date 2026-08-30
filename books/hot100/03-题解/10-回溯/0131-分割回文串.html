@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>131. 分割回文串 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="131">131. 分割回文串</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分双指针回文校验版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的性能压榨）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>切割回溯 + 回文判断</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n·2ⁿ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n²)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个字符串 <code>s</code>，请你将 <code>s</code> 分割成一些子串，使每个子串都是 <strong>回文串</strong> 。返回 <code>s</code> 所有可能的分割方案。</p>
+<p><em>例如</em>：<code>s = "aab"</code>，输出 <code>[["a","a","b"], ["aa","b"]]</code>。</p>
+<p><a href="https://leetcode.cn/problems/palindrome-partitioning/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>只有当前切片是回文串时才进入下一层。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（怎么用回溯模拟“切蛋糕”？）</strong>：</p>
+<p>之前我们在数组里挑数字，<code>startIndex</code> 代表“我当前能从哪个数字开始挑”。</p>
+<p>在字符串里，<strong><code>startIndex</code> 就代表“我当前这把刀，起点在哪里”</strong>。</p>
+<p>而 <code>for</code> 循环里的游标 <strong><code>i</code>，就代表“我当前这把刀，终点切在哪里”</strong>。</p>
+<p>所以，被切下来的这块蛋糕，就是字符串 <code>s.substring(startIndex, i + 1)</code>！</p>
+</li>
+<li>
+<p><strong>破局思路（边切边检查，非回文直接扔）</strong>：</p>
+<p>假设字符串是 <code>aab</code>，<code>startIndex</code> 在 0。</p>
+<ul>
+<li>我们先试着切第一刀，切下 <code>a</code>（<code>i = 0</code>）。它是回文吗？是！好，把 <code>a</code> 装进口袋，然后剩下的 <code>ab</code> 留给下一层去切（传给下一层的参数是 <code>i + 1</code>）。</li>
+<li>等下一层全切完了退回来，我们撤销选择，试着切第二刀，切下 <code>aa</code>（<code>i = 1</code>）。它是回文吗？是！装进口袋，把剩下的 <code>b</code> 交给下一层。</li>
+<li>再次退回，试着切第三刀，切下 <code>aab</code>（<code>i = 2</code>）。它是回文吗？不是！<strong>直接跳过（剪枝）</strong>，连下一层都不用去了，因为当前这块都不合法。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（终止条件）</strong>：</p>
+<p>什么时候说明蛋糕被完美切完了？</p>
+<p>当我们的刀的起点 <code>startIndex</code> 已经<strong>越过了整个字符串的末尾（等于 <code>s.length()</code>）</strong>，说明连一点碎屑都没剩下，此时口袋里装的所有子串就是一种完美的合法分割方案！</p>
+<h3 id="java">Java 实现（满分双指针回文校验版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">partition</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 从索引 0 开始准备下第一刀</span>
+<span class="w">        </span><span class="n">backtrack</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">backtrack</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">startIndex</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">currentPath</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 终止条件：切菜板上的起点已经超出了字符串末尾，说明整条字符串都被切干净了</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">startIndex</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">currentPath</span><span class="p">));</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 尝试下刀：从 startIndex 开始，一寸一寸往后试探切口 i</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">startIndex</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// --- 核心剪枝 ---</span>
+<span class="w">            </span><span class="c1">// 判断当前切下来的这一块 s[startIndex...i] 是不是回文串</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">isPalindrome</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">startIndex</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 如果是，做选择：把它切下来，装进盘子里</span>
+<span class="w">                </span><span class="n">String</span><span class="w"> </span><span class="n">subStr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="n">startIndex</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">                </span><span class="n">currentPath</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">subStr</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 如果不是回文，直接放弃这种切法，连下一层都不用进去了，继续往后找新的切口 i</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// --- 递归进入下一层 ---</span>
+<span class="w">            </span><span class="c1">// 剩下的字符串从 i + 1 开始，交给下一层继续切</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">currentPath</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// --- 撤销选择（回溯） ---</span>
+<span class="w">            </span><span class="c1">// 退回来，把刚刚切下来的那一块拿掉，尝试在当前层换个地方下刀</span>
+<span class="w">            </span><span class="n">currentPath</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">currentPath</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 辅助函数：双指针法判断字符串 s 的 [left, right] 区间是否是回文串</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isPalindrome</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">right</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">left</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">right</span><span class="o">--</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N · 2^N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><msup><mn>2</mn><mi>N</mi></msup><mo>)</mo></mrow></math></span>。最坏情况下（比如字符串全是同一个字符 <code>"aaaaa"</code>），每一个位置都可以切，一共有 <span class="math-inline-wrap"><math class="math-inline" aria-label="2^N-1"><mrow><msup><mn>2</mn><mrow><mi>N</mi><mo>-</mo><mn>1</mn></mrow></msup></mrow></math></span> 种分割方法。每次还要花 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 的时间生成子串和检查回文，所以总时间复杂度是极其暴力的指数级。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。主要消耗在递归调用栈的深度上，最大深度就是字符串的长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>（全切成单字符）。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的性能压榨）</h3>
+<ul>
+<li>
+<p><strong>面试终极追问：“如果在最坏情况下（如 <code>"aaaaaaaa"</code>），每次判断回文 <code>isPalindrome</code> 都有极大的冗余重复计算，你能优化吗？”</strong></p>
+</li>
+<li>
+<p><strong>满分优化思路（动态规划预处理）</strong>：</p>
+<p>面试官想听到的绝对是“动态规划（DP）”！</p>
+<p>如果在回溯之前，我们先开辟一个 <span class="math-inline-wrap"><math class="math-inline" aria-label="N × N"><mrow><mi>N</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 的布尔型二维数组 <code>dp</code>。<code>dp[i][j]</code> 表示字符串从 <span class="math-inline-wrap"><math class="math-inline" aria-label="i"><mrow><mi>i</mi></mrow></math></span> 到 <span class="math-inline-wrap"><math class="math-inline" aria-label="j"><mrow><mi>j</mi></mrow></math></span> 是否是回文串。</p>
+<p>利用 DP 的状态转移方程：<code>dp[i][j] = (s[i] == s[j]) &amp;&amp; dp[i+1][j-1]</code>，我们可以在 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span> 的时间里把所有可能的子串是不是回文全部提前算出来！</p>
+<p>这样，在回溯的 <code>for</code> 循环里，<code>isPalindrome</code> 函数就变成了一次 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的查表操作：<code>if (dp[startIndex][i])</code>。这才是这道题最完美的工业级终极形态！</p>
+</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0079-单词搜索.html">← 79. 单词搜索</a> · <a href="0051-N 皇后.html">51. N 皇后 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

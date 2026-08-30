@@ -1,0 +1,81 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>OpenClaw：用 Gateway 解决多渠道个人助理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Hermes、OpenClaw、Codex 与 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">OpenClaw：用 Gateway 解决多渠道个人助理</span></nav><div class="module-meta">Agent 工程 · 第 6 / 25 章</div><h1>OpenClaw：用 Gateway 解决多渠道个人助理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>6.1 它主要解决的问题</h3>
+<p>如果用户希望 Agent 像“数字员工”一样长期在线，会遇到：</p>
+<ul>
+<li>消息来自 Telegram、Slack、WhatsApp 等不同渠道；</li>
+<li>每个渠道事件格式不同；</li>
+<li>同一个用户需要稳定会话；</li>
+<li>任务可能持续很久；</li>
+<li>Agent 要主动通知、定时执行和跨设备访问；</li>
+<li>多个 Agent 需要不同人格、工作区、工具和权限。</li>
+</ul>
+<p>OpenClaw 的答案是单一长生命周期 Gateway。</p>
+<h3>6.2 Gateway 架构</h3>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    TG[Telegram] --&gt; G[OpenClaw Gateway]
+    SL[Slack] --&gt; G
+    WA[WhatsApp] --&gt; G
+    CLI[CLI / Web UI] --&gt; G
+    G --&gt; R[Session Router]
+    R --&gt; A1[Agent A Runtime]
+    R --&gt; A2[Agent B Runtime]
+    A1 --&gt; T[Tools / Skills / Memory]
+    A2 --&gt; T
+    G --&gt; E[Streaming / Delivery / Audit]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>官方架构中，一个长期运行的 Gateway：</p>
+<ul>
+<li>拥有消息渠道连接；</li>
+<li>通过 WebSocket 提供控制平面；</li>
+<li>路由 session；</li>
+<li>触发 Agent loop；</li>
+<li>发送 lifecycle、assistant、tool 事件；</li>
+<li>将最终结果回送原渠道。</li>
+</ul>
+<p>这与“一次启动一次退出的 Coding CLI”有根本差异。</p>
+<h3>6.3 Agent Loop 的工程化</h3>
+<p>OpenClaw 把一次 turn 明确分成：</p>
+<ol>
+<li>Gateway RPC 验证参数并解析 session；</li>
+<li>立即返回 run ID；</li>
+<li>运行时加载模型、认证、Skills 快照和工作区；</li>
+<li>串行化同一 session 的执行；</li>
+<li>流式发送模型与工具事件；</li>
+<li>强制 timeout；</li>
+<li>保存消息和使用量；</li>
+<li>回送消息。</li>
+</ol>
+<p>它主要解决多渠道环境中<strong>并发、重复输出、会话顺序、超时和投递</strong>问题。</p>
+<h3>6.4 文件式 Memory</h3>
+<p>OpenClaw 官方 Memory 设计强调透明：</p>
+<ul>
+<li><code>MEMORY.md</code> 保存长期事实、偏好和决策；</li>
+<li><code>memory/YYYY-MM-DD.md</code> 保存每日记录；</li>
+<li>可选 <code>DREAMS.md</code> 保存 dreaming sweep 供人复核；</li>
+<li>模型只记得写进磁盘并在后续被加载或检索的内容。</li>
+</ul>
+<p>优点：</p>
+<ul>
+<li>人类可阅读、可修改、可备份；</li>
+<li>不依赖隐藏状态；</li>
+<li>易与 Git/同步工具结合。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>文件会膨胀；</li>
+<li>写入质量依赖模型；</li>
+<li>敏感信息可能长期留存；</li>
+<li>文件被污染后会持续影响后续会话。</li>
+</ul>
+<h3>6.5 Skills 作为能力扩展</h3>
+<p>OpenClaw 通过 Skills 把外部工具用法和流程封装为 Markdown 指令。它解决了社区复用和快速扩展，但 Skill 经常具有较高权限，因此风险类似“安装插件 + 执行代码”，而不是“下载一篇提示词”。</p>
+<h3>6.6 OpenClaw 的产品取向</h3>
+<p>OpenClaw 更像“个人 Agent 操作系统的 Gateway 层”：</p>
+<ul>
+<li>核心是长期在线和渠道统一；</li>
+<li>本地工作区与文件式记忆；</li>
+<li>可配置多个 Agent；</li>
+<li>适合跨平台消息驱动自动化；</li>
+<li>风险集中在 Gateway 暴露、长期凭据、Skills 供应链和广泛系统权限。</li>
+</ul>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-cli:06",moduleId="agent-cli";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

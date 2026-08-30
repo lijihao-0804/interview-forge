@@ -1,0 +1,125 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>AQS 源码精读 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">AQS 源码精读</span></nav><div class="module-meta">Java 语言 · 第 7 / 17 章</div><h1>AQS 源码精读</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p><code>AbstractQueuedSynchronizer</code>（AQS）是 JUC 锁与同步器的公共基类：ReentrantLock、Semaphore、CountDownLatch、ReentrantReadWriteLock 都建立在它上面。理解 AQS 就理解了一半 JUC。</p>
+<h3>6.1 AQS 的核心设计</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">volatile int state    同步状态（0 表示空闲，1 表示被持有，可重入锁会更大）
+CLH 变体等待队列      获取失败的线程封装成 Node 排队
+独占模式 / 共享模式   两种获取方式
+</code></pre></div>
+<p>三个要点：</p>
+<ol>
+<li><strong>state</strong>：volatile 修饰的同步状态，子类自己定义它的含义；</li>
+<li><strong>CLH 队列</strong>：基于链表的 FIFO 等待队列（头节点是持有锁的线程，后面的节点排队）；</li>
+<li><strong>模板方法模式</strong>：AQS 定好 <code>acquire</code>/<code>release</code> 骨架，把 <code>tryAcquire</code>/<code>tryRelease</code> 留给子类实现。</li>
+</ol>
+<h3>6.2 acquire 与 release 骨架</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 独占获取（ReentrantLock.lock 的核心）</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">acquire</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">arg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">tryAcquire</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">              </span><span class="c1">// 子类实现：尝试获取</span>
+<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">addWaiter</span><span class="p">(</span><span class="n">Node</span><span class="p">.</span><span class="na">EXCLUSIVE</span><span class="p">);</span><span class="w">   </span><span class="c1">// 获取失败入队</span>
+<span class="w">        </span><span class="n">acquireQueued</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">arg</span><span class="p">);</span><span class="w">                </span><span class="c1">// 自旋/阻塞等待</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 独占释放</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">release</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">arg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tryRelease</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w">               </span><span class="c1">// 子类实现：尝试释放</span>
+<span class="w">        </span><span class="n">Node</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">h</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="na">waitStatus</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="w">            </span><span class="n">unparkSuccessor</span><span class="p">(</span><span class="n">h</span><span class="p">);</span><span class="w">          </span><span class="c1">// 唤醒队首等待者</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>完整流程（以 ReentrantLock 为例）：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">lock() → acquire(1) → tryAcquire 成功？→ 是：直接持有，state=1
+                              → 否：封装成 Node 加入队尾，LockSupport.park 阻塞
+unlock() → release(1) → tryRelease 成功（state 归零）→ 唤醒队首线程
+</code></pre></div>
+<h3>6.3 独占与共享</h3>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>获取</th>
+<th>释放</th>
+<th>应用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独占</td>
+<td>acquire</td>
+<td>release</td>
+<td>ReentrantLock</td>
+</tr>
+<tr>
+<td>共享</td>
+<td>acquireShared</td>
+<td>releaseShared</td>
+<td>Semaphore、CountDownLatch、ReentrantReadWriteLock 的读锁</td>
+</tr>
+</tbody>
+</table>
+<p>共享模式特殊之处：一个线程释放后可以<strong>同时唤醒多个</strong>等待者（如 Semaphore 释放 3 个许可，唤醒多个排队线程）。</p>
+<h3>6.4 Condition：AQS 里的等待队列</h3>
+<p><code>Condition</code> 对应 <code>Object.wait/notify</code> 的增强版：一个锁可以有<strong>多个条件队列</strong>。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">ReentrantLock</span><span class="w"> </span><span class="n">lock</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ReentrantLock</span><span class="p">();</span>
+<span class="n">Condition</span><span class="w"> </span><span class="n">notFull</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lock</span><span class="p">.</span><span class="na">newCondition</span><span class="p">();</span>
+<span class="n">Condition</span><span class="w"> </span><span class="n">notEmpty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lock</span><span class="p">.</span><span class="na">newCondition</span><span class="p">();</span>
+
+<span class="c1">// 生产者</span>
+<span class="n">lock</span><span class="p">.</span><span class="na">lock</span><span class="p">();</span>
+<span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">queue</span><span class="p">.</span><span class="na">isFull</span><span class="p">())</span><span class="w"> </span><span class="n">notFull</span><span class="p">.</span><span class="na">await</span><span class="p">();</span><span class="w">   </span><span class="c1">// 释放锁并等待</span>
+<span class="w">    </span><span class="n">queue</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+<span class="w">    </span><span class="n">notEmpty</span><span class="p">.</span><span class="na">signal</span><span class="p">();</span><span class="w">                        </span><span class="c1">// 唤醒一个消费者</span>
+<span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">lock</span><span class="p">.</span><span class="na">unlock</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>底层：每个 Condition 维护一条单向等待队列，<code>await</code> 把当前线程挂到条件队列并释放锁，<code>signal</code> 把队头节点移回 AQS 主队列等待重新抢锁。</p>
+<h3>6.5 AQS 的典型应用</h3>
+<table>
+<thead>
+<tr>
+<th>同步器</th>
+<th>state 含义</th>
+<th>模式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ReentrantLock</td>
+<td>持有次数（可重入）</td>
+<td>独占</td>
+</tr>
+<tr>
+<td>Semaphore</td>
+<td>剩余许可数</td>
+<td>共享</td>
+</tr>
+<tr>
+<td>CountDownLatch</td>
+<td>剩余倒计数</td>
+<td>共享</td>
+</tr>
+<tr>
+<td>ReentrantReadWriteLock</td>
+<td>高 16 位读锁 + 低 16 位写锁</td>
+<td>独占 + 共享</td>
+</tr>
+</tbody>
+</table>
+<h3>6.6 面试追问</h3>
+<ul>
+<li>问：AQS 是什么？核心字段有哪些？</li>
+<li>答：抽象队列同步器，核心是 volatile int state 和 CLH 变体 FIFO 等待队列；子类实现 tryAcquire/tryRelease 等钩子。</li>
+<li>问：AQS 的获取失败流程？</li>
+<li>答：tryAcquire 失败 → addWaiter 入队 → acquireQueued 自旋/阻塞 → 被前驱唤醒后再次尝试。</li>
+<li>问：独占和共享模式的区别？</li>
+<li>答：独占一次一个线程持有；共享可多个线程同时获取（读锁、许可），释放时可唤醒多个等待者。</li>
+<li>问：ReentrantLock 的可重入怎么实现的？</li>
+<li>答：state 计数：同一线程重入 state+1，释放递减，归零才真正释放并唤醒后继。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-06.html">← 上一章</a><a href="chapter-08.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-concurrency:07",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

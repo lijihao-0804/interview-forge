@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>543. 二叉树的直径 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 08-二叉树</div>
+        <h1 id="543">543. 二叉树的直径</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（进阶的细节）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/08-二叉树.html">← 二叉树专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>后序高度 + 全局答案</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一棵二叉树的根节点，返回该树的<strong>直径</strong>。</p>
+<p>二叉树的直径是指树中任意两个节点之间最长路径的<strong>长度</strong>。这条路径可能经过也可能不经过根节点 <code>root</code>。</p>
+<p>两节点之间路径的长度由它们之间<strong>边数</strong>表示。</p>
+<p><a href="https://leetcode.cn/problems/diameter-of-binary-tree/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>经过当前节点的直径是左高加右高。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（根节点依赖症）</strong>：</p>
+<p>直觉公式：<code>直径 = 左子树深度 + 右子树深度</code>。</p>
+<p><strong>痛点</strong>：如果你只算根节点的 <code>左+右</code>，你会漏掉那些藏在深山老林里、但内部非常宽广的子树。</p>
+</li>
+<li>
+<p><strong>破局思路（全员皆可为王）</strong>：</p>
+<p>既然任何一个节点都有可能成为那条最长路径的“最高顶点”<strong>（也就是连接左右两端的那个拐点），那我们就</strong>一视同仁！</p>
+<p>在求深度的过程中，我们让<strong>每一个节点</strong>都暗自算一下：“如果我是最高顶点，经过我的最长路径是多少？（也就是我自己的 <code>左子树深度 + 右子树深度</code>）”。</p>
+<p>我们需要在代码外面挂一个<strong>全局告示牌（全局变量 <code>maxDiameter</code>）</strong>，每个节点算完自己的路径长度后，都去和告示牌比一下。如果比告示牌上的数字大，就擦掉旧的，写上自己的。</p>
+</li>
+<li>
+<p><strong>逻辑推演（后序遍历的妙用）</strong>：</p>
+<p>我们要算深度，必须要等左右小弟都汇报完工作才行，这就是天然的<strong>后序遍历（左右中）</strong>。</p>
+<ul>
+<li><strong>【左】</strong>：问左小弟，左子树最大深度是多少？（<code>L</code>）</li>
+<li><strong>【右】</strong>：问右小弟，右子树最大深度是多少？（<code>R</code>）</li>
+<li><strong>【中 - 夹带私货】</strong>：算一下经过我这个节点的直径 <code>L + R</code>，如果比全局的 <code>maxDiameter</code> 大，就更新它！</li>
+<li><strong>【向上汇报】</strong>：向上级（父节点）汇报我这棵树的深度 <code>max(L, R) + 1</code>。</li>
+</ul>
+<h3 id="java">Java 实现（满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode left;</span>
+<span class="cm"> *     TreeNode right;</span>
+<span class="cm"> *     TreeNode() {}</span>
+<span class="cm"> *     TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> *     TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> *         this.val = val;</span>
+<span class="cm"> *         this.left = left;</span>
+<span class="cm"> *         this.right = right;</span>
+<span class="cm"> *     }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 全局告示牌：记录所有节点里，能拼凑出的最大直径</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">maxDiameter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">diameterOfBinaryTree</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 调用递归函数，但我们其实不在乎它的返回值（根节点的最大深度）</span>
+<span class="w">        </span><span class="c1">// 我们真正在乎的是它在递归过程中，顺手更新的 maxDiameter</span>
+<span class="w">        </span><span class="n">depth</span><span class="p">(</span><span class="n">root</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxDiameter</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 辅助函数：求节点的最大深度，并在内部“夹带私货”更新最大直径</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">depth</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 终止条件：空节点深度为 0</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 向下派发任务，获取左右子树的深度</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">depth</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rightDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">depth</span><span class="p">(</span><span class="n">node</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 🌟 核心私货：更新全局最大直径</span>
+<span class="w">        </span><span class="c1">// 注意：这里的长度是指“边数”，刚好等于 左子树深度 + 右子树深度</span>
+<span class="w">        </span><span class="n">maxDiameter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxDiameter</span><span class="p">,</span><span class="w"> </span><span class="n">leftDepth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">rightDepth</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 向上级汇报工作：返回我自己这棵树的最大深度</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">leftDepth</span><span class="p">,</span><span class="w"> </span><span class="n">rightDepth</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。每个节点都被访问了一次，做了一次常数时间的运算。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(H)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>H</mi><mo>)</mo></mrow></math></span>。递归调用栈的最大深度即为树的高度 <span class="math-inline-wrap"><math class="math-inline" aria-label="H"><mrow><mi>H</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（进阶的细节）</h3>
+<ol>
+<li><strong>节点数 vs 边数的陷阱</strong>：
+   - 力扣上关于路径长度的定义经常变。这道题明确了“路径长度由<strong>边数</strong>表示”。
+   - 假设根节点的左孩子深度是 1，右孩子深度是 1。经过根节点的路径一共涉及 3 个节点，但只有 <strong>2 条边</strong>。刚好 <code>leftDepth + rightDepth = 1 + 1 = 2</code>。公式天生契合题目要求！如果题目要求按节点数算，你得在最后加上 1。</li>
+<li><strong>面试追问：“为什么非要用一个全局变量？我能不能不用全局变量写出来？”</strong>
+   - <strong>高情商回答</strong>：在 Java 中，由于基础类型是值传递的，我们没法直接通过函数参数传递一个 <code>int</code> 的引用。但如果实在不想把变量写在类层级（污染类的状态，并发时不安全），我们可以：<ul>
+<li><strong>方法一</strong>：传一个只有一个元素的数组 <code>int[] res = new int[1]</code> 进去当作引用传值。</li>
+<li><strong>方法二</strong>：设计一个自定义的返回值对象（比如 <code>class Result { int depth; int maxDiam; }</code>），让递归函数同时返回两个值（当前深度，和当前子树内的最大直径）。这种写法更符合函数式编程的理念，但在算法题中显得稍微冗长。第一种 <code>int[]</code> 是最常见的优化手段。</li>
+</ul>
+</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0101-对称二叉树.html">← 101. 对称二叉树</a> · <a href="0102-二叉树的层序遍历.html">102. 二叉树的层序遍历 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

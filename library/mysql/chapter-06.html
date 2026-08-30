@@ -1,0 +1,116 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MVCC 原理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">MySQL：索引、事务、MVCC 与优化</a><span aria-hidden="true">›</span><span aria-current="page">MVCC 原理</span></nav><div class="module-meta">数据存储 · 第 6 / 11 章</div><h1>MVCC 原理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>MVCC（多版本并发控制）让快照读不加锁也能读到一致快照，是 InnoDB 隔离级别的核心实现。</p>
+<h3>5.1 隐藏列与版本链</h3>
+<p>InnoDB 每行有三个隐藏字段：</p>
+<table>
+<thead>
+<tr>
+<th>隐藏列</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DB_TRX_ID</td>
+<td>最近一次修改该行的事务 ID</td>
+</tr>
+<tr>
+<td>DB_ROLL_PTR</td>
+<td>指向 undo log 中上一版本（回滚指针）</td>
+</tr>
+<tr>
+<td>DB_ROW_ID</td>
+<td>无主键且无唯一索引时的隐藏聚簇键（可忽略）</td>
+</tr>
+</tbody>
+</table>
+<p>每次 UPDATE 不覆盖旧值，而是通过 undo log 形成<strong>版本链</strong>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">最新版本 ←(roll_ptr)— 上一版本 ←(roll_ptr)— 更早版本 ... ← 最老版本
+</code></pre></div>
+<h3>5.2 ReadView 与可见性判断</h3>
+<p>ReadView（读视图）是“事务开始读数据那一刻”的快照信息，核心字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>m_ids</td>
+<td>当前活跃（未提交）事务 ID 列表</td>
+</tr>
+<tr>
+<td>min_trx_id</td>
+<td>活跃事务中最小 ID</td>
+</tr>
+<tr>
+<td>max_trx_id</td>
+<td>下一个将分配的事务 ID</td>
+</tr>
+<tr>
+<td>creator_trx_id</td>
+<td>创建 ReadView 的事务自己的 ID</td>
+</tr>
+</tbody>
+</table>
+<p>对版本链上某个版本的 trx_id 判断可见性：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">trx_id == creator_trx_id        → 自己改的，可见
+trx_id &lt; min_trx_id             → 已提交，可见
+trx_id &gt;= max_trx_id            → 未来事务，不可见
+trx_id ∈ m_ids（活跃列表）       → 未提交，不可见
+否则（已提交且不活跃）            → 可见
+</code></pre></div>
+<p>不可见就沿 roll_ptr 找上一版本，直到找到可见版本或结束。</p>
+<p><strong>多事务时间线走查</strong>：假设 T0（trx_id=100）已提交，写了 v1；T1（trx_id=101）未提交，对同一行又写了 v3；T2（trx_id=102）已提交，写了 v2；T3（trx_id=103）执行快照读，创建 ReadView 时活跃事务为 [101, 103]，min=101，max=104。此时版本链是 v3(T1 未提交) → v2(T2 已提交) → v1(T0 已提交)：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">v3：trx_id=101 ∈ m_ids（未提交）→ 不可见，沿 roll_ptr 找 v2
+v2：trx_id=102，不在活跃列表、小于 max → 已提交可见 → 读到 v2
+</code></pre></div>
+<p>注意链尾 v1 必须是<strong>已提交</strong>事务写的：若 T1 在链两端各有一版本，意味着 T1 更新两次且中间夹着 T2 的更新，这在行锁下物理不可能（T1 第二次更新会被 T2 的锁阻塞），面试画版本链时别画出这种时序。</p>
+<p>如果 T4（trx_id=104）在 T3 创建 ReadView <strong>之后</strong>提交并写了 v4，v4 的 trx_id=104 ≥ max_trx_id=104，被判为“未来事务”不可见——T3 一直读到 v2，这就是 RR 快照隔离：ReadView 在第一次快照读时固定，后续不刷新（RC 则是每次 SELECT 重建，所以能看到别人新提交的数据）。</p>
+<div class="demo-embed"><iframe src="../../books/hot100/05-可视化/ReadView版本链可视化.html?embed=1" title="交互演示：ReadView版本链可视化" loading="lazy" scrolling="no"></iframe></div>
+
+<h3>5.3 RC 与 RR 的关键差异</h3>
+<table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>ReadView 生成时机</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>READ COMMITTED</td>
+<td><strong>每次 SELECT</strong> 都生成新 ReadView</td>
+<td>能看到其他事务新提交的数据 → 不可重复读</td>
+</tr>
+<tr>
+<td>REPEATABLE READ</td>
+<td><strong>事务第一次 SELECT</strong> 生成，之后复用</td>
+<td>整个事务看到同一快照 → 可重复读</td>
+</tr>
+</tbody>
+</table>
+<p>这就是“RC 每次读最新已提交、RR 全程一致快照”的底层答案，也是面试最爱的追问点。</p>
+<h3>5.4 MVCC 的边界</h3>
+<ul>
+<li>MVCC 只管<strong>快照读</strong>；当前读（FOR UPDATE/UPDATE/DELETE）必须加锁，RR 下用间隙锁防幻读；</li>
+<li>undo log 不能无限保留，过期版本由 purge 线程清理。</li>
+</ul>
+<p><strong>RR 防幻读的边界</strong>：两个事务都先快照读再插入，互相看不到对方新插的行——无唯一索引时会<strong>真重复插入</strong>（两边都插成功），有唯一索引则报 <strong>1062</strong>；所以幂等靠唯一索引 + 冲突捕获，或 FOR UPDATE 把并发串行化。</p>
+<h3>5.5 面试追问</h3>
+<ul>
+<li>问：MVCC 解决什么问题？</li>
+<li>答：让快照读不加锁读到一致版本，提高并发；是 RC/RR 读语义的实现基础。</li>
+<li>问：版本链怎么来的？</li>
+<li>答：每行有 trx_id 和 roll_ptr，UPDATE 生成新版本并把旧版本挂到 undo log 版本链。</li>
+<li>问：ReadView 判断可见性的规则？</li>
+<li>答：自己可见；trx_id 小于 min 可见；大于等于 max 不可见；在活跃列表不可见，否则可见；不可见沿版本链找上一版。</li>
+<li>问：RC 和 RR 的 ReadView 区别？</li>
+<li>答：RC 每次 SELECT 生成；RR 首次 SELECT 生成后复用。</li>
+<li>问：MVCC 能防幻读吗？</li>
+<li>答：快照读可以（全程同一快照）；当前读要靠间隙锁/临键锁。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="mysql:06",moduleId="mysql";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>53. 最大子数组和 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 05-普通数组</div>
+        <h1 id="53">53. 最大子数组和</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/05-普通数组.html">← 普通数组专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>Kadane 动态规划</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code> ，请你找出一个具有最大和的<strong>连续子数组</strong>（子数组最少包含一个元素），返回其最大和。</p>
+<p><a href="https://leetcode.cn/problems/maximum-subarray/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>前一段和为负时不值得被当前位置继承。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（暴力枚举）</strong>：</p>
+<p>两层 <code>for</code> 循环，枚举所有的起点和终点，计算区间和。时间复杂度 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>，在面对巨大数组时必然超时。</p>
+</li>
+<li>
+<p><strong>破局思路（“资产”与“负债”的贪心抉择）</strong>：</p>
+<p>假设我们正从左到右遍历数组，手里攒着一个“当前累加和 (<code>currentSum</code>)”。</p>
+<p>每走到一个新的数字面前，我们都面临一个关键追问：<strong>是要把它加入之前的队伍，还是让它自立门户？</strong></p>
+<ul>
+<li><strong>评判标准</strong>：看看我们手里的 <code>currentSum</code> 是正数还是负数。</li>
+<li>如果 <code>currentSum &gt; 0</code>：它是<strong>资产</strong>。带着它，总和会变得更大。所以果断让新数字加入队伍。</li>
+<li>如果 <code>currentSum &lt;= 0</code>：它是<strong>负债</strong>。带上它只会拖累新数字（哪怕新数字也是负数，加个负债只会更加负）。所以果断<strong>抛弃历史包袱</strong>，让新数字从自己开始“自立门户”。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（以 <code>[-2, 1, -3, 4, -1, 2, 1, -5, 4]</code> 为例）</strong>：</p>
+<ul>
+<li><code>num = -2</code>：起步，<code>currentSum = -2</code>，<code>maxSum = -2</code>。</li>
+<li><code>num = 1</code>：之前的 <code>currentSum</code> 是 <code>-2</code>（负债），果断抛弃！自立门户，<code>currentSum</code> 重新变成 <code>1</code>。<code>maxSum</code> 更新为 <code>1</code>。</li>
+<li><code>num = -3</code>：之前的 <code>currentSum</code> 是 <code>1</code>（资产），带着！<code>currentSum = 1 + (-3) = -2</code>。<code>maxSum</code> 还是 <code>1</code>。</li>
+<li><code>num = 4</code>：之前的 <code>currentSum</code> 是 <code>-2</code>（负债），抛弃！自立门户，<code>currentSum</code> 变成 <code>4</code>。<code>maxSum</code> 更新为 <code>4</code>。</li>
+<li><code>num = -1</code>：带着（因为 4 是资产）。<code>currentSum = 3</code>。</li>
+<li><code>num = 2</code>：带着。<code>currentSum = 5</code>。<code>maxSum</code> 更新为 <code>5</code>。</li>
+<li><code>num = 1</code>：带着。<code>currentSum = 6</code>。<code>maxSum</code> 更新为 <code>6</code>。</li>
+<li>……以此类推，最终找到最大和 <code>6</code>（对应子数组 <code>[4, -1, 2, 1]</code>）。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxSubArray</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 如果数组为空，理论上应该抛出异常，但力扣题目保证至少有 1 个元素</span>
+
+<span class="w">        </span><span class="c1">// 记录当前的连续子数组和</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">currentSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 记录全局见过的最大和，初始化为极小值（或直接用 nums[0]）</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">MIN_VALUE</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 核心抉择逻辑：</span>
+<span class="w">            </span><span class="c1">// 如果历史累加和 &lt;= 0，说明是“负债”，对后续的求和毫无帮助，直接丢弃，从当前数字重新开始。</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">currentSum</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">currentSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">num</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 如果历史累加和 &gt; 0，说明是“资产”，加上当前数字继续走。</span>
+<span class="w">                </span><span class="n">currentSum</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">num</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 每次抉择完，都尝试去打破历史最高记录</span>
+<span class="w">            </span><span class="n">maxSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxSum</span><span class="p">,</span><span class="w"> </span><span class="n">currentSum</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxSum</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。我们只需要把数组从头到尾遍历一次即可，时间复杂度达到理论最优。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。全程只使用了两个变量 <code>currentSum</code> 和 <code>maxSum</code>，不需要额外开辟数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展</h3>
+<ol>
+<li><strong>代码的极致精简版（动态规划视角）</strong>：</li>
+</ol>
+<ul>
+<li>上面的 <code>if-else</code> 是贪心思想的体现，如果在动态规划视角下，代码可以精简得连 <code>if</code> 都不需要：</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kt">int</span><span class="w"> </span><span class="n">currentSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">maxSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 状态转移方程：要么自立门户 (x)，要么加入前驱 (currentSum + x)，取较大者</span>
+<span class="w">    </span><span class="n">currentSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">currentSum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">);</span>
+<span class="w">    </span><span class="n">maxSum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxSum</span><span class="p">,</span><span class="w"> </span><span class="n">currentSum</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code> *这两种写法本质完全一样，但 `if-else` 的“资产/负债”说辞在面试时讲出来更容易让面试官眼前一亮。*
+</code></pre></div>
+
+<ol start="2">
+<li><strong>高频追问：“如果我还想知道这个最大子数组的具体起始和结束位置呢？”</strong></li>
+</ol>
+<ul>
+<li><strong>回答思路</strong>：只需要额外维护两个指针 <code>start</code> 和 <code>end</code>。当 <code>currentSum &lt;= 0</code> 决定“自立门户”时，把临时起点 <code>tempStart</code> 更新为当前下标 <code>i</code>；当 <code>currentSum &gt; maxSum</code> 破纪录时，把真正的 <code>start</code> 更新为 <code>tempStart</code>，把 <code>end</code> 更新为当前的下标 <code>i</code>。</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../04-子串/0076-最小覆盖子串.html">← 76. 最小覆盖子串</a> · <a href="0056-合并区间.html">56. 合并区间 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

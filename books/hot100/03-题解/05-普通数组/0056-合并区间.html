@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>56. 合并区间 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 05-普通数组</div>
+        <h1 id="56">56. 合并区间</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（可能会被追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/05-普通数组.html">← 普通数组专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>排序 + 线性合并</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(log n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个二维数组 <code>intervals</code>，其中每个元素是一个区间 <code>[start, end]</code>。请你把所有重叠的区间合并起来，返回一个不重叠的区间数组。</p>
+<p><em>注意</em>：边缘相交也算重叠，例如 <code>[1, 4]</code> 和 <code>[4, 5]</code> 可以合并为 <code>[1, 5]</code>。</p>
+<p><a href="https://leetcode.cn/problems/merge-intervals/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每个新区间只需和结果中的最后一个区间比较。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（无序的混乱）</strong>：</p>
+<p>如果区间是乱序的（比如先给你 <code>[15,18]</code>，再给你 <code>[1,3]</code>，最后给 <code>[2,6]</code>），你很难判断当前区间到底要和谁合并，因为能和它合并的区间可能在很后面。每次都要回头找，逻辑极其混乱。</p>
+</li>
+<li>
+<p><strong>破局思路（先排序，后贪心）</strong>：</p>
+<ul>
+<li><strong>第一步（排序）</strong>：既然乱，我们就给它定个规矩。<strong>将所有区间按照“起点”从小到大排序</strong>。</li>
+<li><strong>第二步（贪心合并）</strong>：排序后，所有能合并的区间<strong>一定都是连续挨在一起的</strong>！我们只需要拿一个“当前正在合并的区间（<code>current</code>）”，去和下一个区间比对。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（以 <code>[[1,3], [2,6], [8,10], [15,18]]</code> 为例，已排序）</strong>：</p>
+<ul>
+<li><strong>准备</strong>：拿第一个区间 <code>[1, 3]</code> 作为 <code>current</code>，放入结果集。</li>
+<li><strong>下一个是 <code>[2, 6]</code></strong>：</li>
+<li>判断：它的起点 <code>2</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="≤"><mrow><mo>≤</mo></mrow></math></span> <code>current</code> 的终点 <code>3</code>，说明有重叠！</li>
+<li>合并：起点不用变，终点变成两者终点的最大值 <code>max(3, 6) = 6</code>。于是结果集里的 <code>current</code> 更新为 <code>[1, 6]</code>。</li>
+<li><strong>下一个是 <code>[8, 10]</code></strong>：</li>
+<li>判断：它的起点 <code>8</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="&gt;"><mrow><mo>&gt;</mo></mrow></math></span> <code>current</code> 的终点 <code>6</code>，说明断开了，不可能再重叠了（因为后面的区间起点只会越来越大）。</li>
+<li>操作：把 <code>[8, 10]</code> 作为新的 <code>current</code> 放入结果集。</li>
+<li><strong>下一个是 <code>[15, 18]</code></strong>：同理，断开，作为新区间放入。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">intervals</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 边界条件：如果没有区间，直接返回空</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">intervals</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">intervals</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 灵魂操作：按区间的起点（start）从小到大进行排序</span>
+<span class="w">        </span><span class="c1">// 注意：使用 Integer.compare 可以有效防止 a[0] - b[0] 导致的整型溢出风险</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">));</span>
+
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">merged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 先把排序后的第一个区间放入结果集中，作为“当前合并区间”的初始基准</span>
+<span class="w">        </span><span class="n">merged</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">intervals</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 2. 从第二个区间开始遍历</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">intervals</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 获取当前正在试图扩充的区间（即结果集中的最后一个区间）</span>
+<span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">merged</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">merged</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">intervals</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 3. 核心判断逻辑</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">next</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">current</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 有重叠！更新当前区间的终点为两者的最大值</span>
+<span class="w">                </span><span class="c1">// 为什么不更新起点？因为我们已经按起点排过序了，current 的起点一定是最小的</span>
+<span class="w">                </span><span class="n">current</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">current</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">next</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 没有重叠！说明 current 已经扩充到极限了，将 next 作为新的独立区间加入结果集</span>
+<span class="w">                </span><span class="n">merged</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">next</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 4. 将 List 转换为二维数组返回</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">merged</span><span class="p">.</span><span class="na">toArray</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">merged</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="o">][]</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。遍历区间只需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 的时间，但之前的排序步骤需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。在算法中，取最高阶，因此总时间复杂度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 或 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。取决于底层排序算法的空间开销（Java 中对象排序通常是 TimSort，基本类型是 Dual-Pivot Quicksort，有递归栈空间）。如果算上用来装结果的 <code>merged</code> 列表，最坏情况下不重叠的空间为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（可能会被追问）</h3>
+<ol>
+<li><strong>踩坑点：<code>a[0] - b[0]</code> 的溢出陷阱</strong>
+   - 很多人在写自定义比较器时喜欢偷懒写 <code>(a, b) -&gt; a[0] - b[0]</code>。
+   - <strong>面试官必问</strong>：如果 <code>a[0]</code> 是 <code>-2147483648</code>，<code>b[0]</code> 是 <code>2147483647</code> 呢？相减会产生<strong>整数溢出</strong>，导致排序完全错乱！
+   - <strong>满分解法</strong>：老老实实写 <code>Integer.compare(a[0], b[0])</code>，这是极其专业且严谨的工程体现。</li>
+<li><strong>细微逻辑：为什么是取 <code>max</code> 而不是直接等于 <code>next[1]</code>？</strong>
+   - 假设有区间 <code>[1, 5]</code> 和 <code>[2, 3]</code>。排序后顺序是对的。
+   - 当合并时，<code>2 &lt;= 5</code> 重叠了。此时终点应该是 <code>max(5, 3)</code> 也就是 <code>5</code>。<code>[1, 5]</code> 完全“吞噬”了 <code>[2, 3]</code>。如果直接等于 <code>next[1]</code>，终点反而会缩水变成 3。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0053-最大子数组和.html">← 53. 最大子数组和</a> · <a href="0189-轮转数组.html">189. 轮转数组 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

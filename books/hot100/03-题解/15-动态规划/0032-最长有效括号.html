@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>32. 最长有效括号 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 15-动态规划</div>
+        <h1 id="32">32. 最长有效括号</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分栈指针极速版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的终极审判）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/15-动态规划.html">← 动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>以右括号结尾的 DP</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个只包含 <code>'('</code> 和 <code>')'</code> 的字符串，找出最长有效（格式正确且连续）括号子串的长度。</p>
+<p><em>例如</em>：输入 <code>s = ")(()())"</code>，最长有效括号子串是 <code>"(()())"</code>，长度为 <code>6</code>。</p>
+<p><a href="https://leetcode.cn/problems/longest-valid-parentheses/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>dp[i] 只表示必须以 i 结尾的最长有效长度。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（断裂的连续性）</strong>：</p>
+<p>如果单纯用消消乐，遇到 <code>(</code> 入栈，遇到 <code>)</code> 出栈，当栈空了或者不匹配时，我们知道括号断了。</p>
+<p><strong>痛点</strong>：断了之后怎么计算长度？比如 <code>()())()</code>，前面一段 <code>()</code> 长度是 4，后面一段 <code>()</code> 长度是 2。我们必须精准地知道<strong>每一次完美的消除是从哪个索引开始，到哪个索引结束的</strong>，并且还要把连续消除的长度累加起来。</p>
+</li>
+<li>
+<p><strong>破局思路（不存字符，存“索引”；引入“虚拟锚点”）</strong>：</p>
+<p>为了计算长度，栈里<strong>绝对不能存字符 <code>(</code>，必须存它们的【数组索引】</strong>！</p>
+<p>更绝的是，为了处理边界情况（比如一上来就是个完美的 <code>()</code>），我们需要在栈底死死压入一个“虚拟地基”——索引 <code>-1</code><strong>！ 这个 <code>-1</code> 的含义是：</strong>“当前这波连续消除的合法边界，是从 -1 之后开始的”。</p>
+</li>
+<li>
+<p><strong>核心微操（锚点的自我迭代）</strong>：</p>
+<p>我们从左到右遍历字符串：</p>
+<ul>
+<li><strong>遇到 <code>(</code></strong>：说明新一波的闭合期待开始了，直接把它的<strong>索引 <code>i</code></strong> 压入栈中。</li>
+<li><strong>遇到 <code>)</code></strong>：说明我们要尝试消除。不管三七二十一，先把栈顶弹出来（Pop）。</li>
+<li>弹完之后，看一眼栈：</li>
+<li><strong>如果栈不为空</strong>：说明刚刚触发了一次完美的消除！这时候，当前合法的连续括号长度就是：<code>当前索引 i - 此时最新的栈顶索引</code>。我们拿这个长度去挑战历史最大值。</li>
+<li><strong>如果栈变空了</strong>：高能预警！这意味着当前这个 <code>)</code> 是一个<strong>多余的、把前面连续性彻底砸碎的破坏者</strong>（比如 <code>()())</code> 最后一个右括号）。前面的连续性当场暴毙。但我们不能气馁，我们要把当前这个 <code>)</code> 的索引 <code>i</code> <strong>强行压入栈底，作为下一波新连续区间的“全新虚拟地基（新锚点）”</strong>！</li>
+</ul>
+<h3 id="java">Java 实现（满分栈指针极速版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">longestValidParentheses</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 栈里不存字符，只存索引</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 🌟 灵魂一步：先注入一个虚拟地基 -1</span>
+<span class="w">        </span><span class="c1">// 这样如果第 0 和第 1 个字符是 &quot;()&quot;，弹出后栈底剩下 -1，1 - (-1) = 2，完美契合</span>
+<span class="w">        </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;(&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 遇到左括号，无脑压入当前索引</span>
+<span class="w">                </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 遇到右括号，先弹栈，表示尝试匹配</span>
+<span class="w">                </span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span>
+
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 如果弹完之后栈空了，说明这个右括号无家可归（多余了）</span>
+<span class="w">                    </span><span class="c1">// 它成了新的“断裂点”，我们把它压入栈中，作为下一轮计算长度的全新底座（地基）</span>
+<span class="w">                    </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// 如果栈不空，说明匹配成功！</span>
+<span class="w">                    </span><span class="c1">// 当前有效括号的长度 = 当前索引 i - 弹栈后新的栈顶索引</span>
+<span class="w">                    </span><span class="n">maxLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxLen</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">stack</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxLen</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。只需要对字符串进行一次单向的线性扫描，每个索引最多入栈一次出栈一次。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。在最坏的情况下（比如全是左括号 <code>"(((((("</code>），栈的深度会达到 <span class="math-inline-wrap"><math class="math-inline" aria-label="N+1"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的终极审判）</h3>
+<ol>
+<li><strong>面试追问 1：“我看你用栈实现了 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 空间。如果面试官要求【空间复杂度必须是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>】，不准用任何栈和额外数组，你能破局吗？”</strong>
+   - <strong>满分抢答（正反双向贪心扫描法）</strong>：绝对可以！这是一个极其巧妙的脑筋急转弯。
+   - 我们只需要准备两个变量 <code>left</code> 和 <code>right</code> 记录左右括号的数量。
+   - <strong>从左向右扫一遍</strong>：遇到 <code>(</code> 则 <code>left++</code>，遇到 <code>)</code> 则 <code>right++</code>。只要 <code>left == right</code>，说明完美闭合，更新 <code>maxLen = 2 * right</code>；如果 <code>right &gt; left</code>，说明右边多出来了，连续性断裂，直接把 <code>left</code> 和 <code>right</code> <strong>全部清零重来</strong>。
+   - <em>致命细节</em>：光这么扫会漏掉一种情况，比如 <code>"(()"</code>（左边多余），扫完 <code>left=2, right=1</code>，永远不会触发 <code>left==right</code>。
+   - <strong>破局补刀</strong>：我们只需要<strong>从右向左再反向扫一遍</strong>！逻辑完全对称：遇到 <code>(</code> 且 <code>left &gt; right</code> 时清零。两次扫描双向奔赴，用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的神级空间即可完美通关！</li>
+<li><strong>面试追问 2：“这道题如果用动态规划（DP）该怎么定义状态？”</strong>
+   - <strong>DP 状态思维</strong>：定义 <code>dp[i]</code> 表示<strong>以当前字符 <code>s[i]</code> 结尾的</strong>最长有效括号长度。
+   - 只有当 <code>s[i] == ')'</code> 时才有可能有值。如果 <code>s[i-1] == '('</code>，那很简单，<code>dp[i] = dp[i-2] + 2</code>。
+   - 如果 <code>s[i-1] == ')'</code>（比如 <code>((...))</code>），我们需要跨过 <code>dp[i-1]</code> 算出来的这一整段有效安全区，去窥探它前方的那个字符 <code>s[i - dp[i-1] - 1]</code> 是不是 <code>(</code>。如果是，说明这一大段被完美闭合了，状态转移方程就会变成：<code>dp[i] = dp[i-1] + 2 + dp[i - dp[i-1] - 2]</code>。
+   - <em>面试点评</em>：DP 解法的边界条件极度容易写错（一不小心就数组越界），在面试有限的时间内，<strong>上面的“栈锚点法”是容错率最高、最不容易写挂的教科书级代码</strong>。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../15-动态规划/0416-分割等和子集.html">← 416. 分割等和子集</a> · <a href="../16-多维动态规划/0062-不同路径.html">62. 不同路径 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/困难题核心状态实验室.html?embed=1&amp;mode=valid-parentheses" title="32. 最长有效括号的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

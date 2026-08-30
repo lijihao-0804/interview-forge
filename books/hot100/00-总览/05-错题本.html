@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>错题本 · Interview Forge</title>
+<style>
+:root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--danger:#c1363e;--danger-soft:#fdecec;--success:#13764b;--success-soft:#e7f6ee}
+@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--danger:#ff969d;--danger-soft:#47242b;--success:#79d8a8;--success-soft:#17382b}}
+*{box-sizing:border-box}
+body{margin:0;color:var(--text);background:var(--bg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+.shell{width:min(100% - 32px,1080px);margin:auto;padding:26px 0 56px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.top a{color:var(--brand);text-decoration:none}
+h1{margin:0 0 6px;font-size:30px}
+.sub{color:var(--muted);margin-bottom:18px}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px;margin-bottom:18px}
+.card h2{margin:0 0 12px;font-size:18px}
+.bars{display:grid;gap:8px}
+.bar-row{display:grid;grid-template-columns:minmax(110px,1fr) minmax(120px,2fr) 36px;gap:10px;align-items:center;font-size:13px}
+.bar-track{height:10px;border-radius:999px;background:var(--soft);overflow:hidden}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--danger));border-radius:999px}
+.bar-num{color:var(--muted);font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;margin-top:4px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-size:13px;font-weight:650}
+td a{color:var(--brand)}
+.pill{padding:2px 8px;border-radius:999px;font-size:12px;color:var(--danger);background:var(--danger-soft)}
+.remove{border:1px solid var(--line);border-radius:7px;padding:3px 8px;color:var(--muted);background:transparent;cursor:pointer;font-size:12px}
+.empty{padding:20px 6px;color:var(--muted)}
+.notice{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--muted);font-size:13px;margin-bottom:18px}
+@media(max-width:620px){th,td{padding:7px 6px;font-size:13px}.bar-row{grid-template-columns:90px 1fr 30px}}
+@media print{.top,.remove,.notice{display:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="top"><a href="../../../index.html">← 学习面板</a><a href="../../../library/index.html">学习书架</a><a href="03-复习清单.html">复习清单</a></div>
+  <h1>错题本</h1>
+  <div class="sub">在面板题卡上标记“薄弱”后自动汇总到这里；可一键打印或导出薄弱清单。</div>
+  <div id="notice" class="notice">正在读取学习记录…（请通过“启动学习站.cmd”访问）</div>
+  <section class="card" aria-labelledby="distTitle"><h2 id="distTitle">薄弱题专题分布</h2><div id="bars" class="bars"></div></section>
+  <section class="card" aria-labelledby="listTitle"><h2 id="listTitle">薄弱清单</h2>
+    <table><thead><tr><th>题号</th><th>题名</th><th>核心方法</th><th>轮次</th><th>最近复习</th><th>标记时间</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table>
+  </section>
+</main>
+<script>
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(v){if(!v)return '—';return String(v).slice(0,10)}
+async function load(){
+  try{
+    const r=await fetch('/api/weaklist',{cache:'no-store'});
+    if(!r.ok)throw new Error();
+    const data=await r.json();
+    document.getElementById('notice').hidden=true;
+    const bars=document.getElementById('bars');
+    const counts={};
+    data.items.forEach(item=>{counts[item.category]=(counts[item.category]||0)+1});
+    const max=Math.max(1,...Object.values(counts));
+    bars.innerHTML=Object.entries(counts).map(([name,n])=>`<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/max*100)}%"></div></div><span class="bar-num">${n}</span></div>`).join('')||'<div class="empty">还没有薄弱题。</div>';
+    document.getElementById('rows').innerHTML=data.items.map(item=>`<tr><td>${item.id}</td><td><a href="${esc(item.note)}">${esc(item.title)}</a></td><td>${esc(item.method)}</td><td>${item.rounds}</td><td>${fmt(item.last_completed_at)}</td><td>${fmt(item.marked_at)}</td><td><button class="remove" type="button" data-remove="${item.id}">移除薄弱</button></td></tr>`).join('');
+    document.querySelectorAll('[data-remove]').forEach(btn=>btn.addEventListener('click',async()=>{
+      try{
+        await fetch('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:btn.dataset.remove,mark:''})});
+        load();
+      }catch(_){}
+    }));
+  }catch(_){
+    document.getElementById('notice').textContent='无法读取学习记录，请通过“启动学习站.cmd”访问。';
+  }
+}
+load();
+</script>
+</body>
+</html>

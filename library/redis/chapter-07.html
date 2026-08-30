@@ -1,0 +1,74 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>集群与高可用 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Redis：数据结构、缓存与高可用</a><span aria-hidden="true">›</span><span aria-current="page">集群与高可用</span></nav><div class="module-meta">数据存储 · 第 7 / 8 章</div><h1>集群与高可用</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>单机 Redis 有容量与可用性上限，演进路线：主从 → 哨兵 → Cluster。</p>
+<h3>6.1 主从复制</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">master 负责写，slave 同步数据，读写分离
+全量同步：RDB 快照 + 缓冲命令
+增量同步：断线重连后按 repl_backlog 补发
+</code></pre></div>
+<ul>
+<li>术语：replication ID + 偏移量 offset 定位同步位置；<code>repl-backlog-size</code> 默认 1MB，断线偏移滑出 backlog 退化为全量；</li>
+<li>复制是<strong>异步</strong>的，主从不一致正是“切换丢锁”的根源；从节点默认只读；</li>
+<li>全量复制依赖 RDB（触发/复用 BGSAVE）；主节点别关持久化，否则提升的从节点可能无数据；主从都建议开持久化。</li>
+</ul>
+<p><strong>psync 剧本与丢失窗口</strong>：从节点带上 replid + offset 请求同步，主节点判断偏移还在 backlog 内就增量、否则全量（先 RDB 后补缓冲命令）；<code>repl-diskless-sync</code> 可不开盘直接 socket 传 RDB，避免磁盘 IO；复制是异步的，master 宕机前没传到的写会丢——这就是主从切换丢锁的根源。</p>
+<p>问题：master 挂了自己不会自动切换，需要哨兵。</p>
+<h3>6.2 哨兵 Sentinel</h3>
+<p>哨兵集群（建议 3 个以上奇数节点）负责：</p>
+<ul>
+<li><strong>监控</strong>：心跳检测 master/slave；</li>
+<li><strong>通知</strong>：状态变化通知客户端；</li>
+<li><strong>故障转移</strong>：master 挂了选一个 slave 提升为 master，其他 slave 重新指向；</li>
+<li>判定流程：每个哨兵独立判断 sdown（主观下线）→ quorum 个哨兵一致才 odown（客观下线，quorum 可配置、非严格多数派）→ 故障转移需<strong>多数派哨兵在线</strong>选出 Leader；</li>
+<li><strong>脑裂</strong>：分区后旧 master 恢复需转型从节点并清空/重同步（可能丢写），缓解用 <code>min-replicas-to-write</code> / <code>min-replicas-max-lag</code>；注意区分 quorum（判定票数）与 majority（选举票数）。</li>
+</ul>
+<p>客户端通过哨兵拿当前 master 地址，实现自动切换。</p>
+<p><strong>选主三级依据</strong>：优先级（replica-priority）→ 复制偏移量（数据最新）→ runid 字典序；可手动演练 <code>sentinel failover &lt;master&gt;</code>。</p>
+<h3>6.3 Cluster 集群</h3>
+<p>Cluster 解决“数据量超过单机”：</p>
+<ul>
+<li>数据分 <strong>16384 个槽</strong>，每个节点负责一段槽区间；</li>
+<li>key 通过 <code>CRC16(key) % 16384</code> 定位槽，客户端路由到对应节点；</li>
+<li>节点间 gossip 协议维护集群状态；</li>
+<li>支持槽迁移实现扩缩容；</li>
+<li>与主从结合：每个槽可以有主从副本，保证高可用。</li>
+<li>重定向：<code>MOVED</code>（槽已迁移，客户端更新路由缓存重发）、<code>ASK</code>（迁移中临时转向）；最少 3 个主节点；<strong>hash tag</strong>（如 <code>{user1000}</code>）保证多 key 落在同一槽，是 Lua 多 key 脚本的前提。</li>
+</ul>
+<p><strong>细节推导</strong>：16384 槽用 2KB bitmap 表示（16384 / 8 = 2048 字节），节点间 gossip 携带槽位信息方便；<code>ASK</code> 后客户端要发 <strong>ASKING</strong> 再请求，防止重定向循环；跨槽多 key 操作报 CROSSSLOT，用 hash tag 把相关 key 放进同一槽。</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">redis-cli<span class="w"> </span>--cluster<span class="w"> </span>create<span class="w"> </span><span class="m">127</span>.0.0.1:7000<span class="w"> </span><span class="m">127</span>.0.0.1:7001<span class="w"> </span>...<span class="w"> </span>--cluster-replicas<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<h3>6.4 一致性哈希 vs 槽</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>思路</th>
+<th>扩容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一致性哈希</td>
+<td>key 哈希到环，只迁移相邻节点数据</td>
+<td>迁移少，但可能出现数据倾斜</td>
+</tr>
+<tr>
+<td>Cluster 槽</td>
+<td>固定 16384 槽 + 槽迁移</td>
+<td>按槽迁移，均匀，官方推荐</td>
+</tr>
+</tbody>
+</table>
+<h3>6.5 面试追问</h3>
+<ul>
+<li>问：主从复制怎么同步？</li>
+<li>答：首次全量 RDB + 缓冲命令，之后增量传播；断线用 repl_backlog 补发。</li>
+<li>问：哨兵的作用？</li>
+<li>答：监控、通知、自动故障转移；quorum 多数派判断客观下线。</li>
+<li>问：Cluster 怎么分片？</li>
+<li>答：16384 个槽，CRC16(key) 取模路由；槽可迁移，配主从副本。</li>
+<li>问：为什么不用一致性哈希？</li>
+<li>答：Cluster 槽迁移均匀、官方实现；一致性哈希有倾斜问题，且迁移逻辑要自己写。</li>
+<li>问：缓存雪崩时 Redis 挂了怎么办？</li>
+<li>答：哨兵/集群保证高可用 + 多级缓存 + 限流降级（见“缓存三兄弟与一致性”章）。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-06.html">← 上一章</a><a href="chapter-08.html">下一章 →</a></nav></main></div>
+<script>const contentId="redis:07",moduleId="redis";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

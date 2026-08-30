@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>239. 滑动窗口最大值 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 04-子串</div>
+        <h1 id="239">239. 滑动窗口最大值</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展</a><ul>
+<li><a href="#1-linkedlist">1. LinkedList：链式结构的“长蛇阵”</a></li>
+<li><a href="#2-arraydeque">2. ArrayDeque：循环数组的“高效环”</a></li>
+<li><a href="#3">3. 巅峰对决：我该选哪一个？</a></li>
+<li><a href="#_7">👨‍🏫 老师的总结与建议</a></li>
+<li><a href="#first-vs-last">🔑 第一层密码：方向词（First vs Last）</a></li>
+<li><a href="#vs">🔑 第二层密码：行为词（报错派 vs 佛系派）</a></li>
+<li><a href="#_8">🔑 第三层密码：角色扮演（化身栈与队列）</a></li>
+<li><a href="#deque-fifo">🎭 场景一：当你要把 Deque 当作“普通队列 (FIFO)”用</a></li>
+<li><a href="#deque-lifo">🎭 场景二：当你要把 Deque 当作“栈 (LIFO)”用</a></li>
+<li><a href="#_9">📝 老师的终极记忆卡片（可以直接复制到笔记）</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_10">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/04-子串.html">← 子串专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>单调队列</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(k)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code>，有一个大小为 <code>k</code> 的滑动窗口从数组的最左侧移动到最右侧。你只可以看到在滑动窗口内的 <code>k</code> 个数字。滑动窗口每次只向右移动一位。返回滑动窗口中的最大值。</p>
+<p><a href="https://leetcode.cn/problems/sliding-window-maximum/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>队列保存有效下标，且对应值从队首到队尾递减。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（大根堆）</strong>：</p>
+<p>想找最值，第一反应是优先队列（堆）。</p>
+<p><strong>痛点</strong>：Java 的 <code>PriorityQueue</code> 移除特定元素的时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>k</mi><mo>)</mo></mrow></math></span>，导致总复杂度退化为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n · k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>k</mi><mo>)</mo></mrow></math></span>。即使配合延迟删除，复杂度也是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n log n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>。而题目要求 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。</p>
+</li>
+<li>
+<p><strong>破局思路（单调队列）</strong>：</p>
+<p>我们需要一个队列，它能随着窗口滑动：</p>
+<ul>
+<li><strong>入队</strong>：新元素进来时，把前面所有<strong>比它小</strong>的元素全部踢走。</li>
+<li><strong>原因</strong>：如果 <span class="math-inline-wrap"><math class="math-inline" aria-label="A"><mrow><mi>A</mi></mrow></math></span> 比 <span class="math-inline-wrap"><math class="math-inline" aria-label="B"><mrow><mi>B</mi></mrow></math></span> 后进来，且 <span class="math-inline-wrap"><math class="math-inline" aria-label="A"><mrow><mi>A</mi></mrow></math></span> 还比 <span class="math-inline-wrap"><math class="math-inline" aria-label="B"><mrow><mi>B</mi></mrow></math></span> 大，那么只要 <span class="math-inline-wrap"><math class="math-inline" aria-label="A"><mrow><mi>A</mi></mrow></math></span> 在窗口里，<span class="math-inline-wrap"><math class="math-inline" aria-label="B"><mrow><mi>B</mi></mrow></math></span> 永远不可能成为最大值。<span class="math-inline-wrap"><math class="math-inline" aria-label="B"><mrow><mi>B</mi></mrow></math></span> 已经没用了，可以直接“退伍”。</li>
+<li><strong>出队</strong>：当窗口移走了某个元素，如果它恰好是队列里的最大值，才将其弹出。</li>
+<li><strong>查询</strong>：队列的头部永远存放着当前窗口的最大值。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演</strong>：</p>
+<p>假设窗口大小 <span class="math-inline-wrap"><math class="math-inline" aria-label="k=3"><mrow><mi>k</mi><mo>=</mo><mn>3</mn></mrow></math></span>，数组 <code>[1, 3, -1, -3, 5, 3]</code>：</p>
+<ul>
+<li><code>1</code> 入队：<code>[1]</code></li>
+<li><code>3</code> 入队：<code>3</code> 比 <code>1</code> 大，<code>1</code> 没用了，踢走。队列：<code>[3]</code></li>
+<li><code>-1</code> 入队：<code>-1</code> 比 <code>3</code> 小，留着，万一 <code>3</code> 走了，<code>-1</code> 可能是老二。队列：<code>[3, -1]</code></li>
+<li><strong>此时窗口满 3 个</strong>，最大值是队头 <code>3</code>。</li>
+<li><code>-3</code> 入队：队列：<code>[3, -1, -3]</code>。最大值 <code>3</code>。</li>
+<li><code>5</code> 入队：<code>5</code> 把前面的 <code>3, -1, -3</code> 全踢走。队列：<code>[5]</code>。最大值 <code>5</code>。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">maxSlidingWindow</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 双端队列，存储的是元素的【下标】而非数值</span>
+<span class="w">        </span><span class="c1">// 存储下标是为了方便判断队头元素是否已经超出了窗口范围</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">deque</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 1. 入队准备：如果新来的数比队尾的大，队尾的数永远没机会出头了，弹出</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">deque</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">deque</span><span class="p">.</span><span class="na">peekLast</span><span class="p">()</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">deque</span><span class="p">.</span><span class="na">pollLast</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 2. 入队：存入当前下标</span>
+<span class="w">            </span><span class="n">deque</span><span class="p">.</span><span class="na">offerLast</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// 3. 维护窗口：如果队头下标已经不在 [i-k+1, i] 范围内了，弹出</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">peekFirst</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">deque</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 4. 记录答案：当窗口形成（i &gt;= k-1）时，队头就是当前窗口最大值的下标</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">res</span><span class="o">[</span><span class="n">idx</span><span class="o">++]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">deque</span><span class="p">.</span><span class="na">peekFirst</span><span class="p">()</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。虽然有 <code>while</code> 嵌套，但每个元素最多进队一次、出队一次，总操作数是 <span class="math-inline-wrap"><math class="math-inline" aria-label="2n"><mrow><mn>2</mn><mi>n</mi></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(k)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>k</mi><mo>)</mo></mrow></math></span>。双端队列中最多同时存放 <span class="math-inline-wrap"><math class="math-inline" aria-label="k"><mrow><mi>k</mi></mrow></math></span> 个元素的下标。</li>
+</ul>
+<h3 id="_6">易错点与扩展</h3>
+<ol>
+<li><strong>为什么用 <code>ArrayDeque</code> 而不用 <code>LinkedList</code>？</strong>
+   - <strong>回答</strong>：在 Java 中，<code>ArrayDeque</code> 是基于循环数组实现的，<code>LinkedList</code> 是基于双向链表（对象）实现的。<code>ArrayDeque</code> 在作为栈或队列使用时，内存更紧凑，没有频繁的节点对象创建和销毁，性能通常比 <code>LinkedList</code> 高出数倍。</li>
+<li><strong>单调队列的通用性</strong>：
+   - 这是一种固定的套路：<strong>求窗口最值用单调队列，求下一个更大元素（Next Greater Element）用单调栈</strong>。</li>
+<li><strong>下标 vs 数值</strong>：
+   - 队列里建议存<strong>下标</strong>。因为下标既能让你通过 <code>nums[i]</code> 拿到值，又能让你通过 <code>i - deque.peekFirst() &gt;= k</code> 判断窗口是否过期。只存数值无法判断是否过期。</li>
+</ol>
+<h4 id="1-linkedlist">1. LinkedList：链式结构的“长蛇阵”</h4>
+<p><code>LinkedList</code> 是 Java 中最老牌的集合之一。</p>
+<ul>
+<li><strong>底层实现</strong>：它是一个<strong>双向链表</strong>。每一个元素都被封装在一个 <code>Node</code> 对象中。</li>
+<li><strong>结构细节</strong>：</li>
+<li>每个 <code>Node</code> 除了存储数据，还存了两个指针：<code>prev</code>（指向前一个节点）和 <code>next</code>（指向后一个节点）。</li>
+<li>内存分布是<strong>离散</strong>的，节点之间通过地址引用连接。</li>
+<li><strong>特点</strong>：</li>
+<li><strong>插入/删除</strong>：如果在头部或尾部操作，时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。</li>
+<li><strong>随机访问</strong>：如果想找第 <span class="math-inline-wrap"><math class="math-inline" aria-label="i"><mrow><mi>i</mi></mrow></math></span> 个元素，必须从头（或尾）开始数，时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。</li>
+<li><strong>内存开销</strong>：很大。因为每个数据都要额外存两个指针，且频繁地 <code>new Node</code> 会给垃圾回收（GC）带来压力。</li>
+</ul>
+<h4 id="2-arraydeque">2. ArrayDeque：循环数组的“高效环”</h4>
+<p><code>ArrayDeque</code> 是 Java 1.6 引入的，它是目前 Java 官方<strong>最推荐</strong>的栈和队列实现。</p>
+<ul>
+<li><strong>底层实现</strong>：它是一个<strong>可变长的循环数组</strong>。</li>
+<li><strong>结构细节</strong>：</li>
+<li>它维护了一个数组和两个索引：<code>head</code>（头）和 <code>tail</code>（尾）。</li>
+<li>当 <code>tail</code> 走到数组末尾时，它会绕回到数组开头继续使用（只要开头有空位）。这就是所谓的“循环”。</li>
+<li>内存分布是<strong>连续</strong>的。</li>
+<li><strong>特点</strong>：</li>
+<li><strong>插入/删除</strong>：在两端操作的时间复杂度也是均摊 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。</li>
+<li><strong>内存开销</strong>：很小。它只存数据本身，没有指针开销。</li>
+<li><strong>缓存友好</strong>：因为数组是连续内存，CPU 读取速度比链表快得多（计算机组成原理中的 Cache Locality）。</li>
+<li><strong>禁忌</strong>：它<strong>不允许存储 null 元素</strong>。</li>
+</ul>
+<h4 id="3">3. 巅峰对决：我该选哪一个？</h4>
+<p>在刷力扣（LeetCode）时，我们通常需要一个容器来充当<strong>栈（Stack）</strong>或<strong>队列（Queue）</strong>。</p>
+<table>
+<thead>
+<tr>
+<th><strong>特性</strong></th>
+<th><strong>LinkedList</strong></th>
+<th><strong>ArrayDeque</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>底层</strong></td>
+<td>双向链表</td>
+<td>循环数组</td>
+</tr>
+<tr>
+<td><strong>作为栈/队列性能</strong></td>
+<td>一般（对象创建多）</td>
+<td><strong>极高（数组操作）</strong></td>
+</tr>
+<tr>
+<td><strong>随机访问 (get(i))</strong></td>
+<td><span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span></td>
+<td>不支持（只能看头尾）</td>
+</tr>
+<tr>
+<td><strong>内存占用</strong></td>
+<td>较高（节点对象多）</td>
+<td><strong>较低（紧凑数组）</strong></td>
+</tr>
+<tr>
+<td><strong>Null 支持</strong></td>
+<td>支持</td>
+<td><strong>不支持</strong></td>
+</tr>
+</tbody>
+</table>
+<h4 id="_7">👨‍🏫 老师的总结与建议</h4>
+<p>在算法面试中，除非题目明确要求你操作链表节点，否则：</p>
+<ol>
+<li><strong>如果你需要一个“栈” (Stack)</strong>：
+   - <strong>千万不要用</strong> <code>java.util.Stack</code> 类（它由于历史原因，带了同步锁，性能极低）。
+   - <strong>请使用</strong> <code>Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();</code>。</li>
+<li><strong>如果你需要一个“普通队列” (Queue)</strong>：
+   - <strong>请使用</strong> <code>Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();</code>。</li>
+<li><strong>如果你需要一个“单调队列” (如题目 239)</strong>：
+   - <strong>必选</strong> <code>ArrayDeque</code>。在高并发或大数据量下，它的速度远超 <code>LinkedList</code>。</li>
+</ol>
+<p><strong>为什么 ArrayDeque 速度快这么多？</strong></p>
+<p>简单来说，<code>LinkedList</code> 每次添加元素都要在堆内存里 <code>new</code> 一个对象，而 <code>ArrayDeque</code> 只是在数组里改一个数字。在计算机底层，<strong>操作数组永远比操作对象快得多</strong>。</p>
+<hr />
+<p>太棒了！你能敏锐地察觉到这些 API 的重要性，说明你已经具备了优秀程序员的直觉。</p>
+<p>在 Java 中，<code>Deque</code>（全称 Double Ended Queue，双端队列）之所以强大，正是因为它有一套极其丰富（甚至有点让人眼花缭乱）的方法库。很多初学者会被 <code>add</code>、<code>offer</code>、<code>poll</code>、<code>pop</code>、<code>remove</code> 这些词搞晕。</p>
+<p>今天，老师就传授给你一份“Deque 方法命名密码本”，只要理解了底层的命名逻辑，你都不用死记硬背！</p>
+<h4 id="first-vs-last">🔑 第一层密码：方向词（First vs Last）</h4>
+<p><code>Deque</code> 是一根两头通的管子。</p>
+<ul>
+<li><strong>First（头）</strong>：代表管子的左端（前端）。</li>
+<li><strong>Last（尾）</strong>：代表管子的右端（后端）。</li>
+</ul>
+<p>以你问到的几个方法为例：</p>
+<ol>
+<li><strong><code>deque.peekFirst()</code></strong>：<strong>“偷看”一眼队头元素</strong>。只是看看，不把它拿走。如果队列是空的，它会默默返回一个 <code>null</code>，不会报错。</li>
+<li><strong><code>deque.pollFirst()</code></strong>：<strong>“拔出”队头元素</strong>。把最左边的元素拿出来并从队列中删掉。如果队列为空，返回 <code>null</code>。</li>
+<li><strong><code>deque.pollLast()</code></strong>：<strong>“拔出”队尾元素</strong>。把最右边的元素拿出来并删掉。如果队列为空，返回 <code>null</code>。</li>
+</ol>
+<p><em>(对应的，当然还有 <code>peekLast()</code>，也就是偷看一眼队尾。)</em></p>
+<h4 id="vs">🔑 第二层密码：行为词（报错派 vs 佛系派）</h4>
+<p>这是面试和实战中最容易踩坑的地方！Java 为同一种操作提供了<strong>两套名字</strong>。一套性格暴躁（出错就抛异常抛死你），一套性格佛系（出错就返回特殊值，通常是 null 或 false）。</p>
+<p><strong>强烈建议：在刷力扣时，永远优先使用“佛系派”方法（<code>offer</code>, <code>poll</code>, <code>peek</code>），这样可以避免不小心触发异常导致代码崩溃！</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>操作类型</strong></th>
+<th><strong>暴躁派（出错会抛出 Exception）</strong></th>
+<th><strong>佛系派（出错返回特殊值 null / false） ⭐️推荐</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>插入头部</strong></td>
+<td><code>addFirst(e)</code></td>
+<td><code>offerFirst(e)</code></td>
+</tr>
+<tr>
+<td><strong>插入尾部</strong></td>
+<td><code>addLast(e)</code></td>
+<td><code>offerLast(e)</code></td>
+</tr>
+<tr>
+<td><strong>删除头部</strong></td>
+<td><code>removeFirst()</code></td>
+<td><code>pollFirst()</code></td>
+</tr>
+<tr>
+<td><strong>删除尾部</strong></td>
+<td><code>removeLast()</code></td>
+<td><code>pollLast()</code></td>
+</tr>
+<tr>
+<td><strong>查看头部</strong></td>
+<td><code>getFirst()</code></td>
+<td><code>peekFirst()</code></td>
+</tr>
+<tr>
+<td><strong>查看尾部</strong></td>
+<td><code>getLast()</code></td>
+<td><code>peekLast()</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="_8">🔑 第三层密码：角色扮演（化身栈与队列）</h4>
+<p><code>Deque</code> 之所以被称为“全能王”，是因为它可以完美地<strong>伪装</strong>成“栈（Stack）”或者“普通队列（Queue）”。为了让你写代码时更符合直觉，Java 还为它起了一些“别名”方法。</p>
+<h4 id="deque-fifo">🎭 场景一：当你要把 Deque 当作“普通队列 (FIFO)”用</h4>
+<p>普通队列是“排队买票”，队伍尾部进，队伍头部出。</p>
+<ul>
+<li><strong>入队</strong>：<code>deque.offer(e)</code> （其实底层就是调用的 <code>offerLast</code>，加到队尾）</li>
+<li><strong>出队</strong>：<code>deque.poll()</code> （其实底层就是调用的 <code>pollFirst</code>，从队头拿走）</li>
+<li><strong>看一眼队头是谁</strong>：<code>deque.peek()</code> （其实底层就是调用的 <code>peekFirst</code>）</li>
+</ul>
+<h4 id="deque-lifo">🎭 场景二：当你要把 Deque 当作“栈 (LIFO)”用</h4>
+<p>栈是“叠盘子”，最后放上去的盘子，最先拿下来。我们规定只在头部（First）进行操作。</p>
+<ul>
+<li><strong>压栈</strong>：<code>deque.push(e)</code> （其实底层就是调用的 <code>addFirst</code>，放在最上面）</li>
+<li><strong>弹栈</strong>：<code>deque.pop()</code> （其实底层就是调用的 <code>removeFirst</code>，把最上面的拿走）</li>
+<li><em>注意：栈的传统方法 <code>push</code> 和 <code>pop</code> 属于“暴躁派”，如果空栈 <code>pop</code> 会报错。所以在安全要求高的场景，我们依然喜欢手动用 <code>offerFirst</code> 和 <code>pollFirst</code> 来当栈用。</em></li>
+</ul>
+<h4 id="_9">📝 老师的终极记忆卡片（可以直接复制到笔记）</h4>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 初始化</span>
+<span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">deque</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// --------------------------------------------------</span>
+<span class="c1">// 【场景 A：我想用双端队列 / 单调队列（两头都要操作）】</span>
+<span class="c1">// --------------------------------------------------</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">offerLast</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">  </span><span class="c1">// 尾部进</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span><span class="w">   </span><span class="c1">// 头部出</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">pollLast</span><span class="p">();</span><span class="w">    </span><span class="c1">// 尾部出</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">peekLast</span><span class="p">();</span><span class="w">    </span><span class="c1">// 看尾部</span>
+
+<span class="c1">// --------------------------------------------------</span>
+<span class="c1">// 【场景 B：我想把它当纯正的“普通队列”用】</span>
+<span class="c1">// --------------------------------------------------</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w">      </span><span class="c1">// 排队（进尾巴）</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span><span class="w">        </span><span class="c1">// 叫号（出头部）</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">peek</span><span class="p">();</span><span class="w">        </span><span class="c1">// 看一眼谁排在最前面</span>
+
+<span class="c1">// --------------------------------------------------</span>
+<span class="c1">// 【场景 C：我想把它当纯正的“栈”用】</span>
+<span class="c1">// --------------------------------------------------</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w">       </span><span class="c1">// 压入（放头上）</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">pop</span><span class="p">();</span><span class="w">         </span><span class="c1">// 弹出（拿头上，如果空会报错!）</span>
+<span class="c1">// 替代方案（更安全）：</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">offerFirst</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w"> </span><span class="c1">// 安全压栈</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">pollFirst</span><span class="p">();</span><span class="w">   </span><span class="c1">// 安全弹栈</span>
+</code></pre></div>
+
+<p>在刚才那道“滑动窗口最大值”（239题）中，为什么我们用到了 <code>pollLast</code> 和 <code>pollFirst</code>？</p>
+<ul>
+<li>因为当新的大数字进来时，我们要把前面所有没用的小数字从<strong>尾部</strong>踢掉，所以用了 <code>pollLast()</code>。</li>
+<li>当窗口划过，把最左边的过期数字丢掉时，我们要从<strong>头部</strong>踢掉它，所以用了 <code>pollFirst()</code>。</li>
+</ul>
+<p>这套 API 体系清楚了吗？只要记住“offer / poll / peek 佛系三剑客”<strong>加上</strong>“First / Last 方向词”，你就能在面试中写出极其稳健的代码！</p>
+<hr />
+<h2 id="_10">相邻学习</h2>
+<p><a href="0560-和为 K 的子数组.html">← 560. 和为 K 的子数组</a> · <a href="0076-最小覆盖子串.html">76. 最小覆盖子串 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/困难题核心状态实验室.html?embed=1&amp;mode=window-max" title="239. 滑动窗口最大值的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

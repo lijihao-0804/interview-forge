@@ -1,0 +1,134 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>编程规范与一页速查 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 核心：语言根基</a><span aria-hidden="true">›</span><span aria-current="page">编程规范与一页速查</span></nav><div class="module-meta">Java 语言 · 第 17 / 18 章</div><h1>编程规范与一页速查</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>这一章把《阿里巴巴 Java 开发手册》里与“语言根基”直接相关的核心规范提炼出来，再给一页常用 API 速查，方便日常写代码时对照。</p>
+<h3>16.1 核心规范</h3>
+<p><strong>命名</strong>：</p>
+<ul>
+<li>类名：大驼峰 <code>UserService</code>；方法/变量：小驼峰 <code>getUserName</code>；常量：全大写下划线 <code>MAX_RETRY_COUNT</code>；包名：全小写 <code>com.example.order</code>；</li>
+<li>布尔变量不要用 <code>is</code> 前缀加动词（如 <code>isDeleted</code> 的 getter 会生成 <code>getDeleted</code> 还是 <code>isDeleted</code> 有歧义），POJO 布尔字段规范上避免 <code>isXxx</code>；</li>
+<li>不要用拼音或自造缩写命名。</li>
+</ul>
+<p><strong>代码</strong>：</p>
+<ul>
+<li>禁止魔法值：<code>if (status == 1)</code> 应写成具名常量或枚举；</li>
+<li>方法尽量单一职责、参数不超过 5 个；</li>
+<li>循环内不要做字符串 <code>+</code> 拼接（用 StringBuilder）；</li>
+<li>集合初始化尽量预估容量，避免扩容；</li>
+<li><code>equals</code> 用常量调用：<code>"abc".equals(s)</code> 而不是 <code>s.equals("abc")</code>（防空指针）；</li>
+<li>大整数、金额用 <code>BigDecimal</code>，且<strong>用字符串构造</strong>：<code>new BigDecimal("0.1")</code>，不要 <code>new BigDecimal(0.1)</code>；比较大小用 <code>compareTo</code> 而不是 <code>equals</code>（<code>equals</code> 要求精度 scale 也相同，<code>0.1</code> 与 <code>0.10</code> 会不相等）；需要固定小数位用 <code>setScale(2, RoundingMode.HALF_UP)</code>；</li>
+<li>浮点比较不要用 <code>==</code>，用差值范围或 <code>BigDecimal</code>；</li>
+<li>时间相关用 <code>java.time</code>，不直接用 <code>Date</code> 做业务逻辑；<code>SimpleDateFormat</code> 不要定义为 static 共享；</li>
+<li>并发场景不用 <code>HashMap</code>、<code>ArrayList</code>，用 <code>ConcurrentHashMap</code>、<code>CopyOnWriteArrayList</code> 或加锁（详见并发课程）；</li>
+<li>日志：<code>log.error("订单创建失败，orderId={}", orderId, e)</code>，异常要打印堆栈，不要只打 <code>e.getMessage()</code>。</li>
+</ul>
+<h3>16.2 高频踩坑清单</h3>
+<table>
+<thead>
+<tr>
+<th>坑</th>
+<th>正确做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Integer</code> 用 <code>==</code> 比较</td>
+<td>用 <code>equals</code> 或拆箱</td>
+</tr>
+<tr>
+<td>循环内字符串 <code>+</code> 拼接</td>
+<td>用 <code>StringBuilder</code></td>
+</tr>
+<tr>
+<td>遍历集合时直接 <code>remove</code></td>
+<td><code>Iterator.remove</code> 或 <code>removeIf</code></td>
+</tr>
+<tr>
+<td>自定义对象放进 HashMap/Set 没重写 hashCode</td>
+<td>同时重写 equals 和 hashCode</td>
+</tr>
+<tr>
+<td><code>Arrays.asList</code> 结果调 add</td>
+<td>用 <code>new ArrayList&lt;&gt;(Arrays.asList(...))</code> 包装</td>
+</tr>
+<tr>
+<td>浮点直接 <code>==</code> 比较</td>
+<td><code>BigDecimal</code> 或误差范围</td>
+</tr>
+<tr>
+<td><code>SimpleDateFormat</code> 静态共享</td>
+<td><code>DateTimeFormatter</code> 或 ThreadLocal</td>
+</tr>
+<tr>
+<td>受检异常 catch 后什么都不做</td>
+<td>至少记日志，能处理就处理</td>
+</tr>
+<tr>
+<td>finally 里 return</td>
+<td>不要，finally 只做资源释放</td>
+</tr>
+<tr>
+<td>用 <code>new Integer(100)</code></td>
+<td>用 <code>Integer.valueOf(100)</code> 或自动装箱</td>
+</tr>
+<tr>
+<td>忽略返回值（如 <code>set.remove</code>）</td>
+<td>按需检查返回值</td>
+</tr>
+<tr>
+<td>大集合默认容量</td>
+<td>预估后指定 initialCapacity</td>
+</tr>
+<tr>
+<td>BigDecimal 比较</td>
+<td>用 compareTo，equals 会因 scale 不同误判</td>
+</tr>
+<tr>
+<td>需要只读集合</td>
+<td>Collections.unmodifiableXxx 包装</td>
+</tr>
+</tbody>
+</table>
+<h3>16.3 一页速查</h3>
+<p><strong>String</strong>：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="s">&quot; abc &quot;</span><span class="p">.</span><span class="na">trim</span><span class="p">();</span><span class="w">                    </span><span class="c1">// 去首尾空白（JDK 11+ 用 strip 处理 Unicode）</span>
+<span class="s">&quot;abc&quot;</span><span class="p">.</span><span class="na">equalsIgnoreCase</span><span class="p">(</span><span class="s">&quot;ABC&quot;</span><span class="p">);</span><span class="w">     </span><span class="c1">// 忽略大小写比较</span>
+<span class="n">String</span><span class="p">.</span><span class="na">join</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;a&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;c&quot;</span><span class="p">);</span><span class="w">   </span><span class="c1">// a,b,c</span>
+<span class="s">&quot;ab\ncd&quot;</span><span class="p">.</span><span class="na">lines</span><span class="p">().</span><span class="na">toList</span><span class="p">();</span><span class="w">         </span><span class="c1">// 按行拆分（JDK 11+）</span>
+<span class="s">&quot;a&quot;</span><span class="p">.</span><span class="na">repeat</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w">                     </span><span class="c1">// aaa（JDK 11+）</span>
+</code></pre></div>
+<p><strong>集合</strong>：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">));</span>
+<span class="n">list</span><span class="p">.</span><span class="na">removeIf</span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">));</span><span class="w">               </span><span class="c1">// 安全删除</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">map</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="s">&quot;k&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span><span class="w">                 </span><span class="c1">// 计数累加</span>
+<span class="n">map</span><span class="p">.</span><span class="na">computeIfAbsent</span><span class="p">(</span><span class="s">&quot;k&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">()).</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;v&quot;</span><span class="p">);</span><span class="w">  </span><span class="c1">// 初始化后添加</span>
+<span class="n">list</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">Comparator</span><span class="p">.</span><span class="na">comparing</span><span class="p">(</span><span class="n">String</span><span class="p">::</span><span class="n">length</span><span class="p">));</span><span class="w"> </span><span class="c1">// 按长度排序</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">                          </span><span class="c1">// 稳定排序</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">reverse</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">                       </span><span class="c1">// 反转</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">unmodifiableList</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">              </span><span class="c1">// 只读视图，防外部修改</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">emptyList</span><span class="p">();</span><span class="w">                         </span><span class="c1">// 空列表，不新建对象</span>
+</code></pre></div>
+<p><strong>Stream</strong>：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">};</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">stream</span><span class="p">(</span><span class="n">arr</span><span class="p">).</span><span class="na">sum</span><span class="p">();</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">sorted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">stream</span><span class="p">(</span><span class="n">arr</span><span class="p">).</span><span class="na">boxed</span><span class="p">().</span><span class="na">sorted</span><span class="p">().</span><span class="na">toList</span><span class="p">();</span><span class="w">  </span><span class="c1">// JDK 16+，结果不可变</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">Boolean</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="o">=</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">stream</span><span class="p">(</span><span class="n">arr</span><span class="p">).</span><span class="na">boxed</span><span class="p">().</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">partitioningBy</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">));</span>
+</code></pre></div>
+<p><strong>日期</strong>：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">LocalDate</span><span class="w"> </span><span class="n">today</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LocalDate</span><span class="p">.</span><span class="na">now</span><span class="p">();</span>
+<span class="n">LocalDate</span><span class="w"> </span><span class="n">firstDay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">today</span><span class="p">.</span><span class="na">withDayOfMonth</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="kt">long</span><span class="w"> </span><span class="n">days</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ChronoUnit</span><span class="p">.</span><span class="na">DAYS</span><span class="p">.</span><span class="na">between</span><span class="p">(</span><span class="n">LocalDate</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">today</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">today</span><span class="p">.</span><span class="na">format</span><span class="p">(</span><span class="n">DateTimeFormatter</span><span class="p">.</span><span class="na">ofPattern</span><span class="p">(</span><span class="s">&quot;yyyyMMdd&quot;</span><span class="p">));</span>
+</code></pre></div>
+<p><strong>空指针防护</strong>：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">Objects</span><span class="p">.</span><span class="na">requireNonNull</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;obj 不能为空&quot;</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">safe</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Optional</span><span class="p">.</span><span class="na">ofNullable</span><span class="p">(</span><span class="n">obj</span><span class="p">).</span><span class="na">map</span><span class="p">(</span><span class="n">Object</span><span class="p">::</span><span class="n">toString</span><span class="p">).</span><span class="na">orElse</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+</code></pre></div>
+<h3>16.4 如何继续深入</h3>
+<ul>
+<li>读完集合章节后在 IDEA 里给 ArrayList/HashMap 打断点，观察扩容前后的数组长度；</li>
+<li>手写 HashMap 的 put 流程图和 LRU，面试前默写一遍；</li>
+<li>用 <code>javap -c</code> 反编译 <code>.class</code> 观察泛型擦除、字符串拼接、Lambda 的实际字节码；</li>
+<li>后续按顺序学习《Java 并发编程》《JVM》《Java Web 与 Spring》，把本课程的线索（volatile、类加载、反射注解）逐个接上。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-16.html">← 上一章</a><a href="chapter-18.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-core:17",moduleId="java-core";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

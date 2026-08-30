@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>283. 移动零 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 02-双指针</div>
+        <h1 id="283">283. 移动零</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/02-双指针.html">← 双指针专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>快慢指针原地交换</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个数组 <code>nums</code>，将所有的 <code>0</code> 移动到数组的末尾，同时<strong>保持非零元素的相对顺序</strong>。</p>
+<p><strong>硬性条件</strong>：必须在不复制数组的情况下<strong>原地（in-place）</strong>对数组进行操作。</p>
+<p><a href="https://leetcode.cn/problems/move-zeroes/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>slow 始终指向下一个非零元素应放的位置。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（开辟新数组）</strong>：</p>
+<p>最简单的想法是新建一个同样大小的数组，遇到非零的数字就按顺序塞进去，剩下的空位自然全是 0。</p>
+<p><strong>痛点</strong>：空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，违反了题目“原地修改”的硬性要求（空间复杂度必须为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>）。</p>
+</li>
+<li>
+<p><strong>破局思路（快慢双指针）</strong>：</p>
+<p>既然不能用新数组，我们就用<strong>两个指针（游标）</strong>在原数组上打配合：</p>
+<ul>
+<li>
+<p><strong>快指针 <code>fast</code></strong>：像前线侦察兵，负责遍历整个数组，寻找<strong>非零元素</strong>。</p>
+</li>
+<li>
+<p><strong>慢指针 <code>slow</code></strong>：像后方收容所，它永远指向<strong>下一个非零元素应该存放的位置</strong>。</p>
+</li>
+</ul>
+<p>一旦快指针找到一个非零元素，就把它和慢指针指向的值<strong>交换</strong>，然后慢指针前进一步。</p>
+</li>
+<li>
+<p><strong>逻辑推演（以 <code>nums = [0, 1, 0, 3, 12]</code> 为例）</strong>：</p>
+<p>初始状态：<code>fast = 0</code>, <code>slow = 0</code></p>
+<ul>
+<li>
+<p><code>fast=0</code>，指向 <code>0</code>。是零，侦察兵跳过。</p>
+</li>
+<li>
+<p><code>fast=1</code>，指向 <code>1</code>。是非零！把它和 <code>slow</code> (索引0) 交换。数组变成 <code>[1, 0, 0, 3, 12]</code>。此时 <code>slow</code> 前进到 1。</p>
+</li>
+<li>
+<p><code>fast=2</code>，指向 <code>0</code>。跳过。</p>
+</li>
+<li>
+<p><code>fast=3</code>，指向 <code>3</code>。是非零！把它和 <code>slow</code> (索引1) 交换。数组变成 <code>[1, 3, 0, 0, 12]</code>。<code>slow</code> 前进到 2。</p>
+</li>
+<li>
+<p><code>fast=4</code>，指向 <code>12</code>。是非零！把它和 <code>slow</code> (索引2) 交换。数组变成 <code>[1, 3, 12, 0, 0]</code>。<code>slow</code> 前进到 3。</p>
+</li>
+</ul>
+<p>遍历结束，所有的 0 自然被“挤”到了最后面。</p>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">moveZeroes</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 定义慢指针，记录下一个非零元素应该放置的位置</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// fast 作为快指针，遍历整个数组</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">fast</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 当快指针发现非零元素时，执行交换操作</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">fast</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 优化点：只有在 fast 和 slow 不相等时才交换，避免自己和自己交换的无用功</span>
+<span class="w">                </span><span class="c1">// 只有当slow停在0之后两者才会不相等</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">slow</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">fast</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">nums</span><span class="o">[</span><span class="n">fast</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">slow</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">nums</span><span class="o">[</span><span class="n">slow</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">temp</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="c1">// 非零元素安顿好后，慢指针向后移动一位，准备接收下一个非零元素</span>
+<span class="w">                </span><span class="n">slow</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。快指针 <code>fast</code> 只需要把数组从头到尾遍历一次，每次交换操作都是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的时间。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。只使用了两个额外的整型变量 <code>fast</code> 和 <code>slow</code>，完全是在原数组上进行操作。</li>
+</ul>
+<h3 id="_6">易错点与扩展</h3>
+<ol>
+<li><strong>思路变体：覆写与补零法（另一种常见解法）</strong>
+   - <strong>逻辑</strong>：也是双指针，遇到非零元素不交换，而是直接<strong>覆盖</strong>到 <code>slow</code> 的位置。等 <code>fast</code> 遍历完，非零元素都排在前面了，最后再把 <code>slow</code> 之后的所有位置统一赋值为 <code>0</code>。
+   - <strong>优缺点对比</strong>：覆写法的代码稍微简单一点点，但在<strong>数组全是 0 的极端情况下</strong>（例如 <code>[0,0,0,0,0]</code>），覆写法最后还要跑一个循环把所有位置赋值为 0，而我们目前写的<strong>“交换法”</strong>遇到全 0 数组时，<code>fast!=0</code> 的条件进不去，根本不会发生任何内存写操作，性能更优。</li>
+<li><strong>高频追问：为什么这段代码不仅移动了 0，还能保证非零元素的“相对顺序”不乱？</strong>
+   - <strong>回答</strong>：因为我们的快指针是从左到右顺序扫描的。先遇到的非零元素，一定会先被塞到慢指针靠前的位置。这就好像在队列里把 0 剔除，剩下的元素自然会按原来的先后顺序往前补位。</li>
+</ol>
+<p>这道题是双指针（对撞指针）的经典例题，也是面试中极大概率遇到的超级高频题。它完美展现了如何通过简单的数学逻辑，将 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span> 的暴力解法优化到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。</p>
+<p>这道题的核心难点不在于写代码，而在于“证明为什么这么移动指针是正确的”。</p>
+<p>请查收你的专属笔记，我在笔记后为你准备了一个可以亲手操作的交互式组件，帮助你直观理解水槽面积的变化。</p>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../01-哈希表/0128-最长连续序列.html">← 128. 最长连续序列</a> · <a href="0011-盛最多水的容器.html">11. 盛最多水的容器 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/02.双指针.html?embed=1&amp;panel=0" title="283. 移动零的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

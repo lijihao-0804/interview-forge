@@ -1,0 +1,43 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>附录 B：数据预处理与特征工程深入理解 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">机器学习快速入门</a><span aria-hidden="true">›</span><span aria-current="page">附录 B：数据预处理与特征工程深入理解</span></nav><div class="module-meta">模型与训练 · 第 23 / 28 章</div><h1>附录 B：数据预处理与特征工程深入理解</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>B.1 <code>fit</code>、<code>transform</code> 和数据泄漏</h3>
+<p>预处理器也会从数据学习参数。<code>StandardScaler.fit(X_train)</code> 学习训练均值与标准差，<code>transform(X_valid)</code> 用这组固定参数转换验证集；<code>fit_transform(X_train)</code> 只是先学习再转换的快捷写法。</p>
+<p>验证集和测试集只能 <code>transform</code>，因为它们模拟未知数据。若先对全数据 <code>fit_transform</code> 再划分，即使没有显式使用标签，也让训练过程知道了未来样本的分布；特征选择、目标编码和降维还可能造成更严重泄漏。Pipeline 的意义不是让代码更漂亮，而是保证每个交叉验证折都只从该折训练部分学习转换参数。</p>
+<h3>B.2 三种常用缩放方法</h3>
+<p>标准化为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="z=x-mu_trainsigma_train"><mrow><mi>z</mi><mo>=</mo><mfrac><mrow><mi>x</mi><mo>-</mo><msub><mi mathvariant="normal">mu</mi><mrow><mi>train</mi></mrow></msub></mrow><mrow><msub><mi mathvariant="normal">sigma</mi><mrow><mi>train</mi></mrow></msub></mrow></mfrac></mrow></math></span></p>
+<p>它让训练集特征均值约为 0、标准差约为 1，但不会把数据限制在固定范围，也不会删除异常值。Min-Max 缩放为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="x&#x27;=x-x_minx_max-x_min"><mrow><mi>x</mi><mo>′</mo><mo>=</mo><mfrac><mrow><mi>x</mi><mo>-</mo><msub><mi>x</mi><mrow><mi>min</mi></mrow></msub></mrow><mrow><msub><mi>x</mi><mrow><mi>max</mi></mrow></msub><mo>-</mo><msub><mi>x</mi><mrow><mi>min</mi></mrow></msub></mrow></mfrac></mrow></math></span></p>
+<p>训练最大值和最小值受异常值影响，而且测试值可能落到 <span class="math-inline-wrap"><math class="math-inline" aria-label="[0,1]"><mrow><mo>[</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>]</mo></mrow></math></span> 之外。RobustScaler 使用中位数和四分位距，对少量极端值更稳健。</p>
+<p>KNN、K-Means、SVM、带正则的线性模型和神经网络通常需要关注尺度；决策树按单个特征阈值切分，通常无需缩放。是否缩放由模型机制决定，不是固定清洗步骤。</p>
+<h3>B.3 缺失值不是一个统一问题</h3>
+<ul>
+<li>MCAR：缺失与已观测、未观测值都无关；</li>
+<li>MAR：给定已观测变量后，缺失概率不再依赖缺失值本身；</li>
+<li>MNAR：即使给定已观测信息，缺失概率仍与缺失值本身有关。</li>
+</ul>
+<p>中位数比均值更不受异常值影响，但任何单值填充都会压低变量的自然波动。缺失指示器可以告诉模型“此处原本缺失”，但如果上线采集流程改变，这个信号也可能失效。删除缺失行只有在比例小、缺失机制不会造成系统偏差时才较安全。</p>
+<h3>B.4 类别编码与高基数问题</h3>
+<p>One-Hot 为每个类别创建一个二元列，适合无序、基数不高的字段。预测时可能出现未见类别，因此需要 <code>handle_unknown="ignore"</code> 或明确兜底。城市、商品 ID 等高基数字段会产生巨大稀疏矩阵，还可能让模型记住稀有实体。</p>
+<p>Ordinal Encoding 只适合真实有序类别，例如“低、中、高”。Target Encoding 用某类别的目标均值替代类别，信号强但极易泄漏：必须用训练折之外的折外统计为训练样本编码，并做平滑；不能先在全数据上按标签求均值。</p>
+<h3>B.5 异常值不等于错误值</h3>
+<p>年龄 500 岁通常是录入错误，交易金额 100 万却可能是真实且重要的高风险事件。处理前先判断来源：</p>
+<ul>
+<li>明确不可能的值可按数据规则纠正或设为缺失；</li>
+<li>真实长尾可做对数变换、分位数截断或使用稳健损失；</li>
+<li>欺诈、故障等任务中的极端值可能正是要发现的目标，不能机械删除；</li>
+<li>任何阈值都应从训练集确定，再原样应用到验证和测试。</li>
+</ul>
+<h3>B.6 时间特征和预测时间点</h3>
+<p>星期、月份、小时具有周期性。把星期一到星期日编码成 1～7 会让 1 与 7 看起来相距最远，可以用正余弦表达周期：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="sin=sin(2pi t/T), cos=cos(2pi t/T)"><mrow><mi>sin</mi><mo>=</mo><mi mathvariant="normal">sin</mi><mo>(</mo><mn>2</mn><mi mathvariant="normal">pi</mi><mspace width=".18em"/><mi>t</mi><mo>/</mo><mi>T</mi><mo>)</mo><mo>,</mo><mspace width="2em"/><mi>cos</mi><mo>=</mo><mi mathvariant="normal">cos</mi><mo>(</mo><mn>2</mn><mi mathvariant="normal">pi</mi><mspace width=".18em"/><mi>t</mi><mo>/</mo><mi>T</mi><mo>)</mo></mrow></math></span></p>
+<p>更重要的是 point-in-time correctness：每个特征必须只使用预测时点之前已产生且线上可获取的信息。计算用户过去 30 天消费时，应按用户排序、先 <code>shift</code> 排除当前或未来记录，再滚动聚合。任何“全生命周期总消费”“退款完成状态”都要检查其产生时间。</p>
+<h3>B.7 特征工程的三问</h3>
+<p>每个新特征都问：</p>
+<ol>
+<li>预测时能否获得？</li>
+<li>它是否直接或间接包含目标答案？</li>
+<li>离线和线上能否用完全相同的定义计算？</li>
+</ol>
+<p>例如用“价格/面积”构造单价：若目标就是房价，这等于把答案放进输入；只有价格在决策时已知且目标不是价格时才可能合法。一个离线相关性极强的字段，往往更应该先排查泄漏，而不是立即庆祝。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-22.html">← 上一章</a><a href="chapter-24.html">下一章 →</a></nav></main></div>
+<script>const contentId="machine-learning:23",moduleId="machine-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

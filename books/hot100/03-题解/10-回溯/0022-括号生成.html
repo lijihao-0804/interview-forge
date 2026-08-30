@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>22. 括号生成 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="22">22. 括号生成</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分规则剪枝版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的终极拷问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>计数约束剪枝</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(Cₙ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>数字 <code>n</code> 代表生成括号的对数，请你设计一个函数，用于能够生成所有可能的并且 <strong>有效的</strong> 括号组合。</p>
+<p><em>例如</em>：<code>n = 3</code>，输出 <code>["((()))", "(()())", "(())()", "()(())", "()()()"]</code>。</p>
+<p><a href="https://leetcode.cn/problems/generate-parentheses/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>任意前缀中右括号数不能超过左括号数。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（暴力的代价）</strong>：</p>
+<p>最暴力的做法是：总共需要放 <code>2n</code> 个字符，每个位置要么放 <code>(</code> 要么放 <code>)</code>。我们不管三七二十一，用回溯法生成所有 <span class="math-inline-wrap"><math class="math-inline" aria-label="2^2n"><mrow><msup><mn>2</mn><mrow><mn>2</mn><mi>n</mi></mrow></msup></mrow></math></span> 种组合，最后写个函数挨个检查它们是不是合法的括号。</p>
+<p><strong>痛点</strong>：极其浪费算力！当生成出 <code>)(</code> 作为开头时，其实就已经死局了，但暴力法还会傻乎乎地把它后面的所有组合生成完。</p>
+</li>
+<li>
+<p><strong>破局思路（边生成边校验的双指针）</strong>：</p>
+<p>我们要把事后的“尸检”，变成事前的“体检”。</p>
+<p>我们在回溯的时候，手里拿着两个计数器：<strong><code>leftCount</code>（左括号用了几个）</strong> 和 <strong><code>rightCount</code>（右括号用了几个）</strong>。</p>
+<p>然后，死死盯住<strong>两条黄金天规</strong>：</p>
+<ul>
+<li><strong>天规一（左括号的底线）</strong>：只要左括号的数量还没达到 <code>n</code>（<code>leftCount &lt; n</code>），你<strong>随时随地</strong>都可以放左括号。</li>
+<li><strong>天规二（右括号的红线）</strong>：右括号绝对不能比左括号多！所以，<strong>只有当目前放的右括号比左括号少时（<code>rightCount &lt; leftCount</code>）</strong>，你才有资格放一个右括号。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演</strong>：</p>
+<p>拿着这两条天规去走迷宫，但凡违反任何一条，连路口都不让进（完美剪枝）。当 <code>leftCount == n</code> 且 <code>rightCount == n</code> 时，一条完美的合法括号链就诞生了。</p>
+<h3 id="java">Java 实现（满分规则剪枝版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">generateParenthesis</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 初始状态：左括号 0 个，右括号 0 个</span>
+<span class="w">        </span><span class="n">backtrack</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">backtrack</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">leftCount</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">rightCount</span><span class="p">,</span><span class="w"> </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 终止条件：当左括号和右括号都用完了，说明找到了一组合法的括号</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">leftCount</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">rightCount</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 尝试放置【左括号】</span>
+<span class="w">        </span><span class="c1">// 天规一：只要左括号没用完，就可以一直放</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">leftCount</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;(&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// 做选择</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">leftCount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">rightCount</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">);</span><span class="w"> </span><span class="c1">// 进入下一层</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">deleteCharAt</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 撤销选择（回溯）</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 尝试放置【右括号】</span>
+<span class="w">        </span><span class="c1">// 天规二：只有目前右括号比左括号少，才能放右括号，否则就会出现 ())( 的非法情况</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rightCount</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">leftCount</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;)&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// 做选择</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">leftCount</span><span class="p">,</span><span class="w"> </span><span class="n">rightCount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">);</span><span class="w"> </span><span class="c1">// 进入下一层</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">deleteCharAt</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 撤销选择（回溯）</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>这道题的时间复杂度和空间复杂度非常特殊，它涉及到一个极其著名的数学数列——<strong>卡特兰数 (Catalan Number)</strong>。</li>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(4^nn)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mfrac><mrow><msup><mn>4</mn><mi>n</mi></msup></mrow><mrow><msqrt><mrow><mi>n</mi></mrow></msqrt></mrow></mfrac><mo>)</mo></mrow></math></span>。第 <code>n</code> 个卡特兰数决定了合法括号的组合总数。因为我们使用了完美的剪枝，算法的时间复杂度严格等于解的数量，没有浪费一丝一毫的算力。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。除了存储结果的列表外，递归调用栈的深度以及 <code>StringBuilder</code> 的长度最大均为 <span class="math-inline-wrap"><math class="math-inline" aria-label="2n"><mrow><mn>2</mn><mi>n</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的终极拷问）</h3>
+<ol>
+<li><strong>面试追问：“如果我想偷懒，把传入参数直接写成 <code>String path</code>，不写撤销操作，可以吗？”</strong>
+   - <strong>回答</strong>：可以，因为 <code>String</code> 是不可变的。每次 <code>path + "("</code> 都会生成一个新的字符串传给下一层，当前层的 <code>path</code> 并没有被修改，所以自然就不需要撤销。
+   - <strong>灵魂暴击</strong>：但是！在追求极致性能的工业界或面试面试中，每次拼接都会产生新的字符串对象，造成大量内存碎片。虽然这题的 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 最大只有 8，用 <code>String</code> 不会超时，但使用 <code>StringBuilder</code> 并在最后 <code>deleteCharAt</code> 是<strong>最高级的工程品味</strong>，它体现了你对内存控制的严谨。</li>
+<li><strong>面试追问：“你能用【动态规划】来解这道题吗？”</strong>
+   - 这是一道绝佳的思考题。如果有 <code>n</code> 对括号，其实可以分解为：<strong><code>(</code> + <code>a</code> 对括号的合法组合 + <code>)</code> + <code>b</code> 对括号的合法组合</strong>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="a + b = n - 1"><mrow><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn></mrow></math></span>。
+   - 通过遍历 <span class="math-inline-wrap"><math class="math-inline" aria-label="a"><mrow><mi>a</mi></mrow></math></span> 从 <span class="math-inline-wrap"><math class="math-inline" aria-label="0"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math-inline-wrap"><math class="math-inline" aria-label="n-1"><mrow><mi>n</mi><mo>-</mo><mn>1</mn></mrow></math></span>，我们可以利用之前算好的子结果，拼凑出当前的答案。这证明了回溯题有时候可以用 DP 来降维！</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0039-组合总和.html">← 39. 组合总和</a> · <a href="0079-单词搜索.html">79. 单词搜索 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/10-回溯.html?embed=1&amp;panel=4" title="22. 括号生成的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

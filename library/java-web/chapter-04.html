@@ -1,0 +1,171 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Maven 构建工具 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java Web 基础：Servlet、Tomcat、Maven、Git 与前后端分离</a><span aria-hidden="true">›</span><span aria-current="page">Maven 构建工具</span></nav><div class="module-meta">Web 与框架 · 第 4 / 7 章</div><h1>Maven 构建工具</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>3.1 Maven 是什么</h3>
+<p>Maven 是 Java 项目的构建与依赖管理工具，负责四件事：<strong>编译、测试、打包、依赖管理</strong>。它基于“约定优于配置”：<code>src/main/java</code> 放源码、<code>src/test/java</code> 放测试、<code>pom.xml</code> 描述项目，目录规范后工具自动识别，不需要手写构建脚本。</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">一个 Maven 项目 = 目录规范 + pom.xml（坐标、依赖、插件、构建配置）
+</code></pre></div>
+<h3>3.2 坐标与仓库</h3>
+<p>每个构件用<strong>坐标</strong>唯一标识，坐标三要素缺一不可：</p>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>含义</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>groupId</td>
+<td>组织/公司标识，常为域名倒写</td>
+<td>com.alibaba</td>
+</tr>
+<tr>
+<td>artifactId</td>
+<td>项目/模块名</td>
+<td>fastjson</td>
+</tr>
+<tr>
+<td>version</td>
+<td>版本号</td>
+<td>1.2.83（2.x 是独立坐标 com.alibaba.fastjson2:fastjson2）</td>
+</tr>
+</tbody>
+</table>
+<p>仓库分三级，查找顺序为<strong>本地 → 私服 → 中央</strong>：</p>
+<ul>
+<li><strong>本地仓库</strong>：默认 <code>~/.m2/repository</code>，下载过的依赖缓存到这里；</li>
+<li><strong>中央仓库</strong>：Maven 官方维护，全网公共构件；</li>
+<li><strong>私服</strong>：公司内部 Nexus/Artifactory，承载私有构件并代理中央仓库，团队构建更快更稳。</li>
+</ul>
+<p>版本号带 <code>-SNAPSHOT</code> 表示快照版本，可拉取未发布的开发版本；注意远程快照默认按日更新（daily），<code>-U</code> 才强制拉最新；<code>RELEASE</code> 是固定发布版本，只拉一次。</p>
+<h3>3.3 依赖管理</h3>
+<div class="codehilite" data-lang="xml"><pre><code class="language-xml"><span class="nt">&lt;dependency&gt;</span>
+<span class="w">    </span><span class="nt">&lt;groupId&gt;</span>mysql<span class="nt">&lt;/groupId&gt;</span>
+<span class="w">    </span><span class="nt">&lt;artifactId&gt;</span>mysql-connector-java<span class="nt">&lt;/artifactId&gt;</span>
+<span class="w">    </span><span class="nt">&lt;version&gt;</span>8.0.33<span class="nt">&lt;/version&gt;</span>
+<span class="nt">&lt;/dependency&gt;</span>
+</code></pre></div>
+<p><code>scope</code> 决定依赖的作用范围，是高频考点：</p>
+<table>
+<thead>
+<tr>
+<th>scope</th>
+<th>编译期</th>
+<th>运行期</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>compile（默认）</td>
+<td>有</td>
+<td>有</td>
+<td>主代码直接使用</td>
+</tr>
+<tr>
+<td>provided</td>
+<td>有</td>
+<td>无</td>
+<td>容器已提供，如 servlet-api、lombok</td>
+</tr>
+<tr>
+<td>runtime</td>
+<td>无</td>
+<td>有</td>
+<td>运行期才需要，如 JDBC 驱动</td>
+</tr>
+<tr>
+<td>test</td>
+<td>测试有</td>
+<td>无</td>
+<td>仅测试代码用，如 JUnit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>依赖冲突</strong>：Maven 按“最短路径优先”，路径相同时按 pom 声明顺序“第一声明优先”；解决冲突用 <code>mvn dependency:tree</code> 看依赖树，再用 <code>exclusions</code> 排除传递依赖，或直接用 <code>dependencyManagement</code> 统一版本。</p>
+<h3>3.4 生命周期与常用命令</h3>
+<p>Maven 内置三套生命周期：<strong>clean</strong>（清理）、<strong>default</strong>（构建）、<strong>site</strong>（站点）。default 的核心阶段按顺序执行，执行后一个阶段会自动执行之前所有阶段：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">validate → compile → test → package → verify → install → deploy
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mvn clean</td>
+<td>删除 target 目录</td>
+</tr>
+<tr>
+<td>mvn compile</td>
+<td>编译主代码</td>
+</tr>
+<tr>
+<td>mvn test</td>
+<td>运行测试（触发 compile）</td>
+</tr>
+<tr>
+<td>mvn package</td>
+<td>打包 jar/war（触发 test）</td>
+</tr>
+<tr>
+<td>mvn install</td>
+<td>安装到本地仓库，供其他模块引用</td>
+</tr>
+<tr>
+<td>mvn deploy</td>
+<td>发布到私服</td>
+</tr>
+<tr>
+<td>mvn dependency:tree</td>
+<td>查看依赖树，排查冲突</td>
+</tr>
+</tbody>
+</table>
+<p>常用插件：<code>maven-compiler-plugin</code> 指定编译 JDK 版本，<code>maven-surefire-plugin</code> 执行单元测试，<code>maven-shade-plugin</code> 打包含依赖的 fat jar，<code>spring-boot-maven-plugin</code> 打可执行 jar。</p>
+<h3>3.5 Maven vs Gradle</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Maven</th>
+<th>Gradle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>配置文件</td>
+<td>pom.xml（XML）</td>
+<td>build.gradle（Groovy/Kotlin）</td>
+</tr>
+<tr>
+<td>构建速度</td>
+<td>较慢，全量执行</td>
+<td>增量 + 缓存，更快</td>
+</tr>
+<tr>
+<td>生态</td>
+<td>历史最久、插件最全</td>
+<td>现代 Android/Spring 项目常用</td>
+</tr>
+<tr>
+<td>学习成本</td>
+<td>约定式，规则固定</td>
+<td>灵活，可编程</td>
+</tr>
+</tbody>
+</table>
+<p>理解 Maven 后，Gradle 只需看“任务模型”即可迁移，底层依赖管理思想一致。</p>
+<h3>3.6 面试追问</h3>
+<ul>
+<li>问：Maven 依赖冲突怎么解决？</li>
+<li>答：先 <code>dependency:tree</code> 定位冲突来源，再用 exclusions 排除传递依赖，或通过 dependencyManagement 统一版本。</li>
+<li>问：SNAPSHOT 和 RELEASE 的区别？</li>
+<li>答：SNAPSHOT 是未发布快照，默认按日更新、<code>-U</code> 强制拉新；RELEASE 是稳定版本，只在本地仓库缺失时下载。</li>
+<li>问：执行 mvn package 会发生什么？</li>
+<li>答：validate → compile → test → package 依次执行，测试失败则打包失败。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-03.html">← 上一章</a><a href="chapter-05.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-web:04",moduleId="java-web";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

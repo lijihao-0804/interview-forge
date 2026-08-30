@@ -1,0 +1,150 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>TCP 与 UDP · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">计算机网络：TCP/IP、HTTP 与 WebSocket</a><span aria-hidden="true">›</span><span aria-current="page">TCP 与 UDP</span></nav><div class="module-meta">计算机基础 · 第 3 / 6 章</div><h1>TCP 与 UDP</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>传输层是面试主战场，TCP 的每个机制都值得深挖。</p>
+<h3>2.1 TCP vs UDP</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>TCP</th>
+<th>UDP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>连接</td>
+<td>面向连接（三次握手）</td>
+<td>无连接</td>
+</tr>
+<tr>
+<td>可靠性</td>
+<td>可靠：确认、重传、排序</td>
+<td>不可靠：尽力而为</td>
+</tr>
+<tr>
+<td>有序性</td>
+<td>保证</td>
+<td>不保证</td>
+</tr>
+<tr>
+<td>流量/拥塞控制</td>
+<td>有</td>
+<td>无</td>
+</tr>
+<tr>
+<td>首部</td>
+<td>20 字节起</td>
+<td>8 字节</td>
+</tr>
+<tr>
+<td>应用</td>
+<td>HTTP/HTTPS、MySQL、Redis 主从</td>
+<td>DNS、视频通话、游戏、QUIC 底层</td>
+</tr>
+</tbody>
+</table>
+<p>报文头：TCP 头最小 20 字节（源/目的端口各 2、序号 4、确认号 4、数据偏移与标志位、窗口 2、校验和 2、紧急指针 2，选项最多可到 60 字节）；UDP 头固定 8 字节（源/目的端口、长度、校验和）。</p>
+<h3>2.2 三次握手</h3>
+<figure class="mermaid-diagram" data-diagram-type="sequenceDiagram"><pre class="mermaid" aria-label="时序图">sequenceDiagram
+    participant C as 客户端
+    participant S as 服务端
+    C-&gt;&gt;S: SYN(seq=x)
+    S--&gt;&gt;C: SYN+ACK(seq=y, ack=x+1)
+    C-&gt;&gt;S: ACK(ack=y+1)</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>为什么是三次：确认双方“收发能力”都正常，并同步初始序列号；两次不够（服务端无法确认自己的 SYN 客户端收到了），四次多余。</p>
+<p><strong>四个高频追问点</strong>：</p>
+<ul>
+<li><strong>为什么 ISN 要随机</strong>：初始序列号随机化（RFC 1948）防止序列号预测攻击，也让新旧连接的报文不容易混淆；</li>
+<li><strong>第三次 ACK 丢了会怎样</strong>：服务端没收到 ACK 会重发 SYN+ACK，客户端收到后忽略（连接已建立）；不会因此断开；</li>
+<li><strong>为什么前两次不能带数据、第三次可以</strong>：前两次还没确认对方收发能力，带数据会被对方当垃圾处理；第三次握手时双方能力已确认，可以捎带数据（快路径）；</li>
+<li><strong>与半连接队列的闭环</strong>：第一次握手只进半连接队列（syn queue），第三次握手完成才进全连接队列（accept queue）；攻击者只发 SYN 不回应 ACK 就能占满 syn queue，这就是 SYN Flood，防御用 <code>tcp_syncookies</code>（不依赖队列也能完成握手）。</li>
+</ul>
+<h3>2.3 四次挥手</h3>
+<figure class="mermaid-diagram" data-diagram-type="sequenceDiagram"><pre class="mermaid" aria-label="时序图">sequenceDiagram
+    participant C as 主动方
+    participant S as 被动方
+    C-&gt;&gt;S: FIN
+    S--&gt;&gt;C: ACK
+    S--&gt;&gt;C: FIN
+    C-&gt;&gt;S: ACK</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<ul>
+<li>第一次 FIN 表示“我发完了”，ACK 表示“收到你的关闭请求”；</li>
+<li>第二次 FIN 表示“我也发完了”，因为 TCP 全双工，两边要各自关闭；</li>
+<li>主动关闭方最后进入 <strong>TIME_WAIT（2MSL）</strong>：保证最后一个 ACK 送达、让旧连接的报文在网络中消亡，避免干扰新连接；MSL 口径：RFC 793 建议 2 分钟、Linux 约 60 秒，“2MSL=120s”只是常见面试口径，重点是上述两个作用；</li>
+<li>大量 TIME_WAIT 常见于服务端主动关闭连接的场景，常规做法是让客户端先断开、避免服务端频繁主动 close；<code>tcp_tw_reuse</code> 只对<strong>主动发起连接的一方</strong>复用 TIME_WAIT 生效，不能解决服务端被动侧的堆积（<code>tcp_tw_recycle</code> 已随 Linux 4.12 移除，不要作为方案）。</li>
+</ul>
+<p><strong>状态转换</strong>：握手侧 CLOSED→SYN_SENT→ESTABLISHED，服务端 LISTEN→SYN_RCVD→ESTABLISHED；挥手侧主动方 FIN_WAIT_1→FIN_WAIT_2→TIME_WAIT，被动方 CLOSE_WAIT→LAST_ACK→CLOSED。排查要点：CLOSE_WAIT 堆积=应用漏 close()；FIN_WAIT_2 长时间停留可看 <code>tcp_fin_timeout</code>；LAST_ACK 不消失通常是最后一个 ACK 丢失。</p>
+<p><strong>半连接/全连接队列</strong>：收到 SYN 未完成握手进半连接队列（syn queue，<code>tcp_max_syn_backlog</code>）；握手完成待应用 accept 进全连接队列（accept queue = min(backlog, <code>somaxconn</code>)）。队列满的表现是丢 SYN 或连接被 reset；SYN Flood 可用 <code>tcp_syncookies</code> 缓解；Java/Netty 的 <code>bind(port, backlog)</code> 就对应 backlog 参数。</p>
+<div class="demo-embed"><iframe src="../../books/hot100/05-可视化/TCP握手挥手可视化.html?embed=1" title="交互演示：TCP握手挥手可视化" loading="lazy" scrolling="no"></iframe></div>
+
+<h3>2.4 可靠传输：确认与重传</h3>
+<ul>
+<li>每个段有序列号，接收方回 ACK；</li>
+<li>超时重传（RTO 动态估计）、快速重传（连续收到 3 个重复 ACK 立即重传，不等超时）；</li>
+<li><strong>滑动窗口</strong>：发送方窗口内可连续发多个段，不必等一个 ACK 发一个，提升吞吐。</li>
+<li><strong>SACK</strong>（RFC 2018，Linux 默认开启）：快速重传一次只恢复一个丢失段；SACK 通告乱序块，让发送方只补缺失的段。</li>
+</ul>
+<p><strong>TCP Keep-Alive vs 业务心跳</strong>：<code>SO_KEEPALIVE</code> 默认约 2 小时才探测（<code>tcp_keepalive_time</code> 7200s），只能发现对端不可达、探测不到假死；业务心跳（WebSocket ping/pong、应用层定时包）更快可控，是生产首选。</p>
+<p><strong>RTO 怎么估与“为什么是 3 个重复 ACK”</strong>：Karn 算法先排除重传段的 RTT 采样，再用 Jacobson 公式（SRTT 平滑 + RTTVAR 方差，RTO ≈ SRTT + 4×RTTVAR），重传后 RTO 指数退避；3 个重复 ACK 而不是 1 个，是因为乱序也会产生重复 ACK，连续 3 个才大概率说明真的丢了。<strong>假死机理</strong>：协议栈活着能回 ACK，TCP 层无感知，应用假死必须靠心跳。</p>
+<h3>2.5 流量控制与拥塞控制</h3>
+<p><strong>流量控制</strong>：端到端，接收方通过窗口大小告诉发送方“你还能发多少”，防止发送过快淹没接收方。</p>
+<p><strong>拥塞控制</strong>：网络全局，发送方自适应调整 cwnd（拥塞窗口），四个算法：</p>
+<table>
+<thead>
+<tr>
+<th>算法</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>慢启动</td>
+<td>cwnd 从 1 指数增长，到 ssthresh 转拥塞避免</td>
+</tr>
+<tr>
+<td>拥塞避免</td>
+<td>cwnd 线性增长</td>
+</tr>
+<tr>
+<td>快重传</td>
+<td>收到 3 个重复 ACK 立即重传丢失段</td>
+</tr>
+<tr>
+<td>快恢复</td>
+<td>快重传后 cwnd 减半而非归零，继续线性增长</td>
+</tr>
+</tbody>
+</table>
+<p>补充：</p>
+<ul>
+<li><strong>实际发送窗口 = min(cwnd, rwnd)</strong>：拥塞窗口与接收窗口取小者；</li>
+<li>丢包处理分两种：<strong>超时重传</strong> → cwnd 重置回 1（慢启动重来）；<strong>快速重传/快恢复</strong> → cwnd 减半（ssthresh = cwnd/2），不是所有丢包都减半；</li>
+<li>初始窗口：教科书是 1 个 MSS，现代实现（RFC 6928 / Linux 默认）可达 10 个 MSS。</li>
+</ul>
+<p><strong>信号集（什么时候做什么）</strong>：RTO 超时 = 严重拥塞，ssthresh 降为 cwnd/2、cwnd 归 1 重新慢启动；收到 3 个重复 ACK = 轻度拥塞，cwnd 减半、进入快恢复继续线性增长；显式拥塞通知（ECN）让路由器在丢包前打标记，发送方提前降速。</p>
+<p><strong>每个“为什么”</strong>：慢启动指数增长是为了快速探测可用带宽；到阈值后转线性，是怕指数增长很快撞垮网络；丢包减半而不是归零（快恢复），是保留已探测到的带宽成果——归零是 Tahoe 时代的旧思路，Reno 起才用快恢复。</p>
+<p><strong>rwnd = 0 与 BDP</strong>：接收窗口为 0 时发送方停止发送，但会启动 <strong>persist timer</strong> 周期性发送 1 字节探测，防止接收方窗口更新报文丢失后双方互等；<code>window scale</code> 选项把窗口从 16 位放大（最大 1GB），否则高带宽长链路算不过来——例如 10Gbps × 10ms RTT，带宽延迟积 = 10G × 0.01s = 100Mbit ≈ 12.5MB，远大于 64KB 的默认窗口上限。</p>
+<h3>2.6 粘包与半包</h3>
+<p>TCP 是字节流，没有消息边界：</p>
+<ul>
+<li><strong>粘包</strong>：多个消息被一次读出；</li>
+<li><strong>半包</strong>：一个消息被分两次读出。</li>
+</ul>
+<p>解决：定长消息、分隔符（如 <code>\n</code>）、消息头带长度（length 前缀，Netty 的 LengthFieldBasedFrameDecoder）。</p>
+<p><strong>Java/Netty 落地点</strong>：粘包/半包用 <code>LengthFieldBasedFrameDecoder</code>（长度字段前置）；心跳用 <code>IdleStateHandler(30, 0, 0)</code>（读空闲 30s 触发）；OKHttp 默认不缓存、且只缓存 GET；查 TIME_WAIT 用 <code>ss -tan state time-wait</code>，大量 TIME_WAIT 本身不是问题，端口耗尽才是杀伤点。</p>
+<p>MTU 与分片：以太网 MTU 1500；IP 层可分片（DF 位禁止分片），任一分片丢失整包重组失败；TCP 用 MSS 协商（约 MTU-40）避免分片，UDP 大报文会触发 IP 分片。</p>
+<h3>2.7 面试追问</h3>
+<ul>
+<li>问：三次握手为什么不是两次？</li>
+<li>答：要双向确认并同步序列号；两次无法确认服务端发出的 SYN 客户端收到。</li>
+<li>问：四次挥手为什么是四次？</li>
+<li>答：全双工，各自独立关闭；被动方 ACK 与 FIN 分开发。</li>
+<li>问：TIME_WAIT 有什么用？</li>
+<li>答：保证最后 ACK 可达、旧报文消亡，避免复用端口产生脏数据。</li>
+<li>问：TCP 怎么保证可靠？</li>
+<li>答：序列号 + 确认 + 超时/快速重传 + 滑动窗口；再补一句“首部校验和保证端到端完整性，接收方按序号重排乱序段”就更完整。</li>
+<li>问：流量控制和拥塞控制的区别？</li>
+<li>答：前者是端到端接收窗口，后者是网络全局的拥塞窗口。</li>
+<li>问：TCP 粘包怎么解决？</li>
+<li>答：定长/分隔符/长度前缀，Netty 用 LengthFieldBasedFrameDecoder。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="computer-network:03",moduleId="computer-network";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

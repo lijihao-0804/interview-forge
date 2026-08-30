@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>33. 搜索旋转排序数组 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 11-二分查找</div>
+        <h1 id="33">33. 搜索旋转排序数组</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（局部有序判断满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试细节生死线）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/11-二分查找.html">← 二分查找专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>识别有序半边</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>整数数组 <code>nums</code> 按升序排列，数组中的值 <strong>互不相同</strong>。</p>
+<p>在传递给函数之前，<code>nums</code> 在预先未知的某个下标处进行了 <strong>旋转</strong>（例如， <code>[0,1,2,4,5,6,7]</code> 可能变为 <code>[4,5,6,7,0,1,2]</code>）。</p>
+<p>给你旋转后的数组 <code>nums</code> 和一个整数 <code>target</code> ，如果 <code>nums</code> 中存在这个目标值 <code>target</code> ，则返回它的下标，否则返回 <code>-1</code>。</p>
+<p><strong>硬性要求</strong>：必须设计一个时间复杂度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span> 的算法。</p>
+<p><a href="https://leetcode.cn/problems/search-in-rotated-sorted-array/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每轮至少有一半有序，再判断 target 是否落在其中。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（被扭断的数组）</strong>：</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="O(log n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span> 的要求直接封死了 <code>for</code> 循环线性查找的退路，逼着我们必须用二分。</p>
+<p><strong>痛点</strong>：二分查找的精髓是“拿中间的值和目标比，决定去左边还是右边”。但现在数组被扭断了，<code>[4,5,6,7,0,1,2]</code> 的中间是 7，目标如果是 0，它既比 7 小，又在 7 的右边！传统的比大小逻辑彻底失效。</p>
+</li>
+<li>
+<p><strong>破局思路（局部有序定理）</strong>：</p>
+<p>仔细观察这个被扭断的数组，无论你从哪个位置把它一分为二（切一刀），<strong>它的左半边和右半边，必定有一半是完全单调递增的！</strong></p>
+<ul>
+<li>比如 <code>[4,5,6,7, 0,1,2]</code>，切在 7：左半边 <code>[4,5,6,7]</code> 是完全有序的！右半边包含断点。</li>
+<li>比如 <code>[6,7,0,1, 2,4,5]</code>，切在 1：右半边 <code>[1,2,4,5]</code> 是完全有序的！左半边包含断点。</li>
+</ul>
+</li>
+<li>
+<p><strong>核心微操（指哪打哪）</strong>：</p>
+<p>既然总有一半是有序的，那事情就好办了。</p>
+<p>每次算出 <code>mid</code> 后，我们先<strong>判断哪一半是有序的</strong>：</p>
+<ul>
+<li><strong>如果左半边有序</strong>：我们利用有序的特性，看看 <code>target</code> 是不是落在 <code>[left, mid)</code> 的闭区间内。如果在，那必定在左边（<code>right = mid - 1</code>）；如果不在，那必定在右边那个乱序的半区里（<code>left = mid + 1</code>）。</li>
+<li><strong>如果右半边有序</strong>：同理，看看 <code>target</code> 是不是落在 <code>(mid, right]</code> 内。如果在，去右边找（<code>left = mid + 1</code>）；不在，去左边找（<code>right = mid - 1</code>）。</li>
+</ul>
+<h3 id="java">Java 实现（局部有序判断满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span><span class="w"> </span><span class="c1">// 运气好，直接命中</span>
+<span class="w">            </span><span class="p">}</span>
+
+<span class="w">            </span><span class="c1">// 🌟 核心判断：左半边是否完全有序？</span>
+<span class="w">            </span><span class="c1">// 致命细节：这里必须是 &lt;=，不能是 &lt;。因为当 left == mid 时（数组只剩一两个元素），它也是一个合法的“有序区间”！</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 进入了“左半边完全单调递增”的分支</span>
+<span class="w">                </span><span class="c1">// 既然它单调递增，那我们就看看 target 是否老老实实呆在这个区间里</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// target 在这个有序区间内，向左压缩</span>
+<span class="w">                    </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// target 不在这个有序区间内，肯定在右边那个带有断点的半区，向右压缩</span>
+<span class="w">                    </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 否则，右半边必定完全有序</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 进入了“右半边完全单调递增”的分支</span>
+<span class="w">                </span><span class="c1">// 看看 target 是否老老实实呆在右半边有序区间里</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">right</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// target 在右边，向右压缩</span>
+<span class="w">                    </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="c1">// target 不在右边，肯定在左边那个带有断点的半区，向左压缩</span>
+<span class="w">                    </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 搜遍了全图也没找到</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。虽然里面多了一层判断，但我们每次依然是无情地<strong>砍掉一半</strong>的数据，完美的二分效率。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。只动用了常数级别的指针变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试细节生死线）</h3>
+<ol>
+<li><strong>踩坑警告（致命错误）：为什么是 <code>nums[left] &lt;= nums[mid]</code>，漏掉等于号会怎样？</strong>
+   - 假设数组是 <code>[3, 1]</code>，我们要找 <code>1</code>。
+   - 第一轮：<code>left = 0</code>, <code>right = 1</code>, <code>mid = 0</code>。此时 <code>nums[left] == 3</code>, <code>nums[mid] == 3</code>。
+   - 如果你写的是 <code>nums[left] &lt; nums[mid]</code>，它会认为左半边无序，从而跳进 <code>else</code>（右半边有序）分支。
+   - 然后它判断 <code>target (1)</code> 是否在右半边 <code>(nums[mid], nums[right]]</code> 即 <code>(3, 1]</code> 内。这显然是个假命题，于是错误地执行 <code>right = mid - 1</code>，导致错过了正确答案！
+   - <strong>结论</strong>：在计算机里，<strong>只包含一个元素的区间 <code>[3]</code> 是天然有序的</strong>，所以必须要有 <code>=</code> 号，承认 <code>left == mid</code> 时的有序合法性。</li>
+<li><strong>面试追问：“如果数组里允许有【重复的数字】，比如 <code>[1, 0, 1, 1, 1]</code> 找 <code>0</code>，这个算法还能用吗？”（对应力扣 81 题：搜索旋转排序数组 II）</strong>
+   - <strong>满分抢答（直击退化痛点）</strong>：不能直接用！
+   - 如果有重复数字，可能会遇到 <code>nums[left] == nums[mid] == nums[right]</code> 的情况（比如 <code>left</code> 测出是 1，<code>mid</code> 是 1，<code>right</code> 也是 1）。此时你根本不知道断点在左边还是右边，局部有序定理在这里失效了！
+   - <strong>破局办法</strong>：遇到这种情况，只能暴力把 <code>left</code> 往前挪一步（<code>left++</code>），或者 <code>right</code> 往后挪一步（<code>right--</code>），跳过重复干扰项，直到这三个数不全相等，再重新启动二分。这也是为什么如果有重复数字，算法最坏会退化成 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 的原因。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0074-搜索二维矩阵.html">← 74. 搜索二维矩阵</a> · <a href="0153-寻找旋转排序数组中的最小值.html">153. 寻找旋转排序数组中的最小值 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

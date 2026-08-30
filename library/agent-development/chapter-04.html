@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Tool / Function Calling · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 开发：从原理到落地</a><span aria-hidden="true">›</span><span aria-current="page">Tool / Function Calling</span></nav><div class="module-meta">Agent 工程 · 第 4 / 23 章</div><h1>Tool / Function Calling</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>工具调用解决的是：<strong>模型能表达“想做什么”，但真正的动作由可信程序执行。</strong></p>
+<h3>4.1 基本数据流</h3>
+<figure class="mermaid-diagram" data-diagram-type="sequenceDiagram"><pre class="mermaid" aria-label="时序图">sequenceDiagram
+    participant U as 用户
+    participant A as Agent Runtime
+    participant M as 模型
+    participant T as Tool
+    U-&gt;&gt;A: 查询订单 123
+    A-&gt;&gt;M: 消息 + 工具 Schema
+    M--&gt;&gt;A: get_order({id: "123"})
+    A-&gt;&gt;A: 参数校验 + 权限判断
+    A-&gt;&gt;T: 执行 get_order
+    T--&gt;&gt;A: 结构化订单数据
+    A-&gt;&gt;M: Tool Result
+    M--&gt;&gt;A: 面向用户的解释
+    A--&gt;&gt;U: 最终答案</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<h3>4.2 工具设计原则</h3>
+<p>好的工具应具备：</p>
+<ol>
+<li><strong>单一、清晰的职责</strong>：<code>get_order</code> 优于含糊的 <code>do_business_operation</code>。</li>
+<li><strong>准确的描述</strong>：说明何时使用、何时不要使用。</li>
+<li><strong>严格的输入 Schema</strong>：枚举、范围、格式和必填项都要明确。</li>
+<li><strong>结构化结果</strong>：返回字段而不是冗长自然语言。</li>
+<li><strong>稳定错误码</strong>：区分可重试、需用户修正和永久失败。</li>
+<li><strong>最小权限</strong>：读工具与写工具分离。</li>
+<li><strong>幂等设计</strong>：写动作使用 idempotency key 或业务唯一键。</li>
+</ol>
+<h3>4.3 把读与写分开</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">低风险：search_docs、get_order、list_files
+中风险：create_draft、prepare_patch、generate_report
+高风险：send_email、delete_file、execute_payment、deploy
+</code></pre></div>
+<p>高风险动作最好采用“准备—预览—审批—提交—验证”五阶段（模式见 4.5），而不是让一个工具直接完成不可逆操作。</p>
+<p>Function Calling 的协议细节可继续阅读：<br />
+<a href="../mcp/index.html">《Function Calling 与 MCP 协议：设计原理与工程实践》</a></p>
+<hr />
+<h3>4.4 Schema 是模型与程序之间的契约</h3>
+<p>工具 Schema 不只保证 JSON 可解析，还要表达字段、单位、时区、枚举和范围。即使模型正确填写订单号与退款金额，程序仍必须校验订单归属、可退款余额、重复退款和权限。格式正确不等于业务合法。</p>
+<p>身份和租户信息应来自可信运行时，不能允许模型自行填写 <code>user_id</code>。工具输出也应结构化，至少包含状态、数据、摘要、错误码和是否可重试。大结果应保存为 Artifact，只把摘要和引用放入上下文。</p>
+<h3>4.5 写工具的事务模式</h3>
+<p>高风险操作可拆为：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">prepare → preview → approve → commit → verify
+</code></pre></div>
+<p>邮件先生成草稿与收件人预览，退款先计算金额并生成草稿，审批后才提交。提交工具应支持幂等键：相同任务重复请求时返回第一次结果，不能再次产生副作用。</p>
+<p>跨系统操作还要考虑补偿。例如订单创建成功但通知失败，可重发通知；不能假设所有外部动作都能像数据库事务一样回滚。</p>
+<h3>4.6 工具粒度的权衡</h3>
+<p><code>manage_customer</code> 太粗，副作用不清；把一次查询拆成十个字段工具又太细，增加调用轮数。较好的粒度通常对应一个可审计业务能力：<code>get_order</code>、<code>calculate_refund</code>、<code>create_refund_draft</code>、<code>submit_refund</code>。读写分离、准备与提交分离，便于权限和审批。</p>
+<h3>4.7 工具调用失败怎样诊断</h3>
+<ul>
+<li>没选工具：描述不清、工具过多或模型误以为能直接回答；</li>
+<li>选错工具：名称与用途重叠；</li>
+<li>参数错误：Schema 含糊或上下文缺字段；</li>
+<li>重复调用：结果没有成功标志或完成条件缺失；</li>
+<li>忽略结果：返回太长，关键字段埋在文本中；</li>
+<li>越权调用：权限只写在 Prompt，执行器没有强制检查。</li>
+</ul>
+<p>评测应分别统计工具选择、参数正确率和最终任务成功率。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-03.html">← 上一章</a><a href="chapter-05.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-development:04",moduleId="agent-development";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

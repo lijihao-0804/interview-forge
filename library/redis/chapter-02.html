@@ -1,0 +1,166 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>基础与数据结构 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Redis：数据结构、缓存与高可用</a><span aria-hidden="true">›</span><span aria-current="page">基础与数据结构</span></nav><div class="module-meta">数据存储 · 第 2 / 8 章</div><h1>基础与数据结构</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>1.1 为什么 Redis 快</h3>
+<ul>
+<li><strong>纯内存操作</strong>：读写都在内存；</li>
+<li><strong>单线程事件循环</strong>：避免锁竞争与上下文切换；6.0 起网络 IO 可多线程（<code>io-threads</code> 默认 1，需显式开启；默认只处理<strong>写</strong>，处理<strong>读</strong>还要开 <code>io-threads-do-reads yes</code>），命令执行、过期、淘汰仍由主线程；后台 BIO 线程负责 fsync、释放对象；</li>
+<li><strong>IO 多路复用</strong>：基于 epoll 处理大量连接；</li>
+<li><strong>高效数据结构</strong>：SDS、跳表、压缩编码等为具体场景定制。</li>
+</ul>
+<p>单线程的代价：单个命令执行慢会阻塞所有请求（如 <code>KEYS *</code>、大 key），所以要避免耗时命令、监控慢命令。</p>
+<p><strong>瓶颈分析链</strong>：内存读写本身是纳秒级，CPU 不是瓶颈；真正的瓶颈在<strong>网络 IO</strong>（读请求、写响应）。IO 多路复用把“等待事件”变成事件驱动，单线程再免掉锁竞争、上下文切换和多线程缓存一致性开销——这是“单线程反而快”的完整推理，不是“单线程=快”的结论。</p>
+<p><strong>一条命令的旅程</strong>：客户端请求到达 socket → epoll 产生就绪事件 → 6.0 开启 <code>io-threads</code> 时由 IO 线程读入缓冲区 → 主线程从队列取命令、执行内存操作 → 结果写回发送缓冲区 → IO 线程写回 socket。命令执行始终在主线程串行。</p>
+<p><strong>慢命令的队头分析</strong>：主线程一次只执行一条命令，一条 O(N) 命令（<code>KEYS *</code>、大 key、大量 key 同时过期）执行期间，后续所有命令都在排队，表现为延迟尖刺。对策：禁用/改用 <code>SCAN</code>、拆分大 key、过期时间加随机偏移、开启 <code>slowlog</code> 监控。</p>
+<h3>1.2 五种数据类型</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>底层结构</th>
+<th>典型命令</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>String</td>
+<td>SDS 动态字符串</td>
+<td>SET/GET/INCR/SETNX</td>
+<td>缓存、计数、分布式锁</td>
+</tr>
+<tr>
+<td>Hash</td>
+<td>listpack/哈希表</td>
+<td>HSET/HGET/HGETALL</td>
+<td>对象属性、购物车</td>
+</tr>
+<tr>
+<td>List</td>
+<td>quicklist</td>
+<td>LPUSH/RPUSH/LPOP/BRPOP</td>
+<td>队列、消息列表</td>
+</tr>
+<tr>
+<td>Set</td>
+<td>intset/哈希表</td>
+<td>SADD/SISMEMBER/SINTER</td>
+<td>去重、共同好友、抽奖</td>
+</tr>
+<tr>
+<td>ZSet</td>
+<td>listpack/跳表+字典</td>
+<td>ZADD/ZRANGE/ZSCORE</td>
+<td>排行榜、延时队列（score=时间）</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">SET<span class="w"> </span>user:1<span class="w"> </span><span class="s1">&#39;{&quot;name&quot;:&quot;张三&quot;}&#39;</span><span class="w"> </span>EX<span class="w"> </span><span class="m">3600</span><span class="w">     </span><span class="c1"># 带过期时间</span>
+INCR<span class="w"> </span>page_view<span class="w">                         </span><span class="c1"># 原子自增</span>
+LPUSH<span class="w"> </span>task_queue<span class="w"> </span>job<span class="w">                   </span><span class="c1"># 入队</span>
+BRPOP<span class="w"> </span>task_queue<span class="w"> </span><span class="m">0</span><span class="w">                     </span><span class="c1"># 阻塞出队</span>
+SADD<span class="w"> </span>online<span class="w"> </span><span class="m">1001</span><span class="w">                       </span><span class="c1"># 在线集合</span>
+ZADD<span class="w"> </span>rank<span class="w"> </span><span class="m">98</span><span class="w"> </span>user1<span class="w">                     </span><span class="c1"># 排行榜</span>
+</code></pre></div>
+<p>扩展类型（都早于 6.0，且复用 string 等底层编码）：<strong>Bitmap</strong>（2.2+，位图，签到/布隆场景）、<strong>HyperLogLog</strong>（2.8.9+，UV 统计，约 12KB 存上亿去重）、<strong>GEO</strong>（3.2+，地理位置，底层是 ZSet）。</p>
+<h3>1.3 底层编码</h3>
+<table>
+<thead>
+<tr>
+<th>数据类型</th>
+<th>小数据</th>
+<th>大数据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>String</td>
+<td>int / embstr（≤44 字节）</td>
+<td>raw</td>
+</tr>
+<tr>
+<td>Hash</td>
+<td>listpack（7.0 前 ziplist）</td>
+<td>哈希表</td>
+</tr>
+<tr>
+<td>List</td>
+<td>quicklist（listpack 节点链表）</td>
+<td>quicklist</td>
+</tr>
+<tr>
+<td>Set</td>
+<td>intset（全整数）</td>
+<td>哈希表</td>
+</tr>
+<tr>
+<td>ZSet</td>
+<td>listpack（7.0 前 ziplist）</td>
+<td>跳表 + 字典</td>
+</tr>
+</tbody>
+</table>
+<p>Redis 会根据元素数量/大小自动切换编码，空间换性能。</p>
+<p><strong>编码细节推导</strong>：embstr 上限 44 = 64（SDS 内联结构上限）− 19（redisObject 头）− 1（结束符）；ziplist 的连锁更新（插入改变 prevlen 引发级联扩容）是 listpack 取代它的动机；intset 只升不降（删掉大整数不会回退编码）；哈希表 rehash 期间新旧两表并存，内存暂时翻倍。</p>
+<p>哈希表的 <strong>渐进式 rehash</strong>：扩容/缩容触发后分多次迁移，期间查找查新旧两表、新增只写新表，避免一次性搬迁卡顿。</p>
+<p><strong>ZSet 为什么用跳表</strong>：插入删除 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>、支持范围查询、实现比平衡树简单；配合字典做 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的 score 查询。</p>
+<p>跳表参数：层数生成概率 p=1/4；最大层数 7.0 前 32、7.0 起 64。</p>
+<p><strong>O(log n) 从哪来</strong>：新元素从第 1 层开始，以概率 p=1/4 向上多建一层，所以期望层数只有 1/(1−p) ≈ 1.33 层（常量）；在 n 个元素里，最高层约 log₄n 层。查找从最高层向下走，每层期望跳过 1/p=4 个节点，总步数就是 O(log n)。跳表节点还维护 <strong>span（跨度）</strong>，记录“这层跳过了几个节点”，因此能按排名取元素（<code>ZRANGE ... BY RANK</code>）。</p>
+<p><strong>p=1/4 的取舍</strong>：p 越小层越少、内存越省，但每层跨度变大、查找步数略增；Redis 取 1/4 是内存与查找速度的折中（p=1/2 时期望层数 2，p=1/4 时期望层数 4/3，约省 1/3 层指针）。最大层数 32 对应 2⁶⁴ 元素容量（源码注释口径）；7.0 起层数上限提到 64，与 64 位容量/rank 对齐。</p>
+<p><strong>与红黑树对比</strong>：红黑树同样 O(log n)，但范围查询要中序遍历、实现与旋转复杂；跳表靠 span 和后继指针天然支持范围/排名查询、无旋转、并发友好（有无锁跳表实现），所以 Redis 选它。</p>
+<h3>1.4 过期删除与内存淘汰</h3>
+<p><strong>过期删除策略</strong>（针对带 TTL 的 key）：</p>
+<ul>
+<li><strong>惰性删除</strong>：访问时检查是否过期，过期才删；</li>
+<li><strong>定期删除</strong>：周期性地抽样检查并删除部分过期 key；</li>
+<li>两者结合：惰性删除即时清理被访问的过期 key，定期删除兜底清扫从未被访问的过期 key。</li>
+</ul>
+<p><strong>内存淘汰策略</strong>（内存满时，<code>maxmemory-policy</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>noeviction</td>
+<td>不淘汰，写命令报错（默认）</td>
+</tr>
+<tr>
+<td>allkeys-lru</td>
+<td>所有 key 中淘汰最久未使用</td>
+</tr>
+<tr>
+<td>volatile-lru</td>
+<td>仅带 TTL 的 key 中淘汰最久未使用</td>
+</tr>
+<tr>
+<td>allkeys-lfu / volatile-lfu</td>
+<td>按访问频率淘汰</td>
+</tr>
+<tr>
+<td>allkeys-random / volatile-random</td>
+<td>随机淘汰</td>
+</tr>
+<tr>
+<td>volatile-ttl</td>
+<td>淘汰剩余 TTL 最短的</td>
+</tr>
+</tbody>
+</table>
+<p>注意区分：过期删除是“key 到期了要清掉”；淘汰是“内存满了踢谁”。</p>
+<p><strong>细节</strong>：volatile 系只从带 TTL 的 key 里抽样淘汰，过期 key 少时会空转、迟迟不删；近似 LRU 是随机抽样（默认 5 个）淘汰最久未用，不是全量 LRU；5.0 起 LFU 可用且带衰减机制（计数随时间下降）；从节点<strong>不主动过期</strong>，由主节点删除后把 del 同步过去。</p>
+<h3>1.5 面试追问</h3>
+<ul>
+<li>问：Redis 为什么快？</li>
+<li>答：内存 + 单线程事件循环 + IO 多路复用 + 高效数据结构；6.0 多线程只处理网络 IO。</li>
+<li>问：单线程的缺点？</li>
+<li>答：一条慢命令（KEYS、大 key）阻塞全部请求；要监控 slowlog、避免大 key。</li>
+<li>问：五种数据类型及场景？</li>
+<li>答：String 缓存计数、Hash 对象、List 队列、Set 去重、ZSet 排行榜/延时队列。</li>
+<li>问：过期删除和内存淘汰的区别？</li>
+<li>答：过期是 TTL 到点清理；淘汰是内存满时的逐出策略。</li>
+<li>问：ZSet 为什么用跳表？</li>
+<li>答：范围查询友好、O(log n) 插入删除、实现简单，配合字典快速查 score。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
+<script>const contentId="redis:02",moduleId="redis";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

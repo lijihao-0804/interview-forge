@@ -1,0 +1,128 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>技术选型 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">RAG：从检索原理到生产实践</a><span aria-hidden="true">›</span><span aria-current="page">技术选型</span></nav><div class="module-meta">大模型应用 · 第 21 / 26 章</div><h1>技术选型</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>框架和数据库只是实现手段。先明确数据规模、更新方式、检索类型、权限、延迟、团队能力和运维边界，再选产品。</p>
+<h3>21.1 先回答这些问题</h3>
+<ol>
+<li>文档、chunk、向量数量和未来增长量是多少？</li>
+<li>中文、英文、代码或多模态各占多少？</li>
+<li>更新是每日批量、分钟级增量还是高频在线写入？</li>
+<li>是否需要 BM25、向量、过滤、地理、SQL 或图查询？</li>
+<li>ACL 过滤有多复杂，租户如何隔离？</li>
+<li>p95 延迟、QPS、可用性和成本预算是多少？</li>
+<li>是否允许托管服务，数据能否出网？</li>
+<li>团队是否已有 PostgreSQL、Elasticsearch 或 Kubernetes 运维能力？</li>
+<li>备份、恢复、多地域和合规要求是什么？</li>
+<li>是否必须避免供应商锁定？</li>
+</ol>
+<p>不回答这些问题，“哪个向量数据库最好”没有意义。</p>
+<h3>21.2 编排框架</h3>
+<h4>直接使用模型 SDK + 自己的服务代码</h4>
+<p>适合流程简单、团队重视可控性和依赖较少的系统。优点是调用链透明、版本升级影响小；缺点是解析器、连接器和 trace 等要自己建设。</p>
+<h4>LangChain 与 LangGraph</h4>
+<ul>
+<li>LangChain 提供模型、Prompt、Retriever、Document、Tool 等通用接口和大量集成；</li>
+<li>LangGraph 强调有状态图、循环、checkpoint、人工审批和长任务运行时。</li>
+</ul>
+<p>适合多组件集成和复杂 Agentic RAG。需要警惕抽象层过多、版本变化和“链能跑但不知道内部做了什么”。生产时仍应保存自己的领域数据结构与接口，避免核心逻辑完全绑定框架对象。</p>
+<p>参阅 <a href="../langchain/index.html">LangChain 入门学习笔记</a>。</p>
+<h4>LlamaIndex</h4>
+<p>以数据接入、索引、Retriever、Query Engine、Node 和文档工作流为中心，适合知识库与 RAG 原型，也提供多种索引和评测集成。选择它与 LangChain 的关键不在“谁功能更多”，而在团队熟悉度、需要的连接器、可观测性和能否控制底层数据流。</p>
+<h3>21.3 检索与向量存储</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>适合情况</th>
+<th>优势</th>
+<th>需要注意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL + pgvector</td>
+<td>已有 PostgreSQL，中小规模，结构化数据与向量同库</td>
+<td>事务、SQL、运维栈统一，元数据过滤自然</td>
+<td>超大规模/极高 QPS 需认真压测和索引调优</td>
+</tr>
+<tr>
+<td>Elasticsearch / OpenSearch</td>
+<td>BM25、字段搜索、过滤和混合检索重要</td>
+<td>成熟倒排索引、聚合、查询 DSL、企业搜索经验多</td>
+<td>集群运维和向量能力版本差异，资源规划较复杂</td>
+</tr>
+<tr>
+<td>Qdrant</td>
+<td>以向量和 payload 过滤为核心，希望自托管或托管</td>
+<td>API 清晰、过滤和 HNSW 友好</td>
+<td>全文搜索、生态和运维要求需按版本验证</td>
+</tr>
+<tr>
+<td>Milvus</td>
+<td>大规模向量、高吞吐、独立向量基础设施</td>
+<td>多种索引、分布式扩展、生态丰富</td>
+<td>组件和运维复杂度相对高，小项目可能过重</td>
+</tr>
+<tr>
+<td>Weaviate</td>
+<td>希望一体化对象、向量、混合搜索和模块生态</td>
+<td>开发体验与混合能力完整</td>
+<td>模块、资源和版本行为需实际压测</td>
+</tr>
+<tr>
+<td>Pinecone</td>
+<td>希望减少自建运维并使用托管向量服务</td>
+<td>托管、扩缩和可用性较省心</td>
+<td>成本、网络、数据合规和供应商锁定</td>
+</tr>
+<tr>
+<td>FAISS</td>
+<td>单机/离线实验、自己控制索引服务</td>
+<td>算法丰富、性能高、适合基准</td>
+<td>它是库而非完整数据库，持久化、ACL、并发和服务治理要自建</td>
+</tr>
+</tbody>
+</table>
+<p>表中能力会随版本变化，正式选型应查阅当前官方文档并用自己的 workload 做 PoC。</p>
+<h3>21.4 一个实用选择路径</h3>
+<ul>
+<li>已有 PostgreSQL，chunk 数量不大，权限和业务表关联多：先试 pgvector；</li>
+<li>已有 Elasticsearch，且产品号、条款、中文关键词很重要：优先在现有搜索栈做混合检索；</li>
+<li>数千万到更大规模向量、专门团队运维：评估 Milvus 等分布式方案；</li>
+<li>希望专注应用、接受托管和成本：评估托管向量服务；</li>
+<li>本地实验和算法对比：FAISS 足够；</li>
+<li>无论选谁，都要用“过滤后的 recall-latency-cost”测试，而非只测无过滤向量搜索。</li>
+</ul>
+<h3>21.5 Embedding 与 Reranker 选型</h3>
+<p>建立自有评测集，比较：</p>
+<ul>
+<li>Recall@5/10/50 和不同查询切片；</li>
+<li>中文、跨语言、代码、短查询/长文档；</li>
+<li>模型最大长度与截断策略；</li>
+<li>向量维度、吞吐、批量效率；</li>
+<li>是否支持本地部署、许可证与数据政策；</li>
+<li>reranker 的 NDCG/答案增益、p95 和费用。</li>
+</ul>
+<p>如果新模型 Recall 提升 1%，却使内存翻倍且 p95 超出 SLO，未必值得上线。</p>
+<h3>21.6 解析器选型</h3>
+<p>不能只看支持文件格式数量。要用自己的困难文档验证：</p>
+<ul>
+<li>双栏 PDF 阅读顺序；</li>
+<li>扫描件 OCR；</li>
+<li>合并单元格和跨页表格；</li>
+<li>Word 标题与修订；</li>
+<li>PPT 图文与备注；</li>
+<li>数学公式、代码和脚注；</li>
+<li>页码/坐标回溯；</li>
+<li>本地部署、并发和许可证。</li>
+</ul>
+<p>解析器输出应落到自己的统一 Document/Element Schema，以便替换实现。</p>
+<h3>21.7 是否需要 GraphRAG 或 Agent</h3>
+<p>引入前先证明固定两阶段 RAG 基线在哪类问题失败：</p>
+<ul>
+<li>若失败是局部事实召回差，先修检索；</li>
+<li>若需要稳定多跳且关系明确，可加图/查询分解；</li>
+<li>若不同问题需要不同工具和动态循环，再加 Agent；</li>
+<li>若只是固定“检索 → 重排 → 生成”，工作流比 Agent 更可靠。</li>
+</ul>
+<p>复杂度必须对应明确收益，并用同一评测集证明。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-20.html">← 上一章</a><a href="chapter-22.html">下一章 →</a></nav></main></div>
+<script>const contentId="rag:21",moduleId="rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

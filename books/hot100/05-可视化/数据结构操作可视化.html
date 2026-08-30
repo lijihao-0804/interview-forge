@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据结构操作可视化 - Java</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1260px; margin: 0 auto; }
+
+  .ds-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .ds-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; }
+  .ds-tab:hover { border-color: #0a7; color: #0a7; }
+  .ds-tab.active { background: linear-gradient(135deg, #0a7, #0a9); color: #fff; border-color: transparent; }
+
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+  .panel.active { display: block; }
+
+  .panel-header { padding: 18px 28px; background: linear-gradient(135deg, #1a1a2e, #283046); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 4px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; }
+
+  .complexity { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 13px; align-items: center; }
+  .complexity span { background: #fff; padding: 3px 12px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity .label { color: #888; border: none; background: transparent; padding-left: 0; }
+  .badge-time { color: #f90; }
+  .badge-space { color: #4a6cf7; }
+
+  .content { display: flex; flex-direction: row; min-height: 500px; }
+  @media (max-width: 900px) { .content { flex-direction: column; } }
+
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; }
+  @media (max-width: 900px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 13px; color: #666; }
+  .code-header .lang-label { font-weight: 600; color: #0a7; }
+  .code-tabs { display: flex; gap: 2px; }
+  .code-tab { padding: 2px 12px; border: 1px solid #ddd; border-radius: 4px 4px 0 0; cursor: pointer; font-size: 12px; background: #f5f5f5; margin-bottom: -1px; }
+  .code-tab.active { background: #fff; border-bottom-color: #fff; font-weight: 600; color: #0a7; }
+  .code-body { position: relative; }
+  .code-block { display: none; }
+  .code-block.active { display: block; }
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 8px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 40px; text-align: right; padding: 0 10px 0 12px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vis-canvas-wrap { flex: 1; position: relative; min-height: 340px; overflow: hidden; background: #fafbfe; }
+  .vis-canvas-wrap canvas { display: block; width: 100%; height: 100%; min-height: 340px; }
+
+  .vis-msg { padding: 7px 20px; font-size: 14px; font-weight: 500; color: #333; background: #fafafa; border-bottom: 1px solid #eee; min-height: 33px; }
+
+  .op-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 20px; background: #f8f9fb; border-bottom: 1px solid #eee; }
+  .op-bar label { font-size: 13px; color: #555; }
+  .op-bar input[type="number"] { width: 64px; padding: 4px 6px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; outline: none; }
+  .op-bar input[type="number"]:focus { border-color: #0a7; }
+  .op-btn { padding: 4px 14px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; font-weight: 500; }
+  .op-btn:hover { background: #e8faf0; border-color: #0a7; color: #0a7; }
+  .op-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .op-btn-insert { color: #0a7; border-color: #0a7; }
+  .op-btn-delete { color: #e44; border-color: #e44; }
+  .op-btn-delete:hover { background: #fff0f0; border-color: #e44; color: #e44; }
+  .op-btn-search { color: #4a6cf7; border-color: #4a6cf7; }
+  .op-btn-search:hover { background: #f0f2ff; border-color: #4a6cf7; color: #4a6cf7; }
+
+  .controls { padding: 8px 20px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid #eee; }
+  .controls button { padding: 5px 14px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 12px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #0a7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #0a7; color: #fff; border-color: #0a7; }
+  .controls .btn-primary:hover { background: #099; }
+  .controls .btn-primary:disabled { background: #8cd0b0; border-color: #8cd0b0; }
+  .controls label { font-size: 12px; color: #666; }
+  .controls input[type="range"] { width: 80px; vertical-align: middle; }
+  .step-info { font-size: 12px; color: #888; margin-left: auto; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 3px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid #ccc; flex-shrink: 0; }
+
+  .algo-desc { padding: 10px 28px 14px; background: #fafbfc; border-top: 1px solid #eee; font-size: 13px; line-height: 1.6; color: #555; }
+  .algo-desc strong { color: #333; }
+
+  .size-info { font-size: 12px; color: #888; margin-left: 8px; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>数据结构操作可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>数据结构操作可视化（Java）</h1>
+
+<div class="ds-tabs" id="tabs">
+  <div class="ds-tab active" data-idx="0">二叉搜索树</div>
+  <div class="ds-tab" data-idx="1">AVL 树</div>
+  <div class="ds-tab" data-idx="2">红黑树</div>
+  <div class="ds-tab" data-idx="3">最大堆</div>
+  <div class="ds-tab" data-idx="4">并查集</div>
+  <div class="ds-tab" data-idx="5">哈希表</div>
+</div>
+
+<div id="panels"></div>
+</div>
+
+<script>
+// ===================== 基础树节点 =====================
+class TNode {
+  constructor(val) {
+    this.val = val; this.left = null; this.right = null;
+    this.x = 0; this.y = 0; this.parent = null;
+    this.color = null; this.height = 1; this.bf = 0;
+  }
+}
+
+// ===================== 树布局 =====================
+function treeWidth(n) { return n ? treeWidth(n.left) + treeWidth(n.right) + 1 : 0; }
+
+function treeLayout(root, cw) {
+  if (!root) return;
+  assignPos(root, cw / 2, 36, Math.min(70, Math.max(24, (cw - 40) / Math.max(treeWidth(root), 1))));
+}
+
+function assignPos(n, x, y, gap) {
+  if (!n) return;
+  n.x = x; n.y = y;
+  const lw = treeWidth(n.left), rw = treeWidth(n.right);
+  const total = (lw + rw + 1) * gap;
+  if (n.left) assignPos(n.left, x - total / 2 + lw * gap / 2, y + 52, gap);
+  if (n.right) assignPos(n.right, x + total / 2 - rw * gap / 2, y + 52, gap);
+}
+
+// ===================== Canvas 绘制 =====================
+function drawNode(ctx, n, state, extra) {
+  if (!n) return;
+  let bg = '#4a6cf7', tc = '#fff', bw = 2;
+  const s = state || {};
+  // 支持基于引用和基于值的两种匹配
+  function match(key) {
+    if (s[key] !== undefined && s[key] !== null) {
+      if (typeof s[key] === 'object') return s[key] === n;
+      return s[key] === n.val;
+    }
+    return false;
+  }
+  function matchSet(key) {
+    if (s[key] instanceof Set) return s[key].has(n);
+    if (Array.isArray(s[key])) return s[key].includes(n.val);
+    return false;
+  }
+  if (match('found')) { bg = '#4caf50'; bw = 3; }
+  else if (match('current')) { bg = '#ff9800'; bw = 3; }
+  else if (matchSet('path')) { bg = '#7c4dff'; }
+  else if (match('insert')) { bg = '#00bcd4'; bw = 3; }
+  else if (match('delete')) { bg = '#e44'; bw = 3; }
+  else if (match('successor')) { bg = '#9c27b0'; bw = 3; }
+  else if (s.rotate && s.rotate.has(n)) { bg = '#e91e63'; bw = 3; }
+  else if (n.color === 'red') { bg = '#e44'; }
+  else if (n.color === 'black') { bg = '#555'; }
+
+  const r = 20;
+  ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = bw; ctx.stroke();
+  ctx.fillStyle = tc;
+  ctx.font = '13px Consolas,monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(n.val), n.x, n.y);
+
+  if (extra === 'avl') {
+    ctx.fillStyle = '#999'; ctx.font = '9px sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText('H' + n.height + (n.bf !== undefined ? ' BF' + n.bf : ''), n.x + 22, n.y - 10);
+  }
+  if (extra === 'rbt' && n.color && s.found !== n && s.current !== n) {
+    ctx.fillStyle = '#888'; ctx.font = '9px sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText(n.color === 'red' ? 'R' : 'B', n.x + 22, n.y - 10);
+  }
+}
+
+function drawTreeEdges(ctx, root) {
+  if (!root) return;
+  const stk = [root];
+  while (stk.length) {
+    const n = stk.pop();
+    if (n.left) { ctx.beginPath(); ctx.moveTo(n.x, n.y + 18); ctx.lineTo(n.left.x, n.left.y - 18); ctx.stroke(); stk.push(n.left); }
+    if (n.right) { ctx.beginPath(); ctx.moveTo(n.x, n.y + 18); ctx.lineTo(n.right.x, n.right.y - 18); ctx.stroke(); stk.push(n.right); }
+  }
+}
+
+function renderTree(ctx, root, state, extra, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (!root) {
+    ctx.fillStyle = '#bbb'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('（空树）', w / 2, h / 2);
+    return;
+  }
+  treeLayout(root, w);
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
+  drawTreeEdges(ctx, root);
+  const nodes = [];
+  (function c(n) { if (!n) return; nodes.push(n); c(n.left); c(n.right); })(root);
+  for (const n of nodes) drawNode(ctx, n, state || {}, extra);
+}
+
+// ===================== 1. BST =====================
+function treeClone(n) {
+  if (!n) return null;
+  const c = new TNode(n.val);
+  c.color = n.color; c.height = n.height; c.bf = n.bf;
+  c.left = treeClone(n.left); c.right = treeClone(n.right);
+  return c;
+}
+
+// 在树中按值查找节点
+function findNode(root, val) {
+  if (!root) return null;
+  if (root.val === val) return root;
+  return findNode(root.left, val) || findNode(root.right, val);
+}
+
+// 收集树中所有值的集合
+function collectVals(root) {
+  const s = new Set();
+  (function c(n) { if (!n) return; s.add(n.val); c(n.left); c(n.right); })(root);
+  return s;
+}
+function bstInsert(root, val) {
+  if (!root) return new TNode(val);
+  if (val < root.val) root.left = bstInsert(root.left, val);
+  else if (val > root.val) root.right = bstInsert(root.right, val);
+  return root;
+}
+function bstFind(root, val) {
+  while (root) {
+    if (root.val === val) return root;
+    root = val < root.val ? root.left : root.right;
+  }
+  return null;
+}
+
+// BST 删除
+function bstDelete(root, val) {
+  if (!root) return null;
+  if (val < root.val) { root.left = bstDelete(root.left, val); return root; }
+  else if (val > root.val) { root.right = bstDelete(root.right, val); return root; }
+  // 找到要删除的节点
+  if (!root.left) return root.right;
+  if (!root.right) return root.left;
+  // 两个子节点：找中序后继
+  let succ = root.right;
+  while (succ.left) succ = succ.left;
+  root.val = succ.val;
+  root.right = bstDelete(root.right, succ.val);
+  return root;
+}
+
+// BST 步骤生成（插入）—— 带树快照，支持逐步骤查看
+function bstInsertSteps(root, val) {
+  const steps = [];
+  if (!root) {
+    const nn = new TNode(val);
+    steps.push({ tree: treeClone(nn), state: { insert: val }, msg: `树为空，创建根节点 ${val}`, line: 2 });
+    return { tree: nn, steps };
+  }
+  // 在克隆树上操作，不影响原始树
+  const workRoot = treeClone(root);
+  const pathVals = [];
+  let cur = workRoot;
+  while (true) {
+    pathVals.push(cur.val);
+    // 每一步都存储当前树快照（新节点尚未插入）
+    steps.push({ tree: treeClone(workRoot), state: { current: cur.val, path: pathVals.slice() }, msg: `比较 ${val} 与节点 ${cur.val}`, line: 3 });
+    if (val < cur.val) {
+      if (!cur.left) {
+        const nn = new TNode(val);
+        cur.left = nn;
+        pathVals.push(val);
+        steps.push({ tree: treeClone(workRoot), state: { insert: val, path: pathVals.slice() }, msg: `插入 ${val} 为 ${cur.val} 的左子节点`, line: 4 });
+        return { tree: workRoot, steps };
+      }
+      cur = cur.left;
+    } else if (val > cur.val) {
+      if (!cur.right) {
+        const nn = new TNode(val);
+        cur.right = nn;
+        pathVals.push(val);
+        steps.push({ tree: treeClone(workRoot), state: { insert: val, path: pathVals.slice() }, msg: `插入 ${val} 为 ${cur.val} 的右子节点`, line: 5 });
+        return { tree: workRoot, steps };
+      }
+      cur = cur.right;
+    } else {
+      steps.push({ tree: treeClone(workRoot), state: { current: cur.val, path: pathVals.slice() }, msg: `${val} 已存在，无需插入`, line: 6 });
+      return { tree: workRoot, steps };
+    }
+  }
+}
+
+function bstDeleteSteps(root, val) {
+  if (!root) return { tree: null, steps: [{ tree: null, state: {}, msg: `树为空，无法删除` }] };
+  const workRoot = treeClone(root);
+  const steps = [];
+  const pathVals = [];
+
+  // 查找阶段
+  let cur = workRoot, parent = null;
+  const findVals = [];
+  while (cur && cur.val !== val) {
+    findVals.push(cur.val);
+    steps.push({ tree: treeClone(workRoot), state: { current: cur.val, path: findVals.slice() }, msg: `查找要删除的节点 ${val}，当前 ${cur.val}` });
+    parent = cur;
+    if (val < cur.val) cur = cur.left;
+    else cur = cur.right;
+  }
+  if (!cur) {
+    steps.push({ tree: treeClone(workRoot), state: { path: findVals.slice() }, msg: `节点 ${val} 不存在` });
+    return { tree: workRoot, steps };
+  }
+  findVals.push(cur.val);
+  steps.push({ tree: treeClone(workRoot), state: { delete: val, path: findVals.slice() }, msg: `找到要删除的节点 ${val}` });
+
+  // 情况1: 叶节点
+  if (!cur.left && !cur.right) {
+    steps.push({ tree: treeClone(workRoot), state: { delete: val }, msg: `节点 ${val} 为叶节点，直接删除` });
+    if (parent) { if (parent.left === cur) parent.left = null; else parent.right = null; }
+    steps.push({ tree: treeClone(workRoot), state: {}, msg: `已删除叶节点 ${val}` });
+    return { tree: workRoot, steps };
+  }
+  // 情况2: 一个子节点
+  if (!cur.left || !cur.right) {
+    const child = cur.left || cur.right;
+    steps.push({ tree: treeClone(workRoot), state: { delete: val, insert: child.val }, msg: `节点 ${val} 有一个子节点 ${child.val}，替换之` });
+    if (parent) { if (parent.left === cur) parent.left = child; else parent.right = child; }
+    else { return { tree: child, steps: [...steps, { tree: treeClone(child), state: {}, msg: `已用 ${child.val} 替换根节点 ${val}` }] }; }
+    steps.push({ tree: treeClone(workRoot), state: {}, msg: `已用 ${child.val} 替换 ${val}` });
+    return { tree: workRoot, steps };
+  }
+  // 情况3: 两个子节点
+  let succ = cur.right, succParent = cur;
+  while (succ.left) { succParent = succ; succ = succ.left; }
+  steps.push({ tree: treeClone(workRoot), state: { delete: val, successor: succ.val, path: findVals.slice() }, msg: `节点 ${val} 有两个子节点，中序后继为 ${succ.val}` });
+  cur.val = succ.val;
+  if (succParent.left === succ) succParent.left = succ.right;
+  else succParent.right = succ.right;
+  steps.push({ tree: treeClone(workRoot), state: {}, msg: `用 ${succ.val} 替换 ${val}，并删除后继节点` });
+  return { tree: workRoot, steps };
+}
+
+function bstSearchSteps(root, val) {
+  const steps = [];
+  if (!root) { steps.push({ tree: null, state: {}, msg: `树为空`, line: 1 }); return { tree: root, steps }; }
+  steps.push({ tree: null, state: {}, msg: `开始查找 ${val}`, line: 1 });
+  let cur = root; const path = new Set();
+  while (cur) {
+    path.add(cur);
+    steps.push({ tree: null, state: { current: cur, path: new Set(path) }, msg: `访问节点 ${cur.val}`, line: 2 });
+    if (cur.val === val) {
+      steps.push({ tree: null, state: { found: cur, path: new Set(path) }, msg: `✓ 找到 ${val}！`, line: 3 });
+      return { tree: root, steps };
+    }
+    cur = val < cur.val ? cur.left : cur.right;
+  }
+  steps.push({ tree: null, state: { path: new Set(path) }, msg: `✗ 未找到 ${val}`, line: 7 });
+  return { tree: root, steps };
+}
+
+// ===================== 2. AVL =====================
+function avlH(n) { return n ? n.height : 0; }
+function avlBf(n) { return n ? avlH(n.left) - avlH(n.right) : 0; }
+function avlUp(n) { if (n) n.height = 1 + Math.max(avlH(n.left), avlH(n.right)); }
+function avlRotR(y) { const x = y.left; const t = x.right; x.right = y; y.left = t; avlUp(y); avlUp(x); return x; }
+function avlRotL(x) { const y = x.right; const t = y.left; y.left = x; x.right = t; avlUp(x); avlUp(y); return y; }
+
+function avlInsertSteps(root, val) {
+  if (!root) {
+    const nn = new TNode(val); nn.bf = 0;
+    return { tree: nn, steps: [{ tree: treeClone(nn), state: { insert: val }, msg: `创建根节点 ${val}` }] };
+  }
+  const workRoot = treeClone(root);
+  const steps = [];
+  const pathVals = [];
+
+  function doInsert(node) {
+    if (!node) {
+      const nn = new TNode(val); nn.bf = 0;
+      pathVals.push(val);
+      steps.push({ tree: treeClone(workRoot), state: { insert: val, path: pathVals.slice() }, msg: `插入节点 ${val}` });
+      pathVals.pop();
+      return nn;
+    }
+    pathVals.push(node.val);
+    steps.push({ tree: treeClone(workRoot), state: { current: node.val, path: pathVals.slice() }, msg: `比较 ${val} 与 ${node.val}` });
+    if (val < node.val) node.left = doInsert(node.left);
+    else if (val > node.val) node.right = doInsert(node.right);
+    else { pathVals.pop(); steps.push({ tree: treeClone(workRoot), state: { current: node.val }, msg: `${val} 已存在` }); return node; }
+
+    avlUp(node); node.bf = avlBf(node);
+    const bf = node.bf;
+    const pathHere = pathVals.slice();
+    steps.push({ tree: treeClone(workRoot), state: { current: node.val, path: pathHere }, msg: `${node.val}: H=${node.height}, BF=${bf}` });
+
+    let result = node;
+    if (bf > 1 && node.left && val < node.left.val) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.left]), path: pathHere }, msg: `LL 失衡 → 右旋 ${node.val}` });
+      result = avlRotR(node);
+    } else if (bf < -1 && node.right && val > node.right.val) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.right]), path: pathHere }, msg: `RR 失衡 → 左旋 ${node.val}` });
+      result = avlRotL(node);
+    } else if (bf > 1 && node.left && val > node.left.val) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.left, node.left.right]), path: pathHere }, msg: `LR 失衡 → 先左旋左子，再右旋` });
+      node.left = avlRotL(node.left);
+      result = avlRotR(node);
+    } else if (bf < -1 && node.right && val < node.right.val) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.right, node.right.left]), path: pathHere }, msg: `RL 失衡 → 先右旋右子，再左旋` });
+      node.right = avlRotR(node.right);
+      result = avlRotL(node);
+    } else {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, path: pathHere }, msg: `${node.val}: BF=${bf}，无需调整` });
+    }
+    pathVals.pop();
+    return result;
+  }
+
+  doInsert(workRoot);
+  return { tree: workRoot, steps };
+}
+
+// ===================== 3. RBT =====================
+function rbtIsRed(n) { return n && n.color === 'red'; }
+
+function rbtInsertRaw(root, val) {
+  if (!root) { const n = new TNode(val); n.color = 'red'; return n; }
+  if (val < root.val) root.left = rbtInsertRaw(root.left, val);
+  else if (val > root.val) root.right = rbtInsertRaw(root.right, val);
+  if (rbtIsRed(root.right) && !rbtIsRed(root.left)) root = rbtRotL(root);
+  if (rbtIsRed(root.left) && rbtIsRed(root.left && root.left.left)) root = rbtRotR(root);
+  if (rbtIsRed(root.left) && rbtIsRed(root.right)) rbtFlip(root);
+  return root;
+}
+
+function rbtRotR(h) {
+  const x = h.left; h.left = x.right; x.right = h;
+  x.color = h.color; h.color = 'red'; return x;
+}
+function rbtRotL(h) {
+  const x = h.right; h.right = x.left; x.left = h;
+  x.color = h.color; h.color = 'red'; return x;
+}
+function rbtFlip(h) {
+  h.color = 'red'; h.left.color = 'black'; h.right.color = 'black';
+}
+
+// 红黑树插入步骤生成（带树快照，使用 LL-RBT 修复规则）
+function rbtInsertSteps(root, val) {
+  if (!root) {
+    const nn = new TNode(val); nn.color = 'black';
+    return { tree: nn, steps: [{ tree: treeClone(nn), state: { insert: val }, msg: `创建根节点 ${val}（黑色）` }] };
+  }
+  const workRoot = treeClone(root);
+  const steps = [];
+  const pathVals = [];
+
+  function doInsert(node) {
+    if (!node) {
+      const nn = new TNode(val); nn.color = 'red';
+      pathVals.push(val);
+      steps.push({ tree: treeClone(workRoot), state: { insert: val, path: pathVals.slice() }, msg: `插入 ${val}（红色节点）` });
+      pathVals.pop();
+      return nn;
+    }
+    pathVals.push(node.val);
+    steps.push({ tree: treeClone(workRoot), state: { current: node.val, path: pathVals.slice() }, msg: `比较 ${val} 与 ${node.val}` });
+
+    if (val < node.val) node.left = doInsert(node.left);
+    else if (val > node.val) node.right = doInsert(node.right);
+    else { pathVals.pop(); return node; }
+
+    // LL-RBT 修复: 右红左黑 → 左旋
+    if (rbtIsRed(node.right) && !rbtIsRed(node.left)) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.right]), path: pathVals.slice() }, msg: `右红左不红 → 左旋 ${node.val}` });
+      node = rbtRotL(node);
+    }
+    // 左左双红 → 右旋
+    if (rbtIsRed(node.left) && rbtIsRed(node.left && node.left.left)) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val, rotate: new Set([node, node.left]), path: pathVals.slice() }, msg: `左左双红 → 右旋 ${node.val}` });
+      node = rbtRotR(node);
+    }
+    // 左右双红 → 变色
+    if (rbtIsRed(node.left) && rbtIsRed(node.right)) {
+      steps.push({ tree: treeClone(workRoot), state: { current: node.val }, msg: `左右子皆红 → 变色 (${node.val} 变红，子变黑)` });
+      rbtFlip(node);
+    }
+
+    pathVals.pop();
+    return node;
+  }
+
+  const result = doInsert(workRoot);
+  result.color = 'black';
+  steps.push({ tree: treeClone(result), state: {}, msg: `根节点设为黑色，红黑树修复完成` });
+  return { tree: result, steps };
+}
+
+function rbtBuildTree(vals) {
+  if (!vals.length) return null;
+  let root = null;
+  for (const v of vals) { root = rbtInsertRaw(root, v); if (root) root.color = 'black'; }
+  return root;
+}
+
+function rbtSearchSteps(root, val) {
+  const steps = [];
+  if (!root) { steps.push({ state: {}, msg: `树为空` }); return { tree: root, steps }; }
+  steps.push({ state: {}, msg: `开始查找 ${val}` });
+  let cur = root; const path = new Set();
+  while (cur) {
+    path.add(cur);
+    const tag = cur.color === 'red' ? '🔴' : '⚫';
+    steps.push({ state: { current: cur, path: new Set(path) }, msg: `访问 ${cur.val}${tag}` });
+    if (cur.val === val) { steps.push({ state: { found: cur, path: new Set(path) }, msg: `✓ 找到 ${val}！` }); return { tree: root, steps }; }
+    cur = val < cur.val ? cur.left : cur.right;
+  }
+  steps.push({ state: { path: new Set(path) }, msg: `✗ 未找到 ${val}` });
+  return { tree: root, steps };
+}
+
+// ===================== 4. 最大堆 =====================
+function heapInsert(heap, val) {
+  heap.push(val);
+  let i = heap.length - 1;
+  while (i > 0) {
+    const p = Math.floor((i - 1) / 2);
+    if (heap[p] >= heap[i]) break;
+    [heap[p], heap[i]] = [heap[i], heap[p]];
+    i = p;
+  }
+}
+function heapExtractMax(heap) {
+  if (!heap.length) return null;
+  const max = heap[0];
+  heap[0] = heap[heap.length - 1];
+  heap.pop();
+  let i = 0, n = heap.length;
+  while (true) {
+    let largest = i, l = 2 * i + 1, r = 2 * i + 2;
+    if (l < n && heap[l] > heap[largest]) largest = l;
+    if (r < n && heap[r] > heap[largest]) largest = r;
+    if (largest === i) break;
+    [heap[i], heap[largest]] = [heap[largest], heap[i]];
+    i = largest;
+  }
+  return max;
+}
+
+function heapInsertSteps(heap, val) {
+  const steps = [];
+  heap.push(val);
+  let i = heap.length - 1;
+  steps.push({ arr: heap.slice(), highlights: [i], msg: `将 ${val} 放入堆尾 (index=${i})`, line: 2 });
+  while (i > 0) {
+    const p = Math.floor((i - 1) / 2);
+    steps.push({ arr: heap.slice(), highlights: [i, p], msg: `比较 index=${i} (${heap[i]}) 与父节点 index=${p} (${heap[p]})`, line: 3 });
+    if (heap[p] >= heap[i]) { steps.push({ arr: heap.slice(), highlights: [i], msg: `父节点更大，满足堆性质`, line: 3 }); break; }
+    [heap[p], heap[i]] = [heap[i], heap[p]];
+    steps.push({ arr: heap.slice(), highlights: [p], msg: `交换 → ${heap[p]} 上浮到 index=${p}`, line: 4 });
+    i = p;
+  }
+  steps.push({ arr: heap.slice(), highlights: [], msg: `插入 ${val} 完成，当前堆大小=${heap.length}`, line: 0 });
+  return { heap: heap.slice(), steps };
+}
+
+function heapExtractSteps(heap) {
+  if (!heap.length) return { heap: [], steps: [{ arr: [], highlights: [], msg: `堆为空` }] };
+  const steps = [];
+  const max = heap[0];
+  steps.push({ arr: heap.slice(), highlights: [0], msg: `堆顶元素 = ${max}`, line: 2 });
+  heap[0] = heap[heap.length - 1];
+  heap.pop();
+  let i = 0, n = heap.length;
+  steps.push({ arr: heap.slice(), highlights: [0], msg: `将末位元素移到堆顶，开始下沉`, line: 3 });
+  while (true) {
+    let largest = i, l = 2 * i + 1, r = 2 * i + 2;
+    const cs = [];
+    if (l < n) cs.push(l); if (r < n) cs.push(r);
+    steps.push({ arr: heap.slice(), highlights: [i, ...cs], msg: `比较 index=${i}(${heap[i]}) 与左右子节点`, line: 4 });
+    if (l < n && heap[l] > heap[largest]) largest = l;
+    if (r < n && heap[r] > heap[largest]) largest = r;
+    if (largest === i) { steps.push({ arr: heap.slice(), highlights: [i], msg: `节点 ${heap[i]} 已就位，下沉结束`, line: 4 }); break; }
+    [heap[i], heap[largest]] = [heap[largest], heap[i]];
+    steps.push({ arr: heap.slice(), highlights: [largest], msg: `交换 index=${i} 与 index=${largest} → ${heap[largest]} 下沉`, line: 5 });
+    i = largest;
+  }
+  steps.push({ arr: heap.slice(), highlights: [], msg: `取出最大值 ${max}，完成`, line: 0 });
+  return { heap: heap.slice(), steps, extracted: max };
+}
+
+// ===================== 5. 并查集 =====================
+function ufInit(n) {
+  return { parent: Array.from({length: n}, (_, i) => i), rank: new Array(n).fill(0), size: n };
+}
+
+function ufFind(uf, x, steps) {
+  if (steps) steps.push({ find: x, parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `查找 ${x} 的根`, line: 2 });
+  while (uf.parent[x] !== x) {
+    if (steps) steps.push({ find: x, parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `${x} 的父节点是 ${uf.parent[x]}，路径压缩`, line: 3 });
+    uf.parent[x] = uf.parent[uf.parent[x]];
+    x = uf.parent[x];
+  }
+  if (steps) steps.push({ find: x, parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `根节点 = ${x}`, line: 5 });
+  return x;
+}
+
+function ufUnion(uf, a, b, steps) {
+  if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `合并 ${a} 和 ${b}`, line: 7 });
+  const ra = ufFind(uf, a, steps);
+  const rb = ufFind(uf, b, steps);
+  if (ra === rb) {
+    if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `${a} 和 ${b} 已在同一集合`, line: 7 });
+    return false;
+  }
+  if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `${a} 的根=${ra}，${b} 的根=${rb}，按秩合并`, line: 8 });
+  if (uf.rank[ra] < uf.rank[rb]) {
+    uf.parent[ra] = rb;
+    if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `${ra} 的秩较小，挂到 ${rb} 下`, line: 9 });
+  } else if (uf.rank[ra] > uf.rank[rb]) {
+    uf.parent[rb] = ra;
+    if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `${rb} 的秩较小，挂到 ${ra} 下`, line: 9 });
+  } else {
+    uf.parent[rb] = ra;
+    uf.rank[ra]++;
+    if (steps) steps.push({ parent: uf.parent.slice(), rank: uf.rank.slice(), msg: `秩相同，${rb} 挂到 ${ra} 下，${ra} 秩+1`, line: 9 });
+  }
+  return true;
+}
+
+// ===================== 6. 哈希表 =====================
+function htCreate(cap) {
+  return { cap, table: Array.from({length: cap}, () => []), size: 0 };
+}
+
+function htPutSteps(ht, key, val) {
+  const steps = [];
+  const idx = ((key % ht.cap) + ht.cap) % ht.cap;
+  steps.push({ table: copyTable(ht), highlight: { idx, type: 'hash' }, msg: `hash(${key}) = ${key} % ${ht.cap} = ${idx}`, line: 9 });
+  const bucket = ht.table[idx];
+  for (let i = 0; i < bucket.length; i++) {
+    if (bucket[i].key === key) {
+      const old = bucket[i].val;
+      bucket[i].val = val;
+      steps.push({ table: copyTable(ht), highlight: { idx, entry: i, type: 'update' }, msg: `key=${key} 已存在，更新值 ${old} → ${val}`, line: 11 });
+      return { ht, steps };
+    }
+  }
+  bucket.push({ key, val });
+  ht.size++;
+  steps.push({ table: copyTable(ht), highlight: { idx, entry: bucket.length - 1, type: 'insert' }, msg: `插入 (${key}, ${val}) 到桶 [${idx}]`, line: 17 });
+  return { ht, steps };
+}
+
+function htGetSteps(ht, key) {
+  const steps = [];
+  const idx = ((key % ht.cap) + ht.cap) % ht.cap;
+  steps.push({ table: copyTable(ht), highlight: { idx, type: 'hash' }, msg: `hash(${key}) = ${key} % ${ht.cap} = ${idx}`, line: 22 });
+  const bucket = ht.table[idx];
+  for (let i = 0; i < bucket.length; i++) {
+    steps.push({ table: copyTable(ht), highlight: { idx, entry: i, type: 'compare' }, msg: `遍历桶[${idx}]：key=${bucket[i].key} ${bucket[i].key === key ? '✓' : '≠'} ${key}`, line: 23 });
+    if (bucket[i].key === key) {
+      steps.push({ table: copyTable(ht), highlight: { idx, entry: i, type: 'found' }, msg: `✓ 找到：(${key}, ${bucket[i].val})`, line: 24 });
+      return { ht, steps, result: bucket[i].val };
+    }
+  }
+  steps.push({ table: copyTable(ht), highlight: { idx, type: 'notfound' }, msg: `✗ key=${key} 不存在`, line: 27 });
+  return { ht, steps, result: null };
+}
+
+function htRemoveSteps(ht, key) {
+  const steps = [];
+  const idx = ((key % ht.cap) + ht.cap) % ht.cap;
+  steps.push({ table: copyTable(ht), highlight: { idx, type: 'hash' }, msg: `hash(${key}) = ${key} % ${ht.cap} = ${idx}`, line: 0 });
+  const bucket = ht.table[idx];
+  for (let i = 0; i < bucket.length; i++) {
+    steps.push({ table: copyTable(ht), highlight: { idx, entry: i, type: 'compare' }, msg: `遍历桶[${idx}]：key=${bucket[i].key} ${bucket[i].key === key ? '✓' : '≠'} ${key}` });
+    if (bucket[i].key === key) {
+      bucket.splice(i, 1);
+      ht.size--;
+      steps.push({ table: copyTable(ht), highlight: { idx, type: 'removed' }, msg: `已删除 key=${key}，桶[${idx}] 剩余 ${bucket.length} 个元素` });
+      return { ht, steps };
+    }
+  }
+  steps.push({ table: copyTable(ht), highlight: { idx, type: 'notfound' }, msg: `✗ key=${key} 不存在，无法删除` });
+  return { ht, steps };
+}
+
+function copyTable(ht) {
+  return ht.table.map(b => b.map(e => ({...e})));
+}
+
+// ===================== 面板构建 =====================
+const DS_DATA = [
+  { name: '二叉搜索树', en: 'Binary Search Tree', time: 'O(log n)', worst: 'O(n)', space: 'O(n)',
+    ops: ['插入', '删除', '查找'], desc: '每个节点左子树 < 节点值 < 右子树。插入和查找都从根开始比较，根据大小向左/向右。删除分三种情况：叶节点直接删、单子节点替换、双子节点找中序后继替换。' },
+  { name: 'AVL 树', en: 'AVL Tree', time: 'O(log n)', worst: 'O(log n)', space: 'O(n)',
+    ops: ['插入', '查找'], desc: '自平衡BST，每个节点维护平衡因子 BF = 左子树高 - 右子树高 (|BF|≤1)。插入后通过左旋/右旋恢复平衡。LL、RR、LR、RL 四种失衡情况。' },
+  { name: '红黑树', en: 'Red-Black Tree', time: 'O(log n)', worst: 'O(log n)', space: 'O(n)',
+    ops: ['插入', '查找'], desc: '每个节点红或黑色，满足：根黑、叶黑、红节点子必黑、任意路径黑节点数相同。插入红色节点后通过旋转+变色保持平衡，最多2次旋转。' },
+  { name: '最大堆', en: 'Max Heap', time: 'O(log n)', worst: 'O(log n)', space: 'O(n)',
+    ops: ['插入', '取最大值'], desc: '完全二叉树，父节点值 ≥ 子节点值。插入时在末尾添加，上浮调整；取出堆顶后，将末位移到堆顶，下沉调整。常用于优先队列。' },
+  { name: '并查集', en: 'Union-Find', time: 'O(α(n))', worst: 'O(α(n))', space: 'O(n)',
+    ops: ['合并', '查找'], desc: '用于处理不相交集合的合并与查询。路径压缩（查找时扁平化）和按秩合并（矮树挂到高树下）使接近常数时间。α(n) 为反阿克曼函数。' },
+  { name: '哈希表', en: 'Hash Table', time: 'O(1)', worst: 'O(n)', space: 'O(n)',
+    ops: ['插入', '查找', '删除'], desc: '通过哈希函数 key % capacity 映射到桶（数组），冲突用链地址法（链表）解决。Java HashMap 在链表超长时会转为红黑树优化。' }
+];
+
+let panelData = [];
+
+// ===================== 加载示例数据 =====================
+function buildSampleBST(vals) {
+  let r = null;
+  for (const v of vals) r = bstInsert(r, v);
+  return r;
+}
+
+function loadSampleData(state, idx) {
+  state.steps = []; state.stepIdx = 0;
+  const sampleVals = [50, 30, 70, 20, 40, 60, 80];
+
+  if (idx === 0) {
+    state.tree = buildSampleBST(sampleVals);
+    state.steps = [{ state: {}, msg: 'BST 已初始化: [50,30,70,20,40,60,80]，试试插入/删除/查找', line: 0 }];
+  } else if (idx === 1) {
+    state.tree = null;
+    for (const v of sampleVals) { const r = avlInsertSteps(state.tree, v); state.tree = r.tree; }
+    state.steps = [{ state: {}, msg: 'AVL 树已初始化（显示高度H和平衡因子BF），试试插入/查找', line: 0 }];
+  } else if (idx === 2) {
+    state.tree = rbtBuildTree(sampleVals);
+    state.steps = [{ state: {}, msg: '红黑树已初始化（红色🔴黑色⚫），试试插入/查找', line: 0 }];
+  } else if (idx === 3) {
+    state.heap = [90, 70, 60, 40, 30, 20, 10, 25, 15, 5];
+    state.steps = [{ arr: state.heap.slice(), highlights: [], msg: '最大堆已初始化: [90,70,60,40,30,20,10,25,15,5]', line: 0 }];
+  } else if (idx === 4) {
+    state.uf = ufInit(8);
+    // 预先做几次合并形成有趣的结构
+    ufUnion(state.uf, 0, 1, []);
+    ufUnion(state.uf, 2, 3, []);
+    ufUnion(state.uf, 5, 6, []);
+    ufUnion(state.uf, 0, 2, []); // {0,1,2,3} 和 {4}, {5,6}, {7}
+    state.steps = [{ parent: state.uf.parent.slice(), rank: state.uf.rank.slice(), msg: '并查集已初始化: 集合 {0,1,2,3} {4} {5,6} {7}，试试合并/查找', line: 0 }];
+  } else if (idx === 5) {
+    state.ht = htCreate(7);
+    htPutSteps(state.ht, 10, 100);
+    htPutSteps(state.ht, 17, 200);
+    htPutSteps(state.ht, 24, 300);
+    htPutSteps(state.ht, 15, 400);
+    htPutSteps(state.ht, 22, 500);
+    state.steps = [{ table: copyTable(state.ht), highlight: {}, msg: '哈希表已初始化（7个桶），含 5 对键值，试试插入/查找/删除', line: 0 }];
+  }
+}
+
+function initPanel(idx) {
+  const data = DS_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  // 代码
+  const codes = getCodes(idx);
+  let codeTabs = '', codeBlocks = '';
+  for (let ci = 0; ci < codes.length; ci++) {
+    const c = codes[ci];
+    const isAct = ci === 0;
+    const codeStr = c.code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const lines = codeStr.split('\n');
+    let html = '';
+    for (let i = 0; i < lines.length; i++) {
+      html += `<div class="code-line" data-line="${i+1}"><span class="lineno">${i+1}</span><span class="line-code">${lines[i]}</span></div>`;
+    }
+    codeTabs += `<div class="code-tab${isAct?' active':''}" data-ci="${ci}">${c.label}</div>`;
+    codeBlocks += `<div class="code-block${isAct?' active':''}" data-ci="${ci}"><div class="code-scroll"><pre><code>${html}</code></pre></div></div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}（${data.en}）</h2>
+      <div class="sub">${data.desc}</div>
+    </div>
+    <div class="complexity">
+      <span class="label">复杂度</span>
+      <span><span class="badge-time">●</span> 时间 ${data.time}</span>
+      <span>最坏 ${data.worst}</span>
+      <span><span class="badge-space">●</span> 空间 ${data.space}</span>
+      <span class="size-info" id="sizeInfo-${idx}"></span>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-header">
+          <span class="lang-label">Java</span>
+          <div class="code-tabs">${codeTabs}</div>
+        </div>
+        <div class="code-body">${codeBlocks}</div>
+      </div>
+      <div class="vis-section">
+        <div class="legend" id="legend-${idx}"></div>
+        <div class="vis-msg" id="msg-${idx}">输入值后点击操作按钮</div>
+        <div class="vis-canvas-wrap"><canvas id="canvas-${idx}"></canvas></div>
+        <div class="op-bar" id="opBar-${idx}"></div>
+        <div class="controls">
+          <button class="btn-first" data-idx="${idx}">|◀</button>
+          <button class="btn-prev" data-idx="${idx}">◀</button>
+          <button class="btn-next btn-primary" data-idx="${idx}">▶</button>
+          <button class="btn-last" data-idx="${idx}">▶|</button>
+          <button class="btn-auto" data-idx="${idx}">▶ 自动</button>
+          <label>速 <input type="range" class="speed-slider" min="1" max="10" value="5" data-idx="${idx}"></label>
+          <span class="step-info" id="stepInfo-${idx}">步骤 0/0</span>
+        </div>
+      </div>
+    </div>
+    <div class="algo-desc"><strong>算法说明：</strong>${data.desc}</div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  // 代码 tab 切换
+  panel.querySelectorAll('.code-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      panel.querySelectorAll('.code-tab').forEach(x => x.classList.remove('active'));
+      panel.querySelectorAll('.code-block').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const ci = parseInt(t.dataset.ci);
+      panel.querySelector(`.code-block[data-ci="${ci}"]`).classList.add('active');
+    });
+  });
+
+  // Legend
+  const legendEl = document.getElementById('legend-' + idx);
+  const legends = [
+    { items: [
+      { color: '#4a6cf7', label: '节点' },
+      { color: '#ff9800', label: '当前' },
+      { color: '#4caf50', label: '已找到' },
+      { color: '#7c4dff', label: '路径' },
+      { color: '#00bcd4', label: '插入' },
+      { color: '#e91e63', label: '旋转' },
+    ] },
+    { items: [
+      { color: '#4a6cf7', label: '节点' },
+      { color: '#ff9800', label: '当前' },
+      { color: '#e91e63', label: '旋转' },
+      { color: '#4caf50', label: '找到' },
+      { color: '#ddd', label: 'BF=平衡因子' },
+    ] },
+    { items: [
+      { color: '#e44', label: '红' },
+      { color: '#555', label: '黑' },
+      { color: '#ff9800', label: '当前' },
+      { color: '#4caf50', label: '找到' },
+    ] },
+    { items: [
+      { color: '#4a6cf7', label: '数组元素' },
+      { color: '#ff9800', label: '比较/上浮' },
+      { color: '#4caf50', label: '已就位' },
+    ] },
+    { items: [
+      { color: '#4a6cf7', label: '元素' },
+      { color: '#ff9800', label: '查找路径' },
+      { color: '#4caf50', label: '根节点' },
+    ] },
+    { items: [
+      { color: '#4a6cf7', label: '桶' },
+      { color: '#ff9800', label: '当前遍历' },
+      { color: '#4caf50', label: '找到' },
+      { color: '#e0e0e0', label: '空桶' },
+    ] },
+  ];
+  legendEl.innerHTML = legends[idx].items.map(l =>
+    `<span class="legend-item"><span class="legend-dot" style="background:${l.color}"></span> ${l.label}</span>`
+  ).join('');
+
+  const canvas = panel.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const nextBtn = panel.querySelector('.btn-next');
+  const prevBtn = panel.querySelector('.btn-prev');
+  const firstBtn = panel.querySelector('.btn-first');
+  const lastBtn = panel.querySelector('.btn-last');
+  const autoBtn = panel.querySelector('.btn-auto');
+  const speedSlider = panel.querySelector('.speed-slider');
+
+  const state = {
+    idx, tree: null, heap: [], uf: null, ht: null,
+    steps: [], stepIdx: 0, running: false, timer: null,
+    stepsHistory: [], // for undo stack
+  };
+  panelData[idx] = state;
+
+  // 操作栏
+  const opBar = document.getElementById('opBar-' + idx);
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.placeholder = '输入值';
+  input.style.width = '72px';
+  opBar.appendChild(input);
+
+  // 第二个输入（用于并查集/哈希表）
+  const input2 = document.createElement('input');
+  input2.type = 'number';
+  input2.placeholder = '值2';
+  input2.style.width = '72px';
+  input2.style.display = 'none';
+  opBar.appendChild(input2);
+
+  // 第三个输入（用于哈希表value）
+  const input3 = document.createElement('input');
+  input3.type = 'number';
+  input3.placeholder = 'value';
+  input3.style.width = '72px';
+  input3.style.display = 'none';
+  opBar.appendChild(input3);
+
+  const sizeLabel = document.createElement('span');
+  sizeLabel.style.cssText = 'font-size:12px;color:#888;margin-left:8px;';
+  opBar.appendChild(sizeLabel);
+
+  const opBtns = [];
+  for (const op of data.ops) {
+    const btn = document.createElement('button');
+    btn.className = `op-btn op-btn-${op === '删除' || op === '取最大值' ? 'delete' : op === '查找' ? 'search' : 'insert'}`;
+    btn.textContent = op;
+    opBar.appendChild(btn);
+    opBtns.push({ btn, op });
+  }
+
+  // 额外按钮（重置初始化）
+  const initBtn = document.createElement('button');
+  initBtn.className = 'op-btn';
+  initBtn.textContent = '🔄 重置';
+  opBar.appendChild(initBtn);
+
+  let _dpr = window.devicePixelRatio || 1;
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    const r = wrap.getBoundingClientRect();
+    _dpr = window.devicePixelRatio || 1;
+    const w = r.width || 500, h = r.height || 340;
+    if (canvas.width !== Math.floor(w * _dpr) || canvas.height !== Math.floor(h * _dpr)) {
+      canvas.width = Math.floor(w * _dpr);
+      canvas.height = Math.floor(h * _dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+    }
+    return { w, h, dpr: _dpr };
+  }
+
+  function render() {
+    const { w, h, dpr } = resizeCanvas();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const msgEl = document.getElementById('msg-' + idx);
+    const stepInfo = document.getElementById('stepInfo-' + idx);
+    const sizeInfo = document.getElementById('sizeInfo-' + idx);
+
+    if (state.steps.length && state.stepIdx < state.steps.length) {
+      const step = state.steps[state.stepIdx];
+      msgEl.textContent = step.msg || '';
+      stepInfo.textContent = `步骤 ${state.stepIdx}/${state.steps.length - 1}`;
+
+      // 代码高亮
+      panel.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight-line'));
+      if (step.line > 0) {
+        const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+        if (target) target.classList.add('highlight-line');
+      }
+
+      // 绘制
+      if (idx === 0 || idx === 1 || idx === 2) {
+        const t = step.tree !== undefined && step.tree !== null ? step.tree : state.tree;
+        renderTree(ctx, t, step.state || {}, idx === 1 ? 'avl' : idx === 2 ? 'rbt' : null, w, h);
+      } else if (idx === 3) {
+        drawHeap(ctx, step.arr || [], step.highlights || [], w, h);
+      } else if (idx === 4) {
+        drawUF(ctx, step.parent || [], step.rank || [], step.find, w, h);
+      } else if (idx === 5) {
+        drawHT(ctx, step.table || [], step.highlight || {}, w, h);
+      }
+    } else {
+      msgEl.textContent = '输入值后点击操作按钮';
+      stepInfo.textContent = '步骤 0/0';
+      // 空状态
+      if (idx < 3) renderTree(ctx, state.tree, {}, idx === 1 ? 'avl' : idx === 2 ? 'rbt' : null, w, h);
+      else if (idx === 3) drawHeap(ctx, state.heap, [], w, h);
+      else if (idx === 4) drawUF(ctx, state.uf ? state.uf.parent : [], state.uf ? state.uf.rank : [], -1, w, h);
+      else if (idx === 5) drawHT(ctx, state.ht ? state.ht.table.map(b => b.map(e => ({...e}))) : [], {}, w, h);
+    }
+
+    // size info
+    if (idx === 4 && state.uf) sizeInfo.textContent = `元素数=${state.uf.size}`;
+    else if (idx === 5 && state.ht) sizeInfo.textContent = `桶数=${state.ht.cap} 元素数=${state.ht.size}`;
+    else if (idx === 3) sizeInfo.textContent = `堆大小=${state.heap.length}`;
+    else sizeInfo.textContent = '';
+  }
+
+  function updateButtons() {
+    const atFirst = state.stepIdx <= 0;
+    const atLast = !state.steps.length || state.stepIdx >= state.steps.length - 1;
+    firstBtn.disabled = atFirst;
+    prevBtn.disabled = atFirst;
+    nextBtn.disabled = atLast;
+    lastBtn.disabled = atLast;
+  }
+
+  // ===== 操作按钮 =====
+  for (const { btn, op } of opBtns) {
+    btn.addEventListener('click', () => {
+      const val = parseInt(input.value);
+      if (op !== '取最大值' && (isNaN(val) || val === '')) { msgEl.textContent = '请输入一个有效数字'; return; }
+
+      // 重置步骤到开头
+      if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
+
+      if (idx === 0) { // BST
+        let result, opSteps;
+        if (op === '插入') {
+          result = bstInsertSteps(state.tree, val);
+          state.tree = result.tree;
+          opSteps = result.steps;
+        } else if (op === '删除') {
+          result = bstDeleteSteps(state.tree, val);
+          state.tree = result.tree;
+          opSteps = result.steps;
+        } else if (op === '查找') {
+          result = bstSearchSteps(state.tree, val);
+          opSteps = result.steps;
+        }
+        state.steps = opSteps.map((s, i) => ({ ...s, line: s.line || 0 }));
+        state.stepIdx = 0;
+      } else if (idx === 1) { // AVL
+        if (op === '插入') {
+          const result = avlInsertSteps(state.tree, val);
+          state.tree = result.tree;
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        } else if (op === '查找') {
+          const result = bstSearchSteps(state.tree, val);
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        }
+      } else if (idx === 2) { // RBT
+        if (op === '插入') {
+          const result = rbtInsertSteps(state.tree, val);
+          state.tree = result.tree;
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        } else if (op === '查找') {
+          const result = rbtSearchSteps(state.tree, val);
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        }
+      } else if (idx === 3) { // Heap
+        if (op === '插入') {
+          const result = heapInsertSteps(state.heap, val);
+          state.heap = result.heap;
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        } else if (op === '取最大值') {
+          const result = heapExtractSteps(state.heap);
+          state.heap = result.heap;
+          state.steps = result.steps;
+          state.stepIdx = 0;
+        }
+      } else if (idx === 4) { // UF
+        if (!state.uf) { msgEl.textContent = '请先点击「重置」初始化并查集'; return; }
+        if (op === '合并') {
+          const val2 = parseInt(input2.value);
+          if (isNaN(val2)) { msgEl.textContent = '请输入第二个值'; return; }
+          if (val < 0 || val >= state.uf.size || val2 < 0 || val2 >= state.uf.size) {
+            msgEl.textContent = `值必须在 0~${state.uf.size-1} 之间`; return;
+          }
+          const steps = [];
+          ufUnion(state.uf, val, val2, steps);
+          state.steps = steps;
+          state.stepIdx = 0;
+        } else if (op === '查找') {
+          if (val < 0 || val >= state.uf.size) { msgEl.textContent = `值必须在 0~${state.uf.size-1} 之间`; return; }
+          const steps = [];
+          ufFind(state.uf, val, steps);
+          state.steps = steps;
+          state.stepIdx = 0;
+        }
+      } else if (idx === 5) { // HT
+        if (!state.ht) { msgEl.textContent = '请先点击「重置」初始化哈希表'; return; }
+        let result;
+        if (op === '插入') {
+          const val2 = parseInt(input2.value);
+          if (isNaN(val2)) { msgEl.textContent = '请输入 value'; return; }
+          result = htPutSteps(state.ht, val, val2);
+          state.ht = result.ht;
+          state.steps = result.steps;
+        } else if (op === '查找') {
+          result = htGetSteps(state.ht, val);
+          state.steps = result.steps;
+        } else if (op === '删除') {
+          result = htRemoveSteps(state.ht, val);
+          state.ht = result.ht;
+          state.steps = result.steps;
+        }
+        state.stepIdx = 0;
+      }
+
+      render();
+      updateButtons();
+      input.value = '';
+      input2.value = '';
+      input3.value = '';
+    });
+  }
+
+  // 输入框显示控制
+  if (idx === 4) { input2.style.display = 'inline-block'; input2.placeholder = '值2'; }
+  if (idx === 5) {
+    input2.style.display = 'inline-block';
+    input2.placeholder = 'value';
+    if (data.ops.includes('插入')) {
+      // 插入需要key和value
+    }
+  }
+
+  // 重置/初始化
+  initBtn.addEventListener('click', () => {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
+    loadSampleData(state, idx);
+    render();
+    updateButtons();
+  });
+
+  // 步骤控制
+  nextBtn.addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+  });
+  prevBtn.addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
+  });
+  firstBtn.addEventListener('click', () => { state.stepIdx = 0; render(); updateButtons(); });
+  lastBtn.addEventListener('click', () => { state.stepIdx = state.steps.length - 1; render(); updateButtons(); });
+  autoBtn.addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false; autoBtn.textContent = '▶ 自动';
+    } else {
+      if (!state.steps.length) return;
+      state.running = true; autoBtn.textContent = '⏸';
+      const speed = parseInt(speedSlider.value);
+      const delay = Math.max(30, 200 - speed * 15);
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+        else { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
+      }, delay);
+    }
+  });
+
+  state.render = render;
+  panelData[idx] = state;
+
+  // 初始状态（加载示例数据）
+  loadSampleData(state, idx);
+  render();
+  updateButtons();
+
+  const ro = new ResizeObserver(() => render());
+  ro.observe(canvas.parentElement);
+}
+
+// ===================== 堆绘制 =====================
+function drawHeap(ctx, arr, highlights, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (!arr.length) {
+    ctx.fillStyle = '#bbb'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('（空堆）', w / 2, h / 2);
+    return;
+  }
+  const hs = new Set(highlights);
+  const n = arr.length;
+  const maxVal = Math.max(...arr);
+  const barW = Math.min(40, Math.max(12, (w - 40) / n - 4));
+  const gap = 4;
+  const totalW = n * (barW + gap);
+  const startX = (w - totalW) / 2 + barW / 2;
+
+  const H = h - 60;
+  for (let i = 0; i < n; i++) {
+    const x = startX + i * (barW + gap);
+    const bh = (arr[i] / maxVal) * (H - 20);
+    const y = h - 30 - bh;
+    let bg = '#4a6cf7';
+    if (hs.has(i)) bg = '#ff9800';
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, y, barW, bh);
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, barW, bh);
+    ctx.fillStyle = '#333';
+    ctx.font = '11px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(arr[i]), x + barW / 2, h - 12);
+    ctx.fillStyle = '#999'; ctx.font = '9px sans-serif';
+    ctx.fillText('[' + i + ']', x + barW / 2, h - 2);
+  }
+  // 索引标注
+  ctx.fillStyle = '#aaa';
+  ctx.font = '10px sans-serif';
+
+  // 画父子关系线（顶部）
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < n; i++) {
+    const p = Math.floor((i - 1) / 2);
+    const px = startX + p * (barW + gap) + barW / 2;
+    const ix = startX + i * (barW + gap) + barW / 2;
+    ctx.beginPath();
+    ctx.moveTo(px, h - 35 - (arr[p] / maxVal) * (H - 20));
+    ctx.lineTo(ix, h - 35 - (arr[i] / maxVal) * (H - 20));
+    ctx.stroke();
+  }
+}
+
+// ===================== 并查集绘制 =====================
+function drawUF(ctx, parent, rank, findHighlight, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (!parent.length) {
+    ctx.fillStyle = '#bbb'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('未初始化', w / 2, h / 2);
+    return;
+  }
+  const n = parent.length;
+  const cols = Math.min(n, 8);
+  const rows = Math.ceil(n / cols);
+  const cellW = 70, cellH = 56;
+  const startX = (w - cols * cellW) / 2 + cellW / 2;
+  const startY = Math.max(20, (h - rows * cellH) / 2);
+
+  for (let i = 0; i < n; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = startX + col * cellW;
+    const y = startY + row * cellH;
+    const isRoot = parent[i] === i;
+    const isFind = findHighlight === i;
+
+    // 背景
+    let bg = '#f0f4ff';
+    if (isFind) bg = '#fff3cd';
+    ctx.fillStyle = bg;
+    ctx.fillRect(x - cellW / 2 + 4, y - cellH / 2 + 4, cellW - 8, cellH - 8);
+    ctx.strokeStyle = isFind ? '#ff9800' : '#ddd';
+    ctx.lineWidth = isFind ? 2 : 1;
+    ctx.strokeRect(x - cellW / 2 + 4, y - cellH / 2 + 4, cellW - 8, cellH - 8);
+
+    // 索引
+    ctx.fillStyle = '#999'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('[' + i + ']', x, y - cellH / 2 + 6);
+
+    // parent 指向
+    ctx.fillStyle = '#333'; ctx.font = '13px monospace'; ctx.textBaseline = 'middle';
+    if (isRoot) {
+      ctx.fillStyle = '#4caf50'; ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('根', x, y + 4);
+    } else {
+      ctx.fillStyle = '#e44';
+      ctx.fillText('→ ' + parent[i], x, y + 4);
+    }
+
+    // rank
+    ctx.fillStyle = '#888'; ctx.font = '9px sans-serif'; ctx.textBaseline = 'bottom';
+    ctx.fillText('秩=' + rank[i], x, y + cellH / 2 - 4);
+  }
+}
+
+// ===================== 哈希表绘制 =====================
+function drawHT(ctx, table, highlight, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (!table || !table.length) {
+    ctx.fillStyle = '#bbb'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('未初始化', w / 2, h / 2); return;
+  }
+  const cap = table.length;
+  const cellW = 56, cellH = 30;
+  const maxChain = Math.max(...table.map(b => b.length), 1);
+  const totalH = cap * (cellH + 2);
+  const startY = Math.max(10, (h - totalH) / 2);
+  const startX = 10;
+
+  for (let i = 0; i < cap; i++) {
+    const y = startY + i * (cellH + 2);
+    const isHL = highlight && (highlight.idx === i || highlight.idx === i);
+
+    // 索引格
+    let bg = '#f0f2f5';
+    if (isHL && (highlight.type === 'hash' || highlight.type === 'insert')) bg = '#fff3e0';
+    ctx.fillStyle = bg;
+    ctx.fillRect(startX, y, cellW, cellH);
+    ctx.strokeStyle = isHL ? '#ff9800' : '#ddd';
+    ctx.lineWidth = isHL ? 2 : 1;
+    ctx.strokeRect(startX, y, cellW, cellH);
+    ctx.fillStyle = '#666'; ctx.font = '11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('[' + i + ']', startX + cellW / 2, y + cellH / 2);
+
+    // 链
+    const bucket = table[i];
+    let cx = startX + cellW + 6;
+    if (!bucket.length) {
+      ctx.fillStyle = '#ccc'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('∅', cx, y + cellH / 2);
+    } else {
+      for (let bi = 0; bi < bucket.length; bi++) {
+        const e = bucket[bi];
+        const isEntry = highlight && highlight.idx === i && (highlight.entry === bi || highlight.entry === bi);
+        const isFound = highlight && highlight.idx === i && highlight.type === 'found' && highlight.entry === bi;
+
+        const ew = 52, eh = cellH - 2;
+        let ebg = '#4a6cf7';
+        if (isFound) ebg = '#4caf50';
+        else if (isEntry) ebg = '#ff9800';
+        else if (highlight && highlight.idx === i && highlight.type === 'removed') ebg = '#d0d0d0';
+
+        ctx.fillStyle = ebg;
+        ctx.fillRect(cx, y + 1, ew, eh);
+        ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+        ctx.strokeRect(cx, y + 1, ew, eh);
+        ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(e.key + ':' + e.val, cx + ew / 2, y + eh / 2 + 1);
+
+        // 箭头
+        ctx.fillStyle = '#aaa'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('→', cx + ew + 4, y + cellH / 2);
+        cx += ew + 10;
+        if (cx > w - 30) break;
+      }
+      ctx.fillStyle = '#ccc'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('∅', cx - 6, y + cellH / 2);
+    }
+  }
+}
+
+// ===================== 代码 =====================
+function getCodes(idx) {
+  const all = [
+    [ // BST
+      { label: 'insert',
+        code: `public TreeNode insert(TreeNode root, int val) {
+    if (root == null) return new TreeNode(val);
+    if (val < root.val)
+        root.left = insert(root.left, val);
+    else if (val > root.val)
+        root.right = insert(root.right, val);
+    return root;
+}` },
+      { label: 'delete',
+        code: `public TreeNode delete(TreeNode root, int val) {
+    if (root == null) return null;
+    if (val < root.val)
+        root.left = delete(root.left, val);
+    else if (val > root.val)
+        root.right = delete(root.right, val);
+    else {
+        if (root.left == null) return root.right;
+        if (root.right == null) return root.left;
+        TreeNode succ = root.right;
+        while (succ.left != null) succ = succ.left;
+        root.val = succ.val;
+        root.right = delete(root.right, succ.val);
+    }
+    return root;
+}` },
+      { label: 'search',
+        code: `public TreeNode search(TreeNode root, int target) {
+    TreeNode cur = root;
+    while (cur != null) {
+        if (cur.val == target) return cur;
+        else if (target < cur.val) cur = cur.left;
+        else cur = cur.right;
+    }
+    return null;
+}` }
+    ],
+    [ // AVL
+      { label: 'insert',
+        code: `public AVLNode insert(AVLNode node, int val) {
+    if (node == null) return new AVLNode(val);
+    if (val < node.val)
+        node.left = insert(node.left, val);
+    else if (val > node.val)
+        node.right = insert(node.right, val);
+    else return node;
+
+    node.height = 1 + max(height(node.left), height(node.right));
+    int bf = height(node.left) - height(node.right);
+
+    // LL
+    if (bf > 1 && val < node.left.val)
+        return rightRotate(node);
+    // RR
+    if (bf < -1 && val > node.right.val)
+        return leftRotate(node);
+    // LR
+    if (bf > 1 && val > node.left.val) {
+        node.left = leftRotate(node.left);
+        return rightRotate(node);
+    }
+    // RL
+    if (bf < -1 && val < node.right.val) {
+        node.right = rightRotate(node.right);
+        return leftRotate(node);
+    }
+    return node;
+}` }
+    ],
+    [ // RBT
+      { label: 'insert (LLRB)',
+        code: `// 左倾红黑树插入（简化版）
+private Node insert(Node h, int val) {
+    if (h == null) return new Node(val, RED);
+
+    if (val < h.val) h.left = insert(h.left, val);
+    else if (val > h.val) h.right = insert(h.right, val);
+
+    // 修复红黑性质
+    if (isRed(h.right) && !isRed(h.left))
+        h = rotateLeft(h);
+    if (isRed(h.left) && isRed(h.left.left))
+        h = rotateRight(h);
+    if (isRed(h.left) && isRed(h.right))
+        flipColors(h);
+
+    return h;
+}
+
+private Node rotateLeft(Node h) {
+    Node x = h.right;
+    h.right = x.left;
+    x.left = h;
+    x.color = h.color;
+    h.color = RED;
+    return x;
+}
+
+private Node rotateRight(Node h) {
+    Node x = h.left;
+    h.left = x.right;
+    x.right = h;
+    x.color = h.color;
+    h.color = RED;
+    return x;
+}
+
+private void flipColors(Node h) {
+    h.color = RED;
+    h.left.color = BLACK;
+    h.right.color = BLACK;
+}` }
+    ],
+    [ // Heap
+      { label: 'insert',
+        code: `public void insert(int val) {
+    heap.add(val);
+    int i = heap.size() - 1;
+    while (i > 0) {
+        int p = (i - 1) / 2;
+        if (heap.get(p) >= heap.get(i))
+            break;
+        swap(heap, p, i);
+        i = p;
+    }
+}` },
+      { label: 'extractMax',
+        code: `public int extractMax() {
+    int max = heap.get(0);
+    int last = heap.remove(heap.size() - 1);
+    if (!heap.isEmpty()) {
+        heap.set(0, last);
+        siftDown(0);
+    }
+    return max;
+}
+
+private void siftDown(int i) {
+    int n = heap.size();
+    while (true) {
+        int largest = i;
+        int l = 2 * i + 1, r = 2 * i + 2;
+        if (l < n && heap.get(l) > heap.get(largest))
+            largest = l;
+        if (r < n && heap.get(r) > heap.get(largest))
+            largest = r;
+        if (largest == i) break;
+        swap(heap, i, largest);
+        i = largest;
+    }
+}` }
+    ],
+    [ // UF
+      { label: 'find',
+        code: `public int find(int x) {
+    while (parent[x] != x) {
+        parent[x] = parent[parent[x]]; // 路径压缩
+        x = parent[x];
+    }
+    return x;
+}` },
+      { label: 'union',
+        code: `public void union(int a, int b) {
+    int ra = find(a), rb = find(b);
+    if (ra == rb) return;
+    // 按秩合并
+    if (rank[ra] < rank[rb])
+        parent[ra] = rb;
+    else if (rank[ra] > rank[rb])
+        parent[rb] = ra;
+    else {
+        parent[rb] = ra;
+        rank[ra]++;
+    }
+}` }
+    ],
+    [ // HT
+      { label: 'put',
+        code: `public void put(int key, int value) {
+    int idx = hash(key);
+    Node head = buckets[idx];
+    Node cur = head;
+    while (cur != null) {
+        if (cur.key == key) {
+            cur.val = value; // 更新
+            return;
+        }
+        cur = cur.next;
+    }
+    // 头插法
+    Node newNode = new Node(key, value);
+    newNode.next = buckets[idx];
+    buckets[idx] = newNode;
+}` },
+      { label: 'get',
+        code: `public int get(int key) {
+    int idx = hash(key);
+    Node cur = buckets[idx];
+    while (cur != null) {
+        if (cur.key == key)
+            return cur.val;
+        cur = cur.next;
+    }
+    return -1; // 不存在
+}` },
+      { label: 'remove',
+        code: `public void remove(int key) {
+    int idx = hash(key);
+    Node cur = buckets[idx];
+    Node prev = null;
+    while (cur != null) {
+        if (cur.key == key) {
+            if (prev == null)
+                buckets[idx] = cur.next;
+            else prev.next = cur.next;
+            return;
+        }
+        prev = cur;
+        cur = cur.next;
+    }
+}` }
+    ]
+  ];
+  return all[idx];
+}
+
+// ===================== 启动 =====================
+DS_DATA.forEach((_, idx) => {
+  panelData.push(null);
+  initPanel(idx);
+});
+
+document.querySelectorAll('.ds-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    document.querySelectorAll('.ds-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '▶ 自动');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    const s = panelData[idx];
+    if (s && s.render) s.render();
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

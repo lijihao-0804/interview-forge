@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>200. 岛屿数量 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 09-图论</div>
+        <h1 id="200">200. 岛屿数量</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-dfs">Java 实现（DFS 沉岛满分版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试细节大考问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/09-图论.html">← 图论专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>DFS / BFS 洪泛</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(mn)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个由 <code>'1'</code>（陆地）和 <code>'0'</code>（水）组成的的二维网格，请你计算网格中岛屿的数量。</p>
+<p>岛屿总是被水包围，并且每座岛屿只能由水平方向和/或竖直方向上相邻的陆地连接形成。</p>
+<p><a href="https://leetcode.cn/problems/number-of-islands/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>发现陆地就立刻标记并扩展整座岛。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（怎么防止重复计数？）</strong>：</p>
+<p>直觉告诉我们，需要用两层 <code>for</code> 循环去遍历这个二维网格。遇到 <code>'1'</code>，说明发现了陆地，岛屿数量就 <code>+1</code>。</p>
+<p><strong>痛点</strong>：一个岛屿通常由好几个 <code>'1'</code> 连在一起组成。当你遍历到其中一个 <code>'1'</code> 时计数了，等你遍历到它旁边的 <code>'1'</code> 时，你怎么知道它们其实是同一座岛？如果不加处理，一座大岛会被你数成好几座小岛！</p>
+</li>
+<li>
+<p><strong>破局思路（沉岛战术 / 病毒感染）</strong>：</p>
+<p>我们不能只当个观察者，我们得当个“破坏者”。</p>
+<p>当我们通过 <code>for</code> 循环扫描到一个 <code>'1'</code> 时，立刻宣布：“发现一座新岛屿！数量加 1！”</p>
+<p>紧接着，我们<strong>立刻触发一次深度优先搜索（DFS）</strong>，就像空投了一枚炸弹，把这块陆地，以及所有和它相连的陆地，全部<strong>炸平变成 <code>'0'</code>（沉岛）</strong>。</p>
+<p>这样，当我们主循环的雷达继续往后扫描时，刚才那座岛已经沉入海底（变成 <code>'0'</code>）了，绝对不可能被重复计数！</p>
+</li>
+<li>
+<p><strong>逻辑推演（网格上的 DFS 怎么写？）</strong>：</p>
+<p>在二叉树里，一个节点只有左右两个孩子（<code>left</code>, <code>right</code>）。</p>
+<p>在二维网格里，一个格子有上下左右<strong>四个邻居</strong>（<code>r-1</code>, <code>r+1</code>, <code>c-1</code>, <code>c+1</code>）。</p>
+<p>所以网格的 DFS 就是：先把自己变成 <code>'0'</code>，然后对上下左右四个邻居分别调用 DFS。当然，<strong>必须加上边界判断</strong>，不能让雷达扫到地图外面去报错。</p>
+<h3 id="java-dfs">Java 实现（DFS 沉岛满分版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">numIslands</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 边界防御</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">islandCount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 两层 for 循环，扮演“雷达”，一格一格扫描整个地图</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rows</span><span class="p">;</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">cols</span><span class="p">;</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 如果雷达扫到了陆地 &#39;1&#39;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">islandCount</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 发现新岛屿，计数器 +1</span>
+<span class="w">                    </span><span class="n">dfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="c1">// 派出空军，把这座岛以及和它相连的陆地全部炸平！</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">islandCount</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 辅助函数：深度优先搜索（沉岛行动）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">dfs</span><span class="p">(</span><span class="kt">char</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 1. 递归终止条件（越界，或者是水）</span>
+<span class="w">        </span><span class="c1">// 如果超出了地图边界，或者当前格子已经是水（&#39;0&#39;）了，立刻返回</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 核心操作：把当前陆地“击沉”，变成水 &#39;0&#39;，防止后续重复访问！</span>
+<span class="w">        </span><span class="n">grid</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 蔓延扩散：向四周（上下左右）继续发起沉岛行动</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="c1">// 上</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">);</span><span class="w"> </span><span class="c1">// 下</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 左</span>
+<span class="w">        </span><span class="n">dfs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 右</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="M"><mrow><mi>M</mi></mrow></math></span> 和 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 分别为行数和列数。整个网格中的每个格子最多只会被主循环雷达扫描一次，被 DFS 访问一次，是极其高效的线性时间。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M × N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。在最坏情况下（整个网格全都是连成一片的陆地 <code>'1'</code>），DFS 的递归调用栈会深入到 <span class="math-inline-wrap"><math class="math-inline" aria-label="M × N"><mrow><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 层。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试细节大考问）</h3>
+<ol>
+<li><strong>面试追问 1：“如果面试官要求【绝不能修改原数组】（不可变约束），你该怎么办？”</strong>
+   - <strong>满分抢答</strong>：在真实的工程中，直接修改传入的参数确实是不好的习惯（可能有其他线程正在读这幅地图）。如果不允许原地修改 <code>grid</code> 变 <code>'0'</code>，我们可以开辟一个同等大小的布尔矩阵 <code>boolean[][] visited</code>。
+   - 每次遇到陆地时，先检查 <code>visited[r][c]</code> 是不是 <code>true</code>。如果在 DFS 遍历时，把经过的格子标记为 <code>visited[r][c] = true</code>，一样能起到防止重复计算的作用。这叫“状态备忘录”。</li>
+<li><strong>面试追问 2：“如果地图极其巨大，DFS 导致系统栈溢出了，你能用【广度优先搜索 (BFS)】来实现吗？”</strong>
+   - <strong>满分抢答</strong>：可以！思路一模一样，只是把“递归的 DFS”换成“基于队列的 BFS”。
+   - 遇到 <code>'1'</code> 时计数加 1，并把坐标存入 <code>Queue</code>。然后只要队列不为空，就弹出一个坐标，把它变成 <code>'0'</code>，并把周围合法的 <code>'1'</code> 的坐标塞进队列。这就像往水面上扔一块石头，波纹一圈圈荡开去吞噬陆地。</li>
+<li><strong>高级装杯词汇：“并查集 (Union-Find)”</strong>
+   - 这道题也是并查集的绝佳练手题。一开始把所有的 <code>'1'</code> 都看作独立的集合（各自为王），然后遍历网格，如果两个 <code>'1'</code> 相邻，就把它们“合并（Union）”成一个集合。最后统计一共有多少个独立的“大头目”即可。你能提一嘴并查集，面试官会觉得你基础非常扎实。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="../08-二叉树/0124-二叉树中的最大路径和.html">← 124. 二叉树中的最大路径和</a> · <a href="0994-腐烂的橘子.html">994. 腐烂的橘子 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/网格搜索实验室.html?embed=1&amp;mode=dfs" title="200. 岛屿数量的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

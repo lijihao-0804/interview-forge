@@ -1,0 +1,107 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>长期记忆与状态建模 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">长期记忆与状态建模</span></nav><div class="module-meta">大模型应用 · 第 18 / 33 章</div><h1>长期记忆与状态建模</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>18.1 短期记忆和长期记忆不是同一件事</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>范围</th>
+<th>LangChain/LangGraph 机制</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>短期记忆</td>
+<td>一个 thread</td>
+<td>Checkpointer + State</td>
+<td>当前对话历史</td>
+</tr>
+<tr>
+<td>长期记忆</td>
+<td>多个 thread</td>
+<td>Store + namespace/key</td>
+<td>用户长期偏好</td>
+</tr>
+<tr>
+<td>业务事实</td>
+<td>业务系统</td>
+<td>数据库/API</td>
+<td>订单、余额、权限</td>
+</tr>
+<tr>
+<td>知识资料</td>
+<td>文档集合</td>
+<td>搜索引擎/向量库</td>
+<td>产品手册、政策</td>
+</tr>
+</tbody>
+</table>
+<p>不要把业务数据库复制成“模型记忆”。订单和余额应实时查询权威系统。</p>
+<h3>18.2 使用 Store 跨线程保存偏好</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span> <span class="nn">langchain.agents</span> <span class="kn">import</span> <span class="n">create_agent</span>
+<span class="kn">from</span> <span class="nn">langchain.tools</span> <span class="kn">import</span> <span class="n">ToolRuntime</span><span class="p">,</span> <span class="n">tool</span>
+<span class="kn">from</span> <span class="nn">langgraph.store.memory</span> <span class="kn">import</span> <span class="n">InMemoryStore</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">UserContext</span><span class="p">:</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="nd">@tool</span>
+<span class="k">def</span> <span class="nf">save_preference</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">runtime</span><span class="p">:</span> <span class="n">ToolRuntime</span><span class="p">[</span><span class="n">UserContext</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;保存当前用户明确要求长期记住的偏好。&quot;&quot;&quot;</span>
+    <span class="n">store</span> <span class="o">=</span> <span class="n">runtime</span><span class="o">.</span><span class="n">store</span>
+    <span class="k">if</span> <span class="n">store</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;长期存储未配置&quot;</span>
+
+    <span class="n">namespace</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">runtime</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="s2">&quot;preferences&quot;</span><span class="p">)</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">value</span><span class="p">})</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;已保存偏好：</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="nd">@tool</span>
+<span class="k">def</span> <span class="nf">read_preference</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">runtime</span><span class="p">:</span> <span class="n">ToolRuntime</span><span class="p">[</span><span class="n">UserContext</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;读取当前用户已经保存的长期偏好。&quot;&quot;&quot;</span>
+    <span class="n">store</span> <span class="o">=</span> <span class="n">runtime</span><span class="o">.</span><span class="n">store</span>
+    <span class="k">if</span> <span class="n">store</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;长期存储未配置&quot;</span>
+
+    <span class="n">namespace</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">runtime</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="s2">&quot;preferences&quot;</span><span class="p">)</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">item</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="n">item</span> <span class="k">else</span> <span class="s2">&quot;未设置&quot;</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">InMemoryStore</span><span class="p">()</span>  <span class="c1"># 仅学习；生产换数据库支持的 Store</span>
+<span class="n">agent</span> <span class="o">=</span> <span class="n">create_agent</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">save_preference</span><span class="p">,</span> <span class="n">read_preference</span><span class="p">],</span>
+    <span class="n">store</span><span class="o">=</span><span class="n">store</span><span class="p">,</span>
+    <span class="n">context_schema</span><span class="o">=</span><span class="n">UserContext</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>命名空间必须包含可信的用户或组织隔离键，避免不同租户看到彼此记忆。</p>
+<h3>18.3 什么值得记住</h3>
+<p>长期记忆通常分为：</p>
+<ul>
+<li><strong>语义记忆</strong>：用户偏好、稳定事实；</li>
+<li><strong>情景记忆</strong>：过去任务与结果，可作为少样本示例；</li>
+<li><strong>程序记忆</strong>：系统应遵循的规则或流程。</li>
+</ul>
+<p>保存前应判断：用户是否明确同意、事实是否稳定、是否敏感、何时过期、如何删除。应提供查看、更正与删除机制。</p>
+<h3>18.4 结构化状态优于“让模型自己记”</h3>
+<p>关键状态应有明确 schema，例如：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.agents</span> <span class="kn">import</span> <span class="n">AgentState</span>
+
+<span class="k">class</span> <span class="nc">SupportState</span><span class="p">(</span><span class="n">AgentState</span><span class="p">):</span>
+    <span class="n">ticket_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">verified_user</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">escalation_reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+<p>自然语言消息适合交流，结构化字段适合程序判断。不要用“模型上一句说用户已验证”替代布尔字段和真实认证流程。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-17.html">← 上一章</a><a href="chapter-19.html">下一章 →</a></nav></main></div>
+<script>const contentId="langchain:18",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

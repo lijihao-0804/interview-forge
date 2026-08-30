@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Hot100 笔记维护与扩展规范 · Hot 100</title>
+  <link rel="stylesheet" href="assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="library/index.html">学习书架</a>
+        <a href="books/hot100/00-总览/01-学习路线.html">学习路线</a>
+        <a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="books/hot100/00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">完整使用指南</div>
+        <h1 id="hot100">Hot100 笔记维护与扩展规范</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#0">0. 日常启动方式</a></li>
+<li><a href="#1">1. 先理解三个层次</a></li>
+<li><a href="#2">2. 目录职责</a></li>
+<li><a href="#3">3. 三个脚本分别做什么</a><ul>
+<li><a href="#build_hot100py">build_hot100.py：全量重建</a></li>
+<li><a href="#build_html_sitepy">build_html_site.py：刷新网页</a></li>
+<li><a href="#check_hot100py">check_hot100.py：发布前检查</a></li>
+<li><a href="#study_serverpy">study_server.py：本地数据库服务</a></li>
+</ul>
+</li>
+<li><a href="#4">4. 日常修改的标准流程</a></li>
+<li><a href="#5">5. 新增一道题的完整流程</a><ul>
+<li><a href="#_1">第一步：登记题目元数据</a></li>
+<li><a href="#_2">第二步：登记难度</a></li>
+<li><a href="#_3">第三步：编写持久正文</a></li>
+<li><a href="#_4">第四步：需要时绑定可视化</a></li>
+<li><a href="#_5">第五步：生成并检查</a></li>
+</ul>
+</li>
+<li><a href="#6">6. 新增专题</a></li>
+<li><a href="#7">7. 题解内容标准</a></li>
+<li><a href="#8-markdown">8. Markdown、公式和代码规范</a><ul>
+<li><a href="#_6">标题</a></li>
+<li><a href="#_7">公式</a></li>
+<li><a href="#java">Java 代码</a></li>
+<li><a href="#_8">图片</a></li>
+</ul>
+</li>
+<li><a href="#9">9. 题解内嵌可视化标准</a></li>
+<li><a href="#10">10. 样式和前端代码的维护位置</a><ul>
+<li><a href="#_9">学习书架与课程模块</a></li>
+</ul>
+</li>
+<li><a href="#11">11. 发布前检查清单</a></li>
+<li><a href="#12">12. 常见问题</a><ul>
+<li><a href="#_10">修改后网页没有变化</a></li>
+<li><a href="#_11">全量重建后修改丢失</a></li>
+<li><a href="#markdown">点击链接打开 Markdown</a></li>
+<li><a href="#_12">公式显示为美元符号或命令文本</a></li>
+<li><a href="#_13">新题没有出现在首页</a></li>
+</ul>
+</li>
+<li><a href="#13">13. 最小维护原则</a></li>
+<li><a href="#14">14. 书架“待复习”体系（新增功能，维护须知）</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="index.html">返回学习面板</a> · <a href="books/hot100/04-模板/04-新增题目页面模板.html">新增题目模板</a> · <a href="QA-REPORT.html">校验报告</a> · 过程文档见 <code>报告/</code>（增强实现记录为 <code>报告\增强实现记录.md</code>）</p>
+<p>本文档是本目录的维护标准。目标是让维护者不需要阅读全部 Python 代码，也能安全修改内容、增加题目、增加可视化，并维护带 SQLite 学习记录的本地学习站。</p>
+<h2 id="0">0. 日常启动方式</h2>
+<p>不要直接双击 <code>index.html</code> 进入长期学习模式。应双击根目录的 <code>启动学习站.cmd</code>，它会启动仅监听本机的服务并自动打开学习站。命令窗口需要保持开启；学习结束后在窗口中按 <code>Ctrl+C</code> 停止。</p>
+<p>学习记录保存在 <code>data/hot100-study.db</code>。备份时复制这一份数据库即可；全量重建题解不会覆盖它。</p>
+<h2 id="1">1. 先理解三个层次</h2>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>主要位置</th>
+<th>作用</th>
+<th>是否直接维护</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内容源</td>
+<td><code>06-扩展题源/</code>、<code>build_hot100.py</code> 中的题目清单、原始资料目录</td>
+<td>保存题目正文和结构化元数据</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Markdown 中间稿</td>
+<td><code>00-总览/</code>～<code>04-模板/</code>、<code>README.md</code></td>
+<td>便于审阅、比较和再次生成</td>
+<td>视文件归属而定</td>
+</tr>
+<tr>
+<td>HTML 成品</td>
+<td><code>index.html</code>、各目录的 <code>.html</code>、<code>assets/</code></td>
+<td>日常阅读入口</td>
+<td>否，必须由脚本生成</td>
+</tr>
+<tr>
+<td>学习记录</td>
+<td><code>data/hot100-study.db</code></td>
+<td>保存看题日期、完成轮次和历史活动</td>
+<td>只备份，不手工编辑</td>
+</tr>
+</tbody>
+</table>
+<p>最重要的规则：<strong>不要把 HTML 当作内容源。</strong> 直接修改生成后的 HTML，下次运行生成器时会丢失。</p>
+<h2 id="2">2. 目录职责</h2>
+<div class="codehilite"><pre><span></span><code>学习站/
+├─ README.md                 学习入口的 Markdown 源，生成 guide.html
+├─ MAINTENANCE.md            本维护规范，生成 maintenance.html
+├─ index.html                学习面板，由 build_hot100.py 生成
+├─ 启动学习站.cmd            启动本地 SQLite 学习站
+├─ data/                     学习历史数据库，首次启动时创建
+├─ assets/                   公共 CSS/JavaScript，由 build_html_site.py 生成
+├─ 00-总览/                  学习路线、模式地图、清单、复盘模板
+├─ 01-基础/                  Java 与基础算法速查
+├─ 02-专题/                  专题说明与题目导航
+├─ 03-题解/                  独立题解的 Markdown 与 HTML 成品
+├─ 04-模板/                  解题模板、边界清单、新增题目模板
+├─ 05-可视化/                题解页内嵌交互组件的实现源与资源
+├─ 06-扩展题源/              后续新增题目的持久正文源
+├─ 99-原稿归档/              原始资料副本，只用于核对
+└─ tools/                    生成器、页面模板、本地服务与质量检查脚本
+</code></pre></div>
+
+<p><code>99-原稿归档/</code> 只用于追溯，不应在这里润色或继续写新内容。</p>
+<h2 id="3">3. 三个脚本分别做什么</h2>
+<h3 id="build_hot100py"><code>build_hot100.py</code>：全量重建</h3>
+<p>它会重新生成题解、专题、学习清单、README 和学习面板，并调用 HTML 生成器。它适用于：</p>
+<ul>
+<li>新增题目或调整题目元数据；</li>
+<li>调整专题顺序、难度、复杂度或核心不变量；</li>
+<li>需要从内容源完整恢复网站。</li>
+</ul>
+<p>注意：它会覆盖大量 Markdown 和 HTML 文件。普通的措辞小改不要习惯性运行此脚本，除非修改已经写回相应的持久内容源。</p>
+<h3 id="build_html_sitepy"><code>build_html_site.py</code>：刷新网页</h3>
+<p>它把现有 Markdown 转换成完整 HTML，将匹配的交互演示嵌入题解末尾，并更新公共样式与脚本。它适用于：</p>
+<ul>
+<li>修改某篇 Markdown 后刷新对应 HTML；</li>
+<li>修改公式渲染、阅读页样式或公共交互；</li>
+<li>更新本维护文档。</li>
+</ul>
+<h3 id="check_hot100py"><code>check_hot100.py</code>：发布前检查</h3>
+<p>它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 <code>ERROR</code>。</p>
+<h3 id="study_serverpy"><code>study_server.py</code>：本地数据库服务</h3>
+<p>它只监听 <code>127.0.0.1</code>，使用 Python 标准库提供静态页面和 JSON API，并把记录写入 SQLite：</p>
+<ul>
+<li>打开题解页时写入一条 <code>view</code>；同题 60 秒内重复刷新不会反复记账。</li>
+<li>点击“完成一轮”时写入一条 <code>complete</code>，轮次按题目自动递增。</li>
+<li>同一天可以看多题，也可以把同一题完成多轮；历史记录不会被新状态覆盖。</li>
+</ul>
+<p>学习站首页模板位于 <code>tools/templates/dashboard.tpl</code>。修改首页结构、样式或交互时改模板，不要直接改 <code>index.html</code>。</p>
+<h2 id="4">4. 日常修改的标准流程</h2>
+<ol>
+<li>判断被修改内容的持久来源，不要先改 HTML。</li>
+<li>编辑 UTF-8 编码的 Markdown 或生成器源代码。</li>
+<li>只修改普通 Markdown 时，运行：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="n">python</span> <span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">build_html_site</span><span class="p">.</span><span class="n">py</span>
+</code></pre></div>
+
+<ol start="4">
+<li>修改题目清单、专题元数据或扩展题源后，运行：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="n">python</span> <span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">build_hot100</span><span class="p">.</span><span class="n">py</span>
+</code></pre></div>
+
+<ol start="5">
+<li>最后运行：</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="n">python</span> <span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">check_hot100</span><span class="p">.</span><span class="n">py</span>
+</code></pre></div>
+
+<ol start="6">
+<li>双击 <code>启动学习站.cmd</code> 进入网站，确认新增入口、题名、专题、轮次记录和可视化链接正确。</li>
+</ol>
+<p>以上命令应在 <code>学习站</code> 目录执行。</p>
+<h2 id="5">5. 新增一道题的完整流程</h2>
+<h3 id="_1">第一步：登记题目元数据</h3>
+<p>打开 <code>tools/build_hot100.py</code>，在 <code>PROBLEM_TSV</code> 中按期望学习顺序增加一行：</p>
+<div class="codehilite"><pre><span></span><code>题号|题名|专题|核心方法|时间复杂度|空间复杂度|一句话不变量
+</code></pre></div>
+
+<p>示例：</p>
+<div class="codehilite"><pre><span></span><code>704|二分查找|二分查找|左闭右闭二分|O(log n)|O(1)|搜索区间始终包含所有仍可能等于 target 的位置
+</code></pre></div>
+
+<p>要求：</p>
+<ul>
+<li>题号必须唯一；文件名会自动补足为四位，例如 <code>704</code> 生成 <code>0704-二分查找.md</code>。</li>
+<li>专题名必须与 <code>CATEGORIES</code> 中的名称完全一致。</li>
+<li>不要在前六个字段中使用竖线 <code>|</code>。</li>
+<li>时间、空间复杂度和不变量必须描述实际采用的方法。</li>
+<li><code>PROBLEM_TSV</code> 中的顺序决定学习面板、专题列表和相邻题目的顺序。</li>
+<li>在 <code>LEETCODE_SLUGS</code> 中登记该题在力扣的 slug（即 <code>https://leetcode.cn/problems/&lt;slug&gt;/</code> 中的 <code>&lt;slug&gt;</code>，带不带 <code>?envType=study-plan-v2&amp;envId=top-100-liked</code> 参数由 <code>LEETCODE_BASE</code> 统一控制）。登记前请确认链接真实有效（题页会直接显示"前往力扣原题验证"链接；未登记时该链接不渲染，且 <code>check_hot100.py</code> 会报"题目缺少力扣 slug"）。</li>
+</ul>
+<h3 id="_2">第二步：登记难度</h3>
+<ul>
+<li>简单题：把题号加入 <code>EASY</code>。</li>
+<li>困难题：把题号加入 <code>HARD</code>。</li>
+<li>两者都不加入时默认为中等题。</li>
+</ul>
+<p>同一题不能同时出现在两个集合中。</p>
+<h3 id="_3">第三步：编写持久正文</h3>
+<p>在 <code>06-扩展题源/</code> 新建：</p>
+<div class="codehilite"><pre><span></span><code>四位题号-题名.md
+</code></pre></div>
+
+<p>例如：</p>
+<div class="codehilite"><pre><span></span><code>0704-二分查找.md
+</code></pre></div>
+
+<p>正文从 <code>### 题目与约束</code> 开始，不写一级标题、顶部元数据表、“核心不变量”和“相邻学习”；这些内容由生成器根据 <code>PROBLEM_TSV</code> 自动补齐。</p>
+<p>正文至少应包含：</p>
+<ol>
+<li><code>### 题目与约束</code></li>
+<li><code>### 思路推导</code></li>
+<li><code>### Java 实现</code></li>
+<li><code>### 复杂度</code></li>
+<li><code>### 易错点与扩展</code></li>
+</ol>
+<p>可直接复制<a href="books/hot100/04-模板/04-新增题目页面模板.html">新增题目模板</a>中的代码块。</p>
+<h3 id="_4">第四步：需要时绑定可视化</h3>
+<p>只有演示方法与题解方法真正一致时才绑定，不按专题批量套用。在 <code>tools/build_html_site.py</code> 的 <code>VISUAL_EMBEDS</code> 中增加题解源路径、组件文件和初始面板：</p>
+<div class="codehilite"><pre><span></span><code><span class="s2">&quot;03-题解/11-二分查找/0704-二分查找.md&quot;</span><span class="p">:</span> <span class="p">(</span>
+    <span class="s2">&quot;查找算法可视化.html&quot;</span><span class="p">,</span>
+    <span class="p">{</span><span class="s2">&quot;panel&quot;</span><span class="p">:</span> <span class="s2">&quot;1&quot;</span><span class="p">},</span>
+<span class="p">),</span>
+</code></pre></div>
+
+<p>组件文件必须真实存在于 <code>05-可视化/</code>，名称和大小写必须完全一致。多面板页面使用 <code>panel</code> 指定页签；带模式选择器的页面使用 <code>mode</code>。未绑定的题解不显示空演示区。</p>
+<h3 id="_5">第五步：生成并检查</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">python</span> <span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">build_hot100</span><span class="p">.</span><span class="n">py</span>
+<span class="n">python</span> <span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">check_hot100</span><span class="p">.</span><span class="n">py</span>
+</code></pre></div>
+
+<p>生成完成后，新题应同时出现在：</p>
+<ul>
+<li><code>03-题解/&lt;专题&gt;/</code> 的 Markdown 和 HTML；</li>
+<li>对应 <code>02-专题/</code> 页面；</li>
+<li><code>00-总览/03-复习清单</code>；</li>
+<li><code>index.html</code> 的搜索、专题筛选和进度统计中。</li>
+</ul>
+<p>若题页显示“本题正文待补充”，通常是扩展题源文件名中的题号与 <code>PROBLEM_TSV</code> 不一致，或正文文件为空。</p>
+<h2 id="6">6. 新增专题</h2>
+<p>只有现有 17 个专题都不合适时才增加新专题。必须同时完成：</p>
+<ol>
+<li>在 <code>CATEGORIES</code> 增加目录名、专题名、识别信号和不变量。</li>
+<li>在 <code>CATEGORY_DETAILS</code> 增加专题简介、规则和工具箱。</li>
+<li>在 <code>PROBLEM_TSV</code> 使用完全相同的专题名。</li>
+<li>检查新生成的 <code>02-专题/</code>、<code>03-题解/</code> 和首页筛选选项。</li>
+</ol>
+<p>专题目录采用 <code>两位序号-专题名</code>，不要随意更改已有序号，否则大量相对链接会改变。</p>
+<h2 id="7">7. 题解内容标准</h2>
+<p>每道题都应让学习者回答以下问题：</p>
+<ul>
+<li>看到什么信号时应该想到这个方法？</li>
+<li>核心不变量是什么？</li>
+<li>为什么每一步不会漏解或重复计算？</li>
+<li>Java 实现中每个指针、容器或状态代表什么？</li>
+<li>时间和空间复杂度为何成立？</li>
+<li>哪个最小反例能击穿常见错误写法？</li>
+</ul>
+<p>内容要求：</p>
+<ul>
+<li>保留原方法，不因润色偷偷更换算法路线。</li>
+<li>更优方法可以作为独立解法补充，并明确适用条件和复杂度差异。</li>
+<li>Java 代码应完整、可读，变量命名反映含义。</li>
+<li>不要只给代码；必须先解释状态、不变量和移动/转移依据。</li>
+<li>避免“秒杀、无敌、必会”等空泛或夸张措辞。</li>
+<li>一页只保留一个一级标题；正文从二级或三级标题继续。</li>
+</ul>
+<h2 id="8-markdown">8. Markdown、公式和代码规范</h2>
+<h3 id="_6">标题</h3>
+<ul>
+<li><code>#</code>：整页题名，只能有一个，通常由生成器提供。</li>
+<li><code>##</code>：页面主章节。</li>
+<li><code>###</code>：题目、推导、实现、复杂度等正文小节。</li>
+<li>不要通过加粗文本模拟标题。</li>
+</ul>
+<h3 id="_7">公式</h3>
+<ul>
+<li>行内公式使用 <code>$...$</code>，例如 <code>$O(n)$</code>、<code>$left \le right$</code>。</li>
+<li>独立公式使用 <code>$$...$$</code>。</li>
+<li>不要手写 <code>&amp;#x20;</code> 补空格；需要乘号时使用 <code>\times</code> 或直接写 <code>×</code>。</li>
+<li>很长的公式会在公式区域内部横向滚动，不应撑宽整个页面。</li>
+<li>当前使用本地 MathML，不依赖网络 CDN；新增复杂命令后应确认 <code>MathMLParser</code> 支持。</li>
+</ul>
+<h3 id="java">Java 代码</h3>
+<div class="codehilite"><pre><span></span><code><span class="sb">```java</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// implementation</span>
+<span class="p">}</span>
+<span class="sb">```</span>
+</code></pre></div>
+
+<ul>
+<li>代码围栏必须成对。</li>
+<li>不要把普通正文整体缩进四个空格，否则 Markdown 会误判为代码块。</li>
+<li>复杂度符号在普通正文里使用公式，在代码注释里直接写文本即可。</li>
+</ul>
+<h3 id="_8">图片</h3>
+<ul>
+<li>使用相对路径，不使用 <code>C:\...</code>、<code>E:\...</code> 等个人绝对路径。</li>
+<li>与基础笔记绑定的图片放在对应目录的 <code>pic/</code>。</li>
+<li>可视化专用资源放在 <code>05-可视化/assets/</code>。</li>
+<li>文件名尽量使用稳定的中英文、数字和连字符；重命名后必须同步更新全部引用。</li>
+</ul>
+<h2 id="9">9. 题解内嵌可视化标准</h2>
+<p>可视化实现源放在 <code>05-可视化/</code>，由生成器以嵌入模式显示在匹配题解的末尾。它不是第二份题解，也不应作为独立学习入口。至少满足：</p>
+<ul>
+<li>有 <code>lang="zh-CN"</code>、非空 <code>title</code> 和 <code>width=device-width</code> 的 viewport。</li>
+<li>嵌入模式只保留动画状态图、必要图例、单行当前状态和播放/重置控制；题名、核心题意、思考过程、输入配置、算法说明、复杂度、Java 代码和扩展追问全部隐藏。</li>
+<li>默认展示的面板必须与当前题目的方法一致；一个泛化演示不能仅按专题绑定给所有题。</li>
+<li>困难题优先补充可视化；当前困难题的集中实现位于 <code>05-可视化/困难题核心状态实验室.html</code>，新增模式后仍需在 <code>VISUAL_EMBEDS</code> 单独绑定。</li>
+<li>控件不会相互遮挡，也不会在窄窗口跑出页面。</li>
+<li>输入框、选择框和按钮有可理解的文字或 <code>aria-label</code>。</li>
+<li>键盘可以访问主要操作；焦点状态可见。</li>
+<li>Canvas 或动画区域有文字说明，不能只靠颜色表达状态。</li>
+<li>不依赖在线字体、在线脚本或临时网络资源。</li>
+<li>动画速度、自动播放和重置操作不会让学习者失去当前状态。</li>
+</ul>
+<p>新增完成后，在 <code>VISUAL_EMBEDS</code> 显式绑定题解并运行 <code>build_html_site.py</code>。生成器会注入嵌入模式、响应式增强和自动高度同步。</p>
+<h2 id="10">10. 样式和前端代码的维护位置</h2>
+<p>公共阅读页样式的真正来源是：</p>
+<ul>
+<li><code>tools/build_html_site.py</code> 中的 <code>SITE_CSS</code></li>
+<li><code>tools/build_html_site.py</code> 中的 <code>SITE_JS</code></li>
+</ul>
+<p><code>assets/site.css</code> 和 <code>assets/site.js</code> 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 <code>build_html_site.py</code>。只改 <code>assets/</code> 会在下次构建时被覆盖。</p>
+<p>学习站首页的 HTML、CSS、JavaScript 位于 <code>tools/templates/dashboard.tpl</code>，题目数据由 <code>build_hot100.py</code> 的 <code>render_dashboard()</code> 注入。数据库和 API 位于 <code>tools/study_server.py</code>。题解与可视化的对应关系位于 <code>build_html_site.py</code> 的 <code>VISUAL_EMBEDS</code>，统一修饰位于 <code>polish_visual()</code>。</p>
+<h3 id="_9">学习书架与课程模块</h3>
+<p>学习书架生成器是 <code>tools/build_library.py</code>，课程登记表是 <code>tools/library_catalog.py</code>。当前只收录明确登记的 Markdown，不会递归发布临时文件、demo README、数据库、密码文本或其他私人附件。</p>
+<p><code>Hot 100 算法刷题精讲</code> 是书架里的特殊模块：它不拆 Markdown，而是由 <code>build_hot100.py</code> 的题目目录生成，每道题指向 <code>03-题解/</code> 下已有的题解页。题目页的浏览与“完成一轮”记录会同步写入 <code>content_events</code>，因此书架进度和 Hot 100 面板始终一致；不要在 <code>library_catalog.py</code> 里为它登记 <code>source</code>。</p>
+<p>新增一本课程时：</p>
+<ol>
+<li>把源 Markdown 保留在原资料目录，不要搬进 <code>学习站/library/</code>。</li>
+<li>在 <code>LIBRARY_MODULES</code> 增加稳定的英文 <code>id</code>、标题、分类和相对源路径。</li>
+<li>使用二级标题划分章节；每个二级标题会成为独立 HTML 和独立学习记录单元。</li>
+<li>运行 <code>python .\tools\build_library.py</code>。全量运行 <code>build_hot100.py</code> 时也会自动调用它。</li>
+<li>打开学习书架，确认章节顺序、图片、公式、流程图和跨课程链接。</li>
+</ol>
+<p>课程中的 Mermaid 图表使用标准围栏，不要把 <code>flowchart LR</code> 直接写在普通正文或普通代码块里：</p>
+<div class="codehilite"><pre><span></span><code><span class="sb">```mermaid</span>
+<span class="s">flowchart LR</span>
+<span class="s">    A[输入] --&gt; B{是否满足条件}</span>
+<span class="s">    B --&gt;|是| C[处理结果]</span>
+<span class="s">    B --&gt;|否| D[返回修改]</span>
+<span class="sb">```</span>
+</code></pre></div>
+
+<p>生成器会把 <code>flowchart</code>、<code>sequenceDiagram</code>、<code>mindmap</code> 等 Mermaid 围栏转换为真正的 SVG 图表。浏览器运行库固定为 <code>tools/vendor/mermaid-11.16.1.min.js</code>，构建时复制到 <code>library/assets/</code>，因此课程断网也能显示。不要在 Markdown 中引用 Mermaid CDN，也不要直接修改 <code>library/assets/</code>。如需升级 Mermaid，应同时修改源运行库文件名、<code>build_library.py</code> 中的版本引用和 <code>check_hot100.py</code> 中的回归检查。</p>
+<p>图表维护规则：</p>
+<ul>
+<li>节点文字尽量简短；复杂解释放在图表前后的正文中。</li>
+<li>换行使用 Mermaid 支持的 <code>&lt;br/&gt;</code>，不要手写 <code>&amp;#x20;</code> 补空格。</li>
+<li>宽图优先调整方向或拆成两张图，不要在节点中堆叠大段文字。</li>
+<li>图表失败时先用 Mermaid Live Editor 排查语法，再修正源 Markdown；不要直接修改生成后的 HTML。</li>
+</ul>
+<p><code>library/</code> 全部是生成结果，不直接维护。课程记录保存在 SQLite 的 <code>content_events</code> 表中，与 Hot 100 的题目记录分开，但共用同一个数据库和启动方式。</p>
+<h2 id="11">11. 发布前检查清单</h2>
+<ul>
+<li>[ ] 新题题号唯一，题名与文件名一致。</li>
+<li>[ ] 专题、难度、方法、复杂度和不变量已登记。</li>
+<li>[ ] 题目正文包含推导、Java 代码、复杂度和易错点。</li>
+<li>[ ] 原方法仍然保留；新增优化方法已单独标明。</li>
+<li>[ ] 所有代码围栏成对，正文没有被误渲染为代码。</li>
+<li>[ ] 页面没有残留 <code>$O(n)$</code>、<code>&amp;#x20;</code> 或 Markdown 强调符。</li>
+<li>[ ] 图片、题解和内嵌可视化资源均为有效相对链接。</li>
+<li>[ ] Mermaid 围栏已渲染为图表，没有显示 <code>flowchart LR</code>、<code>sequenceDiagram</code> 或 <code>&amp;#x20;</code> 源文本。</li>
+<li>[ ] 演示位于题解末尾，没有重复题解、独立入口或错误的默认面板。</li>
+<li>[ ] 学习面板只需点击题名进入，不再重复显示“阅读题解”按钮。</li>
+<li>[ ] 所有困难题都有与实际方法一致的内嵌演示。</li>
+<li>[ ] 学习面板能搜索到新题，专题筛选正确。</li>
+<li>[ ] 双击启动脚本后显示“SQLite 数据库已连接”，打开题解会增加当天看题记录。</li>
+<li>[ ] 同一道题连续点击“完成一轮”会保留多条记录并依次显示第 1、2、3 轮。</li>
+<li>[ ] 页面不横向撑开，控件不遮挡，公式与正文基线协调。</li>
+<li>[ ] <code>check_hot100.py</code> 输出 <code>errors: 0</code>。</li>
+<li>[ ] 页面正文没有直接露出标题井号、强调星号、反引号、代码围栏或方括号加圆括号的链接写法等 Markdown 源标记。</li>
+</ul>
+<h2 id="12">12. 常见问题</h2>
+<h3 id="_10">修改后网页没有变化</h3>
+<p>先运行 <code>build_html_site.py</code>，再用 <code>Ctrl + F5</code> 强制刷新。不要直接修改 HTML 追求临时效果。</p>
+<h3 id="_11">全量重建后修改丢失</h3>
+<p>说明修改只写进了生成物。把内容移回 <code>06-扩展题源/</code>、<code>PROBLEM_TSV</code> 或相应生成函数，再重新构建。</p>
+<h3 id="markdown">点击链接打开 Markdown</h3>
+<p>检查目标 Markdown 是否被 <code>build_html_site.py</code> 纳入 <code>sources</code> 或 <code>CONTENT_DIRS</code>，并确认对应 HTML 已生成。日常学习入口必须指向 HTML。</p>
+<h3 id="_12">公式显示为美元符号或命令文本</h3>
+<p>检查美元符号是否成对、命令是否受 <code>MathMLParser</code> 支持，并确认公式没有被包进代码围栏。不要用 HTML 实体拼接 LaTeX。</p>
+<h3 id="_13">新题没有出现在首页</h3>
+<p>只创建题解 Markdown 不会更新首页数据。应将题目加入 <code>PROBLEM_TSV</code>，把正文放进 <code>06-扩展题源/</code>，然后运行完整的 <code>build_hot100.py</code>。</p>
+<h2 id="13">13. 最小维护原则</h2>
+<p>每次修改尽量只动一个权威来源，并让生成器传播到其余文件：</p>
+<div class="codehilite"><pre><span></span><code>题目元数据 + 持久正文源
+          ↓
+    build_hot100.py
+          ↓
+Markdown、专题、清单、学习面板
+          ↓
+  build_html_site.py
+          ↓
+完整离线 HTML + 公共样式
+          ↓
+   check_hot100.py
+</code></pre></div>
+
+<p>只要遵守“内容源优先、HTML 只生成、发布前全检”这三条，后续扩题和维护就不会逐渐失控。</p>
+<h2 id="14">14. 书架“待复习”体系（新增功能，维护须知）</h2>
+<p>间隔重复不只覆盖 Hot 100 题目，也覆盖书架全部模块章节，但<strong>任何页面都不再把书架与题目混排</strong>：</p>
+<ul>
+<li>Hot 100 面板“今日待复习”只显示题目；右上角“书架待复习 N 项 →”是入口，设置 <code>review_include_contents=1</code> 时题目列表下方会出现独立的“书架章节”折叠子区（不与题目混排）；</li>
+<li>书架总页 <code>library/index.html</code>：顶部“全书架待复习 N 章（逾期 M）”汇总条，模块卡右上角有“待复习 n”角标（逾期红色），数据来自 <code>GET /api/daily</code>；</li>
+<li>模块页 <code>library/&lt;module&gt;/index.html</code>：进度条下方“本模块待复习”区块列出到期章节（逾期红色）；章节卡挂“待复习/逾期”徽标；筛选器有“待复习”选项；数据来自 <code>GET /api/daily?module=&lt;module_id&gt;</code>；</li>
+<li>章节页状态条：显示“下次复习：MM-DD”，到期当天或逾期会标红；</li>
+<li>书籍章节专用复习间隔：<code>REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)</code>（<code>study_server.py</code>），Hot 100 题目维持 <code>(1,3,7,15,30,60)</code>。</li>
+</ul>
+<p>回归断言：面板不混排书架、书架总页汇总条与模块角标、模块页 due 区块、章节页下次复习行、<code>/api/daily</code> 的 <code>module</code> 参数过滤，均在 <code>check_hot100.py</code> 覆盖。</p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Java 字符串学习笔记 · Hot 100</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../library/index.html">学习书架</a>
+        <a href="../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 01-基础</div>
+        <h1 id="java">Java 字符串学习笔记</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#string">一、String 概述</a><ul>
+<li><a href="#11">1.1 核心特性</a></li>
+<li><a href="#12">1.2 字符串常量池</a></li>
+</ul>
+</li>
+<li><a href="#_1">二、创建字符串的几种方式</a></li>
+<li><a href="#api">三、常用 API（按功能分类）</a><ul>
+<li><a href="#31">3.1 基础信息</a></li>
+<li><a href="#32">3.2 判断与比较</a></li>
+<li><a href="#33">3.3 查找</a></li>
+<li><a href="#34">3.4 截取与拼接</a></li>
+<li><a href="#35">3.5 转换</a></li>
+<li><a href="#36">3.6 替换</a></li>
+<li><a href="#37">3.7 拆分</a></li>
+<li><a href="#38">3.8 格式化</a></li>
+<li><a href="#39">3.9 正则相关</a></li>
+</ul>
+</li>
+<li><a href="#stringbuilder-stringbuffer">四、StringBuilder 与 StringBuffer</a><ul>
+<li><a href="#41">4.1 区别</a></li>
+<li><a href="#42">4.2 常用方法</a></li>
+<li><a href="#43">4.3 使用示例</a></li>
+<li><a href="#44-string-vs-stringbuilder">4.4 性能对比：String vs StringBuilder</a></li>
+</ul>
+</li>
+<li><a href="#_2">五、常见面试陷阱与注意事项</a><ul>
+<li><a href="#51">5.1 字符串相等比较</a></li>
+<li><a href="#52-intern">5.2 intern() 方法</a></li>
+<li><a href="#53-switch-string">5.3 switch 对 String 的支持</a></li>
+<li><a href="#54-null">5.4 空字符串与 null 的区别</a></li>
+<li><a href="#55-jdk-15">5.5 文本块（JDK 15+）</a></li>
+</ul>
+</li>
+<li><a href="#_3">六、完整综合示例</a></li>
+<li><a href="#string-api">七、String 常用 API 速查表</a></li>
+<li><a href="#leetcode">八、LeetCode 字符串相关经典题目</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="string">一、String 概述</h2>
+<p><code>String</code> 是 Java 中最常用的类之一，用于表示文本（字符串）。</p>
+<h3 id="11">1.1 核心特性</h3>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>不可变性</strong></td>
+<td><code>String</code> 对象一旦创建，其内容<strong>不可改变</strong>。任何看似修改的操作都会创建新对象</td>
+</tr>
+<tr>
+<td><strong>final 类</strong></td>
+<td><code>String</code> 被 <code>final</code> 修饰，不能被继承</td>
+</tr>
+<tr>
+<td><strong>实现了序列化</strong></td>
+<td>实现了 <code>Serializable</code>、<code>Comparable</code>、<code>CharSequence</code> 等接口</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 不可变性示例</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello&quot;</span><span class="p">;</span>
+<span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toUpperCase</span><span class="p">();</span><span class="w"> </span><span class="c1">// 原 &quot;hello&quot; 并未改变，s 指向了新的 String 对象 &quot;HELLO&quot;</span>
+</code></pre></div>
+
+<h3 id="12">1.2 字符串常量池</h3>
+<p>Java 为了提升性能，维护了一个<strong>字符串常量池</strong>（String Pool），位于堆内存中。</p>
+<ul>
+<li>使用<strong>字面量</strong>创建字符串时，JVM 会先检查常量池中是否存在相同内容的字符串</li>
+<li>若存在，直接返回引用；不存在则在池中创建再返回</li>
+<li>使用 <code>new</code> 关键字会强制在堆中创建新对象（但字面量部分仍会入池）</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">      </span><span class="c1">// true  （常量池中同一个对象）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s3</span><span class="p">);</span><span class="w">      </span><span class="c1">// false （s3 是堆上新对象）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">s3</span><span class="p">));</span><span class="w"> </span><span class="c1">// true  （内容相同）</span>
+</code></pre></div>
+
+<blockquote>
+<p><code>==</code> 比较的是引用地址，<code>equals()</code> 比较的是内容。</p>
+</blockquote>
+<hr />
+<h2 id="_1">二、创建字符串的几种方式</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 方式1：字面量（推荐）</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello&quot;</span><span class="p">;</span>
+
+<span class="c1">// 方式2：new 关键字</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">);</span>
+
+<span class="c1">// 方式3：字符数组</span>
+<span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="sc">&#39;h&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;e&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;l&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;l&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;o&#39;</span><span class="p">};</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="n">arr</span><span class="p">);</span>
+
+<span class="c1">// 方式4：字节数组（可指定编码）</span>
+<span class="kt">byte</span><span class="o">[]</span><span class="w"> </span><span class="n">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">104</span><span class="p">,</span><span class="w"> </span><span class="mi">101</span><span class="p">,</span><span class="w"> </span><span class="mi">108</span><span class="p">,</span><span class="w"> </span><span class="mi">108</span><span class="p">,</span><span class="w"> </span><span class="mi">111</span><span class="p">};</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="n">bytes</span><span class="p">);</span><span class="w">                     </span><span class="c1">// 默认 UTF-8</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s5</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="n">bytes</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;UTF-8&quot;</span><span class="p">);</span>
+
+<span class="c1">// 方式5：StringBuilder / StringBuffer</span>
+<span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s6</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">();</span>
+</code></pre></div>
+
+<p><strong>预期结果：</strong></p>
+<div class="codehilite"><pre><span></span><code>s1 = hello, s2 = hello, s3 = hello, s4 = hello, s5 = hello, s6 = hello
+</code></pre></div>
+
+<hr />
+<h2 id="api">三、常用 API（按功能分类）</h2>
+<h3 id="31">3.1 基础信息</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>length()</code></td>
+<td>返回字符串长度</td>
+<td><code>"hello".length()</code></td>
+<td><code>5</code></td>
+</tr>
+<tr>
+<td><code>isEmpty()</code></td>
+<td>是否为空字符串</td>
+<td><code>"".isEmpty()</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>isBlank()</code></td>
+<td>是否空白（JDK 11+）</td>
+<td><code>"  ".isBlank()</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>charAt(i)</code></td>
+<td>返回指定索引的字符</td>
+<td><code>"hello".charAt(1)</code></td>
+<td><code>'e'</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">str</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello&quot;</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">str</span><span class="p">.</span><span class="na">length</span><span class="p">());</span><span class="w">   </span><span class="c1">// 5</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">str</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">());</span><span class="w">  </span><span class="c1">// false</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">str</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="mi">0</span><span class="p">));</span><span class="w">  </span><span class="c1">// h</span>
+</code></pre></div>
+
+<hr />
+<h3 id="32">3.2 判断与比较</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>equals(obj)</code></td>
+<td>比较内容是否相等</td>
+<td><code>"abc".equals("abc")</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>equalsIgnoreCase(s)</code></td>
+<td>忽略大小写比较</td>
+<td><code>"Abc".equalsIgnoreCase("abc")</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>compareTo(s)</code></td>
+<td>字典序比较，返回差值</td>
+<td><code>"a".compareTo("b")</code></td>
+<td><code>-1</code></td>
+</tr>
+<tr>
+<td><code>compareToIgnoreCase(s)</code></td>
+<td>忽略大小写字典序比较</td>
+<td><code>"A".compareToIgnoreCase("b")</code></td>
+<td><code>-1</code></td>
+</tr>
+<tr>
+<td><code>contentEquals(cs)</code></td>
+<td>与 <code>CharSequence</code> 比较</td>
+<td><code>"abc".contentEquals("abc")</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;Java&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;java&quot;</span><span class="p">;</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">b</span><span class="p">));</span><span class="w">               </span><span class="c1">// false</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">equalsIgnoreCase</span><span class="p">(</span><span class="n">b</span><span class="p">));</span><span class="w">     </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">compareTo</span><span class="p">(</span><span class="n">b</span><span class="p">));</span><span class="w">            </span><span class="c1">// -32 （&#39;J&#39; - &#39;j&#39; 的 ASCII 差）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">compareToIgnoreCase</span><span class="p">(</span><span class="n">b</span><span class="p">));</span><span class="w">  </span><span class="c1">// 0</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong><code>compareTo</code> 返回值规则：</strong> 按字典序逐个比较字符，遇到第一个不同字符时返回 <code>char1 - char2</code>；若前缀相同，则返回 <code>len1 - len2</code>。</p>
+</blockquote>
+<hr />
+<h3 id="33">3.3 查找</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>indexOf(ch)</code></td>
+<td>字符首次出现的索引</td>
+<td><code>"hello".indexOf('l')</code></td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>indexOf(ch, from)</code></td>
+<td>从指定位置开始查找</td>
+<td><code>"hello".indexOf('l', 3)</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>indexOf(str)</code></td>
+<td>子串首次出现的索引</td>
+<td><code>"hello".indexOf("ll")</code></td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>lastIndexOf(ch)</code></td>
+<td>字符最后一次出现的索引</td>
+<td><code>"hello".lastIndexOf('l')</code></td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>lastIndexOf(str)</code></td>
+<td>子串最后一次出现的索引</td>
+<td><code>"abab".lastIndexOf("ab")</code></td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>contains(cs)</code></td>
+<td>是否包含指定字符序列</td>
+<td><code>"hello".contains("ell")</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>startsWith(prefix)</code></td>
+<td>是否以指定前缀开头</td>
+<td><code>"hello".startsWith("he")</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>endsWith(suffix)</code></td>
+<td>是否以指定后缀结尾</td>
+<td><code>"hello".endsWith("lo")</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello world&quot;</span><span class="p">;</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="sc">&#39;o&#39;</span><span class="p">));</span><span class="w">        </span><span class="c1">// 4</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="sc">&#39;o&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">));</span><span class="w">     </span><span class="c1">// 7</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="s">&quot;world&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// 6</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">lastIndexOf</span><span class="p">(</span><span class="sc">&#39;o&#39;</span><span class="p">));</span><span class="w">   </span><span class="c1">// 7</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">&quot;lo wo&quot;</span><span class="p">));</span><span class="w">  </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">startsWith</span><span class="p">(</span><span class="s">&quot;he&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">endsWith</span><span class="p">(</span><span class="s">&quot;ld&quot;</span><span class="p">));</span><span class="w">     </span><span class="c1">// true</span>
+</code></pre></div>
+
+<hr />
+<h3 id="34">3.4 截取与拼接</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>substring(begin)</code></td>
+<td>从 begin 截取到末尾</td>
+<td><code>"hello".substring(2)</code></td>
+<td><code>"llo"</code></td>
+</tr>
+<tr>
+<td><code>substring(begin, end)</code></td>
+<td>截取 [begin, end) 区间</td>
+<td><code>"hello".substring(1, 4)</code></td>
+<td><code>"ell"</code></td>
+</tr>
+<tr>
+<td><code>concat(s)</code></td>
+<td>拼接字符串</td>
+<td><code>"a".concat("b")</code></td>
+<td><code>"ab"</code></td>
+</tr>
+<tr>
+<td><code>join(delim, elements...)</code></td>
+<td>用分隔符拼接（静态方法）</td>
+<td><code>String.join("-", "a", "b", "c")</code></td>
+<td><code>"a-b-c"</code></td>
+</tr>
+<tr>
+<td><code>repeat(n)</code></td>
+<td>重复字符串 n 次（JDK 11+）</td>
+<td><code>"ha".repeat(3)</code></td>
+<td><code>"hahaha"</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;HelloWorld&quot;</span><span class="p">;</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">          </span><span class="c1">// World</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">));</span><span class="w">       </span><span class="c1">// Hello</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">concat</span><span class="p">(</span><span class="s">&quot;!!!&quot;</span><span class="p">));</span><span class="w">         </span><span class="c1">// HelloWorld!!!</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">join</span><span class="p">(</span><span class="s">&quot;, &quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">));</span><span class="w"> </span><span class="c1">// A, B, C</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;ha&quot;</span><span class="p">.</span><span class="na">repeat</span><span class="p">(</span><span class="mi">3</span><span class="p">));</span><span class="w">          </span><span class="c1">// hahaha</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong>注意：</strong> <code>substring</code> 在 JDK 7+ 中是左闭右开区间 <code>[begin, end)</code>。</p>
+</blockquote>
+<hr />
+<h3 id="35">3.5 转换</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>toUpperCase()</code></td>
+<td>转大写</td>
+<td><code>"abc".toUpperCase()</code></td>
+<td><code>"ABC"</code></td>
+</tr>
+<tr>
+<td><code>toLowerCase()</code></td>
+<td>转小写</td>
+<td><code>"ABC".toLowerCase()</code></td>
+<td><code>"abc"</code></td>
+</tr>
+<tr>
+<td><code>trim()</code></td>
+<td>去除首尾空格</td>
+<td><code>"  hi  ".trim()</code></td>
+<td><code>"hi"</code></td>
+</tr>
+<tr>
+<td><code>strip()</code></td>
+<td>去除首尾全角/半角空白（JDK 11+）</td>
+<td><code>"　hi".strip()</code></td>
+<td><code>"hi"</code></td>
+</tr>
+<tr>
+<td><code>toCharArray()</code></td>
+<td>转为 char 数组</td>
+<td><code>"abc".toCharArray()</code></td>
+<td><code>{'a','b','c'}</code></td>
+</tr>
+<tr>
+<td><code>getBytes()</code></td>
+<td>转为字节数组</td>
+<td><code>"abc".getBytes()</code></td>
+<td><code>{97, 98, 99}</code></td>
+</tr>
+<tr>
+<td><code>valueOf(x)</code></td>
+<td>将各种类型转为字符串（静态方法）</td>
+<td><code>String.valueOf(123)</code></td>
+<td><code>"123"</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;  Java Programming  &quot;</span><span class="p">;</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">trim</span><span class="p">());</span><span class="w">                   </span><span class="c1">// &quot;Java Programming&quot;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">.</span><span class="na">toUpperCase</span><span class="p">());</span><span class="w">      </span><span class="c1">// &quot;HELLO&quot;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;HELLO&quot;</span><span class="p">.</span><span class="na">toLowerCase</span><span class="p">());</span><span class="w">      </span><span class="c1">// &quot;hello&quot;</span>
+
+<span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">chars</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="n">c</span><span class="p">);</span><span class="w">                </span><span class="c1">// 97 \n 98 \n 99</span>
+<span class="p">}</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="mf">3.14</span><span class="p">));</span><span class="w">        </span><span class="c1">// &quot;3.14&quot;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="kc">true</span><span class="p">));</span><span class="w">        </span><span class="c1">// &quot;true&quot;</span>
+</code></pre></div>
+
+<hr />
+<h3 id="36">3.6 替换</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>replace(old, new)</code></td>
+<td>替换所有匹配的字符或字符串</td>
+<td><code>"a.b.c".replace(".", "-")</code></td>
+<td><code>"a-b-c"</code></td>
+</tr>
+<tr>
+<td><code>replaceAll(regex, new)</code></td>
+<td>正则匹配替换</td>
+<td><code>"a1b2c3".replaceAll("\\d", "-")</code></td>
+<td><code>"a-b-c-"</code></td>
+</tr>
+<tr>
+<td><code>replaceFirst(regex, new)</code></td>
+<td>正则匹配替换第一个</td>
+<td><code>"a1b2c3".replaceFirst("\\d", "-")</code></td>
+<td><code>"a-b2c3"</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;apple,banana,apple&quot;</span><span class="p">;</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">replace</span><span class="p">(</span><span class="s">&quot;apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;orange&quot;</span><span class="p">));</span><span class="w">       </span><span class="c1">// orange,banana,orange</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">replaceAll</span><span class="p">(</span><span class="s">&quot;a.+?e&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;X&quot;</span><span class="p">));</span><span class="w">         </span><span class="c1">// X,banana,X  （正则匹配）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="na">replaceFirst</span><span class="p">(</span><span class="s">&quot;apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;orange&quot;</span><span class="p">));</span><span class="w">  </span><span class="c1">// orange,banana,apple</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong><code>replace</code> vs <code>replaceAll</code>：</strong> <code>replace</code> 参数是普通字符串，<code>replaceAll</code> 参数是正则表达式。如果不需要正则，优先用 <code>replace</code>。</p>
+</blockquote>
+<hr />
+<h3 id="37">3.7 拆分</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>split(regex)</code></td>
+<td>按正则拆分</td>
+<td><code>"a,b,c".split(",")</code></td>
+<td><code>["a","b","c"]</code></td>
+</tr>
+<tr>
+<td><code>split(regex, limit)</code></td>
+<td>限制拆分次数</td>
+<td><code>"a,b,c".split(",", 2)</code></td>
+<td><code>["a","b,c"]</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;one,two,three,four&quot;</span><span class="p">;</span>
+
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">arr1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr1</span><span class="p">));</span><span class="w">     </span><span class="c1">// [one, two, three, four]</span>
+
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">arr2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr2</span><span class="p">));</span><span class="w">     </span><span class="c1">// [one, two,three,four]</span>
+
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">arr3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr3</span><span class="p">));</span><span class="w">     </span><span class="c1">// [one, two, three,four]</span>
+
+<span class="c1">// 特殊字符需要转义</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;a.b.c&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">arr4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;\\.&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr4</span><span class="p">));</span><span class="w">     </span><span class="c1">// [a, b, c]</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong>陷阱提示：</strong> <code>split(".")</code> 是错误的，因为 <code>.</code> 在正则中匹配任意字符，必须转义为 <code>\\\\.</code> 或使用 <code>split("\\.")</code>。</p>
+</blockquote>
+<hr />
+<h3 id="38">3.8 格式化</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>format(format, args...)</code></td>
+<td>格式化字符串（静态方法）</td>
+<td><code>String.format("你好 %s！", "Java")</code></td>
+<td><code>"你好 Java！"</code></td>
+</tr>
+<tr>
+<td><code>formatted(args...)</code></td>
+<td>JDK 15 文本块格式</td>
+<td><code>"你好 %s！".formatted("Java")</code></td>
+<td><code>"你好 Java！"</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;小明&quot;</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">18</span><span class="p">;</span>
+<span class="kt">double</span><span class="w"> </span><span class="n">score</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">95.5</span><span class="p">;</span>
+
+<span class="c1">// %s 字符串，%d 整数，%.1f 小数（保留1位），%n 换行</span>
+<span class="n">String</span><span class="w"> </span><span class="n">info</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">format</span><span class="p">(</span><span class="s">&quot;姓名：%s，年龄：%d，成绩：%.1f&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">age</span><span class="p">,</span><span class="w"> </span><span class="n">score</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">info</span><span class="p">);</span><span class="w">   </span><span class="c1">// 姓名：小明，年龄：18，成绩：95.5</span>
+
+<span class="c1">// 数字补零</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">format</span><span class="p">(</span><span class="s">&quot;%05d&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">42</span><span class="p">));</span><span class="w">   </span><span class="c1">// 00042</span>
+
+<span class="c1">// 左对齐</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">String</span><span class="p">.</span><span class="na">format</span><span class="p">(</span><span class="s">&quot;%-10s!&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">));</span><span class="w"> </span><span class="c1">// abc       !</span>
+</code></pre></div>
+
+<p>常用格式占位符：</p>
+<table>
+<thead>
+<tr>
+<th>占位符</th>
+<th>说明</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%s</code></td>
+<td>字符串</td>
+<td><code>"hello"</code></td>
+</tr>
+<tr>
+<td><code>%d</code></td>
+<td>整数</td>
+<td><code>123</code></td>
+</tr>
+<tr>
+<td><code>%f</code></td>
+<td>浮点数</td>
+<td><code>3.140000</code></td>
+</tr>
+<tr>
+<td><code>%.2f</code></td>
+<td>保留2位小数</td>
+<td><code>3.14</code></td>
+</tr>
+<tr>
+<td><code>%x</code></td>
+<td>十六进制</td>
+<td><code>7b</code></td>
+</tr>
+<tr>
+<td><code>%n</code></td>
+<td>换行符</td>
+<td><code>\n</code></td>
+</tr>
+<tr>
+<td><code>%tY</code></td>
+<td>年份（4位）</td>
+<td><code>2026</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="39">3.9 正则相关</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+<th>示例</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>matches(regex)</code></td>
+<td>是否完全匹配正则</td>
+<td><code>"abc".matches("[a-z]+")</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 手机号校验（简单版）</span>
+<span class="n">String</span><span class="w"> </span><span class="n">phone</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;13812345678&quot;</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">phone</span><span class="p">.</span><span class="na">matches</span><span class="p">(</span><span class="s">&quot;1[3-9]\\d{9}&quot;</span><span class="p">));</span><span class="w">  </span><span class="c1">// true</span>
+
+<span class="c1">// 邮箱校验（简单版）</span>
+<span class="n">String</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;user@example.com&quot;</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">email</span><span class="p">.</span><span class="na">matches</span><span class="p">(</span><span class="s">&quot;\\w+@\\w+\\.\\w+&quot;</span><span class="p">));</span><span class="w">  </span><span class="c1">// true</span>
+</code></pre></div>
+
+<hr />
+<h2 id="stringbuilder-stringbuffer">四、StringBuilder 与 StringBuffer</h2>
+<p>由于 <code>String</code> 不可变，频繁拼接字符串会产生大量临时对象，性能差。应使用 <code>StringBuilder</code> 或 <code>StringBuffer</code>。</p>
+<h3 id="41">4.1 区别</h3>
+<table>
+<thead>
+<tr>
+<th>类</th>
+<th>线程安全</th>
+<th>性能</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StringBuilder</code></td>
+<td>❌ 不安全</td>
+<td>高</td>
+<td><strong>单线程</strong>（推荐）</td>
+</tr>
+<tr>
+<td><code>StringBuffer</code></td>
+<td>✅ 安全（synchronized）</td>
+<td>较低</td>
+<td>多线程共享</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42">4.2 常用方法</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>append(x)</code></td>
+<td>追加内容</td>
+</tr>
+<tr>
+<td><code>insert(index, x)</code></td>
+<td>在指定位置插入</td>
+</tr>
+<tr>
+<td><code>delete(start, end)</code></td>
+<td>删除 [start, end) 区间的字符</td>
+</tr>
+<tr>
+<td><code>deleteCharAt(index)</code></td>
+<td>删除指定位置的字符</td>
+</tr>
+<tr>
+<td><code>replace(start, end, str)</code></td>
+<td>替换区间内容</td>
+</tr>
+<tr>
+<td><code>reverse()</code></td>
+<td>反转字符串</td>
+</tr>
+<tr>
+<td><code>toString()</code></td>
+<td>转为 String</td>
+</tr>
+<tr>
+<td><code>length()</code></td>
+<td>当前长度</td>
+</tr>
+<tr>
+<td><code>charAt(index)</code></td>
+<td>获取指定索引字符</td>
+</tr>
+<tr>
+<td><code>setCharAt(index, ch)</code></td>
+<td>修改指定索引字符</td>
+</tr>
+<tr>
+<td><code>substring(start, end)</code></td>
+<td>截取子串</td>
+</tr>
+<tr>
+<td><code>capacity()</code></td>
+<td>当前容量</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43">4.3 使用示例</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+
+<span class="c1">// 追加</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;Hello&quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;World&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// Hello World</span>
+
+<span class="c1">// 插入</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">insert</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="s">&quot; Java&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// Hello Java World</span>
+
+<span class="c1">// 替换</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">replace</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C++&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// Hello C++ World</span>
+
+<span class="c1">// 删除</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">delete</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// Hello World</span>
+
+<span class="c1">// 反转</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">reverse</span><span class="p">();</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// dlroW olleH</span>
+
+<span class="c1">// 修改指定字符</span>
+<span class="n">sb</span><span class="p">.</span><span class="na">setCharAt</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;D&#39;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span><span class="w">              </span><span class="c1">// DlroW olleH</span>
+</code></pre></div>
+
+<h3 id="44-string-vs-stringbuilder">4.4 性能对比：String vs StringBuilder</h3>
+<div class="codehilite"><pre><span></span><code><span class="kt">long</span><span class="w"> </span><span class="n">start</span><span class="p">;</span>
+
+<span class="c1">// ❌ 差：String 拼接（产生大量中间对象）</span>
+<span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">currentTimeMillis</span><span class="p">();</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">10000</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">s</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w">  </span><span class="c1">// 每次循环都创建新 String 对象</span>
+<span class="p">}</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;String 耗时：&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">currentTimeMillis</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;ms&quot;</span><span class="p">);</span>
+
+<span class="c1">// ✅ 好：StringBuilder 拼接</span>
+<span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">currentTimeMillis</span><span class="p">();</span>
+<span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">10000</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;StringBuilder 耗时：&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">currentTimeMillis</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;ms&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<p><strong>预期结果（数量级参考）：</strong></p>
+<div class="codehilite"><pre><span></span><code>String 耗时：~150ms
+StringBuilder 耗时：~1ms
+</code></pre></div>
+
+<blockquote>
+<p>在循环拼接时，<code>StringBuilder</code> 比 <code>String</code> 快 <strong>上百倍</strong>！</p>
+</blockquote>
+<hr />
+<h2 id="_2">五、常见面试陷阱与注意事项</h2>
+<h3 id="51">5.1 字符串相等比较</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;abc&quot;</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;ab&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;c&quot;</span><span class="p">;</span><span class="w">       </span><span class="c1">// 编译期常量折叠，等价于 &quot;abc&quot;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s5</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;ab&quot;</span><span class="p">;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s6</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s5</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;c&quot;</span><span class="p">;</span><span class="w">         </span><span class="c1">// 运行时拼接，堆上新对象</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">     </span><span class="c1">// true  （常量池）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s3</span><span class="p">);</span><span class="w">     </span><span class="c1">// false （new 创建了新对象）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s4</span><span class="p">);</span><span class="w">     </span><span class="c1">// true  （编译期已确定为 &quot;abc&quot;）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s6</span><span class="p">);</span><span class="w">     </span><span class="c1">// false （运行时拼接，新对象）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">s3</span><span class="p">));</span><span class="w"> </span><span class="c1">// true （比较内容）</span>
+</code></pre></div>
+
+<h3 id="52-intern">5.2 intern() 方法</h3>
+<p>将字符串手动加入常量池：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="p">);</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="p">.</span><span class="na">intern</span><span class="p">();</span><span class="w">       </span><span class="c1">// 从常量池中获取</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">  </span><span class="c1">// false（s1 是堆对象，s2 是常量池对象）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;hello&quot;</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w"> </span><span class="c1">// true（都是常量池对象）</span>
+</code></pre></div>
+
+<h3 id="53-switch-string">5.3 switch 对 String 的支持</h3>
+<p>Java 7+ 支持 <code>switch</code> 使用 <code>String</code>：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">fruit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;apple&quot;</span><span class="p">;</span>
+
+<span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">fruit</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;apple&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;苹果&quot;</span><span class="p">);</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;banana&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;香蕉&quot;</span><span class="p">);</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="k">default</span><span class="p">:</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;未知&quot;</span><span class="p">);</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="c1">// 输出：苹果</span>
+</code></pre></div>
+
+<h3 id="54-null">5.4 空字符串与 null 的区别</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span><span class="w">      </span><span class="c1">// 空字符串，length() = 0，不是 null</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">    </span><span class="c1">// 空对象引用</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">());</span><span class="w">   </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="p">.</span><span class="na">length</span><span class="p">());</span><span class="w">    </span><span class="c1">// 0</span>
+<span class="c1">// System.out.println(s2.length()); // ❌ 空指针异常 NullPointerException</span>
+</code></pre></div>
+
+<h3 id="55-jdk-15">5.5 文本块（JDK 15+）</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 传统方式</span>
+<span class="n">String</span><span class="w"> </span><span class="n">html1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;&lt;html&gt;\n&quot;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">               </span><span class="s">&quot;    &lt;body&gt;\n&quot;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">               </span><span class="s">&quot;        &lt;p&gt;你好&lt;/p&gt;\n&quot;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">               </span><span class="s">&quot;    &lt;/body&gt;\n&quot;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">               </span><span class="s">&quot;&lt;/html&gt;&quot;</span><span class="p">;</span>
+
+<span class="c1">// 文本块方式（JDK 15+）</span>
+<span class="n">String</span><span class="w"> </span><span class="n">html2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;&quot;&quot;</span>
+<span class="s">              &lt;html&gt;</span>
+<span class="s">                  &lt;body&gt;</span>
+<span class="s">                      &lt;p&gt;你好&lt;/p&gt;</span>
+<span class="s">                  &lt;/body&gt;</span>
+<span class="s">              &lt;/html&gt;</span>
+<span class="s">              &quot;&quot;&quot;</span><span class="p">;</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_3">六、完整综合示例</h2>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">StringDemo</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+
+<span class="w">        </span><span class="c1">// ========== 1. 创建字符串 ==========</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">str1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;  Hello, Java World!  &quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">str2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello, java world!&quot;</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;原始字符串1: &#39;&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;&#39;&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;原始字符串2: &#39;&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;&#39;&quot;</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// ========== 2. 基础信息 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 基础信息 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;str1 长度: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">length</span><span class="p">());</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;str1 是否为空: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">());</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;str1 索引2的字符: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 3. 比较 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 比较 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;忽略大小写比较: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">trim</span><span class="p">().</span><span class="na">equalsIgnoreCase</span><span class="p">(</span><span class="n">str2</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;严格比较: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">trim</span><span class="p">().</span><span class="na">equals</span><span class="p">(</span><span class="n">str2</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 4. 查找 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 查找 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;&#39;Java&#39; 首次出现位置: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="s">&quot;Java&quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;&#39;o&#39; 最后出现位置: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">lastIndexOf</span><span class="p">(</span><span class="sc">&#39;o&#39;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;包含 &#39;World&#39;: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">&quot;World&quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;以空格开头: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">startsWith</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;以空格结尾: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">endsWith</span><span class="p">(</span><span class="s">&quot;  &quot;</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 5. 截取与拼接 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 截取与拼接 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">trimmed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">str1</span><span class="p">.</span><span class="na">trim</span><span class="p">();</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;去空格后: &#39;&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">trimmed</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;&#39;&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;substring(7, 11): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="na">substring</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">11</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;拼接: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="na">concat</span><span class="p">(</span><span class="s">&quot;!&quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;join: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">join</span><span class="p">(</span><span class="s">&quot;-&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 6. 转换 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 转换 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;大写: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="na">toUpperCase</span><span class="p">());</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;小写: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="na">toLowerCase</span><span class="p">());</span>
+
+<span class="w">        </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trimmed</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;char数组第一个字符: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">chars</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;String.valueOf(123): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="mi">123</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;String.valueOf(true): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="kc">true</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 7. 替换与拆分 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 替换与拆分 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">csv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;apple,banana,orange,grape&quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;替换逗号为竖线: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">csv</span><span class="p">.</span><span class="na">replace</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot; | &quot;</span><span class="p">));</span>
+
+<span class="w">        </span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">fruits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">csv</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="s">&quot;拆分结果: &quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">fruits</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; &quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// ========== 8. 正则 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 正则 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;&#39;123&#39; 是否全为数字: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;123&quot;</span><span class="p">.</span><span class="na">matches</span><span class="p">(</span><span class="s">&quot;\\d+&quot;</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;&#39;abc123&#39; 替换数字为*: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;abc123xyz&quot;</span><span class="p">.</span><span class="na">replaceAll</span><span class="p">(</span><span class="s">&quot;\\d+&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;*&quot;</span><span class="p">));</span>
+
+<span class="w">        </span><span class="c1">// ========== 9. StringBuilder ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== StringBuilder =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;《静夜思》&quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;\n&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;床前明月光，&quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;\n&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;疑是地上霜。&quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;\n&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;举头望明月，&quot;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;\n&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="s">&quot;低头思故乡。&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span>
+
+<span class="w">        </span><span class="c1">// 反转</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">reverse</span><span class="p">();</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;反转后: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span>
+
+<span class="w">        </span><span class="c1">// ========== 10. 格式化 ==========</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 格式化 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">formatted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">format</span><span class="p">(</span>
+<span class="w">            </span><span class="s">&quot;姓名：%s，年龄：%d，分数：%.1f&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;张三&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="mf">92.5</span>
+<span class="w">        </span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">formatted</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>预期输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>原始字符串1: &#39;  Hello, Java World!  &#39;
+原始字符串2: &#39;hello, java world!&#39;
+
+===== 基础信息 =====
+str1 长度: 22
+str1 是否为空: false
+str1 索引2的字符: H
+
+===== 比较 =====
+忽略大小写比较: true
+严格比较: false
+
+===== 查找 =====
+&#39;Java&#39; 首次出现位置: 9
+&#39;o&#39; 最后出现位置: 16
+包含 &#39;World&#39;: true
+以空格开头: true
+以空格结尾: true
+
+===== 截取与拼接 =====
+去空格后: &#39;Hello, Java World!&#39;
+substring(7, 11): Java
+拼接: Hello, Java World!!
+join: A-B-C
+
+===== 转换 =====
+大写: HELLO, JAVA WORLD!
+小写: hello, java world!
+char数组第一个字符: H
+String.valueOf(123): 123
+String.valueOf(true): true
+
+===== 替换与拆分 =====
+替换逗号为竖线: apple | banana | orange | grape
+拆分结果: apple banana orange grape
+
+===== 正则 =====
+&#39;123&#39; 是否全为数字: true
+&#39;abc123&#39; 替换数字为*: abc*xyz
+
+===== StringBuilder =====
+《静夜思》
+床前明月光，
+疑是地上霜。
+举头望明月，
+低头思故乡。
+反转后: 。乡故思头低
+，月明望头举
+。霜上地是疑
+，光月明前床
+《思夜静》
+
+===== 格式化 =====
+姓名：张三，年龄：20，分数：92.5
+</code></pre></div>
+
+<hr />
+<h2 id="string-api">七、String 常用 API 速查表</h2>
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────────────────────┐
+│                   String 常用方法速查                      │
+├────────────────────┬─────────────────────────────────────┤
+│   length()         │   获取字符串长度                      │
+│   charAt(i)        │   获取指定索引字符                    │
+│   toCharArray()    │   转 char 数组                        │
+│   equals(s)        │   比较内容是否相等                     │
+│   equalsIgnoreCase │   忽略大小写比较                      │
+│   compareTo(s)     │   字典序比较                          │
+│   indexOf(s)       │   查找子串首次出现位置                 │
+│   lastIndexOf(s)   │   查找子串最后出现位置                 │
+│   contains(s)      │   是否包含子串                        │
+│   startsWith(s)    │   是否以指定前缀开头                   │
+│   endsWith(s)      │   是否以指定后缀结尾                   │
+│   substring(b,e)   │   截取 [b, e) 子串                    │
+│   concat(s)        │   拼接                                │
+│   join(delim, ..)  │   用分隔符拼接（静态）                 │
+│   toUpperCase()    │   转大写                              │
+│   toLowerCase()    │   转小写                              │
+│   trim()           │   去首尾空格                          │
+│   strip()          │   去首尾空白（含全角，JDK 11+）        │
+│   replace(a,b)     │   替换字符/字符串                     │
+│   replaceAll(r,s)  │   正则替换                            │
+│   split(regex)     │   按正则拆分                          │
+│   matches(regex)   │   是否匹配正则                        │
+│   format(f,args)   │   格式化（静态）                      │
+│   valueOf(x)       │   各种类型转字符串（静态）             │
+│   repeat(n)        │   重复 n 次（JDK 11+）                │
+│   isBlank()        │   是否空白（JDK 11+）                 │
+│   indent(n)        │   缩进 n 格（JDK 11+）                │
+│   intern()         │   从常量池获取                        │
+├────────────────────┴─────────────────────────────────────┤
+│                  StringBuilder 常用方法                    │
+├────────────────────┬─────────────────────────────────────┤
+│   append(x)        │   追加（返回自身，可链式调用）          │
+│   insert(i, x)     │   插入                                │
+│   delete(s, e)     │   删除 [s, e)                         │
+│   reverse()        │   反转                                │
+│   toString()       │   转 String                           │
+└────────────────────┴─────────────────────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="leetcode">八、LeetCode 字符串相关经典题目</h2>
+<table>
+<thead>
+<tr>
+<th>题目</th>
+<th>难度</th>
+<th>涉及知识点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://leetcode.cn/problems/reverse-string/" target="_blank" rel="noopener noreferrer">344. 反转字符串</a></td>
+<td>简单</td>
+<td><code>toCharArray()</code>、双指针</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/reverse-string-ii/" target="_blank" rel="noopener noreferrer">541. 反转字符串 II</a></td>
+<td>简单</td>
+<td>字符串操作</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/reverse-words-in-a-string/" target="_blank" rel="noopener noreferrer">151. 反转字符串中的单词</a></td>
+<td>中等</td>
+<td><code>split()</code>、<code>trim()</code>、<code>join()</code></td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/find-the-index-of-the-first-occurrence-in-a-string/" target="_blank" rel="noopener noreferrer">28. 找出字符串中第一个匹配项的下标</a></td>
+<td>简单</td>
+<td><code>indexOf()</code>、KMP</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/valid-palindrome/" target="_blank" rel="noopener noreferrer">125. 验证回文串</a></td>
+<td>简单</td>
+<td><code>Character</code> 类、双指针</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/longest-substring-without-repeating-characters/" target="_blank" rel="noopener noreferrer">3. 无重复字符的最长子串</a></td>
+<td>中等</td>
+<td>滑动窗口</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/longest-palindromic-substring/" target="_blank" rel="noopener noreferrer">5. 最长回文子串</a></td>
+<td>中等</td>
+<td>中心扩展法、动态规划</td>
+</tr>
+<tr>
+<td><a href="https://leetcode.cn/problems/longest-common-prefix/" target="_blank" rel="noopener noreferrer">14. 最长公共前缀</a></td>
+<td>简单</td>
+<td>字符串比较</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<blockquote>
+<p><strong>提示：</strong> 字符串题目在面试中出镜率极高，务必熟练掌握以上所有 API 的用法。尤其注意 <code>==</code> 与 <code>equals()</code> 的区别、<code>StringBuilder</code> 的性能优势、以及正则表达式的常见用法。</p>
+</blockquote>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

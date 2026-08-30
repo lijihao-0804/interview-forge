@@ -1,0 +1,1326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Java 集合（Collection）学习笔记 · Hot 100</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../library/index.html">学习书架</a>
+        <a href="../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 01-基础</div>
+        <h1 id="java-collection">Java 集合（Collection）学习笔记</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">一、集合框架概述</a></li>
+<li><a href="#collection">二、Collection 接口（所有单列集合的根接口）</a><ul>
+<li><a href="#21">2.1 通用方法</a></li>
+</ul>
+</li>
+<li><a href="#list">三、List（列表）</a><ul>
+<li><a href="#31-arraylist">3.1 ArrayList —— 底层数组，查询快，增删慢</a></li>
+<li><a href="#32-linkedlist">3.2 LinkedList —— 底层双向链表，增删快，查询慢</a></li>
+<li><a href="#33-arraylist-vs-linkedlist">3.3 ArrayList vs LinkedList 对比</a></li>
+</ul>
+</li>
+<li><a href="#set">四、Set（集合）</a><ul>
+<li><a href="#41-hashset">4.1 HashSet —— 最常用，无序</a></li>
+<li><a href="#42-treeset">4.2 TreeSet —— 自动排序</a></li>
+<li><a href="#43-set">4.3 Set 的去重原理</a></li>
+</ul>
+</li>
+<li><a href="#queue-deque">五、Queue 与 Deque（队列与双端队列）</a><ul>
+<li><a href="#51-queue">5.1 Queue —— 队列（先进先出）</a></li>
+<li><a href="#52-deque">5.2 Deque —— 双端队列（可用作栈或队列）</a></li>
+<li><a href="#53-priorityqueue">5.3 PriorityQueue —— 优先队列（堆）</a></li>
+</ul>
+</li>
+<li><a href="#map">六、Map（映射）</a><ul>
+<li><a href="#61-hashmap">6.1 HashMap —— 最常用</a></li>
+<li><a href="#62-map">6.2 遍历 Map</a></li>
+<li><a href="#63-hashmap">6.3 HashMap 常用技巧</a></li>
+<li><a href="#64-treemap-map">6.4 TreeMap —— 有序 Map</a></li>
+<li><a href="#65-linkedhashmap">6.5 LinkedHashMap —— 保持插入顺序</a></li>
+<li><a href="#66-hashmap">6.6 HashMap 的常见遍历对比</a></li>
+</ul>
+</li>
+<li><a href="#collections">七、Collections 工具类</a></li>
+<li><a href="#arrays">八、Arrays 工具类</a></li>
+<li><a href="#comparable-vs-comparator">九、排序：Comparable vs Comparator</a><ul>
+<li><a href="#91-comparable">9.1 Comparable —— 自然排序（内部比较器）</a></li>
+<li><a href="#92-comparator">9.2 Comparator —— 定制排序（外部比较器）</a></li>
+<li><a href="#93">9.3 升序降序记忆口诀</a></li>
+</ul>
+</li>
+<li><a href="#_2">十、遍历方式总结</a><ul>
+<li><a href="#101-list">10.1 遍历 List</a></li>
+<li><a href="#102-set">10.2 遍历 Set</a></li>
+<li><a href="#103-map">10.3 遍历 Map</a></li>
+</ul>
+</li>
+<li><a href="#java-8-stream-api">十一、Java 8+ Stream API 快速入门</a></li>
+<li><a href="#_3">十二、刷题常用集合技巧速查</a><ul>
+<li><a href="#121">12.1 快速创建集合</a></li>
+<li><a href="#122-list">12.2 数组与 List 互转</a></li>
+<li><a href="#123-list">12.3 初始化带数据的 List</a></li>
+<li><a href="#124">12.4 统计频率</a></li>
+<li><a href="#125">12.5 滑动窗口常用数据结构</a></li>
+<li><a href="#126-k">12.6 取最大/最小 k 个元素</a></li>
+<li><a href="#127-list">12.7 合并多个 List</a></li>
+</ul>
+</li>
+<li><a href="#_4">十三、集合性能速查表</a></li>
+<li><a href="#_5">十四、完整综合示例</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">一、集合框架概述</h2>
+<p>Java 集合框架位于 <code>java.util</code> 包下，主要分为两大体系：</p>
+<p>【 Collection 体系 】</p>
+<div class="codehilite"><pre><span></span><code>                            ┌─────────────────┐
+                            │ Iterable (接口) │
+                            └────────┬────────┘
+                                     │
+                            ┌────────┴────────┐
+                            │Collection (接口)│
+                            └────────┬────────┘
+                ┌────────────────────┼────────────────────┐
+                │                    │                    │
+        ┌───────┴───────┐    ┌───────┴───────┐    ┌───────┴───────┐
+        │  List (接口)  │    │  Set (接口)   │    │ Queue (接口)  │
+        └───────┬───────┘    └───────┬───────┘    └───────┬───────┘
+    ┌───────────┼───────────┐        │          ┌─────────┴─────────┐
+    │           │           │        │          │                   │
+┌───┴─────┐ ┌───┴────┐ ┌────┴───┐    │    ┌─────┴─────┐       ┌─────┴─────┐
+│ArrayList│ │ Vector │ │Linked- │    │    │Priority-  │       │   Deque   │
+└─────────┘ └───┬────┘ │List * │    │    │Queue      │       │  (接口)   │
+                │      └────────┘    │    └───────────┘       └─────┬─────┘
+             ┌──┴──┐                 │                    ┌─────────┴─────────┐
+             │Stack│                 │                    │                   │
+             └─────┘                 │              ┌─────┴─────┐       ┌─────┴─────┐
+                                     │              │ArrayDeque │       │Linked-    │
+                                     │              └───────────┘       │List * │
+                                     │                                  └───────────┘
+             ┌───────────────────────┼──────────────────────┐
+             │                       │                      │
+       ┌─────┴─────┐           ┌─────┴─────┐          ┌─────┴─────┐
+       │  HashSet  │           │ SortedSet │          │  EnumSet  │
+       └─────┬─────┘           │  (接口)   │          └───────────┘
+             │                 └─────┬─────┘
+     ┌───────┴───────┐         ┌─────┴─────┐
+     │ LinkedHashSet │         │  TreeSet  │
+     └───────────────┘         └───────────┘
+
+     (*注: LinkedList 同时实现了 List 和 Deque 接口，故在两处体系中均有体现)
+</code></pre></div>
+
+<p>【 Map 体系 】</p>
+<div class="codehilite"><pre><span></span><code>                            ┌───────────────┐
+                            │  Map (接口)   │
+                            └───────┬───────┘
+                ┌───────────────────┼───────────────────┐
+                │                   │                   │
+        ┌───────┴───────┐   ┌───────┴───────┐   ┌───────┴───────┐
+        │    HashMap    │   │   SortedMap   │   │   Hashtable   │
+        └───────┬───────┘   │    (接口)     │   └───────┬───────┘
+                │           └───────┬───────┘           │
+        ┌───────┴───────┐   ┌───────┴───────┐   ┌───────┴───────┐
+        │ LinkedHashMap │   │    TreeMap    │   │  Properties   │
+        └───────────────┘   └───────────────┘   └───────────────┘
+</code></pre></div>
+
+<p>Iterable (接口) - 顶层迭代接口
+└── Collection (接口) - 单列集合顶层接口
+    │
+    ├── List (接口) ── 有序集合，允许元素重复
+    │   ├── ArrayList (实现类) ── 基于动态数组，查询快，增删慢
+    │   ├── Vector (实现类) ── 基于动态数组，线程安全（老旧，不推荐）
+    │   │   └── Stack (实现类) ── 栈，后进先出
+    │   └── LinkedList (实现类) ── 基于双向链表，增删快 (跨界实现了Deque)
+    │
+    ├── Set (接口) ── 无序集合，不允许元素重复
+    │   ├── HashSet (实现类) ── 基于 HashMap 的 key 实现
+    │   │   └── LinkedHashSet (实现类) ── 额外维护双向链表，保证插入/访问顺序
+    │   ├── SortedSet (接口) ── 支持按元素自然规则排序的集合
+    │   │   └── TreeSet (实现类) ── 基于红黑树实现，元素自动排序
+    │   └── EnumSet (实现类) ── 专为枚举设计的位向量集合，效率极高
+    │
+    └── Queue (接口) ── 队列，先进先出
+        ├── PriorityQueue (实现类) ── 优先级队列（基于小顶堆/大顶堆）
+        └── Deque (接口) ── 双端队列（两端皆可进出）
+            ├── ArrayDeque (实现类) ── 基于循环数组实现（推荐当作栈/队列使用）
+            └── LinkedList (实现类) ── (见上文 List 体系)</p>
+<p>Map (接口) ── 键值对双列集合，独立体系
+├── HashMap (实现类) ── 基于哈希表（数组+链表/红黑树），查询最快
+│   └── LinkedHashMap (实现类) ── 维护了双向链表，记录键值对的插入顺序
+├── SortedMap (接口) ── 支持按键排序的 Map
+│   └── TreeMap (实现类) ── 基于红黑树实现，Key 自动排序
+└── Hashtable (实现类) ── 线程安全哈希表（老旧，不允许 null 键值）
+    └── Properties (实现类) ── 键值对强制为 String，常用于读取 .properties 配置文件</p>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>特点</th>
+<th>常用实现类</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>List</strong></td>
+<td>有序、可重复、有索引</td>
+<td><code>ArrayList</code>, <code>LinkedList</code></td>
+</tr>
+<tr>
+<td><strong>Set</strong></td>
+<td>无序（部分有序）、不可重复</td>
+<td><code>HashSet</code>, <code>TreeSet</code>, <code>LinkedHashSet</code></td>
+</tr>
+<tr>
+<td><strong>Queue</strong></td>
+<td>队列，先进先出（FIFO）</td>
+<td><code>LinkedList</code>, <code>ArrayDeque</code>, <code>PriorityQueue</code></td>
+</tr>
+<tr>
+<td><strong>Deque</strong></td>
+<td>双端队列</td>
+<td><code>ArrayDeque</code>, <code>LinkedList</code></td>
+</tr>
+<tr>
+<td><strong>Map</strong></td>
+<td>键值对，key 不可重复</td>
+<td><code>HashMap</code>, <code>TreeMap</code>, <code>LinkedHashMap</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="collection">二、Collection 接口（所有单列集合的根接口）</h2>
+<h3 id="21">2.1 通用方法</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Collection</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="n">c</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">          </span><span class="c1">// 添加元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">addAll</span><span class="p">(</span><span class="n">other</span><span class="p">);</span><span class="w">     </span><span class="c1">// 添加另一集合的所有元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">       </span><span class="c1">// 移除指定元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">removeAll</span><span class="p">(</span><span class="n">other</span><span class="p">);</span><span class="w">  </span><span class="c1">// 移除另一集合中包含的所有元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">clear</span><span class="p">();</span><span class="w">           </span><span class="c1">// 清空</span>
+<span class="n">c</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w">            </span><span class="c1">// 元素个数</span>
+<span class="n">c</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">();</span><span class="w">         </span><span class="c1">// 是否为空</span>
+<span class="n">c</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">     </span><span class="c1">// 是否包含指定元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">containsAll</span><span class="p">(</span><span class="n">other</span><span class="p">);</span><span class="c1">// 是否包含另一集合的所有元素</span>
+<span class="n">c</span><span class="p">.</span><span class="na">toArray</span><span class="p">();</span><span class="w">         </span><span class="c1">// 转为 Object[]</span>
+<span class="n">c</span><span class="p">.</span><span class="na">toArray</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">T</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span><span class="c1">// 转为指定类型数组</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="n">Collection</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">c</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">);</span>
+<span class="n">c</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;b&quot;</span><span class="p">);</span>
+<span class="n">c</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;c&quot;</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">c</span><span class="p">.</span><span class="na">size</span><span class="p">());</span><span class="w">          </span><span class="c1">// 3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">c</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="s">&quot;b&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">c</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">());</span><span class="w">       </span><span class="c1">// false</span>
+
+<span class="n">Object</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="na">toArray</span><span class="p">();</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr</span><span class="p">));</span><span class="w"> </span><span class="c1">// [a, b, c]</span>
+
+<span class="n">c</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="s">&quot;b&quot;</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">c</span><span class="p">);</span><span class="w">                 </span><span class="c1">// [a, c]</span>
+</code></pre></div>
+
+<hr />
+<h2 id="list">三、List（列表）</h2>
+<p><strong>特点：</strong> 有序（按插入顺序）、可重复、每个元素有索引。</p>
+<h3 id="31-arraylist">3.1 ArrayList —— 底层数组，查询快，增删慢</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 创建</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">           </span><span class="c1">// 初始容量10</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="mi">20</span><span class="p">);</span><span class="w">        </span><span class="c1">// 指定初始容量</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">      </span><span class="c1">// 用已有集合构造</span>
+
+<span class="c1">// 常用方法（List 特有）</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">              </span><span class="c1">// 末尾添加</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">);</span><span class="w">           </span><span class="c1">// 指定索引插入（后面的元素后移）</span>
+<span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">                </span><span class="c1">// 获取指定索引元素</span>
+<span class="n">list</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">);</span><span class="w">           </span><span class="c1">// 修改指定索引元素</span>
+<span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">             </span><span class="c1">// 删除指定索引元素</span>
+<span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">           </span><span class="c1">// 删除第一个匹配的元素</span>
+<span class="n">list</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">          </span><span class="c1">// 查找元素首次出现的索引，没有返回 -1</span>
+<span class="n">list</span><span class="p">.</span><span class="na">lastIndexOf</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">);</span><span class="w">      </span><span class="c1">// 查找元素最后出现的索引</span>
+<span class="n">list</span><span class="p">.</span><span class="na">subList</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span><span class="w">         </span><span class="c1">// 截取 [0,2) 子列表（注意：视图，不是新列表）</span>
+</code></pre></div>
+
+<p><strong>完整示例：</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// 添加</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">20</span><span class="p">);</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">30</span><span class="p">);</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">15</span><span class="p">);</span><span class="w">       </span><span class="c1">// 在索引1处插入15</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">  </span><span class="c1">// [10, 15, 20, 30]</span>
+
+<span class="c1">// 获取与修改</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span><span class="w">   </span><span class="c1">// 20</span>
+<span class="n">list</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">25</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">          </span><span class="c1">// [10, 15, 25, 30]</span>
+
+<span class="c1">// 删除</span>
+<span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">              </span><span class="c1">// 删除索引1的元素（15）</span>
+<span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">Integer</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="mi">30</span><span class="p">));</span><span class="w"> </span><span class="c1">// 删除元素30</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">    </span><span class="c1">// [10, 25]</span>
+
+<span class="c1">// 查找</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="mi">25</span><span class="p">));</span><span class="w">  </span><span class="c1">// 1</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="mi">10</span><span class="p">));</span><span class="w"> </span><span class="c1">// true</span>
+</code></pre></div>
+
+<h3 id="32-linkedlist">3.2 LinkedList —— 底层双向链表，增删快，查询慢</h3>
+<p><code>LinkedList</code> 同时实现了 <code>List</code>、<code>Deque</code>、<code>Queue</code> 接口。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">LinkedList</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// List 方法</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="n">list</span><span class="p">.</span><span class="na">addFirst</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">        </span><span class="c1">// 头部添加</span>
+<span class="n">list</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w">         </span><span class="c1">// 尾部添加</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="c1">// [0, 1, 2, 3]</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">getFirst</span><span class="p">());</span><span class="w">  </span><span class="c1">// 0</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">getLast</span><span class="p">());</span><span class="w">   </span><span class="c1">// 3</span>
+
+<span class="n">list</span><span class="p">.</span><span class="na">removeFirst</span><span class="p">();</span><span class="w">      </span><span class="c1">// 删除头</span>
+<span class="n">list</span><span class="p">.</span><span class="na">removeLast</span><span class="p">();</span><span class="w">       </span><span class="c1">// 删除尾</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="c1">// [1, 2]</span>
+</code></pre></div>
+
+<h3 id="33-arraylist-vs-linkedlist">3.3 ArrayList vs LinkedList 对比</h3>
+<table>
+<thead>
+<tr>
+<th>对比维度</th>
+<th>ArrayList</th>
+<th>LinkedList</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>底层结构</td>
+<td>动态数组</td>
+<td>双向链表</td>
+</tr>
+<tr>
+<td>随机访问 <code>get(i)</code></td>
+<td><strong>O(1)</strong> ✅</td>
+<td>O(n) ❌</td>
+</tr>
+<tr>
+<td>末尾添加</td>
+<td><strong>O(1) 均摊</strong> ✅</td>
+<td>O(1) ✅</td>
+</tr>
+<tr>
+<td>中间插入/删除</td>
+<td>O(n) ❌</td>
+<td><strong>O(1)</strong> ✅（前提是已知位置）</td>
+</tr>
+<tr>
+<td>头部插入/删除</td>
+<td>O(n) ❌</td>
+<td><strong>O(1)</strong> ✅</td>
+</tr>
+<tr>
+<td>内存占用</td>
+<td>较小（只需存数据）</td>
+<td>较大（还需存前后指针）</td>
+</tr>
+<tr>
+<td><strong>刷题推荐</strong></td>
+<td><strong>90% 场景用这个</strong></td>
+<td>当作<strong>双端队列</strong>时用</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>刷题建议：</strong> 大部分场景用 <code>ArrayList</code>。需要频繁在头部操作或做队列/栈时用 <code>LinkedList</code> 或 <code>ArrayDeque</code>。</p>
+</blockquote>
+<hr />
+<h2 id="set">四、Set（集合）</h2>
+<p><strong>特点：</strong> 元素不可重复。</p>
+<table>
+<thead>
+<tr>
+<th>实现类</th>
+<th>顺序</th>
+<th>底层</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HashSet</code></td>
+<td>无序</td>
+<td>HashMap</td>
+<td>最快，O(1)</td>
+</tr>
+<tr>
+<td><code>LinkedHashSet</code></td>
+<td>插入顺序</td>
+<td>链表+哈希表</td>
+<td>可保持插入顺序</td>
+</tr>
+<tr>
+<td><code>TreeSet</code></td>
+<td>自然顺序/比较器</td>
+<td>红黑树</td>
+<td>自动排序，O(log n)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="41-hashset">4.1 HashSet —— 最常用，无序</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="n">set</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+<span class="n">set</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">set</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="n">set</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w">            </span><span class="c1">// 重复元素，不会添加</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">set</span><span class="p">);</span><span class="w">   </span><span class="c1">// 可能输出 [1, 2, 3]（无序）</span>
+
+<span class="c1">// 常用方法</span>
+<span class="n">set</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">       </span><span class="c1">// true</span>
+<span class="n">set</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">         </span><span class="c1">// 移除</span>
+<span class="n">set</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w">            </span><span class="c1">// 2</span>
+<span class="n">set</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">();</span><span class="w">         </span><span class="c1">// false</span>
+<span class="n">set</span><span class="p">.</span><span class="na">clear</span><span class="p">();</span><span class="w">           </span><span class="c1">// 清空</span>
+
+<span class="c1">// 遍历</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Integer</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">set</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="42-treeset">4.2 TreeSet —— 自动排序</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">TreeSet</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeSet</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">ts</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span>
+<span class="n">ts</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">ts</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">9</span><span class="p">);</span>
+<span class="n">ts</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">);</span><span class="w">  </span><span class="c1">// [1, 3, 5, 9] 自动升序</span>
+
+<span class="c1">// TreeSet 特有方法</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">first</span><span class="p">());</span><span class="w">      </span><span class="c1">// 最小值：1</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">last</span><span class="p">());</span><span class="w">       </span><span class="c1">// 最大值：9</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">lower</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">     </span><span class="c1">// 小于5的最大值：3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">higher</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">    </span><span class="c1">// 大于5的最小值：9</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">ceiling</span><span class="p">(</span><span class="mi">4</span><span class="p">));</span><span class="w">   </span><span class="c1">// &gt;=4 的最小值：5</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">ts</span><span class="p">.</span><span class="na">floor</span><span class="p">(</span><span class="mi">4</span><span class="p">));</span><span class="w">     </span><span class="c1">// &lt;=4 的最大值：3</span>
+</code></pre></div>
+
+<h3 id="43-set">4.3 Set 的去重原理</h3>
+<ul>
+<li><strong>HashSet：</strong> 先比较 <code>hashCode()</code>，再比较 <code>equals()</code></li>
+<li><strong>TreeSet：</strong> 依赖 <code>compareTo()</code> / <code>compare()</code>，返回 0 视为重复</li>
+</ul>
+<blockquote>
+<p><strong>重要：</strong> 如果向 Set 中存放自定义对象，必须正确重写 <code>hashCode()</code> 和 <code>equals()</code>（HashSet）或实现 <code>Comparable</code>（TreeSet）。</p>
+</blockquote>
+<hr />
+<h2 id="queue-deque">五、Queue 与 Deque（队列与双端队列）</h2>
+<h3 id="51-queue">5.1 Queue —— 队列（先进先出）</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Queue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">  </span><span class="c1">// 或 ArrayDeque</span>
+
+<span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">          </span><span class="c1">// 入队（推荐，不会抛异常）</span>
+<span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">q</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span><span class="w">     </span><span class="c1">// 查看队头：1（不删除）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">     </span><span class="c1">// 出队：1（删除并返回）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">     </span><span class="c1">// 2</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">     </span><span class="c1">// 3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">     </span><span class="c1">// null（队列为空）</span>
+
+<span class="c1">// 异常版本</span>
+<span class="n">q</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">            </span><span class="c1">// 入队，失败抛异常</span>
+<span class="n">q</span><span class="p">.</span><span class="na">element</span><span class="p">();</span><span class="w">         </span><span class="c1">// 查看队头，失败抛异常</span>
+<span class="n">q</span><span class="p">.</span><span class="na">remove</span><span class="p">();</span><span class="w">          </span><span class="c1">// 出队，失败抛异常</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong><code>offer/poll/peek</code> vs <code>add/remove/element</code>：</strong> 前者在失败时返回特殊值（null/false），后者抛异常。刷题用前者更安全。</p>
+</blockquote>
+<h3 id="52-deque">5.2 Deque —— 双端队列（可用作栈或队列）</h3>
+<p><strong>推荐 <code>ArrayDeque</code></strong>，性能优于 <code>LinkedList</code> 和 <code>Stack</code>。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">deque</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// 作为栈（后进先出 LIFO）—— 推荐</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">        </span><span class="c1">// 压栈：头部插入</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">);</span><span class="w">    </span><span class="c1">// [3, 2, 1]</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span><span class="w">  </span><span class="c1">// 查看栈顶：3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">pop</span><span class="p">());</span><span class="w">   </span><span class="c1">// 出栈：3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">pop</span><span class="p">());</span><span class="w">   </span><span class="c1">// 2</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">pop</span><span class="p">());</span><span class="w">   </span><span class="c1">// 1</span>
+
+<span class="c1">// 作为队列（先进先出 FIFO）</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">       </span><span class="c1">// 尾部添加</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">  </span><span class="c1">// 头部取出：1</span>
+
+<span class="c1">// 双端操作</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">addFirst</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="n">deque</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">removeFirst</span><span class="p">());</span><span class="w">  </span><span class="c1">// 0</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">deque</span><span class="p">.</span><span class="na">removeLast</span><span class="p">());</span><span class="w">   </span><span class="c1">// 3</span>
+</code></pre></div>
+
+<h3 id="53-priorityqueue">5.3 PriorityQueue —— 优先队列（堆）</h3>
+<p>底层是小顶堆（默认），可自定义比较器实现大顶堆。</p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 小顶堆（默认）</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">minHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">minHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span>
+<span class="n">minHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">minHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span><span class="w">   </span><span class="c1">// 1（最小值在堆顶）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">   </span><span class="c1">// 1</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">   </span><span class="c1">// 3</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">   </span><span class="c1">// 5</span>
+
+<span class="c1">// 大顶堆（自定义比较器）</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">maxHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">a</span><span class="p">);</span>
+<span class="n">maxHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">5</span><span class="p">);</span>
+<span class="n">maxHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">maxHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">maxHeap</span><span class="p">.</span><span class="na">peek</span><span class="p">());</span><span class="w">   </span><span class="c1">// 5（最大值在堆顶）</span>
+</code></pre></div>
+
+<p><strong>Top-K 问题经典写法：</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 找数组中最大的 k 个数 —— 用小顶堆</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">};</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">  </span><span class="c1">// 小顶堆</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">num</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pq</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span><span class="w">  </span><span class="c1">// 保持堆中只有 k 个元素</span>
+<span class="p">}</span>
+<span class="c1">// 堆中就是最大的 k 个数</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">pq</span><span class="p">);</span><span class="w">   </span><span class="c1">// [4, 5, 6]</span>
+</code></pre></div>
+
+<hr />
+<h2 id="map">六、Map（映射）</h2>
+<p><strong>特点：</strong> 键值对存储，key 不可重复。</p>
+<table>
+<thead>
+<tr>
+<th>实现类</th>
+<th>顺序</th>
+<th>底层</th>
+<th>key 比较</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HashMap</code></td>
+<td>无序</td>
+<td>数组 + 链表/红黑树</td>
+<td>hashCode + equals</td>
+</tr>
+<tr>
+<td><code>LinkedHashMap</code></td>
+<td>插入顺序或访问顺序</td>
+<td>链表 + 哈希表</td>
+<td>hashCode + equals</td>
+</tr>
+<tr>
+<td><code>TreeMap</code></td>
+<td>key 的自然顺序/比较器</td>
+<td>红黑树</td>
+<td>compareTo/compare</td>
+</tr>
+</tbody>
+</table>
+<h3 id="61-hashmap">6.1 HashMap —— 最常用</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// 增/改</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;Apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;Banana&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;Apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">);</span><span class="w">     </span><span class="c1">// key 相同会覆盖 value</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">);</span><span class="w">  </span><span class="c1">// {Apple=30, Banana=20}</span>
+
+<span class="c1">// 查</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;Apple&quot;</span><span class="p">));</span><span class="w">         </span><span class="c1">// 30</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;Orange&quot;</span><span class="p">));</span><span class="w">        </span><span class="c1">// null（不存在）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="s">&quot;Orange&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">));</span><span class="w">  </span><span class="c1">// 0（不存在返回默认值）</span>
+
+<span class="c1">// 判断</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="s">&quot;Apple&quot;</span><span class="p">));</span><span class="w"> </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">containsValue</span><span class="p">(</span><span class="mi">20</span><span class="p">));</span><span class="w">    </span><span class="c1">// true</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">());</span><span class="w">            </span><span class="c1">// false</span>
+
+<span class="c1">// 删</span>
+<span class="n">map</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="s">&quot;Apple&quot;</span><span class="p">);</span><span class="w">       </span><span class="c1">// 删除 key 为 Apple 的键值对</span>
+
+<span class="c1">// 数量</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">size</span><span class="p">());</span><span class="w">   </span><span class="c1">// 1</span>
+</code></pre></div>
+
+<h3 id="62-map">6.2 遍历 Map</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;C&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+
+<span class="c1">// 方式1：遍历 entrySet（推荐，效率最高）</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">entry</span><span class="p">.</span><span class="na">getKey</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; -&gt; &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">entry</span><span class="p">.</span><span class="na">getValue</span><span class="p">());</span>
+<span class="p">}</span>
+<span class="c1">// 输出：</span>
+<span class="c1">// A -&gt; 1</span>
+<span class="c1">// B -&gt; 2</span>
+<span class="c1">// C -&gt; 3</span>
+
+<span class="c1">// 方式2：遍历 keySet</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">keySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">key</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; -&gt; &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">));</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式3：遍历 values（只需要 value 时）</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Integer</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">values</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">value</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式4：Java 8 forEach（Lambda 写法）</span>
+<span class="n">map</span><span class="p">.</span><span class="na">forEach</span><span class="p">((</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; -&gt; &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">v</span><span class="p">));</span>
+</code></pre></div>
+
+<h3 id="63-hashmap">6.3 HashMap 常用技巧</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 计数经典写法</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;aabbbcccc&quot;</span><span class="p">;</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">count</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">count</span><span class="p">);</span><span class="w">  </span><span class="c1">// {a=2, b=3, c=4}</span>
+
+<span class="c1">// 或者更短的写法</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">count</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="64-treemap-map">6.4 TreeMap —— 有序 Map</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">TreeMap</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">tm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">tm</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;C&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">tm</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="n">tm</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">);</span><span class="w">  </span><span class="c1">// {A=1, B=2, C=3} 自动按 key 排序</span>
+
+<span class="c1">// TreeMap 特有方法</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">firstKey</span><span class="p">());</span><span class="w">      </span><span class="c1">// A（最小 key）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">lastKey</span><span class="p">());</span><span class="w">       </span><span class="c1">// C（最大 key）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">lowerKey</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// A（小于 B 的最大 key）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">higherKey</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">));</span><span class="w">  </span><span class="c1">// C（大于 B 的最小 key）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">ceilingKey</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">));</span><span class="w"> </span><span class="c1">// B（&gt;= B 的最小 key）</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">tm</span><span class="p">.</span><span class="na">floorKey</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// B（&lt;= B 的最大 key）</span>
+</code></pre></div>
+
+<h3 id="65-linkedhashmap">6.5 LinkedHashMap —— 保持插入顺序</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedHashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;C&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">map</span><span class="p">);</span><span class="w">  </span><span class="c1">// {C=3, A=1, B=2} 保持插入顺序</span>
+</code></pre></div>
+
+<h3 id="66-hashmap">6.6 HashMap 的常见遍历对比</h3>
+<table>
+<thead>
+<tr>
+<th>遍历方式</th>
+<th>推荐度</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entrySet()</code> for-each</td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>一次拿到 key 和 value，效率最高</td>
+</tr>
+<tr>
+<td><code>keySet()</code> + <code>get()</code></td>
+<td>⭐⭐⭐</td>
+<td>需要额外查一次，略慢</td>
+</tr>
+<tr>
+<td><code>forEach()</code> lambda</td>
+<td>⭐⭐⭐⭐</td>
+<td>简洁，性能与 entrySet 相当</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="collections">七、Collections 工具类</h2>
+<p><code>Collections</code> 是操作集合的静态工具方法类。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">));</span>
+
+<span class="c1">// 排序</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">list</span><span class="p">);</span><span class="w">                      </span><span class="c1">// 升序：[1, 1, 3, 4, 5, 9]</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">list</span><span class="p">,</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">reverseOrder</span><span class="p">());</span><span class="w"> </span><span class="c1">// 降序：[9, 5, 4, 3, 1, 1]</span>
+
+<span class="c1">// 反转</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">reverse</span><span class="p">(</span><span class="n">list</span><span class="p">);</span>
+
+<span class="c1">// 打乱顺序（洗牌）</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">shuffle</span><span class="p">(</span><span class="n">list</span><span class="p">);</span>
+
+<span class="c1">// 最大/最小值</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">list</span><span class="p">));</span><span class="w">   </span><span class="c1">// 9</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">list</span><span class="p">));</span><span class="w">   </span><span class="c1">// 1</span>
+
+<span class="c1">// 二分查找（必须先排序）</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">list</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">binarySearch</span><span class="p">(</span><span class="n">list</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">));</span><span class="w">  </span><span class="c1">// 返回索引</span>
+
+<span class="c1">// 填充</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">list</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w">   </span><span class="c1">// 全部填充为 0</span>
+
+<span class="c1">// 复制</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">nCopies</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">));</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">copy</span><span class="p">(</span><span class="n">dest</span><span class="p">,</span><span class="w"> </span><span class="n">list</span><span class="p">);</span><span class="w">  </span><span class="c1">// 把 list 复制到 dest</span>
+
+<span class="c1">// 频率</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">frequency</span><span class="p">(</span><span class="n">list</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">));</span><span class="w">  </span><span class="c1">// 1 出现的次数</span>
+
+<span class="c1">// 不可变集合</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">unmodifiable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">unmodifiableList</span><span class="p">(</span><span class="n">list</span><span class="p">);</span>
+<span class="c1">// unmodifiable.add(10);  // 抛 UnsupportedOperationException</span>
+
+<span class="c1">// 空集合</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">emptyList</span><span class="p">();</span>
+<span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">emptySet</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">emptySet</span><span class="p">();</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">emptyMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">emptyMap</span><span class="p">();</span>
+
+<span class="c1">// 单元素集合</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">single</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">singletonList</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
+<span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">singleSet</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">singleton</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">singleMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Collections</span><span class="p">.</span><span class="na">singletonMap</span><span class="p">(</span><span class="s">&quot;key&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;value&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<hr />
+<h2 id="arrays">八、Arrays 工具类</h2>
+<p>对<strong>数组</strong>进行操作的工具类。</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">};</span>
+
+<span class="c1">// 排序</span>
+<span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">arr</span><span class="p">);</span><span class="w">                              </span><span class="c1">// 全排</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr</span><span class="p">));</span><span class="w">      </span><span class="c1">// [1, 1, 3, 4, 5, 9]</span>
+
+<span class="c1">// 部分排序</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">arr2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">};</span>
+<span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">arr2</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span><span class="w">                       </span><span class="c1">// 只排 [0,3)</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr2</span><span class="p">));</span><span class="w">     </span><span class="c1">// [1, 3, 4, 1, 5, 9]</span>
+
+<span class="c1">// 二分查找（必须先排序）</span>
+<span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">arr</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">binarySearch</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">));</span><span class="w">   </span><span class="c1">// 索引</span>
+
+<span class="c1">// 填充</span>
+<span class="n">Arrays</span><span class="p">.</span><span class="na">fill</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">arr</span><span class="p">));</span><span class="w">      </span><span class="c1">// [0, 0, 0, 0, 0, 0]</span>
+
+<span class="c1">// 复制</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">copy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">copyOf</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span><span class="w">            </span><span class="c1">// 复制前3个</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">copyRange</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">copyOfRange</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span><span class="w"> </span><span class="c1">// 复制 [1,4)</span>
+
+<span class="c1">// 比较</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">};</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">};</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">));</span><span class="w">       </span><span class="c1">// true（比较内容）</span>
+
+<span class="c1">// 转 List（注意：是固定长度的视图，不可增删）</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">);</span>
+<span class="c1">// list.add(&quot;D&quot;);  // ❌ 抛 UnsupportedOperationException</span>
+<span class="c1">// List&lt;Integer&gt; list2 = Arrays.asList(1, 2, 3); // 泛型可自动推断</span>
+
+<span class="c1">// 对对象数组排序（自定义比较器）</span>
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">words</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;banana&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cat&quot;</span><span class="p">};</span>
+<span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">words</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">y</span><span class="p">.</span><span class="na">length</span><span class="p">());</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">toString</span><span class="p">(</span><span class="n">words</span><span class="p">));</span><span class="w">   </span><span class="c1">// [cat, apple, banana]</span>
+</code></pre></div>
+
+<p><strong>特别注意 <code>Arrays.asList()</code>：</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="c1">// ❌ 坑：基本类型数组</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">};</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="n">nums</span><span class="p">);</span><span class="w">   </span><span class="c1">// 得到的是 List&lt;int[]&gt;，不是 List&lt;Integer&gt;！</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">size</span><span class="p">());</span><span class="w">          </span><span class="c1">// 1（整个数组作为一个元素）</span>
+
+<span class="c1">// ✅ 应使用包装类型</span>
+<span class="n">Integer</span><span class="o">[]</span><span class="w"> </span><span class="n">nums2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">};</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="n">nums2</span><span class="p">);</span><span class="w">  </span><span class="c1">// 正确</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list2</span><span class="p">);</span><span class="w">                   </span><span class="c1">// [1, 2, 3]</span>
+
+<span class="c1">// ❌ 坑：返回的 List 不支持增删</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">);</span>
+<span class="c1">// list3.add(&quot;C&quot;);  // 抛异常！</span>
+
+<span class="c1">// ✅ 如果要可变，包装一下</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">));</span>
+<span class="n">list4</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;C&quot;</span><span class="p">);</span><span class="w">  </span><span class="c1">// 可以</span>
+</code></pre></div>
+
+<hr />
+<h2 id="comparable-vs-comparator">九、排序：Comparable vs Comparator</h2>
+<h3 id="91-comparable">9.1 Comparable —— 自然排序（内部比较器）</h3>
+<p>让类本身实现 <code>Comparable</code> 接口，定义"默认"比较规则。</p>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Student</span><span class="w"> </span><span class="kd">implements</span><span class="w"> </span><span class="n">Comparable</span><span class="o">&lt;</span><span class="n">Student</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">score</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">Student</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">score</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">score</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">compareTo</span><span class="p">(</span><span class="n">Student</span><span class="w"> </span><span class="n">other</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 按分数升序（分数相等则按姓名）</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">other</span><span class="p">.</span><span class="na">score</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">other</span><span class="p">.</span><span class="na">score</span><span class="p">;</span><span class="w">    </span><span class="c1">// 升序</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">name</span><span class="p">.</span><span class="na">compareTo</span><span class="p">(</span><span class="n">other</span><span class="p">.</span><span class="na">name</span><span class="p">);</span><span class="w"> </span><span class="c1">// 字符串自然排序</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">toString</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">score</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 使用</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Student</span><span class="o">&gt;</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小明&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">),</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小红&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">92</span><span class="p">),</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小刚&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">)</span>
+<span class="p">);</span>
+<span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">students</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">students</span><span class="p">);</span><span class="w">  </span><span class="c1">// [小刚=85, 小明=85, 小红=92]</span>
+</code></pre></div>
+
+<h3 id="92-comparator">9.2 Comparator —— 定制排序（外部比较器）</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">Student</span><span class="o">&gt;</span><span class="w"> </span><span class="n">students</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小明&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">),</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小红&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">92</span><span class="p">),</span>
+<span class="w">    </span><span class="k">new</span><span class="w"> </span><span class="n">Student</span><span class="p">(</span><span class="s">&quot;小刚&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">)</span>
+<span class="p">);</span>
+
+<span class="c1">// 按分数降序（Lambda 写法）</span>
+<span class="n">students</span><span class="p">.</span><span class="na">sort</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">score</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">students</span><span class="p">);</span><span class="w">  </span><span class="c1">// [小红=92, 小明=85, 小刚=85]</span>
+
+<span class="c1">// 链式比较</span>
+<span class="n">students</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">Comparator</span>
+<span class="w">    </span><span class="p">.</span><span class="na">comparingInt</span><span class="p">((</span><span class="n">Student</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">score</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="na">reversed</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">thenComparing</span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">name</span><span class="p">)</span>
+<span class="p">);</span>
+
+<span class="c1">// PriorityQueue 自定义比较器</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Student</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">score</span><span class="w">  </span><span class="c1">// 大顶堆（按分数降序）</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3 id="93">9.3 升序降序记忆口诀</h3>
+<div class="codehilite"><pre><span></span><code>a - b &gt; 0  → a &gt; b → 升序（a 在 b 后面）
+b - a &gt; 0  → b &gt; a → 降序（b 在 a 后面）
+
+lambda 写法：
+  (a, b) -&gt; a - b    // 升序 （自然顺序）
+  (a, b) -&gt; b - a    // 降序 （逆序）
+</code></pre></div>
+
+<blockquote>
+<p><strong>注意：</strong> <code>a - b</code> 写法有<strong>整数溢出</strong>风险（如 <code>Integer.MIN_VALUE - 1</code>），更安全的写法：
+<code>java
+(a, b) -&gt; Integer.compare(a, b)    // 升序
+(a, b) -&gt; Integer.compare(b, a)    // 降序</code></p>
+</blockquote>
+<hr />
+<h2 id="_2">十、遍历方式总结</h2>
+<h3 id="101-list">10.1 遍历 List</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">);</span>
+
+<span class="c1">// 方式1：for 循环（带索引）</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">size</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">i</span><span class="p">));</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式2：增强 for-each</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">list</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式3：Iterator</span>
+<span class="n">Iterator</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">iterator</span><span class="p">();</span>
+<span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">hasNext</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">next</span><span class="p">());</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式4：Java 8 forEach + Lambda</span>
+<span class="n">list</span><span class="p">.</span><span class="na">forEach</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">::</span><span class="n">println</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="102-set">10.2 遍历 Set</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">));</span>
+
+<span class="c1">// 方式1：增强 for-each</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">set</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式2：Iterator</span>
+<span class="n">Iterator</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">set</span><span class="p">.</span><span class="na">iterator</span><span class="p">();</span>
+<span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">hasNext</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">next</span><span class="p">());</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式3：forEach</span>
+<span class="n">set</span><span class="p">.</span><span class="na">forEach</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">::</span><span class="n">println</span><span class="p">);</span>
+</code></pre></div>
+
+<h3 id="103-map">10.3 遍历 Map</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="n">map</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+
+<span class="c1">// ⭐ 方式1：entrySet（推荐）</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">());</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式2：keySet</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">keySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">key</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">key</span><span class="p">));</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式3：values（只需要 value）</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">map</span><span class="p">.</span><span class="na">values</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// 方式4：forEach</span>
+<span class="n">map</span><span class="p">.</span><span class="na">forEach</span><span class="p">((</span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;=&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">v</span><span class="p">));</span>
+</code></pre></div>
+
+<hr />
+<h2 id="java-8-stream-api">十一、Java 8+ Stream API 快速入门</h2>
+<p>刷题中用 Stream 做简单的集合处理非常方便。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">);</span>
+
+<span class="c1">// 过滤</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">even</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">filter</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w">            </span><span class="c1">// 只保留偶数</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">even</span><span class="p">);</span><span class="w">  </span><span class="c1">// [4, 2, 6]</span>
+
+<span class="c1">// 映射</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">strs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">map</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="s">&quot;数:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">n</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">strs</span><span class="p">);</span><span class="w">  </span><span class="c1">// [数:3, 数:1, 数:4, ...]</span>
+
+<span class="c1">// 去重</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">distinct</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">distinct</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+
+<span class="c1">// 排序</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">sorted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">sorted</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+
+<span class="c1">// 统计</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">Integer</span><span class="p">::</span><span class="n">intValue</span><span class="p">).</span><span class="na">sum</span><span class="p">();</span>
+<span class="kt">double</span><span class="w"> </span><span class="n">avg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">Integer</span><span class="p">::</span><span class="n">intValue</span><span class="p">).</span><span class="na">average</span><span class="p">().</span><span class="na">orElse</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">Integer</span><span class="p">::</span><span class="n">intValue</span><span class="p">).</span><span class="na">max</span><span class="p">().</span><span class="na">orElse</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+
+<span class="c1">// List 转 Map</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">names</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;Alice&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Bob&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Charlie&quot;</span><span class="p">);</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nameMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">names</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toMap</span><span class="p">(</span>
+<span class="w">        </span><span class="n">name</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w">               </span><span class="c1">// key</span>
+<span class="w">        </span><span class="n">String</span><span class="p">::</span><span class="n">length</span><span class="w">              </span><span class="c1">// value</span>
+<span class="w">    </span><span class="p">));</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">nameMap</span><span class="p">);</span><span class="w">  </span><span class="c1">// {Alice=5, Bob=3, Charlie=7}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_3">十二、刷题常用集合技巧速查</h2>
+<h3 id="121">12.1 快速创建集合</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 快速创建 List</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span><span class="w">  </span><span class="c1">// Java 9+，不可变</span>
+
+<span class="c1">// 快速创建 Set</span>
+<span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">));</span>
+<span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Set</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span><span class="w">         </span><span class="c1">// Java 9+，不可变</span>
+
+<span class="c1">// 快速创建 Map</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">{{</span>
+<span class="w">    </span><span class="n">put</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="n">put</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="p">}};</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">map2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span><span class="w">  </span><span class="c1">// Java 9+，不可变</span>
+</code></pre></div>
+
+<h3 id="122-list">12.2 数组与 List 互转</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 数组 → List</span>
+<span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">};</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="n">arr</span><span class="p">));</span>
+
+<span class="c1">// List → 数组</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">Integer</span><span class="o">[]</span><span class="w"> </span><span class="n">arr2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">toArray</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Integer</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">);</span>
+<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">arr3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">Integer</span><span class="p">::</span><span class="n">intValue</span><span class="p">).</span><span class="na">toArray</span><span class="p">();</span><span class="w">  </span><span class="c1">// 转基本类型数组</span>
+</code></pre></div>
+
+<h3 id="123-list">12.3 初始化带数据的 List</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// ArrayList 直接初始化</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">));</span>
+<span class="c1">// Java 9+</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">));</span>
+</code></pre></div>
+
+<h3 id="124">12.4 统计频率</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 统计字符出现次数</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;aabbbcccc&quot;</span><span class="p">;</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">freq</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="c1">// freq = {a=2, b=3, c=4}</span>
+
+<span class="c1">// 按频率排序</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Character</span><span class="o">&gt;</span><span class="w"> </span><span class="n">chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">freq</span><span class="p">.</span><span class="na">keySet</span><span class="p">());</span>
+<span class="n">chars</span><span class="p">.</span><span class="na">sort</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">freq</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">a</span><span class="p">));</span><span class="w">  </span><span class="c1">// 按频率降序</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">chars</span><span class="p">);</span><span class="w">  </span><span class="c1">// [c, b, a]</span>
+</code></pre></div>
+
+<h3 id="125">12.5 滑动窗口常用数据结构</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. 维护窗口中的最大值</span>
+<span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">deque</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">  </span><span class="c1">// 单调队列</span>
+
+<span class="c1">// 2. 维护窗口中的元素个数</span>
+<span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">window</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="c1">// 3. 维护窗口中的元素（有序）</span>
+<span class="n">TreeSet</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeSet</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+</code></pre></div>
+
+<h3 id="126-k">12.6 取最大/最小 k 个元素</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 最小 k 个 → 大顶堆</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">maxHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">((</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">a</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">maxHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">num</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">maxHeap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="n">maxHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="p">}</span>
+
+<span class="c1">// 最大 k 个 → 小顶堆</span>
+<span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">minHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">minHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">num</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="n">minHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="127-list">12.7 合并多个 List</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">);</span>
+
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">merged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="n">merged</span><span class="p">.</span><span class="na">addAll</span><span class="p">(</span><span class="n">a</span><span class="p">);</span>
+<span class="n">merged</span><span class="p">.</span><span class="na">addAll</span><span class="p">(</span><span class="n">b</span><span class="p">);</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">merged</span><span class="p">);</span><span class="w">  </span><span class="c1">// [1, 2, 3, 4, 5]</span>
+
+<span class="c1">// Java 8 Stream 方式</span>
+<span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">merged2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Stream</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="na">flatMap</span><span class="p">(</span><span class="n">Collection</span><span class="p">::</span><span class="n">stream</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+</code></pre></div>
+
+<hr />
+<h2 id="_4">十三、集合性能速查表</h2>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>ArrayList</th>
+<th>LinkedList</th>
+<th>HashSet</th>
+<th>TreeSet</th>
+<th>HashMap</th>
+<th>TreeMap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>插入</td>
+<td>O(1) 末尾 / O(n) 中间</td>
+<td>O(1) 头尾 / O(n) 中间</td>
+<td>O(1)</td>
+<td>O(log n)</td>
+<td>O(1)</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td>删除</td>
+<td>O(n)</td>
+<td>O(1) 头尾 / O(n) 中间</td>
+<td>O(1)</td>
+<td>O(log n)</td>
+<td>O(1)</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td>查找</td>
+<td>O(1) 按索引 / O(n) 按值</td>
+<td>O(n)</td>
+<td>O(1)</td>
+<td>O(log n)</td>
+<td>O(1) key / O(n) value</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td>有序</td>
+<td>✅ 插入顺序</td>
+<td>✅ 插入顺序</td>
+<td>❌</td>
+<td>✅ 排序</td>
+<td>❌</td>
+<td>✅ 排序</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_5">十四、完整综合示例</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.stream.*</span><span class="p">;</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">CollectionDemo</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+
+<span class="w">        </span><span class="c1">// ===== 1. List =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;===== List =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">));</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">9</span><span class="p">);</span>
+<span class="w">        </span><span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">Integer</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="mi">1</span><span class="p">));</span><span class="w">   </span><span class="c1">// 删除第一个 1</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;List: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">list</span><span class="p">);</span><span class="w">                    </span><span class="c1">// [3, 4, 1, 5, 9]</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;get(2): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="mi">2</span><span class="p">));</span><span class="w">           </span><span class="c1">// 1</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;indexOf(5): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">indexOf</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">   </span><span class="c1">// 3</span>
+
+<span class="w">        </span><span class="c1">// ===== 2. Set =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== Set =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">set</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;HashSet: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">set</span><span class="p">);</span><span class="w">                  </span><span class="c1">// [1, 2, 3, 4, 5, 6, 9]（无序）</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;contains(4): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">set</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="mi">4</span><span class="p">));</span><span class="w">  </span><span class="c1">// true</span>
+
+<span class="w">        </span><span class="n">TreeSet</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeSet</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">set</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;TreeSet: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">ts</span><span class="p">);</span><span class="w">                   </span><span class="c1">// [1, 2, 3, 4, 5, 6, 9]</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;ceiling(5): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">ts</span><span class="p">.</span><span class="na">ceiling</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">     </span><span class="c1">// 5</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;higher(5): &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">ts</span><span class="p">.</span><span class="na">higher</span><span class="p">(</span><span class="mi">5</span><span class="p">));</span><span class="w">       </span><span class="c1">// 6</span>
+
+<span class="w">        </span><span class="c1">// ===== 3. Queue =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== Queue =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Queue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
+<span class="w">        </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">20</span><span class="p">);</span>
+<span class="w">        </span><span class="n">q</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">30</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;Queue 出队: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">          </span><span class="c1">// 10</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;Queue 出队: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">          </span><span class="c1">// 20</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;Queue 出队: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">          </span><span class="c1">// 30</span>
+
+<span class="w">        </span><span class="c1">// ===== 4. Stack (Deque) =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== Stack =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+<span class="w">        </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; &quot;</span><span class="p">);</span><span class="w">               </span><span class="c1">// 3 2 1</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// ===== 5. PriorityQueue =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== PriorityQueue =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">};</span>
+<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">minHeap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="n">minHeap</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">n</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="s">&quot;小顶堆出队: &quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">minHeap</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="n">minHeap</span><span class="p">.</span><span class="na">poll</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; &quot;</span><span class="p">);</span><span class="w">            </span><span class="c1">// 1 3 4 5 7 8</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// ===== 6. Map =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== Map =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">scores</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">scores</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;小明&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">90</span><span class="p">);</span>
+<span class="w">        </span><span class="n">scores</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;小红&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">85</span><span class="p">);</span>
+<span class="w">        </span><span class="n">scores</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;小刚&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">95</span><span class="p">);</span>
+<span class="w">        </span><span class="n">scores</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="s">&quot;小明&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">92</span><span class="p">);</span><span class="w">   </span><span class="c1">// 覆盖</span>
+
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;小明的分数: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">scores</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;小明&quot;</span><span class="p">));</span><span class="w">   </span><span class="c1">// 92</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;小花的分数(默认): &quot;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">            </span><span class="n">scores</span><span class="p">.</span><span class="na">getOrDefault</span><span class="p">(</span><span class="s">&quot;小花&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">));</span><span class="w">                      </span><span class="c1">// 0</span>
+
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;所有学生:&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">scores</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;  &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot; -&gt; &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">());</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// ===== 7. 计数应用 =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 计数 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;hello world&quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Character</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">freq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">text</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">freq</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">freq</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// { =1, r=1, d=1, e=1, w=1, h=1, l=3, o=2}</span>
+
+<span class="w">        </span><span class="c1">// ===== 8. 排序 =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 排序 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">unsorted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">));</span>
+<span class="w">        </span><span class="n">Collections</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">unsorted</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;升序: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">unsorted</span><span class="p">);</span><span class="w">                 </span><span class="c1">// [1, 3, 5, 7, 9]</span>
+
+<span class="w">        </span><span class="n">unsorted</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">Collections</span><span class="p">.</span><span class="na">reverseOrder</span><span class="p">());</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;降序: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">unsorted</span><span class="p">);</span><span class="w">                 </span><span class="c1">// [9, 7, 5, 3, 1]</span>
+
+<span class="w">        </span><span class="c1">// 按字符串长度排序</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">words</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;banana&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;apple&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;cat&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;dog&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">words</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">Comparator</span><span class="p">.</span><span class="na">comparingInt</span><span class="p">(</span><span class="n">String</span><span class="p">::</span><span class="n">length</span><span class="p">));</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;按长度排序: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">words</span><span class="p">);</span><span class="w">              </span><span class="c1">// [cat, dog, apple, banana]</span>
+
+<span class="w">        </span><span class="c1">// ===== 9. 不可变集合 =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== 不可变集合 =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">immutable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// immutable.add(4);  // ❌ 编译不报错但运行抛异常</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;不可变 List: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">immutable</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">immutableSet</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Set</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">immutableMap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;y&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;不可变 Map: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">immutableMap</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// ===== 10. Stream 快速操作 =====</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;\n===== Stream =====&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">numbers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">);</span>
+
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">evenSquares</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numbers</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="na">filter</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w">                         </span><span class="c1">// 只保留偶数</span>
+<span class="w">            </span><span class="p">.</span><span class="na">map</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w">                                 </span><span class="c1">// 求平方</span>
+<span class="w">            </span><span class="p">.</span><span class="na">collect</span><span class="p">(</span><span class="n">Collectors</span><span class="p">.</span><span class="na">toList</span><span class="p">());</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;偶数的平方: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">evenSquares</span><span class="p">);</span><span class="w">     </span><span class="c1">// [4, 16, 36, 64, 100]</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sum2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numbers</span><span class="p">.</span><span class="na">stream</span><span class="p">()</span>
+<span class="w">            </span><span class="p">.</span><span class="na">mapToInt</span><span class="p">(</span><span class="n">Integer</span><span class="p">::</span><span class="n">intValue</span><span class="p">)</span>
+<span class="w">            </span><span class="p">.</span><span class="na">sum</span><span class="p">();</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;总和: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">sum2</span><span class="p">);</span><span class="w">                  </span><span class="c1">// 55</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>预期输出：</strong></p>
+<div class="codehilite"><pre><span></span><code>===== List =====
+List: [3, 4, 1, 5, 9]
+get(2): 1
+indexOf(5): 3
+
+===== Set =====
+HashSet: [1, 2, 3, 4, 5, 6, 9]
+contains(4): true
+TreeSet: [1, 2, 3, 4, 5, 6, 9]
+ceiling(5): 5
+higher(5): 6
+
+===== Queue =====
+Queue 出队: 10
+Queue 出队: 20
+Queue 出队: 30
+
+===== Stack =====
+3 2 1 
+
+===== PriorityQueue =====
+小顶堆出队: 1 3 4 5 7 8 
+
+===== Map =====
+小明的分数: 92
+小花的分数(默认): 0
+所有学生:
+  小刚 -&gt; 95
+  小明 -&gt; 92
+  小红 -&gt; 85
+
+===== 计数 =====
+{ =1, r=1, d=1, e=1, w=1, h=1, l=3, o=2}
+
+===== 排序 =====
+升序: [1, 3, 5, 7, 9]
+降序: [9, 7, 5, 3, 1]
+按长度排序: [cat, dog, apple, banana]
+
+===== 不可变集合 =====
+不可变 List: [1, 2, 3]
+不可变 Map: {x=1, y=2}
+
+===== Stream =====
+偶数的平方: [4, 16, 36, 64, 100]
+总和: 55
+</code></pre></div>
+
+<hr />
+<blockquote>
+<p><strong>刷题核心记忆：</strong>
+- <code>ArrayList</code> 用 90% 的场景
+- <code>HashMap</code> 计数、缓存、去重
+- <code>HashSet</code> 判重、集合运算
+- <code>ArrayDeque</code> 当栈/队列用（不用 Stack）
+- <code>PriorityQueue</code> Top-K、合并有序列表
+- <code>TreeMap</code> / <code>TreeSet</code> 需要有序/区间查找时用
+- <code>Arrays.sort()</code> / <code>Collections.sort()</code> 排序
+- <code>getOrDefault</code> 是计数的好帮手</p>
+</blockquote>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Spring Boot 自动装配 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Spring 家族：IoC/AOP、Boot 自动装配、MVC 与 MyBatis</a><span aria-hidden="true">›</span><span aria-current="page">Spring Boot 自动装配</span></nav><div class="module-meta">Web 与框架 · 第 7 / 10 章</div><h1>Spring Boot 自动装配</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>6.1 起步依赖</h3>
+<p>Spring Boot 的核心卖点是“约定大于配置 + 开箱即用”。<code>spring-boot-starter-web</code> 一个依赖就带入 Tomcat、Spring MVC、Jackson 等一整套 Web 场景依赖，不再手动管理版本。</p>
+<p><strong>内嵌 Tomcat 机制</strong>：<code>spring-boot-starter-web</code> 默认带入 <code>spring-boot-starter-tomcat</code>；内嵌容器由 <code>ServletWebServerFactoryAutoConfiguration</code> + <code>TomcatServletWebServerFactory</code> 创建，<code>server.port</code> 等配置生效；想换 Undertow/Jetty 只需替换 starter 依赖。</p>
+<p>注：“不再手动管理版本”需配合 <code>spring-boot-starter-parent</code> 或 BOM（dependencyManagement）才成立，裸加 starter 不会有版本管理。</p>
+<p><strong>Boot 2 vs 3 / Jakarta 迁移</strong>：Boot 3 要求 Spring Framework 6 + Java 17+，<code>javax.*</code> 全部迁移为 <code>jakarta.*</code>（内嵌 Tomcat 10.1 / Servlet 6.0）；Boot 2.7 用 <code>AutoConfiguration.imports</code> 作为迁移过渡；Boot 3 还引入 AOT / GraalVM Native 支持。对照旧资料（javax）时会踩包名坑。</p>
+<h3>6.2 @SpringBootApplication 组合注解</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@SpringBootApplication</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">DemoApplication</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">SpringApplication</span><span class="p">.</span><span class="na">run</span><span class="p">(</span><span class="n">DemoApplication</span><span class="p">.</span><span class="na">class</span><span class="p">,</span><span class="w"> </span><span class="n">args</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>它由三个注解组合：@SpringBootConfiguration（配置类）、@EnableAutoConfiguration（开启自动装配）、@ComponentScan（扫描启动类所在包及子包）。</p>
+<h3>6.3 @EnableAutoConfiguration 原理</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">@EnableAutoConfiguration
+  → 通过 @Import 导入 AutoConfigurationImportSelector
+  → 读取 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+     （Boot 2.7 之前是 spring.factories 里的全限定键 org.springframework.boot.autoconfigure.EnableAutoConfiguration）
+  → 得到候选自动配置类列表
+  → 按 @Conditional* 条件逐个判断是否生效
+  → 生效的配置类注册成 Bean
+</code></pre></div>
+<p>这就是“引入 starter 就自动配好”的底层：候选配置在 jar 里声明，启动时按条件挑选。想排查装了哪些配置，可在启动参数加 <code>--debug</code> 或 <code>--trace</code>，会打印自动装配报告（Positive/Negative matches）。</p>
+<h3>6.4 @Conditional 条件装配</h3>
+<table>
+<thead>
+<tr>
+<th>注解</th>
+<th>生效条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>@ConditionalOnClass / OnMissingClass</td>
+<td>类路径有没有某个类</td>
+</tr>
+<tr>
+<td>@ConditionalOnBean / OnMissingBean</td>
+<td>容器有没有某个 Bean</td>
+</tr>
+<tr>
+<td>@ConditionalOnProperty</td>
+<td>配置项是否满足</td>
+</tr>
+<tr>
+<td>@ConditionalOnWebApplication</td>
+<td>是否是 Web 应用</td>
+</tr>
+</tbody>
+</table>
+<p>正是这些条件让同一个 jar 在 Web 项目和非 Web 项目里装配出不同结果。</p>
+<h3>6.5 自定义 Starter 步骤</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">1. 建 auto-configuration 模块：写 @AutoConfiguration 配置类 + 条件注解
+2. 在 META-INF/spring/...AutoConfiguration.imports 里声明配置类全限定名
+3. 建 starter 模块：依赖自动配置模块 + 场景依赖
+4. 提供 spring-configuration-metadata 让 IDE 有属性提示
+</code></pre></div>
+<p><strong>外部化配置优先级</strong>（高→低）：命令行参数 &gt; Java 系统属性（-D）&gt; OS 环境变量 &gt; <code>application-{profile}.yml</code> &gt; <code>application.yml</code> &gt; 默认值。<code>@ConfigurationProperties</code> 把配置绑定成类型安全对象，<code>@Value("${key}")</code> 取单个值；<code>spring.profiles.active</code> 激活 profile。</p>
+<h3>6.6 面试追问</h3>
+<ul>
+<li>问：自动装配原理一句话？</li>
+<li>答：@EnableAutoConfiguration 导入选择器，读 SPI 文件拿到候选配置，再按 @Conditional 条件决定是否装配。</li>
+<li>问：如何关闭某个自动配置？</li>
+<li>答：@SpringBootApplication(exclude = DataSourceAutoConfiguration.class) 或配置 spring.autoconfigure.exclude。</li>
+<li>问：自定义 starter 怎么做？</li>
+<li>答：自动配置类 + imports 声明 + 条件注解 + starter 聚合依赖。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-06.html">← 上一章</a><a href="chapter-08.html">下一章 →</a></nav></main></div>
+<script>const contentId="spring-family:07",moduleId="spring-family";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

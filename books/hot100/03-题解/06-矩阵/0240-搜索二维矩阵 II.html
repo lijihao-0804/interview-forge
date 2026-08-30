@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>240. 搜索二维矩阵 II · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 06-矩阵</div>
+        <h1 id="240-ii">240. 搜索二维矩阵 II</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（极其经典的连环追问）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/06-矩阵.html">← 矩阵专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>右上角阶梯搜索</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(m+n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>编写一个高效的算法来搜索 <span class="math-inline-wrap"><math class="math-inline" aria-label="m × n"><mrow><mi>m</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>n</mi></mrow></math></span> 矩阵 <code>matrix</code> 中的一个目标值 <code>target</code>。该矩阵具有以下特性：</p>
+<ol>
+<li>每行的元素从左到右升序排列。</li>
+<li>每列的元素从上到下升序排列。</li>
+</ol>
+<p><a href="https://leetcode.cn/problems/search-a-2d-matrix-ii/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每次比较都能排除一整行或一整列。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（二分查找的困境）</strong>：</p>
+<p>既然行和列都有序，很多人第一反应是对每一行做二分查找，时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(M log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>；或者尝试沿着对角线做二分，代码极其复杂且边界难理清。能不能更快？</p>
+</li>
+<li>
+<p><strong>破局思路（寻找绝对的分界点）</strong>：</p>
+<p>我们把这个矩阵想象成一棵<strong>二叉搜索树（BST）</strong>。</p>
+<ul>
+<li>
+<p>如果从<strong>左上角</strong>出发：往右变大，往下也变大。一旦目标值大于当前值，你该往右还是往下？<strong>迷茫了，无法抉择。</strong>（右下角同理，往左往上都变小，无法抉择）。</p>
+</li>
+<li>
+<p>如果从<strong>右上角</strong>出发：神奇的事情发生了！</p>
+</li>
+<li>
+<p>往<strong>左</strong>走，元素<strong>变小</strong>。</p>
+</li>
+<li>
+<p>往<strong>下</strong>走，元素<strong>变大</strong>。</p>
+<p>这简直就是一个完美的二叉搜索树节点啊！（左子树小，右子树大）。</p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（站在右上角俯视全局）</strong>：</p>
+<p>设当前位置为 <code>(row, col)</code>，初始站在右上角 <code>row = 0, col = n - 1</code>。</p>
+<p>比较 <code>matrix[row][col]</code> 和 <code>target</code>：</p>
+<ul>
+<li><strong>如果等于 <code>target</code></strong>：恭喜，直接找到，返回 <code>true</code>。</li>
+<li><strong>如果大于 <code>target</code></strong>：说明当前数字太大了。因为这一列下方的数字只会更大，所以<strong>当前列没救了（全部被淘汰）</strong>，果断向左走：<code>col--</code>。</li>
+<li><strong>如果小于 <code>target</code></strong>：说明当前数字太小了。因为这一行左边的数字只会更小，所以<strong>当前行没救了（全部被淘汰）</strong>，果断向下走：<code>row++</code>。</li>
+</ul>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">searchMatrix</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">matrix</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 应对极端情况</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">matrix</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">matrix</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">matrix</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">matrix</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">matrix</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 初始位置：站在右上角</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cols</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 只要没有走出矩阵的左下角边界，就继续搜索</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rows</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">matrix</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w"> </span><span class="c1">// 找到了！</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">matrix</span><span class="o">[</span><span class="n">r</span><span class="o">][</span><span class="n">c</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">c</span><span class="o">--</span><span class="p">;</span><span class="w"> </span><span class="c1">// 当前数字太大，抛弃这一列，向左走</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">r</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="c1">// 当前数字太小，抛弃这一行，向下走</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 走出边界了都没找到，说明目标值不存在</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(M + N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。每一次比较，我们要么抛弃一行（<code>row++</code>），要么抛弃一列（<code>col--</code>）。最多抛弃 <span class="math-inline-wrap"><math class="math-inline" aria-label="M"><mrow><mi>M</mi></mrow></math></span> 行和 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 列，所以搜索的步数最多为 <span class="math-inline-wrap"><math class="math-inline" aria-label="M + N"><mrow><mi>M</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>N</mi></mrow></math></span> 步。这比二分查找的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(M log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 还要快得多！</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。只使用了两个指针变量 <code>r</code> 和 <code>c</code>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（极其经典的连环追问）</h3>
+<ol>
+<li><strong>面试官发难：“为什么选右上角？左下角可以吗？”</strong></li>
+</ol>
+<ul>
+<li>
+<p><strong>满分回答</strong>：<strong>完全可以！</strong> 站在左下角 <code>(M-1, 0)</code> 时：</p>
+<ul>
+<li>
+<p>往<strong>上</strong>走，元素<strong>变小</strong>。</p>
+</li>
+<li>
+<p>往<strong>右</strong>走，元素<strong>变大</strong>。</p>
+</li>
+</ul>
+<p>依然满足“二选一”的单调性。只要不选左上角和右下角这两个“死胡同”就行。选右上角还是左下角，本质上是对称的。</p>
+</li>
+</ul>
+<ol start="2">
+<li><strong>相关进阶题</strong>：</li>
+</ol>
+<ul>
+<li>如果题目变成：“每行有序，且<strong>每一行的第一个整数大于前一行的最后一个整数</strong>”（LeetCode 74: 搜索二维矩阵 I）。</li>
+<li>那题更简单，整个矩阵其实可以直接拉平看作一个严格递增的一维数组，直接使用纯正的<strong>全局一维二分查找</strong>，时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log(M × N))"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mo>(</mo><mi>M</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>N</mi><mo>)</mo><mo>)</mo></mrow></math></span>。注意区分这两道题的区别！</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0048-旋转图像.html">← 48. 旋转图像</a> · <a href="../07-链表/0160-相交链表.html">160. 相交链表 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

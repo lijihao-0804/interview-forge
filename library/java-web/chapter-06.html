@@ -1,0 +1,183 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>前后端分离与 RESTful · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java Web 基础：Servlet、Tomcat、Maven、Git 与前后端分离</a><span aria-hidden="true">›</span><span aria-current="page">前后端分离与 RESTful</span></nav><div class="module-meta">Web 与框架 · 第 6 / 7 章</div><h1>前后端分离与 RESTful</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>5.1 前后端分离</h3>
+<p>传统模式是 JSP 在后端渲染 HTML，前后端代码耦合在同一工程；前后端分离后：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">前端（Vue/React）静态资源 → Nginx 托管，反向代理 /api；页面渲染发生在浏览器端（JS 执行），Nginx 不参与渲染
+后端（Spring Boot）只提供 JSON API，负责业务与数据
+浏览器请求 /api/** → Nginx 反向代理到后端
+</code></pre></div>
+<p>收益：前端后端独立开发部署、可并行、可复用同一套 API 给 App；代价：跨域、接口契约、联调成本上升，需要统一响应规范。</p>
+<h3>5.2 RESTful 设计</h3>
+<p><strong>Spring MVC 前瞻框</strong>：这些接口最终由 Spring MVC 处理——<code>DispatcherServlet</code> → <code>HandlerMapping</code> → <code>HandlerAdapter</code>（<code>@RequestBody</code> 经 HttpMessageConverter 反序列化 JSON）→ Controller → 返回写出，详见《Spring 家族》。</p>
+<p>REST 把一切抽象为<strong>资源</strong>，URL 用名词复数，操作用 HTTP 方法表达：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>语义</th>
+<th>示例</th>
+<th>幂等</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td>查询</td>
+<td>GET /users/1</td>
+<td>是</td>
+</tr>
+<tr>
+<td>POST</td>
+<td>新增</td>
+<td>POST /users</td>
+<td>否</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td>整体更新</td>
+<td>PUT /users/1</td>
+<td>是</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td>部分更新</td>
+<td>PATCH /users/1</td>
+<td>否</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td>删除</td>
+<td>DELETE /users/1</td>
+<td>是</td>
+</tr>
+</tbody>
+</table>
+<p>状态码语义要准确：</p>
+<table>
+<thead>
+<tr>
+<th>状态码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200 OK</td>
+<td>查询/更新成功</td>
+</tr>
+<tr>
+<td>201 Created</td>
+<td>新增成功</td>
+</tr>
+<tr>
+<td>204 No Content</td>
+<td>删除成功，无返回体</td>
+</tr>
+<tr>
+<td>400 Bad Request</td>
+<td>参数错误</td>
+</tr>
+<tr>
+<td>401 Unauthorized</td>
+<td>未认证</td>
+</tr>
+<tr>
+<td>403 Forbidden</td>
+<td>无权限</td>
+</tr>
+<tr>
+<td>404 Not Found</td>
+<td>资源不存在</td>
+</tr>
+<tr>
+<td>409 Conflict</td>
+<td>资源冲突（如重复创建）</td>
+</tr>
+<tr>
+<td>500 Internal Server Error</td>
+<td>服务端异常</td>
+</tr>
+<tr>
+<td>502 Bad Gateway</td>
+<td>网关/上游异常</td>
+</tr>
+</tbody>
+</table>
+<p>统一响应体：业务码 + 消息 + 数据，例如 <code>{"code":0,"msg":"ok","data":{...}}</code>；分页接口固定返回 <code>page/size/total/list</code>。</p>
+<h3>5.3 认证与鉴权：Session vs JWT</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Session 方案：登录成功 → 服务端存 Session → 返回 Session ID（放 Cookie）
+             → 后续请求带 Cookie → 服务端查 Session 校验
+JWT 方案：登录成功 → 服务端签发 JWT → 客户端保存（Header/本地存储）
+         → 后续请求带 Authorization: Bearer &lt;token&gt; → 服务端验签即可
+</code></pre></div>
+<p>JWT 由三部分组成：<strong>Header（算法）+ Payload（业务声明）+ Signature（签名）</strong>，用 base64url 编码后拼接，签名用密钥生成，防篡改。注意 Payload 是明文，<strong>不要放密码等敏感信息</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>Session</th>
+<th>JWT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>存储位置</td>
+<td>服务端内存/Redis</td>
+<td>客户端</td>
+</tr>
+<tr>
+<td>是否天然支持分布式</td>
+<td>否，需共享存储</td>
+<td>是，无状态</td>
+</tr>
+<tr>
+<td>失效控制</td>
+<td>服务端可即时删除</td>
+<td>签发后难主动吊销，需黑名单</td>
+</tr>
+<tr>
+<td>安全性</td>
+<td>依赖 Cookie 安全属性</td>
+<td>依赖密钥保管与 HTTPS</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>传统 Web 应用</td>
+<td>前后端分离、App、微服务</td>
+</tr>
+</tbody>
+</table>
+<p>实践建议：JWT 有效期短（如 15~30 分钟）+ refresh token 换新；关键接口可加 Redis 黑名单做兜底。</p>
+<h3>5.4 跨域 CORS</h3>
+<p>浏览器同源策略（协议+域名+端口都相同才算同源）会拦截跨域请求。后端通过响应头放行：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Access-Control-Allow-Origin: https://front.example.com
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+Access-Control-Allow-Headers: Content-Type, Authorization
+</code></pre></div>
+<p>带自定义头或非简单请求时，浏览器先发 <strong>OPTIONS 预检请求</strong>，后端正确响应预检后，真实请求才会发出。Spring 里用 <code>@CrossOrigin</code> 或全局 CorsConfiguration 配置。</p>
+<h3>5.5 接口安全底线</h3>
+<ul>
+<li>参数校验：@Valid + 注解（@NotNull/@Size/@Pattern），防脏数据与注入；</li>
+<li>限流：按用户/IP 限流，防刷接口（见《微服务与高并发》Sentinel）；</li>
+<li>HTTPS：传输加密，防中间人；</li>
+<li>敏感字段脱敏：手机号/身份证返回前打码；</li>
+<li>日志不打印密码、token。</li>
+</ul>
+<p><strong>Web 安全三件套（校招必背）</strong>：</p>
+<ul>
+<li><strong>XSS（跨站脚本）</strong>：输出转义 + CSP（内容安全策略）+ Cookie HttpOnly，防止恶意脚本窃取数据；</li>
+<li><strong>CSRF（跨站请求伪造）</strong>：CSRF Token / Referer、Origin 校验 + Cookie SameSite，防止浏览器自动携带 Cookie 发起的伪造请求；</li>
+<li><strong>SQL 注入</strong>：一律用 PreparedStatement 占位符（MyBatis 的 <code>#{}</code>），绝不字符串拼接 SQL。</li>
+</ul>
+<p><strong>文件上传/下载</strong>：上传用 <code>multipart/form-data</code> + <code>@MultipartConfig</code>/Part（Spring 用 MultipartFile）；下载用响应头 <code>Content-Disposition: attachment</code>（中文文件名需编码）。</p>
+<h3>5.6 面试追问</h3>
+<ul>
+<li>问：为什么 RESTful 用名词做 URL 而不用动词？</li>
+<li>答：资源是稳定的实体，动作用 HTTP 方法表达；动词会让 URL 无限膨胀且语义重复。</li>
+<li>问：JWT 和 Session 怎么选？</li>
+<li>答：微服务/前后端分离选 JWT 无状态；需要服务端即时失效、安全要求高的场景选 Session + Redis。</li>
+<li>问：跨域请求为什么会有预检？</li>
+<li>答：浏览器先发 OPTIONS 探测服务端是否允许，避免直接发出有副作用的真实请求。</li>
+<li>问：POST 和 PUT 的区别？</li>
+<li>答：POST 新增、非幂等；PUT 整体替换、幂等，重复提交结果一致。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="java-web:06",moduleId="java-web";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

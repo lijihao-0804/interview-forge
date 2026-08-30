@@ -1,0 +1,103 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>同步互斥与死锁 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">操作系统：进程线程、内存与 IO 模型</a><span aria-hidden="true">›</span><span aria-current="page">同步互斥与死锁</span></nav><div class="module-meta">计算机基础 · 第 5 / 9 章</div><h1>同步互斥与死锁</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>多线程/多进程访问共享资源时，必须有同步机制；同步设计不好就会死锁。这一章是校招操作系统部分的最高频区。</p>
+<h3>4.1 临界区与同步原语</h3>
+<p><strong>临界区</strong>：访问共享资源的代码段，同一时刻只允许一个执行流进入。</p>
+<table>
+<thead>
+<tr>
+<th>原语</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>互斥锁（Mutex）</td>
+<td>一次一个线程进入临界区</td>
+</tr>
+<tr>
+<td>信号量（Semaphore）</td>
+<td>计数器，可控制 N 个资源（P 减、V 加）</td>
+</tr>
+<tr>
+<td>自旋锁（Spinlock）</td>
+<td>忙等轮询，不睡眠让出 CPU；适合短临界区/多核场景，与互斥锁“睡不睡”的区别对应 synchronized 锁升级</td>
+</tr>
+<tr>
+<td>读写锁</td>
+<td>读读共享、读写/写写互斥</td>
+</tr>
+<tr>
+<td>条件变量</td>
+<td>等待某个条件满足再继续（常与互斥锁配合）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>条件变量机制</strong>：<code>wait</code> 必须持锁调用，且原子地“释放锁 + 挂起”，被唤醒后要先重新抢锁再继续；要用 <code>while(条件)</code> 而不是 <code>if</code> 防虚假唤醒；<code>notify</code> 只随机唤醒一个等待者、可能唤醒同类（如唤醒生产者），必要时用 <code>notifyAll</code>。Java 的 wait/notify 就是这套语义。</p>
+<p><strong>与 synchronized 锁升级对照</strong>：无锁/偏向/轻量级全程用户态（CAS 改 Mark Word），重量级才走 OS 的 futex（两次内核往返）；JDK 15 起偏向锁默认禁用（JEP 374），反向自检“为什么禁”——撤销偏向锁要安全点 STW，收益被高并发稀释。</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">生产者-消费者（信号量版本）：
+empty 信号量 = 缓冲区容量，full 信号量 = 0
+生产者：P(empty) → 放数据 → V(full)
+消费者：P(full) → 取数据 → V(empty)
+</code></pre></div>
+<p>经典同步问题的结论：</p>
+<ul>
+<li><strong>读者-写者问题</strong>：读读可并行、读写互斥，本质就是读写锁；读者优先可能让写者饥饿，写者优先反之；</li>
+<li><strong>哲学家就餐</strong>：防止死锁的常用解法是“编号取叉”（所有人先拿小号叉，破坏循环等待）或“一次拿两把叉”（拿不到第二把就都放下，破坏“持有并等待”）。</li>
+</ul>
+<h3>4.2 死锁的四个必要条件</h3>
+<ol>
+<li><strong>互斥</strong>：资源同一时刻只能被一个进程占用；</li>
+<li><strong>持有并等待</strong>：占着一个资源的同时等另一个；</li>
+<li><strong>不可剥夺</strong>：资源只能主动释放；</li>
+<li><strong>循环等待</strong>：A 等 B、B 等 A 形成环。</li>
+</ol>
+<p><strong>四条件必要不充分</strong>：满足四条件未必死锁，还要有真正互等的时序。写两个线程互相持有对方要的锁即可复现，<code>jstack</code> 会输出 <code>Found one Java-level deadlock</code>，按“等待的锁 → 持有者线程 → 它又在等谁”的环定位；排查顺序：先 jstack 找环，再统一加锁顺序。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    P1[进程 1] --&gt;|持有| R1[资源 1]
+    P1 --&gt;|等待| R2[资源 2]
+    P2[进程 2] --&gt;|持有| R2
+    P2 --&gt;|等待| R1</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<h3>4.3 死锁的预防、避免与检测</h3>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预防</td>
+<td>破坏四个必要条件之一：资源一次性申请（破坏持有等待）、按序申请（破坏循环等待）、可抢占（破坏不可剥夺）</td>
+</tr>
+<tr>
+<td>避免</td>
+<td>银行家算法：分配前判断是否处于安全状态</td>
+</tr>
+<tr>
+<td>检测与恢复</td>
+<td>资源分配图检测环；终止进程或剥夺资源</td>
+</tr>
+</tbody>
+</table>
+<p>银行家算法一句话：每次分配前模拟“按最坏情况能否让所有进程完成”，能则安全分配，否则拒绝。</p>
+<p><strong>完整机制</strong>：系统维护四张表——<code>Available</code>（每种资源剩余）、<code>Max</code>（每个进程的最大需求）、<code>Allocation</code>（已分配）、<code>Need = Max - Allocation</code>（还缺多少）。分配前先做<strong>安全性检查</strong>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">1. 找一个 Need ≤ Available 的未完成进程；
+2. 假设分配给它并等它运行完，回收 Allocation，Available 变大；
+3. 重复直到所有进程都能完成 → 存在安全序列，状态安全，允许分配；
+   找不到任何可满足的进程 → 不安全，拒绝本次分配。
+</code></pre></div>
+<p><strong>3 进程算例</strong>：资源 R 共 10 个，P0（Allocation=3，Need=4）、P1（Allocation=2，Need=3）、P2（Allocation=2，Need=6），则 Available = 10 − 3 − 2 − 2 = 3。安全性检查：P1（Need 3 ≤ 3）先完成 → Available = 3+2 = 5；再 P0（4 ≤ 5）完成 → Available = 8；最后 P2（6 ≤ 8）完成。存在安全序列 P1 → P0 → P2，当前状态安全，可以分配。</p>
+<p><strong>为什么现代 OS 不做“避免”</strong>：银行家算法要求进程<strong>预申报最大需求</strong>（现实业务做不到）、检查是 O(n²·m) 量级、且提前拒绝分配会浪费资源。Linux 实际是“鸵鸟策略 + 检测恢复”：平时不预防，死锁了靠超时/重启/资源分配图检测处理。</p>
+<h3>4.4 面试追问</h3>
+<ul>
+<li>问：死锁的四个必要条件？</li>
+<li>答：互斥、持有并等待、不可剥夺、循环等待，缺一不可。</li>
+<li>问：怎么预防死锁？</li>
+<li>答：工程上最常用的是统一资源申请顺序（破坏循环等待）；tryLock 超时属于检测-恢复思路的工程折中——等待时仍在持有并等待，超时后释放已持锁才打破僵局。</li>
+<li>问：银行家算法是什么？</li>
+<li>答：资源分配前检查是否存在安全序列，避免系统进入不安全状态。</li>
+<li>问：信号量和互斥锁的区别？</li>
+<li>答：互斥锁语义是“一个”；信号量是“最多 N 个”，可做资源计数与同步。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
+<script>const contentId="operating-system:05",moduleId="operating-system";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta name="color-scheme" content="light dark">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双指针算法可视化 - Java</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 30px; font-size: 28px; color: #1a1a2e; }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  .sort-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; justify-content: center; }
+  .sort-tab { padding: 8px 18px; border: 2px solid #ddd; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; background: #fff; white-space: nowrap; }
+  .sort-tab:hover { border-color: #4a6cf7; color: #4a6cf7; }
+  .sort-tab.active { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+  .panel { display: none; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+  .panel.active { display: block; }
+
+  .panel-header { padding: 20px 28px; background: linear-gradient(135deg, #4a6cf7, #6c63ff); color: #fff; }
+  .panel-header h2 { font-size: 22px; margin-bottom: 6px; }
+  .panel-header .sub { font-size: 13px; opacity: .85; }
+
+  .complexity { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px 28px; background: #f8f9fd; border-bottom: 1px solid #eee; font-size: 14px; align-items: center; }
+  .complexity span { background: #fff; padding: 4px 14px; border-radius: 6px; border: 1px solid #e0e3eb; }
+  .complexity .label { color: #888; border: none; background: transparent; padding-left: 0; }
+  .complexity .badge-time { color: #4a6cf7; }
+  .complexity .badge-space { color: #0a7; }
+
+  .content { display: flex; flex-direction: row; min-height: 420px; }
+  @media (max-width: 900px) { .content { flex-direction: column; } }
+
+  .code-section { flex: 1; min-width: 0; border-right: 1px solid #eee; position: relative; }
+  @media (max-width: 900px) { .code-section { border-right: none; border-bottom: 1px solid #eee; } }
+
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid #eee; font-size: 13px; color: #666; }
+  .code-header .lang-label { font-weight: 600; color: #4a6cf7; }
+  .copy-btn { padding: 3px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px; background: #fff; }
+  .copy-btn:hover { background: #f0f2f5; }
+
+  .code-scroll { overflow: auto; max-height: 500px; }
+  .code-scroll pre { margin: 0; padding: 0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+  .code-scroll code { display: block; padding: 12px 0; }
+  .code-line { display: block; white-space: pre; padding: 0 16px 0 0; }
+  .code-line .lineno { display: inline-block; width: 44px; text-align: right; padding: 0 12px 0 16px; user-select: none; color: #999; }
+  .code-line.highlight-line { background: #fff3cd; }
+  .code-line.highlight-line .lineno { color: #b8860b; font-weight: bold; }
+
+  .vis-section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .vis-canvas-wrap { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 26px 20px 10px; min-height: 260px; gap: 3px; position: relative; }
+  .bar-wrapper { position: relative; display: inline-flex; flex-direction: column; align-items: center; vertical-align: bottom; }
+  .bar { display: inline-block; border-radius: 3px 3px 0 0; transition: all .15s; min-width: 6px; }
+  .bar .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; }
+  .ptr-label { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: bold; white-space: nowrap; }
+  .water-on-bar { position: absolute; left: 0; right: 0; border-radius: 0 0 3px 3px; pointer-events: none; }
+
+  .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #f0f4ff; border-bottom: 1px solid #e0e6f0; min-height: 36px; }
+
+  .controls { padding: 12px 20px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #eee; }
+  .controls button { padding: 6px 16px; border: 1px solid #d0d5dd; border-radius: 6px; cursor: pointer; font-size: 13px; background: #fff; transition: all .15s; }
+  .controls button:hover { background: #f5f6fa; border-color: #4a6cf7; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .btn-primary { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+  .controls .btn-primary:hover { background: #3b5de7; }
+  .controls .btn-primary:disabled { background: #a0b4f7; border-color: #a0b4f7; }
+  .controls label { font-size: 13px; color: #666; margin-left: 8px; }
+  .controls select { padding: 4px 8px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 100px; vertical-align: middle; }
+  .step-info { font-size: 13px; color: #888; margin-left: auto; }
+
+  .algo-desc { padding: 12px 28px 16px; background: #fafbfc; border-top: 1px solid #eee; font-size: 14px; line-height: 1.7; color: #555; }
+  .algo-desc strong { color: #333; }
+
+  .water-rect { position: absolute; pointer-events: none; border-radius: 3px; transition: all .2s; }
+  .sub-msg { font-size: 12px; color: #888; margin-left: 12px; font-weight: normal; }
+</style>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>双指针算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div class="container">
+<h1>双指针算法可视化（Java）</h1>
+
+<div class="sort-tabs" id="tabs">
+  <div class="sort-tab active" data-idx="0">移动零</div>
+  <div class="sort-tab" data-idx="1">盛最多水的容器</div>
+  <div class="sort-tab" data-idx="2">三数之和</div>
+  <div class="sort-tab" data-idx="3">接雨水</div>
+</div>
+
+<div id="panels"></div>
+</div>
+
+<script>
+// ===================== 双指针问题数据 =====================
+const PROBLEM_DATA = [
+  {
+    name: "移动零",
+    nameEn: "Move Zeroes",
+    time: "O(n)",
+    space: "O(1)",
+    desc: "双指针技巧——快慢指针。左指针维护已处理好的非零元素末尾，右指针遍历数组。当右指针遇到非零元素时，将其与左指针位置交换，左指针右移。这样所有非零元素被依次移到前面，零则被动移到最后。",
+    presets: [
+      { label: "默认 [0,1,0,3,12]", data: [0,1,0,3,12] },
+      { label: "全零 [0,0,0,0,1]", data: [0,0,0,0,1] },
+      { label: "无零 [1,2,3,4,5]", data: [1,2,3,4,5] },
+      { label: "混合 [0,0,1,0,3,0,2]", data: [0,0,1,0,3,0,2] },
+      { label: "随机 8 个", data: null, size: 8 },
+      { label: "随机 12 个", data: null, size: 12 }
+    ],
+    javaCode: `public void moveZeroes(int[] nums) {
+    int left = 0;
+    for (int right = 0; right < nums.length; right++) {
+        if (nums[right] != 0) {
+            int tmp = nums[left];
+            nums[left] = nums[right];
+            nums[right] = tmp;
+            left++;
+        }
+    }
+}`
+  },
+  {
+    name: "盛最多水的容器",
+    nameEn: "Container With Most Water",
+    time: "O(n)",
+    space: "O(1)",
+    desc: "双指针技巧——对撞指针。左右指针指向数组两端，每次计算当前容器面积 = min(height[l], height[r]) × (r-l)，更新最大面积。然后将较矮一侧的指针向中间移动，因为容器的高度受限于较矮的边。",
+    presets: [
+      { label: "经典 [1,8,6,2,5,4,8,3,7]", data: [1,8,6,2,5,4,8,3,7] },
+      { label: "递增 [1,2,3,4,5,6,7,8]", data: [1,2,3,4,5,6,7,8] },
+      { label: "递减 [8,7,6,5,4,3,2,1]", data: [8,7,6,5,4,3,2,1] },
+      { label: "随机 8 个", data: null, size: 8 },
+      { label: "随机 12 个", data: null, size: 12 }
+    ],
+    javaCode: `public int maxArea(int[] height) {
+    int l = 0, r = height.length - 1;
+    int max = 0;
+    while (l < r) {
+        int h = Math.min(height[l], height[r]);
+        int w = r - l;
+        max = Math.max(max, h * w);
+        if (height[l] < height[r]) l++;
+        else r--;
+    }
+    return max;
+}`
+  },
+  {
+    name: "三数之和",
+    nameEn: "3Sum",
+    time: "O(n²)",
+    space: "O(1) 忽略结果空间",
+    desc: "排序 + 双指针。先对数组排序，然后固定一个元素 nums[i]，再用双指针 l=i+1、r=n-1 在剩余部分寻找和为 -nums[i] 的两个数。需要跳过重复元素以避免重复三元组。",
+    presets: [
+      { label: "经典 [-1,0,1,2,-1,-4]", data: [-1,0,1,2,-1,-4] },
+      { label: "全零 [0,0,0,0]", data: [0,0,0,0] },
+      { label: "有解 [-2,-1,0,1,2,3]", data: [-2,-1,0,1,2,3] },
+      { label: "无解 [1,2,3,4,5]", data: [1,2,3,4,5] },
+      { label: "随机 8 个", data: null, size: 8 },
+      { label: "随机 12 个", data: null, size: 12 }
+    ],
+    javaCode: `public List<List<Integer>> threeSum(int[] nums) {
+    Arrays.sort(nums);
+    List<List<Integer>> res = new ArrayList<>();
+    for (int i = 0; i < nums.length - 2; i++) {
+        if (i > 0 && nums[i] == nums[i-1]) continue;
+        int l = i + 1, r = nums.length - 1;
+        while (l < r) {
+            int sum = nums[i] + nums[l] + nums[r];
+            if (sum == 0) {
+                res.add(Arrays.asList(nums[i], nums[l], nums[r]));
+                while (l < r && nums[l] == nums[l+1]) l++;
+                while (l < r && nums[r] == nums[r-1]) r--;
+                l++; r--;
+            } else if (sum < 0) l++;
+            else r--;
+        }
+    }
+    return res;
+}`
+  },
+  {
+    name: "接雨水",
+    nameEn: "Trapping Rain Water",
+    time: "O(n)",
+    space: "O(1)",
+    desc: "双指针技巧——对撞指针左右夹逼。维护左右两侧的最大高度 leftMax 和 rightMax。对于每个位置，能接的雨水量由两侧最大高度的较小者决定。如果 height[l] < height[r]，则处理左侧，否则处理右侧。",
+    presets: [
+      { label: "经典 [0,1,0,2,1,0,1,3,2,1,2,1]", data: [0,1,0,2,1,0,1,3,2,1,2,1] },
+      { label: "山谷 [3,0,0,2,0,4]", data: [3,0,0,2,0,4] },
+      { label: "无凹 [1,2,3,4,5]", data: [1,2,3,4,5] },
+      { label: "平台 [2,0,0,0,2]", data: [2,0,0,0,2] },
+      { label: "随机 8 个", data: null, size: 8 },
+      { label: "随机 12 个", data: null, size: 12 }
+    ],
+    javaCode: `public int trap(int[] height) {
+    int l = 0, r = height.length - 1;
+    int lMax = 0, rMax = 0, water = 0;
+    while (l < r) {
+        if (height[l] < height[r]) {
+            if (height[l] >= lMax) lMax = height[l];
+            else water += lMax - height[l];
+            l++;
+        } else {
+            if (height[r] >= rMax) rMax = height[r];
+            else water += rMax - height[r];
+            r--;
+        }
+    }
+    return water;
+}`
+  }
+];
+
+// ===================== 可视化引擎 =====================
+let currentIdx = 0;
+let panelData = [];
+
+function generateRandomArray(size, min, max) {
+  const arr = new Array(size);
+  for (let i = 0; i < size; i++) arr[i] = Math.floor(Math.random() * (max - min + 1)) + min;
+  return arr;
+}
+
+// ---------- 步骤生成 ----------
+function buildSteps(probIdx, rawArr) {
+  const arr = rawArr.slice();
+  const n = arr.length;
+  const steps = [];
+
+  function push(opts) {
+    steps.push({
+      array: opts.array || arr.slice(),
+      pointers: opts.pointers || {},
+      swaps: opts.swaps || [],
+      highlight: opts.highlight || [],
+      sorted: opts.sorted || [],
+      fixed: opts.fixed,
+      areaRect: opts.areaRect || null,
+      waterLevels: opts.waterLevels || null,
+      waterTotal: opts.waterTotal != null ? opts.waterTotal : null,
+      maxArea: opts.maxArea,
+      triplet: opts.triplet || null,
+      sum: opts.sum,
+      lMax: opts.lMax,
+      rMax: opts.rMax,
+      line: opts.line || 0,
+      msg: opts.msg || ''
+    });
+  }
+
+  switch (probIdx) {
+    // ===== 0 - 移动零 =====
+    case 0: {
+      push({ pointers: { l: 0, r: 0 }, line: 2, msg: '初始化左指针 left = 0，右指针 right 开始遍历' });
+      let left = 0;
+      for (let right = 0; right < n; right++) {
+        push({ pointers: { l: left, r: right }, highlight: [right], line: 3,
+          msg: `右指针扫描到 nums[${right}] = ${arr[right]}${arr[right] === 0 ? '（零元素，跳过）' : '（非零，准备交换）'}` });
+        if (arr[right] !== 0) {
+          if (right !== left) {
+            push({ pointers: { l: left, r: right }, swaps: [left, right], highlight: [left, right], line: 5,
+              msg: `交换 nums[${left}] = ${arr[left]} 和 nums[${right}] = ${arr[right]}` });
+          } else {
+            push({ pointers: { l: left, r: right }, highlight: [right], sorted: [right], line: 5,
+              msg: `nums[${right}] 已在正确位置，无需交换` });
+          }
+          [arr[left], arr[right]] = [arr[right], arr[left]];
+          left++;
+          if (right !== left) {
+            push({ pointers: { l: left, r: right }, sorted: Array.from({length: left}, (_,i) => i), line: 8,
+              msg: `左指针右移到 ${left}，前 ${left} 个元素已处理完成` });
+          }
+        }
+      }
+      push({ sorted: Array.from({length: n}, (_,i) => i), pointers: {}, line: 0,
+        msg: '✓ 移动零完成！所有非零元素已移到数组前面' });
+      break;
+    }
+
+    // ===== 1 - 盛最多水的容器 =====
+    case 1: {
+      let l = 0, r = n - 1;
+      let maxArea = 0, maxL = 0, maxR = n - 1;
+      push({ pointers: { l, r }, line: 2, msg: `初始化：左指针 l = ${l}，右指针 r = ${r}` });
+      while (l < r) {
+        const h = Math.min(arr[l], arr[r]);
+        const w = r - l;
+        const area = h * w;
+        const isHigherLeft = arr[l] < arr[r];
+        push({ pointers: { l, r }, highlight: [l, r], areaRect: { l, r, level: h }, line: 4,
+          msg: `height[${l}] = ${arr[l]}，height[${r}] = ${arr[r]}，高 = min(${arr[l]},${arr[r]}) = ${h}，宽 = ${r} - ${l} = ${w}，面积 = ${h} × ${w} = ${area}` });
+        if (area > maxArea) {
+          maxArea = area;
+          maxL = l; maxR = r;
+          push({ pointers: { l, r }, highlight: [l, r], areaRect: { l, r, level: h }, maxArea, line: 5,
+            msg: `🏆 更新最大面积为 ${maxArea}（柱子 ${maxL} 和 ${maxR}）` });
+        }
+        push({ pointers: { l, r }, highlight: [l, r], line: 6,
+          msg: `移动 ${isHigherLeft ? '左' : '右'}指针（height[${isHigherLeft ? l : r}] = ${isHigherLeft ? arr[l] : arr[r]} 较矮）→ ${isHigherLeft ? 'l++' : 'r--'}` });
+        if (isHigherLeft) l++; else r--;
+      }
+      push({ pointers: {}, maxArea, line: 0,
+        msg: `✓ 盛最多水的容器完成！最大面积 = ${maxArea}（柱子 ${maxL} 和 ${maxR}，高度 ${Math.min(arr[maxL], arr[maxR])}，宽度 ${Math.abs(maxR - maxL)}）` });
+      break;
+    }
+
+    // ===== 2 - 三数之和 =====
+    case 2: {
+      arr.sort((a, b) => a - b);
+      push({ array: arr.slice(), pointers: {}, sorted: [], line: 2, msg: `排序后数组：[${arr.join(', ')}]` });
+      const foundTriplets = [];
+      for (let i = 0; i < n - 2; i++) {
+        if (i > 0 && arr[i] === arr[i-1]) {
+          push({ array: arr.slice(), pointers: {}, fixed: i, highlight: [i], line: 4,
+            msg: `nums[${i}] = ${arr[i]} 与前一个重复，跳过` });
+          continue;
+        }
+        let l = i + 1, r = n - 1;
+        push({ array: arr.slice(), pointers: { l, r }, fixed: i, line: 5,
+          msg: `固定 nums[${i}] = ${arr[i]}，在 [${l}..${r}] 中寻找两数之和为 ${-arr[i]}` });
+        while (l < r) {
+          const sum = arr[i] + arr[l] + arr[r];
+          push({ array: arr.slice(), pointers: { l, r }, fixed: i, highlight: [l, r], sum, line: 7,
+            msg: `nums[${i}] + nums[${l}] + nums[${r}] = ${arr[i]} + ${arr[l]} + ${arr[r]} = ${sum}${sum === 0 ? ' ✓ 找到一组解！' : sum < 0 ? ' < 0，左指针右移' : ' > 0，右指针左移'}` });
+          if (sum === 0) {
+            foundTriplets.push([arr[i], arr[l], arr[r]]);
+            push({ array: arr.slice(), pointers: { l, r }, fixed: i, triplet: [i, l, r], sum, line: 8,
+              msg: `✅ 找到三元组：[${arr[i]}, ${arr[l]}, ${arr[r]}]` });
+            while (l < r && arr[l] === arr[l+1]) { l++; push({ array: arr.slice(), pointers: { l, r }, fixed: i, highlight: [l], line: 9, msg: `跳过重复的左指针 → l = ${l}` }); }
+            while (l < r && arr[r] === arr[r-1]) { r--; push({ array: arr.slice(), pointers: { l, r }, fixed: i, highlight: [r], line: 10, msg: `跳过重复的右指针 → r = ${r}` }); }
+            l++; r--;
+          } else if (sum < 0) {
+            l++;
+          } else {
+            r--;
+          }
+        }
+        push({ array: arr.slice(), pointers: {}, fixed: i, highlight: [], line: 0,
+          msg: `nums[${i}] = ${arr[i]} 查找结束，${foundTriplets.length} 组解` });
+      }
+      push({ array: arr.slice(), sorted: Array.from({length: n}, (_,i) => i), pointers: {}, line: 0,
+        msg: `✓ 三数之和完成！共找到 ${foundTriplets.length} 组解：${foundTriplets.length ? foundTriplets.map(t => `[${t.join(',')}]`).join(' ') : '无'}` });
+      break;
+    }
+
+    // ===== 3 - 接雨水 =====
+    case 3: {
+      let l = 0, r = n - 1;
+      let lMax = 0, rMax = 0, water = 0;
+      const waterLevelsArr = new Array(n).fill(0);
+      push({ pointers: { l, r }, line: 2, msg: `初始化：左指针 l = ${l}，右指针 r = ${r}，leftMax = ${lMax}，rightMax = ${rMax}` });
+      while (l < r) {
+        if (arr[l] < arr[r]) {
+          const oldLMax = lMax;
+          if (arr[l] >= lMax) {
+            lMax = arr[l];
+          } else {
+            const w = lMax - arr[l];
+            water += w;
+            waterLevelsArr[l] = w;
+          }
+          push({ pointers: { l, r }, highlight: [l], lMax, rMax, waterLevels: waterLevelsArr.slice(), waterTotal: water, line: 4,
+            msg: `height[${l}] < height[${r}]（${arr[l]} < ${arr[r]}）→ 处理左侧：height[${l}]${arr[l] >= oldLMax ? ' >= ' : ' < '} leftMax（${arr[l]} ${arr[l] >= oldLMax ? '≥' : '<'} ${oldLMax}）${arr[l] >= oldLMax ? `→ 更新 leftMax = ${lMax}` : `→ 接水 ${lMax} - ${arr[l]} = ${lMax - arr[l]}`}` });
+          l++;
+        } else {
+          const oldRMax = rMax;
+          if (arr[r] >= rMax) {
+            rMax = arr[r];
+          } else {
+            const w = rMax - arr[r];
+            water += w;
+            waterLevelsArr[r] = w;
+          }
+          push({ pointers: { l, r }, highlight: [r], lMax, rMax, waterLevels: waterLevelsArr.slice(), waterTotal: water, line: 8,
+            msg: `height[${l}] ≥ height[${r}]（${arr[l]} ≥ ${arr[r]}）→ 处理右侧：height[${r}]${arr[r] >= oldRMax ? ' >= ' : ' < '} rightMax（${arr[r]} ${arr[r] >= oldRMax ? '≥' : '<'} ${oldRMax}）${arr[r] >= oldRMax ? `→ 更新 rightMax = ${rMax}` : `→ 接水 ${rMax} - ${arr[r]} = ${rMax - arr[r]}`}` });
+          r--;
+        }
+      }
+      push({ waterLevels: waterLevelsArr.slice(), waterTotal: water, pointers: {}, sorted: Array.from({length: n}, (_,i) => i), line: 0,
+        msg: `✓ 接雨水完成！总共接水 = ${water}` });
+      break;
+    }
+  }
+  return steps;
+}
+
+// ---------- DOM 构建 ----------
+function initPanel(idx) {
+  const data = PROBLEM_DATA[idx];
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (idx === 0 ? ' active' : '');
+  panel.id = 'panel-' + idx;
+
+  const codeStr = data.javaCode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = codeStr.split('\n');
+  let codeHTML = '<pre><code>';
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    codeHTML += `<div class="code-line" data-line="${ln}"><span class="lineno">${ln}</span><span class="line-code">${lines[i]}</span></div>`;
+  }
+  codeHTML += '</code></pre>';
+
+  const presetOpts = data.presets.map((p, pi) => `<option value="${pi}">${p.label}</option>`).join('');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2>${data.name}（${data.nameEn}）</h2>
+      <div class="sub">${data.desc}</div>
+    </div>
+    <div class="complexity">
+      <span class="label">复杂度</span>
+      <span><span class="badge-time">●</span> 时间复杂度 ${data.time}</span>
+      <span><span class="badge-space">●</span> 空间复杂度 ${data.space}</span>
+      <button class="copy-btn" data-idx="${idx}" style="margin-left:auto;">复制代码</button>
+    </div>
+    <div class="content">
+      <div class="code-section">
+        <div class="code-header">
+          <span class="lang-label">Java</span>
+        </div>
+        <div class="code-scroll">${codeHTML}</div>
+      </div>
+      <div class="vis-section">
+        <div class="vis-msg" id="msg-${idx}">选择测试数据并点击「下一步」开始演示</div>
+        <div class="vis-canvas-wrap" id="canvas-${idx}"></div>
+        <div class="controls">
+          <button class="btn-first" data-idx="${idx}">|◀ 首步</button>
+          <button class="btn-prev" data-idx="${idx}">◀ 上一步</button>
+          <button class="btn-next btn-primary" data-idx="${idx}">下一步 ▶</button>
+          <button class="btn-last" data-idx="${idx}">末步 ▶|</button>
+          <button class="btn-auto" data-idx="${idx}">▶ 自动</button>
+          <label>速度 <input type="range" class="speed-slider" min="1" max="10" value="5" data-idx="${idx}"></label>
+          <label>数据 <select class="preset-select" data-idx="${idx}">${presetOpts}</select></label>
+          <button class="btn-reset" data-idx="${idx}">🔄 重置</button>
+          <span class="step-info" id="stepInfo-${idx}">步骤 0 / 0</span>
+        </div>
+      </div>
+    </div>
+    <div class="algo-desc">
+      <strong>算法说明：</strong>${data.desc}
+    </div>
+  `;
+
+  document.getElementById('panels').appendChild(panel);
+
+  const state = { steps: [], stepIdx: 0, arr: [], idx: idx, running: false, timer: null };
+  panelData[idx] = state;
+
+  const presetSelect = panel.querySelector('.preset-select');
+  const nextBtn = panel.querySelector('.btn-next');
+  const prevBtn = panel.querySelector('.btn-prev');
+  const firstBtn = panel.querySelector('.btn-first');
+  const lastBtn = panel.querySelector('.btn-last');
+  const autoBtn = panel.querySelector('.btn-auto');
+  const speedSlider = panel.querySelector('.speed-slider');
+  const resetBtn = panel.querySelector('.btn-reset');
+
+  function render() {
+    const canvas = document.getElementById('canvas-' + idx);
+    if (!state.steps.length) return;
+    const stepIdx = Math.min(state.stepIdx, state.steps.length - 1);
+    const step = state.steps[stepIdx];
+    const arrVals = step.array;
+    if (!arrVals || !arrVals.length) return;
+    const maxVal = Math.max(...arrVals.map(Math.abs), 1);
+    const minVal = Math.min(...arrVals);
+    canvas.innerHTML = '';
+    const _hotCanvasStyle = getComputedStyle(canvas);
+    const _hotPadX = (parseFloat(_hotCanvasStyle.paddingLeft) || 0) + (parseFloat(_hotCanvasStyle.paddingRight) || 0);
+    const _hotPadY = (parseFloat(_hotCanvasStyle.paddingTop) || 0) + (parseFloat(_hotCanvasStyle.paddingBottom) || 0);
+    const W = Math.max(240, canvas.clientWidth - _hotPadX);
+    const H = Math.max(180, canvas.clientHeight - _hotPadY);
+    const barW = Math.max(8, Math.min(40, Math.floor((W - 20) / arrVals.length) - 2));
+
+    const hasNegative = minVal < 0;
+    const midY = hasNegative ? H / 2 : H - 30;
+
+    arrVals.forEach((v, i) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'bar-wrapper';
+
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+
+      let barH = 0;
+      if (hasNegative) {
+        barH = Math.abs(v) / maxVal * (H / 2 - 10);
+        if (v >= 0) {
+          bar.style.height = barH + 'px';
+          bar.style.alignSelf = 'flex-end';
+          bar.style.marginTop = (H / 2) + 'px';
+        } else {
+          bar.style.height = barH + 'px';
+          bar.style.alignSelf = 'flex-start';
+          bar.style.marginBottom = (H / 2) + 'px';
+          bar.style.borderRadius = '0 0 3px 3px';
+        }
+      } else {
+        barH = (v / maxVal) * (H - 30);
+        bar.style.height = barH + 'px';
+      }
+      bar.style.width = barW + 'px';
+
+      // Coloring
+      let bg = '#4a6cf7';
+      if (step.sorted && step.sorted.includes(i)) bg = '#4caf50';
+      if (step.swaps && step.swaps.includes(i)) bg = '#f44336';
+      if (step.highlight && step.highlight.includes(i)) bg = '#ff9800';
+      if (step.fixed === i) bg = '#9c27b0';
+      if (step.triplet && step.triplet.includes(i)) bg = '#e91e63';
+      if (step.pointers) {
+        if (step.pointers.l === i && step.pointers.l === step.pointers.r) bg = '#00bcd4';
+      }
+      bar.style.background = bg;
+      wrapper.appendChild(bar);
+
+      // Value label
+      const label = document.createElement('span');
+      label.className = 'bar-label';
+      label.textContent = v;
+      label.style.bottom = hasNegative ? (v >= 0 ? '-18px' : (barH + 4) + 'px') : '-18px';
+      bar.appendChild(label);
+
+      // Pointer label
+      if (step.pointers) {
+        if (step.pointers.l === i && step.pointers.l !== undefined) {
+          const pl = document.createElement('div');
+          pl.className = 'ptr-label';
+          pl.style.color = '#f44336';
+          const isBoth = step.pointers.l === step.pointers.r;
+          pl.textContent = isBoth ? 'L/R' : 'L';
+          wrapper.appendChild(pl);
+        }
+        if (step.pointers.r === i && step.pointers.l !== step.pointers.r && step.pointers.r !== undefined) {
+          const pr = document.createElement('div');
+          pr.className = 'ptr-label';
+          pr.style.color = '#4a6cf7';
+          pr.textContent = 'R';
+          wrapper.appendChild(pr);
+        }
+      }
+      if (step.fixed === i) {
+        const pf = document.createElement('div');
+        pf.className = 'ptr-label';
+        pf.style.color = '#9c27b0';
+        pf.textContent = 'i';
+        wrapper.appendChild(pf);
+      }
+
+      // Water on bar (rain water)
+      if (step.waterLevels && step.waterLevels[i] > 0) {
+        const waterEl = document.createElement('div');
+        waterEl.className = 'water-on-bar';
+        const waterH = (step.waterLevels[i] / maxVal) * (H - 30);
+        waterEl.style.bottom = barH + 'px';
+        waterEl.style.height = waterH + 'px';
+        waterEl.style.background = 'rgba(66,133,244,0.45)';
+        waterEl.style.width = barW + 'px';
+        wrapper.appendChild(waterEl);
+      }
+
+      canvas.appendChild(wrapper);
+    });
+
+    // Water rectangle (container with most water)
+    if (step.areaRect && !hasNegative) {
+      const rect = step.areaRect;
+      const totalBars = arrVals.length;
+      const gap = 3;
+      const totalW = totalBars * (barW + gap);
+      const offsetX = (canvas.clientWidth - totalW) / 2;
+      const waterLevelH = (rect.level / maxVal) * (H - 30);
+      const leftPx = offsetX + rect.l * (barW + gap) - gap/2;
+      const rightPx = offsetX + (rect.r + 1) * (barW + gap) - gap/2;
+      const wRect = document.createElement('div');
+      wRect.className = 'water-rect';
+      wRect.style.left = leftPx + 'px';
+      wRect.style.width = (rightPx - leftPx) + 'px';
+      wRect.style.bottom = '0px';
+      wRect.style.height = waterLevelH + 'px';
+      wRect.style.background = 'rgba(66,133,244,0.2)';
+      wRect.style.border = '2px dashed rgba(66,133,244,0.6)';
+      canvas.appendChild(wRect);
+    }
+
+    // Step info
+    const info = document.getElementById('stepInfo-' + idx);
+    if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
+    const msgEl = document.getElementById('msg-' + idx);
+    if (msgEl) {
+      let msg = step.msg || '';
+      if (step.maxArea != null && step.maxArea > 0) msg += `　<span class="sub-msg">当前最大面积：${step.maxArea}</span>`;
+      if (step.waterTotal != null) msg += `　<span class="sub-msg">累计接水：${step.waterTotal}</span>`;
+      if (step.lMax != null) msg += `　<span class="sub-msg">leftMax=${step.lMax} rightMax=${step.rMax}</span>`;
+      if (step.sum != null) msg += `　<span class="sub-msg">sum=${step.sum}</span>`;
+      msgEl.innerHTML = msg;
+    }
+
+    // Code highlight
+    const codeLines = panel.querySelectorAll('.code-line');
+    codeLines.forEach(el => el.classList.remove('highlight-line'));
+    if (step.line > 0) {
+      const target = panel.querySelector(`.code-line[data-line="${step.line}"]`);
+      if (target) target.classList.add('highlight-line');
+    }
+  }
+
+  function getPresetData() {
+    const optIdx = parseInt(presetSelect.value);
+    const preset = data.presets[optIdx];
+    if (preset.data) {
+      return preset.data.slice();
+    } else {
+      let min = -5, max = 15;
+      if (idx === 0) { min = 0; max = 9; }  // move zeroes: non-negative
+      else if (idx === 1) { min = 1; max = 15; } // container: positive
+      else if (idx === 2) { min = -5; max = 10; } // 3sum
+      else { min = 0; max = 10; } // rain: non-negative
+      return generateRandomArray(preset.size, min, max);
+    }
+  }
+
+  function resetSteps() {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    state.running = false;
+    autoBtn.textContent = '▶ 自动';
+    state.arr = getPresetData();
+    state.steps = buildSteps(idx, state.arr);
+    state.stepIdx = 0;
+    render();
+    updateButtons();
+  }
+
+  function updateButtons() {
+    const atFirst = state.stepIdx <= 0;
+    const atLast = state.stepIdx >= state.steps.length - 1;
+    firstBtn.disabled = atFirst;
+    prevBtn.disabled = atFirst;
+    nextBtn.disabled = atLast;
+    lastBtn.disabled = atLast;
+  }
+
+  presetSelect.addEventListener('change', resetSteps);
+
+  nextBtn.addEventListener('click', () => {
+    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+  });
+  prevBtn.addEventListener('click', () => {
+    if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
+  });
+  firstBtn.addEventListener('click', () => {
+    state.stepIdx = 0; render(); updateButtons();
+  });
+  lastBtn.addEventListener('click', () => {
+    state.stepIdx = state.steps.length - 1; render(); updateButtons();
+  });
+  resetBtn.addEventListener('click', resetSteps);
+  autoBtn.addEventListener('click', () => {
+    if (state.running) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      state.running = false;
+      autoBtn.textContent = '▶ 自动';
+    } else {
+      state.running = true;
+      autoBtn.textContent = '⏸ 暂停';
+      const speed = parseInt(speedSlider.value);
+      const delay = Math.max(20, 120 - speed * 10);
+      state.timer = setInterval(() => {
+        if (state.stepIdx < state.steps.length - 1) {
+          state.stepIdx++;
+          render();
+          updateButtons();
+        } else {
+          clearInterval(state.timer);
+          state.timer = null;
+          state.running = false;
+          autoBtn.textContent = '▶ 自动';
+        }
+      }, delay);
+    }
+  });
+
+  // Copy button
+  panel.querySelector('.copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(data.javaCode).then(() => {
+      const btn = panel.querySelector('.copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = '✓ 已复制';
+      setTimeout(() => btn.textContent = orig, 1500);
+    }).catch(() => alert('复制失败'));
+  });
+
+  state.render = render;
+  panelData[idx] = state;
+
+  resetSteps();
+
+  const ro = new ResizeObserver(() => render());
+  ro.observe(document.getElementById('canvas-' + idx));
+}
+
+// ===================== 启动 =====================
+PROBLEM_DATA.forEach((_, idx) => {
+  panelData.push(null);
+  initPanel(idx);
+});
+
+// Tab 切换
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '▶ 自动');
+    tab.classList.add('active');
+    const idx = parseInt(tab.dataset.idx);
+    document.getElementById('panel-' + idx).classList.add('active');
+    const s = panelData[idx];
+    if (s && s.render) s.render();
+  });
+});
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

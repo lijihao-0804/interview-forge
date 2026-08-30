@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>142. 环形链表 II · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="142-ii">142. 环形链表 II</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_5">复杂度</a></li>
+</ul>
+</li>
+<li><a href="#_6">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>Floyd 相遇后重置</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个链表的头节点 <code>head</code>，返回链表开始入环的第一个节点。 如果链表无环，则返回 <code>null</code>。</p>
+<p><strong>硬性限制</strong>：不允许修改给定的链表。</p>
+<p><strong>进阶要求</strong>：使用 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 空间复杂度解决此题。</p>
+<p><a href="https://leetcode.cn/problems/linked-list-cycle-ii/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>相遇后一个回到头部，同速再走会在入口相遇。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（HashSet 的诱惑）</strong>：</p>
+<p>和 141 题一样，最简单的办法是用 <code>HashSet</code> 把走过的节点存起来。第一个发现重复的节点，就是环的入口。但空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，无法满足进阶要求。</p>
+</li>
+<li>
+<p><strong>破局思路（双指针的两阶段任务）</strong>：</p>
+<ul>
+<li><strong>阶段一：判断是否有环</strong>。这一步和 141 题一模一样。乌龟（慢指针）一次走 1 步，兔子（快指针）一次走 2 步。如果它们相遇了，说明有环，记录下<strong>相遇点</strong>。</li>
+<li><strong>阶段二：寻找环的入口（纯数学推演）</strong>。这是全题的灵魂所在。</li>
+</ul>
+</li>
+<li>
+<p><strong>神级数学推导（白板推演必备）</strong>：</p>
+<p>假设链表有环，我们把整条路线分为三段：</p>
+<ul>
+<li>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="a"><mrow><mi>a</mi></mrow></math></span>：从链表头部到环形入口的距离（直道）。</p>
+</li>
+<li>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="b"><mrow><mi>b</mi></mrow></math></span>：从环形入口到快慢指针相遇点的距离。</p>
+</li>
+<li>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="c"><mrow><mi>c</mi></mrow></math></span>：从相遇点继续走到环形入口的距离。</p>
+</li>
+</ul>
+<p><em>(注意：环的总长度 <span class="math-inline-wrap"><math class="math-inline" aria-label="L = b + c"><mrow><mi>L</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi></mrow></math></span>)</em></p>
+<p>当快慢指针相遇时：</p>
+<ul>
+<li>慢指针走过的距离是：<span class="math-inline-wrap"><math class="math-inline" aria-label="a + b"><mrow><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi></mrow></math></span></li>
+<li>快指针走过的距离是：<span class="math-inline-wrap"><math class="math-inline" aria-label="a + b + n(b + c)"><mrow><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>n</mi><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo></mrow></math></span> （<span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 表示快指针在环里已经跑了 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 圈）</li>
+</ul>
+<p>因为快指针的速度是慢指针的 2 倍，所以相同时间内快指针走过的距离是慢指针的 2 倍：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="2(a + b) = a + b + n(b + c)"><mrow><mn>2</mn><mo>(</mo><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi><mo>)</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>n</mi><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo></mrow></math></span></p>
+<p>我们将等式化简，目标是求出我们要找的入口距离 <span class="math-inline-wrap"><math class="math-inline" aria-label="a"><mrow><mi>a</mi></mrow></math></span>：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="a + b = n(b + c)"><mrow><mi>a</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>b</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>n</mi><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo></mrow></math></span></p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="a = n(b + c) - b"><mrow><mi>a</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi>n</mi><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mi>b</mi></mrow></math></span></p>
+<p>由于我们需要拼凑出有物理意义的路径，我们可以提取出一个 <span class="math-inline-wrap"><math class="math-inline" aria-label="(b+c)"><mrow><mo>(</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>)</mo></mrow></math></span> 作为完整的一圈，把公式变形为：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="a = (n - 1)(b + c) + c"><mrow><mi>a</mi><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mo>(</mo><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi></mrow></math></span></p>
+<p><strong>结论（见证奇迹的时刻）</strong>：</p>
+<p>等式左边 <span class="math-inline-wrap"><math class="math-inline" aria-label="a"><mrow><mi>a</mi></mrow></math></span> 是<strong>从头部到入口的距离</strong>。</p>
+<p>等式右边 <span class="math-inline-wrap"><math class="math-inline" aria-label="(n - 1)(b + c) + c"><mrow><mo>(</mo><mi>n</mi><mspace width=".18em"/><mo>-</mo><mspace width=".18em"/><mn>1</mn><mo>)</mo><mo>(</mo><mi>b</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi><mo>)</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>c</mi></mrow></math></span> 的物理意义是：<strong>从相遇点出发，在环里转了 <span class="math-inline-wrap"><math class="math-inline" aria-label="(n-1)"><mrow><mo>(</mo><mi>n</mi><mo>-</mo><mn>1</mn><mo>)</mo></mrow></math></span> 圈之后，再走 <span class="math-inline-wrap"><math class="math-inline" aria-label="c"><mrow><mi>c</mi></mrow></math></span> 的距离</strong>。转圈相当于没动，所以它等价于<strong>从相遇点走 <span class="math-inline-wrap"><math class="math-inline" aria-label="c"><mrow><mi>c</mi></mrow></math></span> 的距离到达入口</strong>！<strong>不是走 c 步就到入口，是总步数凑成 a，两者步数相等才相遇；a 可以远大于 c，多出来的部分就是在环里空转圈凑数。</strong></p>
+<p><strong>终极算法</strong>：相遇后，让一个新指针从 <code>head</code> 出发，让慢指针从 <code>相遇点</code> 出发。两人每次都走 1 步。<strong>当他们相遇时，相遇的位置绝对就是环的入口！</strong></p>
+<h3 id="java">Java 实现</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode(int x) {</span>
+<span class="cm"> *         val = x;</span>
+<span class="cm"> *         next = null;</span>
+<span class="cm"> *     }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 边界条件防御</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 阶段一：快慢指针判断是否有环</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 发现环！</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">slow</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">fast</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 阶段二：寻找环的入口</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">index1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span><span class="w"> </span><span class="c1">// 从头节点出发的新指针</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">index2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">;</span><span class="w"> </span><span class="c1">// 从相遇点出发的慢指针</span>
+
+<span class="w">                </span><span class="c1">// 两个指针每次各走一步，直到相遇</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">index1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">index2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">index1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">index1</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                    </span><span class="n">index2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">index2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// 相遇的节点就是环的入口</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="n">index1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 没环，直接返回 null</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>
+<p><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。在阶段一，快慢指针相遇所需的步数不会超过链表的总节点数 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>。在阶段二，两个指针寻找入口走的步数 <span class="math-inline-wrap"><math class="math-inline" aria-label="a"><mrow><mi>a</mi></mrow></math></span> 也严格小于 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span>。因此总体依然是线性的。</p>
+</li>
+<li>
+<p><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。全程只使用了 <code>slow</code>、<code>fast</code>、<code>index1</code> 和 <code>index2</code> 四个节点指针，达到了极致的内存压缩。</p>
+</li>
+</ul>
+<p>这道题是链表专题里的“拉链法”入门题，也是极其高频的面试题。</p>
+<p>虽然这道题被标记为“简单（Easy）”，但它向我们揭示了链表操作中一个极其重要、能让你少写无数 <code>if-else</code> 的神仙技巧：<strong>虚拟头节点（Dummy Node）</strong>。</p>
+<p>请查收你的专属笔记：</p>
+<h2 id="_6">相邻学习</h2>
+<p><a href="0141-环形链表.html">← 141. 环形链表</a> · <a href="0021-合并两个有序链表.html">21. 合并两个有序链表 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

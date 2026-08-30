@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>17. 电话号码的字母组合 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 10-回溯</div>
+        <h1 id="17">17. 电话号码的字母组合</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-stringbuilder">Java 实现（满分 StringBuilder 优化版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（进阶的底层细节）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/10-回溯.html">← 回溯专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>按位选择字符</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(4ⁿ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个仅包含数字 <code>2-9</code> 的字符串，返回所有它能表示的字母组合。答案可以按 <strong>任意顺序</strong> 返回。</p>
+<p>给出数字到字母的映射如下（与老式电话按键相同）。注意 1 不对应任何字母。</p>
+<p><a href="https://leetcode.cn/problems/letter-combinations-of-a-phone-number/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>递归层数对应电话号码下标。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（多重嵌套循环的破产）</strong>：</p>
+<p>假如输入的数字是 <code>"23"</code>，你可能会写两个 <code>for</code> 循环：外层遍历 <code>'a','b','c'</code>，内层遍历 <code>'d','e','f'</code>。</p>
+<p><strong>痛点</strong>：如果输入的是 <code>"23456"</code> 呢？你需要写 5 层嵌套的 <code>for</code> 循环！如果输入的长度是不固定的，你根本无法用普通的 <code>for</code> 循环来写代码。<strong>处理这种“未知层数的嵌套循环”，就是回溯算法最拿手的好戏。</strong></p>
+</li>
+<li>
+<p><strong>破局思路（构建横向与纵向的坐标系）</strong>：</p>
+<p>回溯算法的本质是遍历一棵多叉树。</p>
+<ul>
+<li><strong>树的深度（纵向）</strong>：由输入的数字字符串长度决定。比如输入 <code>"23"</code>，那这棵树只有两层。我们用一个 <code>index</code> 变量来记录当前正在处理第几个数字。</li>
+<li><strong>树的宽度（横向）</strong>：由当前数字对应的字母个数决定。比如遇到数字 <code>'2'</code>，宽度就是 3（<code>a, b, c</code>）；遇到数字 <code>'9'</code>，宽度就是 4（<code>w, x, y, z</code>）。</li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（三步走战略）</strong>：</p>
+<ul>
+<li><strong>查字典</strong>：建立一个数组或哈希表，把 <code>'2'</code> 到 <code>'9'</code> 映射到具体的字符串上。</li>
+<li><strong>做选择 -&gt; 下一层 -&gt; 撤销选择</strong>：抓取当前数字对应的字母集。选一个字母装进口袋，然后 <code>index + 1</code> 进入下一层（处理下一个数字）。等下一层处理完退回来时，把刚才装进口袋的字母掏出来，换下一个字母继续试。</li>
+<li><strong>收获结果</strong>：当口袋里的字母数量等于输入数字的长度时，说明所有的按键都按了一遍，保存结果并返回。</li>
+</ul>
+<h3 id="java-stringbuilder">Java 实现（满分 StringBuilder 优化版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 1. 建立九宫格字典（利用数组的索引巧妙对应数字）</span>
+<span class="w">    </span><span class="c1">// index 0 和 1 留空，对应真实的按键 &#39;0&#39; 和 &#39;1&#39;（虽然题目说只包含 2-9，但这样写更严谨规范）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">MAPPING</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;def&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;ghi&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;jkl&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;mno&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;pqrs&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;tuv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;wxyz&quot;</span>
+<span class="w">    </span><span class="p">};</span>
+
+<span class="w">    </span><span class="c1">// 全局结果集</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">letterCombinations</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">digits</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 🌟 致命边界检查：如果输入是空字符串 &quot;&quot;，应该返回空列表 []，而不是 [&quot;&quot;]</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">digits</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">digits</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 准备一个“口袋”用来临时装字母</span>
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 从第 0 个数字开始回溯</span>
+<span class="w">        </span><span class="n">backtrack</span><span class="p">(</span><span class="n">digits</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">backtrack</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">digits</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 终止条件：当走过的深度（index）等于按键个数时，说明一条路走到头了</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">index</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">digits</span><span class="p">.</span><span class="na">length</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">toString</span><span class="p">());</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 拿到当前这一层需要处理的数字字符</span>
+<span class="w">        </span><span class="kt">char</span><span class="w"> </span><span class="n">digit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">digits</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">index</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// 将字符 &#39;2&#39; 转换成真正的整数 2（利用 ASCII 码相减）</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">letters</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MAPPING</span><span class="o">[</span><span class="n">digit</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 遍历当前数字对应的所有字母（横向宽度）</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">letters</span><span class="p">.</span><span class="na">length</span><span class="p">();</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// --- 做选择 ---</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">letters</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">i</span><span class="p">));</span>
+
+<span class="w">            </span><span class="c1">// --- 带着这个选择，进入下一层处理下一个数字 ---</span>
+<span class="w">            </span><span class="n">backtrack</span><span class="p">(</span><span class="n">digits</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">path</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// --- 撤销选择（回溯！） ---</span>
+<span class="w">            </span><span class="c1">// 把刚刚加进去的最后一个字母删掉，腾出位置给 for 循环里的下一个字母</span>
+<span class="w">            </span><span class="n">path</span><span class="p">.</span><span class="na">deleteCharAt</span><span class="p">(</span><span class="n">path</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(3^N × 4^M)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mn>3</mn><mi>N</mi></msup><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><msup><mn>4</mn><mi>M</mi></msup><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是对应 3 个字母的数字个数（如 2,3,4,5,6,8），<span class="math-inline-wrap"><math class="math-inline" aria-label="M"><mrow><mi>M</mi></mrow></math></span> 是对应 4 个字母的数字个数（如 7,9）。最坏情况下，我们要把所有的组合都生成一遍。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N + M)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>M</mi><mo>)</mo></mrow></math></span>。空间消耗主要在递归调用栈的深度以及 <code>StringBuilder</code> 的长度，它们都等于输入字符串的长度。</li>
+</ul>
+<h3 id="_6">易错点与扩展（进阶的底层细节）</h3>
+<ol>
+<li><strong>极度高频坑点：<code>""</code> (空字符串) 的特殊处理</strong></li>
+</ol>
+<ul>
+<li>如果不加 <code>if (digits.length() == 0) return res;</code>，当输入为 <code>""</code> 时，代码会直接进入 <code>backtrack</code>。由于 <code>index == digits.length() == 0</code>，它会触发终止条件，往 <code>res</code> 里塞入一个空字符串，最终返回 <code>[""]</code>。</li>
+<li>但题目要求输入 <code>""</code> 时返回 <code>[]</code>（里面什么都没有）。这个微小的差别是这道题错误率最高的地方。</li>
+</ul>
+<ol start="2">
+<li><strong>面试代码品味大考问：“为什么要把 <code>path</code> 定义成 <code>StringBuilder</code>，如果我传 <code>String</code> 会怎样？”</strong></li>
+</ol>
+<ul>
+<li>
+<p><strong>低手回答</strong>：传 <code>String</code> 也能做，代码还更短。</p>
+<p>Java</p>
+</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>// 传 String 的写法，连撤销选择的代码都省了，看起来很爽：
+backtrack(digits, index + 1, path + letters.charAt(i));
+</code></pre></div>
+
+<ul>
+<li>
+<p><strong>高手抢答</strong>：在 Java 中，<code>String</code> 是不可变对象。如果你在递归里写 <code>path + "a"</code>，Java 底层会<strong>重新开辟一块内存</strong>，把老字符串拷过去，再拼上新字母。在巨大的回溯树中，这会疯狂产生无数个 <code>String</code> 垃圾对象，导致频繁触发 GC（垃圾回收），速度极慢且极其浪费内存！</p>
+</li>
+<li>
+<p>使用 <code>StringBuilder</code> 并且配合 <code>deleteCharAt</code> 进行撤销操作，意味着<strong>整个递归过程自始至终只复用了同一块内存</strong>！这才是真正的工业级代码素养。</p>
+<blockquote>
+<p>笔记中的本地图片未随迁；本题的可视化演示位于页尾「交互演示」部分。</p>
+</blockquote>
+</li>
+</ul>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0078-子集.html">← 78. 子集</a> · <a href="0039-组合总和.html">39. 组合总和 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/10-回溯.html?embed=1&amp;panel=2" title="17. 电话号码的字母组合的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

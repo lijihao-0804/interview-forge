@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>148. 排序链表 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 07-链表</div>
+        <h1 id="148">148. 排序链表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#1">解法 1：自顶向下归并版</a><ul>
+<li><a href="#_3">思路推导</a></li>
+<li><a href="#java">Java 实现（自顶向下归并版）</a></li>
+<li><a href="#_4">复杂度</a></li>
+<li><a href="#_5">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#2-o1">解法 2：自底向上 O(1) 空间版</a><ul>
+<li><a href="#_6">思路推导</a></li>
+<li><a href="#_7">思路推导</a></li>
+<li><a href="#java_1">Java 实现（纯迭代版）</a></li>
+<li><a href="#_8">复杂度</a></li>
+<li><a href="#_9">易错点与扩展（进阶的细节）</a></li>
+</ul>
+</li>
+<li><a href="#_10">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/07-链表.html">← 链表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>归并排序</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1) 可用自底向上</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你链表的头结点 <code>head</code> ，请将其按<strong>升序</strong>排列并返回。</p>
+<p><strong>进阶（硬性要求）</strong>：你可以在 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 时间复杂度和常数级 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 空间复杂度下，对链表进行排序吗？</p>
+<p><a href="https://leetcode.cn/problems/sort-list/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>链表适合通过断链、归并完成稳定排序。</p>
+</blockquote>
+<h2 id="1">解法 1：自顶向下归并版</h2>
+<h3 id="_3">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（转数组/冒泡排序）</strong>：</p>
+<ul>
+<li><em>想法 1</em>：把链表的值全部塞进一个数组，对数组用自带的 <code>Arrays.sort()</code> 排好序，然后再塞回链表。<strong>痛点</strong>：空间复杂度变成了 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，面试官直接让你回家等通知。</li>
+<li><em>想法 2</em>：用冒泡排序或选择排序直接在链表上换位置。<strong>痛点</strong>：时间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>，链表一旦很长直接超时（Time Limit Exceeded）。</li>
+</ul>
+</li>
+<li>
+<p><strong>破局思路（归并排序的优化思路）</strong>：</p>
+<p>要满足 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 的时间复杂度，我们通常会想到<strong>快速排序</strong>或<strong>归并排序</strong>。</p>
+<ul>
+<li>快排在单链表上很难实现（因为没有从后往前跑的指针，而且容易退化成 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N^2)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mo>)</mo></mrow></math></span>）。</li>
+<li><strong>归并排序简直是为链表量身定制的！</strong> 数组做归并合并时，还需要开辟额外的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span> 数组空间来存放结果；而链表做归并合并，只需要改变指针指向，<strong>合并操作本身的空间复杂度是零开销的！</strong></li>
+</ul>
+</li>
+<li>
+<p><strong>逻辑推演（分治法 Divide and Conquer）</strong>：</p>
+<ul>
+<li><strong>分（Divide）</strong>：用“快慢指针”找到链表的中点。找到后，<strong>果断地一刀剪断</strong>，把链表拆成左右两半。</li>
+<li><strong>治（Conquer）</strong>：递归地对左半部分和右半部分继续执行“分”的操作，直到链表被拆成只剩 1 个节点（1个节点天然是有序的）。</li>
+<li><strong>合（Combine）</strong>：调用“合并两个有序链表”的方法，把两个排好序的短链表，像拉链一样拼成一个长链表。层层往上合并，最终得到全局有序的链表。</li>
+</ul>
+<h3 id="java">Java 实现（自顶向下归并版）</h3>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">sortList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 递归的终止条件：如果链表为空，或者只有一个节点，天然是有序的，直接返回</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 【分】使用快慢指针找到链表的中点</span>
+<span class="w">        </span><span class="c1">// 注意致命细节：fast 必须比 slow 多走一步（即初始化在 head.next），</span>
+<span class="w">        </span><span class="c1">// 这样在偶数长度时，slow 才能准确停在左半部分最后一个节点，方便切断！</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">fast</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fast</span><span class="p">.</span><span class="na">next</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 找到右半部分的头节点</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 灵魂一刀：切断链表，变成彻底独立的左右两半！</span>
+<span class="w">        </span><span class="n">slow</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 【治】递归地对左右两半分别进行排序</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sortList</span><span class="p">(</span><span class="n">head</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sortList</span><span class="p">(</span><span class="n">mid</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 4. 【合】将两个排好序的链表合并成一个（直接调用 21 题的逻辑）</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">merge</span><span class="p">(</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 子模块：合并两个有序链表</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">l2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">l2</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">;</span>
+<span class="w">                </span><span class="n">l1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">                </span><span class="n">l2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 接上剩下没走完的那一半</span>
+<span class="w">        </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">l1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_4">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。归并排序的标准时间复杂度。把链表对半拆分需要递归 <span class="math-inline-wrap"><math class="math-inline" aria-label="log N"><mrow><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi></mrow></math></span> 层，每一层的合并操作需要遍历总共 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 个节点。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。因为这是“自顶向下”的递归写法，系统调用栈的最大深度为 <span class="math-inline-wrap"><math class="math-inline" aria-label="log N"><mrow><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi></mrow></math></span>。</li>
+</ul>
+<h3 id="_5">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>踩坑警告：快慢指针的初始化（死循环地狱）</strong>
+   - 很多同学喜欢写 <code>ListNode slow = head, fast = head;</code>。如果链表长度为 2（比如 <code>[4, 2]</code>），跑完 <code>while</code> 循环后，<code>slow</code> 会停在 <code>2</code> 上。
+   - 此时你从 <code>slow.next</code>（也就是 <code>null</code>）切断，左半边依然是 <code>[4, 2]</code>，右半边是 <code>null</code>。这就陷入了<strong>无限递归</strong>（栈溢出）！
+   - <strong>破解法</strong>：必须写 <code>fast = head.next;</code>。这样在只有两个节点时，<code>slow</code> 就停在 <code>4</code>，左边是 <code>[4]</code>，右边是 <code>[2]</code>，完美切割！</li>
+<li><strong>面试考官最后的一击：“你的空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>，并没有完全符合题目 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的进阶要求。你能做到真正的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 吗？”</strong>
+   - <strong>满分抢答</strong>：能！使用<strong>自底向上（Bottom-Up）的迭代版归并排序</strong>。
+   - <em>解释思路</em>：我们不利用递归去分块。而是直接在原链表上，先按 <code>步长 = 1</code> 强制两两合并；再按 <code>步长 = 2</code> 四四合并；再按 <code>步长 = 4</code> 八八合并...直到步长大于链表总长度。因为全程用循环取代了递归，空间复杂度被彻底压缩成了完美的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。
+   - <em>(注：在真正的白板面试中，写出自顶向下的递归版已经足够拿到 90 分的 Offer。自底向上的迭代版边界极其繁琐，通常只需要你说出思路即可。)</em></li>
+</ol>
+<h2 id="2-o1">解法 2：自底向上 O(1) 空间版</h2>
+<h3 id="_6">思路推导</h3>
+<p>放弃从上往下“切一半”的递归思想。我们直接从最底层开始，强行规定一个<strong>步长（subLength）</strong>。</p>
+<p>初始步长为 1，意味着我们把链表看作一个个长度为 1 的独立节点，然后两两合并；</p>
+<p>合并一轮后，步长翻倍变成 2，我们把链表看作一个个长度为 2 的小块，继续两两合并；</p>
+<p>接着步长变成 4、8、16…… 直到设定的步长大于链表的总长度，整个链表就自然排好序了。</p>
+<h3 id="_7">思路推导</h3>
+<ol>
+<li>
+<p><strong>第一步：知己知彼</strong>。想要自底向上，必须先遍历一遍链表，统计出链表的总长度 <code>length</code>。这样我们才知道外层循环的“步长翻倍”什么时候该停下。</p>
+</li>
+<li>
+<p><strong>第二步：引入“缝合怪” <code>prev</code></strong>。在合并一个个小块时，我们需要把合并好的结果重新接回主链表。因此，我们需要一个 <code>prev</code> 指针（初始指向 <code>dummy</code>），它就像一根针，永远跟在已经合并好的链表尾部，准备把下一组缝合上来。</p>
+</li>
+<li>
+<p><strong>第三步：精准切割（最容易报错的地方）</strong>：</p>
+<p>假设当前步长为 <code>k</code>，我们需要从当前链表中切下两个长度为 <code>k</code> 的片段（<code>head1</code> 和 <code>head2</code>）：</p>
+<ul>
+<li>找到 <code>head1</code>，往前走 <code>k-1</code> 步，把它和后面的链表<strong>物理断开</strong>（<code>next = null</code>）。</li>
+<li>找到 <code>head2</code>，同样往前走 <code>k-1</code> 步，把它和剩下的大部队<strong>物理断开</strong>。</li>
+<li>千万别忘了用一个变量 <code>nextGroup</code> 记录大部队的头节点，不然剩下的链表就彻底丢了！</li>
+</ul>
+</li>
+<li>
+<p><strong>第四步：合并与缝合</strong>。调用我们烂熟于心的 <code>merge(head1, head2)</code>。然后让 <code>prev.next</code> 指向合并后的新车头。最后，把 <code>prev</code> 移动到合并后的车尾，准备进入下一次切割。</p>
+</li>
+</ol>
+<h3 id="java_1">Java 实现（纯迭代版）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">sortList</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">head</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 1. 遍历一遍，统计链表的总长度</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">length</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 引入虚拟头节点，这是迭代法的生命线</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 外层循环：控制步长 subLen 每次翻倍 (1, 2, 4, 8...)</span>
+<span class="w">        </span><span class="c1">// 注意是用位运算 &lt;&lt;= 1 实现翻倍，逼格和性能拉满</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">subLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">subLen</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">length</span><span class="p">;</span><span class="w"> </span><span class="n">subLen</span><span class="w"> </span><span class="o">&lt;&lt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// prev 负责把合并后的小片段缝合起来</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// curr 负责在前面开路，切割链表</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 内层循环：按当前步长，把链表从头到尾切块合并一遍</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// --- 动作 A：切下第一块 (head1) ---</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">head1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">;</span>
+<span class="w">                </span><span class="c1">// curr 往前走 subLen - 1 步，来到第一块的尾巴</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">subLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// --- 动作 B：切下第二块 (head2) ---</span>
+<span class="w">                </span><span class="c1">// 第一块的尾巴后面那个节点，就是第二块的头</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">head2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="c1">// 果断切断第一块和第二块的联系</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+
+<span class="w">                </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head2</span><span class="p">;</span><span class="w"> </span><span class="c1">// curr 移动到第二块的开头</span>
+<span class="w">                </span><span class="c1">// curr 往前走 subLen - 1 步，来到第二块的尾巴</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">subLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// --- 动作 C：记录大部队，并切断第二块 ---</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">nextGroup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">curr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">nextGroup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w"> </span><span class="c1">// 记录剩下还没处理的链表</span>
+<span class="w">                    </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">      </span><span class="c1">// 果断切断第二块和大部队的联系</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// --- 动作 D：合并与缝合 ---</span>
+<span class="w">                </span><span class="c1">// 将 head1 和 head2 两个短链表合并</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">merged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">merge</span><span class="p">(</span><span class="n">head1</span><span class="p">,</span><span class="w"> </span><span class="n">head2</span><span class="p">);</span>
+
+<span class="w">                </span><span class="c1">// 把合并后的结果接到 prev 后面</span>
+<span class="w">                </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">merged</span><span class="p">;</span>
+
+<span class="w">                </span><span class="c1">// 将 prev 移动到这根拼接好的链表的【最末尾】，准备缝合下一组</span>
+<span class="w">                </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="c1">// curr 重新回到大部队的开头，继续下一次切块</span>
+<span class="w">                </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nextGroup</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 标准模块：合并两个有序链表（跟之前一模一样，无缝复用）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">l2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">l2</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">;</span>
+<span class="w">                </span><span class="n">l1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">                </span><span class="n">l2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l2</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">l1</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_8">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。外层循环执行 <span class="math-inline-wrap"><math class="math-inline" aria-label="log N"><mrow><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi></mrow></math></span> 次（步长每次翻倍），内层循环每次都需要把链表遍历一遍（<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>）。总体时间复杂度依然是极速的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span>。没有任何递归调用！我们在原链表上通过疯狂的指针切断和重连完成了排序，达到了内存使用的极致压缩。</li>
+</ul>
+<h3 id="_9">易错点与扩展（进阶的细节）</h3>
+<ol>
+<li><strong>为什么切 <code>head1</code> 和切 <code>head2</code> 的条件不一样？</strong></li>
+</ol>
+<ul>
+<li>仔细看代码，切 <code>head1</code> 时条件是 <code>i &lt; subLen &amp;&amp; curr.next != null</code>，因为就算剩余长度不够 <code>subLen</code>，我们也要把剩下的节点当成 <code>head1</code>，但必须保证不报空指针。</li>
+<li>切 <code>head2</code> 时条件变成了 <code>i &lt; subLen &amp;&amp; curr != null &amp;&amp; curr.next != null</code>。这是因为在某些极端的末尾情况，<code>head2</code> 可能一开始就是 <code>null</code>（说明后面没节点了），如果此时调用 <code>curr.next</code> 会直接空指针异常。<strong>对边界的极其敏锐的嗅觉，是这道题的隐形考点。</strong></li>
+</ul>
+<ol start="2">
+<li><strong><code>prev</code> 到底是什么角色？</strong></li>
+</ol>
+<ul>
+<li>
+<p>很多新手看代码会疑惑：<code>merge</code> 函数返回了合并后的头节点，但我怎么知道它的<strong>尾节点</strong>在哪？</p>
+</li>
+<li>
+<p>这就是 <code>while (prev.next != null) { prev = prev.next; }</code> 存在的原因。因为我们需要用尾节点去连接下一组循环合并出来的头节点。<code>prev</code> 就像一个忠诚的搬砖工，每次缝合完毕后，都默默跑到队伍的最末尾，等待下一次的拼装指令。</p>
+</li>
+</ul>
+<h2 id="_10">相邻学习</h2>
+<p><a href="0138-随机链表的复制.html">← 138. 随机链表的复制</a> · <a href="0023-合并 K 个升序链表.html">23. 合并 K 个升序链表 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

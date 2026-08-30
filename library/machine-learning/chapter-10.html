@@ -1,0 +1,106 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>数据预处理与特征工程 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">机器学习快速入门</a><span aria-hidden="true">›</span><span aria-current="page">数据预处理与特征工程</span></nav><div class="module-meta">模型与训练 · 第 10 / 28 章</div><h1>数据预处理与特征工程</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>10.1 缺失值</h3>
+<p>常见方法：删除、用均值/中位数/众数填充、增加“是否缺失”标记、使用模型估计。填充值只能从训练集计算，否则会数据泄漏。</p>
+<h3>10.2 特征缩放</h3>
+<ul>
+<li>标准化：减去均值，再除以标准差；</li>
+<li>归一化：缩放到指定范围。</li>
+</ul>
+<p>KNN、SVM、逻辑回归和神经网络通常受尺度影响；决策树、随机森林和梯度提升树通常不依赖缩放。</p>
+<h3>10.3 类别编码</h3>
+<p>无序类别常用 One-Hot。有序类别可按顺序编码。不要把“北京、上海、南京”随意编码为 1、2、3，否则模型可能误认为城市之间有数值大小关系。</p>
+<h3>10.4 特征工程</h3>
+<p>特征工程利用领域知识构造更有意义的输入：</p>
+<ul>
+<li>日期拆成年、月、星期和是否节假日；</li>
+<li>在预测时价格已知且价格不是目标时，可用价格与面积构造单价；若目标是房价，这样做会直接泄漏答案；</li>
+<li>经纬度计算到门店的距离；</li>
+<li>用户行为构造最近一次、频率、金额等统计；</li>
+<li>文本转换为词频、TF-IDF 或 Embedding。</li>
+</ul>
+<p>好的特征让简单模型也能表现良好。构造特征时必须确保预测时能够获得同样信息。</p>
+<h3>10.5 Pipeline</h3>
+<p>scikit-learn 的 Pipeline 把预处理和模型绑定在一起，保证交叉验证和预测使用相同转换，并降低数据泄漏风险。</p>
+<p>为什么验证集只能 <code>transform</code> 不能 <code>fit</code>，以及填充、缩放、编码的公式与陷阱，见 <a href="#附录-b数据预处理与特征工程深入理解">附录 B</a>。</p>
+<hr />
+<h3>10.6 混合类型表格数据的正确处理方式</h3>
+<p>真实表格通常同时包含数值和类别字段。数值列可能需要填充中位数和标准化，类别列需要填充众数并做 One-Hot。关键是：所有转换都只在训练数据上 <code>fit</code>，预测时只 <code>transform</code>。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">sklearn.compose</span> <span class="kn">import</span> <span class="n">ColumnTransformer</span>
+<span class="kn">from</span> <span class="nn">sklearn.impute</span> <span class="kn">import</span> <span class="n">SimpleImputer</span>
+<span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LogisticRegression</span>
+<span class="kn">from</span> <span class="nn">sklearn.pipeline</span> <span class="kn">import</span> <span class="n">Pipeline</span>
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">OneHotEncoder</span><span class="p">,</span> <span class="n">StandardScaler</span>
+
+<span class="n">numeric_features</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;age&quot;</span><span class="p">,</span> <span class="s2">&quot;income&quot;</span><span class="p">]</span>
+<span class="n">categorical_features</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;city&quot;</span><span class="p">,</span> <span class="s2">&quot;device&quot;</span><span class="p">]</span>
+
+<span class="n">numeric_pipeline</span> <span class="o">=</span> <span class="n">Pipeline</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">&quot;imputer&quot;</span><span class="p">,</span> <span class="n">SimpleImputer</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">)),</span>
+    <span class="p">(</span><span class="s2">&quot;scaler&quot;</span><span class="p">,</span> <span class="n">StandardScaler</span><span class="p">()),</span>
+<span class="p">])</span>
+
+<span class="n">categorical_pipeline</span> <span class="o">=</span> <span class="n">Pipeline</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">&quot;imputer&quot;</span><span class="p">,</span> <span class="n">SimpleImputer</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s2">&quot;most_frequent&quot;</span><span class="p">)),</span>
+    <span class="p">(</span><span class="s2">&quot;onehot&quot;</span><span class="p">,</span> <span class="n">OneHotEncoder</span><span class="p">(</span><span class="n">handle_unknown</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">)),</span>
+<span class="p">])</span>
+
+<span class="n">preprocess</span> <span class="o">=</span> <span class="n">ColumnTransformer</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">&quot;num&quot;</span><span class="p">,</span> <span class="n">numeric_pipeline</span><span class="p">,</span> <span class="n">numeric_features</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;cat&quot;</span><span class="p">,</span> <span class="n">categorical_pipeline</span><span class="p">,</span> <span class="n">categorical_features</span><span class="p">),</span>
+<span class="p">])</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">Pipeline</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">&quot;preprocess&quot;</span><span class="p">,</span> <span class="n">preprocess</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;classifier&quot;</span><span class="p">,</span> <span class="n">LogisticRegression</span><span class="p">(</span><span class="n">max_iter</span><span class="o">=</span><span class="mi">1000</span><span class="p">)),</span>
+<span class="p">])</span>
+
+<span class="c1"># 构造一份带缺失值的小训练集</span>
+<span class="n">train_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">25</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="mi">35</span><span class="p">],</span>
+    <span class="s2">&quot;income&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">5000</span><span class="p">,</span> <span class="mi">8000</span><span class="p">,</span> <span class="mi">12000</span><span class="p">,</span> <span class="mi">6000</span><span class="p">],</span>
+    <span class="s2">&quot;city&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;北京&quot;</span><span class="p">,</span> <span class="s2">&quot;上海&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s2">&quot;深圳&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;手机&quot;</span><span class="p">,</span> <span class="s2">&quot;电脑&quot;</span><span class="p">,</span> <span class="s2">&quot;手机&quot;</span><span class="p">,</span> <span class="s2">&quot;平板&quot;</span><span class="p">],</span>
+<span class="p">})</span>
+<span class="n">y_train</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+<span class="c1"># 测试集包含训练时没见过的新城市“广州”，验证 handle_unknown</span>
+<span class="n">test_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">30</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span>
+    <span class="s2">&quot;income&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">9000</span><span class="p">,</span> <span class="mi">4500</span><span class="p">],</span>
+    <span class="s2">&quot;city&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;广州&quot;</span><span class="p">,</span> <span class="s2">&quot;北京&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;手机&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span>
+<span class="p">})</span>
+
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_df</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">test_df</span><span class="p">))</span>
+</code></pre></div>
+<p>运行结果是一个 <code>(2, 2)</code> 的概率矩阵，两行对应两条测试样本，两列分别是“预测为类别 0 / 类别 1”的概率：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">[[0.73 0.27]
+ [0.50 0.50]]
+</code></pre></div>
+<p>数值会因库版本略有不同，关键是理解发生了什么：年龄缺失的样本由训练集中位数填充，收入做标准化，城市被 One-Hot 编码；测试集出现的新城市“广州”被忽略而不是报错，所以模型仍能给出预测。</p>
+<p><code>handle_unknown="ignore"</code> 使预测时遇到训练阶段没见过的新城市不会直接报错，但模型也无法从这个新类别获得已学习权重，该类别对应的所有 One-Hot 列都会是 0。线上系统仍要监控未知类别比例，比例突然升高可能意味着数据分布或上游字段发生变化。</p>
+<h3>10.7 缺失值本身可能有信息</h3>
+<p>“没有收入记录”可能不是随机缺失，而是某类用户没有提交材料。因此除了填充数值，还可以加入 <code>income_is_missing</code> 特征。但也要判断缺失机制是否会随上线流程改变。</p>
+<p>缺失通常分为：</p>
+<ul>
+<li>完全随机缺失（MCAR）：缺失与已观测和未观测的值都无关；</li>
+<li>条件随机缺失（MAR）：给定已观测变量后，缺失概率不再依赖缺失值本身；</li>
+<li>非随机缺失（MNAR）：即使给定已观测信息，缺失概率仍与缺失值本身有关。</li>
+</ul>
+<p>简单填充会改变数据分布，并低估不确定性。高风险统计分析需要更谨慎的方法；普通预测项目至少应比较不同填充策略并检查缺失率切片表现。更完整的说明见 <a href="#附录-b数据预处理与特征工程深入理解">附录 B</a>。</p>
+<h3>10.8 特征选择并不是越少越好</h3>
+<p>删除无用特征可以降低噪声、训练成本和泄漏风险。常见方法包括：</p>
+<ul>
+<li>基于领域知识和可用性删除；</li>
+<li>低方差过滤；</li>
+<li>相关性或统计检验；</li>
+<li>L1 正则化；</li>
+<li>树重要性或 Permutation Importance；</li>
+<li>递归特征消除。</li>
+</ul>
+<p>任何依赖标签的特征选择都必须在交叉验证的训练折内部完成，否则会把验证信息泄漏给模型。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-09.html">← 上一章</a><a href="chapter-11.html">下一章 →</a></nav></main></div>
+<script>const contentId="machine-learning:10",moduleId="machine-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

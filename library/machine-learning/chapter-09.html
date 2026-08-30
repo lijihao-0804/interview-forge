@@ -1,0 +1,63 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>模型是怎样学会的 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">机器学习快速入门</a><span aria-hidden="true">›</span><span aria-current="page">模型是怎样学会的</span></nav><div class="module-meta">模型与训练 · 第 9 / 28 章</div><h1>模型是怎样学会的</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>训练可以概括为：定义模型、定义错误、调整参数减少错误。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    X["输入 X"] --&gt; M["模型参数 θ"]
+    M --&gt; P["预测 ŷ"]
+    P --&gt; L["损失 L(y, ŷ)"]
+    Y["真实值 y"] --&gt; L
+    L --&gt; G["优化算法"]
+    G --&gt;|"更新参数"| M</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<h3>9.1 损失函数</h3>
+<p>损失函数衡量一个或一批样本预测得有多差：</p>
+<ul>
+<li>回归常用 MSE、MAE；</li>
+<li>二分类常用交叉熵；</li>
+<li>多分类常用多类别交叉熵。</li>
+</ul>
+<p>模型优化的是损失函数，不会自动理解业务目标。因此损失、数据和采样方式必须与真实目标一致。</p>
+<h3>9.2 梯度下降</h3>
+<p>梯度表示损失对参数变化的敏感方向。梯度下降沿负梯度更新参数：</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="theta leftarrow theta-αnabla_theta L"><mrow><mi mathvariant="normal">theta</mi><mspace width=".18em"/><mi mathvariant="normal">leftarrow</mi><mspace width=".18em"/><mi mathvariant="normal">theta</mi><mo>-</mo><mi>α</mi><msub><mi mathvariant="normal">nabla</mi><mi mathvariant="normal">theta</mi></msub><mspace width=".18em"/><mi>L</mi></mrow></math></span></p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="α"><mrow><mi>α</mi></mrow></math></span> 是学习率：太小收敛慢，太大可能越过最优点甚至发散。</p>
+<p>不必为使用 scikit-learn 手写梯度下降，但理解它能帮助学习神经网络。批量梯度下降使用全部数据，随机梯度下降使用单个样本，小批量梯度下降在效率和稳定性之间折中。</p>
+<h3>9.3 参数与超参数</h3>
+<ul>
+<li>参数由训练数据学得，例如线性回归权重、树的切分；</li>
+<li>超参数由开发者设置，例如树深、邻居数、学习率、正则化强度。</li>
+</ul>
+<p>训练学习参数，验证集帮助选择超参数。</p>
+<hr />
+<h3>9.4 用极简代码观察梯度下降</h3>
+<p>下面代码只为解释更新过程，实际线性回归通常直接使用经过优化和验证的库实现：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">])</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">7.0</span><span class="p">,</span> <span class="mf">9.0</span><span class="p">])</span>  <span class="c1"># 规律接近 y = 2x + 1</span>
+<span class="n">w</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span>
+<span class="n">learning_rate</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+<span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1000</span><span class="p">):</span>
+    <span class="n">y_hat</span> <span class="o">=</span> <span class="n">w</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="n">b</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">y_hat</span> <span class="o">-</span> <span class="n">y</span>
+
+    <span class="c1"># MSE 分别对 w、b 的梯度</span>
+    <span class="n">dw</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">error</span> <span class="o">*</span> <span class="n">X</span><span class="p">)</span>
+    <span class="n">db</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+
+    <span class="n">w</span> <span class="o">-=</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">dw</span>
+    <span class="n">b</span> <span class="o">-=</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">db</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="nb">round</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>  <span class="c1"># 接近 2 和 1</span>
+</code></pre></div>
+<p>每一轮都先用当前参数预测，再计算误差方向，最后更新参数。若学习率过大，参数可能在最低点两边来回跳动甚至发散；过小则需要很多轮。特征尺度相差很大时，损失曲面可能非常狭长，标准化能让优化更稳定。</p>
+<p>需要注意，并非所有模型都用梯度下降：普通决策树通过搜索切分点构建；随机森林组合多棵树；某些线性模型可以用闭式解或其他数值优化方法。</p>
+<h3>9.5 一个 Epoch、Batch 和 Iteration</h3>
+<p>在深度学习中：</p>
+<ul>
+<li>Epoch：完整看过一次训练集；</li>
+<li>Batch：一次用于计算梯度的一小批样本；</li>
+<li>Iteration/Step：执行一次参数更新。</li>
+</ul>
+<p>假设训练集有 1000 个样本，batch size 为 100，那么一个 epoch 大约有 10 个 step。增加 epoch 不一定持续改善泛化，验证损失开始上升时可能已经过拟合。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
+<script>const contentId="machine-learning:09",moduleId="machine-learning";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Prompt、Context Engineering 与结构化输出 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 开发：从原理到落地</a><span aria-hidden="true">›</span><span aria-current="page">Prompt、Context Engineering 与结构化输出</span></nav><div class="module-meta">Agent 工程 · 第 9 / 23 章</div><h1>Prompt、Context Engineering 与结构化输出</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>Prompt Engineering 关注“如何写指令”；Context Engineering 关注“本次调用到底给模型哪些信息、工具、状态和约束”。在 Agent 中，后者通常更重要。</p>
+<h3>9.1 推荐的指令结构</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">角色与目标
+可做和不可做的事情
+业务规则与优先级
+工具使用条件
+不确定时的处理方式
+高风险动作审批规则
+完成条件
+输出 Schema
+</code></pre></div>
+<h3>9.2 指令优先级</h3>
+<p>系统/开发者指令、用户请求、工具返回的数据应分层处理。外部网页、邮件和文档属于<strong>不可信数据</strong>，即使其中写着“忽略以前的指令”，也不应被当成系统指令执行。</p>
+<h3>9.3 结构化输出</h3>
+<p>当输出要交给程序处理时，使用 JSON Schema、Pydantic 或 Zod 定义结构，避免解析自然语言：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="k">class</span> <span class="nc">TicketDecision</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">intent</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;question&quot;</span><span class="p">,</span> <span class="s2">&quot;refund&quot;</span><span class="p">,</span> <span class="s2">&quot;complaint&quot;</span><span class="p">,</span> <span class="s2">&quot;other&quot;</span><span class="p">]</span>
+    <span class="n">confidence</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">needs_human</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+<p>结构化输出减少格式漂移，但不保证语义正确。仍需业务校验，例如退款金额不能为负、订单必须属于当前用户。</p>
+<hr />
+<h3>9.4 上下文预算如何分配</h3>
+<p>上下文窗口不是免费硬盘。一次调用通常包含系统指令、用户消息、工具 Schema、会话历史、检索证据和预留输出空间。任何一部分无限增长都会挤压其他内容。</p>
+<p>常见策略是给各类内容设置预算和优先级：系统/安全规则必须保留；当前用户请求和关键状态优先；历史按相关性裁剪；工具结果只保留摘要；检索片段去重并排序；为输出和工具调用预留 Token。</p>
+<h3>9.5 上下文顺序与边界标记</h3>
+<p>相关信息应靠近使用位置，并用清晰标签区分“指令”和“不可信数据”。网页、邮件、文档内容要放入数据边界，明确其中的命令不可执行。</p>
+<p>同一事实出现多个冲突版本时，不能简单全部塞给模型。应根据来源、时间和权限选择权威版本，或让模型明确报告冲突。</p>
+<h3>9.6 结构化输出的失败处理</h3>
+<p>Schema 能约束格式，却不能保证语义。系统还要检查枚举、范围、外键、权限和业务不变量。解析失败可有限重试并附带验证错误，但不能无限让模型“修 JSON”。</p>
+<p>结构化输出应版本化。增加必填字段可能破坏旧消费者；可以使用版本字段、向后兼容默认值和契约测试管理演进。</p>
+<h3>9.7 Prompt 版本管理</h3>
+<p>Prompt 应像代码一样有版本、测试、审查和回滚。记录模板版本、模型、工具集合和上下文策略，才能解释线上变化。修改一句指令可能改变工具选择，不应绕过回归评测直接上线。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-development:09",moduleId="agent-development";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -1,0 +1,123 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>运行时数据区 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">JVM：内存区域、垃圾回收与类加载</a><span aria-hidden="true">›</span><span aria-current="page">运行时数据区</span></nav><div class="module-meta">Java 语言 · 第 2 / 12 章</div><h1>运行时数据区</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>JVM 在运行 Java 程序时把内存划分为若干区域。面试第一题几乎都是“画出运行时数据区并说明哪些线程共享、哪些会 OOM”。</p>
+<h3>1.1 运行时数据区总览</h3>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    subgraph 线程共享
+        heap[堆 Heap&lt;br/&gt;对象实例 / 数组 / 字符串常量池]
+        metaspace[方法区 元空间 Metaspace&lt;br/&gt;类元信息 / 运行时常量池 / 方法字节码]
+        dm[直接内存 Direct Memory&lt;br/&gt;NIO DirectBuffer]
+    end
+    subgraph 线程私有
+        pc[程序计数器 Program Counter]
+        vms[虚拟机栈 VM Stack&lt;br/&gt;栈帧: 局部变量表/操作数栈/动态链接/返回地址]
+        nms[本地方法栈 Native Method Stack]
+    end</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>线程</th>
+<th>作用</th>
+<th>异常</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>程序计数器</td>
+<td>私有</td>
+<td>记录当前线程<strong>下一条</strong>要执行的字节码指令地址（行号）</td>
+<td>唯一不会 OOM 的区域</td>
+</tr>
+<tr>
+<td>虚拟机栈</td>
+<td>私有</td>
+<td>每次方法调用压入一个栈帧</td>
+<td>StackOverflowError / OutOfMemoryError</td>
+</tr>
+<tr>
+<td>本地方法栈</td>
+<td>私有</td>
+<td>执行 native 方法</td>
+<td>同栈</td>
+</tr>
+<tr>
+<td>堆</td>
+<td>共享</td>
+<td>存放对象实例与数组，GC 主战场</td>
+<td>OutOfMemoryError</td>
+</tr>
+<tr>
+<td>方法区</td>
+<td>共享</td>
+<td>类元信息、运行时常量池、方法字节码</td>
+<td>OutOfMemoryError</td>
+</tr>
+<tr>
+<td>直接内存</td>
+<td>共享</td>
+<td>NIO 的 DirectByteBuffer、Netty 堆外内存（不属于运行时数据区，常一并考察）</td>
+<td>OutOfMemoryError</td>
+</tr>
+</tbody>
+</table>
+<h3>1.2 堆（Heap）</h3>
+<ul>
+<li>对象实例和数组的主要存放区域，也是 <strong>GC 的主战场</strong>；</li>
+<li>逻辑上分代：<strong>新生代</strong>（Eden + 两个 Survivor，默认比例 8:1:1）与<strong>老年代</strong>；</li>
+<li>字符串常量池在 JDK 7 起移入堆；静态变量也随之从方法区移入堆；</li>
+<li>通过 <code>-Xms</code>（初始）/<code>-Xmx</code>（最大）控制，生产上通常设置两者相等，避免运行期动态扩容。</li>
+</ul>
+<h3>1.3 虚拟机栈与栈帧</h3>
+<p>每个线程一个虚拟机栈，每次方法调用创建一个<strong>栈帧</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>栈帧内容</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>局部变量表</td>
+<td>方法参数与局部变量（基本类型值、引用、returnAddress）</td>
+</tr>
+<tr>
+<td>操作数栈</td>
+<td>字节码运算的工作区</td>
+</tr>
+<tr>
+<td>动态链接</td>
+<td>指向运行时常量池中该方法的引用（解析多态调用）</td>
+</tr>
+<tr>
+<td>方法返回地址</td>
+<td>方法退出后回到调用处</td>
+</tr>
+</tbody>
+</table>
+<p>栈深度超过限制抛 <code>StackOverflowError</code>（典型：无限递归）；栈容量可动态扩展时可能抛 OOM。</p>
+<h3>1.4 方法区与元空间</h3>
+<ul>
+<li>JDK 7 及以前：方法区由<strong>永久代（PermGen）</strong>实现，位于 JVM 堆内；</li>
+<li>JDK 8 起：永久代被<strong>元空间（Metaspace）</strong>取代，使用<strong>本地内存</strong>（不占堆），默认无上限（受操作系统内存限制）；</li>
+<li>元空间存：类元信息、运行时常量池、方法字节码、注解等；</li>
+<li>动态生成类过多（CGLIB、反射、Groovy）会撑爆元空间，用 <code>-XX:MaxMetaspaceSize</code> 限制。</li>
+</ul>
+<p><strong>为什么用元空间换永久代</strong>：永久代大小难预估、容易 OOM；与 JRockit 融合（JRockit 没有永久代）；字符串常量池在 JDK 7 已迁到堆，类元数据与字符串池解耦后，永久代里剩下的主要是类元信息，放本地内存更灵活（不占堆，天然无上限）。</p>
+<h3>1.5 程序计数器与直接内存</h3>
+<ul>
+<li>程序计数器记录<strong>下一条</strong>要执行的字节码指令地址；多线程切换时靠它恢复执行位置；<strong>唯一不会 OOM</strong>；</li>
+<li>直接内存严格说不属于 JVM 运行时数据区，但常与 NIO 一起考察：<code>ByteBuffer.allocateDirect</code>、Netty 的堆外内存；受 <code>-XX:MaxDirectMemorySize</code> 约束，默认等于 <code>-Xmx</code>。</li>
+</ul>
+<h3>1.6 面试追问</h3>
+<ul>
+<li>问：运行时数据区分几块？哪些共享？</li>
+<li>答：程序计数器、虚拟机栈、本地方法栈线程私有；堆、方法区（元空间）线程共享；直接内存不属于运行时数据区，常一并考察。</li>
+<li>问：哪些区域会 OOM？</li>
+<li>答：除程序计数器外都可能：堆、栈（扩展时）、元空间、直接内存。</li>
+<li>问：JDK 8 的元空间和永久代区别？</li>
+<li>答：永久代在堆内、有上限；元空间用本地内存，类元信息不再受堆大小限制。</li>
+<li>问：栈帧里有什么？</li>
+<li>答：局部变量表、操作数栈、动态链接、方法返回地址。</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
+<script>const contentId="jvm:02",moduleId="jvm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-module3"></script><script src="../assets/library-mermaid.js?v=20260830-module3"></script></body></html>

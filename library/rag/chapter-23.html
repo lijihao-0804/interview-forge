@@ -1,0 +1,102 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>学习路线与面试题 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">RAG：从检索原理到生产实践</a><span aria-hidden="true">›</span><span aria-current="page">学习路线与面试题</span></nav><div class="module-meta">大模型应用 · 第 23 / 26 章</div><h1>学习路线与面试题</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>23.1 第一阶段：做出最小基线</h3>
+<p>目标：理解离线和在线两条流水线，而不是先记框架。</p>
+<ol>
+<li>准备 20～50 篇结构清晰的 Markdown/HTML；</li>
+<li>按标题和段落切块；</li>
+<li>计算 embedding，用精确余弦 Top-K；</li>
+<li>把来源和问题交给模型；</li>
+<li>手工标注 30 个问题的相关块；</li>
+<li>计算 Recall@K，检查失败样本。</li>
+</ol>
+<p>完成标志：能解释每个错误是在检索层还是生成层，并能从答案回到原文。</p>
+<p>需要补充的基础可参阅：</p>
+<ul>
+<li><a href="../machine-learning/index.html">机器学习快速入门</a>：相似度、训练/验证、指标等；</li>
+<li><a href="../deep-learning/index.html">深度学习快速入门</a>：Transformer、表示学习等；</li>
+<li><a href="../langchain/index.html">LangChain 入门学习笔记</a>：框架接口与实践。</li>
+</ul>
+<h3>23.2 第二阶段：提高检索质量</h3>
+<p>依次加入：</p>
+<ul>
+<li>BM25，理解倒排索引和分词；</li>
+<li>dense + sparse 混合检索；</li>
+<li>RRF；</li>
+<li>cross-encoder reranker；</li>
+<li>结构化切块与 Parent-Child；</li>
+<li>查询改写和对话独立化。</li>
+</ul>
+<p>每加一个组件都记录 Recall@K、NDCG、端到端正确率、延迟和成本变化。若没有增益，就不要为了“架构完整”保留它。</p>
+<h3>23.3 第三阶段：生产能力</h3>
+<p>实现：</p>
+<ul>
+<li>稳定 ID、版本、增量更新和删除；</li>
+<li>ACL 过滤和多租户测试；</li>
+<li>trace、指标、失败样本回放；</li>
+<li>缓存键和失效；</li>
+<li>超时、重试、降级；</li>
+<li>引用正确性和拒答；</li>
+<li>灰度索引与回滚。</li>
+</ul>
+<p>完成标志：能回答“某次错误答案由哪个版本、哪些候选和哪段 Prompt 产生”。</p>
+<h3>23.4 第四阶段：按需求学习高级 RAG</h3>
+<ul>
+<li>多跳问题多：查询分解、图查询、Agentic RAG；</li>
+<li>全局语料总结：GraphRAG；</li>
+<li>数据库问答：Schema RAG + Text-to-SQL；</li>
+<li>图像/表格多：多模态解析和区域级引用；</li>
+<li>高风险问答：更严格的来源治理、claim 校验和人工复核。</li>
+</ul>
+<p>不要把所有高级方案塞进同一个项目；以失败集为入口。</p>
+<h3>23.5 建议实践项目</h3>
+<ol>
+<li><strong>技术文档问答</strong>：API 名、错误码适合 BM25 + dense；</li>
+<li><strong>企业制度问答</strong>：强调版本、ACL、表格和引用；</li>
+<li><strong>代码库问答</strong>：AST、符号检索、调用关系；</li>
+<li><strong>论文综述助手</strong>：父子块、多查询、引用和冲突；</li>
+<li><strong>经营数据分析</strong>：Schema 检索 + SQL + 报告文本 RAG。</li>
+</ol>
+<p>不同项目刻意训练不同能力，不需要强行用同一份数据。</p>
+<h3>23.6 高频面试题与回答要点</h3>
+<h4>1. RAG 为什么能减少幻觉，为什么不能消除幻觉？</h4>
+<p>它提供外部证据并缩小生成范围，所以减少参数记忆错误；但检索可能错、知识源可能错、模型可能忽略/曲解证据或伪造引用，所以不能消除。需要分层评测、引用验证和拒答。</p>
+<h4>2. Chunk 越小越好吗？</h4>
+<p>不是。小块匹配精确但上下文不足，大块语义完整但主题混杂、相似度不敏感且占 token。可用小块检索、大父块阅读，并在自有评测集上选择参数。</p>
+<h4>3. BM25 与向量检索怎样选择？</h4>
+<p>编号、型号、专名和精确短语偏 BM25；同义表达和概念语义偏 dense。通用知识库常混合二者，再用 RRF/学习融合和 reranker。</p>
+<h4>4. 为什么需要 reranker？</h4>
+<p>bi-encoder 为规模而分开编码，缺少查询-文档细粒度交互；cross-encoder 联合编码，能更好识别条件和否定，但计算贵，所以只重排初检候选。</p>
+<h4>5. 相似度分数能否直接当置信度？</h4>
+<p>通常不能。分数受模型、查询、长度、索引和度量影响，并非校准概率。应通过标注集校准，并结合 top1-top2 间隔、rerank、证据覆盖和拒答评测。</p>
+<h4>6. 如何评测 RAG？</h4>
+<p>分层评测：解析/索引完整性；Retriever 的 Recall@K、MRR、NDCG；上下文相关和覆盖；答案正确、faithfulness、完整性；引用正确；安全和在线业务指标。</p>
+<h4>7. RAG 与微调如何选？</h4>
+<p>RAG 适合可更新、私有、需引用的事实；微调适合行为、风格、格式和任务模式。二者可组合，不是互斥。</p>
+<h4>8. 为什么权限过滤不能在生成后做？</h4>
+<p>无权限内容一旦进入候选、缓存、日志或模型上下文就已经暴露，且模型可能输出变体。必须在检索层强制过滤，并在原文下载和引用处复查。</p>
+<h4>9. HNSW 的主要参数是什么？</h4>
+<p><code>M</code> 控制图连接与内存，<code>efConstruction</code> 控制构建质量/时间，<code>efSearch</code> 控制查询召回/延迟。用精确 KNN 基准画 recall-latency 曲线调参。</p>
+<h4>10. 查询改写有什么风险？</h4>
+<p>会丢实体、改变时间/否定条件、引入模型假设。应保留原查询并行检索，记录改写结果，单独评测约束保留率。</p>
+<h4>11. 怎样处理文档更新？</h4>
+<p>稳定 ID + 内容哈希识别变化，增量解析/embedding，新索引验收后原子切换，删除传播到所有派生数据，并使带索引版本的缓存失效。</p>
+<h4>12. 什么情况下使用 Agentic RAG？</h4>
+<p>查询需要动态选数据源、依赖中间结果、多跳搜索或证据不足后采取不同动作时。固定问答优先两阶段流程，因为成本和行为更可预测。</p>
+<h4>13. GraphRAG 解决什么问题？</h4>
+<p>显式抽取实体关系和社区摘要，适合关系路径和跨全库主题问题。它不天然提升普通局部事实问答，而且抽取、消歧和更新成本高。</p>
+<h4>14. 如何诊断 RAG 答错？</h4>
+<p>从源知识开始逐层查：是否存在 → 是否解析 → 是否切块 → 是否召回 → 是否重排保留 → 是否进入上下文 → 是否正确生成 → 是否正确引用。不要一上来换模型。</p>
+<h4>15. 如何防文档 Prompt Injection？</h4>
+<p>把来源视为不可信数据并做边界标记；工具最小权限、参数校验、沙箱和审批；限制外联和 Secret；检测恶意来源；做对抗测试。Prompt 提醒只是其中一层。</p>
+<h4>16. Top-K 如何选择？</h4>
+<p>用 Retriever Recall@N 与最终上下文 Precision/答案指标联合选择。初检 N 可较大，rerank 后 K 较小；按查询类型和 token 预算动态调整。</p>
+<h4>17. 为什么需要困难负例？</h4>
+<p>普通随机负例太容易。相似旧版本、同产品不同型号、同关键词不同条件能迫使 reranker/embedding 学会真正区分业务细节。</p>
+<h4>18. 长上下文能否替代 RAG？</h4>
+<p>少量一次性材料可以；大规模、频繁查询、持续更新、权限和引用场景仍需要检索。常见组合是 RAG 选章节，长上下文读父文档。</p>
+<h4>19. 如何保证引用不是模型编造的？</h4>
+<p>来源 ID 由系统分配，模型输出结构化 claim-source；程序检查 ID 存在、用户有权限，并用规则/NLI/LLM 检查来源支持，关键场景人工复核。</p>
+<h4>20. 线上最值得监控什么？</h4>
+<p>除延迟和错误率，还要看源到索引新鲜度、空检索、各路召回、引用有效、拒答、权限拒绝、缓存版本、token/成本和按查询切片的质量回归。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-22.html">← 上一章</a><a href="chapter-24.html">下一章 →</a></nav></main></div>
+<script>const contentId="rag:23",moduleId="rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

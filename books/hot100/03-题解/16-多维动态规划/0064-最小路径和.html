@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>64. 最小路径和 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 16-多维动态规划</div>
+        <h1 id="64">64. 最小路径和</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（满分一维空间压缩版）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试的工程与算法博弈）</a></li>
+</ul>
+</li>
+<li><a href="#_7">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/16-多维动态规划.html">← 多维动态规划专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>网格最小代价</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(mn)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1) 可原地</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个包含非负整数的 <code>m x n</code> 网格 <code>grid</code> ，请找出一条从左上角到右下角的路径，使得路径上的数字总和为最小。</p>
+<p><em>说明</em>：每次只能<strong>向下</strong>或者<strong>向右</strong>移动一步。</p>
+<p><a href="https://leetcode.cn/problems/minimum-path-sum/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>当前位置最小代价来自上方和左方较小者。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（局部贪心的灾难）</strong>：</p>
+<p>很多人的第一直觉是“走一步看一步”：每次站在一个格子里，对比下面和右边的数字，谁小就往谁走。</p>
+<p><strong>痛点</strong>：这种纯贪心是致命的！比如面临向右是 1，向下是 2。你贪心选了 1，结果 1 的后面跟着一个巨大的 100；而 2 的后面全都是 0。贪心算法无法预知未来，必然掉进陷阱。</p>
+</li>
+<li>
+<p><strong>降维破局（全局视角的代价沉淀）</strong>：</p>
+<p>我们要用动态规划的“上帝视角”来俯瞰全局。</p>
+<p>闭上眼睛想一想：到达坐标为 <code>(i, j)</code> 的格子，<strong>只可能是从上面 <code>(i-1, j)</code> 走下来的，或者是从左边 <code>(i, j-1)</code> 走过来的</strong>。</p>
+<p>既然只有这两条路，那我只要问：</p>
+<p>“上面那个格子，它一路走过来的历史最低成本是多少？”</p>
+<p>“左边那个格子，它一路走过来的历史最低成本是多少？”</p>
+<p>我从中挑一个<strong>最小的</strong>，然后加上我自己这个格子的过路费，就是到达我这里的最低总成本！</p>
+</li>
+<li>
+<p><strong>核心微操（状态转移方程与边界）</strong>：</p>
+<p>状态转移方程极其优雅：</p>
+<p><span class="math-inline-wrap"><math class="math-inline" aria-label="dp[i][j] = min(dp[i-1][j], dp[i][j-1]) + grid[i][j]"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mspace width=".18em"/><mo>=</mo><mspace width=".18em"/><mi mathvariant="normal">min</mi><mo>(</mo><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo><mo>,</mo><mspace width=".18em"/><mi mathvariant="normal">dp</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>)</mo><mspace width=".18em"/><mo>+</mo><mspace width=".18em"/><mi>grid</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>j</mi><mo>]</mo></mrow></math></span></p>
+<p><strong>边界基石</strong>：</p>
+<ul>
+<li>网格的左上角起点：起点就是自带的数字。</li>
+<li><strong>第一行</strong>：只能从左边一路走过来，不断累加。</li>
+<li><strong>第一列</strong>：只能从上面一路走下来，不断累加。</li>
+</ul>
+<h3 id="java">Java 实现（满分一维空间压缩版）</h3>
+<blockquote>
+<p>同样的，我们可以将二维 DP 数组压缩成一个<strong>一维的滚动数组</strong>，来把空间复杂度优化思路到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。</p>
+</blockquote>
+</li>
+</ol>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">minPathSum</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">grid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// dp 数组记录到达当前行每一列的最小路径和</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">n</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 1. 初始化第一行的状态（第一行只能从左往右走）</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="mi">0</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 从第二行开始，逐行向下扫描</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">m</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 当前行的第一列，只能从上一行的第一列走下来</span>
+<span class="w">            </span><span class="c1">// 此时的 dp[0] 存的是上一行的值，直接累加即可</span>
+<span class="w">            </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">            </span><span class="c1">// 从当前行的第二列开始，进行真正的状态转移</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 此时的 dp[j] 代表上方格子的最小路径和（旧数据）</span>
+<span class="w">                </span><span class="c1">// 此时的 dp[j-1] 代表左方格子的最小路径和（刚刚算出的新数据）</span>
+<span class="w">                </span><span class="c1">// 取两者较小值，加上当前格子的过路费</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">grid</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="n">j</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 最终推导到一维数组的最后一位，就是右下角的最小路径和</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(m × n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>m</mi><mspace width=".18em"/><mo>×</mo><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>。我们需要遍历每一个格子一次来进行状态转移计算。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。我们优化掉了二维数组，仅仅使用了一个长度为列数 <span class="math-inline-wrap"><math class="math-inline" aria-label="n"><mrow><mi>n</mi></mrow></math></span> 的一维滚动数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试的工程与算法博弈）</h3>
+<ol>
+<li><strong>面试追问 1：“我看你用了一维数组，空间复杂度是 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span>。你能把空间复杂度优化到极其绝对的 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 吗？”</strong>
+   - <strong>满分抢答（原地修改原数组）</strong>：绝对可以！因为原网格 <code>grid</code> 中的数据，我们在用过一次之后就不再需要它原本的“过路费”了。所以我们可以<strong>直接在 <code>grid</code> 数组上原地修改</strong>，让 <code>grid[i][j]</code> 变成到达该格子的最小路径和。
+   - <strong>架构师的高能反转（工程操守）</strong>：但在面试中，你一定要紧接着补上一句：“<strong>虽然这样可以做到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 空间，但在实际工业级工程中，我们通常极其反对修改传入的输入参数（Input Mutation）。</strong> 这会导致脏数据，破坏了函数的幂等性和调用方的状态。所以如果内存不紧缺，保留 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><mo>)</mo></mrow></math></span> 的一维滚动数组是工程上最优雅的妥协。” —— 面试官听到这句话，绝对会在心里给你打上“Senior 工程师”的标签。</li>
+<li><strong>面试追问 2：“这道题规定了只能【向下】或【向右】走。如果我放开限制，允许你【上下左右】随便走，代码该怎么改？”</strong>
+   - <strong>优化思路（知识领域跨越）</strong>：这就不再是一道动态规划题了！因为如果能上下左右走，就会产生<strong>环（Cycles）</strong>，DP 的“无后效性”被彻底打破（当前状态会依赖未来状态）。
+   - 此时，网格退化成了一张带权有向图，求最短路径。我们必须祭出图论领域的王牌：<strong>Dijkstra 算法</strong>（结合优先队列/小顶堆进行广度优先搜索最短路）。</li>
+</ol>
+<h2 id="_7">相邻学习</h2>
+<p><a href="0062-不同路径.html">← 62. 不同路径</a> · <a href="0005-最长回文子串.html">5. 最长回文子串 →</a></p>
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>

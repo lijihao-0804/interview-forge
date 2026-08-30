@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>49. 字母异位词分组 · Hot 100</title>
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260830-v2">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../../library/index.html">学习书架</a>
+        <a href="../../00-总览/01-学习路线.html">学习路线</a>
+        <a href="../../00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../../00-总览/03-复习清单.html">复习清单</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / hot100 / 03-题解 / 01-哈希表</div>
+        <h1 id="49">49. 字母异位词分组</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a><ul>
+<li><a href="#1-core-intuition">💡 1. 核心直觉 (Core Intuition)</a></li>
+</ul>
+</li>
+<li><a href="#_5">思路推导</a></li>
+<li><a href="#java">Java 实现</a></li>
+<li><a href="#_6">复杂度</a><ul>
+<li><a href="#computeifabsent">🙋 我的疑问点：深度拆解 computeIfAbsent</a></li>
+</ul>
+</li>
+<li><a href="#_7">易错点与扩展（可能会被追问）</a></li>
+</ul>
+</li>
+<li><a href="#_8">相邻学习</a></li>
+</ul>
+</div>
+
+        </details>
+        <p><a href="../../02-专题/01-哈希表.html">← 哈希表专题</a> · <a href="../../../../index.html">总目录</a> · <a href="../../00-总览/03-复习清单.html">复习清单</a></p>
+<table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>排序签名 + 哈希分组</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n·k log k)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n·k)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个字符串数组，将其中“字母组成完全相同、但顺序不同”的单词（即字母异位词）归类到同一个分组中。</p>
+<p><a href="https://leetcode.cn/problems/group-anagrams/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>异位词必须映射成同一个稳定签名。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点</strong>：字母异位词就像同一副扑克牌的不同洗牌顺序。难点在于，面对两个长相不同的单词（如 <code>eat</code> 和 <code>tea</code>），如何快速让计算机知道它们是“同类”？</p>
+</li>
+<li>
+<p><strong>破局思路</strong>：引入 <strong>哈希表 (HashMap)</strong>，并为每一类单词提取统一的 <strong>“防伪特征码”（Signature）</strong> 作为 Key。最简单的方法是<strong>排序</strong>：无论字母原本怎么排列，只要按字典序重新排序，异位词最终的长相绝对一模一样（都会变成 <code>aet</code>）。</p>
+</li>
+<li>
+<p><strong>逻辑推演</strong>：</p>
+<ul>
+<li>遍历单词数组，拿到 <code>eat</code>。</li>
+<li>将其打散为字符并排序：<code>e,a,t</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>a,e,t</code>。</li>
+<li>将 <code>aet</code> 作为键（Key），去哈希表里找对应的抽屉（List）。</li>
+<li>把原单词 <code>eat</code> 扔进这个抽屉。</li>
+<li>最后把哈希表里所有的抽屉全倒出来，就是最终的分组结果。</li>
+</ul>
+</li>
+</ol>
+<h4 id="1-core-intuition">💡 1. 核心直觉 (Core Intuition)</h4>
+<p><strong>一句话破局</strong>：字母异位词就像是同一组扑克牌的不同洗牌顺序。无论怎么洗，牌的组成是不变的。我们要做的，就是<strong>为它们提取出一个统一的“防伪特征码”（Signature）作为哈希表的键（Key），把拥有相同特征码的单词扔进同一个数组（Value）里。</strong></p>
+<p>提取特征码最直观的方法就是<strong>排序</strong>。既然字母异位词包含的字母完全一样，那么只要把它们按字典序重新排队，长相就绝对一模一样了。</p>
+<h3 id="_5">思路推导</h3>
+<p>假设输入数组为：<code>["eat", "tea", "tan", "ate", "nat", "bat"]</code></p>
+<p>我们准备一个空的哈希表 <code>Map</code>，然后开始流水线作业：</p>
+<ol>
+<li>拿到 <code>"eat"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 字符排序变成 <code>"aet"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 哈希表里没有 <code>"aet"</code>，开个新抽屉 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"aet": ["eat"]}</code></li>
+<li>拿到 <code>"tea"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 字符排序变成 <code>"aet"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 发现 <code>"aet"</code> 抽屉已存在，直接塞进去 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"aet": ["eat", "tea"]}</code></li>
+<li>拿到 <code>"tan"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 字符排序变成 <code>"ant"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 开新抽屉 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"ant": ["tan"]}</code></li>
+<li>拿到 <code>"ate"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 排序为 <code>"aet"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 塞入对应抽屉 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"aet": ["eat", "tea", "ate"]}</code></li>
+<li>拿到 <code>"nat"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 排序为 <code>"ant"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 塞入对应抽屉 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"ant": ["tan", "nat"]}</code></li>
+<li>拿到 <code>"bat"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 排序为 <code>"abt"</code> <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> 开新抽屉 <span class="math-inline-wrap"><math class="math-inline" aria-label="→"><mrow><mo>→</mo></mrow></math></span> <code>{"abt": ["bat"]}</code></li>
+</ol>
+<p><strong>最后一步</strong>：把哈希表里所有的抽屉（Values）整个倒出来，就是我们要的结果。</p>
+<h3 id="java">Java 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">groupAnagrams</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">strs</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 定义哈希表：Key 是排序后的特征字符串，Value 是属于该特征的原单词列表</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">strs</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 1. 将字符串打散成字符数组并排序</span>
+<span class="w">            </span><span class="kt">char</span><span class="o">[]</span><span class="w"> </span><span class="n">chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">toCharArray</span><span class="p">();</span>
+<span class="w">            </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">chars</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// 2. 将排序后的字符重新组合成字符串，作为哈希表的 Key</span>
+<span class="w">            </span><span class="n">String</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="n">chars</span><span class="p">);</span>
+
+<span class="w">            </span><span class="c1">// 3. 核心 API：查找 Key，若不存在则新建 ArrayList 并放入 Map，最后将原单词追加到 List 中</span>
+<span class="w">            </span><span class="n">map</span><span class="p">.</span><span class="na">computeIfAbsent</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">()).</span><span class="na">add</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 4. 将 Map 中所有的 Value（即一个个的 List）提取出来放入总 List 返回</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">map</span><span class="p">.</span><span class="na">values</span><span class="p">());</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_6">复杂度</h3>
+<ul>
+<li><strong>时间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N · K log K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>K</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>。其中 <span class="math-inline-wrap"><math class="math-inline" aria-label="N"><mrow><mi>N</mi></mrow></math></span> 是单词的数量，<span class="math-inline-wrap"><math class="math-inline" aria-label="K"><mrow><mi>K</mi></mrow></math></span> 是最长单词的长度。遍历数组需要 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>，每次遍历内部需要对字符串进行排序 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(K log K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>K</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>。</li>
+<li><strong>空间复杂度</strong>：<span class="math-inline-wrap"><math class="math-inline" aria-label="O(N · K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>。哈希表需要存储所有的字符串数据。</li>
+</ul>
+<h4 id="computeifabsent">🙋 我的疑问点：深度拆解 <code>computeIfAbsent</code></h4>
+<ul>
+<li><strong>疑问</strong>：<code>map.computeIfAbsent(key, k -&gt; new ArrayList&lt;&gt;()).add(s);</code> 这句代码到底是怎么运作的？</li>
+<li><strong>解答</strong>：这是 Java 8 的核心 API，用于替代过去冗长的 <code>if-else</code> 判空逻辑。它分为三个连贯的动作：
+  1. <strong>查找</strong>：<code>computeIfAbsent</code> 去哈希表里找当前的 <code>key</code>。
+  2. <strong>生成与存入（缺席时触发）</strong>：如果 <code>key</code> <strong>不存在</strong>，它会执行 Lambda 表达式 <code>k -&gt; new ArrayList&lt;&gt;()</code>，现场造一个空的 ArrayList。<strong>关键点</strong>：它不仅造出来，还会自动把这个 <code>&lt;key, 空List&gt;</code> 存进 Map 里，然后把这个 List 返回给你。
+  3. <strong>追加</strong>：拿到返回的 List 引用后，直接调用 <code>.add(s)</code> 将单词放入。全程最多只查一次哈希表，效率极高。</li>
+</ul>
+<h3 id="_7">易错点与扩展（可能会被追问）</h3>
+<ol>
+<li><strong>API 踩坑：不能用 <code>getOrDefault</code> 替代</strong></li>
+</ol>
+<ul>
+<li><strong>错误写法</strong>：<code>map.getOrDefault(key, new ArrayList&lt;&gt;()).add(s);</code></li>
+<li><strong>原因</strong>：<code>getOrDefault</code> 虽然也能在 Key 不存在时给你一个空 List，<strong>但它不会把这个新 List 存回哈希表里</strong>！你的数据加进去就丢失了，原 Map 不受任何影响。必须用 <code>computeIfAbsent</code>。</li>
+</ul>
+<ol start="2">
+<li><strong>性能优化：如何将时间复杂度降到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N · K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>？（高频追问）</strong></li>
+</ol>
+<ul>
+<li><strong>思路</strong>：如果字符串极长，排序 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(K log K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>K</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span> 会成为瓶颈。既然题目说明只包含小写字母，可以抛弃排序，改用<strong>计数法</strong>。</li>
+<li><strong>做法</strong>：新建一个长度为 26 的 <code>int[]</code> 数组，统计单词中 <code>a-z</code> 出现的频次。然后将这个频次数组转换为字符串（例如 <code>1#0#2#...</code>）作为 Key。统计频次只需 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>K</mi><mo>)</mo></mrow></math></span>，整体时间复杂度降为 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N · K)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mo>·</mo><mspace width=".18em"/><mi>K</mi><mo>)</mo></mrow></math></span>。</li>
+</ul>
+<p>这道题是哈希表进阶的绝对经典！它在面试中出现频率极高，因为它考察了一个非常核心的思维：<strong>如何利用哈希表将看似必须 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N log N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mspace width=".18em"/><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>N</mi><mo>)</mo></mrow></math></span> 的时间复杂度硬生生降到 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(N)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mo>)</mo></mrow></math></span>。</strong></p>
+<p>请查收你的专属笔记：</p>
+<h2 id="_8">相邻学习</h2>
+<p><a href="0001-两数之和.html">← 1. 两数之和</a> · <a href="0128-最长连续序列.html">128. 最长连续序列 →</a></p>
+        
+        <section class="reader-visual" aria-labelledby="interactive-demo-title">
+          <h2 id="interactive-demo-title">交互演示</h2>
+          <iframe class="reader-visual-frame" src="../../05-可视化/01-哈希表.html?embed=1&amp;panel=1" title="49. 字母异位词分组的交互演示" loading="lazy" scrolling="no"></iframe>
+        </section>
+    
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+  </div>
+  <script src="../../../../assets/site.js?v=20260830-v2" defer></script>
+</body>
+</html>
