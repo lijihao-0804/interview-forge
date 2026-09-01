@@ -1,0 +1,164 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>请你谈谈对 LangChain 中核心概念「Chain」的理解，以及它的核心作用与设计理念。 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">请你谈谈对 LangChain 中核心概念「Chain」的理解，以及它的核心作用与设计理念。</span></nav><div class="module-meta">大模型应用 · 第 3 / 12 章</div><h1>请你谈谈对 LangChain 中核心概念「Chain」的理解，以及它的核心作用与设计理念。</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你怎么理解 LangChain 里的 Chain？</p>
+<p>🙋‍♂️我：Chain 就是把 Prompt 和大模型连起来，先拼提示词，再让模型回答。</p>
+<p>👔面试官：这只能算最简单的一条链。检索器、输出解析器、自定义函数能不能进 Chain？一个步骤的输出又怎么交给下一个步骤？</p>
+<p>🙋‍♂️我：那就都塞进 <code>LLMChain</code>，复杂一点再套一个 <code>SequentialChain</code>，LangChain 主要就是靠这些 Chain 类来编排。</p>
+<p>👔面试官：你这个答案停在旧版本了。LangChain v1 已经把这些旧式 Chain 移到 <code>langchain-classic</code>，新代码还应该这么写吗？</p>
+<p>🙋‍♂️我：应该改用 LCEL，用 <code>|</code> 把步骤连起来。不过 <code>|</code> 可能只是让代码短一点，本质上还是按顺序调几个函数吧。</p>
+<p>👔面试官：又漏了一层。LCEL 组合出来的是 Runnable，整条链会获得统一的同步、异步、批处理、流式调用和配置能力。那 Chain、Runnable、LCEL 三者到底是什么关系？</p>
+<p>这道题真正考的不是会不会写一个 <code>|</code>，而是能不能讲清楚 LangChain 为什么要把一堆零散组件变成一条可组合、可执行、可观测的数据流水线。</p>
+<h3>💡 简要回答</h3>
+<p>我理解的 Chain，不是某一个固定的类，而是一种应用编排思路：把 Prompt、模型、检索器、输出解析器和自定义逻辑等步骤，按照明确的数据流连接起来，让上一步的输出成为下一步的输入，最终形成一个可以整体执行的流程。</p>
+<p>在现在的 LangChain 里，Chain 最重要的技术基础是 <code>Runnable</code>。每个步骤都尽量遵守统一的输入输出和执行接口，再通过 LCEL 的 <code>|</code> 做串行组合，或者通过字典、<code>RunnableParallel</code> 做并行组合。</p>
+<p>组合后的整条 Chain 本身仍然是 Runnable，所以可以继续嵌套，也能统一使用 <code>invoke</code>、<code>ainvoke</code>、<code>batch</code> 和 <code>stream</code> 等能力。</p>
+<p>它的核心设计理念是「组合优于堆积封装」。开发者只关注每一步做什么、数据怎么流动，框架负责把执行方式、配置、重试、回退和追踪等通用能力接到整条流程上。</p>
+<p>需要注意版本边界。<code>LLMChain</code>、<code>SequentialChain</code> 属于旧式 Chain API，LangChain v1 已把这类能力移入 <code>langchain-classic</code>，适合维护旧项目，不应再作为新项目的首选写法。</p>
+<p>确定性的线性或分支流程可以用 Runnable 和 LCEL，Agent 让模型在运行时动态决定下一步；带循环、持久状态和人工审批的复杂工作流，则更适合用 LangGraph。</p>
+<h3>📝 详细解析</h3>
+<h4>为什么需要 Chain？</h4>
+<p>假设我们要做一个最简单的商品评价分类功能。完整过程不是只调用一次模型，而是要先清洗用户输入，再把变量填进 Prompt，调用模型，最后把模型返回的消息解析成业务需要的字符串。</p>
+<p>如果全部手写，代码里很快就会出现一堆胶水逻辑：这个函数返回字符串，下一个函数却要消息对象；同步调用写一套，异步调用再写一套；想加流式输出、批处理、重试和链路追踪，又得分别改造每一步。</p>
+<p>步骤只有三个时还能忍，等流程变成「问题改写 -&gt; 检索 -&gt; 文档整理 -&gt; Prompt -&gt; 模型 -&gt; 结构化解析」，维护起来就像拿很多根散落的电线临时接出一台机器。每加一个零件，都要重新确认接口能不能接上。</p>
+<p>Chain 解决的就是这个问题。它先让每个零件暴露相对统一的插口，再把它们按照数据流接成一台完整机器。调用方不用逐个驱动内部步骤，只需要给整条链输入，再从整条链拿输出。</p>
+<p><img alt="" src="assets/5df2882f3f-11c53681d8d267f8cdf87b77.png" /></p>
+<p>所以，从业务视角看，Chain 是「把多个处理步骤串成一个完整任务」；从软件设计视角看，它是在做数据流编排和组件组合。</p>
+<h4>Chain 只能线性执行吗？</h4>
+<p>很多林友看到 Chain 这个单词，会自然地把它理解成从左到右的一根直线。这个直觉只对了一半。</p>
+<p>最简单的 Chain 确实是线性的，例如：</p>
+<p><img alt="" src="assets/edf0bf99e3-bce58aa5d960b291eec6b043.png" /></p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">用户输入 -&gt; Prompt 模板 -&gt; Chat Model -&gt; 输出解析器 -&gt; 字符串答案
+</code></pre></div>
+<p>但真实应用还可能出现并行分支。比如用户问题一边送去知识库检索，一边原样保留下来，等检索结束后再把「问题」和「上下文」汇合到 Prompt。它也可能根据分类结果走不同分支。</p>
+<p>因此，更准确的理解是：Chain 描述了一张事先确定好的数据流图。节点负责处理数据，连接关系决定数据往哪里走。即使某个节点内部调用了生成结果不完全确定的 LLM，流程拓扑本身仍然是开发者提前写好的。</p>
+<p>这也解释了 Chain 和 Agent 最容易混淆的地方。Chain 通常由开发者决定「下一步调用谁」，Agent 则让模型根据当前状态动态决定「下一步做什么工具、是否继续循环」。一个偏确定性编排，一个偏运行时决策。</p>
+<h4>Runnable 解决了什么？</h4>
+<p>理解了 Chain 是数据流，接下来就有一个关键问题：Prompt、模型、检索器和解析器明明不是同一种东西，为什么能接在一起？</p>
+<p>答案就是 Runnable。</p>
+<p>不要急着背定义，可以把 Runnable 想成 LangChain 给不同组件定的一份「电器插头标准」。组件内部怎么工作可以不同，但只要遵守这份标准，就能被统一调用，也能继续和其他组件组合。</p>
+<p>按照当前 <code>langchain-core</code> 的官方参考，Runnable 是一个可以调用、批处理、流式处理、转换和组合的工作单元。处理单个输入时使用 <code>invoke</code> 或 <code>ainvoke</code>，输入变成一批时，接口自然对应为 <code>batch</code> 或 <code>abatch</code>。</p>
+<p>如果产品需要边生成边展示，可以使用 <code>stream</code> 或 <code>astream</code>，但前提是内部组件真正支持流式处理。执行方式统一以后，<code>with_config</code>、<code>with_retry</code> 和 <code>with_fallbacks</code> 才能继续在同一抽象上附加配置、重试和降级能力。</p>
+<p>这里最巧妙的地方是「组合后的结果仍然是 Runnable」。两个组件接成一条小链后，这条小链又可以作为一个普通步骤接到更大的链里。就像乐高积木，两个小块拼成一辆小车，小车还可以继续成为整座城市的一部分。</p>
+<p><img alt="" src="assets/6377d7ac13-c6e3ec77486460bc379e6d92.png" /></p>
+<p>Runnable 还暴露输入、输出和配置的 schema，并允许通过 <code>config</code> 携带标签、元数据等信息。这些能力让框架更容易检查数据契约，也方便 LangSmith 之类的追踪系统识别整条调用链里的父子运行关系。</p>
+<p>不过别把 Runnable 理解成魔法。前一个步骤输出什么类型，后一个步骤就必须能够接住什么类型。<code>ChatPromptTemplate</code> 通常接收字典，Chat Model 接收格式化后的 Prompt Value 或消息，<code>StrOutputParser</code> 接收模型消息并输出字符串。类型接不上，链照样会在运行时报错。</p>
+<h4>LCEL 不只是语法糖</h4>
+<p>LCEL 全称是 LangChain Expression Language。它最显眼的写法，是用 <code>|</code> 把 Runnable 接起来。</p>
+<p>为什么用一个符号值得单独起名字？因为这不是普通的 Python 管道，也不只是一颗语法糖。<code>prompt | model | parser</code> 声明的是三个 Runnable 的组合关系，LangChain 会据此构造一个 <code>RunnableSequence</code>。在这个序列里，前一步的输出会作为后一步的输入。</p>
+<p><img alt="" src="assets/1a49c9dd1d-f1ca9fa71673b0ccec78d180.png" /></p>
+<p>下面用当前推荐方式写一条可以直接理解的链：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.chat_models</span> <span class="kn">import</span> <span class="n">init_chat_model</span>
+<span class="kn">from</span> <span class="nn">langchain_core.output_parsers</span> <span class="kn">import</span> <span class="n">StrOutputParser</span>
+<span class="kn">from</span> <span class="nn">langchain_core.prompts</span> <span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
+
+<span class="c1"># Prompt 本身就是 Runnable，输入是包含 product 和 review 的字典</span>
+<span class="n">prompt</span> <span class="o">=</span> <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_messages</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">(</span>
+            <span class="s2">&quot;system&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;你是商品评价分类助手，只回答 positive、neutral 或 negative。&quot;</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;human&quot;</span><span class="p">,</span> <span class="s2">&quot;商品：</span><span class="si">{product}</span><span class="se">\n</span><span class="s2">评价：</span><span class="si">{review}</span><span class="s2">&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># 使用 LangChain v1 提供的统一模型初始化入口</span>
+<span class="c1"># 运行前需要安装对应 Provider 包并配置 OPENAI_API_KEY</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">init_chat_model</span><span class="p">(</span><span class="s2">&quot;openai:gpt-5.5&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="c1"># LCEL 会把三个步骤组合为 RunnableSequence</span>
+<span class="c1"># 数据依次经过 Prompt -&gt; 模型 -&gt; 字符串解析器</span>
+<span class="n">chain</span> <span class="o">=</span> <span class="n">prompt</span> <span class="o">|</span> <span class="n">model</span> <span class="o">|</span> <span class="n">StrOutputParser</span><span class="p">()</span>
+
+<span class="c1"># 整条 chain 仍然是 Runnable，可以通过统一接口执行</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">chain</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;product&quot;</span><span class="p">:</span> <span class="s2">&quot;机械键盘&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;review&quot;</span><span class="p">:</span> <span class="s2">&quot;手感不错，但空格键声音有点大。&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div>
+<p>这段代码里，<code>chain</code> 不是执行结果，而是一份已经组装好的「可执行流程」。只有调用 <code>invoke</code> 时，数据才真正从左向右流动。</p>
+<p>如果要异步调用，不用重写内部流程，只需要改成 <code>await chain.ainvoke(...)</code>。批量处理可以调用 <code>chain.batch([...])</code>，流式输出可以遍历 <code>chain.stream(...)</code>。这种统一执行方式，才是 LCEL 比手写函数嵌套更有价值的地方。</p>
+<p>不过，流式能力有一个容易被说得太满的细节。</p>
+<p><code>RunnableSequence</code> 会尽量保留各组件的流式能力，但如果中间某个组件不支持流式转换，输出就要等它完成后才能继续流出。例如普通 <code>RunnableLambda</code> 默认不实现流式转换，把它放错位置就可能推迟首个输出块。</p>
+<h4>如何并行与汇合？</h4>
+<p>真实的 RAG 链为什么也能用 LCEL 表达？关键是 Runnable 不只支持串行，还支持并行。</p>
+<p>比如同一篇文章，我们既想让模型生成摘要，又想让模型给出标题。两个任务互不依赖，没必要先后等待。可以使用 <code>RunnableParallel</code> 把同一个输入同时送到两条子链：</p>
+<p><img alt="" src="assets/9bb41477e7-69e4fc50a401ee8c43e2c7d0.png" /></p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.chat_models</span> <span class="kn">import</span> <span class="n">init_chat_model</span>
+<span class="kn">from</span> <span class="nn">langchain_core.output_parsers</span> <span class="kn">import</span> <span class="n">StrOutputParser</span>
+<span class="kn">from</span> <span class="nn">langchain_core.prompts</span> <span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
+<span class="kn">from</span> <span class="nn">langchain_core.runnables</span> <span class="kn">import</span> <span class="n">RunnableParallel</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">init_chat_model</span><span class="p">(</span><span class="s2">&quot;openai:gpt-5.5&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">StrOutputParser</span><span class="p">()</span>
+
+<span class="c1"># 两个分支接收相同的输入字典，但分别执行不同任务</span>
+<span class="n">summary_chain</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_template</span><span class="p">(</span><span class="s2">&quot;用两句话总结这篇文章：</span><span class="se">\n</span><span class="si">{article}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="o">|</span> <span class="n">model</span>
+    <span class="o">|</span> <span class="n">parser</span>
+<span class="p">)</span>
+<span class="n">title_chain</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_template</span><span class="p">(</span><span class="s2">&quot;为这篇文章起一个简洁标题：</span><span class="se">\n</span><span class="si">{article}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="o">|</span> <span class="n">model</span>
+    <span class="o">|</span> <span class="n">parser</span>
+<span class="p">)</span>
+
+<span class="c1"># 并行运行两个子链，最后把结果汇合成一个字典</span>
+<span class="n">chain</span> <span class="o">=</span> <span class="n">RunnableParallel</span><span class="p">(</span>
+    <span class="n">summary</span><span class="o">=</span><span class="n">summary_chain</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="n">title_chain</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">chain</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;article&quot;</span><span class="p">:</span> <span class="s2">&quot;这里放待处理的文章正文&quot;</span><span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;summary&quot;</span><span class="p">])</span>
+</code></pre></div>
+<p><code>RunnableSequence</code> 解决「先做 A，再做 B」，<code>RunnableParallel</code> 解决「把相同输入同时交给 A 和 B」。二者组合起来，就能表达不少固定流程。</p>
+<p>在 LCEL 里，字典也可以在组合上下文中被自动转换为 <code>RunnableParallel</code>。不过面试讲原理时，建议先说清楚显式类名，再补充字典简写。这样面试官能确认你知道背后真正生成了什么，而不是只记住了一个看起来很酷的写法。</p>
+<h4>为什么统一协议能不断扩展？</h4>
+<p>如果面试官继续问「为什么 LangChain 要这么设计」，只说方便串起来还不够。真正值得理解的是，一套统一协议如何让小流程逐渐长成大流程。</p>
+<p><img alt="" src="assets/2722416377-5d88edd0ec4c410dd84e2032.png" /></p>
+<p>起点是可组合。每个步骤只处理自己的输入和输出，小链可以继续组成大链。开发者能够替换某个模型、解析器或检索器，而不必推翻整条业务流程，这就降低了组件之间的耦合。</p>
+<p>但组件只是能接在一起还不够。如果每种组件都有完全不同的调用方式，组合只能停留在表面。Runnable 继续把单次、异步、批量和流式等执行方式收拢到统一接口上，组合后的流程才有机会继承这些能力。当然，最终效果仍取决于内部组件是否真正支持对应模式。</p>
+<p>接口统一后，LCEL 才能进一步把代码写成声明式数据流。开发者主要表达「数据先去哪，再去哪」，不用把线程调度、回调传递和中间结果搬运混在业务逻辑里，读代码时也能直接看出流程结构。</p>
+<p>有了清楚的流程结构，重试、回退、标签、元数据和追踪这类横切能力就能复用，不需要每个业务函数各写一遍。它们可以附着在某个 Runnable，也可以作用于整条链。生产环境排查问题时，我们看到的不再只是最终报错，而是这次运行究竟经过了哪些子步骤。</p>
+<h4>为什么弃用旧式 Chain？</h4>
+<p>这一段是现在面试最容易踩的版本坑。</p>
+<p>早期 LangChain 提供了大量面向具体场景的类。<code>LLMChain</code> 常用于封装 Prompt 加模型，<code>SequentialChain</code> 用于把多条旧式 Chain 顺序连接。它们在老项目和老教程里非常常见，所以很多人会误以为这就是今天的标准答案。</p>
+<p><img alt="" src="assets/c9e43e682a-74a0af34567dcf998038d162.png" /></p>
+<p>但框架后来遇到了一个问题：专用 Chain 类越来越多，每个类的输入字段、返回结构和扩展方式不完全一致。开发者既要记住大量类名，又很难把它们自由拼装。</p>
+<p>Runnable 和 LCEL 的方向，是把重心从「为每个场景造一个专用类」转向「提供少量统一原语，让开发者自己组合」。<code>LLMChain(prompt=prompt, llm=model)</code> 能做的事情，现在通常直接写成 <code>prompt | model | parser</code>，数据流更清楚，组合能力也更一致。</p>
+<p>截至 2026 年 7 月，LangChain v1 迁移指南已经把旧式 chains 明确移到 <code>langchain-classic</code>，其中包括 <code>LLMChain</code>、<code>ConversationChain</code> 和 <code>SequentialChain</code> 等旧 API。</p>
+<p>它们不是突然不能运行了。维护旧系统时仍可以安装兼容包，但新项目不应该因为看到旧教程，就继续把这些旧式 Chain 当成首选。</p>
+<p>因此，看到老代码里的 <code>LLMChain</code> 和 <code>SequentialChain</code>，我们要能读懂它们过去解决了什么问题；真正写新代码时，则优先使用 Runnable 与 LCEL 表达固定数据流。</p>
+<p>如果下一步由模型动态决定，就从 LangChain v1 的 <code>create_agent</code> 开始。等流程的核心难点变成循环、持久状态、暂停恢复或人工审批，再进一步使用 LangGraph。这个选择顺序比背一组新旧类名更重要。</p>
+<h4>三种编排方式怎么选？</h4>
+<p>Chain 好用，是不是所有流程都应该塞进一条超长 LCEL？当然不是。</p>
+<p>如果步骤和数据流在编码时就能确定，比如文本清洗、检索增强问答、分类后解析，Runnable 和 LCEL 通常很合适。它们结构直接，调用方式统一，也容易追踪。</p>
+<p>如果下一步取决于模型的动态判断，例如模型要自己选择搜索、计算器还是数据库工具，并可能重复多轮，问题就从「固定数据流」变成了「Agent 循环」。在 LangChain v1 中，官方推荐用 <code>create_agent</code> 构建标准 Agent，这套 Agent 架构运行在 LangGraph 之上。</p>
+<p>如果我们还要精确控制循环、分支、状态持久化、失败恢复和人工介入，那就进一步使用 LangGraph 的底层图编排能力。LangGraph 并不是为了取代每一条简单 Chain，而是处理 Chain 难以清楚表达的长时、有状态工作流。</p>
+<p>可以用一个判断方法：开发前就知道下一步去哪里，优先考虑 Chain；运行时要由模型决定下一步，考虑 Agent；流程需要显式状态图和恢复能力，考虑 LangGraph。</p>
+<h4>哪些理解容易走偏？</h4>
+<p>最容易出现的偏差，是把 Chain 缩小成「一次 LLM 调用」或某个具体的 <code>LLMChain</code> 类。一次模型调用只能算流程中的一个节点，旧类也只是早期实现。今天谈 Chain，重点应该放在如何用 Runnable 组织完整数据流，再补充旧 API 的迁移状态。</p>
+<p>理解了这一点，就不会把 <code>|</code> 当成自动修好一切的魔法。LCEL 负责组合，却不会猜测业务语义。上一步输出与下一步输入不匹配时，仍要用 <code>RunnableLambda</code>、<code>RunnablePassthrough</code>、<code>itemgetter</code> 或显式转换函数整理数据。</p>
+<p>同样，统一接口只代表调用方式一致，不代表内部组件天然拥有相同能力。某一步不支持流式转换，整条链的首个输出就可能被推迟；模型没有服务端批处理能力，调用 <code>batch</code> 也不会凭空获得最优性能。</p>
+<p>最后再回到控制权。Chain 的连接关系通常由代码预先确定，Agent 的动作路径则可能由模型在运行中选择。二者可以组合，但不能因为都调用了模型，就把固定数据流和动态决策循环混为一谈。</p>
+<h3>🎯 面试总结</h3>
+<p>回到开头的问题，面试官问 Chain，不是想听一句「把 Prompt 和模型串起来」，也不是想让我们背 <code>LLMChain</code> 的构造参数。</p>
+<p>一个完整的回答，应该先说 Chain 是确定性的数据流编排，把多个步骤组合成一个可以整体调用的流程。再往下落到现代实现，说明 Runnable 是统一执行与组合接口，LCEL 是声明组合关系的表达方式，<code>|</code> 通常生成 <code>RunnableSequence</code>，并行分支可以用 <code>RunnableParallel</code>。</p>
+<p>接着点出它的设计价值：组件可以替换，小链可以继续嵌套，整条流程能共享同步、异步、批处理、流式、重试、回退和追踪等能力，同时也要承认类型适配与真实流式能力仍取决于具体组件。</p>
+<p>最后一定补上版本意识。<code>LLMChain</code>、<code>SequentialChain</code> 已是 legacy chains，LangChain v1 将它们移入 <code>langchain-classic</code>。新项目写固定流程优先使用 Runnable 与 LCEL，动态工具决策使用 <code>create_agent</code>，复杂有状态编排再使用 LangGraph。</p>
+<p>能把「Chain 是什么」「Runnable 怎么支撑它」「LCEL 为什么有价值」「旧 API 现在在哪里」这四层讲清楚，这道题就不只是会用框架，而是真正理解了它的设计。</p>
+<h3>📚 参考资料</h3>
+<ul>
+<li><a href="https://docs.langchain.com/oss/python/langchain/overview">LangChain v1 官方概览</a>：核对 v1 当前定位、<code>create_agent</code> 与 LangGraph 的关系。</li>
+<li><a href="https://docs.langchain.com/oss/python/migrate/langchain-v1">LangChain v1 官方迁移指南</a>：核对主包命名空间收缩，以及 legacy chains 移入 <code>langchain-classic</code> 的现状。</li>
+<li><a href="https://reference.langchain.com/python/langchain-core/runnables/base/Runnable">Runnable 官方 API 参考</a>：核对统一执行接口、schema、配置与组合能力。</li>
+<li><a href="https://reference.langchain.com/python/langchain-core/runnables/base/RunnableSequence">RunnableSequence 官方 API 参考</a>：核对 <code>|</code>、串行执行、批处理及流式传播条件。</li>
+<li><a href="https://reference.langchain.com/python/langchain-core/runnables">LangChain Core Runnables 官方参考</a>：核对 <code>RunnableParallel</code>、<code>RunnableLambda</code> 等现行组合原语。</li>
+</ul>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-langchain:03",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

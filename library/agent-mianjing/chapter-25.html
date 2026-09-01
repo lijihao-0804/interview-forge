@@ -1,0 +1,72 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>向量数据库 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">向量数据库</span></nav><div class="module-meta">Agent 工程 · 第 25 / 55 章</div><h1>向量数据库</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>在 RAG 系统中，向量数据库（Vector Database）是整个检索模块的核心组件之一。它负责存储文 本、图像或其他数据经过 Embedding 模型转换后的向量表示，并在用户查询时快速找到与查询向量 最相似的数据。可以说，向量数据库决定了 RAG 系统的检索效率与召回质量，是构建高性能知识库系 统的关键基础设施。</p>
+<p>传统数据库通常用于存储结构化数据，例如表格、字段和索引，而向量数据库则专门用于处理高维向 量数据。在大模型应用中，这些向量通常来自文本 Embedding，例如文档片段、知识库内容或用户问 题的语义表示。当用户提出问题时，系统会将问题转换为向量，然后在向量数据库中寻找语义最相似 的内容，从而实现语义级检索。</p>
+<h5>向量检索原理</h5>
+<p>向量检索的核心思想是：通过向量空间中的距离或相似度来判断语义相关性。在 Embedding 模型的帮 助下，每一段文本都会被映射到一个高维向量空间中。语义相似的文本在向量空间中的位置会更加接 近，而语义差异较大的文本则会距离更远。</p>
+<p><img alt="" src="assets/053ccf606a-agent-.pdf-0100-05.png" /></p>
+<p>当用户输入一个问题时，系统会首先计算该问题的向量表示，然后在数据库中查找与该向量距离最近 的若干个向量，这个过程被称为 Nearest Neighbor Search（最近邻搜索）。 常见的相似度计算方式包括：</p>
+<ul>
+<li>Cosine Similarity（余弦相似度） 通过计算两个向量夹角的余弦值来衡量相似度，是文本语义检索中最常见的方法。</li>
+</ul>
+<p>• Inner Product（向量内积）</p>
+<p>通过向量点积计算相似度，在某些 Embedding 模型中表现较好。</p>
+<p>• Euclidean Distance（欧氏距离）</p>
+<p>计算向量之间的几何距离，常用于数学或物理空间中的距离计算。 在数据规模较小时，可以通过暴力搜索（Brute Force）计算所有向量的距离并找到最近邻。但在实际 应用中，向量数据库通常需要处理数百万甚至数十亿级向量数据，因此必须使用更加高效的检索算 法。</p>
+<h5>ANN（Approximate Nearest Neighbor）</h5>
+<p>为了在大规模数据中实现快速检索，向量数据库通常采用 ANN（Approximate Nearest Neighbor，近 似最近邻搜索）算法。</p>
+<p><img alt="" src="assets/0aa3351f3a-agent-.pdf-0101-06.png" /></p>
+<p>ANN 的核心思想是：在保证较高检索准确率的前提下，通过一定的近似策略减少计算量，从而显著提 升搜索速度。相比精确搜索，ANN 不一定能够找到绝对最相似的向量，但可以在极短时间内找到“足 够相似”的结果，这对于大规模检索系统来说是完全可接受的。</p>
+<p>在实际应用中，ANN 算法通常需要在以下三个指标之间进行权衡：</p>
+<ul>
+<li>Recall（召回率）：检索结果的准确程度</li>
+</ul>
+<p>-</p>
+<ul>
+<li>
+<p>Latency（延迟）：查询所需的时间</p>
+</li>
+<li>
+<p>Memory Usage（内存占用）：索引结构所需的存储空间</p>
+</li>
+</ul>
+<p>不同的 ANN 算法在这些指标之间会有不同的取舍，因此在实际系统设计中，需要根据数据规模和应用 需求选择合适的索引结构。</p>
+<h5>HNSW / IVF</h5>
+<p>在众多 ANN 算法中，HNSW 和 IVF 是目前向量数据库中最常见的两种索引结构。</p>
+<p>HNSW（Hierarchical Navigable Small World） 是一种基于图结构的向量索引算法。它通过构建多 层图结构来组织向量数据，每一层图都包含不同数量的节点，并通过边连接相似向量。在搜索过程 中，系统会从高层图开始逐步向下搜索，从而快速定位到目标向量附近的区域。这种方法能够在保持 较高召回率的同时实现极快的搜索速度，因此在许多向量数据库中被广泛使用。</p>
+<p>相比之下，IVF（Inverted File Index） 是一种基于聚类的索引方法。它首先使用聚类算法（例如 KMeans）将所有向量划分为多个簇，每个簇都有一个中心向量。在查询时，系统会先找到与查询向量 最接近的几个簇，然后只在这些簇中进行搜索，从而减少计算量。这种方法在处理超大规模数据集时 具有更好的扩展性。</p>
+<p>从工程实践角度来看：</p>
+<ul>
+<li>
+<p>HNSW 通常具有更高的检索精度和较好的查询速度</p>
+</li>
+<li>
+<p>IVF 更适合处理规模极大的向量数据集</p>
+</li>
+</ul>
+<p>因此，在很多向量数据库中，开发者可以根据业务需求选择不同的索引策略。</p>
+<h5>常见向量数据库</h5>
+<p>随着 RAG 技术的发展，市场上出现了多种专门用于向量检索的数据库系统。这些系统在架构设计、性 能优化以及部署方式上各有特点。</p>
+<p>Milvus 是目前最流行的开源向量数据库之一，由 Zilliz 团队开发。它专门为大规模向量数据设计，支 持多种 ANN 索引结构，例如 HNSW、IVF、PQ 等。Milvus 采用分布式架构，可以轻松扩展到数十亿级 向量规模，因此在企业级 AI 应用中被广泛使用。</p>
+<p>Pinecone 是一个云原生向量数据库服务。与传统数据库不同，Pinecone 以托管服务的形式提供向量 存储与检索能力，开发者无需自行维护基础设施，只需要通过 API 即可完成数据存储和向量搜索。这 种方式大大降低了系统部署和运维成本，因此在 SaaS 型 AI 应用中非常流行。</p>
+<p>Weaviate 是另一个开源向量数据库，它不仅支持向量检索，还内置了丰富的数据结构和 API，例如 GraphQL 查询接口以及模块化的 AI 插件。Weaviate 的特点是可以直接与 Embedding 模型集成，使 得数据向量化与检索流程更加简洁。</p>
+<p>FAISS（Facebook AI Similarity Search）是由 Meta AI 开源的向量相似度搜索库。虽然它严格来说并 不是一个完整的数据库系统，但由于其极高的性能和灵活的索引实现，FAISS 被广泛应用于各种向量检 索系统中，许多向量数据库内部也使用 FAISS 作为底层检索引擎。</p>
+<h5>向量数据库在 RAG 系统中的角色</h5>
+<p>在 RAG 系统中，向量数据库的主要职责是 高效地完成语义检索任务。当知识库中的文档经过分块和向 量化处理之后，所有向量都会被存储在数据库中，并建立相应的索引结构。当用户提出问题时，系统 会将问题向量与数据库中的向量进行相似度搜索，从而找到最相关的文档片段。</p>
+<p>因此，向量数据库不仅影响检索速度，还会直接影响系统的回答质量。如果检索结果不准确，即使大 语言模型能力再强，也很难生成正确答案。</p>
+<p>在实际系统设计中，开发者通常需要关注以下几个关键因素：</p>
+<ul>
+<li>
+<p>向量维度与存储规模</p>
+</li>
+<li>
+<p>检索延迟与系统吞吐量</p>
+</li>
+<li>
+<p>索引结构与召回率</p>
+</li>
+<li>
+<p>数据更新与实时性</p>
+</li>
+</ul>
+<p>通过合理选择向量数据库与索引策略，可以显著提升 RAG 系统的整体性能。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-24.html">← 上一章</a><a href="chapter-26.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:25",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

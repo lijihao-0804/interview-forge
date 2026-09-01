@@ -1,0 +1,120 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Tool Calling · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Tool Calling</span></nav><div class="module-meta">Agent 工程 · 第 40 / 55 章</div><h1>Tool Calling</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>在大模型应用的发展过程中，人们逐渐发现，仅依靠语言模型本身的推理能力，很难完成复杂的真实 世界任务。例如查询数据库、访问搜索引擎、调用企业内部 API、执行代码、或者访问外部系统资源， 这些能力都超出了语言模型原本的能力范围。 因此，Tool Calling（工具调用）机制成为构建 AI Agent 的核心能力之一，它使得大模型不仅能 够“思考”和“生成文本”，还能够调用外部工具完成实际任务。</p>
+<p><img alt="" src="assets/4f527c18e5-agent-.pdf-0184-02.png" /></p>
+<p>简单来说，Tool Calling 的本质就是：</p>
+<p>让大模型在推理过程中，根据任务需要，自动选择并调用外部工具，从而扩展自身能力。 在现代 AI Agent 架构中，Tool Calling 已经成为连接 LLM 与真实世界系统 的关键桥梁。 一个典型的 Tool Calling 流程通常如下：</p>
+<ul>
+<li><code>1 User Input 2</code> ↓ <code>3 LLM Reasoning 4</code> ↓ <code>5 Tool Selection 6</code> ↓ <code>7 Tool Execution 8</code> ↓</li>
+</ul>
+<div class="codehilite"><pre><code>9Result Returned to LLM
+</code></pre></div>
+<p>10 ↓</p>
+<div class="codehilite"><pre><code>11Final Response
+</code></pre></div>
+<p>在这个过程中，大模型不仅负责理解用户意图，还需要判断是否需要调用工具，并决定调用哪个工具 以及传递哪些参数。</p>
+<h5>Tool 定义</h5>
+<p>在 AI Agent 系统中，Tool（工具）可以理解为一种可被大模型调用的能力接口。 它可以是一个函数、一个 API、一个数据库查询接口，甚至是一个复杂的业务系统。 从抽象角度来看，一个 Tool 通常包含三个核心部分：</p>
+<p><strong>1. Tool Name</strong></p>
+<p>工具的唯一名称，用于让模型识别和选择工具。例如：</p>
+<ul>
+<li>
+<p><code>search_web</code></p>
+</li>
+<li>
+<p><code>get_weather</code></p>
+</li>
+<li>
+<p><code>query_database</code></p>
+</li>
+<li>
+<p><code>send_email</code></p>
+</li>
+</ul>
+<p>名称需要清晰表达工具功能，以帮助模型更准确地进行选择。</p>
+<p><strong>2. Tool Description</strong></p>
+<p>工具的功能描述，用于告诉大模型：</p>
+<ul>
+<li>
+<p>这个工具可以做什么</p>
+</li>
+<li>
+<p>在什么情况下应该使用它</p>
+</li>
+<li>
+<p>输入参数代表什么含义</p>
+</li>
+</ul>
+<p><strong>例如：</strong></p>
+<div class="codehilite"><pre><code>1Get the current weather of a city.
+2Use this tool when the user asks about weather.
+</code></pre></div>
+<p>描述越清晰，大模型在推理时选择正确工具的概率就越高。</p>
+<p><strong>3. Tool Parameters</strong></p>
+<p>工具的输入参数定义，包括参数名称、数据类型以及含义说明。例如：</p>
+<div class="codehilite"><pre><code>1city: string
+</code></pre></div>
+<div class="codehilite"><pre><code>2unit: celsius | fahrenheit
+</code></pre></div>
+<p>这些参数会在模型决定调用工具时，由模型自动生成对应的参数值。</p>
+<h5>Tool Schema</h5>
+<p>为了让大模型能够正确理解工具结构，系统通常需要使用 Schema（结构定义） 来描述 Tool。 目前主流的工具描述方式通常基于 JSON Schema。</p>
+<p>一个典型的 Tool Schema 示例：</p>
+<p><code>1 { 2 "name": "get_weather", 3 "description": "Get the current weather of a city", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "city": { 8 "type": "string", 9 "description": "The name of the city" 10 }, 11 "unit": { 12 "type": "string", 13 "enum": ["celsius", "fahrenheit"] 14 } 15 }, 16 "required": ["city"] 17 } 18 }</code></p>
+<p>该 Schema 向大模型清晰地描述了以下信息：</p>
+<ul>
+<li>
+<p>工具名称： <code>get_weather</code></p>
+</li>
+<li>
+<p>工具功能：查询城市天气</p>
+</li>
+</ul>
+<p>• 参数结构：</p>
+<p>◦ <code>city</code> ：城市名称</p>
+<p>◦ <code>unit</code> ：温度单位</p>
+<p>• 必填参数： <code>city</code></p>
+<p>当用户提出请求，例如：</p>
+<p>1 代码块北京今天的天气怎么样？</p>
+<p>模型在推理后可能生成如下 Tool 调用：</p>
+<p><img alt="" src="assets/68fdee69c7-agent-.pdf-0187-02.png" /></p>
+<!-- Start of picture text -->
+<p>代码块<br>1 {<br>2 "tool": "get_weather",<br>3 "arguments": {<br>4 "city": "Beijing",<br>5 "unit": "celsius"<br>6   }<br>7 }<br><!-- End of picture text --></p>
+<p>系统收到该调用后，执行对应工具，并将结果返回给模型。</p>
+<h5>Tool Calling 的核心优势</h5>
+<p>相比传统的纯文本生成方式，Tool Calling 为 AI Agent 带来了几个关键能力。</p>
+<p>首先是能力扩展（Capability Extension）。 通过工具调用，大模型可以访问实时数据、调用计算程序、执行复杂任务，从而突破语言模型本身的 能力限制。</p>
+<p>其次是系统集成能力（System Integration）。 企业可以将内部系统（如 CRM、ERP、数据库、搜索服务等）封装为工具，使 AI Agent 成为统一的智 能入口。</p>
+<p>第三是结构化执行（Structured Execution）。 由于工具使用标准 Schema 描述，因此工具调用过程是可控和可验证的，这对于生产级 AI 系统非常重 要。</p>
+<p>最后是可组合性（Composable Architecture）。 多个 Tool 可以组合形成复杂工作流，使 Agent 能够逐步完成复杂任务。</p>
+<h5>Tool Calling 在 Agent 系统中的作用</h5>
+<p>在现代 AI Agent 架构中，Tool Calling 通常承担以下角色：</p>
+<ol>
+<li>
+<p>能力扩展层（Capability Layer） 为 LLM 提供额外能力，例如搜索、计算、数据库访问等。</p>
+</li>
+<li>
+<p>系统接口层（Integration Layer） 将企业系统、API 服务和外部平台统一封装为工具。</p>
+</li>
+<li>
+<p>任务执行层（Execution Layer） 在 Agent 推理过程中执行实际操作。</p>
+</li>
+</ol>
+<p>因此，一个成熟的 Agent 系统通常会维护一个 Tool Registry（工具注册表），用于管理所有可调用工 具，并在推理时提供给大模型。</p>
+<h5>Tool Calling 的发展趋势</h5>
+<p>随着 AI Agent 技术的发展，Tool Calling 正在从简单的函数调用机制，逐渐演进为更完整的 Agent 工 具生态。</p>
+<p>例如：</p>
+<ul>
+<li>
+<p>Function Calling：大模型直接生成函数调用</p>
+</li>
+<li>
+<p>Tool Use Reasoning：模型通过多步推理选择工具</p>
+</li>
+<li>
+<p>Tool Planning：模型规划多个工具组合使用</p>
+</li>
+<li>
+<p>MCP（Model Context Protocol）：统一工具和资源访问协议</p>
+</li>
+</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-39.html">← 上一章</a><a href="chapter-41.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:40",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

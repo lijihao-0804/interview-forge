@@ -1,0 +1,252 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</span></nav><div class="module-meta">大模型应用 · 第 3 / 22 章</div><h1>大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：来讲讲大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 这几个怎么选？</p>
+<p>🙋‍♂️我：vLLM 用来部署大模型推理，速度快；llama.cpp 是 CPU 推理；TGI 和 SGLang 我没用过。</p>
+<p>👔面试官：……「速度快」是表面话，vLLM 凭什么比直接用 transformers 库快？PagedAttention 是什么？为什么这个名字叫「Paged」？</p>
+<p>🙋‍♂️我：哦哦，应该是分页管理 KV Cache 吧，类似操作系统的虚拟内存？</p>
+<p>👔面试官：方向对，但具体怎么 Paged 你能讲清楚吗？再说，SGLang 的 RadixAttention 和 vLLM 的 PagedAttention 是什么关系？为什么 SGLang 在 Agent / 多轮对话场景比 vLLM 更省？</p>
+<p>🙋‍♂️我：呃……RadixAttention 我不太熟。</p>
+<p>👔面试官：RadixAttention 是 SGLang 的核心创新，把 KV Cache 组织成共享前缀树（Radix Tree），让多个请求的相同前缀只存一份。这个对 Agent / Few-shot Prompt 这种「前缀重复率高」的场景特别有效。这种细节都不知道，去面试就是被怼。回去补一下。</p>
+<p>面试官这一连串追问其实在敲打同一件事，推理框架不是「随便挑一个跑起来」就行。每家解决的核心痛点不一样，PagedAttention、RadixAttention、CPU 量化背后各有一套设计哲学，得对着场景一个个对上。</p>
+<h3>💡 简要回答</h3>
+<p>我理解大模型部署框架的本质问题是：<strong>怎么在固定的硬件上跑得更快、更省显存、支持更多并发用户？</strong></p>
+<p>主流框架按定位分四类。</p>
+<p><strong>1. vLLM</strong>：当前生产部署里很常见的框架，UC Berkeley 出品。核心创新是 <strong>PagedAttention</strong>，把 KV Cache 像操作系统虚拟内存一样分页管理，大幅减少碎片，显存利用率能明显提高。配合 Continuous Batching 实现很高的吞吐量，是很多团队部署 LLM API 时会优先评估的方案。</p>
+<p><strong>2. SGLang</strong>：vLLM 之后的<strong>新一代推理框架</strong>，LMSYS 出品。核心创新是 <strong>RadixAttention</strong>，把多请求的共享前缀（如 System Prompt、Few-shot 示例、对话历史）组织成树结构，相同前缀只存一份 KV Cache。在 Agent、多轮对话、批量 Prompt 场景下比 vLLM 显存更省、首 token 延迟更低。</p>
+<p><strong>3. TGI（Text Generation Inference）</strong>：HuggingFace 出品，与整个 HF 生态<strong>深度集成</strong>。优点是开箱即用、支持各种 HF Hub 上的模型、企业级 API 接口（鉴权、metrics、健康检查）。但要注意它近两年的增长势头不如 vLLM / SGLang，选它更多是看中 HF 生态和既有系统集成，而不是追求极致性能。</p>
+<p><strong>4. llama.cpp</strong>：<strong>CPU / 边缘设备</strong>部署的事实标准。用 C++ 重写整个推理栈，配合 GGUF 量化文件格式，可以让 7B 模型在 MacBook Pro 上跑、在树莓派上跑、在手机上跑。是个人开发者和边缘部署的首选。</p>
+<p><strong>怎么选</strong>：</p>
+<ul>
+<li><strong>生产高吞吐 LLM API</strong>：vLLM 默认</li>
+<li><strong>Agent / 多轮对话 / Few-shot</strong>：SGLang 更省</li>
+<li><strong>拥抱 HuggingFace 生态、企业级</strong>：TGI</li>
+<li><strong>本地 / Mac / 边缘 / 无 GPU</strong>：llama.cpp</li>
+<li><strong>极致性能、自家定制</strong>：TensorRT-LLM（NVIDIA 官方）</li>
+</ul>
+<h3>📝 详细解析</h3>
+<h4>部署框架解决的核心问题</h4>
+<p>要理解为什么需要 vLLM、SGLang 这些专门的部署框架，得先看看「直接用 transformers 库跑模型」会有什么问题。</p>
+<p>最朴素的部署方式是写个 Python 脚本，加载 HF transformers 的 AutoModelForCausalLM，调 <code>model.generate()</code>。能跑起来，但效率会很糟糕，三个核心痛点：</p>
+<p><strong>1. KV Cache 显存碎片严重</strong></p>
+<p>每来一个请求，朴素实现会预分配「最大可能长度」（比如 4096 tokens）的 KV Cache 显存。但实际上大多数请求只用 200-500 tokens，剩下的 3500+ tokens 显存就空着浪费了。一台 80GB H100 理论能跑 100 个并发请求，实际只能跑 30 个，显存白白浪费 60-70%。</p>
+<p><strong>2. 批量推理调度低效</strong></p>
+<p>朴素批量处理（static batching）是「凑齐 N 个请求一起跑、所有请求一起结束」。但每个请求生成长度不同（有的 50 tokens 就完了、有的要 1000 tokens），短的请求等长的请求，GPU 大量时间在「跑了一半在等」。吞吐率上不去。</p>
+<p><strong>3. 重复计算</strong></p>
+<p>如果每个用户都用同一段 System Prompt（比如 1000 tokens 的产品知识库），朴素实现每次都要重新算这 1000 tokens 的 KV Cache，浪费极大。</p>
+<p><img alt="" src="assets/f572c93929-0e2314dfa23e6337d918a606.png" /></p>
+<p>部署框架就是为了解决这三个痛点。三大优化方向：<strong>内存高效（显存碎片）+ 批量调度（吞吐率）+ 缓存复用（重复计算）</strong>。每个主流框架在这三个方向上都有自己的创新。</p>
+<h4>vLLM 与 PagedAttention：操作系统虚拟内存的灵感</h4>
+<p>vLLM 是 UC Berkeley 在 2023 年开源的推理框架，一出来就把行业标准提了一个量级。核心创新是 <strong>PagedAttention</strong>。</p>
+<p>PagedAttention 的灵感来自操作系统的<strong>虚拟内存（Virtual Memory）</strong>。</p>
+<p>操作系统怎么管理内存？不是给每个进程预分配大块连续物理内存（这样会有大量碎片），而是把物理内存切成固定大小的「页（Page）」，每个进程拿到的是「逻辑地址」，通过页表（Page Table）映射到真实的物理页。这样物理内存可以充分利用，不浪费。</p>
+<p>PagedAttention 把这个思路搬到 KV Cache 上：</p>
+<ul>
+<li>把 GPU 显存切成固定大小的「Block」（典型大小 16 个 token 的 KV）</li>
+<li>每个请求拿到的是「逻辑 KV 序列」，由一张 Block Table 映射到具体的物理 Block</li>
+<li>一个请求实际用了 200 tokens 就只占 13 个 Block（200/16），用完即释放</li>
+<li>没有「预分配 4096 但只用 200」的浪费</li>
+</ul>
+<p><img alt="" src="assets/c583a86113-b4d8a84ab7cd5d85ae8a2d11.png" /></p>
+<p>实测下来 PagedAttention 把显存利用率从 30-40% 拉到 90%+，同样硬件下能跑 2-4 倍并发请求。</p>
+<p>vLLM 还有第二个杀手锏：<strong>Continuous Batching（连续批处理）</strong>。</p>
+<p>朴素 static batching 是「凑齐 N 个请求一起跑、跑完一起结束」。Continuous Batching 是「请求异步加入和退出，每个 token 步骤动态组 batch」。比如：</p>
+<ul>
+<li>时刻 t1：请求 A、B、C 同时在跑</li>
+<li>时刻 t5：A 生成完了退出，立刻有新请求 D 加入</li>
+<li>时刻 t8：B 也生成完了退出，新请求 E 加入</li>
+<li>这样 GPU 一刻不闲，吞吐率比 static batching 高 3-5 倍</li>
+</ul>
+<p><img alt="" src="assets/0ed2496390-5be8c4e055775e3c043b2975.png" /></p>
+<p>vLLM = PagedAttention（显存高效）+ Continuous Batching（吞吐高效），是当前生产环境部署 LLM API 的事实标准。OpenAI、Anthropic 等厂商虽然没开源他们的内部推理栈，但据传也用了类似的优化思路。</p>
+<h4>SGLang 与 RadixAttention：共享前缀的杀手锏</h4>
+<p>SGLang 是 LMSYS（创建 Vicuna、Chatbot Arena 的团队）在 2024 年推出的新一代推理框架。它<strong>不是要替代 vLLM</strong>，而是针对 vLLM 没解决好的特定场景：<strong>多请求共享前缀</strong>。</p>
+<p>什么场景下「共享前缀」很常见？</p>
+<ul>
+<li><strong>System Prompt 共享</strong>：所有用户调用同一个 API，System Prompt 完全一样（几千 tokens）</li>
+<li><strong>Few-shot Examples 共享</strong>：Prompt 里有 5-10 个固定示例，每个用户的查询前面都附带这些示例</li>
+<li><strong>多轮对话历史</strong>：同一用户的多轮对话，每轮都包含前 N 轮的完整历史</li>
+<li><strong>Agent 工作流</strong>：Agent 调用 LLM 多次，每次的上下文都从同一个 System Prompt 开始</li>
+</ul>
+<p>vLLM 的 PagedAttention 虽然显存高效，但<strong>不同请求的 KV Cache 仍然各存各的</strong>。10 个用户都用同样的 1000 tokens System Prompt，vLLM 要存 10 份相同的 KV Cache。</p>
+<p>SGLang 的核心创新 <strong>RadixAttention</strong> 把这个问题解决了。</p>
+<p><img alt="" src="assets/53de5c8105-0dcd87f6e1de41efcd11a544.png" /></p>
+<p>RadixAttention 用的是计算机科学里的经典数据结构 <strong>Radix Tree（基数树）</strong>：</p>
+<ul>
+<li>把 KV Cache 组织成一棵树</li>
+<li>树的根节点是空（无 token）</li>
+<li>每个请求的 token 序列从根节点开始往下走</li>
+<li>多个请求如果开头 N 个 tokens 一样，就共享根节点到第 N 层的同一条路径</li>
+<li>第 N+1 层开始分叉，各自存独立部分</li>
+</ul>
+<p>这样 KV Cache 显存按「<strong>所有请求的并集</strong>」算，而不是「<strong>所有请求各自的并集和</strong>」。在前缀重复率高的场景下，显存能省下 50-80%。</p>
+<p>更妙的是，RadixAttention 还能<strong>自动复用历史请求</strong>的 KV Cache。如果 1 小时前有用户问过相同 System Prompt 的问题，那段 KV Cache 还在 GPU 显存里（按 LRU 淘汰），新用户直接复用，省去重新计算的几百 ms 延迟。</p>
+<p><img alt="" src="assets/afb39c288a-a070138ac835f0637abf3085.png" /></p>
+<p>实测在 Agent 场景（多次调用同一个 System Prompt）下，SGLang 比 vLLM 首 token 延迟降低 2-3 倍、吞吐量提升 30-50%。所以现在 Agent 框架（LangGraph、AutoGen 等）都开始把 SGLang 作为推荐推理后端。</p>
+<p>但要注意：<strong>纯单请求、无前缀共享场景下，SGLang 相对 vLLM 优势不明显</strong>。两者目前是互补关系不是替代关系。</p>
+<h4>TGI：HuggingFace 生态集成方案</h4>
+<p>TGI（Text Generation Inference）是 HuggingFace 在 2022 年推出的推理服务，专门为「让 HF Hub 上的模型一键部署成生产 API」设计。</p>
+<p>它的核心卖点不是绝对性能，而是<strong>生态集成 + 企业级特性</strong>：</p>
+<p><strong>生态集成</strong>：</p>
+<ul>
+<li>直接读 HF Hub 的模型 ID，自动下载部署，不用手动转格式</li>
+<li>支持 HF 各种格式（safetensors、quantization 配置）</li>
+<li>兼容 HF transformers 的 tokenizer 和 chat template</li>
+</ul>
+<p><strong>企业级特性</strong>：</p>
+<ul>
+<li>HTTP / gRPC 双协议</li>
+<li>鉴权（API Key、JWT）</li>
+<li>Prometheus metrics</li>
+<li>健康检查、优雅重启</li>
+<li>流式响应（SSE）</li>
+</ul>
+<p><strong>性能层面</strong>：</p>
+<ul>
+<li>也支持连续批处理、量化、流式输出等生产服务常用能力</li>
+<li>但在很多公开对比和工程实践里，极致吞吐通常不如 vLLM / SGLang</li>
+<li>胜在 HuggingFace 生态集成、服务接口和已有企业流程迁移成本低</li>
+</ul>
+<p><img alt="" src="assets/4e9facc61b-cd68fa548c7de0e44ea3715a.png" /></p>
+<p>适合用 TGI 的场景：</p>
+<ul>
+<li>公司本来就用 HuggingFace 全套（数据集 / Transformers / Hub）</li>
+<li>需要快速 POC，不想折腾推理框架</li>
+<li>要部署的模型在 HF Hub 上有现成的，不想自己转格式</li>
+<li>需要企业级特性（鉴权、metrics、可观测性）</li>
+</ul>
+<h4>llama.cpp：CPU / 边缘设备的事实标准</h4>
+<p>llama.cpp 是 Georgi Gerganov 在 2023 年初个人项目开始的，现在已经是「<strong>让大模型在非 GPU 设备上跑</strong>」的事实标准。</p>
+<p>它的核心思路和 vLLM/TGI 完全不同：<strong>用纯 C++ 重写整个推理栈，零依赖，最大化 CPU 性能</strong>。</p>
+<p>为什么要这样做？因为<strong>绝大多数个人设备没有 GPU</strong>：</p>
+<ul>
+<li>MacBook Pro（M1/M2/M3 芯片，统一内存架构）</li>
+<li>Windows 笔记本（集成显卡）</li>
+<li>树莓派、Jetson 等嵌入式设备</li>
+<li>手机（iPhone、Android）</li>
+</ul>
+<p>llama.cpp 的几个关键技术：</p>
+<p><strong>1. GGUF 文件格式</strong></p>
+<p>llama.cpp 自定义的模型存储格式，把模型权重 + 量化方案 + 元数据打包到一个文件。常见的 GGUF 量化档位：</p>
+<ul>
+<li><strong>Q8_0</strong>：8-bit 量化，几乎无损</li>
+<li><strong>Q5_K_M</strong>：5-bit 量化，精度和体积平衡</li>
+<li><strong>Q4_K_M</strong>：4-bit 量化，最常用，体积压到 1/4</li>
+<li><strong>Q3_K_S</strong>：3-bit 量化，极端压缩，精度有损失</li>
+</ul>
+<p><strong>2. SIMD 优化</strong></p>
+<p>针对各种 CPU 指令集（AVX2、AVX512、ARM NEON）做手工优化的矩阵乘法 kernel，CPU 推理速度能跑到 GPU 的 30-50%（虽然不如 GPU，但对个人使用足够）。</p>
+<p><strong>3. Metal 后端（Apple Silicon）</strong></p>
+<p>苹果 M 系列芯片的统一内存架构特别适合 llama.cpp。M3 Max（128GB 统一内存）能跑 70B 模型，速度可观。这让 llama.cpp 在 Mac 用户中极其流行。</p>
+<p><img alt="" src="assets/c58695fd8f-76ca366c7d61e5cfb8a1802d.png" /></p>
+<p>适合用 llama.cpp 的场景：</p>
+<ul>
+<li>个人开发者本地玩模型</li>
+<li>Mac 用户想充分利用 M 系列芯片</li>
+<li>边缘 / 嵌入式部署</li>
+<li>离线场景（没网也能用）</li>
+<li>隐私敏感场景（数据不出设备）</li>
+</ul>
+<p>不适合的场景：</p>
+<ul>
+<li>高并发生产 API（CPU 吞吐量上不去）</li>
+<li>需要 batch 处理（llama.cpp 的批量支持较弱）</li>
+<li>多卡 GPU 集群（不是它的设计目标）</li>
+</ul>
+<h4>TensorRT-LLM：NVIDIA 官方极致优化</h4>
+<p>最后简单提一下 NVIDIA 自家的 <strong>TensorRT-LLM</strong>。它的定位很特殊：<strong>针对 NVIDIA GPU 做极致优化，不考虑跨平台</strong>。</p>
+<p>核心特点：</p>
+<ul>
+<li>对每个具体 GPU 型号（A100 / H100 / H200）做硬件级别 fine-tuning</li>
+<li>集成 NVIDIA 自家的内核库（cuBLAS、cuDNN、TensorRT）</li>
+<li>支持 FP8、INT4 等所有 NVIDIA 硬件支持的精度</li>
+<li>性能通常比 vLLM 再高 10-30%</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>开源但工程门槛高，部署相对复杂（需要先编译 engine）</li>
+<li>只支持 NVIDIA GPU，AMD / Apple Silicon 不行</li>
+<li>文档生态不如开源框架活跃</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>有 NVIDIA 大集群的大厂（字节、腾讯、阿里等）</li>
+<li>追求极致 GPU 利用率</li>
+<li>愿意承担额外的工程复杂度</li>
+</ul>
+<p><img alt="" src="assets/99f51157b3-42ab2e30a3ae8fb58e2e4069.png" /></p>
+<h4>怎么选部署方案：决策矩阵</h4>
+<p>把上面几个框架放一起对比：</p>
+<table>
+<thead>
+<tr>
+<th>框架</th>
+<th>核心创新</th>
+<th>最佳场景</th>
+<th>性能</th>
+<th>生态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>PagedAttention + Continuous Batching</td>
+<td>高吞吐 LLM API</td>
+<td>极高</td>
+<td>开源活跃</td>
+</tr>
+<tr>
+<td><strong>SGLang</strong></td>
+<td>RadixAttention（共享前缀）</td>
+<td>Agent / 多轮 / Few-shot</td>
+<td>极高（特定场景超 vLLM）</td>
+<td>较新但快速增长</td>
+</tr>
+<tr>
+<td><strong>TGI</strong></td>
+<td>HF 生态集成</td>
+<td>企业级 + HF 生态</td>
+<td>高</td>
+<td>HF 全家桶</td>
+</tr>
+<tr>
+<td><strong>llama.cpp</strong></td>
+<td>C++ 重写 + GGUF</td>
+<td>CPU / Mac / 边缘</td>
+<td>CPU 上极强</td>
+<td>个人 / 边缘</td>
+</tr>
+<tr>
+<td><strong>TensorRT-LLM</strong></td>
+<td>NVIDIA 硬件极致优化</td>
+<td>大厂 NVIDIA 集群</td>
+<td>极高（特定硬件上很强）</td>
+<td>NVIDIA 官方开源</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="" src="assets/e4f6dd327e-f224a777a0dd7f4b2cb7dd4f.png" /></p>
+<p>实战中常见的几个<strong>误用陷阱</strong>：</p>
+<p><strong>误用 1：用 vLLM 跑 Agent 多轮对话</strong></p>
+<p>Agent 场景前缀重复率高，vLLM 没有 RadixAttention 优化，每次重新算 KV Cache 浪费大量算力。改用 SGLang 后首 token 延迟降 2-3 倍。</p>
+<p><strong>误用 2：用 llama.cpp 做高并发服务</strong></p>
+<p>llama.cpp 的批量调度比 vLLM 弱很多，并发上去后吞吐率瓶颈。生产 API 服务还是要用 GPU + vLLM。</p>
+<p><strong>误用 3：用 TGI 追求绝对性能</strong></p>
+<p>如果你的瓶颈是 GPU 吞吐量，TGI 通常不是第一选择，应该优先评估 vLLM、SGLang 或 TensorRT-LLM。具体差距会随模型、硬件、量化方式和 batch 策略变化，不要死记一个固定百分比。</p>
+<p><strong>误用 4：用 TensorRT-LLM 做快速 POC</strong></p>
+<p>TensorRT-LLM 部署需要先编译 engine（每个模型 / GPU 组合都要编译），不适合「快速试验、模型经常换」的场景。</p>
+<h4>部署的三大隐藏陷阱</h4>
+<p>最后讲三个具体上线时容易踩的坑，作为面试加分项。</p>
+<p><strong>陷阱 1：显存碎片在长上下文场景下还是会出现</strong></p>
+<p>PagedAttention 大幅缓解了显存碎片，但不是完全消除。当请求长度极不均匀（有的 100 tokens、有的 100K tokens），仍然会有 5-10% 的碎片。应对：监控 GPU 显存利用率，如果跌破 70% 考虑加 swap 或调整 max-model-len。</p>
+<p><strong>陷阱 2：KV Cache 量化的支持差异大</strong></p>
+<p>权重量化（FP16 -&gt; INT4）很多框架都支持，但 KV Cache 量化（FP16 -&gt; INT8 / FP8 / INT4）的支持差异很大，而且版本迭代很快。vLLM、SGLang、TensorRT-LLM 都在持续增强这块能力，TGI 和 llama.cpp 的支持方式也要看具体版本。如果你的瓶颈是长上下文 KV Cache 显存，选型前一定要查当前版本文档，别只听别人说「支持」。</p>
+<p><strong>陷阱 3：MoE 模型的部署支持差异</strong></p>
+<p>MoE 模型（DeepSeek V3、Mixtral）部署比 Dense 复杂得多（需要专家并行、All-to-All 通信优化）。vLLM 和 SGLang 都支持但配置复杂；llama.cpp 通过 GGUF 支持但性能一般；TensorRT-LLM 支持最好但工程门槛高。如果要部署 MoE 模型，建议先在测试环境跑通再上生产。</p>
+<p><img alt="" src="assets/fb394f6019-5a0d760f99274edf5a79a02f.png" /></p>
+<h3>🎯 面试总结</h3>
+<p>回到开头那段对话，问到部署方案，最重要的是先讲清楚<strong>部署框架解决什么问题</strong>。直接用 transformers 库部署有三大痛点：显存碎片严重、批量调度低效、共享前缀重复计算。每个主流框架的核心创新都是攻击这些痛点的某个维度。这一层铺垫先讲到，面试官就知道你不是在背工具，是真的理解部署框架的设计动机。</p>
+<p>接下来把<strong>四个主流框架的核心创新</strong>讲明白。vLLM 的杀手锏是 PagedAttention（模仿操作系统虚拟内存的分页 KV Cache，把显存利用率从 30% 拉到 90%+），加上 Continuous Batching 让请求动态进出，是当前生产 API 的常见选择。SGLang 走的是另一条路，核心创新是 RadixAttention（共享前缀的 KV Cache 树），在 Agent 和多轮对话场景下经常能降低首 token 延迟。TGI 的特点是和 HuggingFace 生态深度集成，适合已有 HF 流程的团队。llama.cpp 是另一种风格，纯 C++ 重写 + GGUF 量化，是 CPU / Mac / 边缘部署的事实标准。</p>
+<p>然后给清晰的<strong>选型决策</strong>。生产 API 高吞吐选 vLLM；Agent / 多轮对话场景选 SGLang；HuggingFace 生态深用户选 TGI；本地 / Mac / 边缘部署选 llama.cpp；NVIDIA 集群追求极致性能选 TensorRT-LLM。能把「<strong>SGLang 在前缀共享场景比 vLLM 强</strong>」这一点说清楚，是面试加分项，因为这是 2024 年之后才出现的工程认知。</p>
+<p>最关键的是讲清<strong>部署陷阱</strong>：显存碎片在长上下文场景还会出现、KV Cache 量化各框架支持差异大、MoE 模型部署比 Dense 复杂得多。能讲到这一层，面试官就知道你真的踩过部署的坑。</p>
+<p>如果还想再加分，可以提一句 vLLM 和 SGLang 是「<strong>互补不替代</strong>」的关系，业内已经有公司开始混用（高吞吐路由用 vLLM，Agent 路由用 SGLang）。这种「一线工程视角」会让面试官印象深刻。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-llm:03",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

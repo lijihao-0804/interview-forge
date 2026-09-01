@@ -1,0 +1,170 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MCP Server 设计 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">MCP Server 设计</span></nav><div class="module-meta">Agent 工程 · 第 43 / 55 章</div><h1>MCP Server 设计</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>在 MCP（Model Context Protocol）架构中，MCP Server 是整个系统的核心组件。 如果说 MCP 定义了大模型访问外部资源的协议，那么 MCP Server 则负责具体实现这些能力，并向 AI  Agent 提供统一接口。</p>
+<p>在一个完整的 AI Agent 系统中，大模型本身并不会直接访问数据库、文件系统或 API 服务，而是通过 MCP Server 进行访问。</p>
+<p>这样做的目的有三个：</p>
+<p>第一，实现能力的统一管理。</p>
+<p>第二，确保系统安全与权限控制。</p>
+<p>第三，使 Agent 架构具备良好的扩展能力。</p>
+<p><img alt="" src="assets/f1c01e966b-agent-.pdf-0203-07.png" /></p>
+<p>因此，一个成熟的 MCP Server 通常不仅仅是一个简单的工具接口，而是一个完整的 能力管理平台。 从系统设计角度来看，MCP Server 通常包含三个核心模块：</p>
+<ul>
+<li>
+<p><code>1 MCP Server</code></p>
+</li>
+<li>
+<p>2 ├── <code>Tool Registry</code></p>
+</li>
+<li>
+<p>3 ├── <code>Context Provider</code></p>
+</li>
+<li>
+<p>4 └── <code>Resource Provider</code></p>
+</li>
+</ul>
+<p>这三个模块分别负责 工具管理、上下文提供以及资源访问。</p>
+<h5>Tool Registry</h5>
+<p>Tool Registry（工具注册中心）是 MCP Server 中最核心的组件之一，它负责管理系统中所有可调用 工具。</p>
+<p>在 AI Agent 系统中，工具可能来自多个不同来源，例如：</p>
+<ul>
+<li>
+<p>企业内部 API</p>
+</li>
+<li>
+<p>数据查询服务</p>
+</li>
+<li>
+<p>自动化任务脚本</p>
+</li>
+<li>
+<p>第三方 SaaS 服务</p>
+</li>
+<li>
+<p>搜索引擎接口</p>
+</li>
+</ul>
+<p>如果没有统一的管理方式，随着系统规模扩大，工具数量会迅速增加，最终导致系统难以维护。因 此，MCP Server 通常会通过 Tool Registry 统一管理所有工具。</p>
+<p>Tool Registry 主要承担以下职责。</p>
+<p><strong>第一，工具注册。</strong></p>
+<p>开发者可以将新的工具注册到系统中，并为其定义 Schema，包括：</p>
+<ul>
+<li>
+<p>工具名称</p>
+</li>
+<li>
+<p>工具描述</p>
+</li>
+<li>
+<p>参数结构</p>
+</li>
+<li>
+<p>调用方式</p>
+</li>
+</ul>
+<p>例如：</p>
+<p><code>1 { 2 "name": "search_documents", 3 "description": "Search documents in the knowledge base", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "query": { 8 "type": "string" 9 } 10 }, 11 "required": ["query"] 12 } 13 }</code></p>
+<p><strong>第二，工具发现。</strong></p>
+<p>当 AI Agent 启动时，MCP Server 可以向 Agent 提供当前系统支持的所有工具列表，使模型能够在推 理过程中选择合适的工具。</p>
+<p>第三，工具调度。 当模型发起 Tool Calling 请求时，MCP Server 会根据工具名称找到对应实现，并执行调用。 通过 Tool Registry，AI Agent 系统可以实现 工具的统一管理与动态扩展。</p>
+<h5>Context Provider</h5>
+<p>在传统的 LLM 应用中，模型的上下文通常只包括：</p>
+<ul>
+<li>
+<p>用户输入</p>
+</li>
+<li>
+<p>系统 Prompt</p>
+</li>
+<li>
+<p>历史对话</p>
+</li>
+</ul>
+<p>然而在复杂业务系统中，模型往往需要访问更多上下文信息，例如：</p>
+<ul>
+<li>
+<p>用户资料</p>
+</li>
+<li>
+<p>历史订单数据</p>
+</li>
+<li>
+<p>企业知识库</p>
+</li>
+<li>
+<p>系统状态信息</p>
+</li>
+</ul>
+<p>如果这些信息全部通过 Prompt 传递，不仅会导致上下文过长，还会增加 Token 成本。 因此 MCP 引入了 Context Provider（上下文提供器） 机制，用于在推理过程中动态提供上下文数 据。</p>
+<p>Context Provider 的主要作用包括：</p>
+<p>第一，动态获取上下文信息。</p>
+<p>例如，当用户询问订单状态时，Agent 可以通过 Context Provider 获取用户订单信息，而不是让用户 手动提供。</p>
+<p>第二，减少 Prompt 复杂度。</p>
+<p>通过按需获取上下文，可以避免将大量无关信息放入 Prompt。</p>
+<p>第三，提高推理准确性。</p>
+<p>模型可以获取更加准确和最新的数据，从而减少错误回答。 在实际系统中，Context Provider 可能连接以下数据源：</p>
+<ul>
+<li>
+<p>用户数据库</p>
+</li>
+<li>
+<p>CRM 系统</p>
+</li>
+<li>
+<p>知识库</p>
+</li>
+<li>
+<p>日志系统</p>
+</li>
+<li>
+<p>向量数据库</p>
+</li>
+</ul>
+<p>因此，它可以被理解为 模型的动态上下文获取层。</p>
+<h5>Resource Provider</h5>
+<p>除了工具和上下文之外，AI Agent 在执行任务时还可能需要访问各种资源，例如：</p>
+<ul>
+<li>
+<p>文件系统</p>
+</li>
+<li>
+<p>图片或视频数据</p>
+</li>
+<li>
+<p>文档内容</p>
+</li>
+<li>
+<p>外部 API</p>
+</li>
+<li>
+<p>云存储资源</p>
+</li>
+</ul>
+<p>这些资源通常以不同形式存在，如果直接暴露给模型会增加系统复杂度。因此 MCP Server 通常通过 Resource Provider（资源提供器） 统一管理这些资源。 Resource Provider 的核心职责包括：</p>
+<p>第一，资源访问接口。</p>
+<p>为 Agent 提供统一的资源访问方式，例如读取文件、获取文档或下载数据。</p>
+<p>第二，资源权限控制。 确保模型只能访问授权资源，避免数据泄露。</p>
+<p><strong>第三，资源格式转换。</strong></p>
+<p>将不同类型的数据转换为模型可理解的格式，例如文本或结构化数据。 例如，一个 Resource Provider 可能提供以下能力：</p>
+<ul>
+<li>
+<p><code>read_file</code> ：读取文件内容</p>
+</li>
+<li>
+<p><code>get_document</code> ：获取知识库文档</p>
+</li>
+<li>
+<p><code>download_image</code> ：获取图片资源</p>
+</li>
+</ul>
+<p>这样，AI Agent 就可以通过 MCP Server 访问各种资源，而不需要直接操作底层系统。</p>
+<h5>MCP Server 的整体作用</h5>
+<p>在完整的 AI Agent 系统中，MCP Server 通常扮演 能力基础设施层 的角色。 它主要承担以下职责：</p>
+<p><strong>统一能力管理</strong></p>
+<p>所有工具、数据源和资源都通过 MCP Server 统一管理。 系统能力扩展</p>
+<p>新增工具或数据源时，只需要在 MCP Server 中注册即可。</p>
+<p>上下文管理</p>
+<p>通过 Context Provider 为模型提供动态上下文。</p>
+<p>资源访问控制</p>
+<p>通过 Resource Provider 管理系统资源并控制访问权限。</p>
+<p>因此，在大型 AI Agent 系统中，MCP Server 往往成为连接 LLM、工具系统以及企业数据平台 的关键 基础设施。</p>
+<p>至此，本章介绍了 Tool Calling、Function Calling 以及 MCP（Model Context Protocol） 的核心 原理，并进一步说明了 MCP Server 的设计方法。 这些技术共同构成了现代 AI Agent 系统中 连接大模型与真实世界能力的关键机制。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-42.html">← 上一章</a><a href="chapter-44.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:43",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

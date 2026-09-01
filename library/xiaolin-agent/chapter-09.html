@@ -1,0 +1,173 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 的长短期记忆系统怎么做的？记忆是怎么存的？粒度是多少？怎么用的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">Agent 的长短期记忆系统怎么做的？记忆是怎么存的？粒度是多少？怎么用的？</span></nav><div class="module-meta">Agent 工程 · 第 9 / 16 章</div><h1>Agent 的长短期记忆系统怎么做的？记忆是怎么存的？粒度是多少？怎么用的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你们项目里 Agent 的记忆系统是怎么做的，短期记忆和长期记忆分别存在哪？</p>
+<p>🙋‍♂️我：短期记忆就是把对话历史存在内存里，长期记忆存数据库，需要的时候查出来用。</p>
+<p>👔面试官：长期记忆「存数据库」？那你用的什么数据库，怎么查的，按关键词全文搜索吗？</p>
+<p>🙋‍♂️我：也可以用关键词搜索，就是普通的字符串匹配，比如用 SQL 的 LIKE 查询……</p>
+<p>👔面试官：你这样搜根本搜不到语义相关的内容。比如用户问的是「代码习惯」，历史里存的是「Python 风格偏好」，关键词不重叠，你怎么匹配？</p>
+<p>🙋‍♂️我：那……我把粒度搞细一点，把每句话都拆开存，这样关键词覆盖更全。</p>
+<p>👔面试官：拆得越细，检索噪音越大，一个完整的用户偏好被拆成四五条，检索时只命中其中两条，拿到的是碎片化信息，这才是问题所在。你知道长期记忆的正确存法是什么吗？</p>
+<p>好，被追问到这里说明这道题的坑不少，咱来系统说一下 Agent 记忆系统的正确做法。</p>
+<h3>💡 简要回答</h3>
+<p>我理解记忆系统分两层。</p>
+<p>短期记忆就是 context window 里的对话历史，存当前任务的中间状态，任务结束就清掉；长期记忆用向量数据库存，把信息 embedding 后写入，用的时候做语义检索拿回来注入 prompt。</p>
+<p>粒度上我通常按「一次完整交互」或「一个关键事件」为单位存，太细碎检索噪音大，太粗糙又丢失细节，这个需要根据业务实际调整。</p>
+<h3>📝 详细解析</h3>
+<p>先假设一个没有记忆系统的 Agent，感受一下它会有多不堪用。</p>
+<p>你今天找它说「帮我优化这段 Python 代码，风格要简洁一点，变量命名用英文」，它帮你优化好了。明天你又找它说「帮我写一个爬虫脚本」，它输出了一段用中文变量命名的代码，风格也很啰嗦。你很困惑，昨天不是刚说好了吗？对它来说，昨天的对话压根不存在。它不记得你的偏好，不记得你们达成过什么约定，每次对话都是全新的开始，就像每次见面都是第一次认识。</p>
+<p>这个「失忆」问题，对单次问答来说不是大问题，但对一个要持续帮你工作的 Agent 来说，意味着它永远无法积累对你的了解，也无法在多次任务之间建立连贯性。</p>
+<p>记忆系统就是为了解决这件事而存在的：让 Agent 既能在一次任务执行过程中保持状态，也能跨任务记住重要信息。实现上，记忆被拆分成两层，它们解决的问题不同，实现方式也完全不同。</p>
+<p><img alt="" src="assets/4c56dc8e47-3055304241ab490225fe128e.png" /></p>
+<h4>短期记忆</h4>
+<p>先说<strong>短期记忆</strong>，它就是你每次调 LLM 时传进去的 messages 列表。你可以把它想象成 LLM 当前的「工作台」，桌面上摆着当前任务的所有相关内容：用户的指令、LLM 自己的思考过程、工具调用的结果、每一步的中间状态。LLM 靠这张桌面知道「我在做什么、做到哪了、前面几步发现了什么」。</p>
+<p>实现上非常直接，就是维护一个列表，每一步产生的内容都追加进去：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">class</span> <span class="nc">ShortTermMemory</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># messages 列表就是 LLM 的工作台</span>
+        <span class="c1"># 每条消息有 role（谁说的）和 content（说了什么）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="c1"># role 有三种：user（用户输入）、assistant（LLM 输出）、tool（工具返回结果）</span>
+        <span class="c1"># 每一步的内容都要追加进来，保持完整的任务状态</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="n">role</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">content</span><span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">get_context</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># 调 LLM 时把完整的 messages 传进去</span>
+        <span class="c1"># LLM 会读取这份完整历史来理解当前状态</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">messages</span>
+
+    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># 任务结束后清空，准备迎接下一个任务</span>
+        <span class="c1"># 清空意味着这次任务的所有中间状态都消失了</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+
+ <span class="n">一次任务执行的示例</span>
+<span class="n">memory</span> <span class="o">=</span> <span class="n">ShortTermMemory</span><span class="p">()</span>
+<span class="n">memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;帮我分析这几家竞品的核心功能差异&quot;</span><span class="p">)</span>
+<span class="n">memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;好的，我先搜索一下竞品 A 的信息&quot;</span><span class="p">)</span>
+<span class="n">memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="s2">&quot;搜索结果：竞品 A 的核心功能是实时协作编辑，支持最多 50 人同时在线……&quot;</span><span class="p">)</span>
+<span class="n">memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;已拿到竞品 A 的信息，再搜竞品 B&quot;</span><span class="p">)</span>
+
+ <span class="n">每次调</span> <span class="n">LLM</span> <span class="n">都传完整历史</span><span class="err">，</span><span class="n">它才能知道自己做到哪一步了</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="n">memory</span><span class="o">.</span><span class="n">get_context</span><span class="p">())</span>
+</code></pre></div>
+<p>这里有一个重要的点：每次调 LLM 时传的是完整的历史，而不只是最新一条消息。这就是短期记忆的本质，把整个任务状态带在身上。代价是 messages 会随着任务进展越来越长，context window 总有一天会装满，早期的内容就开始被截断，Agent 就开始「遗忘」。</p>
+<p><img alt="" src="assets/58c99d8d45-6c265aa2cacd58b977e13464.png" /></p>
+<p>短期记忆在当前任务结束后就清空了，下次来了新任务，桌面是空的，什么都不记得了。要让 Agent 跨任务记住东西，就需要长期记忆。</p>
+<p>不过在聊长期记忆之前，有一个进阶概念值得了解：<strong>结构化工作记忆</strong>（Structured Working Memory）。前面说的短期记忆是纯粹的消息列表，什么都往里塞，比较粗放。</p>
+<p>结构化工作记忆的思路是，给这个「工作台」划出几个固定区域，比如一个区域专门放「当前任务目标」，一个区域放「已确认的中间结论」，一个区域放「待验证的假设」。每一步执行完之后，Agent 不只是把新消息追加到列表末尾，而是主动更新对应区域的内容，把过时的中间结论替换掉，把已验证的假设移到确认区。</p>
+<p>这样做的好处是，即使对话很长，Agent 的工作台始终是结构清晰的，不会被一堆杂乱的历史消息淹没，LLM 每次读到的都是当前最准确的任务状态。</p>
+<p><img alt="" src="assets/0dac0f321e-7168897a9fdea7cc86d4dd74.png" /></p>
+<h4>长期记忆</h4>
+<p><strong>长期记忆</strong>的核心工具是向量数据库（Vector Database）加上 Embedding（向量化），对初学者来说这两个词可能很陌生，先解释清楚。</p>
+<p>Embedding 是把一段文字转化成一组数字的过程。这组数字通常有几百到几千个维度，它们共同捕捉了这段文字的「语义」。语义相近的文字，转化出来的数字向量在空间里也靠得很近。</p>
+<p>举个类比：你把颜色编码成 RGB，红色是 (255, 0, 0)，橙色是 (255, 165, 0)，它们的数字距离很近，因为颜色本身就相近。深蓝色是 (0, 0, 139)，和红色的数字距离很远，颜色也相差很远。这个类比帮你建立「相似=距离近」的直觉就够了，实际的文本 Embedding 是几百到几千维的空间，比 RGB 三维复杂得多，高维里「距离」通常用余弦相似度而不是简单的欧氏距离来算。</p>
+<p><img alt="" src="assets/94ea65da9b-318911ebc9653978f459b11e.png" /></p>
+<p>Embedding 对文字做的事是一样的：「苹果公司的产品策略」和「Apple 的产品线规划」，文字不同但语义相近，embedding 出来的向量在空间里距离就很近；「苹果公司」和「猫吃鱼」，语义毫不相关，向量距离就很远。</p>
+<p><img alt="" src="assets/71e741dbcb-9a5720aa3b17048e32db7e7a.png" /></p>
+<p>向量数据库，就是专门存这些数字向量的数据库。它最核心的能力是「相似度检索」：给你一个查询向量，找出数据库里和它距离最近的几条记录，也就是语义最相关的内容。</p>
+<p>你可以用图书馆的索引卡来类比：找书时你不需要逐本翻阅内容，而是先查索引卡快速定位可能相关的书，再去书架上取原文。向量数据库里的 embedding 就是这些「语义索引卡」，再加上 HNSW / IVF 这类近似最近邻（ANN）索引结构做加速，不用拿你的查询向量去和库里每一条都比一遍，只用在少量候选里精查，检索效率极高。</p>
+<p><img alt="" src="assets/74ca6c6d4b-cb3675b91fa81bf618c83407.png" /></p>
+<p>把两者结合：存的时候，把信息转成向量和原文一起存进去；取的时候，把当前的问题也转成向量，找数据库里语义最相关的记忆拿出来。</p>
+<p>再多说一层：长期记忆其实还可以按「类型」细分成三种。</p>
+<p>第一种是<strong>语义记忆</strong>（Semantic Memory），存的是事实性知识，比如「用户是 Python 开发者」「项目预算上限 5 万」，这些是不随时间变化的客观信息。</p>
+<p>第二种是<strong>情节记忆</strong>（Episodic Memory），存的是具体事件的经历，比如「上周二用户让我写了一个爬虫，中间因为反爬策略改了三次方案」，它带有时间线和因果关系。</p>
+<p>第三种是<strong>程序记忆</strong>（Procedural Memory），存的是「怎么做某件事」的方法论，比如「给这个用户写代码时，先确认风格偏好，再写主逻辑，最后加注释」，它更像是 Agent 积累下来的行为模式。</p>
+<p>把记忆按类型区分存储的好处是，检索时可以根据当前需求精准地去对应类型的库里查，语义记忆库回答「是什么」，情节记忆库回答「之前怎么处理过类似情况」，程序记忆库回答「该按什么流程来」，比一锅端地在混合库里搜，召回质量要高不少。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">openai</span> <span class="kn">import</span> <span class="n">OpenAI</span>
+<span class="kn">import</span> <span class="nn">chromadb</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">OpenAI</span><span class="p">()</span>
+ <span class="n">ChromaDB</span> <span class="n">是一个轻量的向量数据库</span><span class="err">，</span><span class="n">适合本地开发使用</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">chromadb</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+ <span class="n">创建一个</span><span class="err">「</span><span class="n">集合</span><span class="err">」，</span><span class="n">类似于关系数据库里的表</span><span class="err">，</span><span class="n">用来存</span> <span class="n">Agent</span> <span class="n">的长期记忆</span>
+<span class="n">collection</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">get_or_create_collection</span><span class="p">(</span><span class="s2">&quot;agent_memory&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">save_to_long_term</span><span class="p">(</span><span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="c1"># 第一步：把文字内容转成 embedding 向量</span>
+    <span class="c1"># text-embedding-3-small 是 OpenAI 的 embedding 模型，把文字变成数字向量</span>
+    <span class="n">embedding</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">embeddings</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="nb">input</span><span class="o">=</span><span class="n">content</span><span class="p">,</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">&quot;text-embedding-3-small&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">embedding</span>  <span class="c1"># 得到一个几百维的浮点数列表</span>
+
+    <span class="c1"># 第二步：把向量、原文、元信息一起存进向量数据库</span>
+    <span class="c1"># 第二步：把向量、原文、元信息一起存进向量数据库</span>
+    <span class="c1"># metadata 非常关键，它是记忆的「标签」，后续检索时可以按标签过滤</span>
+    <span class="c1"># 比如只查「coding 类型」的记忆，或者只查「最近 7 天」的记忆</span>
+    <span class="n">collection</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+        <span class="n">embeddings</span><span class="o">=</span><span class="p">[</span><span class="n">embedding</span><span class="p">],</span>   <span class="c1"># 这是「索引」，用于相似度检索</span>
+        <span class="n">documents</span><span class="o">=</span><span class="p">[</span><span class="n">content</span><span class="p">],</span>      <span class="c1"># 这是原文，检索命中后返回给 LLM 直接使用</span>
+        <span class="n">metadatas</span><span class="o">=</span><span class="p">[</span><span class="n">metadata</span><span class="p">],</span>     <span class="c1"># 附加信息，比如存入时间、任务类型、重要程度、记忆类型</span>
+        <span class="n">ids</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;mem_</span><span class="si">{</span><span class="nb">hash</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">retrieve_memory</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="c1"># 第一步：把当前查询也转成 embedding 向量</span>
+    <span class="c1"># 和存储时用的是同一个 embedding 模型，这样「语义距离」才有可比性</span>
+    <span class="n">query_embedding</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">embeddings</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="nb">input</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">model</span><span class="o">=</span><span class="s2">&quot;text-embedding-3-small&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">embedding</span>
+
+    <span class="c1"># 第二步：在向量数据库里找「向量距离最近」的几条记录</span>
+    <span class="c1"># 向量距离近 = 语义相近 = 内容最相关</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">collection</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>
+        <span class="n">query_embeddings</span><span class="o">=</span><span class="p">[</span><span class="n">query_embedding</span><span class="p">],</span>
+        <span class="n">n_results</span><span class="o">=</span><span class="n">top_k</span>  <span class="c1"># 只取前 top_k 条，避免检索出太多噪音</span>
+    <span class="p">)</span>
+    <span class="c1"># 返回的是原文文本列表，LLM 可以直接读取这些记忆内容</span>
+    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;documents&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+<p>存的时候，把内容转成向量和原文一起存；取的时候，把当前问题也转成向量，找向量空间里最近的几条记忆。「语义相似 = 向量距离近」这个特性，让你不需要精确匹配关键词，靠意思相近就能把相关记忆检索出来。</p>
+<p>这里还有一个容易忽略的问题：<strong>记忆衰减</strong>。人的记忆会随着时间淡化，Agent 的长期记忆其实也应该有类似的机制。</p>
+<p>想象一下，用户半年前说「我最近在学 Go」，但最近三个月的所有对话都是关于 Python 的，如果 Agent 不做衰减，下次检索到那条旧记忆还按「用户在学 Go」来处理，就会很违和。</p>
+<p>常见的做法是给每条记忆加一个「新鲜度权重」，检索排序时同时考虑语义相似度和时间新鲜度，越久远的记忆权重越低。另一种做法是定期让 LLM 审查长期记忆库，把过时的、矛盾的记忆标记为失效或者合并更新，保持记忆库的「健康状态」。</p>
+<p>存长期记忆时，「一次存多少内容」这个粒度问题非常关键，直接影响后续检索的质量。</p>
+<p><img alt="" src="assets/6244425dff-946157e80ffda3fa68c4f9e5.png" /></p>
+<ul>
+<li>粒度太细，每句话存一条，会产生什么问题？假设你把「用户偏好 Python，不喜欢全局变量，风格追求简洁，注释要用英文」拆成四条记忆，下次检索时可能只命中了其中某几条，其他的被遗漏了，记忆碎片化，LLM 拿到的是不完整的偏好信息。</li>
+<li>粒度太粗，把一整次任务的完整记录存成一条，又会有什么问题？假设一次完整对话有两千个 token 存成一条，检索时命中了，但这两千个 token 里真正和当前问题相关的可能只有一百个，LLM 要在一堆无关内容里找到真正有用的信息，很容易被干扰。</li>
+</ul>
+<p>比较合理的粒度是按「一次完整交互」或「一个独立的知识点/事件」来存。前者是用户的一个具体请求加上 Agent 处理结果，信息完整性好；后者是把「用户偏好：Python，简洁风格，英文注释」打包成一条结构化记录，检索时一次拿到完整偏好，不会碎片化。过程中的每一步细小中间结果通常不需要存长期记忆，短期记忆够用。</p>
+<p><img alt="" src="assets/9f41567250-5890ce0fc116afa541926e1a.png" /></p>
+<p>把两层记忆放在一个具体场景里来感受它们是怎么配合的。</p>
+<p>用户第一次来，说「帮我优化这段 Python 代码」。执行过程中，短期记忆维持整个对话状态，存着用户发的代码、LLM 的分析过程、优化后的结果。任务结束后，把「该用户偏好 Python，代码风格简洁，变量命名用英文」这条信息存进长期记忆。</p>
+<p>两天后用户回来说「帮我写一个网页爬虫」。Agent 在开始任务之前，先用「网页爬虫」检索长期记忆，拿回来的相关记忆里包含了那条偏好信息。Agent 把这条信息注入 system prompt，然后开始任务，写出来的爬虫脚本自然就符合用户偏好了，用户会感觉「这个 AI 真了解我」，实际上是长期记忆在背后起了作用。</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">run_agent_with_memory</span><span class="p">(</span><span class="n">user_request</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">long_term_memory</span><span class="p">,</span> <span class="n">short_term_memory</span><span class="p">):</span>
+    <span class="c1"># 第一步：任务开始前，用任务描述检索长期记忆，拿出相关历史</span>
+    <span class="c1"># 这一步让 Agent「想起」和当前任务相关的历史经验和用户偏好</span>
+    <span class="n">relevant_memories</span> <span class="o">=</span> <span class="n">long_term_memory</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">user_request</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+    <span class="c1"># 第二步：把检索到的长期记忆注入 system prompt</span>
+    <span class="c1"># LLM 会把这些信息当作背景知识，影响它这次任务的处理方式</span>
+    <span class="n">system_prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;你是一个智能助手。</span>
+<span class="s2">以下是用户的相关历史信息，请在处理任务时参考：</span>
+<span class="si">{</span><span class="nb">chr</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">relevant_memories</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;&quot;&quot;</span>
+
+    <span class="n">short_term_memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="n">system_prompt</span><span class="p">)</span>
+    <span class="n">short_term_memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">user_request</span><span class="p">)</span>
+
+    <span class="c1"># 第三步：整个任务执行过程中，靠短期记忆维持状态</span>
+    <span class="c1"># 每一步的中间结果都追加进 messages，LLM 始终知道做到哪里了</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">execute_task_with_short_term_memory</span><span class="p">(</span><span class="n">short_term_memory</span><span class="p">)</span>
+
+    <span class="c1"># 第四步：任务完成后，把重要结论写入长期记忆</span>
+    <span class="c1"># 这次任务产生的新知识就沉淀下来，下次可以用</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_important</span><span class="p">:</span>
+        <span class="n">long_term_memory</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
+            <span class="n">content</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span>
+            <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;task_type&quot;</span><span class="p">:</span> <span class="s2">&quot;coding&quot;</span><span class="p">,</span> <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="n">now</span><span class="p">()}</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+</code></pre></div>
+<p>短期记忆在任务执行的整个过程中起作用，是那个时刻在变化的「工作台」；长期记忆在任务开始前和任务结束后起作用，是沉淀下来的「档案」。前者保证当前任务的连贯性，后者保证跨任务的积累。两层配合，才让 Agent 既不会在一次复杂任务中途失忆，也能随着使用时间的增长，变得越来越「了解」用户。</p>
+<p><img alt="" src="assets/9bb000c095-a4f5243e66fb3f95d34ac5c1.png" /></p>
+<h3>🎯 面试总结</h3>
+<p>这道题最容易踩的雷有三个，对照开头的对话回想一下。</p>
+<p>第一个雷是把长期记忆说成「存数据库靠关键词搜索」，这暴露了不了解向量检索，长期记忆的核心是 Embedding + 向量数据库，靠语义相似度而不是字符串匹配来检索，这一点一定要说清楚。</p>
+<p>第二个雷是以为粒度越细越好，实际上粒度太细会导致记忆碎片化，检索时拿到不完整的信息，合理粒度是「一次完整交互」或「一个独立知识点」。</p>
+<p>第三个雷是搞不清两层记忆各自的作用时机，短期记忆是任务执行中的「工作台」，任务结束就清空；长期记忆是任务前检索注入、任务后写入沉淀，两者分工不同，配合使用才能让 Agent 既不中途失忆、又能跨任务积累。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-agent:09",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

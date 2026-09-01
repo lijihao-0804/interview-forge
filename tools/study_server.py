@@ -42,6 +42,8 @@ import re
 import sqlite3
 import tempfile
 import threading
+import time
+import uuid
 import webbrowser
 from contextlib import closing
 from datetime import datetime, timedelta
@@ -60,6 +62,10 @@ from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "hot100-study.db"
+
+# 力扣同步后台任务：task_id -> 日志/状态/结果，供前端轮询打印进度。
+SYNC_TASKS: dict[str, dict[str, object]] = {}
+SYNC_TASKS_LOCK = threading.Lock()
 
 
 # 间隔重复（简化 FSRS 风格）：完成第 n 轮后的下次复习间隔（天）。
@@ -1112,9 +1118,12 @@ def _leetcode_headers(credentials: dict[str, str]) -> dict[str, str]:
     # 组装力扣 API 请求头：伪装浏览器 UA/Referer；有会话则拼 Cookie（session[+csrf]），
     # 并单独带 X-CSRFToken 头；无凭证时只发基础头（供匿名探测用）。
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         "Referer": "https://leetcode.cn/problemset/",
+        "Origin": "https://leetcode.cn",
+        "X-Requested-With": "XMLHttpRequest",
     }
     session = credentials.get("leetcode_session", "")
     if session:
@@ -1126,6 +1135,36 @@ def _leetcode_headers(credentials: dict[str, str]) -> dict[str, str]:
     if credentials.get("leetcode_csrf", ""):
         headers["X-CSRFToken"] = credentials["leetcode_csrf"]
     return headers
+
+
+def _fetch_json_with_retry(
+    url: str,
+    headers: dict[str, str],
+    timeout: int = 25,
+    retries: int = 3,
+    backoff: float = 2.0,
+) -> dict:
+    """带退避重试的力扣 JSON 请求，缓解翻页过快触发的 403/429/5xx 风控。"""
+    import urllib.error
+    import urllib.request
+
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            if exc.code not in (403, 429, 500, 502, 503, 504):
+                raise
+        except Exception as exc:  # noqa: BLE001 - 网络抖动统一走退避重试
+            last_error = exc
+        if attempt + 1 < retries:
+            time.sleep(backoff * (2**attempt))
+    if isinstance(last_error, urllib.error.HTTPError):
+        raise last_error
+    raise last_error
 
 
 def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str, object]:
@@ -1156,7 +1195,13 @@ def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str,
     return {"connected": False, "reason": "anonymous", "message": "返回匿名数据，会话未生效"}
 
 
-def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: int = 100, full: bool = False) -> dict[str, object]:
+def leetcode_sync(
+    credentials: dict[str, str],
+    db_path: Path = DB_PATH,
+    limit: int = 100,
+    full: bool = False,
+    progress=None,
+) -> dict[str, object]:
     """同步力扣提交记录。
 
     full=True：分页翻到底，同步全部历史提交（首次建议）；full=False：只同步最近 limit 条（增量日常用）。
@@ -1176,13 +1221,14 @@ def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: i
     }
 
     try:
-        req = urllib.request.Request("https://leetcode.cn/api/problems/all/", headers=headers)
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        data = _fetch_json_with_retry("https://leetcode.cn/api/problems/all/", headers)
     except urllib.error.HTTPError as exc:
-        raise ValueError(f"同步失败：力扣返回 HTTP {exc.code}（会话可能过期）")
+        raise ValueError(f"同步失败：力扣返回 HTTP {exc.code}（会话可能过期或被风控）")
     except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"同步失败：{type(exc).__name__}")
+        raise ValueError(f"同步失败：{type(exc).__name__}: {exc}")
+
+    if progress is not None:
+        progress("已读取力扣题目列表")
 
     slug_to_id = {slug: pid for pid, slug in LEETCODE_SLUGS.items()}
     # 题名→题号：本地中文题名为主，英文题名（经 slug）兜底。
@@ -1202,20 +1248,25 @@ def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: i
     offset = 0
     page = 0
     max_pages = 50 if full else 1  # full 封顶 5000 条，防止异常无限翻页
+    if progress is not None:
+        progress("开始拉取提交记录")
     while True:
         page += 1
         if page > max_pages:
             fetch_errors.append(f"已达分页上限（{max_pages} 页），如有更多历史请再次全量同步")
             break
         try:
-            req = urllib.request.Request(
+            payload = _fetch_json_with_retry(
                 f"https://leetcode.cn/api/submissions/?offset={offset}&limit={min(int(limit), 100)}",
-                headers=headers,
+                headers,
             )
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:  # noqa: BLE001
-            fetch_errors.append(f"第 {page} 页拉取失败：{type(exc).__name__}: {exc}")
+            fetch_errors.append(
+                f"第 {page} 页拉取失败：{type(exc).__name__}: {exc}"
+                "（已自动重试，仍失败可能是力扣风控，请稍后重试或重新复制 LEETCODE_SESSION）"
+            )
+            if progress is not None:
+                progress(f"第 {page} 页拉取失败，已停止拉取")
             break
         dump = payload.get("submissions_dump") or []
         if not dump:
@@ -1245,8 +1296,11 @@ def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: i
                 "lc_id": int(lc_id) if str(lc_id).isdigit() else None,
             })
         results["submissions_seen"] = int(results["submissions_seen"]) + len(dump)
+        if progress is not None:
+            progress(f"第 {page} 页完成，已读取 {results['submissions_seen']} 条")
         if not payload.get("has_next"):
             break
+        time.sleep(0.8)
         offset += len(dump)
 
     # —— 写库（lc_id 唯一去重，批量插入）——
@@ -1276,6 +1330,8 @@ def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: i
             )
         results["submissions_added"] = len(rows)
         connection.commit()
+        if progress is not None:
+            progress("提交记录已写入本地数据库")
 
         # —— 已解答兜底：某题在 problems/all 为 ac 但库中无任何 AC 提交记录时，
         #     用该题最早一次提交的时间补一条；拿不到真实时间则跳过（不伪造“今天”）。 ——
@@ -1308,6 +1364,56 @@ def leetcode_sync(credentials: dict[str, str], db_path: Path = DB_PATH, limit: i
         connection.commit()
     results["sync_errors"] = fetch_errors
     return results
+
+
+def start_leetcode_sync_task(credentials: dict[str, str], full: bool) -> str:
+    """后台执行力扣同步，返回 task_id；前端轮询状态接口打印进度日志。"""
+    task_id = uuid.uuid4().hex[:12]
+    task: dict[str, object] = {
+        "logs": [],
+        "running": True,
+        "result": None,
+        "error": None,
+    }
+
+    def progress(text: str) -> None:
+        with SYNC_TASKS_LOCK:
+            logs = task["logs"]
+            if isinstance(logs, list):
+                logs.append({"text": text, "at": now_parts()[0]})
+
+    def worker() -> None:
+        try:
+            task["result"] = leetcode_sync(credentials, full=full, progress=progress)
+        except Exception as exc:  # noqa: BLE001 - 错误交给前端展示
+            task["error"] = str(exc)
+        finally:
+            task["running"] = False
+
+    with SYNC_TASKS_LOCK:
+        SYNC_TASKS[task_id] = task
+    threading.Thread(target=worker, daemon=True).start()
+
+    # 只保留最近 10 个已完成任务，防止长期运行后内存累积。
+    with SYNC_TASKS_LOCK:
+        completed = [tid for tid, item in SYNC_TASKS.items() if not item["running"]]
+        for tid in completed[:-10]:
+            SYNC_TASKS.pop(tid, None)
+    return task_id
+
+
+def sync_task_status(task_id: str) -> dict[str, object] | None:
+    with SYNC_TASKS_LOCK:
+        task = SYNC_TASKS.get(task_id)
+        if task is None:
+            return None
+        return {
+            "task_id": task_id,
+            "running": bool(task["running"]),
+            "logs": list(task["logs"]),
+            "result": task["result"],
+            "error": task["error"],
+        }
 
 
 def _parse_ms(text: str) -> int | None:
@@ -1459,9 +1565,28 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 return
             self.send_json({"problem_id": problem_id, "items": submissions_for_problem(problem_id)})
             return
+        # /api/leetcode/sync/status：后台同步任务进度（日志列表 + 完成状态）。
+        if parsed.path == "/api/leetcode/sync/status":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            task_id = params.get("task_id", "")
+            if not task_id:
+                self.send_json({"error": "缺少 task_id"}, HTTPStatus.BAD_REQUEST)
+                return
+            status = sync_task_status(task_id)
+            if status is None:
+                self.send_json({"error": "任务不存在或已过期"}, HTTPStatus.NOT_FOUND)
+                return
+            self.send_json(status)
+            return
         # /api/leetcode/status：力扣连接状态 —— 凭证是否已保存 + 实测登录态是否生效，合并成一个响应。
         if parsed.path == "/api/leetcode/status":
-            self.send_json({"credentials_saved": bool(get_credentials().get("leetcode_session")), **leetcode_status(get_credentials())})
+            credentials = get_credentials()
+            self.send_json({
+                "credentials_saved": bool(credentials.get("leetcode_session")),
+                "session": credentials.get("leetcode_session", ""),
+                "csrf": credentials.get("leetcode_csrf", ""),
+                **leetcode_status(credentials),
+            })
             return
         # /api/export：数据导出 —— kind=anki/weak/records/weekly 走 export_data；kind=db 走整库快照。
         if parsed.path == "/api/export":
@@ -1574,7 +1699,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 result = {"saved": True, **leetcode_status(get_credentials())}
             # /api/leetcode/sync：拉取力扣提交历史入库 —— full=1 全量翻页，否则增量最近 100 条。
             elif parsed.path == "/api/leetcode/sync":
-                result = {"ok": True, **leetcode_sync(get_credentials(), full=str(payload.get("full", "0")) in ("1", "true", "True"))}
+                full = str(payload.get("full", "0")) in ("1", "true", "True")
+                if payload.get("async") in (1, True, "1", "true", "True"):
+                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(), full)}
+                else:
+                    result = {"ok": True, **leetcode_sync(get_credentials(), full=full)}
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
                 clear_credentials()

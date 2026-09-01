@@ -16,11 +16,14 @@ pause
 exit /b 1
 
 :check_port
+echo [Info] Checking for an existing study server...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*study_server.py*' }); foreach ($p in $procs) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('[Info] Killed old study server PID ' + $p.ProcessId) }; $listeners = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue); if ($listeners.Count -gt 0) { foreach ($c in $listeners) { $owner = $c.OwningProcess; $p2 = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $owner) -ErrorAction SilentlyContinue; if ($p2 -and $p2.CommandLine -like '*study_server.py*') { Stop-Process -Id $owner -Force -ErrorAction SilentlyContinue; Write-Host ('[Info] Killed old study server PID ' + $owner) } else { Write-Host ('[Info] Port 8765 used by PID ' + $owner + '; not study_server.py, skip') } } }"
+timeout /t 1 /nobreak >nul
 netstat -ano | findstr ":8765 " | findstr "LISTENING" >nul 2>nul
 if not errorlevel 1 (
   echo.
-  echo [Info] Port 8765 is already in use. The study site may already be running.
-  echo Open http://127.0.0.1:8765/ directly. To restart, close the old instance first.
+  echo [Info] Port 8765 is still in use by another process.
+  echo Please close that process manually, then start again.
   echo.
   pause
   exit /b 1

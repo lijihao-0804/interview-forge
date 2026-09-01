@@ -1,0 +1,242 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LORA微调 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">LORA微调</span></nav><div class="module-meta">Agent 工程 · 第 14 / 55 章</div><h1>LORA微调</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>LORA微调</h3>
+<p>随着大规模预训练模型不断增大，模型微调的资源需求和部署复杂度也急剧提升。 LoRA（Low-Rank Adaptation）作为近年来高效微调的代表方案，因其在显存占用、训练效率和部署 便捷性之间取得了平衡，迅速成为大模型微调的首选。</p>
+<h4>背景与挑战</h4>
+<p>在 LoRA 出现之前，微调大模型通常依赖全参数微调或 Adapter 方案。</p>
+<ul>
+<li>
+<p>全参数微调虽然效果最佳，但显存需求极高，训练门槛较高；</p>
+</li>
+<li>
+<p>Adapter 微调减少了训练参数，但会带来推理延迟和部署复杂度。</p>
+</li>
+<li>
+<p>因此，研究者亟需一种既节省资源又能保证性能，且方便推理部署的微调方法。</p>
+</li>
+<li>
+<p>LoRA 正是在这样的背景下诞生，目标明确：</p>
+</li>
+<li>
+<p>显著降低训练时的显存与计算成本；</p>
+</li>
+<li>
+<p>保持接近全参数微调的性能水平；</p>
+</li>
+<li>
+<p>实现推理时无额外计算负担，方便快速部署。</p>
+</li>
+</ul>
+<h4>LoRA 的核心思想</h4>
+<p>Transformer 模型中，绝大部分计算来自于大规模权重矩阵与输入的乘法运算。直接微调这些庞大矩 阵参数，意味着巨大的计算和显存开销。</p>
+<p>LoRA 通过对权重更新做低秩分解，实现参数的高效表达。</p>
+<p><img alt="" src="assets/bbe9dd7f20-agent-.pdf-0057-00.png" /></p>
+<p>具体而言，假设原权重矩阵为 W ，LoRA 并不直接更新 W，而是引入两个小矩阵 A 和 B，使得权重的 增量更新满足：</p>
+<p>Δ <em>W</em> = <em>A</em> × <em>B</em></p>
+<p>其中， <em>A</em> ∈ R<sup><em>d</em>×</sup><sup><em>r</em></sup> ， <em>B</em> ∈ R<sup><em>r</em>×</sup><sup><em>k</em></sup> ，且秩 <em>r</em> ≪ <em>d</em> , <em>k</em> 训练过程中，仅优化这两个低秩矩阵参数，保持 <em>W</em>  不变，从而大幅减少可训练参数数量和计算资 源。</p>
+<h4>LoRA 训练详细步骤</h4>
+<p><strong>1.冻结预训练模型参数</strong></p>
+<p>传统微调需调整整个 Transformer 权重，而 LoRA 只冻结原模型参数，避免全量反向传播开销。</p>
+<div class="codehilite"><pre><code>for param in model.parameters():
+param.requires_grad = False # 冻结所有参数
+</code></pre></div>
+<p>这样可以显著降低训练计算和显存需求。</p>
+<p>2.替换 Transformer 注意力层的全连接层 Transformer 中，查询（Q）、键（K）、值（V）计算通常通过线性层实现：</p>
+<p><em>Q</em> = <em>XWQ</em> , <em>K</em> = <em>XWK</em> , <em>V</em> = <em>XWV</em> LoRA 不直接训练原始权重 <em>WQ</em>  ，而是对其增量进行低秩分解：</p>
+<p>Δ <em>W</em> = <em>BA Q</em></p>
+<p>其中：</p>
+<p>• <em>A</em>  大小为 <em>d</em> × <em>r</em> （低秩矩阵），</p>
+<p>• <em>B</em>  大小为 <em>r</em> × <em>d</em> ，</p>
+<p>• <em>r</em> ≪ <em>d</em> ，大幅减少训练参数。</p>
+<p>代码示例：</p>
+<table>
+<thead>
+<tr>
+<th>1<br>2</th>
+<th><code>import torch.nnas nn</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td><code>class LoRALinear(nn.Module):</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>def __init__(self, in_features, out_features, rank=4, alpha=32):</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>super().__init__()</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>self.rank = rank</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>self.alpha = alpha</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>self.W = nn.Linear(in_features, out_features, bias=False)</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>self.W.requires_grad_(False)#</code>冻结原权重</td>
+</tr>
+<tr>
+<td>11</td>
+<td></td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>self.A = nn.Linear(in_features, rank, bias=False)# d × r</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>self.B = nn.Linear(rank, out_features, bias=False)# r × d</code></td>
+</tr>
+<tr>
+<td>14</td>
+<td></td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>nn.init.kaiming_uniform_(self.A.weight, a=5**0.5)</code></td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>nn.init.zeros_(self.B.weight)# B</code>零初始化，防止扰动原始权重</td>
+</tr>
+<tr>
+<td>17</td>
+<td></td>
+</tr>
+<tr>
+<td>18</td>
+<td><code>def forward(self, x):</code></td>
+</tr>
+<tr>
+<td>19</td>
+<td><code>return self.W(x) + self.alpha * self.B(self.A(x))</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>3.只训练低秩矩阵参数</strong></p>
+<div class="codehilite"><pre><code>1optimizer = torch.optim.AdamW([
+2    {&#39;params&#39;: model.lora_A.parameters()},
+3    {&#39;params&#39;: model.lora_B.parameters()}
+4], lr=1e-4)
+</code></pre></div>
+<p>仅训练 <em>A</em>  和 <em>B</em> ，冻结原模型所有参数，显著降低计算量。</p>
+<p><strong>4.训练完成后权重合并</strong></p>
+<p>训练完成后，可将增量权重直接加到原始权重：</p>
+<p>′ <em>WQ</em> = <em>WQ</em> + Δ <em>WQ</em> = <em>WQ</em> + <em>BA</em></p>
+<p>合并优势：</p>
+<ul>
+<li>
+<p>推理时无额外计算开销；</p>
+</li>
+<li>
+<p>轻松部署，无需保留额外参数结构。</p>
+</li>
+</ul>
+<p><strong>5.推理阶段选择</strong></p>
+<ul>
+<li>
+<p>保持 LoRA 结构：适合多任务动态切换，节省存储；</p>
+</li>
+<li>
+<p>合并权重：适合单一任务高效推理，避免额外计算。</p>
+</li>
+</ul>
+<div class="codehilite"><pre><code>1model.W_Q.weight.data += model.B.weight @ model.A.weight
+</code></pre></div>
+<p>其中需要注意的实现细节如下：</p>
+<ul>
+<li>
+<ul>
+<li>低秩秩大小 r 选择：r通常在 4 到 64 之间，根据任务复杂度与资源限制调整。秩越小，资源消耗越 少，但性能可能略降。</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>更新部位：LoRA 通常作用于 Transformer 中关键线性层（如自注意力的 Query、Key、Value 投影 矩阵），保证微调效果最大化。</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>训练策略：初始化时，矩阵 B通常初始化为零，保证初始模型表现不变；A 初始化为小随机值。训练 时仅更新 A、B，其他参数冻结。</li>
+</ul>
+</li>
+<li>
+<ul>
+<li>推理阶段：微调后，可以将 A B 直接合并进 W，推理时无额外计算开销，实现高效部署。</li>
+</ul>
+</li>
+</ul>
+<h4>LoRA 在 Transformer 中的作用位置</h4>
+<p>LoRA 主要作用于 Multi-Head Attention 的查询（Q）、键（K）、值（V）线性层，是微调最关键的参 数部分。</p>
+<h4>LoRA 训练示例代码</h4>
+<p><code>1 import torch 2 import torch.nn as nn 3 import torch.optim as optim 4 5 class LoRAModel(nn.Module): 6 def __init__(self, d, r=4, alpha=32): 7 super().__init__() 8 self.W = nn.Linear(d, d, bias=False) 9 self.W.requires_grad_(False) 10 11 self.A = nn.Linear(d, r, bias=False) 12 self.B = nn.Linear(r, d, bias=False) 13 14 nn.init.kaiming_uniform_(self.A.weight, a=5**0.5) 15 nn.init.zeros_(self.B.weight) 16 17 self.alpha = alpha 18 19 def forward(self, x): 20 return self.W(x) + self.alpha * self.B(self.A(x)) 21 22 model = LoRAModel(d=512, r=4).cuda() 23 24 optimizer = optim.AdamW([ 25 {'params': model.A.parameters()}, 26 {'params': model.B.parameters()} 27 ], lr=1e-4) 28 29 for epoch in range(10): 30 x = torch.randn(32, 512).cuda() 31 y = model(x).sum() 32 y.backward() 33 optimizer.step() 34 optimizer.zero_grad() 35 print(f"Epoch {epoch}: Loss={y.item()}")</code></p>
+<h4>发展与变体</h4>
+<p>自 2021 年 LoRA 提出后，技术不断演进，形成多种变体：</p>
+<ul>
+<li>QLoRA</li>
+</ul>
+<p>结合 4-bit 量化，极大压缩模型大小与显存需求，实现大模型微调的低资源化；</p>
+<p>• AdaLoRA</p>
+<p>动态调整不同层的低秩大小，提高训练灵活性和性能；</p>
+<p>• PEFT 框架</p>
+<p>在 Hugging Face PEFT 中标准化接口，实现 LoRA 快速集成和使用。</p>
+<h4>LoRA 与传统微调对比</h4>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>传统微调（Full Fine-<br>Tuning）</th>
+<th>LoRA 微调</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数更新</td>
+<td>全部权重</td>
+<td>仅低秩矩阵 A 和 B</td>
+</tr>
+<tr>
+<td>训练开销</td>
+<td>高（数十亿参数）</td>
+<td>低（百万参数级别）</td>
+</tr>
+<tr>
+<td>存储需求</td>
+<td>大</td>
+<td>小</td>
+</tr>
+<tr>
+<td>推理效率</td>
+<td>可能受影响</td>
+<td>几乎无额外负担</td>
+</tr>
+</tbody>
+</table>
+<p><strong>LoRA 特别适合：</strong></p>
+<ul>
+<li>
+<p>大规模 Transformer 微调（如 GPT、LLaMA、ViT）；</p>
+</li>
+<li>
+<p>多任务模型快速切换与存储优化；</p>
+</li>
+<li>
+<p>算力受限环境，如移动端和边缘计算。</p>
+</li>
+</ul>
+<p>总结一下，LoRA 通过对 Transformer 注意力层权重增量进行低秩分解，有效减少训练参数量和计算资 源消耗。其采用冻结大模型参数，仅训练低秩矩阵，降低存储和计算开销。</p>
+<p>并且LORA支持大语言模型和视觉 Transformer 的高效微调，可以兼顾多任务和快速推理。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:14",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

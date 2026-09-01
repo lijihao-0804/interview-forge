@@ -67,7 +67,7 @@ from pygments.util import ClassNotFound
 #   (HOT100_MODULE)，是书架目录结构的唯一事实来源。
 from build_html_site import render_math_in_markdown
 from build_hot100 import PROBLEMS, repair_indented_headings, safe_name
-from library_catalog import HOT100_MODULE, LIBRARY_MODULES
+from library_catalog import HOT100_MODULE, LIBRARY_MODULES, MODULE_ORDER
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。章节正文渲染是纯函数
 # （render_markdown(text) → str），进程池安全；元数据收集与聚合产物仍串行。
@@ -1069,7 +1069,7 @@ def build() -> None:
     # 模块列表以 Hot 100 模块打头(数据流第 1 步的“登记”对它是程序生成)：
     # 它没有源笔记，url 直接指向 Interview Forge首页；routes 先并入它的题目映射。
     hot100_module, hot100_routes = build_hot100_module()
-    modules: list[dict[str, object]] = [hot100_module]
+    modules: list[dict[str, object]] = []
     routes: dict[str, dict[str, str]] = dict(hot100_routes)
     # Hot 100 章节的搜索条目：题解页由 build_hot100 维护，这里没有可清洗的正文，
     # 索引用 方法(method) + 难度(difficulty) 作为检索字段——搜“滑动窗口”能命中
@@ -1216,6 +1216,12 @@ def build() -> None:
         ]
         module_page = module_index_page(module, page_chapters)
         (module_dir / "index.html").write_text(document(module["title"], module_page, "../assets/library.css"), encoding="utf-8")
+    modules.append(hot100_module)
+    # 按显式学习顺序表重排模块卡片与分类按钮；未登记的新模块追加到末尾。
+    module_order = MODULE_ORDER + [
+        str(module["id"]) for module in modules if str(module["id"]) not in MODULE_ORDER
+    ]
+    modules.sort(key=lambda module: module_order.index(str(module["id"])))
     # manifest.json = modules + routes，是“静态生成 ↔ 动态服务”之间的唯一契约文件：
     #   - modules：全部模块信息(章节数/章节列表)，study_server 的 /api/library
     #     据此聚合完成数、轮次与进度条；

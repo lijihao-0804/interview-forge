@@ -1,0 +1,142 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 的基本架构由哪些核心组件构成？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">Agent 的基本架构由哪些核心组件构成？</span></nav><div class="module-meta">Agent 工程 · 第 2 / 16 章</div><h1>Agent 的基本架构由哪些核心组件构成？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：Agent 架构里有哪些核心组件？</p>
+<p>🙋‍♂️我：有 LLM 和工具系统，LLM 是大脑，工具让它能联网搜索、执行代码这些。</p>
+<p>👔面试官：就两个？一个 Agent 跑起来，任务执行到一半它怎么知道之前做了什么？</p>
+<p>🙋‍♂️我：哦，还有记忆，就是把上下文存进去，让它记得之前的步骤。</p>
+<p>👔面试官：记忆就是上下文吗？长任务上下文放不下怎么办？记忆还分哪几种你知道吗？</p>
+<p>🙋‍♂️我：这个……可能还有数据库存历史记录？</p>
+<p>👔面试官：对，短期记忆放 context window，长期记忆用向量数据库存，两者不一样。还有一个组件你一直没提，复杂目标怎么拆解成步骤，靠谁？</p>
+<p>好，咱来系统捋一下，Agent 的四个核心组件各自负责什么、为什么缺一不可。</p>
+<h3>💡 简要回答</h3>
+<p>我理解 Agent 的基本架构有四个核心组件：LLM、工具、记忆、规划模块。</p>
+<p>LLM 是整个系统的大脑，负责理解任务和做决策；工具让 Agent 能跟外部世界交互，搜索、执行代码、调 API 都靠它；记忆让 Agent 在任务执行过程中保持状态，不会「失忆」；规划模块负责把复杂目标拆解成可执行的步骤。</p>
+<p>这四个组合在一起，才让 Agent 具备了自主完成任务的能力。</p>
+<h3>📝 详细解析</h3>
+<p>理解了 Agent 是什么之后，我们来看它的内部结构，一个完整的 Agent 系统，到底由哪几个核心部件组成。</p>
+<p>你可以把整个 Agent 系统类比成一家公司：<strong>LLM 是老板</strong>，所有决策都经过它拍板；<strong>工具系统是外包执行团队</strong>，老板说「去搜这个」「去发这封邮件」，他们负责真正干活；<strong>记忆系统是公司档案室</strong>，各种信息的存档和调档都靠它；<strong>规划模块是项目经理</strong>，拿到一个大目标后负责拆解成可执行的任务单。四个角色各司其职，才撑起了 Agent 的自主运行能力。</p>
+<p><img alt="" src="assets/cb623f791c-9071de74d753f6d5cfc21c17.png" /></p>
+<h4>LLM 核心</h4>
+<p>先来说 <strong>LLM 核心</strong>。它是整个 Agent 的大脑，所有的输入，不管是用户的指令、工具返回的结果还是记忆里调出来的内容，最终都要经过 LLM 来理解和决策。它负责判断：下一步该做什么？是继续思考、调用某个工具、还是已经可以给出最终答案了？没有 LLM，其他三个组件就是一堆零件，没有人来统一指挥。</p>
+<p><img alt="" src="assets/9d2f7c2825-ab4f21fbef4ffa78d3f820e9.png" /></p>
+<p>不过很多人忽略了一个重要的东西：System Prompt（系统提示词）。</p>
+<p>你可以把它理解成给老板的「岗位说明书」，在 Agent 开始工作之前，System Prompt 就已经定义好了它的角色、行为边界、输出格式要求等等。</p>
+<p>比如你做一个客服 Agent，System Prompt 里会写「你是一个专业的客服助手，只回答产品相关问题，遇到不确定的信息要说不知道，不要编造答案」。这段话看着简单，但它决定了 Agent 的「人格」和行为准则，写得好不好直接影响 Agent 的表现。实际工程里，System Prompt 的调优往往占了开发时间的相当大一部分，因为它是你能最直接控制 Agent 行为的手段。</p>
+<p>另一个实际工程中非常重要的问题是：选哪个模型？</p>
+<p>不同模型之间的差异远比你想象的大。首先是推理能力，Agent 需要做多步决策，模型的推理能力直接决定了它能不能正确拆解任务、选对工具。像 GPT-4o、Claude Sonnet 这类模型在复杂推理上的表现就比小模型好很多，但调用成本也更高。</p>
+<p>这里还有一个趋势值得关注：专门为推理优化的模型越来越多了，比如 OpenAI 的 o1/o3 系列、DeepSeek-R1 这类推理模型（Reasoning Model），它们在做复杂任务拆解和多步决策时的表现会更好，特别适合做 Agent 的大脑。</p>
+<p>但推理模型的代价是延迟更高、token 消耗更大，所以不是所有场景都适合用。一个常见的工程做法是：用推理能力强的大模型做核心决策（比如任务规划、关键判断），用更快更便宜的小模型做简单任务（比如意图分类、格式提取），根据不同环节的需求来搭配。</p>
+<p>其次是工具调用的稳定性，有些模型生成的 JSON 格式经常出错、参数乱填，导致工具调用失败，这在生产环境里会带来大量的重试和 token 浪费。</p>
+<p>最后是上下文窗口大小，Agent 每一步的工具返回结果都要塞进上下文，一个复杂任务跑十几步下来，上下文很容易就撑满了，如果模型的窗口太小，后面的步骤就「看不到」前面发生了什么。所以在实际项目里，模型选择不是一个「越贵越好」的问题，而是要根据任务复杂度、延迟要求、成本预算来做权衡。</p>
+<p><img alt="" src="assets/84a0e6523f-7480cf01872c617fd7b06306.png" /></p>
+<h4>工具系统</h4>
+<p>然后是 <strong>工具系统</strong>，这是 Agent 和外部世界交互的唯一入口。</p>
+<p>LLM 本身是个纯粹的「语言处理器」，它不能上网、不能读文件、不能执行代码，但这些限制都可以通过工具来突破。工具可以是搜索引擎、数据库查询、代码执行器、发邮件的 API，任何你能用函数封装的能力都可以变成工具。</p>
+<p><img alt="" src="assets/9d6fd97437-9525e1d9ba43b9c2b450bd35.png" /></p>
+<p>工具是怎么定义的？我给你看一个最标准的格式：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 定义工具的结构（以 OpenAI function calling 格式为例）</span>
+<span class="c1"># 你只需要告诉模型三件事：工具叫什么名、能做什么事、需要哪些参数</span>
+<span class="n">tools</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;function&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;function&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;search_web&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;搜索互联网上的信息&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;搜索关键词&quot;</span>
+                    <span class="p">}</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;query&quot;</span><span class="p">]</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">]</span>
+
+<span class="c1"># LLM 决定调用工具时，会返回类似这样的结构：</span>
+<span class="c1"># {&quot;tool_call&quot;: {&quot;name&quot;: &quot;search_web&quot;, &quot;arguments&quot;: {&quot;query&quot;: &quot;2024年大模型最新进展&quot;}}}</span>
+<span class="c1"># 然后你的代码负责真正执行这个搜索，把结果再塞回给 LLM</span>
+</code></pre></div>
+<p>你看，工具定义里没有一行执行逻辑，只有「名字、描述、参数说明」。模型读了这份说明书，决定要调哪个工具、参数填什么，把决策以 JSON 格式告诉你，你的代码去真正执行，结果再反馈给模型。整个分工很清晰：<strong>模型负责「决定做什么」，程序负责「真正执行」</strong>。</p>
+<p>这里还有一个非常容易被忽略的点：工具描述的质量直接影响 Agent 的表现。</p>
+<p>模型是根据你写的 description 来判断「什么时候该用这个工具」的，如果描述写得含糊、有歧义，模型就可能在不该用的时候调了它，或者该用的时候没调。</p>
+<p>举个例子，你有一个查数据库的工具，如果 description 只写了「查询数据」，模型可能在用户问天气的时候也去查数据库，因为「查询数据」太宽泛了。但如果你写成「查询公司内部销售数据库，支持按日期、产品类别筛选」，模型就能精确判断什么场景该用它。所以在实际开发中，工具描述其实是需要反复调优的，它的重要性不亚于 prompt 工程。</p>
+<p><img alt="" src="assets/6fcf9537b6-1c06d635cb869bb7e661501d.png" /></p>
+<p>当工具越来越多的时候，管理和标准化就变成了一个大问题。</p>
+<p>Anthropic 在 2024 年底提出了 MCP（Model Context Protocol，模型上下文协议），它底层是一套基于 JSON-RPC 的通信协议，不只是把「工具」标准化了，还定义了三类能力：Tools（会改变外部世界的操作，比如发邮件）、Resources（只读的数据源，比如文件内容）、Prompts（预定义的提示词模板，比如代码审查模板）。</p>
+<p>MCP 的架构分三层：最外层是 Host，就是用户交互的 AI 应用（比如 Claude Desktop、Cursor）；中间是 Client，负责管理和 MCP Server 之间的连接；最里层是 Server，就是真正暴露这些能力的服务端。</p>
+<p>工具提供方只要按 MCP 标准实现一个 Server，任何支持 MCP 的 Agent 都能自动发现和调用这些能力，不需要额外写适配代码。你可以把 MCP 理解成工具世界的「USB-C 接口」，只要插口标准一致，什么设备都能连上。</p>
+<p>2025 年 12 月，Anthropic 把 MCP 捐给了 Linux 基金会旗下新成立的 Agentic AI Foundation，生态已经非常壮大，数千个公开 MCP Server 可用。</p>
+<h4>记忆系统</h4>
+<p>接下来是 <strong>记忆系统</strong>，它分几个层次，你可以类比人的记忆方式来理解。</p>
+<p><img alt="" src="assets/c7e464e761-2ead29648ba986eb34090125.png" /></p>
+<p>最基础的是<strong>短期记忆</strong>，就是当前这轮对话的上下文，装在 context window 里。</p>
+<p>Agent 在一次任务执行过程中靠它记住中间状态，比如第一步搜索到了什么、第二步执行结果是什么。这就像人的「工作记忆」，容量有限，任务一结束就清空了。</p>
+<p>然后是<strong>长期记忆</strong>，通常用向量数据库来实现，把重要信息 embedding 之后存起来，下次用的时候做语义检索拿回来。</p>
+<p>这就像人的「长期记忆」，容量大、可以跨天保留，但需要主动「回忆」才能调出来。</p>
+<p>这里借用认知科学对人类长期记忆的分类来理解 Agent 长期记忆的组织方式（注意这只是便于理解的类比，Agent 系统里的实现通常都是向量检索 + metadata 过滤，不一定真的分这么细）：</p>
+<ul>
+<li>语义记忆（Semantic Memory）存的是事实性知识，比如「用户是做金融行业的」「某个 API 的调用频率限制是每分钟 60 次」；</li>
+<li>情景记忆（Episodic Memory）存的是具体的经历，比如「上次用户问退款问题时我们查了订单系统，发现他的订单已过退款期」；</li>
+<li>还有一种是程序性记忆（Procedural Memory），存的是「怎么做事」的经验，比如「处理退款问题的标准流程是先查订单状态再核实支付方式」。程序性记忆特别有意思，它不是存某个具体的事实，而是把 Agent 做事的方法论沉淀下来，让它下次碰到类似任务时能直接套用高效的处理流程，而不是每次都从头摸索。</li>
+</ul>
+<p><img alt="" src="assets/a87e7af361-963571113c69f302f2c4fe59.png" /></p>
+<p>不过记忆系统在工程实践中有几个挑战是经常被忽视的。</p>
+<p>短期记忆最大的问题是上下文窗口有限，一个复杂任务执行十几步，每步工具返回大量文本，上下文很快就满了，这时候你要么做摘要压缩（把前面的步骤浓缩成关键信息），要么做滑动窗口（只保留最近几步的详细内容），但不管哪种方式都会丢失信息，怎么在「记住够多」和「不撑爆上下文」之间取舍，是记忆工程里最核心的设计问题。</p>
+<p>长期记忆的挑战则在于「什么该存、什么不该存」以及「存了之后怎么管理」。</p>
+<p>如果什么都往向量数据库里塞，检索出来的噪音会很多，反而干扰模型的决策；如果存得太少，又失去了长期记忆的意义。目前比较好的做法是在存入之前做一轮重要性评估，只把真正有价值的信息持久化。另外还有一个容易忽略的机制叫记忆衰减（Memory Decay）。</p>
+<p>你想想看，一个客服 Agent 三个月前处理的某个问题，到今天还重要吗？大概率已经不重要了。记忆衰减的做法是给每条记忆加一个时间权重，越久远的记忆权重越低，检索的时候自然就排在后面了。</p>
+<p>具体实现上通常用一个指数衰减公式：记忆的相关性分数 = 语义相似度 x 时间衰减因子，时间衰减因子随着时间推移逐渐降低。衰减速度可以根据业务场景调整，比如客服场景衰减可以快一些（因为大多数对话是一次性的），而法律合规场景衰减就要慢得多（因为历史记录可能在很久之后还会被引用）。</p>
+<p>这样 Agent 就不会被一堆过时的信息淹没，总是优先关注最近的、最相关的记忆。</p>
+<h4>规划模块</h4>
+<p>最后是 <strong>规划模块</strong>，它决定了 Agent 能不能应对复杂任务。</p>
+<p>简单任务一步就搞定了，但如果你让 Agent「帮我写一份竞品分析报告」，它需要先把这个目标拆解：搜索竞品资料 -&gt; 整理关键数据 -&gt; 对比分析 -&gt; 撰写报告。规划模块就是做这件事的。</p>
+<p><img alt="" src="assets/dc6353cdce-e71fa5db141427cdc8539ff8.png" /></p>
+<p>规划模块的底层其实依赖的是 LLM 的推理能力，而提升推理能力有几种主要的技术手段。</p>
+<p>最基础的是 <strong>CoT</strong>（Chain of Thought，思维链），它的核心思想是让模型「把思考过程写出来」，而不是直接输出最终答案。你可以在 prompt 里加一句「Let's think step by step」，模型就会把推理的中间步骤一步步展开。</p>
+<p>为什么这么简单一句话就能提升效果？因为 LLM 的 token 生成是逐步进行的，每一步推理的输出会成为下一步推理的输入，把中间步骤写出来，等于给了模型更多的「思考空间」。</p>
+<p>在此基础上还有 <strong>ToT</strong>（Tree of Thoughts，思维树），它不是走一条线性的推理链，而是在每个推理节点上展开多个可能的分支，然后评估每个分支的质量，选出最优的路径继续往下走。</p>
+<p>你可以把 CoT 理解成「一条路走到底」，ToT 理解成「走到岔路口先看看几条路，选最好的那条再往前」。ToT 在需要创造性思考或者复杂决策的场景下效果更好，但计算成本也更高，因为它要同时评估多条路径。</p>
+<p>有了这些推理技术打底，规划模块在实际运作中有两种主流模式。</p>
+<ul>
+<li>第一种是「先规划后执行」，也就是 <strong>Plan-and-Execute 模式</strong>，先让 LLM 输出一个完整的步骤列表，然后按顺序逐步执行。好处是整体结构清晰，你能在执行前就看到完整计划，方便人工审核；缺点是如果中间某一步的结果和预期不一样，原来的计划可能就不合适了，需要重新调整。</li>
+<li>第二种是「边执行边规划」，也就是 <strong>ReAct 模式</strong>，每走一步就根据当前结果重新思考下一步该做什么，不提前制定完整计划。好处是灵活性极高，能根据实际情况随时调整；缺点是容易「走偏」，因为每一步都是局部最优决策，有时候会忽略整体目标。在实际工程里，很多团队会把两种模式结合起来，先做一个粗略的计划确定大方向，执行过程中再根据反馈动态微调。</li>
+</ul>
+<p><img alt="" src="assets/62df691ad7-88004b9bbcb75b3d2323245d.png" /></p>
+<p>这四个组件合在一起，到底是怎么跑起来的？我用一段伪代码来还原整个运行过程，看完你就能理解它们是怎么协作的：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># Agent 运行的核心 loop（伪代码）</span>
+<span class="k">def</span> <span class="nf">agent_run</span><span class="p">(</span><span class="n">user_goal</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="c1"># 第一步：规划模块上场，把目标拆成步骤列表</span>
+    <span class="n">plan</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">user_goal</span><span class="p">)</span>
+
+    <span class="n">memory</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># 短期记忆，用来存每一步的中间结果</span>
+
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">plan</span><span class="p">:</span>
+        <span class="c1"># 第二步：LLM 核心做决策，这一步该怎么做？</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">decide</span><span class="p">(</span>
+            <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span>
+            <span class="n">history</span><span class="o">=</span><span class="n">memory</span><span class="p">,</span>                    <span class="c1"># 把短期记忆传进去，让它知道之前做了什么</span>
+            <span class="n">long_term</span><span class="o">=</span><span class="n">vector_db</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>   <span class="c1"># 从长期记忆里捞出相关历史</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;tool_call&quot;</span><span class="p">:</span>
+            <span class="c1"># 第三步：工具系统负责真正执行</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">action</span><span class="o">.</span><span class="n">tool_name</span><span class="p">,</span> <span class="n">action</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">memory</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;step&quot;</span><span class="p">:</span> <span class="n">step</span><span class="p">,</span> <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>  <span class="c1"># 执行结果存入短期记忆</span>
+
+        <span class="k">elif</span> <span class="n">action</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;final_answer&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">action</span><span class="o">.</span><span class="n">content</span>  <span class="c1"># LLM 判断任务完成，返回最终答案</span>
+</code></pre></div>
+<p>看完这段伪代码，你会发现 Agent 的核心节奏其实很简单：规划 -&gt; 决策 -&gt; 执行 -&gt; 结果存入记忆 -&gt; 再决策，循环往复，直到任务完成。LLM 始终是那个做决策的角色，工具系统是执行者，记忆系统让它不会「失忆」，规划模块帮它把大目标拆成小步骤。</p>
+<p><img alt="" src="assets/5864e91f92-4d0470124bbf0e03ce5a5b77.png" /></p>
+<p>LangChain、LlamaIndex、AutoGen 这些主流框架，本质上都是围绕这四个组件来设计的，只是封装方式和侧重点各有不同。</p>
+<h3>🎯 面试总结</h3>
+<p>开头对话里踩了三个雷，面试时都要注意避开。</p>
+<p>第一个雷是漏掉组件，很多人只说 LLM 和工具两个，把记忆和规划模块忘了，但这两个恰恰是让 Agent 能跑复杂任务的关键。</p>
+<p>第二个雷是对记忆的理解太浅，「记忆就是上下文」这个回答不完整，正确的说法是记忆分两层：短期记忆放在 context window 里，存当前任务的中间状态；长期记忆用向量数据库实现，能跨任务保存用户偏好和历史，两者机制和用途完全不同。</p>
+<p>第三个雷是工具系统的分工理解有偏差，模型本身不执行工具，它只是输出「调哪个工具、传什么参数」的决策，真正执行是你的代码，这个「决策和执行分离」的设计是面试里很容易被追问的点。</p>
+<p>答好这道题，能把四个组件和类比（LLM 是老板、工具是外包团队、记忆是档案室、规划是项目经理）结合起来说，会非常加分。</p>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-agent:02",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

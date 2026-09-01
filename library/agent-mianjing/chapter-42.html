@@ -1,0 +1,153 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MCP（Model Context Protocol） · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">MCP（Model Context Protocol）</span></nav><div class="module-meta">Agent 工程 · 第 42 / 55 章</div><h1>MCP（Model Context Protocol）</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>随着 AI Agent 技术的发展，系统中可调用的工具、数据资源以及外部服务越来越多。 在简单的应用中，开发者可以通过手动配置 Tool 或 Function 来完成调用，但当系统规模不断扩大 时，工具管理、资源访问以及上下文传递都会变得越来越复杂。</p>
+<p>例如，一个企业级 AI Agent 系统可能需要访问：</p>
+<ul>
+<li>
+<p>企业内部数据库</p>
+</li>
+<li>
+<p>文档知识库</p>
+</li>
+<li>
+<p>搜索服务</p>
+</li>
+<li>
+<p>文件系统</p>
+</li>
+<li>
+<p>API 服务</p>
+</li>
+</ul>
+<p>• 第三方 SaaS 系统</p>
+<p>如果每一种资源都通过单独的接口接入，那么系统架构会变得非常混乱，同时也难以实现统一的权限 控制与上下文管理。 为了解决这一问题，提出了 MCP（Model Context Protocol，模型上下文协议）。</p>
+<p><img alt="" src="assets/7ecd10e6fe-agent-.pdf-0198-00.png" /></p>
+<p>MCP 的核心目标是：</p>
+<p>为大模型提供统一的工具、资源和上下文访问协议，使 AI Agent 可以以标准化方式访问外部系统。 简单来说，MCP 相当于为 AI Agent 构建了一层 标准化的能力接口层，使得模型可以像访问操作系统资 源一样访问各种工具和数据。</p>
+<h5>MCP 概念</h5>
+<p>MCP（Model Context Protocol）是一种用于连接 大模型与外部系统 的开放协议。</p>
+<p><img alt="" src="assets/325f8f9b77-agent-.pdf-0199-00.png" /></p>
+<p>它的设计目标是让模型能够安全、标准化地访问各种外部资源。 在传统 AI 系统中，模型通常只能访问有限的输入信息，例如：</p>
+<ul>
+<li>
+<p>用户问题</p>
+</li>
+<li>
+<p>系统 Prompt</p>
+</li>
+<li>
+<p>历史对话</p>
+</li>
+<li>
+<p>而 MCP 则扩展了模型可访问的上下文来源，使模型可以动态获取更多信息，例如：</p>
+</li>
+<li>
+<p>企业数据库数据</p>
+</li>
+<li>
+<p>文件系统内容</p>
+</li>
+<li>
+<p>知识库文档</p>
+</li>
+<li>
+<p>实时 API 数据</p>
+</li>
+<li>
+<p>外部工具执行结果</p>
+</li>
+</ul>
+<p>因此，在 MCP 架构下，大模型不再只是一个文本生成组件，而是成为一个能够 主动获取上下文并执行 任务的智能代理。</p>
+<p>从系统结构来看，MCP 主要解决三个问题：</p>
+<p>第一，统一工具访问方式。</p>
+<p>不同工具可以通过 MCP 注册为标准能力，模型可以通过统一接口调用。</p>
+<p>第二，统一资源访问方式。</p>
+<p>文件、数据库、API 等资源都可以通过 MCP 暴露给模型。</p>
+<p>第三，统一上下文管理。 模型在推理过程中所需的上下文可以通过 MCP 动态获取，而不是完全依赖 Prompt。</p>
+<h5>MCP 架构</h5>
+<p>从系统设计角度来看，MCP 通常位于 LLM 与外部系统之间，充当一个能力协调层。 一个典型的 MCP 架构如下：</p>
+<p><code>1 User 2</code> ↓ <code>3 AI Agent 4</code> ↓ <code>5 LLM Reasoning 6</code> ↓ <code>7 MCP Client 8</code> ↓ <code>9 MCP Server 10</code> ↓ <code>11 Tools / Data / Services</code></p>
+<p>在这一架构中，各组件承担不同职责。</p>
+<p><strong>User</strong></p>
+<p>用户向 AI Agent 提出问题或任务请求，例如查询数据、执行操作或分析信息。 AI Agent</p>
+<p>Agent 负责整体任务协调，包括：</p>
+<ul>
+<li>
+<p>解析用户需求</p>
+</li>
+<li>
+<p>触发模型推理</p>
+</li>
+<li>
+<p>调用工具或资源</p>
+</li>
+<li>
+<p>整合最终结果</p>
+</li>
+</ul>
+<p>LLM Reasoning</p>
+<p>大模型负责推理和决策，例如：</p>
+<ul>
+<li>
+<p>是否需要访问外部资源</p>
+</li>
+<li>
+<p>调用哪个工具</p>
+</li>
+<li>
+<p>需要哪些上下文信息</p>
+</li>
+</ul>
+<p><strong>MCP Client</strong></p>
+<p>MCP Client 是 Agent 侧的组件，用于向 MCP Server 发起请求。</p>
+<p>当模型需要访问资源或调用工具时，Agent 会通过 MCP Client 向服务器发送请求。</p>
+<p><strong>MCP Server</strong></p>
+<p>MCP Server 是 MCP 架构中的核心组件，它负责：</p>
+<ul>
+<li>
+<p>管理所有工具和资源</p>
+</li>
+<li>
+<p>提供统一的访问接口</p>
+</li>
+<li>
+<p>执行工具调用</p>
+</li>
+<li>
+<p>返回执行结果</p>
+</li>
+</ul>
+<p>Tools / Data / Services</p>
+<p>这些是系统真正的能力来源，包括：</p>
+<ul>
+<li>
+<p>业务 API</p>
+</li>
+<li>
+<p>企业数据库</p>
+</li>
+<li>
+<p>文件系统</p>
+</li>
+<li>
+<p>搜索引擎</p>
+</li>
+<li>
+<p>计算服务</p>
+</li>
+</ul>
+<p>MCP Server 会将这些能力统一封装，并暴露给 AI Agent。</p>
+<h5>MCP 的核心优势</h5>
+<p>相比传统的 Tool Calling 或 Function Calling，MCP 提供了更系统化的能力管理方式。 首先是 统一标准接口。 所有工具和资源都可以通过 MCP 以统一协议接入，这大大降低了系统集成复杂度。 其次是 可扩展能力体系。 当需要新增工具或数据源时，只需要在 MCP Server 中注册即可，不需要修改 Agent 核心逻辑。 第三是 上下文动态获取能力。 模型在推理过程中可以根据需要获取新的上下文信息，而不是依赖一次性输入。 最后是 安全与权限控制。 MCP 可以在服务器层实现访问控制，确保模型只能访问授权资源。</p>
+<h5>MCP 在 AI Agent 系统中的作用</h5>
+<p>在现代 AI Agent 架构中，MCP 可以看作是 Agent 的能力基础设施。 它主要承担三个关键角色：</p>
+<p><strong>能力管理中心</strong></p>
+<p>所有工具和资源通过 MCP 注册和管理。</p>
+<p>上下文提供层</p>
+<p>模型在推理时可以动态获取所需信息。</p>
+<p><strong>系统集成层</strong></p>
+<p>企业内部系统、外部 API 和数据资源都可以通过 MCP 接入。 因此，在大型 AI Agent 系统中，MCP 往往成为连接 LLM、工具系统以及企业数据平台 的核心组件。</p>
+<h5>Function Calling 与 MCP 的区别</h5>
+<p>Function Calling 和 模型上下文协议（MCP） 都涉及模型与外部功能交互，但侧重点不同：</p>
+<p><img alt="" src="assets/1c4e3d0edc-agent-.pdf-0202-05.png" /></p>
+<p>简而言之，Function Calling 更像是“模型内部的即时函数调用”，而 MCP 是“代理与外部工具的标 准化接口”，两者可以结合使用：代理通过 MCP 集成工具，内部语言模型通过 Function Calling 调用 具体函数，实现更智能的操作。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-41.html">← 上一章</a><a href="chapter-43.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:42",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

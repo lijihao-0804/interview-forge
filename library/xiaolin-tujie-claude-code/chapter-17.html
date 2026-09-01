@@ -1,0 +1,372 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 主循环 Query 图解：一轮对话是怎么跑起来的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 主循环 Query 图解：一轮对话是怎么跑起来的？</span></nav><div class="module-meta">Agent 工程 · 第 17 / 19 章</div><h1>Claude Code 主循环 Query 图解：一轮对话是怎么跑起来的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
+<p>最近有位林友跟我说，他去面试，被问到一道很硬核的题目：「介绍一下 Claude Code 主循环 Query 的流程？」</p>
+<p>这题面试官想考的，其实不是 Claude Code 本身，而是看你对一个工业级 Agent 的循环架构有没有真正想过。</p>
+<p>你是停在「调模型、跑工具」这种皮毛上，还是真的往下挖过：模型吐字的时候怎么控？出错了怎么兜？状态怎么跨轮不丢？这才是面试官想听你聊的东西。</p>
+<p>很可惜，这位林友当时只答到「就是一个 while 循环，调模型、跑工具、再调模型」就接不下去了，面试官摇了摇头让他先回去等通知。</p>
+<p>今天这篇文章，我就把 <strong>Claude Code 源码里这个主循环（叫 queryLoop）的设计</strong>，由浅入深给大家扒一遍。</p>
+<p>整个主循环的实现核心在一个 1729 行的文件里，我会带着大家解答下面这些疑问，比如：</p>
+<ul>
+<li>敲完回车，Claude Code 内部到底发生了什么？</li>
+<li>从 ask 到 queryLoop：一句话怎么穿过四层调用？</li>
+<li>Agent 怎么知道「该用工具」还是「该停下来」？</li>
+<li>模型还在吐字、工具就开跑了？这怎么做到的？</li>
+<li>工具跑挂之后，对话凭什么还能继续？</li>
+<li>模型输出被截断了，怎么让用户根本感觉不到？</li>
+</ul>
+<p>文章依旧硬核到底，发车！</p>
+<h3>一、敲完回车，Claude Code 内部到底发生了什么？</h3>
+<p>我们先从一个最朴素的场景开始。</p>
+<p>你在终端打开 Claude Code，敲一句「帮我修复这个 bug」，然后回车。30 秒后，Claude 给你返回了修复方案，并且把代码也改好了。</p>
+<p>这 30 秒里，到底发生了什么？</p>
+<p>很多没接触过 Agent 开发的同学，第一反应是：「这有啥，就是把你的问题发给大模型，大模型回个答案嘛。」</p>
+<p>如果真这么简单，那 Claude 怎么知道你说的「这个 bug」具体在哪个文件？它又是怎么把代码改到磁盘上的？</p>
+<p><img alt="多轮循环示意图" src="assets/4b71b42af3-7f9951305cdb9e91e46b3ba7.png" /></p>
+<p><em>多轮循环示意图</em></p>
+<p>真实情况是这样的：你这句话发出去之后，大模型第一次回复你的可能不是答案，而是「我需要先看一下你提到的那个文件」。</p>
+<p>Claude Code 听到这个，就去读那个文件，把文件内容塞回去再问一遍。大模型这时候可能又说「我得跑一下测试看看现在的报错」，于是 Claude Code 又去跑测试，把报错塞回去……</p>
+<p>来来回回好几轮，模型才会说「我知道了，这个 bug 是因为 X，我已经把修复写好了」。</p>
+<p>这时候这一轮对话才真正结束。</p>
+<p><strong>这个不停「调模型 → 看结果 → 决定下一步」的循环，就叫主循环（Query Loop），是整个 Agent 的「心脏」。</strong></p>
+<p><img alt="Agent 心脏示意图" src="assets/bd89a9bf03-91835ebefdd8c7e2e00b4171.png" /></p>
+<p><em>Agent 心脏示意图</em></p>
+<p>理解到这一层还不够。主循环这个东西，你们听上去会觉得很简单：</p>
+<div class="codehilite"><pre><code>while (true) {
+  调模型()
+  if (模型说要用工具) {
+    执行工具()
+  } else {
+    break
+  }
+}
+</code></pre></div>
+<p>如果真这么写，能跑通一个 demo，但在真实生产环境里会被千锤百炼出无数个 bug：</p>
+<ul>
+<li>用户中途按 Ctrl+C 怎么办？</li>
+<li>工具跑到一半挂了，下一轮调模型会被 API 直接拒收，怎么救？</li>
+<li>模型输出超长被截断了，怎么续？</li>
+<li>上下文太长塞不进去了，要不要压缩？什么时候压？</li>
+<li>跑了 50 轮还没收敛，要不要强行止损？</li>
+</ul>
+<p>Claude Code 的 1729 行主循环代码，80% 都在处理这些「异常路径」，真正的「正常路径」可能 200 行就写完了。这也是我说它是一份工业级教科书的原因。</p>
+<p><img alt="主循环代码占比柱状图" src="assets/ebfba2db4d-f8722b8910e6f9ab00495775.png" /></p>
+<p><em>主循环代码占比柱状图</em></p>
+<p>接下来我们一层一层剥开。</p>
+<h3>二、从 ask 到 queryLoop：一句话怎么穿过四层调用？</h3>
+<p>要讲清楚主循环，得先看你在终端敲的那句话，在代码里到底走了几道关。</p>
+<p>为什么要分层？我打个生活类比。</p>
+<p>你家水龙头流出来的水，看上去就是「打开龙头水就来」，背后其实经过了四道关：水厂净化 → 街道主管线 → 小区水箱加压 → 你家管道末端。每一道关都有自己的职责，不能直接把水厂接到你家水龙头，那样既不安全也不灵活。</p>
+<p>Claude Code 的主循环也是这样分层的：最外面一层管「你怎么用它」（就像水龙头），往里一层管「这次对话怎么记账」（就像小区水箱缓存水量），再往里一层管「怎么把事件源源不断吐给外面」（就像主管线持续供水），最里面那一层才是「真正干活的循环本体」（就像水厂在 24 小时净化）。</p>
+<p>这四层从外到内分别叫 <code>ask</code>、<code>QueryEngine.submitMessage</code>、<code>query</code>、<code>queryLoop</code>。</p>
+<p>这四层在源码里的调用关系，简化成伪代码长这样：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// 第一层 ask：SDK 入口，一次性调用</span>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">ask</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">engine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">QueryEngine</span><span class="p">(</span><span class="nx">config</span><span class="p">)</span>
+<span class="w">  </span><span class="k">yield</span><span class="o">*</span><span class="w"> </span><span class="nx">engine</span><span class="p">.</span><span class="nx">submitMessage</span><span class="p">(</span><span class="nx">params</span><span class="p">.</span><span class="nx">prompt</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// 第二层 QueryEngine：管这次对话的会话状态</span>
+<span class="kd">class</span><span class="w"> </span><span class="nx">QueryEngine</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">async</span><span class="w"> </span><span class="o">*</span><span class="nx">submitMessage</span><span class="p">(</span><span class="nx">prompt</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 处理 /斜杠命令、组装系统提示、注入上下文 ……</span>
+<span class="w">    </span><span class="k">yield</span><span class="o">*</span><span class="w"> </span><span class="nx">query</span><span class="p">({</span><span class="w"> </span><span class="nx">messages</span><span class="p">,</span><span class="w"> </span><span class="nx">systemPrompt</span><span class="p">,</span><span class="w"> </span><span class="nx">tools</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 第三层 query：流式包装层</span>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">query</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">yield</span><span class="o">*</span><span class="w"> </span><span class="nx">queryLoop</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// 第四层 queryLoop：核心循环本体</span>
+<span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">queryLoop</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 准备消息 → 调模型 → 判断 → 执行工具 → 塞回结果</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>注意每一层都是 <code>yield*</code> 接力往下传，意味着最里面 <code>queryLoop</code> 抛出的每一个事件，都能原封不动一路冒到最外面 <code>ask</code> 的调用方手里。这是「边干边吐」这条流水线能贯通的关键。</p>
+<p><img alt="四层调用链水流类比图" src="assets/0f64dbef01-1918eddb7c28ad5b365f18c5.png" /></p>
+<p><em>四层调用链水流类比图</em></p>
+<p>我们从外往里看每一层。</p>
+<p><strong>最外面那层叫 <code>ask</code></strong>，是给 SDK 一次性调用的便捷入口。你写个脚本想跑一次 Claude，最少代码量就是 <code>await ask({ prompt, ... })</code>。它内部其实只做一件事：新建一个 <code>QueryEngine</code> 实例，然后转交给它。</p>
+<p><strong>第二层 <code>QueryEngine</code></strong> 才是真正管「会话」的家伙。它维护着这次对话的消息历史、文件缓存、权限拒绝记录这些跨轮持久化的状态。你可以把它想象成一个对话窗口的「记账本」，每说一句话、每读一个文件，都得在它这里登记。</p>
+<p><strong>第三层 <code>query</code></strong> 长得很特殊，它是个「会一边干活一边吐结果」的函数。普通函数是干完所有事情、最后一次性 <code>return</code> 一个结果。但 <code>query</code> 不一样，它会在干活的过程中，每完成一件事就立刻把结果抛出去给外面用。这种「边干边吐」的函数，在 JavaScript 里有个专门的名字，叫<strong>异步生成器</strong>（async generator）。</p>
+<p><strong>最内层 <code>queryLoop</code></strong> 才是 <code>while (true)</code> 循环本体，是真正干活的「心脏」。</p>
+<p>讲到这里你可能会问：为啥要分这么多层？尤其是 <code>query</code> 这一层，它就只是个简单的包装，为啥不直接把 <code>queryLoop</code> 暴露出去？</p>
+<p>这就要讲到主循环最关键的一个设计选择：<strong>为什么必须用异步生成器？</strong></p>
+<p>我们用一个生活类比来理解。</p>
+<p><img alt="水龙头 vs 水桶类比图" src="assets/cbecfa4976-561c0bd520e26f6117b8cd54.png" /></p>
+<p><em>水龙头 vs 水桶类比图</em></p>
+<p>普通的 <code>async</code> 函数，就像让你接一桶水。你打开水龙头之后，必须等水接满了，整桶端走，才能用。对应到 Agent 上，就是「你问一句，等几十秒模型把完整答案吐完，你才能看到结果」。</p>
+<p>异步生成器就是水龙头本身。模型每吐出一个字符、每跑完一个工具，立刻就能流出来给你看。</p>
+<p>这就是为什么你在 Claude Code 里敲完回车，能立刻看到模型一个字一个字地在打字，而不是干等几十秒突然蹦出一大段文字。这种「边干边吐」的能力，不仅是用户体感，更是后面第五章会讲到的「流式 + 并行工具执行」的前提条件。</p>
+<p><img alt="事件接力流水线示意图" src="assets/e6b1130f82-6c2041a73a84d5d58d7268c6.png" /></p>
+<p><em>事件接力流水线示意图</em></p>
+<p>异步生成器的语法长什么样？我们看一眼源码（来自 <code>query.ts</code>），里面有两个关键标记：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">query</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">terminal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">yield</span><span class="o">*</span><span class="w"> </span><span class="nx">queryLoop</span><span class="p">(</span><span class="nx">params</span><span class="p">,</span><span class="w"> </span><span class="p">...)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">terminal</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>第一个是函数前面那个 <code>*</code>（写法是 <code>async function*</code>），它告诉 JS 这是一个异步生成器，不是普通函数。第二个是 <code>yield*</code> 这个表达式，它的意思是「把 <code>queryLoop</code> 里所有抛出来的东西，原封不动地接力往外抛」，专门用来串联两个生成器。</p>
+<p>这层包装看上去什么都没做，但它的作用是把对话生命周期的收尾工作（比如最后还要通知一些清理事件），和核心循环逻辑解耦开，让 <code>queryLoop</code> 只管「转圈」，不操心「转完之后还要给谁打招呼」。</p>
+<p><img alt="四层职责对照表" src="assets/8067b1da11-cbac7dc863db6d73e460cb07.png" /></p>
+<p><em>四层职责对照表</em></p>
+<p>四层调用链解释完了，我们终于可以走进最里面那间屋子，看看主循环转一圈到底干了啥。</p>
+<h3>三、主循环转一圈，到底跑了哪些动作？</h3>
+<p><code>queryLoop</code> 这个函数有近 1500 行，但骨架就是一个 <code>while (true)</code>。每一轮迭代，按顺序做五件事。</p>
+<p><img alt="主循环五步流程图" src="assets/c8ca04a5dd-fb96cb7772504b38cd62e5c3.png" /></p>
+<p><em>主循环五步流程图</em></p>
+<p>这张图就是整个主循环的「素描」。如果你更喜欢从代码视角看，把这个流程翻译成伪代码就是：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">queryLoop</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">messages</span><span class="o">:</span><span class="w"> </span><span class="p">[...],</span><span class="w"> </span><span class="nx">turnCount</span><span class="o">:</span><span class="w"> </span><span class="kt">1</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 1. 准备消息：必要时压缩</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">messagesForQuery</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">maybeCompact</span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">messages</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// 2. 流式调大模型，边收边处理</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">toolUseBlocks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">needsFollowUp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">callModel</span><span class="p">(</span><span class="nx">messagesForQuery</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">yield</span><span class="w"> </span><span class="nx">chunk</span><span class="w">  </span><span class="c1">// 文字块即时抛给用户</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">chunk</span><span class="w"> </span><span class="nx">是</span><span class="w"> </span><span class="nx">tool_use</span><span class="w"> </span><span class="nx">块</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nx">toolUseBlocks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">chunk</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">needsFollowUp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 3. 判断继续还是结束</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">needsFollowUp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">reason</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;completed&#39;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 4. 执行所有 tool_use（可并行/串行）</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">toolResults</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">runTools</span><span class="p">(</span><span class="nx">toolUseBlocks</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1">// 5. 塞回结果进下一轮</span>
+<span class="w">    </span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="p">...</span><span class="nx">state</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">messages</span><span class="o">:</span><span class="w"> </span><span class="p">[...</span><span class="nx">messagesForQuery</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="nx">assistantMessages</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="nx">toolResults</span><span class="p">],</span>
+<span class="w">      </span><span class="nx">turnCount</span><span class="o">:</span><span class="w"> </span><span class="kt">state.turnCount</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// continue 回到 while 头部</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>伪代码里这个 <code>state</code> 对象就是第六章要展开讲的「跨轮状态对象」，这里先记个脸熟。</p>
+<p>下面我把每一步拆开讲。</p>
+<p><strong>第一步：准备消息。</strong></p>
+<p>每一轮开始，主循环要拿到「截至目前的完整对话历史」，准备喂给模型。这里有个细节很容易被想当然：消息历史不是每轮开头都主动压一遍的，而是<strong>被动触发</strong>。主循环先按原样把消息发出去，<strong>只有 API 返回 <code>prompt_too_long</code>（413）拒收</strong>了，才补救压缩一次再重试这一轮。如果压完还是塞不下，就老老实实退出。</p>
+<p>为什么不主动压？因为压缩本身也要烧 token 调一次小模型做摘要，能不压就不压。主循环的策略很朴素：先试试看，被拒了再补救。</p>
+<p><code>State.hasAttemptedReactiveCompact</code> 这个标志位的作用，是<strong>同一轮内防止反复压</strong>。一次压完还是塞不下，就别再压第二次了，避免陷入「压缩 → 还是塞不下 → 再压」的死循环。新一轮开始时这个标志会被重置。</p>
+<p>Claude Code 的压缩策略我之前专门写过一篇（公众号文章《<a href="https://mp.weixin.qq.com/s/NBR6dRr3iO7KCTEChk8QUg">Claude Code 上下文压缩机制详解</a>》），这里就不重复展开了。</p>
+<p><img alt="消息历史滚雪球示意图" src="assets/22743c4ea6-460a5b8407b1b6ffe57d9b1d.png" /></p>
+<p><em>消息历史滚雪球示意图</em></p>
+<p><strong>第二步：流式调大模型。</strong></p>
+<p>讲这一步之前，我得先帮大家把一个后面会反复出现的概念铺一下，否则后面看代码会很懵。</p>
+<p><strong>模型回话的两种姿势</strong></p>
+<p>大模型每次回复你的内容，并不是只有一种格式。仔细看 Claude API 的返回，你会发现模型每次回复，里面可能塞着两种东西：</p>
+<ul>
+<li>第一种是「文字块」，就是普通的文字内容，比如「这个 bug 是因为变量没初始化」。这是模型在跟你说话。</li>
+<li>第二种是「工具调用块」，长得像 <code>{ 工具名: "Read", 参数: { 文件路径: "config.ts" } }</code> 这种结构化的请求。这是模型在告诉你「我现在想用某某工具，参数是这些，麻烦你帮我跑一下」。</li>
+</ul>
+<p>这种「工具调用块」在 Anthropic API 协议里有个专门的名字，叫 <code>tool_use</code> 块（直译就是「使用工具」的意思）。后面的文字里我会经常用这个词，你只要记住「模型说要用工具的请求，就叫一个 <code>tool_use</code> 块」就够了。</p>
+<p><img alt="文字块 vs tool_use 块对比图" src="assets/c8be3149b9-dbec6fd67ec9761d98b214e1.png" /></p>
+<p><em>文字块 vs tool_use 块对比图</em></p>
+<p>铺垫完毕，回到第二步。</p>
+<p>调模型这一步是用流式接收的，模型每吐出一小段内容（可能是几个字符），主循环立刻就能拿到。收到的可能是文字块的一部分，也可能是 <code>tool_use</code> 块的一部分。</p>
+<p>主循环一边收，一边干两件事：把文字块往上抛出去（让用户能即时看到模型在打字），把 <code>tool_use</code> 块攒起来准备等会儿执行。</p>
+<p><strong>第三步：判断继续还是结束。</strong></p>
+<p>模型流完之后，主循环要回答一个最核心的问题：<strong>这一轮对话结束了，还是要继续？</strong></p>
+<p>这是整个主循环的「决策点」，我下一章专门讲。</p>
+<p><strong>第四步：执行所有 tool_use。</strong></p>
+<p>如果判断要继续，就把模型这一轮要求的所有工具调用都跑掉，拿到每个工具的执行结果。Claude Code 在这一步有一个非常骚的「流式并行」设计，第五章细讲。</p>
+<p><strong>第五步：塞回结果，进下一轮。</strong></p>
+<p>所有工具结果跑完了，把它们当作「user 角色的消息」塞回消息历史里，更新一下「跨轮要带的状态对象」（这个状态对象第六章会专门讲），然后 <code>continue</code> 回到 <code>while</code> 头部。</p>
+<p><img alt="五步骨架环形图" src="assets/e3f26b1836-49a6b33ba489b844fe7b7b39.png" /></p>
+<p><em>五步骨架环形图</em></p>
+<p>注意一个细节：每跑一轮，消息历史都会变长（assistant 的回复 + 工具结果）。如果主循环跑了 20 轮，那第 20 轮发给模型的消息历史里，就有前 19 轮所有的对话和工具结果。</p>
+<p>这也是为什么压缩机制要存在：消息历史会像滚雪球一样越滚越大，不压就会爆炸。</p>
+<p><img alt="一轮迭代消息累积示意图" src="assets/b529e0b37f-95415ff2345a30a9f547783b.png" /></p>
+<p><em>一轮迭代消息累积示意图</em></p>
+<p>主循环的骨架就这样。但「骨架」不等于「细节」，真正考验工程功力的是后面三章要讲的东西。</p>
+<h3>四、Agent 怎么知道「该用工具」还是「该停下来」？</h3>
+<p>承接上一章的「决策点」，主循环第三步那个判断到底怎么做的？</p>
+<p>我跟你说，这个判断简单到出乎你的意料：<strong>就看模型返回里有没有 <code>tool_use</code> 块</strong>。</p>
+<p>主循环内部用一个布尔变量记录「这一轮要不要继续」，这个变量在源码里叫 <code>needsFollowUp</code>（直译就是「需要后续动作」）。判断逻辑就一条：</p>
+<ul>
+<li>有 <code>tool_use</code> 块 → 把 <code>needsFollowUp</code> 标记为 true → 执行工具 → 继续循环</li>
+<li>没有 <code>tool_use</code> 块 → 模型在跟你说话 → 结束循环</li>
+</ul>
+<p>退出的时候，主循环还会附带一个「退出原因码」（在源码里叫 <code>reason</code>），告诉外面是因为啥结束的。最常见的退出原因叫 <code>completed</code>，意思就是「正常完成」。代码大致长这样：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">needsFollowUp</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// 模型没要求调工具，对话正常结束</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">reason</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;completed&#39;</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+<span class="c1">// 有 tool_use，跑完工具后 continue 回循环头</span>
+</code></pre></div>
+<p>就这么个判断，没有什么复杂的状态机，没有什么意图识别，没有什么投票表决。</p>
+<p>为啥这么简单？因为「决定下一步做什么」这件事，本身就是大模型的工作。你只要看它最后吐出来的是「文字」还是「工具调用请求」，就知道它的意图了。</p>
+<p>我打个比方。你跟工位旁边的同事说：「帮我看下这个 bug。」他要么回你：「我得先看看你那段代码。」（动手 → 用工具），要么直接告诉你：「这是因为 X 导致的，你这样改一下就好了。」（停下 → 给答复）。</p>
+<p>Claude 主循环的判断逻辑就是这么朴素。</p>
+<p><img alt="tool_use 决策类比图" src="assets/a760ec240d-aef4a27244f8564a3cc0c508.png" /></p>
+<p><em>tool_use 决策类比图</em></p>
+<p><strong>但是！「停下来」并不只有「正常完成」这一种姿势。</strong></p>
+<p>这才是真正的工程深水区。</p>
+<p>在 Claude Code 的主循环里，退出原因有十多种，每一种背后都对应着一个曾经踩过的坑：</p>
+<ul>
+<li><strong>正常完成</strong>（<code>completed</code>）：模型说「搞定了」，对话结束。这是最幸福的一种</li>
+<li><strong>轮数封顶</strong>（<code>max_turns</code>）：调用方传了 <code>maxTurns</code> 参数时生效，跑到上限就强行止损，防止模型跑飞烧钱（不传则不封顶，由其他退出条件兜底）</li>
+<li><strong>流式调模型时被中断</strong>（<code>aborted_streaming</code>）：模型还在吐字，用户按了 Ctrl+C</li>
+<li><strong>工具执行时被中断</strong>（<code>aborted_tools</code>）：工具跑到一半，用户按了 Ctrl+C</li>
+<li><strong>输入超长救不回来</strong>（<code>prompt_too_long</code>）：消息历史太长，连压缩都塞不进上下文窗口</li>
+<li><strong>输出超长救不回来</strong>（<code>max_output_tokens_recovery</code>）：模型输出被截断，尝试 3 次续写后还是不行</li>
+<li><strong>被用户钩子拦下</strong>（<code>stop_hook_prevented</code>）：用户配置了自定义钩子主动喊停（比如规定 git push 前必须先跑 lint，lint 没过就拦下，这个钩子机制叫 Stop Hook）</li>
+<li><strong>图片格式错误</strong>（<code>image_error</code>）：传图的时候格式不对</li>
+</ul>
+<p>这里列的是最有代表性的 8 个。源码里实际定义了 17 种 <code>reason</code>，剩下的多是细分子情况，原理一致，不影响理解。</p>
+<p>看到这十几种 reason，你应该能感受到一件事：<strong>一个工业级的 Agent 主循环，它要兜住的从来不是「正常退出」，而是十几种「异常退出」。</strong></p>
+<p>我们用一张图把这些退出 reason 按性质归一下类：</p>
+<p><img alt="主循环退出原因分类图" src="assets/10b182efed-339413b5173035d8c83c60c4.png" /></p>
+<p><em>主循环退出原因分类图</em></p>
+<p>这张图能让你直观感受到：<strong>正常完成只是分支里最小的一支，其他三支才是大头</strong>。</p>
+<p>每一种异常退出，都不是一个简单的 <code>throw new Error</code>，而是需要：</p>
+<ul>
+<li>第一，识别这种错误状态（每种错误的特征不一样）；</li>
+<li>第二，做必要的清理（比如取消正在跑的工具、解锁资源）；</li>
+<li>第三，返回结构化的 <code>reason</code>，让外层调用者知道是什么原因结束的，方便上报、重试或者给用户友好提示。</li>
+</ul>
+<p><img alt="主循环工程量冰山图" src="assets/594550b309-3a0f5b94ac9aa2c54c2b0dca.png" /></p>
+<p><em>主循环工程量冰山图</em></p>
+<p>这才是「主循环」三个字背后真正的工程量。</p>
+<h3>五、模型还在吐字、工具就开跑了？这怎么做到的？</h3>
+<p>讲完决策，我们看主循环第四步：执行工具。</p>
+<p>这一步是 Claude Code 整个主循环里最骚的设计，我必须单独开一章来讲。</p>
+<p>我们先想想朴素做法是什么样的。</p>
+<p><img alt="朴素串行 vs 流式并行时间线" src="assets/286696c789-6e99d4809e0c3e2a3daaf551.png" /></p>
+<p><em>朴素串行 vs 流式并行时间线</em></p>
+<p>朴素做法是这样的：</p>
+<ul>
+<li>第一步，等模型完整流完，把所有 <code>tool_use</code> 块都收齐。</li>
+<li>第二步，挨个执行这些工具，等所有工具跑完。</li>
+<li>第三步，把结果塞回去，进下一轮。</li>
+</ul>
+<p>这个流程没毛病，能跑通。但仔细想想，<strong>模型在「吐字」期间，工具在干等。工具开始执行了，模型又在干等。两段时间完全串行，CPU 和网络都在浪费</strong>。</p>
+<p>Claude Code 的做法是这样：</p>
+<p><strong>模型一边流式输出，主循环就一边监听。一旦识别出一个完整的 <code>tool_use</code> 块，立刻把它丢给后台开始执行，不等模型流完。等模型流完，最早开始执行的那个工具，可能已经回结果了。</strong></p>
+<p>这个负责后台执行的对象叫 <code>StreamingToolExecutor</code>（直译就是「流式工具执行器」）。它的核心就两个动作：「边收边开跑」和「最后一次性收结果」。</p>
+<p>我把源码精简到最小，就两行：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// 模型流式输出时，每识别到一个工具调用就立刻丢到后台开跑</span>
+<span class="nx">streamingToolExecutor</span><span class="p">.</span><span class="nx">addTool</span><span class="p">(</span><span class="nx">toolBlock</span><span class="p">,</span><span class="w"> </span><span class="nx">message</span><span class="p">)</span>
+
+<span class="c1">// 模型流完后，把所有已完成的工具结果一次性收回来</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">toolUpdates</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">streamingToolExecutor</span><span class="p">.</span><span class="nx">getRemainingResults</span><span class="p">()</span>
+</code></pre></div>
+<p>第一行 <code>addTool</code>，发生在主循环监听到模型吐出一个 <code>tool_use</code> 块的瞬间。这个工具立刻在后台开跑，主循环不等它，继续监听模型的下一段输出。</p>
+<p>第二行 <code>getRemainingResults</code>，发生在模型完整流完之后。这时候所有工具都已经在后台跑了一会儿了，这里只是把已完成的结果一次性收上来。</p>
+<p><img alt="点菜类比示意图" src="assets/61c2f29f14-97938a092713749fa5384ac2.png" /></p>
+<p><em>点菜类比示意图</em></p>
+<p>用「点菜」打个比方就清楚了。</p>
+<p>传统模式是：你完整说完「我要一个红烧肉、一个清炒空心菜、一个鱼香肉丝」，服务员拿着单子跑去厨房，厨房才开始一道一道做。</p>
+<p>Claude Code 的模式是：你说「我要一个红烧肉」，服务员立刻冲到后厨喊「红烧肉一份！」，你接着说「再来一个清炒空心菜」，服务员又喊「空心菜一份！」。等你点完，红烧肉已经在锅里炒了一半了。</p>
+<p>最终上菜时间，比传统模式快了一大截。</p>
+<p><img alt="最终用时对比柱状图" src="assets/6c6f3f7346-d0445ac045487bc16e093b3a.png" /></p>
+<p><em>最终用时对比柱状图</em></p>
+<p><strong>但并不是所有工具都能这么并行</strong>。这里有个边界要讲清楚。</p>
+<p>Claude Code 的工具在定义的时候，每个工具都有一个属性，标明它是「只读」还是「会改东西的」。</p>
+<ul>
+<li>只读工具（比如 Read、Grep、Glob）：可以随便并行。你同时读 10 个文件，互不干扰</li>
+<li>会改状态的工具（比如 Edit、Write、Bash）：必须串行。两个写文件操作如果并发跑，可能互相覆盖</li>
+</ul>
+<p>这个属性是在工具定义时就声明的。</p>
+<p>如果开发者一时忘了写，框架会 <strong>fail-closed 兜底</strong>，默认当成「会改东西的工具」（值为 <code>false</code>），强制串行执行。</p>
+<p>也就是说，宁可错杀让你慢一点，也绝不会因为漏写而出现并发踩踏。</p>
+<p><img alt="只读 vs 写操作并行性对照图" src="assets/4650fe7fb2-291b15deaaf494f1eae9c9d0.png" /></p>
+<p><em>只读 vs 写操作并行性对照图</em></p>
+<p>讲到这里，我想抛出一个延伸思考：<strong>Claude Code 让 Agent 跑得快的秘密，不在于模型多聪明，而在于工程上把每一段空闲时间都榨干</strong>。</p>
+<p>这种「流式 + 并行」的设计，是把模型生成时间和工具执行时间高度重叠，最大化利用每一秒。</p>
+<p>这才是真正的工程功力。</p>
+<h3>六、出错的时候，主循环凭什么让你毫无察觉？</h3>
+<p>前面五章把主循环的正常路径讲完了。但回到开头那个问题，你按下回车后那 30 秒里，主循环转的可不只是「调模型 + 跑工具」这么干净。</p>
+<p>中间随便一个意外：网络抖一下、你按一次 Ctrl+C、模型一口气想说太多话，都可能让对话卡死、报错或者结果残缺。</p>
+<p>Claude Code 之所以让你<strong>感觉不到这些意外</strong>，是因为主循环里藏了一堆兜底机制。这一章就挑三个最关键的细节讲讲：你看不见的部分，主循环都帮你处理了什么。</p>
+<h4>6.1 跨轮状态对象：为什么不能用「全局变量」糊弄？</h4>
+<p>我们先想一个朴素问题：主循环是个 <code>while (true)</code>，那「这一轮发生了什么」要怎么传给下一轮？</p>
+<p>最朴素的做法是用闭包变量或者全局变量，比如「重试次数」就放一个外部变量，每轮 +1。能跑，但调试起来是噩梦：你看到代码继续循环了，根本不知道是因为哪个标志位被改了。</p>
+<p>Claude Code 的做法是把所有跨轮要传的字段，<strong>全部打包到一个状态对象里</strong>，每一轮迭代开头读出来，结尾构造一个新的写回去。这个状态对象在源码里叫 <code>State</code>。</p>
+<p><code>State</code> 的关键字段长这样（我精简了一下，只保留最有代表性的几个）：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="kr">type</span><span class="w"> </span><span class="nx">State</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">messages</span><span class="o">:</span><span class="w"> </span><span class="kt">Message</span><span class="p">[]</span><span class="w">                    </span><span class="c1">// 累积的对话消息历史</span>
+<span class="w">  </span><span class="nx">turnCount</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w">                      </span><span class="c1">// 当前是第几轮</span>
+<span class="w">  </span><span class="nx">maxOutputTokensRecoveryCount</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w">   </span><span class="c1">// 输出截断已经恢复了几次</span>
+<span class="w">  </span><span class="nx">hasAttemptedReactiveCompact</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span><span class="w">   </span><span class="c1">// 本轮是不是已经触发过压缩了</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><img alt="状态对象跨轮传递示意图" src="assets/0c1e1ccaa9-537e9e23512cf3f952ddc25f.png" /></p>
+<p><em>状态对象跨轮传递示意图</em></p>
+<p>注意看后面两个字段，一个是「已经恢复了几次」，一个是「本轮是不是已经压缩过了」。它们的本质都是「计数器」或「防重复标志」（同一轮内只让某件事发生一次），目的就一个：<strong>避免无限循环</strong>。</p>
+<p>举个例子：模型输出超长被截断了，主循环尝试恢复一下。如果恢复又失败，再来一次。但你不能无限重试，否则就死循环了。所以要计数：<strong>最多 3 次，超过就老老实实退出</strong>。</p>
+<p>再比如：上下文塞不下了，主循环触发一次压缩。但同一轮内只能压一次，否则连续压缩没意义还浪费 token。所以要标志位：本轮已经压过了，就别再压了。</p>
+<p>这些状态如果全藏在闭包变量里，调试的时候你根本不知道循环是因为什么继续的。摊在一个状态对象里，每一轮的「现场」都一目了然。</p>
+<p><img alt="闭包变量 vs 状态对象对照图" src="assets/39837a0489-60ec4cdcef22dcba8d972ff7.png" /></p>
+<p><em>闭包变量 vs 状态对象对照图</em></p>
+<p>这就是为什么你用 Claude Code 跑几十轮工具也不会陷进死循环，所有「还要不要继续」的标志都摊在明处，每一轮的「现场」都能干净结束，不会因为某个藏起来的变量没复位就鬼打墙。</p>
+<h4>6.2 工具跑挂之后，对话凭什么还能继续？</h4>
+<p>这是一个 Anthropic API 的「冷知识」，没踩过坑的人根本想不到。</p>
+<p>我先把这条 API 协议规矩说清楚：</p>
+<p>第三章我们讲过，模型回话时会吐出 <code>tool_use</code> 块（工具调用请求）。工具跑完之后，要把执行结果以另一种格式塞回消息历史，这种「工具执行结果」叫 <code>tool_result</code> 块。</p>
+<p><strong>API 协议有一条死规定：每个 <code>tool_use</code> 块，必须有一个对应的 <code>tool_result</code> 块跟它配对。如果消息历史里有个孤零零的 <code>tool_use</code> 没人接，下一轮请求直接被 API 拒收，报错说「工具调用 ID 对不上」。</strong></p>
+<p>正常情况下没问题，工具跑完就有结果，配对很自然。但出错的时候呢？</p>
+<p>比如：模型刚吐完 <code>tool_use</code> 块，网络突然断了，工具根本没开始跑；或者工具跑到一半，用户按了 Ctrl+C；或者模型出了问题，主循环临时切换到备用模型（这种切换机制叫「模型降级」），前一个模型吐出的 <code>tool_use</code> 就没机会执行了。</p>
+<p>这些情况下，消息历史里就有了「孤立的 tool_use 块」。你不处理，下一轮想再调模型，API 直接拒收，会返回一个「请求格式不对」的错误。</p>
+<p><img alt="孤立 tool_use 块三种场景图" src="assets/818c79ac1a-b57179b55383aadcd658e2b5.png" /></p>
+<p><em>孤立 tool_use 块三种场景图</em></p>
+<p>Claude Code 的方案听起来有点奇葩：<strong>合成一个假的工具结果塞回去，内容写「这个工具因为 XX 错误没执行」</strong>。主循环里专门有段代码干这事，函数名也很直白，直译过来就是「把缺失的工具结果块补上」（源码里叫 <code>yieldMissingToolResultBlocks</code>）。</p>
+<p>这段补救代码就三个关键：标明类型是 <code>tool_result</code>、内容是错误消息、附上对应的工具调用 ID 让 API 能配对上。简化后长这样：</p>
+<div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">yield</span><span class="w"> </span><span class="nx">一条用户角色消息</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">类型</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;tool_result&#39;</span><span class="p">,</span><span class="w">           </span><span class="c1">// 标明这是个工具结果</span>
+<span class="w">  </span><span class="nx">内容</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;这个工具没执行成功&#39;</span><span class="p">,</span><span class="w">     </span><span class="c1">// 解释为啥失败</span>
+<span class="w">  </span><span class="nx">is_error</span><span class="o">:</span><span class="w"> </span><span class="kt">true</span><span class="p">,</span><span class="w">                </span><span class="c1">// 打个错误标记</span>
+<span class="w">  </span><span class="nx">tool_use_id</span><span class="o">:</span><span class="w"> </span><span class="kt">对应的工具调用ID</span><span class="p">,</span><span class="w"> </span><span class="c1">// 让 API 能配对上</span>
+<span class="p">})</span>
+</code></pre></div>
+<p><img alt="孤立 tool_use 补救方案图" src="assets/f90a9de624-bf3b66b869b54ac6b410b8c7.png" /></p>
+<p><em>孤立 tool_use 补救方案图</em></p>
+<p>这种设计可以叫「先认错，再继续」。API 协议是死的，但通过合成一个明确标了「这是错误」的假结果，主循环至少不会因为一个错误就彻底卡死，还能让模型知道「上个工具失败了」，从而做出合理的下一步决策。</p>
+<p>这就是为什么你用 Claude Code 按 Ctrl+C 打断之后，下一句话依然能接得上，主循环替你把那个「没人接的工具调用」伪造了一个错误结果，让 API 协议这个死规矩不会因为一次中断就把整个对话废掉。</p>
+<h4>6.3 模型输出被截断了，怎么让用户根本感觉不到？</h4>
+<p>最后一个细节，关于「模型输出超长被截断」这个常见问题。</p>
+<p>模型每一次返回都有个最大 token 数限制。Claude Code 常规默认是 32k，但在某些灰度场景下（背后是个可以开关的「特性开关」控制位）会被压到 8k 以控费。一旦模型一口气想吐 12k 的内容，到 8k 就被强行截断，剩下的 4k 没出来。这种状态在 API 协议里叫「输出 token 上限错误」。</p>
+<p>换作一个简单点的实现可能就直接弹个错误框：「输出过长了，请重试」。或者更糟，干脆忽略截断，让你看到一段戛然而止的回答。</p>
+<p>Claude Code 的处理是两段式的，非常有意思。</p>
+<p><strong>第一段：静默升档。</strong></p>
+<p>模型第一次触发 8k 截断时，主循环不报错，悄悄把上限调到 64k 然后重试这一轮。用户完全感知不到出过错，只是觉得「这次模型答得稍微慢了点」。</p>
+<p><img alt="8k 到 64k 静默升档示意图" src="assets/55ba190b31-795ac2c4e506d732121ef7d7.png" /></p>
+<p><em>8k 到 64k 静默升档示意图</em></p>
+<p><strong>第二段：在下一轮消息里轻轻推一把，让模型自己续写。</strong></p>
+<p>如果调到 64k 还截断，那是真的输出太长了。</p>
+<p>这时候主循环会在下一轮的消息里，塞一段话给模型：「上次输出超长被截断了，请直接从断点续写，不要道歉、不要回顾你刚才在干什么、把剩余工作拆成更小的块」（英文原文是 <code>Output token limit hit. Resume directly — no apology, no recap...</code>，后面还会指示模型「从断点续写、把剩余工作拆小」）。</p>
+<p>让模型从断点继续往下写。</p>
+<p>这种「在消息里轻推一把提示模型续写」的动作，英文里叫 nudge（轻推）。但 nudge 不能无限循环，会陷入死锁。</p>
+<p>所以源码里写死了 3 次上限：续写 3 次还不行，主循环就老老实实退出，返回原因「输出超长救不回来」。</p>
+<p><img alt="max_output_tokens 两段式恢复流程图" src="assets/04db302a17-7d2dea2c8feb83cdd07e1ab1.png" /></p>
+<p><em>max_output_tokens 两段式恢复流程图</em></p>
+<p>我想在这里抛出一个延伸思考：<strong>工业级的容错，不是「报错弹窗」，而是用户根本感觉不到出过错</strong>。</p>
+<p>你用 Claude Code 这么多天，可能从来没注意过模型输出被截断这件事，因为它在背后默默地帮你处理了。这就是好工程的样子。</p>
+<h3>七、写在最后：主循环背后藏着哪些设计哲学？</h3>
+<p>从整篇文章扒下来，我觉得 Claude Code 主循环背后有四个设计哲学，值得反复琢磨：</p>
+<p><strong>一、边干边吐，让感知前置。</strong> 用异步生成器把每个中间事件即时抛出去，用户体感「响应快」就是这么来的。</p>
+<p><strong>二、状态显式管理。</strong> 该计数的字段全部摊在一个状态对象里，不藏在闭包变量里。能调试的状态才是可靠的状态。</p>
+<p><strong>三、引擎层不掺业务。</strong> 主循环不知道工具具体在干嘛，新增能力零侵入，只需要往工具池里塞一个新工具就完事。</p>
+<p><strong>四、错误恢复优先于优雅。</strong> 每个失败路径都有兜底。宁可丑陋地合成一个假的工具结果塞回去，也不能优雅地崩溃。</p>
+<p><img alt="面试场景呼应图" src="assets/e9adcb4310-5a98d6487de20fdb0d74f226.png" /></p>
+<p><em>面试场景呼应图</em></p>
+<p>回到开篇那个面试场景。</p>
+<p>再被问到「Claude Code 主循环 Query 是怎么跑的？」.</p>
+<p>你能从「为什么主循环不能简单写成 while true」一路讲到「工具跑挂之后怎么让对话不卡死」「模型输出截断了怎么悄悄帮用户续上」，再补一句「主循环用流式监听 + 后台并行，把模型生成时间和工具执行时间叠在一起」，面试官就知道你不是在背概念，而是真的拆过源码、想过工程问题。</p>
+<p>这才是这道面试题真正想考的东西。</p>
+<p>如果你觉得这篇文章对你有启发，欢迎点个「在看」和「赞」，这是对小林最大的肯定和帮助。</p>
+<p>我们下一篇见啦！</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-16.html">← 上一章</a><a href="chapter-18.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-tujie-claude-code:17",moduleId="xiaolin-tujie-claude-code";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -1,0 +1,179 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 架构 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Agent 架构</span></nav><div class="module-meta">Agent 工程 · 第 31 / 55 章</div><h1>Agent 架构</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>在理解了 AI Agent 的基本概念之后，我们需要进一步了解 Agent 在系统层面是如何运行的。从工程实 现角度来看，一个完整的 Agent 系统通常由 大语言模型、工具系统、执行环境以及任务循环机制共同 组成，其中大语言模型负责推理与决策，而工具系统则负责执行具体操作。 在实际应用中，大多数 Agent 系统都会遵循一种类似的运行流程，即：先理解用户请求，然后进行推 理分析，再决定是否调用工具，并根据工具返回结果继续推理，直到最终生成答案。这种运行方式可 以看作是一种 循环推理与执行的架构模式。</p>
+<p><img alt="" src="assets/f9af2d58fd-agent-.pdf-0135-02.png" /></p>
+<p><strong>典型的 Agent 架构流程如下：</strong></p>
+<table>
+<thead>
+<tr>
+<th>代码块</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>User Input</code><br>1</td>
+</tr>
+<tr>
+<td>↓<br>2</td>
+</tr>
+<tr>
+<td><code>LLM Reasoning</code><br>3</td>
+</tr>
+<tr>
+<td>↓<br>4</td>
+</tr>
+<tr>
+<td><code>Tool Selection</code><br>5</td>
+</tr>
+<tr>
+<td>↓<br>6</td>
+</tr>
+<tr>
+<td><code>Tool Execution</code><br>7</td>
+</tr>
+</tbody>
+</table>
+<p>8 ↓ <code>9 Observation 10</code> ↓ <code>11 Final Answer</code></p>
+<p>这一流程看似简单，但实际上构成了绝大多数 Agent 系统的核心运行逻辑。下面我们逐步解释每一个 环节在系统中的作用。</p>
+<h5>User Input</h5>
+<p>Agent 的运行始于用户输入。用户可以通过自然语言向系统提出问题、描述需求或者给出任务目标。 例如：</p>
+<ul>
+<li>
+<p>查询订单状态</p>
+</li>
+<li>
+<p>生成一份数据分析报告</p>
+</li>
+<li>
+<p>帮我总结一篇论文</p>
+</li>
+<li>
+<p>查询数据库中的客户信息</p>
+</li>
+</ul>
+<p>在这一阶段，系统会将用户输入作为 <strong>上下文信息（Context）</strong>发送给大语言模型。对于复杂系统来 说，还可能同时提供额外信息，例如历史对话记录、用户身份信息、系统提示词（System Prompt） 以及可用工具列表。</p>
+<p>这些信息共同构成了 Agent 的推理上下文，使模型能够理解当前任务环境。</p>
+<h5>LLM Reasoning</h5>
+<p>在接收到用户输入之后，大语言模型会进入 推理阶段（Reasoning）。这一阶段是 Agent 的核心，因 为模型需要判断当前任务应该如何完成。</p>
+<p>模型通常会思考以下问题：</p>
+<ul>
+<li>
+<p>用户真正想要完成的任务是什么</p>
+</li>
+<li>
+<p>是否需要调用外部工具</p>
+</li>
+<li>
+<p>如果需要工具，应该选择哪一个</p>
+</li>
+<li>
+<p>是否需要多步操作才能完成任务</p>
+</li>
+</ul>
+<p>例如，当用户询问“我的订单什么时候发货”时，模型会意识到这个问题需要查询订单系统，而不是 直接生成文本回答。</p>
+<p>因此，在 Reasoning 阶段，模型并不会立刻给出最终答案，而是先进行任务分析，并为下一步操作做 出决策。</p>
+<h5>Tool Selection</h5>
+<p>当模型判断任务需要借助外部能力时，就会进入 工具选择阶段（Tool Selection）。</p>
+<p>在现代 Agent 系统中，通常会为模型提供一组可调用的工具，例如：</p>
+<ul>
+<li>
+<p>搜索工具（Web Search）</p>
+</li>
+<li>
+<p>数据库查询接口（Database Query）</p>
+</li>
+<li>
+<p>向量数据库检索（Vector Retrieval）</p>
+</li>
+<li>
+<p>代码执行环境（Code Interpreter）</p>
+</li>
+<li>
+<p>业务 API（订单系统、CRM、工单系统等）</p>
+</li>
+<li>
+<p>模型会根据任务需求，从这些工具中选择最合适的一个。例如：</p>
+</li>
+<li>
+<p>查询知识 → 调用 RAG 检索工具</p>
+</li>
+<li>
+<p>查询订单 → 调用订单 API</p>
+</li>
+<li>
+<p>计算数据 → 调用代码执行工具</p>
+</li>
+</ul>
+<p>这一过程通常通过 Function Calling 或 Tool Calling 的方式实现。</p>
+<h5>Tool Execution</h5>
+<p>在确定工具之后，系统会执行对应的工具调用。此时 Agent 框架会根据模型生成的参数去调用真实的 接口或程序。</p>
+<p>例如：</p>
+<ul>
+<li>
+<p>向数据库发送 SQL 查询</p>
+</li>
+<li>
+<p>调用 REST API 获取订单信息</p>
+</li>
+<li>
+<p>在 Python 环境中执行代码</p>
+</li>
+<li>
+<p>从向量数据库中检索相关文档</p>
+</li>
+<li>
+<p>这一阶段的执行通常由系统代码完成，而不是由大语言模型直接执行。</p>
+</li>
+<li>
+<p>工具执行完成后，系统会返回执行结果，例如：</p>
+</li>
+<li>
+<p>查询到的订单状态</p>
+</li>
+<li>
+<p>检索到的知识库内容</p>
+</li>
+<li>
+<p>代码运行结果</p>
+</li>
+<li>
+<p>API 返回的数据</p>
+</li>
+</ul>
+<h5>Observation</h5>
+<p>工具返回结果后，Agent 会进入 Observation（观察）阶段。在这一阶段，工具返回的数据会被重新 输入到大语言模型中，作为新的上下文信息。</p>
+<p>模型需要基于这些信息继续进行推理。例如：</p>
+<ul>
+<li>
+<p>如果信息已经足够，就生成最终答案</p>
+</li>
+<li>
+<p>如果信息不足，则继续调用其他工具</p>
+</li>
+<li>
+<p>如果需要多步操作，则进入下一轮推理</p>
+</li>
+</ul>
+<p>这一机制使得 Agent 可以进行 多轮推理循环（Reasoning Loop），直到任务完成。</p>
+<p>例如：</p>
+<p>用户问题 → 查询数据库 → 获取数据 → 分析数据 → 生成报告 整个过程可能包含多次工具调用和多轮推理。</p>
+<h5>Final Answer</h5>
+<p>当模型判断任务已经完成时，就会生成 最终回答（Final Answer）。这个回答通常会整合所有工具执 行结果，并以自然语言的形式返回给用户。 例如：</p>
+<p>用户：我的订单什么时候发货？ Agent：您的订单已于今天下午 3 点发货，预计两天后送达。 在复杂任务中，最终输出也可能是：</p>
+<ul>
+<li>
+<p>一份数据报告</p>
+</li>
+<li>
+<p>一段代码</p>
+</li>
+<li>
+<p>一个工单编号</p>
+</li>
+<li>
+<p>• 一个任务执行结果</p>
+</li>
+</ul>
+<p>因此，Final Answer 并不仅仅是文本，而是整个 Agent 系统任务执行的最终结果。</p>
+<h5>Agent 架构的核心特点</h5>
+<p>通过以上流程可以发现，Agent 架构与传统 LLM 应用最大的区别在于：系统不再是单次生成，而是形 成一个“推理—行动—观察”的循环结构。 这种架构具有三个重要特点： 第一，模型负责决策，而系统负责执行。大语言模型只负责思考和选择工具，真正的执行由系统完 成。 第二，任务可以分解为多个步骤。Agent 可以通过多轮推理逐步完成复杂任务，而不是一次性生成答 案。 第三，系统可以不断扩展能力。只要增加新的工具接口，Agent 的能力就会随之提升。 正因为这种架构具有极强的扩展性，所以它已经成为当前 AI 应用系统设计的主流模式。许多知名框 架，例如 LangChain、AutoGPT、OpenAI Agents、CrewAI 等，都是基于类似的架构实现的。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-30.html">← 上一章</a><a href="chapter-32.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:31",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

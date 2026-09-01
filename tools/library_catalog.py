@@ -117,6 +117,22 @@ LIBRARY_MODULES = [
      "about": "面向仓颉 AI 编译器岗位面试：一条编译流水线、核心概念、AI 编译器与 Codex/Trae 的关系，含高频问答与一周准备路线。"},
     {"id": "ai-basics", "title": "AI 通识与大模型基础", "category": "基础认知", "source": "langchain/第1章. AI通识与基础/第1章. AI通识与基础 副本.md",
      "about": "从模型、数据与算力三大要素出发，讲解大模型训练与 API 调用规范，覆盖 DeepSeek、百炼等平台、本地部署与开发环境准备。"},
+    {"id": "xiaolin-agent", "title": "小林：Agent 面试题", "category": "Agent 工程", "source": "小林面试笔记AI/agent/《Agent 面试题》.md",
+     "about": "大厂 Agent 高频面试题合集：概念与架构、设计范式、任务拆分、记忆机制、反思机制、Multi-Agent 协作与工程实践。"},
+    {"id": "xiaolin-rag", "title": "小林：RAG 面试题", "category": "大模型应用", "source": "小林面试笔记AI/rag/《RAG 面试题》.md",
+     "about": "RAG 高频面试题合集：原理与流程、Chunking、Embedding、向量数据库、检索优化、Query 改写、幻觉规避与生产落地。"},
+    {"id": "xiaolin-tools", "title": "小林：LLM 工具调用面试题", "category": "大模型应用", "source": "小林面试笔记AI/tools/《LLM 工具调用面试题》.md",
+     "about": "工具调用高频面试题合集：Function Calling、MCP 协议、Agent Skill、A2A、SSE/WebSocket/WebRTC 通信与 LLM 网关。"},
+    {"id": "xiaolin-llm", "title": "小林：大模型工程面试题", "category": "大模型应用", "source": "小林面试笔记AI/llm/《大模型工程面试题》.md",
+     "about": "大模型底层工程面试题合集：Transformer、Attention 优化、训练与对齐、LoRA/QLoRA、KV Cache、量化、MoE 与 Prompt 工程。"},
+    {"id": "xiaolin-langchain", "title": "小林：LangChain 框架面试题", "category": "大模型应用", "source": "小林面试笔记AI/langchain/《LangChain 框架面试题》.md",
+     "about": "LangChain 高频面试题合集：Chain/Runnable/LCEL、Agent 构建、工具注册、记忆管理、LangGraph 与框架选型。"},
+    {"id": "xiaolin-tujie-agent", "title": "小林：图解 Agent", "category": "Agent 工程", "source": "小林面试笔记AI/tujie-agent/《图解 Agent》.md",
+     "about": "图解式 Agent 长文合集：Agent 概念、OpenClaw、RAG 图解、GraphRAG/LightRAG、Harness/Loop/Graph Engineering。"},
+    {"id": "xiaolin-tujie-claude-code", "title": "小林：图解 Claude Code", "category": "Agent 工程", "source": "小林面试笔记AI/tujie-claude-code/《图解 Claude Code》.md",
+     "about": "图解 Claude Code 实战与源码解析合集：CLAUDE.md、Skills、Subagents、MCP、上下文压缩、记忆机制与多 Agent。"},
+    {"id": "agent-mianjing", "title": "Agent 面经", "category": "Agent 工程", "source": "agent面经/《Agent 面经》.md",
+     "about": "大模型与 AI Agent 面试笔记合集：LLM 基础、Transformer、微调、Prompt、RAG、Agent 架构、Function Calling/MCP、记忆与 Multi-Agent。"},
 ]
 
 
@@ -148,6 +164,53 @@ HOT100_MODULE = {
     "unit": "题",
     "source": None,
 }
+
+# 书架展示顺序：按“Java 后端主线 → 算法刷题 → 校招冲刺 → AI 主线 → 基础设施”
+# 的学习路径显式排列，避免按登记先后随机出现。hot100 也放在算法刷题阶段。
+MODULE_ORDER = [
+    # Java 后端主线
+    "java-core",
+    "java-concurrency",
+    "jvm",
+    "operating-system",
+    "computer-network",
+    "mysql",
+    "redis",
+    "java-web",
+    "spring-family",
+    "design-patterns",
+    "message-queue",
+    "distributed-basics",
+    "microservices-highconcurrency",
+    "devops",
+    # 算法刷题
+    "hot100",
+    # 校招冲刺
+    "interview-sprint",
+    # AI 主线
+    "python",
+    "ai-basics",
+    "machine-learning",
+    "deep-learning",
+    "lora",
+    "rag",
+    "langchain",
+    "xiaolin-rag",
+    "xiaolin-tools",
+    "xiaolin-llm",
+    "xiaolin-langchain",
+    "agent-development",
+    "mcp",
+    "xiaolin-agent",
+    "xiaolin-tujie-agent",
+    "agent-mianjing",
+    "xiaolin-tujie-claude-code",
+    "agent-cli",
+    "deepseek-harness",
+    # 系统与基础设施
+    "ai-infra",
+    "compiler-interview",
+]
 
 # ----------------------------------------------------------------------------
 # 以后往登记表里加字段时的注意点：

@@ -1,0 +1,118 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>微调技术的发展与演进 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">微调技术的发展与演进</span></nav><div class="module-meta">Agent 工程 · 第 10 / 55 章</div><h1>微调技术的发展与演进</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>现在的大语言模型发展得非常快，从几亿参数到千亿参数，不仅模型越来越大，能力也越来越强。但 是在实际工作中，我们很少会从零开始训练一个这样的巨无霸模型，因为那样的成本和资源需求实在 太高了。</p>
+<p>更多的时候，我们会先用一个现成的强大模型，然后根据自己的需求对它做一些微调，让它更懂我们 的领域、更符合我们的业务和价值观。</p>
+<p>微调并不是一开始就有这么多方法，它的技术路线也是一步步发展起来的。</p>
+<h3>1. 微调的背景与动机</h3>
+<p>说到微调，首先要想清楚：我们为什么不直接训练一个新模型，而是要在别人已经训练好的模型上动 手脚？最直接的原因就是⸺成本。训练一个千亿参数的模型，不仅需要超级昂贵的硬件，还得准备海 量的高质量数据。对绝大多数企业和个人来说，这是不可能完成的任务。</p>
+<p>第二个原因是，通用模型虽然强大，但它并不一定懂你所在的行业，比如医疗、法律、金融。这就像 一个见多识广的人，可能对很多话题都能聊几句，但在某些专业领域还是需要补课。 最后，还有一个很现实的考虑：数据安全和合规。很多公司希望模型能按照自己的价值观、安全要求 和业务逻辑来回答问题，这就需要对模型进行定制化训练。</p>
+<p>换句话说，微调的出现，是为了用更低的成本、更少的资源，让模型更安全、更专业。</p>
+<h3>2. 技术发展时间线与主要方法</h3>
+<h4>2.1 2018 年及以前：全参数微调</h4>
+<p>早期的做法很直接⸺把整个模型的参数全部拿出来训练。这种方式简单粗暴，效果也非常好，但代价 就是显存消耗大、训练时间长、算力要求高，基本上是科研机构或者小模型时代的标配。 如果用几句话总结这种方法，可以这么看待：</p>
+<ul>
+<li>
+<p>更新全部参数，效果最佳</p>
+</li>
+<li>
+<p>显存和算力需求高</p>
+</li>
+<li>
+<p>适合小模型或科研任务</p>
+</li>
+</ul>
+<h4>2.2 2019 年：特征提取</h4>
+<p>这个阶段的思路是，不去动模型内部的结构，而是把它当作一个固定的特征提取器，用它处理数据， 然后在输出的特征上接一个新的分类器或其他下游模型。这样训练很快，成本也低，但对于需要深度</p>
+<p>理解和生成的任务就不太够用了。</p>
+<p><img alt="" src="assets/9f5779683a-agent-.pdf-0033-01.png" /></p>
+<p>简而言之，它的特点是：</p>
+<ul>
+<li>
+<p>冻结主干网络</p>
+</li>
+<li>
+<p>快速训练、低成本</p>
+</li>
+<li>
+<p>复杂任务适配能力弱</p>
+</li>
+</ul>
+<h4>2.3 2019 年底：Adapter 方法</h4>
+<p>研究者发现可以在 Transformer 的每一层之间加一个小模块，这个模块的参数很少，但却能学习特定 任务的特征。训练时只更新这些模块，主干网络保持不动。这种方法既节省资源，又方便在多个任务 之间切换不同的 Adapter。</p>
+<p><img alt="" src="assets/40ab21797e-agent-.pdf-0034-00.png" /></p>
+<p>用一行话概括 Adapter：</p>
+<ul>
+<li>
+<p>在模型层间加入可训练模块</p>
+</li>
+<li>
+<p>参数更新量小，可多任务复用</p>
+</li>
+<li>
+<p>可能带来推理延迟</p>
+</li>
+</ul>
+<h4>2.4 2021 年初：LoRA</h4>
+<p>LoRA 是一个非常有影响力的方法，它把需要更新的大矩阵分解成两个小的低秩矩阵，只训练这部分参 数，最后还能把它们合并回原模型里，部署起来很方便。它的出现，让大模型的定制化变得更轻量、 低成本，也因此在开源社区大火。</p>
+<p><img alt="" src="assets/adbe5e0e00-agent-.pdf-0035-00.png" /></p>
+<p>总结一下 LoRA 的优势和特点：</p>
+<ul>
+<li>
+<p>低秩矩阵分解，只更新小部分参数</p>
+</li>
+<li>
+<p>显存需求低，部署方便</p>
+</li>
+<li>
+<p>社区应用广泛</p>
+</li>
+</ul>
+<h4>2.5 2021 年中：提示微调</h4>
+<p>提示微调的思路是，模型本身不动，只在输入端加一些可学习的提示向量，让模型的行为发生变化。 它的好处是训练极快、成本极低，但在复杂生成任务上的效果一般。</p>
+<p><img alt="" src="assets/59d914f646-agent-.pdf-0035-07.png" /></p>
+<p>一句话描述提示微调：</p>
+<ul>
+<li>
+<p>训练少量提示向量</p>
+</li>
+<li>
+<p>速度快、成本低</p>
+</li>
+<li>
+<p>复杂任务表现有限</p>
+</li>
+</ul>
+<h4>2.6 2022 年：指令微调</h4>
+<p><img alt="" src="assets/fb7c09f1c9-agent-.pdf-0036-04.png" /></p>
+<p>指令微调的重点是，让模型通过大量高质量的指令-回答数据来学会遵循自然语言的指令。这一步对大 模型变得更易用、更通用起到了关键作用，ChatGPT 的成功也离不开这一技术。</p>
+<p><img alt="" src="assets/0d9f438cd3-agent-.pdf-0036-06.png" /></p>
+<p>概括来说，指令微调就是：</p>
+<ul>
+<li>
+<p>用指令-回答数据训练</p>
+</li>
+<li>
+<p>提升模型遵循指令和通用交互的能力</p>
+</li>
+</ul>
+<p>提升模 遵循指令和通用交</p>
+<p>•</p>
+<p>能力</p>
+<h4>2.7 2022 年末至 2023 年：偏好对齐</h4>
+<p>在模型能理解指令之后，人们还希望它更符合人类的价值观和偏好。这就有了 RLHF 和 DPO 等方法。 它们用人类的反馈来调整模型的回答倾向，从而提升安全性和用户体验。</p>
+<p><img alt="" src="assets/56573b1cda-agent-.pdf-0037-05.png" /></p>
+<p><strong>简单理解就是：</strong></p>
+<ul>
+<li>
+<p>RLHF：监督微调 + 奖励模型 + 强化学习</p>
+</li>
+<li>
+<p>DPO：直接优化偏好差异，跳过奖励模型</p>
+</li>
+<li>
+<p>提升模型安全性和价值观一致性</p>
+</li>
+</ul>
+<h3>3. 方法对比</h3>
+<p>不同的微调方法，就像不同的改装方式，各有优缺点。把它们放在一起对比，可以更直观地看到适用 场景和成本差异：</p>
+<p><img alt="" src="assets/eeae725abe-agent-.pdf-0038-00.png" /></p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-09.html">← 上一章</a><a href="chapter-11.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:10",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

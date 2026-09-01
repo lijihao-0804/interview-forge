@@ -1,0 +1,167 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangChain 的底层架构与实现原理是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">LangChain 的底层架构与实现原理是什么？</span></nav><div class="module-meta">大模型应用 · 第 6 / 12 章</div><h1>LangChain 的底层架构与实现原理是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你了解 LangChain 吗？说说它的底层架构。</p>
+<p>🙋‍♂️我：LangChain 就是把 Prompt、模型和解析器串成一条 Chain。</p>
+<p>👔面试官：这只能解释早期最表面的用法。不同模型如何统一？工具结果怎样回到模型？Agent 的状态和循环又由谁管理？</p>
+<p>🙋‍♂️我：底层应该就是一个 <code>while</code> 循环，模型要调用工具就执行，不调用就退出。</p>
+<p>👔面试官：表面行为相似，但生产级 Agent 还需要状态、路由、持久化、中断恢复和人工介入。现在 <code>create_agent</code> 底层运行在 LangGraph 上，不能只理解成普通循环。</p>
+<p>🙋‍♂️我：那我记住 <code>create_agent</code> 底层是 LangGraph，应该就算理解架构了。</p>
+<p>👔面试官：还不够。Message、Tool、State、Context、Store 和 Middleware 分别负责什么，它们又怎样协作，才是架构题真正要讲清的内容。</p>
+<p>这道题真正考察的是：你能否从一次 Agent 请求出发，讲清楚 LangChain 各层如何协作。</p>
+<h3>💡 简要回答</h3>
+<p>当前 LangChain v1 更像一套面向 Agent 的分层开发框架，而不只是将 Prompt 串起来的 Chain 工具。</p>
+<p>底层的 <code>langchain-core</code> 定义 Message、Model、Tool 和 Runnable 等标准协议；不同模型厂商的独立集成包负责把自己的请求与响应适配到这些协议，因此应用层可以使用相对统一的方式切换模型和工具。</p>
+<p>在执行层，Runnable 统一了组件的同步、异步、批处理和流式调用方式。对于步骤固定的流程，可以使用 LCEL 组合 Prompt、Model 和 Parser；对于需要模型自主选择工具的任务，则使用 <code>create_agent</code> 创建 Agent。</p>
+<p><code>create_agent</code> 会把模型节点和工具节点编译成 LangGraph 状态图。模型读取消息后生成 <code>AIMessage</code>；如果其中包含 <code>tool_calls</code>，运行时执行对应工具，并把结果包装成带相同调用 ID 的 <code>ToolMessage</code> 写回状态；模型再次读取工具结果并继续判断，直到生成最终回答。</p>
+<p>在这套架构中，State 保存会变化的消息与业务状态，Runtime 提供可信上下文和长期 Store，Middleware 负责在模型或工具调用前后加入权限、重试、摘要与人工审批，LangGraph 则负责路由、检查点、暂停恢复和长时间运行。</p>
+<p>一句话概括：LangChain 用标准协议统一组件，用 <code>create_agent</code> 提供高层 Agent 入口，再由 LangGraph 承担有状态的执行运行时。</p>
+<h3>📝 详细解析</h3>
+<h4>LangChain 解决了什么？</h4>
+<p>直接调用一家模型厂商的 SDK 并不困难。真正的问题出现在应用逐渐复杂之后：不同厂商的消息格式、工具调用结构和流式响应各不相同，业务还需要接入 Prompt、工具、状态、重试和追踪。一旦更换模型，大量厂商专属字段可能已经散落在业务代码中。</p>
+<p>LangChain 的核心思路是在这些差异之上定义稳定接口。厂商集成负责适配，应用只依赖公共协议，从而让模型、工具和运行时能够相对独立地演进。</p>
+<h4>架构分成几层？</h4>
+<p>理解 LangChain v1，可以抓住下面四层：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>主要职责</th>
+<th>典型对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>核心协议层</td>
+<td>统一组件的数据结构与调用接口</td>
+<td>Message、Runnable、Model、Tool</td>
+</tr>
+<tr>
+<td>集成适配层</td>
+<td>屏蔽模型、向量库和外部服务差异</td>
+<td><code>langchain-openai</code> 等独立集成包</td>
+</tr>
+<tr>
+<td>Agent 开发层</td>
+<td>提供高层 Agent 组装与扩展能力</td>
+<td><code>create_agent</code>、Middleware、Structured Output</td>
+</tr>
+<tr>
+<td>编排运行层</td>
+<td>管理状态、循环、路由、持久化和恢复</td>
+<td>LangGraph Runtime</td>
+</tr>
+</tbody>
+</table>
+<p>可观测性贯穿各层，通过运行事件和 Trace 记录模型调用、工具调用、耗时和异常。</p>
+<p><img alt="" src="assets/d473ac2cfe-4a73aaaabdb770dd7c690584.png" /></p>
+<p>这张图表达的是职责边界，不是严格的单向调用顺序。例如模型和编译后的 Agent 都遵循 Runnable 调用方式，但它们承担的架构角色不同。</p>
+<h4>核心协议如何统一？</h4>
+<p><code>langchain-core</code> 中最值得理解的不是类名数量，而是一条数据如何从用户走到模型，再进入业务系统。</p>
+<p>这条链路先需要统一「传什么」。<code>HumanMessage</code> 表示用户输入，<code>AIMessage</code> 表示模型输出，<code>ToolMessage</code> 表示工具执行结果。不同厂商原本各有一套消息格式，适配成 Message 后，上层就不用跟着每家 SDK 反复改动。</p>
+<p>只有消息还不能完成业务动作，于是 Tool 接住下一棒。模型看到的是工具名称、描述和参数 Schema，它只能提出「想调用哪个工具、参数是什么」。真正执行 Python 函数或外部服务的仍是应用程序，权限校验和副作用也必须留在这里。</p>
+<p>当消息、模型和工具都要进入同一条流程时，又需要统一「怎么执行」。Runnable 提供 <code>invoke</code>、异步调用、批处理和流式输出等调用语义。对于步骤已经确定的流程，我们就能继续通过 LCEL 组合组件：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 三个组件都遵循 Runnable 协议，可以使用管道符顺序组合</span>
+<span class="n">chain</span> <span class="o">=</span> <span class="n">prompt</span> <span class="o">|</span> <span class="n">model</span> <span class="o">|</span> <span class="n">output_parser</span>
+
+<span class="c1"># 组合后的整体仍然通过统一的 invoke 接口执行</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">chain</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="s2">&quot;什么是 Agent？&quot;</span><span class="p">})</span>
+</code></pre></div>
+<p>这样看，Message 统一数据表达，Tool 划清模型与业务动作的边界，Runnable 再统一执行方式。三者连起来以后，LangChain 才不只是替换模型 SDK 的薄封装。</p>
+<p>上面的 LCEL 流程每一步由开发者确定。Agent 则不同，它允许模型根据上下文决定是否调用工具以及下一步做什么。</p>
+<h4>Agent loop 如何运行？</h4>
+<p>Agent 的核心不是一次模型调用，而是模型和工具之间可能重复多轮的执行循环：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">HumanMessage -&gt; Model -&gt; AIMessage(tool_calls)
+AIMessage(tool_calls) -&gt; 最终回答（没有工具调用）
+AIMessage(tool_calls) -&gt; Tool Runtime（有工具调用）
+Tool Runtime -&gt; ToolMessage(tool_call_id) -&gt; Model 再次判断
+</code></pre></div>
+<p>其中 <code>tool_call_id</code> 很重要。模型一轮可能请求多个工具，工具结果必须通过调用 ID 与原请求对应，模型才能知道每条结果属于哪次调用。</p>
+<p><img alt="" src="assets/2f529367f6-28627103bab64c13877adf67.png" /></p>
+<p><code>create_agent</code> 会根据模型、工具、系统提示词和中间件创建这套循环。它返回的不是普通函数，而是编译后的 LangGraph 图，因此能够在每一步保存状态、输出进度并决定下一条执行边。</p>
+<h4>数据应该放在哪里？</h4>
+<p>Agent 中的数据不应该全部塞进消息或 Prompt。当前运行时会区分下面几类数据：</p>
+<table>
+<thead>
+<tr>
+<th>数据</th>
+<th>作用</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>State</td>
+<td>执行中不断变化的数据</td>
+<td>消息、当前步骤、工具结果</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>一次调用期间不变的可信依赖</td>
+<td>用户 ID、租户、权限</td>
+</tr>
+<tr>
+<td>Store</td>
+<td>跨线程保存的数据</td>
+<td>用户偏好、长期事实</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="" src="assets/20c79a7fee-114386cbd17c3fc8139066a7.png" /></p>
+<p>这样划分的好处是，可信用户身份不需要让模型生成，数据库连接也不会被写入对话上下文。工具可以通过 Runtime 读取这些数据，同时只把真正需要模型填写的参数暴露在工具 Schema 中。</p>
+<h4>Middleware 做什么？</h4>
+<p>真实应用通常需要处理动态提示词、模型切换、工具筛选、重试、对话摘要、敏感信息和人工审批。如果把这些逻辑全部塞进 Prompt 或 Tool，代码会很快纠缠在一起。</p>
+<p>Middleware 提供模型和工具调用前后的扩展点。请求进入模型前，可以根据用户身份生成系统提示词，或者在历史消息过长时先做摘要；模型决定调用工具后，可以先检查权限，敏感动作还可以暂停等待审批。</p>
+<p>真正执行工具时，如果遇到临时网络故障，可以在这一层做有上限的重试。结果返回后，再补上格式或安全校验。这样，一次请求从进入模型到离开 Agent 的各个阶段都有清楚的扩展位置。</p>
+<p><img alt="" src="assets/4eb1c2f0ea-4444448c64643abf484730b6.png" /></p>
+<p>Middleware 并不是另一套运行时。它会运行在 <code>create_agent</code> 编译出的 LangGraph 内部，对执行行为进行组合式扩展。</p>
+<h4>LangGraph 是什么角色？</h4>
+<p>如果只用 <code>while</code> 循环实现 Agent，进程退出后中间状态容易丢失，也很难在敏感工具前暂停几小时再继续。</p>
+<p>LangGraph 将流程建模为 <code>State + Node + Edge</code>：State 保存状态，Node 执行模型或工具，Edge 决定下一步。检查点可以保存每一步状态，因此能够支持中断恢复、人工介入、故障恢复和长时间运行。</p>
+<p>LangChain 与 LangGraph 不是简单的二选一关系。LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执行能力。简单 Agent 直接使用 <code>create_agent</code>，只有流程需要复杂分支、并行、审批或精细状态控制时，才需要直接编写 LangGraph。</p>
+<h4>旧版 Chain 还能用吗？</h4>
+<p>早期教程常见的 <code>LLMChain</code>、<code>ConversationChain</code> 和部分旧式 Agent 执行器已经进入 <code>langchain-classic</code>。它们可以用于维护存量项目，但不再代表 LangChain v1 的主架构。</p>
+<p>新项目可以按下面的边界选择：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>更合适的方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定的 Prompt、Model、Parser 流程</td>
+<td>Runnable + LCEL</td>
+</tr>
+<tr>
+<td>标准模型与工具循环</td>
+<td><code>create_agent</code></td>
+</tr>
+<tr>
+<td>复杂分支、并行、暂停恢复和人工审批</td>
+<td>直接使用 LangGraph</td>
+</tr>
+<tr>
+<td>维护旧式 Chain 项目</td>
+<td><code>langchain-classic</code> 后渐进迁移</td>
+</tr>
+</tbody>
+</table>
+<h3>🎯 面试总结</h3>
+<p>回答 LangChain 底层架构时，可以从一次请求的执行过程展开。</p>
+<p>首先，<code>langchain-core</code> 使用 Message、Model、Tool 和 Runnable 等标准协议隔离厂商差异。用户消息进入 Agent State 后，模型生成 <code>AIMessage</code>；如果其中包含工具调用，LangGraph 会路由到工具节点，工具结果以带相同调用 ID 的 <code>ToolMessage</code> 写回状态，模型再继续判断，直到产生最终回答。</p>
+<p>其次，要讲清数据和控制的职责：State 保存可变状态，Context 提供可信依赖，Store 保存跨线程数据，Middleware 负责权限、重试、摘要和人工审批，LangGraph 负责状态推进、路由、检查点与恢复。</p>
+<p>最后补充版本边界：LangChain v1 的主线是「标准协议 + <code>create_agent</code> + LangGraph Runtime」；Runnable 与 LCEL 仍适合确定性流程，旧式 Chain 主要用于维护存量项目。</p>
+<h3>📚 参考资料</h3>
+<ul>
+<li><a href="https://docs.langchain.com/oss/python/langchain/overview">LangChain 官方文档：Overview</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langchain/agents">LangChain 官方文档：Agents</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langchain/messages">LangChain 官方文档：Messages</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langchain/tools">LangChain 官方文档：Tools</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langchain/runtime">LangChain 官方文档：Runtime</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langchain/middleware/overview">LangChain 官方文档：Middleware</a></li>
+<li><a href="https://reference.langchain.com/python/langchain-core/runnables/base/Runnable">LangChain API Reference：Runnable</a></li>
+<li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph 官方文档：Overview</a></li>
+<li><a href="https://docs.langchain.com/oss/python/migrate/langchain-v1">LangChain 官方文档：v1 迁移指南</a></li>
+</ul>
+<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
+<script>const contentId="xiaolin-langchain:06",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

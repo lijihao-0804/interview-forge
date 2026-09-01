@@ -1,0 +1,94 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Skill vs Tool vs Function（深度解析） · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Skill vs Tool vs Function（深度解析）</span></nav><div class="module-meta">Agent 工程 · 第 44 / 55 章</div><h1>Skill vs Tool vs Function（深度解析）</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h4>问题背景</h4>
+<p>在构建 AI Agent 系统时，Skill、Tool 和 Function 是三个几乎一定会遇到的概念。但在实际使用中， 它们经常被混用，甚至被当成同一个东西来理解。</p>
+<p><img alt="" src="assets/8a2cdd696f-agent-.pdf-0208-03.png" /></p>
+<p>这种混淆的根本原因在于，这三者都与“能力调用”相关，但它们处在系统中的不同抽象层级。如果 没有清晰的分层认知，很容易在设计系统时出现结构混乱，例如：直接把 API 当作 Skill、或者把 Skill  写死在 Prompt 中。 因此，理解三者之间的关系，本质上是在建立一套清晰的 Agent 能力分层模型。 三者的本质定义</p>
+<p>从抽象层级来看，这三个概念可以这样理解：</p>
+<p>Skill 是能力的抽象，是对“要完成什么任务”的定义。例如，“查询天气”“发送邮件”“生成报 告”都属于 Skill。它描述的是一种业务能力，而不是具体实现。</p>
+<p>Function 是能力的调用接口，是模型可以触发的一种结构化调用方式。它定义了函数名、参数结构以 及返回格式，是连接模型与执行逻辑之间的桥梁。</p>
+<p>Tool 则是最终执行能力的实体，通常是外部系统或服务，例如一个天气 API、数据库查询接口，或者 一个搜索引擎。Tool 负责真正完成任务。</p>
+<p>如果用一句话总结三者关系：</p>
+<p>Skill 定义能力，Function 定义调用方式，Tool 负责执行结果。</p>
+<h4>Function Calling</h4>
+<p><img alt="" src="assets/ede76c0cf7-agent-.pdf-0209-01.png" /></p>
+<p><strong>函数调用的过程如下：</strong></p>
+<ol>
+<li>
+<p>开发者定义外部工具或API的模式</p>
+</li>
+<li>
+<p>关于模式的元数据（通常是通用和关键词特定描述）会连同任何应用特定指令一起传递给模型。</p>
+</li>
+<li>
+<p>在推理过程中，LLM可以通过输出相应的工具调用模式、识别所选工具及关键词参数来选择“使 用”可用工具。</p>
+</li>
+<li>
+<p>支持LLM的应用程序随后识别并解析该选择，调用指定工具并满足参数，并将结果以工具消息的形 式返回给LLM。</p>
+</li>
+<li>
+<p>LLM随后利用这些上下文采取进一步行动或为后续生成提供信息。</p>
+</li>
+</ol>
+<p>MCP</p>
+<p><img alt="" src="assets/130f0f1111-agent-.pdf-0210-00.png" /></p>
+<p><strong>模型上下文协议遵循以下流程：</strong></p>
+<ol>
+<li>
+<p>开发者创建一个MCP服务器，定义工具的模式和执行逻辑（以及可选提示/资源），遵循MCP标 准。</p>
+</li>
+<li>
+<p>支持客户端连接到MCP服务器，能够展示可用的工具及其模式，这些内容作为可用的操作传递给 LLM。</p>
+</li>
+<li>
+<p>在推理过程中，LLM可以通过输出相应的工具调用模式、识别所选工具及关键词参数来选择“使 用”可用工具。</p>
+</li>
+<li>
+<p>MCP客户端识别并解析该选择，将参数传递给执行工具并将结果返回客户端的MCP服务器。</p>
+</li>
+<li>
+<p>MCP客户端将结果以工具消息的形式返回给LLM，LLM随后利用该上下文采取进一步操作或告知后 续生成。</p>
+</li>
+</ol>
+<h4>Agent Skills</h4>
+<p><img alt="" src="assets/fd274f42d1-agent-.pdf-0211-01.png" /></p>
+<p><strong>Agent Skills 遵循以下流程：</strong></p>
+<ol>
+<li>
+<p>开发者创建一个包含主文件、支持资源、资源和脚本的 SKILL 仓库。 <code>SKILL.md</code></p>
+</li>
+<li>
+<p>支持的文件系统代理客户端会发现可用的技能，并加载名称和描述元数据，这些数据随后作为可用 技能传递给LLM以供参考。</p>
+</li>
+<li>
+<p>在推理过程中，LLM可以通过导航到对应的目录并加载主文件来选择引用可用技能。</p>
+</li>
+<li>
+<p>内容注入LLM上下文后，LLM可以按照提供的指令操作，从资源中加载额外信息，或使用提供的工 具（无论是脚本执行、函数调用格式化，还是通过MCP服务器标准化）采取进一步操作或通知后续 生成。</p>
+</li>
+</ol>
+<p>所以我们可以看到，这些概念是互补的，并且有助于标准化或扩展工具使用和教学功能。在现实应用 中，这三个概念通常在最适合的地方一起使用。</p>
+<h4>从用户请求到执行的完整链路</h4>
+<p>为了更直观地理解三者的关系，可以从一个完整执行流程来看。</p>
+<p>当用户提出请求，例如“帮我查一下北京今天的天气”，系统首先由语言模型理解意图。这一步并不 会直接调用 API，而是识别出用户需要的是“查询天气”这一类能力。 接下来，Agent 会在已有能力集合中选择对应的 Skill，即“查询天气”。此时仍然是一个抽象层的决 策。</p>
+<p>然后，系统会根据这个 Skill 找到对应的 Function，例如 <code>get_weather(city)</code> ，并构造参数 <code>{</code> <mark><code>city: "</code> 北京</mark> <mark><code>" }</code></mark> 。此时进入了可执行层。 Function 被调用后，会进一步触发底层 Tool，例如调用某个天气服务 API，获取真实数据。Tool 返回 结果后，再由 Agent 整理并生成最终回复。</p>
+<p>在这个过程中可以看到，三者是一个逐层下沉的关系，从抽象到执行逐步落地。</p>
+<h4>常见误区</h4>
+<p>在实际工程中，有几个非常典型的误区：</p>
+<p>第一个误区是把 Tool 当作 Skill。例如直接把“调用天气 API”当作一个 Skill。这样做的问题是，能力 缺乏抽象，一旦 API 变更，就需要修改上层逻辑。</p>
+<p>第二个误区是跳过 Function 层，直接在 Prompt 中描述调用逻辑。这种方式在简单 Demo 中可行，但 在复杂系统中会导致不可控的行为和低稳定性。 第三个误区是 Skill 粒度过大。例如把“处理客户问题”定义为一个 Skill，这样会导致能力不可复用， 也难以组合。</p>
+<p>这些问题的本质，都是因为没有建立清晰的分层模型。</p>
+<h4>为什么必须分层设计</h4>
+<p>将 Skill、Function 和 Tool 分开设计，不仅仅是概念上的清晰，更是工程上的必要。 首先，分层可以提高系统的可维护性。Skill 层不关心具体实现，可以独立演进；Tool 层可以自由替 换，例如从一个 API 切换到另一个服务，而不会影响上层逻辑。 其次，分层可以增强系统的可扩展性。当新增能力时，只需要新增 Skill 和对应 Function，而不需要修 改已有 Agent。</p>
+<p>此外，这种结构还天然支持多 Agent 和复杂任务编排。不同 Agent 可以共享 Skill，而 Skill 又可以调 用不同 Tool，从而形成灵活的能力网络。</p>
+<h4>在不同框架中的体现</h4>
+<p>在不同的 Agent 框架中，这三层结构有不同的体现方式。</p>
+<p>例如在 LangChain 中，Tool 通常直接作为可调用单元存在，而 Skill 的概念相对隐式，需要开发者自 行抽象。在 OpenAI 的 Function Calling 或最新的能力体系中，Function 被明确标准化，而 Skill 则逐 渐演化为更高层的能力描述。</p>
+<p>在 MCP（Model Context Protocol）中，这种分层会更加清晰，Tool 被标准化为可注册的服务，而 Skill 则可以作为上层调度逻辑存在。</p>
+<p>虽然实现方式不同，但底层思想是一致的：将能力、调用和执行解耦。</p>
+<p>如果从更宏观的角度来看，Skill 可以被视为 Agent 系统中的“能力操作系统”。 Tool 类似硬件或外部设备，Function 类似系统调用接口，而 Skill 则是对这些资源的组织与调度方 式。</p>
+<p>当 Skill 体系足够完善时，Agent 不再只是调用单个工具，而是可以通过组合 Skill 来完成复杂任务，例 如多步骤推理、跨系统操作等。</p>
+<p>这也是为什么在高级 Agent 系统中，会出现 Skill Registry、Skill Router、Skill Composition 等机 制，本质上是在构建一个完整的能力调度系统。</p>
+<h4>总结</h4>
+<p>Skill、Function 和 Tool 构成了 AI Agent 执行能力的三层结构，它们分别对应能力抽象、调用接口和 实际执行。</p>
+<p>理解这三者的区别，不仅有助于避免概念混淆，更是构建可扩展、高稳定 Agent 系统的基础。 从实践角度来看，一个优秀的 Agent 系统，往往具备清晰的 Skill 抽象、规范的 Function 定义，以及 稳定可靠的 Tool 接入。这三者共同决定了系统的能力边界与上限。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-43.html">← 上一章</a><a href="chapter-45.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:44",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

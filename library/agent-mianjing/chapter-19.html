@@ -1,0 +1,63 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent Prompt 技术 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-module3"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a><a href="../../maintenance.html">维护指南</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Agent Prompt 技术</span></nav><div class="module-meta">Agent 工程 · 第 19 / 55 章</div><h1>Agent Prompt 技术</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>随着大语言模型逐渐从“对话工具”演变为能够执行复杂任务的 AI Agent，Prompt 的作用也发生了 明显变化。在传统问答场景中，Prompt 主要用于描述问题并获取答案，而在 Agent 系统中，Prompt  不仅需要表达任务，还需要引导模型进行 规划、推理、工具调用以及结果反思。因此，针对 Agent 系 统的 Prompt 设计逐渐形成了一套新的技术体系。</p>
+<p>在实际的 Agent 架构中，大模型往往不再只是简单地生成文本，而是作为系统的“决策引擎”。它需 要根据当前任务状态判断下一步应该做什么，例如是否需要调用工具、是否需要检索信息、是否需要 继续推理。在这个过程中，Prompt 的设计直接决定了 Agent 的行为模式和推理路径。 目前在 Agent 系统中，最常见的 Prompt 技术包括 ReAct Prompt、Tool Prompt 以及 Reflection  Prompt。这些方法分别对应 推理与行动结合、工具调用控制以及自我反思优化三种关键能力。</p>
+<p><strong>ReAct Prompt</strong></p>
+<p>ReAct Prompt（Reason + Act）是一种将 推理过程与行动决策结合在一起的 Prompt 技术。这种方法 最早在 Agent 研究中提出，其核心思想是让模型在解决问题时同时进行两件事情：一方面进行逻辑推 理，另一方面根据推理结果决定下一步行动。</p>
+<p>在传统 Prompt 中，模型往往直接给出答案，而在 ReAct Prompt 中，模型需要按照固定结构输出，例 如：</p>
+<ul>
+<li>
+<p>Thought：当前的思考过程</p>
+</li>
+<li>
+<p>Action：下一步要执行的操作</p>
+</li>
+<li>
+<p>Observation：工具或环境返回的结果</p>
+</li>
+</ul>
+<p>通过这种结构化方式，模型可以逐步完成复杂任务。例如在一个信息检索场景中，Agent 的执行过程 可能如下：</p>
+<p><code>1 Thought:</code> 需要查找关于某个公司的信息 <code>2 Action: Search[</code> 公司名称 <code>] 3 4 Observation:</code> 返回公司简介 <code>5 6 Thought:</code> 已经获得基础信息，现在需要总结 <code>7 Action: Final Answer</code></p>
+<p>这种模式使得模型不仅能够思考问题，还能够主动决定下一步操作，从而形成 “思考—行动—反馈— 再思考” 的循环。</p>
+<p>ReAct Prompt 的优势在于能够显著提升 Agent 在复杂任务中的表现，特别是在需要多步骤推理和外部 信息获取的场景中，例如搜索型问答、数据分析任务或自动化工作流。</p>
+<p><strong>Tool Prompt</strong></p>
+<p>在现代 AI Agent 系统中，大模型通常需要调用外部工具，例如搜索引擎、数据库接口、代码执行环境 或 API 服务。为了让模型正确使用这些工具，需要通过 Tool Prompt 来明确工具的功能和调用方式。 Tool Prompt 的核心目标是 让模型理解有哪些工具可以使用，以及在什么情况下使用这些工具。通常 在 Prompt 中会包含以下信息：</p>
+<ol>
+<li>
+<p>工具名称</p>
+</li>
+<li>
+<p>工具功能描述</p>
+</li>
+<li>
+<p>工具输入参数</p>
+</li>
+<li>
+<p>工具返回结果格式</p>
+</li>
+</ol>
+<p>例如：</p>
+<p>1 可用工具： <code>2 3 Tool: Search 4</code> 描述 : 用于搜索互联网信息 5 输入 : 查询关键词 6 输出 : 搜索结果摘要</p>
+<p>在这种设计下，模型在推理过程中可以根据任务需要选择合适的工具，并按照规定格式生成调用指 令。例如：</p>
+<p><code>1 Action: Search["</code> 最新人工智能政策 <code>"]</code></p>
+<p>系统接收到这一指令后会执行对应工具，并将结果返回给模型继续推理。 Tool Prompt 的出现，使得大模型能够突破自身知识截止时间的限制，并通过外部工具获取实时信息 或执行计算任务。这也是现代 Agent 系统能够完成复杂任务的重要原因之一。</p>
+<p><strong>Reflection Prompt</strong></p>
+<p>在复杂任务中，大模型可能会出现推理错误、逻辑漏洞或不完整的回答。为了提高系统的稳定性，一 种常见方法是引入 Reflection Prompt（反思提示）。 Reflection Prompt 的核心思想是：让模型在生成答案之后，对自己的结果进行检查和修正。</p>
+<p>在这种模式下，系统通常会增加一个额外步骤，让模型对之前的回答进行评估。例如：</p>
+<p>1 请检查以上回答是否存在逻辑错误或遗漏的信息，如果有，请进行修正。</p>
+<p>模型在这一阶段会重新审视自己的推理过程，从而发现潜在问题。例如推理步骤不完整、工具使用不 正确或者输出格式不符合要求。 在一些高级 Agent 系统中，Reflection Prompt 甚至会形成 多轮自我优化循环，例如：</p>
+<ol>
+<li>
+<p>生成初始答案</p>
+</li>
+<li>
+<p>进行自我评估</p>
+</li>
+<li>
+<p>修正错误</p>
+</li>
+<li>
+<p>生成最终答案</p>
+</li>
+</ol>
+<p>这种方式可以显著降低模型输出错误的概率，并提升复杂任务的完成质量。 总体来看，Agent Prompt 技术的核心目标是 将大语言模型从“回答问题的工具”转变为“能够执行 任务的智能体”。通过 ReAct Prompt 实现推理与行动结合，通过 Tool Prompt 控制工具调用，再通 过 Reflection Prompt 进行自我优化，Agent 系统能够逐步形成完整的任务执行能力。 在实际工程中，这些技术通常不会单独使用，而是会组合在一起。例如，一个典型的 Agent 系统可能 同时包含 ReAct 推理结构、工具调用描述以及反思机制。通过这种方式，可以构建出更加稳定和可靠 的 AI Agent。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-18.html">← 上一章</a><a href="chapter-20.html">下一章 →</a></nav></main></div>
+<script>const contentId="agent-mianjing:19",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

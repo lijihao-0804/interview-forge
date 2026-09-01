@@ -26,7 +26,7 @@ button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 4
 #status{margin-top:14px;padding:11px 13px;border-radius:10px;display:none}
 #status.ok{display:block;color:var(--success);background:var(--success-soft);border:1px solid color-mix(in srgb,var(--success) 40%,var(--line))}
 #status.err{display:block;color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb,var(--danger) 40%,var(--line))}
-#syncResult{margin-top:12px;font-size:14px}
+#syncResult{margin-top:12px;font-size:14px;white-space:pre-line}
 footer{margin-top:22px;color:var(--muted);font-size:13px;text-align:center}
 </style>
 </head>
@@ -61,7 +61,7 @@ footer{margin-top:22px;color:var(--muted);font-size:13px;text-align:center}
     <div class="step"><b>第四步：同步提交记录</b><br>
       <button type="button" class="primary" id="syncFullBtn">全量同步（首次：拉全部历史提交）</button>
       <button type="button" id="syncBtn">增量同步（日常：只拉最近 100 条）</button>
-      <span class="muted">按力扣真实提交时间归档（不会都算到今天）；已同步记录按力扣提交 ID 去重，重复同步不会加多。</span>
+      <span class="muted">提交记录按力扣真实提交时间归档，并按力扣提交 ID 去重。</span>
     </div>
 
     <div id="status"></div>
@@ -72,6 +72,8 @@ footer{margin-top:22px;color:var(--muted);font-size:13px;text-align:center}
 <script>
 const statusBox=document.getElementById('status');
 const syncBox=document.getElementById('syncResult');
+const sessionInput=document.getElementById('session');
+const csrfInput=document.getElementById('csrf');
 function showStatus(ok,text){statusBox.className=ok?'ok':'err';statusBox.textContent=text;}
 async function api(path,options){
   const response=await fetch(path,options||{});
@@ -83,9 +85,11 @@ async function loadStatus(){
   try{
     const data=await api('/api/leetcode/status');
     if(data.credentials_saved){
+      sessionInput.value=data.session||'';
+      csrfInput.value=data.csrf||'';
       if(data.connected){showStatus(true,`已连接：${data.user_name}（已解决 ${data.num_solved} 题）。凭证已保存在本机数据库，刷新页面或重启学习站都不会丢失；要更换时重新粘贴即可。`);}
       else{showStatus(false,'凭证已保存，但连接测试未通过：'+(data.message||'未知原因'));}
-    }else{showStatus(false,'尚未保存凭证，按上面四步操作。');}
+    }else{sessionInput.value='';csrfInput.value='';showStatus(false,'尚未保存凭证，按上面四步操作。');}
   }catch(error){showStatus(false,'查询失败：'+error.message);}
 }
 document.getElementById('saveBtn').addEventListener('click',async()=>{
@@ -99,18 +103,32 @@ document.getElementById('saveBtn').addEventListener('click',async()=>{
   }catch(error){showStatus(false,'保存失败：'+error.message);}
 });
 document.getElementById('clearBtn').addEventListener('click',async()=>{
-  try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});showStatus(false,'凭证已清除');syncBox.textContent='';}
+  try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});sessionInput.value='';csrfInput.value='';showStatus(false,'凭证已清除');syncBox.textContent='';}
   catch(error){showStatus(false,'清除失败：'+error.message);}
 });
 document.getElementById('syncBtn').addEventListener('click',()=>runSync(false));
 document.getElementById('syncFullBtn').addEventListener('click',()=>runSync(true));
 async function runSync(full){
-  syncBox.textContent=full?'全量同步中（历史较多时需要一会儿）…':'增量同步中…';
+  syncBox.textContent=full?'全量同步中，正在启动任务…':'增量同步中，正在启动任务…';
   try{
-    const data=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full})});
-    syncBox.textContent=`已写入提交记录 ${data.submissions_added} 条（本次共读取 ${data.submissions_seen} 条）${data.solved_added?`；已解答兜底补 ${data.solved_added} 条`:''}${data.sync_errors&&data.sync_errors.length?'；注意：'+(data.sync_errors.join('；')):''}`;
-    showStatus(true,full?'全量同步完成，历史提交已按真实日期归档。':'增量同步完成。');
-  }catch(error){syncBox.textContent='';showStatus(false,'同步失败：'+error.message);}
+    const start=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true})});
+    const taskId=start.task_id;
+    if(!taskId){throw new Error('同步任务未正常创建');}
+    syncBox.textContent='同步任务已启动…';
+    while(true){
+      await new Promise(resolve=>setTimeout(resolve,1000));
+      const st=await api('/api/leetcode/sync/status?task_id='+encodeURIComponent(taskId));
+      const logs=(st.logs||[]).map(item=>`[${(item.at||'').slice(11,19)||item.at||''}] ${item.text}`).join('\n');
+      if(logs){syncBox.textContent=logs;}
+      if(!st.running){
+        if(st.error){throw new Error(st.error);}
+        const data=st.result||{};
+        syncBox.textContent=(logs?logs+'\n':'')+`已写入提交记录 ${data.submissions_added} 条（本次共读取 ${data.submissions_seen} 条）${data.solved_added?`；已解答兜底补 ${data.solved_added} 条`:''}${data.sync_errors&&data.sync_errors.length?'；注意：'+(data.sync_errors.join('；')):''}`;
+        showStatus(true,full?'全量同步完成。':'增量同步完成。');
+        return;
+      }
+    }
+  }catch(error){syncBox.textContent+='\n同步失败：'+error.message;showStatus(false,'同步失败：'+error.message);}
 }
 loadStatus();
 </script>

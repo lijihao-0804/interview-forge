@@ -245,6 +245,8 @@ a:hover { text-decoration: underline; }
 .site-nav { display: flex; gap: 6px; flex-wrap: wrap; }
 .site-nav a { padding: 6px 9px; border-radius: 8px; color: var(--muted); font-size: 14px; }
 .site-nav a:hover { color: var(--brand); background: var(--brand-soft); text-decoration: none; }
+.site-nav a.lc-button { background: var(--brand); color: #fff; font-weight: 650; }
+.site-nav a.lc-button:hover { background: var(--brand-strong); color: #fff; }
 
 .reader-card {
   width: min(100%, 980px);
@@ -1419,6 +1421,7 @@ def render_markdown(source: Path) -> None:
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
     map_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "02-算法模式地图.html")
     checklist_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "03-复习清单.html")
+    lc_href = web_rel(output, ROOT / "leetcode-connect.html")
     title_match = re.search(r"(?m)^#\s+(.+)$", raw)
     title = title_match.group(1).strip() if title_match else source.stem
     visual_embed = render_visual_embed(source, output, title)
@@ -1441,6 +1444,7 @@ def render_markdown(source: Path) -> None:
         <a href="{html.escape(route_href)}">学习路线</a>
         <a href="{html.escape(map_href)}">模式地图</a>
         <a href="{html.escape(checklist_href)}">复习清单</a>
+        <a class="lc-button" href="{html.escape(lc_href)}">力扣连接</a>
       </nav>
     </header>
     <main id="main-content" class="reader-card">
@@ -1545,12 +1549,18 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a></nav>'
+    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
-        text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
+        text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
     else:
         text = re.sub(r'<nav class="dashboard-nav"[^>]*>.*?</nav>', quick, text, count=1)
+        if '.dashboard-nav a.lc-button' not in text:
+            text = text.replace(
+                '.dashboard-nav a:hover{background:var(--soft);text-decoration:none}',
+                '.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}',
+                1,
+            )
     text = text.replace(' · <a href="books/hot100/05-可视化/index.html">可视化中心</a>', '')
     path.write_text(text, encoding="utf-8")
 
