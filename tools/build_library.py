@@ -36,8 +36,10 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -45,6 +47,7 @@ from urllib.parse import unquote
 # markdown：Python-Markdown，负责把章节 Markdown 转 HTML(extra/tables 等扩展)；
 # pygments：代码高亮着色，与高亮函数配合产出带 data-lang 的 codehilite 结构。
 import markdown
+import build_cache
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
@@ -65,6 +68,10 @@ from pygments.util import ClassNotFound
 from build_html_site import render_math_in_markdown
 from build_hot100 import PROBLEMS, repair_indented_headings, safe_name
 from library_catalog import HOT100_MODULE, LIBRARY_MODULES
+
+# 并行渲染进程数：8（或按 CPU 核数自动收敛）。章节正文渲染是纯函数
+# （render_markdown(text) → str），进程池安全；元数据收集与聚合产物仍串行。
+PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 
 
 # ---- 目录与版本约定 ----
@@ -622,6 +629,12 @@ def render_markdown(text: str) -> str:
     return rendered
 
 
+def _render_chapter_body_worker(job: tuple[str, str]) -> tuple[str, str]:
+    """子进程执行：渲染单个章节正文 Markdown → HTML，返回 (chapter_id, html)。"""
+    chapter_id, prepared = job
+    return chapter_id, render_markdown(prepared)
+
+
 # 公共顶栏(书架首页/搜索页/模块页/章节页共用)：prefix 是相对路径深度——
 # 首页传 "."、二级页面传 ".."，据此拼出到书架首页/搜索页/Hot 100 站/维护指南的链接。
 def topbar(prefix: str = "..") -> str:
@@ -1033,6 +1046,9 @@ def build() -> None:
     # 第 0 步：固定资产落盘。library.css / library-mermaid.js 只 strip 首尾空白再写
     # (与常量内容逐字节一致，便于 check 脚本比对)；版本号 ?v= 在页面引用处统一。
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    # 增量构建缓存：脚本自身哈希或资源版本变化时整体失效（详见 build_cache）。
+    cache = build_cache.load_cache(HOT100_ROOT)
+    cache = build_cache.invalidate_on_tool_change(cache, Path(__file__).resolve())
     (OUTPUT_ROOT / "assets").mkdir(parents=True, exist_ok=True)
     (OUTPUT_ROOT / "assets" / "library.css").write_text(LIBRARY_CSS.strip() + "\n", encoding="utf-8")
     (OUTPUT_ROOT / "assets" / "library-mermaid.js").write_text(MERMAID_JS.strip() + "\n", encoding="utf-8")
@@ -1085,12 +1101,53 @@ def build() -> None:
         # chapters 是“书架侧”章节数据(id/标题/链接/intro)，后续喂给模块页 JS 与
         # manifest；章节页文件名统一 chapter-NN.html，章节 id 统一 “模块id:NN”。
         chapters: list[dict[str, object]] = []
+        # 增量构建：整本书源哈希未变且该书全部章节输出都在 → 跳过章节正文渲染
+        # （元数据、搜索索引仍照常收集）；需要渲染时该书所有章节并行渲染。
+        rel_source = source.relative_to(HOT100_ROOT).as_posix()
+        src_sha = build_cache.file_sha256(source)
+        book_outputs = [
+            f"library/{definition['id']}/chapter-{index:02d}.html"
+            for index in range(1, len(raw_chapters) + 1)
+        ]
+        need_render = build_cache.needs_rebuild(cache, "book:" + rel_source, src_sha, book_outputs, HOT100_ROOT)
+        prepared_map: dict[str, str] = {}
+        for index, raw_chapter in enumerate(raw_chapters, 1):
+            chapter_id = f"{definition['id']}:{index:02d}"
+            # 章节正文流水线：净化+互链改写 → Markdown 渲染 → 演示内嵌 → 拼章节页模板。
+            prepared_map[chapter_id] = normalize_chapter_markdown(
+                rewrite_local_links(raw_chapter["body"], source, assets_dir, source_modules)
+            )
+        contents_map: dict[str, str] = {}
+        if need_render and prepared_map:
+            with ProcessPoolExecutor(max_workers=PARALLEL_WORKERS) as pool:
+                for chapter_id, content in pool.map(_render_chapter_body_worker, list(prepared_map.items())):
+                    contents_map[chapter_id] = content
+            build_cache.mark_built(cache, "book:" + rel_source, src_sha, book_outputs)
         for index, raw_chapter in enumerate(raw_chapters, 1):
             chapter_id = f"{definition['id']}:{index:02d}"
             filename = f"chapter-{index:02d}.html"
-            # 章节正文流水线：净化+互链改写 → Markdown 渲染 → 演示内嵌 → 拼章节页模板。
-            prepared = normalize_chapter_markdown(rewrite_local_links(raw_chapter["body"], source, assets_dir, source_modules))
-            content = render_markdown(prepared)
+            # 章节元数据进模块 chapters：id/标题/相对链接/intro(章节摘要)，
+            # 供模块首页 JS 渲染卡片、筛选与搜索（不依赖章节正文渲染结果）。
+            route = f"/library/{definition['id']}/{filename}"
+            routes[route] = {"module_id": definition["id"], "content_id": chapter_id}
+            chapters.append({
+                "id": chapter_id,
+                "title": raw_chapter["title"],
+                "url": f"{definition['id']}/{filename}",
+                "intro": chapter_summary(raw_chapter["body"]),
+            })
+            search_entries.append({
+                "id": chapter_id,
+                "module_id": definition["id"],
+                "module_title": definition["title"] or book_title,
+                "title": raw_chapter["title"],
+                "url": f"{definition['id']}/{filename}",
+                "text": clean_search_text(raw_chapter["body"]),
+            })
+            content = contents_map.get(chapter_id)
+            if content is None:
+                continue  # 增量跳过：该章输出已存在且源未变
+            # —— 以下为渲染+拼装+落盘（仅 need_render 的章节执行）——
             # 【演示内嵌机制 <!--demo:文件名-->】章节源里出现该 HTML 注释占位时，
             # 把它替换为 <iframe src="../../05-可视化/<文件名>?embed=1">：
             # 交互演示页(由 build_html_site 生成)以嵌入模式套进章节正文，
@@ -1138,28 +1195,6 @@ def build() -> None:
                 diagram_scripts = f'<script src="../assets/mermaid-11.16.1.min.js?v={ASSET_VERSION}"></script><script src="../assets/library-mermaid.js?v={ASSET_VERSION}"></script>'
             chapter_scripts = diagram_scripts
             (module_dir / filename).write_text(document(raw_chapter["title"], reader, "../assets/library.css", chapter_scripts), encoding="utf-8")
-            # 落盘章节页，同时把 /library/<模块>/chapter-NN.html 登记进 routes——
-            # study_server 收到该路径请求时据此反查 module/content，读写学习记录。
-            route = f"/library/{definition['id']}/{filename}"
-            routes[route] = {"module_id": definition["id"], "content_id": chapter_id}
-            # 章节元数据进模块 chapters：id/标题/相对链接/intro(章节摘要)，
-            # 供模块首页 JS 渲染卡片、筛选与搜索。
-            chapters.append({
-                "id": chapter_id,
-                "title": raw_chapter["title"],
-                "url": f"{definition['id']}/{filename}",
-                "intro": chapter_summary(raw_chapter["body"]),
-            })
-            # 章节搜索条目：标题 + 清洗后的正文全文，写入 search-index.json；
-            # module_title 用登记表标题、缺省时回退书名，保证搜索结果显示真实课程名。
-            search_entries.append({
-                "id": chapter_id,
-                "module_id": definition["id"],
-                "module_title": definition["title"] or book_title,
-                "title": raw_chapter["title"],
-                "url": f"{definition['id']}/{filename}",
-                "text": clean_search_text(raw_chapter["body"]),
-            })
         # 书架使用登记表中的人工整理标题，避免源文件里的临时标题、章节名或
         # “副本”等文件管理字样出现在课程卡片上。源标题只用于无登记标题时兜底。
         # 模块 dict 组装：显示名优先登记表 title、缺省回书名；about 优先登记表人工
@@ -1204,6 +1239,7 @@ def build() -> None:
     filters = "".join(f'<button type="button" data-filter="{html.escape(category)}" class="{"active" if category == "全部" else ""}">{html.escape(category)}</button>' for category in categories)
     index_body = f'''<div class="shell">{topbar(".")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};bar.style.width=`${{Math.round(info.completed/info.total*100)}}%`}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
     (OUTPUT_ROOT / "index.html").write_text(document("学习书架", index_body, "assets/library.css"), encoding="utf-8")
+    build_cache.save_cache(HOT100_ROOT, cache)
     # 构建收尾统计(模块总数/章节总数)，供命令行确认与构建日志留痕；
     # modules 含 Hot 100 模块，章节总数恒 ≥ 题目数 + 课程章节数。
     print(f"Library modules: {len(modules)}; chapters: {sum(module['chapter_count'] for module in modules)}")

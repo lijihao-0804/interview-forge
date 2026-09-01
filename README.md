@@ -13,14 +13,6 @@
 
 依赖：仅需本机 Python 3.10+；Mermaid、uPlot 等前端资源全部本地内置，**零网络依赖**。
 
-**安装依赖（二选一）**
-- 只用学习站（直接双击 `启动学习站.cmd`）：**零依赖**，纯标准库即可运行；
-- 重新构建 / 跑发布校验（改内容、改源码时）：需要 3 个构建包：
-
-```bash
-pip install markdown pygments beautifulsoup4
-```
-
 ## 主要功能详解
 
 ### 1. Hot 100 算法精讲
@@ -145,21 +137,23 @@ pip install markdown pygments beautifulsoup4
 ## 目录结构
 
 ```text
-interview-forge/
-├─ README.md / LICENSE / .gitignore / MAINTENANCE.md / QA-REPORT.md   仓库根文档
+学习站/
+├─ README.md                 总入口（本文件）
+├─ MAINTENANCE.md            维护、扩展与发布规范
 ├─ index.html                学习站首页（由模板生成）
 ├─ 启动学习站.cmd            启动本地服务并打开首页
 ├─ leetcode-connect.html     力扣连接向导页
-├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
-├─ assets/  library/         站内样式/脚本与书架产物（29 模块 / 541 章）
-├─ tools/                    生成、校验、本地服务和页面模板
-└─ books/                    全部书籍与笔记资源（一“书”一目录，构建源）
-   ├─ hot100/                Hot 100 全书：逐题原始笔记（00-集合 ~ 17-技巧 + 速查）
-   │  ├─ 00-总览~04-模板/     学习路线、专题、题解、模板（内容资源）
-   │  ├─ 05-可视化/ 06-扩展题源/ 99-原稿归档/  pic/   可视化、扩展题源与归档
-   ├─ Java校招/  Python/  机器学习/  langchain/  0816MCP/  20260419_Hermes_Agent/
-   └─ 单行本/                5 本独立小书（LoRA、RAG、Agent、AI Infra、编译器面试）
-```
+├─ data/                     SQLite 学习记录（首次启动时创建）
+├─ 00-总览/                  学习路线、模式地图、复习清单、错题本
+├─ 01-基础/                  Java、数组、字符串、集合、排序
+├─ 02-专题/                  17 个题型的识别与解题框架
+├─ 03-题解/                  100 道独立题目页
+├─ 04-模板/                  Java 算法模板与边界检查表
+├─ 05-可视化/                题解页内嵌交互组件的实现源
+├─ 06-扩展题源/              后续新增题目的可重复生成正文
+├─ 99-原稿归档/              未改动的原始 Markdown
+├─ 报告/                     过程文档、审查报告与实现记录
+└─ tools/                    生成、校验、本地服务和页面模板
 ```
 
 ## 开发与维护

@@ -37,6 +37,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import re
 import shutil
@@ -46,6 +47,8 @@ import sys
 import urllib.parse
 from collections import defaultdict
 from pathlib import Path
+
+import build_cache
 # 标准库即够：json 序列化面板数据，re 做正文/标题清洗，subprocess 串起
 # 后续 build_library / build_html_site 两个构建脚本，pathlib 统一路径操作。
 
@@ -248,6 +251,23 @@ def parse_problems() -> list[dict[str, object]]:
 #   PROBLEMS      —— 保持 TSV 顺序的列表（决定所有页面的渲染顺序）；
 #   PROBLEM_BY_ID —— 题号 → 题目字典（供题号反查、build 统计新增题）。
 PROBLEMS = parse_problems()
+
+
+def _problems_source_hash() -> str:
+    """render_problem_pages 的输入指纹：全部题解源文件 + 题目元数据（PROBLEMS）。
+
+    任一源笔记/扩展题源/元数据表变化都会改变哈希，从而触发 100 道题页重建；
+    全部未变时增量跳过。聚合哈希按文件名排序拼接，顺序稳定。
+    """
+    hasher = hashlib.sha256()
+    for path in sorted(SOURCE.glob("[0-9][0-9]-*.md")):
+        if path.name.startswith("00-"):
+            continue
+        hasher.update(path.read_bytes())
+    for path in sorted(EXTENSION_SOURCE.glob("*.md")):
+        hasher.update(path.read_bytes())
+    hasher.update(json.dumps(PROBLEMS, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    return hasher.hexdigest()
 PROBLEM_BY_ID = {int(p["id"]): p for p in PROBLEMS}
 
 # === 力扣原题链接数据 ===
@@ -1652,7 +1672,24 @@ def build() -> None:
     # ② 素材复制（与题解生成互不依赖，可先做）。
     copy_source_materials()
     # ③ 核心输出：100 道独立题页。
-    render_problem_pages(original)
+    # 增量：源笔记/扩展题源/题目元数据未变且 100 道题页都存在 → 跳过重写；
+    # 聚合导航页（专题/README/总览/模板/首页）仍全量生成（渲染量小）。
+    cache = build_cache.load_cache(ROOT)
+    tool_sha = build_cache.tools_fingerprint(Path(__file__).resolve())
+    if cache.get("tool_sha") != tool_sha or cache.get("version") != build_cache.CACHE_VERSION:
+        cache = {"version": build_cache.CACHE_VERSION, "tool_sha": tool_sha, "entries": {}}
+    problems_sha = _problems_source_hash()
+    problems_outputs = [
+        f"books/hot100/03-题解/{problem['folder']}/{problem_filename(problem)}"
+        for problem in PROBLEMS
+    ]
+    if build_cache.needs_rebuild(cache, "problems:", problems_sha, problems_outputs, ROOT):
+        render_problem_pages(original)
+        build_cache.mark_built(cache, "problems:", problems_sha, problems_outputs)
+        print(f"Problem pages rebuilt: {len(PROBLEMS)}")
+    else:
+        print(f"Problem pages: {len(PROBLEMS)} up to date (incremental skip)")
+    build_cache.save_cache(ROOT, cache)
     # ④ 专题页（链接到 ③ 产出的题页文件）。
     render_topics()
     # ④ README 总入口（引用专题页与题数）。

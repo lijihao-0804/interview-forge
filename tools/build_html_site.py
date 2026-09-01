@@ -32,9 +32,16 @@ import html
 import os
 import re
 import shutil
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import markdown
+
+import build_cache
+
+# 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
+# 不受 GIL 限制；仅在逐文件渲染（render_markdown）阶段并行，聚合产物仍串行。
+PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 
 # markdown：python-markdown 库，负责 Markdown→HTML；代码高亮经其 codehilite
 # 扩展调用 Pygments（render_markdown 中启用）。build_library.py 使用同一环境，
@@ -52,6 +59,13 @@ ROOT = Path(__file__).resolve().parents[1]
 # （演示页只被 polish_visual 润色、不重渲染）、06-扩展题源/、99-原稿归档/
 # （历史归档保持 .md 源稿状态）。根级 README/MAINTENANCE 等由 build() 单独加入。
 CONTENT_DIRS = ["books/hot100/00-总览", "books/hot100/01-基础", "books/hot100/02-专题", "books/hot100/03-题解", "books/hot100/04-模板"]
+
+
+def _render_markdown_worker(job: tuple[str, str]) -> str:
+    """子进程执行：渲染单个 Markdown 源为 HTML 阅读页，返回源文件绝对路径。"""
+    src_abs, _ = job
+    render_markdown(Path(src_abs))
+    return src_abs
 
 # ASSET_VERSION 的数据流：该值拼进每张阅读页 <link>/<script> 的 ?v= 查询串
 # （render_markdown 里 css_href/js_href 引用），浏览器把它当作全新 URL 重新拉取，
@@ -1666,8 +1680,27 @@ def build() -> None:
     sources = [ROOT / "README.md", ROOT / "MAINTENANCE.md", ROOT / "QA-REPORT.md"]
     for folder in CONTENT_DIRS:
         sources.extend(sorted((ROOT / folder).rglob("*.md")))
+    # 增量 + 并行渲染阅读页：源内容哈希未变且输出存在 → 跳过；需要重建的
+    # 文件交给进程池并行渲染，全部完成后再写回缓存（聚合产物始终全量）。
+    cache = build_cache.load_cache(ROOT)
+    cache = build_cache.invalidate_on_tool_change(cache, Path(__file__).resolve())
+    pending: list[tuple[Path, Path, str, str]] = []
     for source in sources:
-        render_markdown(source)
+        rel = source.relative_to(ROOT).as_posix()
+        output = output_for_markdown(source)
+        rel_out = output.relative_to(ROOT).as_posix()
+        sha = build_cache.file_sha256(source)
+        if not build_cache.needs_rebuild(cache, "html_page:" + rel, sha, [rel_out], ROOT):
+            continue
+        pending.append((source, output, rel, sha))
+    if pending:
+        with ProcessPoolExecutor(max_workers=PARALLEL_WORKERS) as pool:
+            list(pool.map(_render_markdown_worker, [(str(src), str(out)) for src, out, _, _ in pending]))
+        for source, output, rel, sha in pending:
+            build_cache.mark_built(cache, "html_page:" + rel, sha, [output.relative_to(ROOT).as_posix()])
+    build_cache.save_cache(ROOT, cache)
+    if pending:
+        print(f"HTML pages rebuilt: {len(pending)} (of {len(sources)})")
 
     update_dashboard()
     render_notebook()

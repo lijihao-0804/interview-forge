@@ -6,10 +6,10 @@
 <p>大模型的API接口是"<strong>无状态</strong>"的，服务端不会记录用户请求的上下文。因此我们调用API接口与大模型对话时，每一次对话信息都不会保留，多次对话之间都是独立的，没有关联的。</p>
 <p>因此大模型并不知道之前的聊天历史，也就是说<strong>大模型是没有记忆</strong>的。</p>
 <p>测试，我询问AI一个问题：<code>12个苹果分给3个人，每人能分几个？</code></p>
-<p><img alt="image.png" src="assets/73ab9c0359-image-18.png" /></p>
+<p><img alt="image.png" src="assets/b8c344de5c-image-18.png" /></p>
 <p>AI的答案是：<code>每人可以分到4个苹果。</code></p>
 <p>我们接着问：<code>如果是分给4个人呢？</code>，由于AI没有记忆，它不知道我是接着上一题问的，因此不知道要分的是12个苹果，答案就有问题：</p>
-<p><img alt="image.png" src="assets/6ccc2da86e-image-6.png" /></p>
+<p><img alt="image.png" src="assets/80d1884703-image-6.png" /></p>
 <p>可以看到，AI完全不知道我们聊天的背景是上一次的分12个苹果。</p>
 <p>那么，如何才能让AI具备记忆呢？</p>
 <p>要想让大模型有记忆，必须<strong>在每次请求时，将之前所有对话的历史拼接好，传递给对话API接口</strong>。</p>
@@ -28,7 +28,7 @@
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 <p>测试结果：</p>
-<p><img alt="image.png" src="assets/15ca4def51-image-27.png" /></p>
+<p><img alt="image.png" src="assets/a93791757b-image-27.png" /></p>
 <p>好了，现在我们能用图形界面的Http客户端发送http请求，调用大模型了。</p>
 <p>但是这样还不够，如果要开发AI应用，肯定是要通过编程的方式发送Http请求，调用大模型。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-12.html">← 上一章</a><a href="chapter-14.html">下一章 →</a></nav></main></div>
 <script>const contentId="ai-basics:13",moduleId="ai-basics";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-module3')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
