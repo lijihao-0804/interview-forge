@@ -398,15 +398,43 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         if rounds > 0 and row["last_completed_at"]:
             item["next_due"] = due_after(str(row["last_completed_at"]), rounds)
         problems_payload[str(row["problem_id"])] = item
+    submissions_payload = submission_summary(db_path)
+    with closing(connect(db_path)) as connection:
+        recent_submissions = [
+            dict(row)
+            for row in connection.execute(
+                """SELECT problem_id, status, lang, submitted_at, source
+                   FROM submissions ORDER BY submitted_at DESC, id DESC LIMIT 10000"""
+            ).fetchall()
+        ]
+    for pid_str, item in problems_payload.items():
+        stat = submissions_payload["problems"].get(int(pid_str))
+        if stat:
+            item.update(stat)
+            last_submit = str(stat.get("last_submitted_at") or "")
+            last_activity = str(item.get("last_activity_at") or "")
+            if last_submit and (not last_activity or last_submit > last_activity):
+                item["last_activity_at"] = last_submit
+    for pid, stat in submissions_payload["problems"].items():
+        if pid not in problems_payload:
+            problems_payload[pid] = {
+                "rounds": 0,
+                "last_viewed_at": None,
+                "last_completed_at": None,
+                "last_activity_at": None,
+                **stat,
+            }
+            problems_payload[pid]["last_activity_at"] = stat.get("last_submitted_at") or ""
     return {
         "today": today,
         "summary": summary,
         "problems": problems_payload,
         "days": [dict(row) for row in days],
         "recent": [dict(row) for row in recent],
+        "recent_submissions": recent_submissions,
         "activity": activity,
         "marks": problem_marks(db_path),
-        "submissions": submission_summary(db_path),
+        "submissions": submissions_payload,
     }
 
 
@@ -821,6 +849,10 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
     marks = problem_marks(db_path)
     # 数据源二：被标记为 weak 的题，即使还没到期也强制放进今日计划（查漏补缺）。
     weak_ids = {int(k) for k, value in marks.items() if value == "weak" and int(k) in PROBLEM_BY_ID}
+    for pid_text in submission_summary(db_path)["auto_weak"]:
+        pid = int(pid_text)
+        if pid in PROBLEM_BY_ID and marks.get(pid_text) not in ("mastered", "reviewing"):
+            weak_ids.add(pid)
     with closing(connect(db_path)) as connection:
         # 每题聚合：用于判断"未完成过"（rounds==0 => 新题）与"最久未学"排序。
         rows = connection.execute(
@@ -872,8 +904,8 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
 def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
     """薄弱题清单：含专题、轮次、最近复习、标记时间，按标记时间排序。"""
     with closing(connect(db_path)) as connection:
-        # 薄弱标记列表按标记时间排序（最早标记的最先展示）。
-        marks = [dict(row) for row in connection.execute(
+        # 手动薄弱标记（按标记时间排序）。
+        manual_marks = [dict(row) for row in connection.execute(
             "SELECT target_id, updated_at FROM marks WHERE target_type='problem' AND mark='weak' ORDER BY updated_at"
         )]
         # 每题完成轮次（列表里显示"已经复习了几轮"）。
@@ -887,13 +919,37 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
         ).fetchall()
     info = {int(row["problem_id"]): row for row in complete_rows}
     first_view = {int(row["problem_id"]): str(row["first_view"]) for row in view_rows}
+    submissions = submission_summary(db_path)
+    all_marks = problem_marks(db_path)
+    manual_by_id = {int(row["target_id"]): row for row in manual_marks}
+    auto_by_id: dict[int, dict[str, object]] = {}
+    for pid_text in submissions["auto_weak"]:
+        pid = int(pid_text)
+        if pid not in PROBLEM_BY_ID:
+            continue
+        if all_marks.get(pid_text) in ("mastered", "reviewing"):
+            continue
+        auto_by_id[pid] = submissions["problems"][pid]
+
+    combined: list[tuple[int, str, str, dict[str, object]]] = []
+    for pid, row in manual_by_id.items():
+        if pid in PROBLEM_BY_ID:
+            combined.append((pid, str(row["updated_at"]), "手动标记", row))
+    for pid, stat in auto_by_id.items():
+        if pid in manual_by_id:
+            continue
+        rate = stat.get("pass_rate")
+        reason = f"AC 通过率 {rate * 100:.0f}%" if rate is not None else "AC 通过率低于 50%"
+        combined.append((pid, str(stat.get("last_submitted_at") or ""), reason, stat))
+    combined.sort(key=lambda item: item[1])
+
     items: list[dict[str, object]] = []
-    for mark in marks:
-        pid = int(mark["target_id"])
+    for pid, _marked_at, reason, source in combined:
         p = PROBLEM_BY_ID.get(pid)
         if not p:
             continue
         row = info.get(pid)
+        marked_at = str(source.get("updated_at") or source.get("last_submitted_at") or "")
         items.append({
             "id": pid,
             "title": p["title"],
@@ -904,7 +960,8 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
             "rounds": int(row["rounds"]) if row else 0,
             "last_completed_at": str(row["last_completed_at"]) if row else "",
             "first_view": first_view.get(pid, ""),
-            "marked_at": mark["updated_at"],
+            "marked_at": marked_at,
+            "reason": reason,
         })
     return {"count": len(items), "items": items}
 
@@ -1061,26 +1118,60 @@ def submissions_for_problem(problem_id: int, limit: int = 50, db_path: Path = DB
 
 
 def submission_summary(db_path: Path = DB_PATH) -> dict[str, object]:
-    """全站提交统计：今日/累计 AC 与提交数、通过率、每题是否 AC 过。"""
+    """全站提交统计：今日 AC/提交、累计 AC 次数、已解决题数、通过率、每题是否 AC 过。"""
     today = datetime.now().astimezone().date().isoformat()
     with closing(connect(db_path)) as connection:
-        # 单条 SQL 聚合四项：今日 AC / 今日提交 / 累计 AC 题数 / 累计提交数（substr 切日期前缀与今天比对）。
+        # 累计 AC 次数按每次 AC 提交累计；已解决题数按题目去重。
         row = connection.execute(
             """SELECT
                  COALESCE(SUM(CASE WHEN status = 'ac' AND substr(submitted_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS today_ac,
                  COALESCE(SUM(CASE WHEN substr(submitted_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS today_submits,
-                 COALESCE(COUNT(DISTINCT CASE WHEN status = 'ac' THEN problem_id END), 0) AS total_ac,
+                 COALESCE(SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END), 0) AS total_ac,
+                 COALESCE(COUNT(DISTINCT CASE WHEN status = 'ac' THEN problem_id END), 0) AS solved_ac,
                  COALESCE(SUM(1), 0) AS total_submits
                FROM submissions""",
             (today, today),
         ).fetchone()
         problem_rows = connection.execute(
-            "SELECT problem_id, MAX(CASE WHEN status = 'ac' THEN 1 ELSE 0 END) AS ever_ac FROM submissions GROUP BY problem_id"
+            """SELECT problem_id,
+                      MAX(CASE WHEN status = 'ac' THEN 1 ELSE 0 END) AS ever_ac,
+                      COUNT(*) AS submits,
+                      SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END) AS ac_submits,
+                      MAX(submitted_at) AS last_submitted_at
+               FROM submissions GROUP BY problem_id"""
+        ).fetchall()
+        last_rows = connection.execute(
+            """SELECT s.problem_id, s.status, s.submitted_at
+               FROM submissions s
+               WHERE s.id IN (SELECT MAX(id) FROM submissions GROUP BY problem_id)"""
         ).fetchall()
     summary = {key: int(row[key] or 0) for key in row.keys()}
-    # 通过率 = 累计 AC 题数 / 累计提交数；一条提交都没有 → None（前端显示"暂无数据"而非除零）。
+    # 通过率 = AC 提交次数 / 总提交次数；一条提交都没有 → None（前端显示"暂无数据"而非除零）。
     summary["pass_rate"] = round(summary["total_ac"] / summary["total_submits"], 3) if summary["total_submits"] else None
-    return {"summary": summary, "ever_ac": {int(r["problem_id"]): bool(r["ever_ac"]) for r in problem_rows}}
+    last_map = {int(r["problem_id"]): dict(r) for r in last_rows}
+    problems: dict[int, dict[str, object]] = {}
+    auto_weak: dict[str, bool] = {}
+    for row in problem_rows:
+        pid = int(row["problem_id"])
+        submits = int(row["submits"] or 0)
+        ac_submits = int(row["ac_submits"] or 0)
+        pass_rate = round(ac_submits / submits, 3) if submits else None
+        last = last_map.get(pid, {})
+        problems[pid] = {
+            "submits": submits,
+            "ac_submits": ac_submits,
+            "pass_rate": pass_rate,
+            "last_submitted_at": str(row["last_submitted_at"]) if row["last_submitted_at"] else "",
+            "last_status": str(last.get("status") or ""),
+        }
+        if submits and pass_rate is not None and pass_rate < 0.5:
+            auto_weak[str(pid)] = True
+    return {
+        "summary": summary,
+        "ever_ac": {int(r["problem_id"]): bool(r["ever_ac"]) for r in problem_rows},
+        "problems": problems,
+        "auto_weak": auto_weak,
+    }
 
 
 def get_credentials(db_path: Path = DB_PATH) -> dict[str, str]:
@@ -1445,7 +1536,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:
         # 本地学习站始终返回最新内容，静态页面/脚本/样式一律禁止缓存，避免浏览器拿旧版。
-        if self.path.split("?", 1)[0].lower().endswith((".html", ".js", ".css", ".webmanifest", ".json")):
+        path = getattr(self, "path", "") or ""
+        if path.split("?", 1)[0].lower().endswith((".html", ".js", ".css", ".webmanifest", ".json")):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
@@ -1740,7 +1832,9 @@ def main() -> None:
     if args.init_only:
         print(f"Database ready: {DB_PATH}")
         return
-    address = f"http://{args.host}:{args.port}/"
+    # 绑定 0.0.0.0 时浏览器仍应打开本机回环地址；0.0.0.0 不是浏览器可访问地址。
+    browser_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
+    address = f"http://{browser_host}:{args.port}/"
     # ThreadingHTTPServer 每请求一线程；daemon_threads 保证 Ctrl+C 后线程随主进程一起退出。
     server = ThreadingHTTPServer((args.host, args.port), StudyHandler)
     server.daemon_threads = True

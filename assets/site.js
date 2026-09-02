@@ -48,7 +48,19 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
     button.textContent = copied ? '已复制' : '请手动复制';
     setTimeout(() => button.textContent = '复制代码', 1400);
   });
-  toolbar.append(label, button);
+  const wrapButton = document.createElement('button');
+  wrapButton.type = 'button';
+  wrapButton.className = 'copy-code';
+  wrapButton.textContent = '换行';
+  wrapButton.setAttribute('aria-pressed', 'false');
+  wrapButton.setAttribute('aria-label', '切换代码长行自动换行');
+  wrapButton.addEventListener('click', () => {
+    const nowrap = pre.classList.toggle('code-nowrap');
+    const wrapped = pre.classList.toggle('code-wrap', !nowrap);
+    wrapButton.setAttribute('aria-pressed', String(wrapped));
+    wrapButton.textContent = wrapped ? '原样' : '换行';
+  });
+  toolbar.append(label, button, wrapButton);
   pre.parentNode.insertBefore(wrapper, pre);
   wrapper.append(toolbar, pre);
 });

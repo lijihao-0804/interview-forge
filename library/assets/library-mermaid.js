@@ -19,14 +19,15 @@
     labelBoxBkgColor: '#edf9f8', labelBoxBorderColor: '#79b8ba', labelTextColor: '#344056',
     activationBkgColor: '#fff7e8', activationBorderColor: '#dfa34c', sequenceNumberColor: '#ffffff'
   };
+  const narrow = window.innerWidth < 640;
   window.mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
     theme: 'base',
     themeVariables: { ...palette, fontSize: '15px' },
     fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif',
-    flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: 34, rankSpacing: 44, padding: 14 },
-    sequence: { useMaxWidth: true, wrap: true, actorMargin: 46, messageMargin: 32, diagramMarginX: 24, diagramMarginY: 18 },
+    flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: narrow ? 18 : 34, rankSpacing: narrow ? 26 : 44, padding: narrow ? 10 : 14 },
+    sequence: { useMaxWidth: true, wrap: true, actorMargin: narrow ? 34 : 46, messageMargin: narrow ? 24 : 32, diagramMarginX: narrow ? 12 : 24, diagramMarginY: narrow ? 12 : 18 },
     mindmap: { useMaxWidth: true }
   });
   // 逐图、按顺序渲染：某一张图语法异常时不会阻断同页其他图，

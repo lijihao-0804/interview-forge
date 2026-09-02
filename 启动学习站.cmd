@@ -32,12 +32,12 @@ goto :eof
 
 :run_python
 call :check_port
-python "%~dp0tools\study_server.py" --host 127.0.0.1 --open
+python "%~dp0tools\study_server.py" --host 0.0.0.0 --open
 goto after_run
 
 :run_py
 call :check_port
-py -3 "%~dp0tools\study_server.py" --host 127.0.0.1 --open
+py -3 "%~dp0tools\study_server.py" --host 0.0.0.0 --open
 
 :after_run
 if not errorlevel 1 exit /b 0

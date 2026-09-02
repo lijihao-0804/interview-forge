@@ -86,7 +86,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 HOT100_ROOT = Path(__file__).resolve().parents[1]
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
-ASSET_VERSION = "20260830-module3"
+ASSET_VERSION = "20260830-mobile1"
 
 
 # 书架全局样式常量，构建时写入 library/assets/library.css(见 build() 第 0 步)。
@@ -276,6 +276,40 @@ LIBRARY_CSS = r"""
 .reader .codehilite[data-lang="java"] .o,.reader .codehilite[data-lang="java"] .ow{color:#b9c2d0}
 .reader .codehilite[data-lang="java"] .err{color:#ff7b72}
 }
+
+/* ===== 移动端改进补丁（MOBILE-UX-REPORT Task 1-5） ===== */
+/* 兜底：任何漏网内容不再撑破整页（clip 不产生滚动条、不裁切粘贴选区） */
+body{overflow-x:clip}
+/* 行内代码 / 链接 / 标题可断行 */
+a{overflow-wrap:anywhere}
+.reader code{overflow-wrap:anywhere;word-break:break-word}
+.reader h1,.reader h2,.reader h3,.reader h4{overflow-wrap:break-word}
+.reader blockquote p{overflow-wrap:anywhere}
+/* pre 块内的 code 不受影响（保持代码原样，由 pre 自身横向滚动控制） */
+.reader pre code{overflow-wrap:normal;word-break:normal}
+
+/* 移动端阅读适配：内容区放宽、字号收缩、代码块软换行、表格紧凑 */
+@media(max-width:640px){
+  html{-webkit-text-size-adjust:100%}
+  .shell{width:min(100% - 14px,1120px)}
+  .reader{padding:22px 14px 34px}
+  .reader h1{font-size:27px}
+  .reader h2{font-size:21px;margin:40px 0 14px}
+  .reader h3{font-size:18px}
+  .reader pre{font-size:12.5px;padding:16px 14px}
+  .reader pre:not(.mermaid){white-space:pre-wrap;word-break:break-all;overflow-x:hidden}
+  .reader th,.reader td{padding:8px 9px}
+  .reader table{font-size:13px;margin:18px auto}
+  .chapter-status{font-size:12px;padding:8px 10px;gap:8px 10px}
+  .chapter-status .complete-button{min-height:40px;padding:6px 14px}
+  .chapter-nav a{padding:9px 14px}
+  .math-display-wrap{padding:10px;font-size:.95em}
+  .demo-embed iframe{height:420px;min-height:320px}
+}
+/* 触屏设备给可横滚容器加提示（桌面 hover 设备不显示） */
+@media(hover:none){
+  .mermaid-diagram::after{content:"↔ 左右滑动查看大图";display:block;padding:6px 10px;color:var(--muted);font-size:12px}
+}
 """
 
 
@@ -305,14 +339,15 @@ MERMAID_JS = r"""
     labelBoxBkgColor: '#edf9f8', labelBoxBorderColor: '#79b8ba', labelTextColor: '#344056',
     activationBkgColor: '#fff7e8', activationBorderColor: '#dfa34c', sequenceNumberColor: '#ffffff'
   };
+  const narrow = window.innerWidth < 640;
   window.mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
     theme: 'base',
     themeVariables: { ...palette, fontSize: '15px' },
     fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif',
-    flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: 34, rankSpacing: 44, padding: 14 },
-    sequence: { useMaxWidth: true, wrap: true, actorMargin: 46, messageMargin: 32, diagramMarginX: 24, diagramMarginY: 18 },
+    flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: narrow ? 18 : 34, rankSpacing: narrow ? 26 : 44, padding: narrow ? 10 : 14 },
+    sequence: { useMaxWidth: true, wrap: true, actorMargin: narrow ? 34 : 46, messageMargin: narrow ? 24 : 32, diagramMarginX: narrow ? 12 : 24, diagramMarginY: narrow ? 12 : 18 },
     mindmap: { useMaxWidth: true }
   });
   // 逐图、按顺序渲染：某一张图语法异常时不会阻断同页其他图，

@@ -60,7 +60,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .progress-section{margin:0 0 22px}
 .progress-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;color:var(--muted);font-size:13px}.progress-head strong{color:var(--text)}
 .bar{height:9px;overflow:hidden;border-radius:999px;background:var(--line)}.bar>div{width:0;height:100%;background:linear-gradient(90deg,var(--brand),var(--success));transition:width .22s ease}
-.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,300px);gap:18px;align-items:start}
+.workspace{display:block}
 .controls{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr));gap:12px;margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
 .field{display:grid;gap:6px;min-width:0}.field label{color:var(--muted);font-size:13px;font-weight:650}
 .field input,.field select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel-soft)}
@@ -156,6 +156,8 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 #heatmapDetail{min-height:20px;margin-top:8px;color:var(--muted);font-size:13px}
 .trend-chart{margin-top:18px;max-width:100%}
 .trend-chart .u-title{font-size:14px;color:var(--muted)}
+#trend,#trend .uplot,#trend .u-wrap,.history{min-width:0}
+#trend .uplot,#trend .u-wrap{width:100%;max-width:100%}
 .quick-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;margin:0 0 22px}
 .quick-cards .review-section{margin:0}
 #reviewList{max-height:320px;overflow-y:auto}
@@ -188,12 +190,12 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
       <div class="stat"><span>已刷题目</span><strong id="completedCount">0</strong></div>
       <div class="stat"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
       <div class="stat"><span>日 AC / 提交</span><strong id="acTodayText">0 / 0</strong></div>
-  <div class="stat"><span>累计 AC</span><strong id="acTotalText">0</strong></div>
+  <div class="stat"><span>累计 AC / 已解决</span><strong id="acTotalText">0 / 0</strong></div>
   <div class="stat"><span>连续学习</span><strong id="streakCount">0</strong></div>
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="history.html">学习记录</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>
   <div id="serverNotice" class="notice" hidden>数据库没有启动。请关闭这个页面，然后双击根目录中的 <code>启动学习站.cmd</code>；以后从自动打开的页面学习，记录才会写入 SQLite。</div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
@@ -204,6 +206,16 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
   <section class="review-section" aria-labelledby="pickTitle">
     <div class="review-head"><h2 id="pickTitle">今日计划</h2><button id="pickAgain" class="round-button" type="button">换一组</button></div>
     <div id="pickCard" class="review-list">正在读取…</div>
+  </section>
+  </div>
+  <div class="workspace">
+  <section aria-label="题目学习区">
+    <section class="controls" aria-label="筛选题目">
+      <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="题号、题名或核心方法" autocomplete="off"></div>
+      <div class="field"><label for="category">专题</label><select id="category"><option value="">全部专题</option></select></div>
+      <div class="field"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="weak">薄弱</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
+    </section>
+    <section id="problemGrid" aria-label="Hot 100 题目"><div id="grid" class="grid"></div><div id="empty" class="empty" hidden>没有匹配的题目，请调整搜索词或筛选条件。</div></section>
   </section>
   </div>
   <div class="more-section">
@@ -240,23 +252,6 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
     <div id="trend" class="trend-chart"></div>
   </section>
   </div>
-  <div class="workspace">
-  <section aria-label="题目学习区">
-    <section class="controls" aria-label="筛选题目">
-      <div class="field"><label for="search">搜索</label><input id="search" type="search" placeholder="题号、题名或核心方法" autocomplete="off"></div>
-      <div class="field"><label for="category">专题</label><select id="category"><option value="">全部专题</option></select></div>
-      <div class="field"><label for="status">学习轮次</label><select id="status"><option value="">全部轮次</option><option value="due">待复习</option><option value="weak">薄弱</option><option value="new">尚未完成</option><option value="once">完成 1 轮</option><option value="repeat">完成 2 轮以上</option></select></div>
-    </section>
-    <section id="problemGrid" aria-label="Hot 100 题目"><div id="grid" class="grid"></div><div id="empty" class="empty" hidden>没有匹配的题目，请调整搜索词或筛选条件。</div></section>
-  </section>
-  <aside class="history" aria-labelledby="historyTitle">
-    <h2 id="historyTitle">学习记录</h2>
-    <div class="history-columns">
-      <section><h3>最近 14 个学习日</h3><ul id="dayList" class="day-list"></ul></section>
-      <section><h3>最近活动</h3><ul id="eventList" class="event-list"></ul></section>
-    </div>
-  </aside>
-  </div>
   <div id="toast" class="toast" aria-live="polite"></div>
 <footer><a href="guide.html">完整使用指南</a> · <a href="maintenance.html">维护指南</a> · <a href="leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 数据保存在本机 <code>data/hot100-study.db</code></footer>
 </main>
@@ -288,7 +283,7 @@ function updateSummary(){
   document.getElementById('totalRounds').textContent=summary.total_rounds;
   const subs=(state.data.submissions||{}).summary||{};
   document.getElementById('acTodayText').textContent=`${subs.today_ac||0} / ${subs.today_submits||0}`;
-  document.getElementById('acTotalText').textContent=subs.total_ac||0;
+  document.getElementById('acTotalText').textContent=`${subs.total_ac||0} / ${subs.solved_ac||0}`;
   document.getElementById('streakCount').textContent=summary.streak||0;
   document.getElementById('goalText').textContent=`${summary.today_rounds||0} / ${summary.daily_goal||3}`;
   document.getElementById('goalInput').value=summary.daily_goal||3;
@@ -324,15 +319,14 @@ async function loadPick(randomize){
 const markLabels={weak:'薄弱',reviewing:'复习中',mastered:'已掌握'};
 function renderWeak(){
   const marks=state.data.marks||{};
-  const items=problems.filter(p=>marks[String(p.id)]==='weak');
-  weakList.innerHTML=items.length?items.map(p=>`<li><a href="${esc(p.note)}">${p.id}. ${esc(p.title)}</a><button class="weak-clear" type="button" data-clear="${p.id}">清除标记</button></li>`).join(''):'<li class="history-empty">还没有薄弱题：做题时在卡片上标记“薄弱”即可。</li>';
+  const autoWeak=(state.data.submissions||{}).auto_weak||{};
+  const items=problems.filter(p=>marks[String(p.id)]==='weak'||autoWeak[String(p.id)]);
+  weakList.innerHTML=items.length?items.map(p=>{
+    const manual=marks[String(p.id)]==='weak';
+    const auto=!!autoWeak[String(p.id)];
+    return `<li><a href="${esc(p.note)}">${p.id}. ${esc(p.title)}</a><span class="muted">${manual?'手动标记':auto?'AC 通过率低于 50%':''}</span>${manual?`<button class="weak-clear" type="button" data-clear="${p.id}">清除标记</button>`:''}</li>`;
+  }).join(''):'<li class="history-empty">还没有薄弱题：提交多次后 AC 通过率低于 50% 会自动进入。</li>';
   weakList.querySelectorAll('[data-clear]').forEach(button=>button.addEventListener('click',()=>setMark(Number(button.dataset.clear),'')));
-}
-function renderHistory(){
-  const dayList=document.getElementById('dayList');
-  const eventList=document.getElementById('eventList');
-  dayList.innerHTML=state.data.days.length?state.data.days.map(day=>`<li><div class="day-row"><strong>${esc(day.study_date)}</strong><span>${day.viewed} 题 · ${day.rounds} 轮</span></div></li>`).join(''):'<li class="history-empty">还没有学习记录</li>';
-  eventList.innerHTML=state.data.recent.length?state.data.recent.slice(0,10).map(event=>{const problem=byId.get(event.problem_id);const action=event.action==='complete'?`完成第 ${event.round_no} 轮`:'打开题解';return `<li><span class="event-title">${problem?`${problem.id}. ${esc(problem.title)}`:`题号 ${event.problem_id}`}</span><span class="event-time">${esc(action)} · ${localTime(event.studied_at)}</span></li>`}).join(''):'<li class="history-empty">打开题解后会自动记录</li>';
 }
 function renderHeatmap(){
   const el=document.getElementById('heatmap');
@@ -406,12 +400,13 @@ function renderCards(){
   const dueIds=new Set(state.daily.problems.map(item=>String(item.id)));
   const dueOverdue=new Set(state.daily.problems.filter(item=>item.due_date<state.daily.today).map(item=>String(item.id)));
   const marks=state.data.marks||{};
+  const autoWeak=(state.data.submissions||{}).auto_weak||{};
   const list=problems.filter(problem=>{
     const rounds=Number(infoFor(problem.id).rounds||0);
     const matchesText=!query||`${problem.id} ${problem.title} ${problem.method}`.toLowerCase().includes(query);
     const matchesCategory=!category.value||problem.category===category.value;
     const isDue=dueIds.has(String(problem.id));
-    const mark=marks[String(problem.id)]||'';
+    const mark=marks[String(problem.id)]||(autoWeak[String(problem.id)]?'weak':'');
     const matchesStatus=!status.value||(status.value==='due'&&isDue)||(status.value==='weak'&&mark==='weak')||(status.value==='new'&&rounds===0)||(status.value==='once'&&rounds===1)||(status.value==='repeat'&&rounds>=2);
     return matchesText&&matchesCategory&&matchesStatus;
   });
@@ -419,13 +414,16 @@ function renderCards(){
     const info=infoFor(problem.id);const rounds=Number(info.rounds||0);const last=info.last_activity_at;
     const isDue=dueIds.has(String(problem.id));
     const overdue=dueOverdue.has(String(problem.id));
-    const mark=marks[String(problem.id)]||'';
+    const manualMark=marks[String(problem.id)]||'';
+    const autoWeakFlag=!!autoWeak[String(problem.id)];
+    const mark=manualMark||(autoWeakFlag?'weak':'');
     const everAc=((state.data.submissions||{}).ever_ac||{})[String(problem.id)];
     const badge=isDue?`<span class="due-pill ${overdue?'overdue':''}">待复习</span>`:'';
     const acBadge=everAc?`<span class="ac-pill">已 AC</span>`:'';
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
+    const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">最近：${localTime(last)}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${mark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${mark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${mark==='weak'?'selected':''}>薄弱</option><option value="">清除</option></select><button class="round-button" type="button" data-complete="${problem.id}" ${state.online?'':'disabled'}>完成一轮</button></div></div></article>`;
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option></select><button class="round-button" type="button" data-complete="${problem.id}" ${state.online?'':'disabled'}>完成一轮</button></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-complete]').forEach(button=>button.addEventListener('click',()=>completeRound(button)));
@@ -472,7 +470,7 @@ async function saveGoal(){
     toast.textContent=`每日目标已设为 ${value} 轮`;
   }catch(error){toast.textContent=`保存失败：${error.message}`}
 }
-function render(){updateSummary();renderReview();renderWeak();renderHistory();renderHeatmap();renderTrend();renderCards()}
+function render(){updateSummary();renderReview();renderWeak();renderHeatmap();renderTrend();renderCards()}
 document.getElementById('pickAgain').addEventListener('click',()=>loadPick(true));
 document.querySelectorAll('[data-export]').forEach(button=>button.addEventListener('click',()=>exportData(button.dataset.export)));
 document.getElementById('goalInput').addEventListener('change',saveGoal);

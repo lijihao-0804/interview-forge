@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260830-v2"
+ASSET_VERSION = "20260830-mobile1"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -362,6 +362,12 @@ a:hover { text-decoration: underline; }
 .codehilite .nv, .codehilite .vc, .codehilite .vg, .codehilite .vi, .codehilite .nl { color: #ffcb6b; }
 .codehilite .err { color: #ff7b72; }
 
+/* ===== 移动端改进补丁（MOBILE-UX-REPORT Task 3-4） ===== */
+body{overflow-x:clip}
+/* 代码块换行开关（配合 SITE_JS 的按钮） */
+.code-block pre.code-wrap{white-space:pre-wrap;word-break:break-all;overflow-x:hidden}
+.code-toolbar{flex-wrap:wrap;gap:6px}
+
 @media (max-width: 720px) {
   .site-shell { width: min(100% - 18px, 1040px); padding-top: 9px; }
   .site-topbar { align-items: flex-start; padding: 10px 11px; border-radius: 12px; }
@@ -371,8 +377,12 @@ a:hover { text-decoration: underline; }
   .markdown-body h1 { font-size: 30px; }
   .markdown-body h2 { margin-top: 38px; font-size: 24px; }
   .markdown-body h3 { font-size: 20px; }
-  .markdown-body table { min-width: 500px; font-size: 14px; }
-  .markdown-body th, .markdown-body td { min-width: 94px; padding: 8px 9px; }
+  html{-webkit-text-size-adjust:100%}
+  .markdown-body pre{font-size:12.5px;padding:16px 14px}
+  .markdown-body pre:not(.code-nowrap){white-space:pre-wrap;word-break:break-all;overflow-x:hidden}
+  .markdown-body table { min-width: 440px; font-size: 13px; }
+  .markdown-body th, .markdown-body td { min-width: 84px; padding: 7px 8px; }
+  .copy-code{padding:6px 10px;min-height:36px}
   .toc-box { margin-bottom: 28px; padding-inline: 14px; }
   .reader-visual { margin-top: 40px; }
   .reader-visual-frame { border-radius: 11px; }
@@ -461,7 +471,19 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
     button.textContent = copied ? '已复制' : '请手动复制';
     setTimeout(() => button.textContent = '复制代码', 1400);
   });
-  toolbar.append(label, button);
+  const wrapButton = document.createElement('button');
+  wrapButton.type = 'button';
+  wrapButton.className = 'copy-code';
+  wrapButton.textContent = '换行';
+  wrapButton.setAttribute('aria-pressed', 'false');
+  wrapButton.setAttribute('aria-label', '切换代码长行自动换行');
+  wrapButton.addEventListener('click', () => {
+    const nowrap = pre.classList.toggle('code-nowrap');
+    const wrapped = pre.classList.toggle('code-wrap', !nowrap);
+    wrapButton.setAttribute('aria-pressed', String(wrapped));
+    wrapButton.textContent = wrapped ? '原样' : '换行';
+  });
+  toolbar.append(label, button, wrapButton);
   pre.parentNode.insertBefore(wrapper, pre);
   wrapper.append(toolbar, pre);
 });
@@ -1601,7 +1623,7 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>'
+    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="history.html">学习记录</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
         text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)

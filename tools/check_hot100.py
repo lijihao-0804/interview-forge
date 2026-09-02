@@ -410,9 +410,14 @@ if status_select is not None and status_select.find("option", value="due") is No
 # 面板挂载点完整性：JS 用 getElementById 找这一批 id，缺任何一个都会让对应
 # 功能（今日统计、轮次、连续天数、目标编辑、抽卡、错题、限时模拟等）静默失效
 # ——页面不报错但功能没渲染，所以必须逐个显式断言。
-for element_id in ("todayViewed", "todayRounds", "completedCount", "totalRounds", "streakCount", "goalText", "goalInput", "dayList", "eventList", "reviewList", "reviewSummary", "remindButton", "pickCard", "pickAgain", "weakList", "mockStart", "mockStatus", "mockTimer", "mockList", "mockReport"):
+for element_id in ("todayViewed", "todayRounds", "completedCount", "totalRounds", "streakCount", "goalText", "goalInput", "reviewList", "reviewSummary", "remindButton", "pickCard", "pickAgain", "weakList", "mockStart", "mockStatus", "mockTimer", "mockList", "mockReport"):
     if dashboard.find(id=element_id) is None:
         errors.append(f"学习站缺少数据库状态区域：{element_id}")
+# 学习记录已拆到独立页面 history.html，最近学习日/最近活动挂载点改在那里校验。
+history_text = (ROOT / "history.html").read_text(encoding="utf-8")
+for element_id in ("dayList", "eventList"):
+    if f'id="{element_id}"' not in history_text:
+        errors.append(f"学习记录页缺少数据库状态区域：{element_id}")
 # ---- 面板 JS × 后端 API 的源码字符串契约 ----
 # 面板内嵌的 JS 必须引用本地学习记录 API（/api/dashboard、/api/complete、
 # /api/daily、/api/mark、/api/export、/api/settings、/api/mock、/api/plan、
