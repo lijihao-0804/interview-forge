@@ -101,7 +101,7 @@ ZADD<span class="w"> </span>rank<span class="w"> </span><span class="m">98</span
 <p>Redis 会根据元素数量/大小自动切换编码，空间换性能。</p>
 <p><strong>编码细节推导</strong>：embstr 上限 44 = 64（SDS 内联结构上限）− 19（redisObject 头）− 1（结束符）；ziplist 的连锁更新（插入改变 prevlen 引发级联扩容）是 listpack 取代它的动机；intset 只升不降（删掉大整数不会回退编码）；哈希表 rehash 期间新旧两表并存，内存暂时翻倍。</p>
 <p>哈希表的 <strong>渐进式 rehash</strong>：扩容/缩容触发后分多次迁移，期间查找查新旧两表、新增只写新表，避免一次性搬迁卡顿。</p>
-<p><strong>ZSet 为什么用跳表</strong>：插入删除 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(log n)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi mathvariant="normal">log</mi><mspace width=".18em"/><mi>n</mi><mo>)</mo></mrow></math></span>、支持范围查询、实现比平衡树简单；配合字典做 <span class="math-inline-wrap"><math class="math-inline" aria-label="O(1)"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的 score 查询。</p>
+<p><strong>ZSet 为什么用跳表</strong>：插入删除 <span class="plain-math" aria-label="O(\log n)">O(log n)</span>、支持范围查询、实现比平衡树简单；配合字典做 <span class="plain-math" aria-label="O(1)">O(1)</span> 的 score 查询。</p>
 <p>跳表参数：层数生成概率 p=1/4；最大层数 7.0 前 32、7.0 起 64。</p>
 <p><strong>O(log n) 从哪来</strong>：新元素从第 1 层开始，以概率 p=1/4 向上多建一层，所以期望层数只有 1/(1−p) ≈ 1.33 层（常量）；在 n 个元素里，最高层约 log₄n 层。查找从最高层向下走，每层期望跳过 1/p=4 个节点，总步数就是 O(log n)。跳表节点还维护 <strong>span（跨度）</strong>，记录“这层跳过了几个节点”，因此能按排名取元素（<code>ZRANGE ... BY RANK</code>）。</p>
 <p><strong>p=1/4 的取舍</strong>：p 越小层越少、内存越省，但每层跨度变大、查找步数略增；Redis 取 1/4 是内存与查找速度的折中（p=1/2 时期望层数 2，p=1/4 时期望层数 4/3，约省 1/3 层指针）。最大层数 32 对应 2⁶⁴ 元素容量（源码注释口径）；7.0 起层数上限提到 64，与 64 位容量/rank 对齐。</p>

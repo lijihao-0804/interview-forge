@@ -298,6 +298,7 @@ a:hover { text-decoration: underline; }
   border: 1px solid color-mix(in srgb, var(--brand) 17%, var(--line));
   border-radius: 5px;
   font: .91em/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-variant-ligatures: none;
 }
 .code-block { margin: 20px 0; border: 1px solid #303849; border-radius: 12px; overflow: hidden; background: #151a24; }
 .code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; color: #b6c0d4; background: #202735; font-size: 13px; }
@@ -306,6 +307,7 @@ a:hover { text-decoration: underline; }
 .copy-code:focus-visible { outline-color: #b8b6ff; }
 .markdown-body pre { margin: 0; padding: 22px 24px; max-width: 100%; overflow: auto; color: #e9edf7; background: #151a24; tab-size: 4; }
 .markdown-body pre code { padding: 0; color: inherit; background: transparent; border: 0; font-size: 14px; }
+.markdown-body pre { font-variant-ligatures: none; }
 .table-wrap { max-width: 100%; margin: 28px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .markdown-body table { width: 100%; min-width: 540px; border-collapse: collapse; margin: 0; }
 .markdown-body th:first-child, .markdown-body td:first-child { width: 200px; }
@@ -318,9 +320,16 @@ a:hover { text-decoration: underline; }
 .markdown-body .task-list-item { list-style: none; margin-left: -1.2em; }
 .markdown-body input[type="checkbox"] { margin-right: 8px; accent-color: var(--brand); }
 .markdown-body strong { color: var(--text-strong); }
+.problem-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.problem-nav-btn { display: inline-flex; align-items: center; padding: 9px 14px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; font-weight: 650; text-decoration: none; }
+.problem-nav-btn:hover { color: var(--brand); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); text-decoration: none; }
+.problem-nav-btn.primary { color: #fff; background: var(--brand); border-color: var(--brand); }
+.problem-nav-btn.primary:hover { color: #fff; background: var(--brand-strong); border-color: var(--brand-strong); }
 .markdown-body math { color: var(--text); font-family: "Cambria Math", "STIX Two Math", serif; }
-.math-inline-wrap { position: relative; display: inline-block; max-width: 100%; min-width: 0; contain: layout paint; margin: 0 .06em; overflow-x: auto; overflow-y: hidden; vertical-align: -.34em; line-height: 1; }
-.markdown-body .math-inline { display: inline math; min-width: max-content; font-size: 1em; }
+.math-inline-wrap { position: relative; display: inline-block; max-width: 100%; min-width: 0; contain: layout paint; margin: 0 .06em; overflow-x: auto; overflow-y: hidden; vertical-align: -.12em; line-height: 1.1; }
+.markdown-body .math-inline { display: inline math; min-width: max-content; font-size: 1em; vertical-align: baseline; }
+.plain-math { white-space: nowrap; }
+.plain-math sup, .plain-math sub { font-size: .72em; line-height: 0; }
 .math-display-wrap { position: relative; display: block; width: 100%; max-width: 100%; min-width: 0; contain: layout paint inline-size; margin: 18px 0; padding: 12px 14px; overflow-x: auto; overflow-y: hidden; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; text-align: center; }
 .markdown-body .math-display { display: block math; min-width: max-content; margin: 0 auto; font-size: 1.08em; }
 .reader-visual { margin-top: 52px; }
@@ -1231,12 +1240,48 @@ def formula_label(source: str) -> str:
     return re.sub(r"\s+", " ", label).strip()
 
 
+def is_plain_math(source: str) -> bool:
+    """简单行内公式直接输出 HTML，避免 MathML 基线错位。"""
+    text = source.strip()
+    if not text:
+        return False
+    if any(token in text for token in ("\\frac", "\\sqrt", "\\text", "\\begin", "\\sum", "\\int", "\\left", "\\right")):
+        return False
+    cleaned = re.sub(r"\\(?:times|cdot|pm|le|ge|infty|log|dots|ldots)\b", "", text)
+    return not re.search(r"[^A-Za-z0-9\s()\[\]{}+*/=.,:;<>≤≥×÷±∞^_\-]", cleaned)
+
+
+def plain_math_html(source: str) -> str:
+    text = source.strip()
+    for command, symbol in (
+        ("\\times", "×"),
+        ("\\cdot", "·"),
+        ("\\pm", "±"),
+        ("\\le", "≤"),
+        ("\\ge", "≥"),
+        ("\\infty", "∞"),
+        ("\\log", "log"),
+        ("\\dots", "…"),
+        ("\\ldots", "…"),
+    ):
+        text = re.sub(rf"\{command}\b", symbol, text)
+    text = html.escape(text, quote=False)
+    text = re.sub(r"\^\{([^}]+)\}", r"<sup>\1</sup>", text)
+    text = re.sub(r"\^([A-Za-z0-9]+)", r"<sup>\1</sup>", text)
+    text = re.sub(r"_\{([^}]+)\}", r"<sub>\1</sub>", text)
+    text = re.sub(r"_([A-Za-z0-9]+)", r"<sub>\1</sub>", text)
+    text = text.replace("{", "").replace("}", "")
+    return f'<span class="plain-math" aria-label="{html.escape(source.strip(), quote=True)}">{text}</span>'
+
+
 # 公式装配层：把 MathML 片段包成完整 <math>（inline/display 两种模式，display
 # 带 display="block"）并加 aria-label；再外套 <span class="math-*-wrap"> 滚动
 # 容器——公式过长时在卡片内小范围横向滚动而不撑破布局（对应 SITE_CSS 里
 # .math-inline-wrap / .math-display-wrap 的样式钩子）。display 模式还带浅色底框，
 # 视觉上区分行内公式与独立公式。
 def math_html(source: str, display: bool = False) -> str:
+    if not display and is_plain_math(source):
+        return plain_math_html(source)
     mathml = MathMLParser(source).parse()
     label = html.escape(formula_label(source), quote=True)
     mode = ' display="block"' if display else ""
@@ -1403,6 +1448,12 @@ def render_markdown(source: Path) -> None:
         },
     )
     body = md.convert(raw)
+    # 题解页底部按钮：从正文提取，统一放到交互动画之后。
+    bottom_nav = ""
+    nav_match = re.search(r"<!--bottom-nav-->(.*?)<!--/bottom-nav-->", body, re.S)
+    if nav_match:
+        bottom_nav = nav_match.group(1).strip()
+        body = body[: nav_match.start()] + body[nav_match.end() :]
     # 力扣原题链接在新标签页打开；rel 防 target=_blank 反向 tabnabbing。
     body = re.sub(
         r'<a href="(https://leetcode\.cn/problems/[^"]+)"(?![^>]*target=)',
@@ -1457,6 +1508,7 @@ def render_markdown(source: Path) -> None:
         </details>
         {body}
         {visual_embed}
+        {bottom_nav}
       </article>
     </main>
     <footer class="site-footer">Interview Forge · 本地离线阅读</footer>

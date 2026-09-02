@@ -7,7 +7,7 @@
 <p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="F_1=2Precision· RecallPrecision+Recallapprox53.3%"><mrow><msub><mi>F</mi><mn>1</mn></msub><mo>=</mo><mn>2</mn><mfrac><mrow><mi>Precision</mi><mo>·</mo><mspace width=".18em"/><mi>Recall</mi></mrow><mrow><mi>Precision</mi><mo>+</mo><mi>Recall</mi></mrow></mfrac><mi mathvariant="normal">approx</mi><mn>53.3</mn><mi mathvariant="normal">%</mi></mrow></math></span></p>
 <p>全预测健康的准确率反而达到 99%，但 Recall=0。这说明准确率回答“总体有多少判断正确”，而不是“患者找到了多少”。<span class="math-inline-wrap"><math class="math-inline" aria-label="F_beta"><mrow><msub><mi>F</mi><mi mathvariant="normal">beta</mi></msub></mrow></math></span> 可用 <span class="math-inline-wrap"><math class="math-inline" aria-label="beta&gt;1"><mrow><mi mathvariant="normal">beta</mi><mo>&gt;</mo><mn>1</mn></mrow></math></span> 更重视召回，或 <span class="math-inline-wrap"><math class="math-inline" aria-label="beta&lt;1"><mrow><mi mathvariant="normal">beta</mi><mo>&lt;</mo><mn>1</mn></mrow></math></span> 更重视精确率，但权重仍应由业务代价解释。</p>
 <h3>D.2 ROC-AUC、PR-AUC 各自回答什么</h3>
-<p>ROC 横轴是 <span class="math-inline-wrap"><math class="math-inline" aria-label="FPR=FP/(FP+TN)"><mrow><mi>FPR</mi><mo>=</mo><mi>FP</mi><mo>/</mo><mo>(</mo><mi>FP</mi><mo>+</mo><mi>TN</mi><mo>)</mo></mrow></math></span>，纵轴是 <span class="math-inline-wrap"><math class="math-inline" aria-label="TPR=Recall"><mrow><mi>TPR</mi><mo>=</mo><mi>Recall</mi></mrow></math></span>。ROC-AUC 可理解为随机抽取一个正类和一个负类时，模型把正类分数排得更高的概率。它衡量整体排序能力，不说明某个阈值能否满足业务，也不保证概率准确。</p>
+<p>ROC 横轴是 <span class="plain-math" aria-label="FPR=FP/(FP+TN)">FPR=FP/(FP+TN)</span>，纵轴是 <span class="plain-math" aria-label="TPR=Recall">TPR=Recall</span>。ROC-AUC 可理解为随机抽取一个正类和一个负类时，模型把正类分数排得更高的概率。它衡量整体排序能力，不说明某个阈值能否满足业务，也不保证概率准确。</p>
 <p>PR 曲线观察 Precision 与 Recall，其随机基线约等于正类比例。在极不平衡任务中，大量 TN 会使 FPR 看起来很小，PR 曲线更直接聚焦正类检出质量。但 PR-AUC 数值会随正类比例变化，不能跨不同数据集脱离基准比例比较。</p>
 <h3>D.3 区分排序、决策和概率质量</h3>
 <ul>
@@ -23,13 +23,13 @@
 <ul>
 <li>MAE 给每个绝对误差相同权重，单位直观；</li>
 <li>RMSE 因平方而更重罚大错误；</li>
-<li><span class="math-inline-wrap"><math class="math-inline" aria-label="R^2=1-SS_res/SS_tot"><mrow><msup><mi>R</mi><mn>2</mn></msup><mo>=</mo><mn>1</mn><mo>-</mo><msub><mi>SS</mi><mrow><mi>res</mi></mrow></msub><mo>/</mo><msub><mi>SS</mi><mrow><mi>tot</mi></mrow></msub></mrow></math></span> 比较模型与“预测评估集目标均值”的基线，可能小于 0，负值表示比该常数基线还差，不是负相关；</li>
+<li><span class="plain-math" aria-label="R^2=1-SS_{res}/SS_{tot}">R<sup>2</sup>=1-SS<sub>res</sub>/SS<sub>tot</sub></span> 比较模型与“预测评估集目标均值”的基线，可能小于 0，负值表示比该常数基线还差，不是负相关；</li>
 <li>MAPE 使用相对误差，真实值为 0 时无定义，接近 0 时会被极度放大；</li>
 <li>RMSLE 更关注相对比例且常用于非负长尾目标，但不能直接用于负值。</li>
 </ul>
 <p>除了平均指标，还应报告误差分位数、最坏切片、不同目标区间和预测时间跨度。例如平均配送误差 5 分钟可能掩盖 99 分位误差 90 分钟。</p>
 <h3>D.5 阈值应由成本或容量决定</h3>
-<p>阈值 <span class="math-inline-wrap"><math class="math-inline" aria-label="t"><mrow><mi>t</mi></mrow></math></span> 的一个直接目标是最小化：</p>
+<p>阈值 <span class="plain-math" aria-label="t">t</span> 的一个直接目标是最小化：</p>
 <p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="Cost(t)=c_FN· FN(t)+c_FP· FP(t)"><mrow><mi>Cost</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msub><mi>c</mi><mrow><mi>FN</mi></mrow></msub><mo>·</mo><mspace width=".18em"/><mi>FN</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>+</mo><msub><mi>c</mi><mrow><mi>FP</mi></mrow></msub><mo>·</mo><mspace width=".18em"/><mi>FP</mi><mo>(</mo><mi>t</mi><mo>)</mo></mrow></math></span></p>
 <p>如果审核团队每天只能处理 100 条，就不一定需要概率阈值，而可按风险排序取 top 100，再报告 Precision@100 和覆盖的欺诈金额。阈值在验证集上选择，测试集只评一次；上线后若类别比例和成本变化，阈值也可能需要重估。</p>
 <h3>D.6 类别不平衡的四类处理方法</h3>

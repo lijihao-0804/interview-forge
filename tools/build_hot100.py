@@ -697,18 +697,19 @@ def new_problem_226() -> str:
 
 **示例 1：**
 
-**输入：**root = [4,2,7,1,3,6,9]
-**输出：**[4,7,2,9,6,3,1]
+![](https://__LC_IMG_ROOT__/lc-ea332f6b891c59.jpg)
+
+**输入：**root = [4,2,7,1,3,6,9]<br>**输出：**[4,7,2,9,6,3,1]
 
 **示例 2：**
 
-**输入：**root = [2,1,3]
-**输出：**[2,3,1]
+![](https://__LC_IMG_ROOT__/lc-a43653625d07e5.jpg)
+
+**输入：**root = [2,1,3]<br>**输出：**[2,3,1]
 
 **示例 3：**
 
-**输入：**root = []
-**输出：**[]
+**输入：**root = []<br>**输出：**[]
 
 **提示：**
 
@@ -793,7 +794,7 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
     输出：每题一个 Markdown 文件，页面结构自上而下：
       标题行 → 导航（专题/总目录/复习清单）→ 元信息表（难度/核心模式/时间/空间）
       → ## 题目与约束（含力扣原题链接）→ ## 核心不变量
-      → 解法正文（## 完整推导；多版本时 ## 解法 N：…）→ ## 相邻学习（上/下一题）。
+      → 解法正文（## 完整推导；多版本时 ## 解法 N：…）→ 底部按钮导航。
     与其它函数的关系：题目顺序沿用 PROBLEMS（TSV 行序），文件命名沿用
     problem_filename()；render_topics / render_overview_files 里指向本题的链接
     必须与本函数产出的路径完全一致，因此本函数是全站链接约定的“唯一真相源”。
@@ -850,11 +851,10 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
 
         # 题面取第一段非空候选；全部为空则回落到 MISSING_STATEMENTS 登记值（仍可能为空串）。
         statement = next((item for item in statements if item.strip()), MISSING_STATEMENTS.get(pid, ""))
+        # 源笔记里的图片占位统一替换为题页可用的相对路径（问题页位于 03-题解/专题/ 下，深度为 4）。
+        statement = statement.replace("https://__LC_IMG_ROOT__/", "../../../../assets/leetcode/")
         slug = LEETCODE_SLUGS.get(pid, "")
         statement_section = f"## 题目与约束\n\n{statement}"
-        if slug:
-            # 有 slug 才拼“前往力扣原题验证”链接；LEETCODE_BASE 里的 {slug} 在此 format 填充。
-            statement_section += f"\n\n[🔗 前往力扣原题验证 →]({LEETCODE_BASE.format(slug=slug)})"
         # 页体组装：标题/元信息表 + 题面 + 核心不变量 + 各解法小节。
         body_parts = [
             header,
@@ -862,17 +862,33 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
             f"## 核心不变量\n\n> {problem['invariant']}。",
         ]
         body_parts.extend(f"{title}\n\n{rest}" for title, rest in sections)
+        if slug:
+            # 力扣原题链接放在正文末尾（易错点与扩展之后），保持题面干净。
+            body_parts.append(f"## 力扣原题\n\n[🔗 前往力扣原题验证 →]({LEETCODE_BASE.format(slug=slug)})")
 
-        # 相邻学习：按 PROBLEMS 顺序取上一题/下一题并生成相对链接（首题无 prev、末题无 next）。
-        prev_link = ""
-        next_link = ""
+        # 底部按钮导航：上一题 / 回到 Hot 100 目录 / 下一题，整体挪到交互动画之后。
+        nav_buttons = []
         if index > 0:
             prev = PROBLEMS[index - 1]
-            prev_link = f"[← {prev['id']}. {prev['title']}](../{prev['folder']}/{problem_filename(prev)})"
+            prev_href = problem_filename(prev).replace(".md", ".html")
+            nav_buttons.append(
+                f'<a class="problem-nav-btn" href="../{prev["folder"]}/{prev_href}" target="_blank" rel="noopener noreferrer">← 上一题</a>'
+            )
+        nav_buttons.append(
+            '<a class="problem-nav-btn" href="../../../../index.html">🏠 回到 Hot 100 目录</a>'
+        )
         if index + 1 < len(PROBLEMS):
             nxt = PROBLEMS[index + 1]
-            next_link = f"[{nxt['id']}. {nxt['title']} →](../{nxt['folder']}/{problem_filename(nxt)})"
-        footer = "## 相邻学习\n\n" + " · ".join(x for x in (prev_link, next_link) if x)
+            next_href = problem_filename(nxt).replace(".md", ".html")
+            nav_buttons.append(
+                f'<a class="problem-nav-btn primary" href="../{nxt["folder"]}/{next_href}" target="_blank" rel="noopener noreferrer">下一题 →</a>'
+            )
+        footer = (
+            "<!--bottom-nav-->\n"
+            + '<div class="problem-nav">\n'
+            + "\n".join(nav_buttons)
+            + "\n</div>\n<!--/bottom-nav-->"
+        )
         content = "\n\n".join(body_parts) + "\n\n" + footer
         # 输出到 03-题解/<专题目录>/，目录与文件名都绑定 problem_filename 命名规则。
         path = ROOT / "books" / "hot100" / "03-题解" / category_folder / problem_filename(problem)

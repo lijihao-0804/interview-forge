@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
@@ -14,6 +16,8 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parents[1]
 HOT100 = ROOT / "books" / "hot100"
 BUILD_HOT100 = ROOT / "tools" / "build_hot100.py"
+ASSET_DIR = ROOT / "assets" / "leetcode"
+LC_IMG_PREFIX = "https://__LC_IMG_ROOT__/"
 
 HEADING_RE = re.compile(r"^\s*### 📝 算法笔记：(\d+)\.")
 HEADERS = {
@@ -45,32 +49,57 @@ def fetch_statement(slug: str) -> str:
     raise RuntimeError(f"fetch {slug} failed: {last_error}")
 
 
-def inline_md(node) -> str:
+def download_image(src: str) -> str:
+    """下载力扣题面图片到 assets/leetcode/，返回问题页可用的相对路径。"""
+    if not src.startswith(("http://", "https://")):
+        return ""
+    ext = Path(urlparse(src).path).suffix.lower()
+    if ext not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}:
+        ext = ".png"
+    digest = hashlib.sha1(src.encode("utf-8")).hexdigest()[:14]
+    filename = f"lc-{digest}{ext}"
+    dest = ASSET_DIR / filename
+    if not dest.exists():
+        try:
+            request = Request(src, headers={"User-Agent": HEADERS["User-Agent"]})
+            data = urlopen(request, timeout=30).read()
+            ASSET_DIR.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+        except Exception:  # noqa: BLE001 - 单张图片失败不影响题面更新
+            return ""
+    return filename
+
+
+def inline_md(node, in_code: bool = False) -> str:
     if isinstance(node, str):
-        return node.replace("\xa0", " ")
+        text = node.replace("\xa0", " ")
+        return text.replace("!=", "≠") if not in_code else text
     if node.name is None:
-        return str(node).replace("\xa0", " ")
+        text = str(node).replace("\xa0", " ")
+        return text.replace("!=", "≠") if not in_code else text
     if node.name == "br":
         return "\n"
     if node.name in ("strong", "b"):
-        text = "".join(inline_md(child) for child in node.children).strip()
+        text = "".join(inline_md(child, in_code) for child in node.children).strip()
         return f"**{text}**" if text else ""
     if node.name in ("em", "i"):
-        text = "".join(inline_md(child) for child in node.children).strip()
+        text = "".join(inline_md(child, in_code) for child in node.children).strip()
         return f"*{text}*" if text else ""
     if node.name == "code":
         return "`" + node.get_text().replace("\xa0", " ") + "`"
     if node.name == "sup":
-        return "^" + "".join(inline_md(child) for child in node.children) + "^"
+        return "^" + "".join(inline_md(child, in_code) for child in node.children) + "^"
     if node.name == "sub":
-        return "~" + "".join(inline_md(child) for child in node.children) + "~"
+        return "~" + "".join(inline_md(child, in_code) for child in node.children) + "~"
     if node.name == "a":
         href = node.get("href", "")
-        text = "".join(inline_md(child) for child in node.children).strip()
+        text = "".join(inline_md(child, in_code) for child in node.children).strip()
         return f"[{text}]({href})"
     if node.name == "img":
-        return (node.get("alt") or "").strip()
-    return "".join(inline_md(child) for child in node.children)
+        alt = (node.get("alt") or "").strip()
+        filename = download_image(node.get("src", ""))
+        return f"![{alt}]({LC_IMG_PREFIX}{filename})" if filename else (alt or "")
+    return "".join(inline_md(child, in_code) for child in node.children)
 
 
 def list_md(node) -> str:
@@ -100,7 +129,7 @@ def html_to_md(html: str) -> str:
         if child.name in ("p", "div"):
             text = inline_md(child).strip()
         elif child.name == "pre":
-            text = inline_md(child).strip()
+            text = inline_md(child, in_code=True).strip().replace("\n", "<br>")
         elif child.name in ("ul", "ol"):
             text = list_md(child)
         elif child.name == "blockquote":
