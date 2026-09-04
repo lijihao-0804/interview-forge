@@ -391,7 +391,12 @@ function renderTrend(){
       cursor:{x:true,y:true}
     };
     const data=[days.map((_,i)=>i),days.map(d=>Number(d.viewed||0)),days.map(d=>Number(d.rounds||0)),days.map(d=>Number(d.submits||0))];
-    if(trendChart){trendChart.setData(data)}else{trendChart=new uPlot(opts,data,el)}
+    if(trendChart){
+      trendChart.setData(data);
+    }else{
+      trendChart=new uPlot(opts,data,el);
+      requestAnimationFrame(()=>{if(trendChart)trendChart.redraw()});
+    }
   }catch(error){
     el.innerHTML=`<div class="history-empty">趋势图渲染失败：${esc(error.message)}</div>`;
   }
