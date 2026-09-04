@@ -240,7 +240,6 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
       <div class="field"><label for="mockDifficulty">难度</label><select id="mockDifficulty"><option value="">全部难度</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option></select></div>
     </div>
     <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="mockStart" class="round-button" type="button">开始模拟</button><span id="mockTimer" class="mock-timer"></span></div>
-    <label class="mock-check"><input id="mockCountRounds" type="checkbox"> 模拟完成的题计入学习轮次（默认关，勾选后才推进复习）</label>
     <div id="mockList" class="mock-list"></div>
     <div id="mockReport"></div>
   </section>
@@ -258,7 +257,6 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
 const problems=__HOT100_PROBLEMS__;
-const byId=new Map(problems.map(problem=>[problem.id,problem]));
 const state={online:false,data:{summary:{today_viewed:0,today_rounds:0,completed_problems:0,total_rounds:0,active_days:0},problems:{},days:[],recent:[]},daily:{summary:{due:0,overdue:0,problems:0,overdue_problems:0,contents:0,overdue_contents:0},problems:[],contents:[]},settings:{}};
 const grid=document.getElementById('grid');
 const empty=document.getElementById('empty');
@@ -423,10 +421,9 @@ function renderCards(){
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option></select><button class="round-button" type="button" data-complete="${problem.id}" ${state.online?'':'disabled'}>完成一轮</button></div></div></article>`;
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option></select></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
-  grid.querySelectorAll('[data-complete]').forEach(button=>button.addEventListener('click',()=>completeRound(button)));
   grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>setMark(Number(select.dataset.mark),select.value)));
 }
 async function setMark(problemId,mark){
@@ -520,15 +517,8 @@ async function mockFinish(timeout){
   document.getElementById('mockList').innerHTML='';
   document.getElementById('mockTimer').textContent='';
   document.getElementById('mockStatus').textContent=`完成 ${mockState.done.length} / ${mockState.problems.length}`;
-  const countRounds=document.getElementById('mockCountRounds').checked;
-  if(mockState.done.length&&countRounds){
-    for(const id of mockState.done){
-      try{await fetch('/api/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:id})})}catch(_){}
-    }
-    toast.textContent=`已把 ${mockState.done.length} 道完成题计入学习轮次`;
-    await refresh();
-  }else if(mockState.done.length){
-    toast.textContent=`模拟完成 ${mockState.done.length} 题（未计入复习轮次，打开题解已自动记录浏览）`;
+  if(mockState.done.length){
+    toast.textContent=`模拟完成 ${mockState.done.length} 题；真实 AC 会自动计入轮次`;
   }
   mockState=null;
 }
@@ -599,16 +589,6 @@ document.getElementById('remindButton').addEventListener('click',async()=>{
   document.getElementById('remindButton').textContent=permission==='granted'?'复习提醒已开启':'提醒被拒绝';
   if(permission==='granted'){toast.textContent='复习提醒已开启，刷新页面后会通知待复习项';maybeNotify()}
 });
-async function completeRound(button){
-  const problemId=Number(button.dataset.complete);button.disabled=true;button.textContent='记录中…';toast.textContent='';
-  try{
-    const response=await fetch('/api/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})});
-    const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');
-    const problem=byId.get(problemId);const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';
-    toast.textContent=`已记录 ${problem.id}. ${problem.title} 的第 ${result.round_no} 轮${next}`;
-    await refresh();
-  }catch(error){toast.textContent=`记录失败：${error.message}`;button.disabled=false;button.textContent='完成一轮'}
-}
 search.addEventListener('input',renderCards);
 [category,status].forEach(control=>control.addEventListener('change',renderCards));
 refresh();

@@ -940,7 +940,43 @@ LoRA 主要作用于 Multi-Head Attention 的查询（Q）、键（K）、值（
 
 ### LoRA 训练示例代码
 
-`1 import torch 2 import torch.nn as nn 3 import torch.optim as optim 4 5 class LoRAModel(nn.Module): 6 def __init__(self, d, r=4, alpha=32): 7 super().__init__() 8 self.W = nn.Linear(d, d, bias=False) 9 self.W.requires_grad_(False) 10 11 self.A = nn.Linear(d, r, bias=False) 12 self.B = nn.Linear(r, d, bias=False) 13 14 nn.init.kaiming_uniform_(self.A.weight, a=5**0.5) 15 nn.init.zeros_(self.B.weight) 16 17 self.alpha = alpha 18 19 def forward(self, x): 20 return self.W(x) + self.alpha * self.B(self.A(x)) 21 22 model = LoRAModel(d=512, r=4).cuda() 23 24 optimizer = optim.AdamW([ 25 {'params': model.A.parameters()}, 26 {'params': model.B.parameters()} 27 ], lr=1e-4) 28 29 for epoch in range(10): 30 x = torch.randn(32, 512).cuda() 31 y = model(x).sum() 32 y.backward() 33 optimizer.step() 34 optimizer.zero_grad() 35 print(f"Epoch {epoch}: Loss={y.item()}")`
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class LoRAModel(nn.Module):
+    def __init__(self, d, r=4, alpha=32):
+        super().__init__()
+        self.W = nn.Linear(d, d, bias=False)
+        self.W.requires_grad_(False)
+
+        self.A = nn.Linear(d, r, bias=False)
+        self.B = nn.Linear(r, d, bias=False)
+
+        nn.init.kaiming_uniform_(self.A.weight, a=5**0.5)
+        nn.init.zeros_(self.B.weight)
+
+        self.alpha = alpha
+
+    def forward(self, x):
+        return self.W(x) + self.alpha * self.B(self.A(x))
+
+model = LoRAModel(d=512, r=4).cuda()
+
+optimizer = optim.AdamW([
+    {'params': model.A.parameters()},
+    {'params': model.B.parameters()}
+], lr=1e-4)
+
+for epoch in range(10):
+    x = torch.randn(32, 512).cuda()
+    y = model(x).sum()
+    y.backward()
+    optimizer.step()
+    optimizer.zero_grad()
+    print(f"Epoch {epoch}: Loss={y.item()}")
+```
 
 ### 发展与变体
 

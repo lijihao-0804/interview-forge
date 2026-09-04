@@ -419,23 +419,24 @@ for element_id in ("dayList", "eventList"):
     if f'id="{element_id}"' not in history_text:
         errors.append(f"学习记录页缺少数据库状态区域：{element_id}")
 # ---- 面板 JS × 后端 API 的源码字符串契约 ----
-# 面板内嵌的 JS 必须引用本地学习记录 API（/api/dashboard、/api/complete、
-# /api/daily、/api/mark、/api/export、/api/settings、/api/mock、/api/plan、
+# 面板内嵌的 JS 必须引用本地学习记录 API（/api/dashboard、/api/daily、
+# /api/mark、/api/export、/api/settings、/api/mock、/api/plan、
 # data-export="weekly" 与错题本页 05-错题本.html），缺任何一个都说明面板与
-# 服务端脱节。顺带的字符串断言：PWA（serviceWorker.register + manifest）、
-# uPlot 趋势图（uPlot + id="trend"）、限时模拟“计入轮次”开关、书架待复习
-# 入口与折叠区、力扣提交统计/连接状态（acTodayText/ac-pill/lcStatus）；最后
+# 服务端脱节。Hot100 轮次已由 AC 记录自动推导，面板不再调用 /api/complete。
+# 顺带的字符串断言：PWA（serviceWorker.register + manifest）、uPlot 趋势图
+# （uPlot + id="trend"）、限时模拟“真实 AC 自动计轮”提示、书架待复习入口与
+# 折叠区、力扣提交统计/连接状态（acTodayText/ac-pill/lcStatus）；最后
 # 是反向断言：data-submit/recordSubmit/submit-ac 这类“手动已 AC/WA 按钮”
 # 已废弃（提交状态必须以力扣同步数据为准，不允许手动改）。
 dashboard_source = (ROOT / "index.html").read_text(encoding="utf-8-sig")
-if "/api/dashboard" not in dashboard_source or "/api/complete" not in dashboard_source or "/api/daily" not in dashboard_source or "/api/mark" not in dashboard_source or "/api/export" not in dashboard_source or "/api/settings" not in dashboard_source or "/api/mock" not in dashboard_source or "/api/plan" not in dashboard_source or 'data-export="weekly"' not in dashboard_source or "05-错题本.html" not in dashboard_source:
+if "/api/dashboard" not in dashboard_source or "/api/daily" not in dashboard_source or "/api/mark" not in dashboard_source or "/api/export" not in dashboard_source or "/api/settings" not in dashboard_source or "/api/mock" not in dashboard_source or "/api/plan" not in dashboard_source or 'data-export="weekly"' not in dashboard_source or "05-错题本.html" not in dashboard_source:
     errors.append("学习站没有连接本地学习记录 API")
 if "serviceWorker.register" not in dashboard_source or "manifest.webmanifest" not in dashboard_source:
     errors.append("学习面板缺少 PWA 注册或 manifest 链接")
 if "uPlot" not in dashboard_source or 'id="trend"' not in dashboard_source:
     errors.append("学习面板缺少近 28 天趋势图（uPlot）")
-if 'id="mockCountRounds"' not in dashboard_source:
-    errors.append("限时模拟缺少“计入学习轮次”开关")
+if "真实 AC 会自动计入轮次" not in dashboard_source:
+    errors.append("限时模拟缺少“真实 AC 会自动计入轮次”提示")
 if 'id="shelfDueLink"' not in dashboard_source or "review_include_contents" not in dashboard_source:
     errors.append("学习面板缺少书架待复习入口或设置折叠区")
 if "...daily.contents.map" in dashboard_source:

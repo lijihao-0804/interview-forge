@@ -253,7 +253,7 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> None:
 
 
 def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
-    """记录"完成一轮"：轮次自增写入 study_events，并联动写入书架 hot100 模块的进度。"""
+    """兼容旧面板的手动完成接口：Hot100 轮次已改由 AC 记录自动推导，页面不再调用。"""
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
     studied_at, study_date = now_parts()
@@ -288,73 +288,99 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
 
 
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
-    """聚合仪表盘全部数据：今日概览、每题进度、近 14 天、最近 20 条事件、365 天热力图、标记与提交统计。
-
-    6 个 SQL 分别回答：每题的累计进度 / 顶部汇总数字 / 近 14 天图表 / 最近活动列表 /
-    三类事件（题目、章节、提交）的按日统计 —— 合并成活跃日历并推导连续学习天数。
-    """
+    """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
     today = datetime.now().astimezone().date().isoformat()
     with closing(connect(db_path)) as connection:
-        # SQL① 每题进度：聚合轮次数、最近浏览/完成/活动时间（逐题进度卡的数据源）。
-        problem_rows = connection.execute(
+        view_rows = connection.execute(
+            """SELECT problem_id, MAX(studied_at) AS last_viewed_at
+               FROM study_events WHERE action = 'view' GROUP BY problem_id"""
+        ).fetchall()
+        # 题目完成轮次 = 出现过 AC 的自然日数量；同日多提交只计一轮。
+        ac_rows = connection.execute(
             """SELECT problem_id,
-                      SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds,
-                      MAX(CASE WHEN action = 'view' THEN studied_at END) AS last_viewed_at,
-                      MAX(CASE WHEN action = 'complete' THEN studied_at END) AS last_completed_at,
-                      MAX(studied_at) AS last_activity_at
-               FROM study_events GROUP BY problem_id"""
+                      COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rounds,
+                      MAX(submitted_at) AS last_completed_at,
+                      MAX(substr(submitted_at, 1, 10)) AS last_ac_date
+               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()
-        # SQL② 顶部汇总：今日浏览题数 / 今日完成轮次 / 累计完成题数 / 总轮次 / 活跃天数。
-        summary = connection.execute(
+        study_summary = connection.execute(
             """SELECT
-                 COUNT(DISTINCT CASE WHEN study_date = ? AND action = 'view' THEN problem_id END) AS today_viewed,
-                 SUM(CASE WHEN study_date = ? AND action = 'complete' THEN 1 ELSE 0 END) AS today_rounds,
-                 COUNT(DISTINCT CASE WHEN action = 'complete' THEN problem_id END) AS completed_problems,
-                 SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS total_rounds,
-                 COUNT(DISTINCT study_date) AS active_days
-               FROM study_events""",
-            (today, today),
+                 COUNT(DISTINCT CASE WHEN study_date = ? AND action = 'view' THEN problem_id END) AS today_viewed
+               FROM study_events WHERE action = 'view'""",
+            (today,),
         ).fetchone()
-        # SQL③ 近 14 天每日（浏览题数、完成轮次），按日期倒序取最近 14 行。
-        days = connection.execute(
-            """SELECT study_date,
-                      COUNT(DISTINCT CASE WHEN action = 'view' THEN problem_id END) AS viewed,
-                      SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds
-               FROM study_events GROUP BY study_date ORDER BY study_date DESC LIMIT 14"""
+        ac_summary = connection.execute(
+            """SELECT
+                 COUNT(DISTINCT CASE WHEN substr(submitted_at, 1, 10) = ? THEN problem_id END) AS today_rounds,
+                 COUNT(DISTINCT problem_id) AS completed_problems,
+                 (SELECT COUNT(*) FROM (
+                    SELECT problem_id, substr(submitted_at, 1, 10) AS d
+                    FROM submissions WHERE status = 'ac' GROUP BY problem_id, d
+                 )) AS total_rounds
+               FROM submissions WHERE status = 'ac'""",
+            (today,),
+        ).fetchone()
+        view_events = connection.execute(
+            """SELECT problem_id, studied_at FROM study_events
+               WHERE action = 'view' ORDER BY studied_at DESC, id DESC LIMIT 200"""
         ).fetchall()
-        # SQL④ 最近 20 条事件（题号/动作/时间/轮次），渲染"最近活动"列表。
-        recent = connection.execute(
-            """SELECT problem_id, action, studied_at, round_no
-               FROM study_events ORDER BY id DESC LIMIT 20"""
+        ac_date_rows = connection.execute(
+            """SELECT problem_id,
+                      substr(submitted_at, 1, 10) AS study_date,
+                      MAX(submitted_at) AS studied_at
+               FROM submissions WHERE status = 'ac'
+               GROUP BY problem_id, study_date"""
         ).fetchall()
-        # SQL⑤⑥⑦ 三类事件各自按天统计（题目/章节/提交），下面合并成一张活跃日历。
-        problem_days = connection.execute(
+        # 每日每题只产生一条 complete 事件，round_no 按该题的 AC 日期自然顺序编号。
+        ac_by_problem: dict[int, list[dict[str, object]]] = {}
+        for row in ac_date_rows:
+            ac_by_problem.setdefault(int(row["problem_id"]), []).append(dict(row))
+        complete_events: list[dict[str, object]] = []
+        for pid, rows in ac_by_problem.items():
+            rows.sort(key=lambda item: str(item["study_date"]))
+            for index, row in enumerate(rows, start=1):
+                complete_events.append({
+                    "problem_id": pid,
+                    "action": "complete",
+                    "studied_at": row["studied_at"],
+                    "round_no": index,
+                })
+        view_days = connection.execute(
             """SELECT study_date,
-                      COUNT(DISTINCT CASE WHEN action = 'view' THEN problem_id END) AS viewed,
-                      SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds
-               FROM study_events GROUP BY study_date"""
+                      COUNT(DISTINCT problem_id) AS viewed
+               FROM study_events WHERE action = 'view' GROUP BY study_date"""
+        ).fetchall()
+        ac_days = connection.execute(
+            """SELECT substr(submitted_at, 1, 10) AS study_date,
+                      COUNT(DISTINCT problem_id) AS rounds
+               FROM submissions WHERE status = 'ac' GROUP BY study_date"""
         ).fetchall()
         content_days = connection.execute(
             """SELECT study_date,
                       COUNT(DISTINCT CASE WHEN action = 'view' THEN content_id END) AS viewed,
                       SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds
-               FROM content_events GROUP BY study_date"""
+               FROM content_events WHERE module_id <> 'hot100' GROUP BY study_date"""
         ).fetchall()
         submission_days = connection.execute(
             """SELECT substr(submitted_at, 1, 10) AS study_date, COUNT(1) AS submits
                FROM submissions GROUP BY study_date"""
         ).fetchall()
-        # 并集：出现过任意一类活动的日期集合，用于下面计算连续学习天数。
-        active_dates = (
-            {str(row["study_date"]) for row in problem_days}
-            | {str(row["study_date"]) for row in content_days}
-            | {str(row["study_date"]) for row in submission_days}
-        )
+        active_dates = {
+            str(row["study_date"]) for row in view_days
+        } | {
+            str(row["study_date"]) for row in ac_days
+        } | {
+            str(row["study_date"]) for row in content_days
+        } | {
+            str(row["study_date"]) for row in submission_days
+        }
     # 把三类按日计数合并进 day_stats：一个日期 → {viewed, rounds, submits} 三元组。
     day_stats: dict[str, dict[str, int]] = {}
-    for row in problem_days:
+    for row in view_days:
         day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
         day_stats[str(row["study_date"])]["viewed"] += int(row["viewed"] or 0)
+    for row in ac_days:
+        day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
         day_stats[str(row["study_date"])]["rounds"] += int(row["rounds"] or 0)
     for row in content_days:
         day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
@@ -383,21 +409,38 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         streak += 1
         cursor -= timedelta(days=1)
     try:
-        # 每日目标轮次：读 settings 里的 daily_goal_rounds，夹逼到 1~50，读不到/非法时兜底为 3。
         daily_goal = max(1, min(50, int(get_settings(db_path).get("daily_goal_rounds", "3") or "3")))
     except (TypeError, ValueError):
         daily_goal = 3
-    summary = {key: int(summary[key] or 0) for key in summary.keys()}
+    summary = {
+        "today_viewed": int(study_summary["today_viewed"] or 0),
+        "today_rounds": int(ac_summary["today_rounds"] or 0),
+        "completed_problems": int(ac_summary["completed_problems"] or 0),
+        "total_rounds": int(ac_summary["total_rounds"] or 0),
+        "active_days": len(active_dates),
+    }
     summary["streak"] = streak
     summary["daily_goal"] = daily_goal
-    # 逐题附加 next_due（按最近完成时间 + 轮次推算），前端据此显示"下次复习"。
     problems_payload: dict[str, dict[str, object]] = {}
-    for row in problem_rows:
-        item = dict(row)
-        rounds = int(row["rounds"] or 0)
-        if rounds > 0 and row["last_completed_at"]:
-            item["next_due"] = due_after(str(row["last_completed_at"]), rounds)
-        problems_payload[str(row["problem_id"])] = item
+    view_map = {int(row["problem_id"]): dict(row) for row in view_rows}
+    ac_map = {int(row["problem_id"]): dict(row) for row in ac_rows}
+    for pid in sorted(set(view_map) | set(ac_map)):
+        viewed = view_map.get(pid, {})
+        ac = ac_map.get(pid, {})
+        rounds = int(ac.get("rounds") or 0)
+        last_viewed = str(viewed.get("last_viewed_at") or "") if viewed else ""
+        last_completed = str(ac.get("last_completed_at") or "") if ac else ""
+        item: dict[str, object] = {
+            "rounds": rounds,
+            "last_viewed_at": last_viewed or None,
+            "last_completed_at": last_completed or None,
+            "last_activity_at": max(
+                value for value in (last_viewed, last_completed) if value
+            ) or None,
+        }
+        if rounds > 0 and last_completed:
+            item["next_due"] = due_after(last_completed, rounds)
+        problems_payload[str(pid)] = item
     submissions_payload = submission_summary(db_path)
     with closing(connect(db_path)) as connection:
         recent_submissions = [
@@ -416,21 +459,33 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             if last_submit and (not last_activity or last_submit > last_activity):
                 item["last_activity_at"] = last_submit
     for pid, stat in submissions_payload["problems"].items():
-        if pid not in problems_payload:
-            problems_payload[pid] = {
+        if str(pid) not in problems_payload:
+            problems_payload[str(pid)] = {
                 "rounds": 0,
                 "last_viewed_at": None,
                 "last_completed_at": None,
                 "last_activity_at": None,
                 **stat,
             }
-            problems_payload[pid]["last_activity_at"] = stat.get("last_submitted_at") or ""
+            problems_payload[str(pid)]["last_activity_at"] = stat.get("last_submitted_at") or ""
+    recent_items = [dict(row) for row in view_events] + complete_events
+    recent_items.sort(key=lambda item: str(item["studied_at"]), reverse=True)
+    recent = recent_items[:20]
+    recent_days = sorted(day_stats, reverse=True)[:14]
     return {
         "today": today,
         "summary": summary,
         "problems": problems_payload,
-        "days": [dict(row) for row in days],
-        "recent": [dict(row) for row in recent],
+        "days": [
+            {
+                "study_date": date,
+                "viewed": day_stats[date]["viewed"],
+                "rounds": day_stats[date]["rounds"],
+                "submits": day_stats[date]["submits"],
+            }
+            for date in recent_days
+        ],
+        "recent": recent,
         "recent_submissions": recent_submissions,
         "activity": activity,
         "marks": problem_marks(db_path),
@@ -519,18 +574,72 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
     }
 
 
+def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
+    """按 AC 日期统计 Hot100 题目轮次：同一天多次 AC 只算一轮。"""
+    with closing(connect(db_path)) as connection:
+        rows = connection.execute(
+            """SELECT problem_id,
+                      COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rounds,
+                      MAX(submitted_at) AS last_completed_at
+               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
+        ).fetchall()
+    return {
+        int(row["problem_id"]): {
+            "rounds": int(row["rounds"] or 0),
+            "last_completed_at": str(row["last_completed_at"]),
+        }
+        for row in rows
+    }
+
+
+def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
+    """每题推荐/计划用状态：AC 决定是否完成，浏览和 AC 共同决定最近活动。"""
+    ac = ac_problem_progress(db_path)
+    with closing(connect(db_path)) as connection:
+        view_rows = connection.execute(
+            """SELECT problem_id, MAX(studied_at) AS last_viewed_at
+               FROM study_events WHERE action = 'view' GROUP BY problem_id"""
+        ).fetchall()
+    info: dict[int, dict[str, object]] = {}
+    for row in view_rows:
+        pid = int(row["problem_id"])
+        info[pid] = {
+            "rounds": 0,
+            "last_completed_at": "",
+            "last_activity_at": str(row["last_viewed_at"] or ""),
+        }
+    for pid, progress in ac.items():
+        entry = info.setdefault(pid, {
+            "rounds": 0,
+            "last_completed_at": "",
+            "last_activity_at": "",
+        })
+        entry["rounds"] = int(progress["rounds"])
+        entry["last_completed_at"] = str(progress["last_completed_at"] or "")
+        last = str(entry["last_activity_at"] or "")
+        ac_at = str(progress["last_completed_at"] or "")
+        if ac_at and (not last or ac_at > last):
+            entry["last_activity_at"] = ac_at
+    return info
+
+
 def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """书架数据：每个模块的章节总数/已完成数（rounds>0 即算开始学习）+ 每章节的轮次与最近活动。"""
     manifest = load_library_manifest()
     with closing(connect(db_path)) as connection:
-        # 每章节聚合：完成轮次数 + 最近活动时间（内容维度的进度数据）。
+        # 非 Hot100 章节仍按手动“完成一轮”；Hot100 题目由 AC 日期自动推进。
         rows = connection.execute(
             """SELECT content_id,
                       SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds,
                       MAX(studied_at) AS last_activity_at
-               FROM content_events GROUP BY content_id"""
+               FROM content_events WHERE module_id <> 'hot100' GROUP BY content_id"""
         ).fetchall()
     contents = {str(row["content_id"]): dict(row) for row in rows}
+    for pid, progress in ac_problem_progress(db_path).items():
+        contents[f"hot100:{pid:04d}"] = {
+            "rounds": int(progress["rounds"]),
+            "last_activity_at": progress["last_completed_at"],
+        }
     # 逐模块统计 total / completed：completed 按"该模块里 rounds>0 的章节数"计算 → 进度条。
     modules: dict[str, dict[str, int]] = {}
     for module in manifest.get("modules", []):
@@ -548,15 +657,21 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
     传 module_id 时只返回该模块的 contents（problems 置空），供书架模块页使用。
     """
     today = datetime.now().astimezone().date().isoformat()
+    ac_progress = ac_problem_progress(db_path)
     with closing(connect(db_path)) as connection:
-        # 题目侧：按题聚合完成轮次；到期日 = 最近完成时间 + 轮次对应间隔，<= 今天才算"待复习"。
-        problem_rows = connection.execute(
-            """SELECT problem_id, COUNT(*) AS rounds, MAX(studied_at) AS last_completed_at
-               FROM study_events WHERE action = 'complete'
-               GROUP BY problem_id HAVING COUNT(*) > 0"""
-        ).fetchall()
-        # 章节侧：传 module_id 时只统计该模块（书架模块页用），否则统计全部模块。
-        if module_id:
+        # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
+        if module_id == "hot100":
+            content_rows = [
+                {
+                    "content_id": f"hot100:{pid:04d}",
+                    "module_id": "hot100",
+                    "rounds": int(progress["rounds"]),
+                    "last_completed_at": progress["last_completed_at"],
+                }
+                for pid, progress in ac_progress.items()
+                if int(progress["rounds"]) > 0
+            ]
+        elif module_id:
             content_rows = connection.execute(
                 """SELECT content_id, COUNT(*) AS rounds, MAX(studied_at) AS last_completed_at
                    FROM content_events WHERE action = 'complete' AND module_id = ?
@@ -566,26 +681,39 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         else:
             content_rows = connection.execute(
                 """SELECT content_id, COUNT(*) AS rounds, MAX(studied_at) AS last_completed_at
-                   FROM content_events WHERE action = 'complete'
+                   FROM content_events
+                   WHERE action = 'complete' AND module_id <> 'hot100'
                    GROUP BY content_id HAVING COUNT(*) > 0"""
             ).fetchall()
+            content_rows += [
+                {
+                    "content_id": f"hot100:{pid:04d}",
+                    "module_id": "hot100",
+                    "rounds": int(progress["rounds"]),
+                    "last_completed_at": progress["last_completed_at"],
+                }
+                for pid, progress in ac_progress.items()
+                if int(progress["rounds"]) > 0
+            ]
 
     # 组装题目待复习列表：到期日还没到（> 今天）的跳过，其余带上题名/分类/难度/题解链接。
     problems: list[dict[str, object]] = []
     if not module_id:
-        for row in problem_rows:
-            problem = PROBLEM_BY_ID.get(int(row["problem_id"]))
-            rounds = int(row["rounds"])
-            due = due_after(row["last_completed_at"], rounds)
+        for pid, progress in ac_progress.items():
+            problem = PROBLEM_BY_ID.get(int(pid))
+            rounds = int(progress["rounds"])
+            if rounds <= 0:
+                continue
+            due = due_after(str(progress["last_completed_at"]), rounds)
             if due > today:
                 continue
             problems.append({
-                "id": int(row["problem_id"]),
-                "title": problem["title"] if problem else f"题号 {row['problem_id']}",
+                "id": int(pid),
+                "title": problem["title"] if problem else f"题号 {pid}",
                 "category": problem["category"] if problem else "",
                 "difficulty": problem["difficulty"] if problem else "",
                 "rounds": rounds,
-                "last_completed_at": row["last_completed_at"],
+                "last_completed_at": progress["last_completed_at"],
                 "due_date": due,
                 "note": (
                     f"books/hot100/03-题解/{problem['folder']}/"
@@ -766,15 +894,7 @@ def pick_problem(
     difficulty: str = "",
 ) -> dict[str, object]:
     """今日推荐：未完成优先、按最近活动最久排序；randomize 时随机抽一题。"""
-    with closing(connect(db_path)) as connection:
-        # 每题聚合：完成轮次 + 最近活动时间，用于"最久未看"的推荐排序。
-        rows = connection.execute(
-            """SELECT problem_id,
-                      SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds,
-                      MAX(studied_at) AS last_activity_at
-               FROM study_events GROUP BY problem_id"""
-        ).fetchall()
-    info = {int(row["problem_id"]): dict(row) for row in rows}
+    info = problem_review_state(db_path)
     # 候选集：按专题/难度过滤题目清单；条件为空表示不限制（pick_problem 与 mock_exam 共用过滤逻辑）。
     candidates = [
         p for p in PROBLEM_BY_ID.values()
@@ -793,14 +913,13 @@ def pick_problem(
             last = str(row["last_activity_at"] or "") if row else ""
             return (1 if rounds else 0, last)
         chosen = min(candidates, key=key)
-    row = info.get(int(chosen["id"]))
     return {
         "id": int(chosen["id"]),
         "title": chosen["title"],
         "category": chosen["category"],
         "difficulty": chosen["difficulty"],
         "method": chosen["method"],
-        "rounds": int(row["rounds"]) if row else 0,
+        "rounds": int(info.get(int(chosen["id"]), {}).get("rounds") or 0),
         "note": problem_note(chosen),
     }
 
@@ -853,15 +972,7 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
         pid = int(pid_text)
         if pid in PROBLEM_BY_ID and marks.get(pid_text) not in ("mastered", "reviewing"):
             weak_ids.add(pid)
-    with closing(connect(db_path)) as connection:
-        # 每题聚合：用于判断"未完成过"（rounds==0 => 新题）与"最久未学"排序。
-        rows = connection.execute(
-            """SELECT problem_id,
-                      SUM(CASE WHEN action='complete' THEN 1 ELSE 0 END) AS rounds,
-                      MAX(studied_at) AS last_activity_at
-               FROM study_events GROUP BY problem_id"""
-        ).fetchall()
-    info = {int(row["problem_id"]): dict(row) for row in rows}
+    info = problem_review_state(db_path)
 
     def entry(pid: int, reason: str) -> dict[str, object]:
         p = PROBLEM_BY_ID[pid]
@@ -908,16 +1019,14 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
         manual_marks = [dict(row) for row in connection.execute(
             "SELECT target_id, updated_at FROM marks WHERE target_type='problem' AND mark='weak' ORDER BY updated_at"
         )]
-        # 每题完成轮次（列表里显示"已经复习了几轮"）。
-        complete_rows = connection.execute(
-            """SELECT problem_id, COUNT(*) AS rounds, MAX(studied_at) AS last_completed_at
-               FROM study_events WHERE action='complete' GROUP BY problem_id"""
-        ).fetchall()
         # 每题首次浏览时间（展示"什么时候开始学这道题"）。
         view_rows = connection.execute(
             "SELECT problem_id, MIN(studied_at) AS first_view FROM study_events WHERE action='view' GROUP BY problem_id"
         ).fetchall()
-    info = {int(row["problem_id"]): row for row in complete_rows}
+    info = {
+        pid: {"rounds": int(progress["rounds"]), "last_completed_at": progress["last_completed_at"]}
+        for pid, progress in ac_problem_progress(db_path).items()
+    }
     first_view = {int(row["problem_id"]): str(row["first_view"]) for row in view_rows}
     submissions = submission_summary(db_path)
     all_marks = problem_marks(db_path)
@@ -1004,7 +1113,16 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
             marks = [dict(row) for row in connection.execute(
                 "SELECT target_type, target_id, mark, updated_at FROM marks ORDER BY updated_at")]
             settings = [dict(row) for row in connection.execute("SELECT key, value FROM settings ORDER BY key")]
-        payload = {"problems": problems, "contents": contents, "marks": marks, "settings": settings}
+            submissions = [dict(row) for row in connection.execute(
+                "SELECT id, problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source, lc_id FROM submissions ORDER BY id"
+            )]
+        payload = {
+            "problems": problems,
+            "contents": contents,
+            "submissions": submissions,
+            "marks": marks,
+            "settings": settings,
+        }
         return "application/json; charset=utf-8", "hot100-records.json", json.dumps(payload, ensure_ascii=False, indent=2)
     # weekly：本周（本周一 00:00 起）统计生成 Markdown 周报：轮次/活跃天数/连击/薄弱清单。
     if kind == "weekly":
@@ -1014,19 +1132,32 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         today_iso = now.date().isoformat()
         with closing(connect(db_path)) as connection:
             problem_rounds = int(connection.execute(
-                "SELECT COUNT(*) AS n FROM study_events WHERE action='complete' AND study_date >= ?",
+                """SELECT COUNT(*) AS n FROM (
+                    SELECT problem_id, substr(submitted_at, 1, 10) AS d
+                    FROM submissions WHERE status = 'ac' AND substr(submitted_at, 1, 10) >= ?
+                    GROUP BY problem_id, d
+                )""",
                 (monday_iso,),
             ).fetchone()["n"] or 0)
             content_rounds = int(connection.execute(
-                "SELECT COUNT(*) AS n FROM content_events WHERE action='complete' AND study_date >= ?",
+                "SELECT COUNT(*) AS n FROM content_events WHERE action='complete' AND module_id <> 'hot100' AND study_date >= ?",
                 (monday_iso,),
             ).fetchone()["n"] or 0)
             active_days = int(connection.execute(
-                "SELECT COUNT(DISTINCT study_date) AS n FROM study_events WHERE study_date >= ?",
-                (monday_iso,),
+                """SELECT COUNT(DISTINCT study_date) AS n FROM (
+                    SELECT study_date FROM study_events WHERE action = 'view' AND study_date >= ?
+                    UNION
+                    SELECT substr(submitted_at, 1, 10) FROM submissions WHERE substr(submitted_at, 1, 10) >= ?
+                    UNION
+                    SELECT study_date FROM content_events
+                    WHERE module_id <> 'hot100' AND study_date >= ?
+                )""",
+                (monday_iso, monday_iso, monday_iso),
             ).fetchone()["n"] or 0)
             active_dates_all = {str(r["study_date"]) for r in connection.execute(
-                "SELECT DISTINCT study_date FROM study_events UNION SELECT DISTINCT study_date FROM content_events"
+                """SELECT study_date FROM study_events WHERE action = 'view'
+                   UNION SELECT substr(submitted_at, 1, 10) AS study_date FROM submissions
+                   UNION SELECT study_date FROM content_events WHERE module_id <> 'hot100'"""
             )}
         streak = 0
         cursor = now.date()
@@ -1060,7 +1191,7 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
             "",
             "- 优先复习到期题目（见面板“今日待复习”）；",
             "- 每天先做薄弱题，再开新题；",
-            "- 保持连击：每天至少完成一轮。",
+            "- 保持连击：每次 AC 都会自动推进一轮，隔日复习节奏更稳。",
             "",
         ]
         return "text/markdown; charset=utf-8", "hot100-周报.md", "\n".join(lines)
@@ -1763,7 +1894,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             if length < 1 or length > 4096:
                 raise ValueError("请求大小不正确")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            # /api/complete：题目完成一轮 —— 轮次自增落库 + 联动书架进度 + 推算下次到期日。
+            # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
             if parsed.path == "/api/complete":
                 result = complete_round(int(payload["problem_id"]))
             # /api/content/complete：书架章节完成一轮（独立的事件表与轮次序列）。
