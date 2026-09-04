@@ -160,7 +160,9 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 #trend .uplot,#trend .u-wrap{width:100%;max-width:100%}
 .quick-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;margin:0 0 22px}
 .quick-cards .review-section{margin:0}
-#reviewList{max-height:320px;overflow-y:auto}
+.quick-cards .review-list{display:grid;grid-template-columns:1fr;align-content:start;gap:8px;max-height:156px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+#reviewList,#pickCard{scrollbar-width:thin}
+#reviewList::-webkit-scrollbar,#pickCard::-webkit-scrollbar{width:6px}
 .more-section{margin:22px 0 0;display:grid;gap:18px}
 .mock-check{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin-top:10px}
 .shelf-due-fold{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--panel-soft)}
@@ -169,6 +171,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .shelf-due-fold summary::before{content:"▸ ";color:var(--brand)}
 .shelf-due-fold[open] summary::before{content:"▾ "}
 .shelf-due-list{display:grid;gap:7px;padding:0 12px 12px}
+.shelf-due-list{max-height:220px;overflow-y:auto;overscroll-behavior:contain}
 .shelf-due-link{flex:0 0 auto;color:var(--brand);font-size:13px;text-decoration:none;white-space:nowrap}
 .shelf-due-link:hover{text-decoration:underline}
 @media(max-width:980px){.quick-cards{grid-template-columns:1fr}}
