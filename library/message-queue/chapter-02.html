@@ -15,7 +15,20 @@
 <li><strong>重复消费</strong>：网络重试天然可能重复，消费端必须幂等；</li>
 <li><strong>消息丢失/乱序/积压</strong>：三类经典问题，需要专门设计兜底。</li>
 </ul>
-<h3>1.3 面试追问</h3>
+<h3>1.3 一个真实场景的数字对比</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">下单同步链路：扣库存 20ms + 优惠券 15ms + 短信 200ms + 积分 50ms + 记日志 30ms
+  → RT ≈ 315ms，任何一个下游抖动都会拖慢下单
+引入 MQ 后：扣库存 20ms + 发消息 3ms
+  → RT ≈ 25ms，短信/积分/日志异步消化，下游故障不影响下单主流程
+</code></pre></div>
+<p><strong>什么时候不要用 MQ</strong>：</p>
+<ul>
+<li>强一致场景：转账扣款双方必须同时成功，MQ 的异步最终一致不满足，要用分布式事务；</li>
+<li>链路极短：只有一步下游操作且必须同步拿结果，直接调用比 MQ 简单可靠；</li>
+<li>对消息时效敏感：轮询消费的延迟不可控，实时查询直接查库/接口。</li>
+</ul>
+<p><strong>面试加分点</strong>：能主动说出“MQ 不是银弹，引入前先问一句——这条链路能接受最终一致吗”，比背三大好处更能体现工程判断。</p>
+<h3>1.4 面试追问</h3>
 <ul>
 <li>问：为什么用 MQ？</li>
 <li>答：异步提速、解耦上下游、削峰填谷；同时要接受复杂度与最终一致。</li>
@@ -23,5 +36,7 @@
 <li>答：可以，如本地队列/线程池 + 限流，但扩展性、解耦性不如 MQ。</li>
 <li>问：MQ 带来哪些新问题？</li>
 <li>答：丢失、重复、乱序、积压，以及中间件自身的高可用。</li>
+<li>问：什么场景不适合用 MQ？</li>
+<li>答：强一致、需要同步拿结果、链路极短的场景；引入前先确认业务能接受最终一致。</li>
 </ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
 <script>const contentId="message-queue:02",moduleId="message-queue";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

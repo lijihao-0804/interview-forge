@@ -4,7 +4,7 @@
 <main id="results" class="chapter-grid" aria-live="polite"></main>
 </div>
 <script>
-let entries=[];
+let entries=[],ready=false,serverMode=true;
 const input=document.getElementById('searchInput');
 const results=document.getElementById('results');
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
@@ -14,12 +14,36 @@ function score(entry,q){
   if(mod.includes(q))return 2;
   return text.includes(q)?1:0;
 }
-function render(){
+function card(e){return `<article class="chapter-card"><div class="card-head"><h2><a href="${esc(e.url)}">${esc(e.title)}</a></h2></div><div class="meta"><span class="pill">${esc(e.module_title)}</span></div></article>`}
+function renderHint(text){results.innerHTML='<p class="empty">'+text+'</p>'}
+function renderLocal(){
   const q=input.value.trim().toLowerCase();
   if(!q){results.innerHTML='<p class="empty">输入关键词开始搜索。</p>';return}
   const hits=entries.map(e=>({e,s:score(e,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,60);
-  results.innerHTML=hits.length?hits.map(({e})=>`<article class="chapter-card"><div class="card-head"><h2><a href="${esc(e.url)}">${esc(e.title)}</a></h2></div><div class="meta"><span class="pill">${esc(e.module_title)}</span></div></article>`).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+  results.innerHTML=hits.length?hits.map(({e})=>card(e)):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
 }
-input.addEventListener('input',render);
-fetch('search-index.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(data=>{entries=data;render()}).catch(()=>{results.innerHTML='<p class="empty">索引加载失败（请通过 启动学习站.cmd 访问）。</p>'});
+async function searchServer(q){
+  renderHint('搜索中…');
+  try{
+    const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store'});
+    if(!r.ok)throw new Error('server');
+    const d=await r.json();
+    results.innerHTML=d.items.length?d.items.map(card).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+  }catch(e){
+    serverMode=false;                       // 服务端不可用 → 回退静态索引模式
+    try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。')}
+  }
+}
+async function loadIndex(){
+  if(ready)return;
+  renderHint('索引加载中…（首次较慢，加载后走浏览器缓存）');
+  const r=await fetch('search-index.json');
+  if(!r.ok)throw new Error('index');
+  entries=await r.json();ready=true;
+}
+input.addEventListener('input',()=>{
+  const q=input.value.trim();
+  if(!q){renderHint('输入关键词开始搜索。');return}
+  if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。'))}
+});
 </script></body></html>

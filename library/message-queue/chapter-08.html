@@ -13,7 +13,22 @@
 5. 终极兜底：先捞消息落表/落对象存储，再慢慢回放；不要无限追 lag
 </code></pre></div>
 <p>注意：Kafka 增加消费者实例不能超过分区数，否则多余消费者闲置；分区数在 Topic 创建时规划好，扩容分区影响顺序性。</p>
-<h3>7.3 面试追问</h3>
+<h3>7.3 积压应急：批量消费代码</h3>
+<div class="codehilite" data-lang="yaml"><pre><code class="language-yaml"><span class="nt">spring</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">kafka</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">listener</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">batch</span><span class="w">                          </span><span class="c1"># 开启批量消费</span>
+<span class="w">      </span><span class="nt">consumer</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">max-poll-records</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span><span class="w">              </span><span class="c1"># 单次最多拉 200 条</span>
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@KafkaListener</span><span class="p">(</span><span class="n">topics</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;order-events&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">groupId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;order-group&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">batch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;true&quot;</span><span class="p">)</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">onBatch</span><span class="p">(</span><span class="n">List</span><span class="o">&lt;</span><span class="n">ConsumerRecord</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">records</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="n">OrderEvent</span><span class="o">&gt;</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">records</span><span class="p">.</span><span class="na">stream</span><span class="p">().</span><span class="na">map</span><span class="p">(</span><span class="k">this</span><span class="p">::</span><span class="n">toEvent</span><span class="p">).</span><span class="na">toList</span><span class="p">();</span>
+<span class="w">    </span><span class="n">orderService</span><span class="p">.</span><span class="na">batchProcess</span><span class="p">(</span><span class="n">events</span><span class="p">);</span><span class="w">     </span><span class="c1">// 合并写库：一次批量 insert，比逐条快数倍</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>批量消费 + 批量落库是“不扩容也能提速”的第一手段；千万级积压再加“临时 Topic 分流”：写一个消费者把积压消息转发到 10 倍分区的临时 Topic，开 10 倍消费者消化后再切回。</p>
+<h3>7.4 面试追问</h3>
 <ul>
 <li>问：消息积压了怎么办？</li>
 <li>答：查 lag → 定位消费慢点 → 扩容消费者 + 批量消费 + 下游优化，紧急时落表后回放。</li>

@@ -30,7 +30,22 @@ key 顺时针找到的第一个节点即归属节点
 </tr>
 </tbody>
 </table>
-<h3>7.4 面试追问</h3>
+<h3>7.4 一致性哈希 Java 示意</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">TreeMap</span><span class="o">&lt;</span><span class="n">Long</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ring</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeMap</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">       </span><span class="c1">// TreeMap 就是“有序环”</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">addNode</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">150</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w">                   </span><span class="c1">// 每个物理节点 150 个虚拟节点</span>
+<span class="w">        </span><span class="n">ring</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">hash</span><span class="p">(</span><span class="n">node</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;#&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="n">node</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="n">String</span><span class="w"> </span><span class="nf">route</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">long</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hash</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
+<span class="w">    </span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Long</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ring</span><span class="p">.</span><span class="na">ceilingEntry</span><span class="p">(</span><span class="n">h</span><span class="p">);</span><span class="w">   </span><span class="c1">// 顺时针找第一个 &gt;= hash 的节点</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">()</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">ring</span><span class="p">.</span><span class="na">firstEntry</span><span class="p">().</span><span class="na">getValue</span><span class="p">();</span><span class="w">   </span><span class="c1">// 环尾回绕</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>ceilingEntry</code> 一行就是“顺时针找第一个节点”；节点下线时只有它的虚拟节点从环上消失，其负责的 key 迁移到下一个节点，其余 key 全部不动——这就是“只迁移少量数据”的代码级体现。</p>
+<h3>7.5 面试追问</h3>
 <ul>
 <li>问：一致性哈希解决什么问题？</li>
 <li>答：节点增减时最小化 key 重映射，避免缓存大面积失效。</li>

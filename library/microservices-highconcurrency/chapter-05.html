@@ -42,7 +42,27 @@
 <p>要点：连接/读超时单独配置；重试只对幂等接口开；fallback 处理失败降级；熔断需集成 Sentinel/Hystrix。</p>
 <h3>4.3 负载均衡</h3>
 <p>客户端负载均衡（Spring Cloud LoadBalancer；Ribbon 自 Spring Cloud 2020.0 起被移除，由 LoadBalancer 取代）：调用方从注册中心拿到实例列表，按轮询/随机/权重选一个。与服务端负载均衡（Nginx）区别：前者在客户端进程内选实例，后者由独立节点分发。</p>
-<h3>4.4 面试追问</h3>
+<h3>4.4 OpenFeign 代码与超时配置</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@FeignClient</span><span class="p">(</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;order-service&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">fallback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">OrderClientFallback</span><span class="p">.</span><span class="na">class</span><span class="p">)</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">interface</span> <span class="nc">OrderClient</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@GetMapping</span><span class="p">(</span><span class="s">&quot;/api/order/{id}&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="n">OrderDTO</span><span class="w"> </span><span class="nf">getById</span><span class="p">(</span><span class="nd">@PathVariable</span><span class="p">(</span><span class="s">&quot;id&quot;</span><span class="p">)</span><span class="w"> </span><span class="n">Long</span><span class="w"> </span><span class="n">id</span><span class="p">);</span>
+
+<span class="w">    </span><span class="nd">@PostMapping</span><span class="p">(</span><span class="s">&quot;/api/order&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="n">Long</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="nd">@RequestBody</span><span class="w"> </span><span class="n">OrderDTO</span><span class="w"> </span><span class="n">order</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="codehilite" data-lang="yaml"><pre><code class="language-yaml"><span class="nt">spring</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">cloud</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">openfeign</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">client</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">default</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">connect-timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span><span class="w">     </span><span class="c1"># 连接超时 2s</span>
+<span class="w">            </span><span class="nt">read-timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5000</span><span class="w">        </span><span class="c1"># 读超时 5s</span>
+</code></pre></div>
+<p>要点：GET 等幂等接口可以配重试；<strong>POST 下单类接口绝不能自动重试</strong>（会重复下单），失败交给 fallback 降级返回兜底数据，同时记录日志补偿。</p>
+<h3>4.5 面试追问</h3>
 <ul>
 <li>问：Feign 是怎么工作的？</li>
 <li>答：接口扫描生成动态代理，拼请求经负载均衡调远程服务。</li>

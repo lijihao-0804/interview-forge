@@ -13,7 +13,26 @@
 <li><strong>事务消息</strong>：RocketMQ 半消息 + 回查，Broker 与业务事务对账，保证“业务成功则消息必达”；</li>
 <li><strong>对账任务</strong>：定时扫描消息表/状态表，补偿漏投或失败的消息。</li>
 </ul>
-<h3>8.3 面试追问</h3>
+<h3>8.3 本地消息表代码</h3>
+<div class="codehilite" data-lang="sql"><pre><code class="language-sql"><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">local_message</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w">            </span><span class="nb">BIGINT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTO_INCREMENT</span><span class="p">,</span>
+<span class="w">  </span><span class="n">biz_order_no</span><span class="w">  </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">payload</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">status</span><span class="w">        </span><span class="n">TINYINT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">-- 0 待投递 1 已投递</span>
+<span class="w">  </span><span class="n">retry_count</span><span class="w">   </span><span class="nb">INT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="n">next_retry_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">);</span>
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Transactional</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">createOrder</span><span class="p">(</span><span class="n">Order</span><span class="w"> </span><span class="n">order</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">orderMapper</span><span class="p">.</span><span class="na">insert</span><span class="p">(</span><span class="n">order</span><span class="p">);</span><span class="w">                          </span><span class="c1">// 业务数据</span>
+<span class="w">    </span><span class="n">localMessageMapper</span><span class="p">.</span><span class="na">insert</span><span class="p">(</span><span class="n">LocalMessage</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="n">order</span><span class="p">));</span><span class="w">  </span><span class="c1">// 同事务写入待投递消息</span>
+<span class="p">}</span>
+
+<span class="c1">// 定时任务：扫待投递 → 发 MQ → 成功置 1；失败按 next_retry_at 指数退避，超限告警人工介入</span>
+</code></pre></div>
+<p>消息记录与业务数据在同一个数据库事务里，“业务成功则消息一定存在”；投递异步化、失败可无限补偿——不引入 RocketMQ 事务消息时最实用的方案。</p>
+<h3>8.4 面试追问</h3>
 <ul>
 <li>问：Broker 挂了会丢消息吗？</li>
 <li>答：多副本 + 同步确认 + ISR 选主可大幅降低丢失；acks=all 且 min.insync.replicas 配置合理时不丢。</li>

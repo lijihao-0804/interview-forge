@@ -36,11 +36,85 @@
 </tbody>
 </table>
 <p><strong>Topic vs Queue</strong>：Queue 是点对点（一条消息一个消费者消费）；Topic 是发布订阅（多个消费者组各拿一份）。Kafka 的 Topic 由多个 Partition 组成，Partition 内部有序，是顺序消息和并行的平衡点。</p>
-<h3>2.1 面试追问</h3>
+<h3>2.1 三大 MQ 术语映射</h3>
+<table>
+<thead>
+<tr>
+<th>通用概念</th>
+<th>Kafka</th>
+<th>RocketMQ</th>
+<th>RabbitMQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>消息代理</td>
+<td>Broker</td>
+<td>Broker</td>
+<td>Broker（含交换机）</td>
+</tr>
+<tr>
+<td>逻辑分类</td>
+<td>Topic</td>
+<td>Topic</td>
+<td>Exchange + Routing Key</td>
+</tr>
+<tr>
+<td>物理分片</td>
+<td>Partition</td>
+<td>Queue（ConsumeQueue）</td>
+<td>Queue</td>
+</tr>
+<tr>
+<td>消费位置</td>
+<td>Offset</td>
+<td>CommitLog Offset（ConsumeQueue 存索引）</td>
+<td>Delivery Tag（内存态）</td>
+</tr>
+<tr>
+<td>消费组</td>
+<td>Consumer Group</td>
+<td>Consumer Group</td>
+<td>多消费者竞争同一队列</td>
+</tr>
+</tbody>
+</table>
+<p>三大 MQ 的概念名不同但角色一一对应，面试时说“Kafka 的 Partition ≈ RabbitMQ 的 Queue ≈ RocketMQ 的 Queue”考官立刻知道你懂原理而不是背名词。</p>
+<h3>2.2 三种消费语义</h3>
+<table>
+<thead>
+<tr>
+<th>语义</th>
+<th>含义</th>
+<th>实现方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>至多一次 at-most-once</td>
+<td>可能丢，绝不重复</td>
+<td>自动 ACK（收到就确认）</td>
+</tr>
+<tr>
+<td>至少一次 at-least-once</td>
+<td>绝不丢，可能重复</td>
+<td>手动 ACK + 失败重投（主流选择）</td>
+</tr>
+<tr>
+<td>精确一次 exactly-once</td>
+<td>不丢不重</td>
+<td>幂等生产者 + 事务 + 消费端幂等，代价最高</td>
+</tr>
+</tbody>
+</table>
+<p>面试标准答案：<strong>生产上普遍选 at-least-once + 消费端幂等</strong>，Kafka 的 exactly-once 只在“Kafka 读 Kafka”的流处理闭环内成立，跨系统（MQ → DB）仍要靠幂等。</p>
+<h3>2.3 面试追问</h3>
 <ul>
 <li>问：Topic 和 Queue 的区别？</li>
 <li>答：Topic 支持多组订阅广播；Queue 一条消息只被一个消费者消费。</li>
 <li>问：Partition 有什么用？</li>
 <li>答：横向扩展存储与消费并行度；单分区内有序，跨分区不保证顺序。</li>
+<li>问：三种消费语义怎么选？</li>
+<li>答：生产选 at-least-once + 消费端幂等；exactly-once 只在闭环流处理内成立，跨系统靠幂等兜底。</li>
 </ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
 <script>const contentId="message-queue:03",moduleId="message-queue";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

@@ -44,7 +44,29 @@
 </tbody>
 </table>
 <p>关键：幂等键最稳的是<strong>业务唯一标识</strong>（订单号+事件类型）。补充各 MQ 的消息 ID 差异：Kafka 没有消息级 ID（靠 offset+分区定位，重投是同一条）；RocketMQ 的 msgId（客户端生成）重投<strong>不变</strong>、offsetMsgId（broker 生成）才变；RabbitMQ 的 delivery tag 重投会变。所以不能说“消息 ID 一定变”——RocketMQ msgId 不变很适合做幂等键，但最稳的仍是业务唯一键。</p>
-<h3>6.3 面试追问</h3>
+<h3>6.3 幂等代码：去重表 + Redis 预去重</h3>
+<div class="codehilite" data-lang="sql"><pre><code class="language-sql"><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">consume_record</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">biz_key</span><span class="w">     </span><span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">   </span><span class="c1">-- 业务唯一键：订单号 + 事件类型</span>
+<span class="w">  </span><span class="n">consumed_at</span><span class="w"> </span><span class="n">DATETIME</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">)</span><span class="w"> </span><span class="n">ENGINE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">InnoDB</span><span class="p">;</span>
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Transactional</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">onPaySuccess</span><span class="p">(</span><span class="n">PayMessage</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">String</span><span class="w"> </span><span class="n">bizKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="na">getOrderNo</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;:PAID&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">consumeRecordMapper</span><span class="p">.</span><span class="na">insert</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">ConsumeRecord</span><span class="p">(</span><span class="n">bizKey</span><span class="p">));</span><span class="w">  </span><span class="c1">// 唯一键冲突 = 已处理</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">DuplicateKeyException</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="p">;</span><span class="w">                                                  </span><span class="c1">// 重复消息直接吞掉</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">orderMapper</span><span class="p">.</span><span class="na">markPaid</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="na">getOrderNo</span><span class="p">());</span><span class="w">   </span><span class="c1">// 业务处理与去重记录同库同事务</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 高频场景：Redis SETNX 预去重挡流量（必须设过期时间），DB 唯一键兜底</span>
+<span class="n">Boolean</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">redis</span><span class="p">.</span><span class="na">opsForValue</span><span class="p">().</span><span class="na">setIfAbsent</span><span class="p">(</span><span class="s">&quot;dedup:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">bizKey</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">24</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">HOURS</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Boolean</span><span class="p">.</span><span class="na">FALSE</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">first</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+</code></pre></div>
+<p>可靠性排序：同库同事务的去重表 &gt; 独立去重表 &gt; Redis 预去重（Redis 丢数据时靠 DB 唯一键兜底）。</p>
+<h3>6.4 面试追问</h3>
 <ul>
 <li>问：重复消费怎么解决？</li>
 <li>答：消费端幂等；唯一业务键 + 去重表/唯一约束/状态机。</li>
