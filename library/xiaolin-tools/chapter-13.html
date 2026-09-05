@@ -17,7 +17,7 @@
 <p>那为什么 MCP 选了 JSON-RPC 2.0 呢？</p>
 <p>其实原因很朴素：MCP 需要一种「Client 调用 Server 的方法，Server 返回结果」的通信模式，这本质上就是远程过程调用（RPC）。</p>
 <p>而 JSON-RPC 2.0 是现成的、足够轻量的 RPC 规范，用 JSON 格式易读易调试，任何编程语言都能实现，不管 Server 是 Python 写的还是 TypeScript 写的，消息格式都一样，不需要额外的序列化工具。</p>
-<p><img alt="" src="assets/f5ce45d993-dc9ce828e86562525042be55.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f5ce45d993-dc9ce828e86562525042be55.png" /></p>
 <p>每条消息就是一个 JSON 对象，格式固定：</p>
 <div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="c1">// 请求消息（Client -&gt; Server）</span>
 <span class="p">{</span>
@@ -46,7 +46,7 @@
 <p>这里的「管道」到底是什么？</p>
 <p>你可以把它理解成操作系统在内存里给这两个进程分配的一段先进先出的小缓冲区：Client 往里塞一行 JSON，Server 从缓冲区的另一头读出来处理；Server 处理完再往另一条管道里塞一行 JSON，Client 从那头读。</p>
 <p>整个过程不经过网卡、不经过 TCP/IP 协议栈，数据在 RAM 里走了一趟就到了，所以延迟天然比网络请求低得多，也不需要序列化成网络可传输的字节流。</p>
-<p><img alt="" src="assets/3d88b0f77e-2fed3a44e7b95b4853a0ad14.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3d88b0f77e-2fed3a44e7b95b4853a0ad14.png" /></p>
 <p>stdio 方式有几个很明显的优点。</p>
 <ul>
 <li>首先延迟极低，进程间通信比走网络快得多，数据直接在操作系统管道里流转，几乎没有开销。</li>
@@ -67,15 +67,15 @@
 <p>远程场景下，Server 作为独立的 HTTP 服务运行，Client 通过网络连接访问。MCP 当前推荐的远程传输方式是 <strong>Streamable HTTP</strong>。</p>
 <p>Streamable HTTP 的核心设计是用单个 HTTP 端点（通常是 <code>/mcp</code>）同时处理请求和响应。Client 通过 POST 请求发送 JSON-RPC 消息，Server 可以选择两种方式返回：如果是简单的同步操作，直接返回一个普通的 JSON 响应就行；如果是需要流式输出的操作，Server 返回一个 SSE 流，持续推送数据。这种「按需选择」的设计非常灵活，不需要强制建立长连接。</p>
 <p>Streamable HTTP 的优点很明确。Server 可以部署在云端，多个 Client 共享同一个 Server，这对团队来说特别实用，比如团队共用一个部署在服务器上的数据库 MCP Server，所有人连同一个服务就行，不需要各自在本地跑一份。而且支持跨机器访问，不局限于本地环境，适合需要统一管理工具服务的团队或平台。</p>
-<p><img alt="" src="assets/3216e4a16d-96f2fca6b9e9185fc3d495cd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3216e4a16d-96f2fca6b9e9185fc3d495cd.png" /></p>
 <p>当然，相比 stdio 多了网络开销，延迟会略高一些，而且你还需要处理认证、网络中断重连等在本地场景下完全不用操心的问题。</p>
 <h4>为什么 SSE 被弃用了</h4>
 <p>你可能看到一些早期的 MCP 教程还在讲 SSE（Server-Sent Events）传输方式，这里要说明一下：HTTP + SSE 双端点方案是 MCP 早期版本（2024-11-05 规范）采用的远程传输方案，<strong>在 2025 年 3 月的规范更新里被标记为 deprecated</strong>，仍然保留向后兼容，但新项目应该直接用 Streamable HTTP。</p>
 <p>为什么要替换？原因是架构上有一个小尴尬：Client 向 Server 发请求要走 POST 端点，Server 向 Client 推数据要走另一条 SSE 长连接端点，同一个对话被拆成了两条通道。这带来的具体问题是状态管理复杂，比如 Client POST 了一条消息之后网络突然断了，那条消息到底被处理了没、SSE 流会不会推回结果，Client 没有一个简单的办法判断，出问题时排查链路很长。</p>
-<p><img alt="" src="assets/510cab603c-fb381d7f53a6becdd9ae3735.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/510cab603c-fb381d7f53a6becdd9ae3735.png" /></p>
 <p>Streamable HTTP 的做法是把这两条通道合并成一个端点：Client 照样 POST 发请求，Server 根据情况决定返回「一个普通 JSON」还是「一条 SSE 流」，不需要 Client 提前开另一条连接。</p>
 <p>注意这里的关键：Streamable HTTP 并没有抛弃 SSE，流式推送的部分底层还是 SSE（<code>Content-Type: text/event-stream</code>），只是把端点从两个合成一个。架构更简洁、对负载均衡和 serverless 环境都更友好。目前主流的 MCP 客户端和 SDK 都已经迁移到了 Streamable HTTP。</p>
-<p><img alt="" src="assets/c6cf7f6561-d88fcb00994d0f7b30539502.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c6cf7f6561-d88fcb00994d0f7b30539502.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头踩的雷，最常见的误区就是想当然地以为 MCP 用 WebSocket 或者 HTTP REST 接口。</p>
 <p>面试回答这道题，首先要说清楚 MCP 支持两种传输方式：本地场景用 stdio（标准输入输出，Server 作为子进程运行，通过管道通信），远程场景用 Streamable HTTP（Server 作为 HTTP 服务部署，单个端点同时处理请求和响应）。stdio 不走网络、延迟极低、生命周期自动管理；Streamable HTTP 支持多 Client 共享一个 Server，适合团队统一部署。</p>

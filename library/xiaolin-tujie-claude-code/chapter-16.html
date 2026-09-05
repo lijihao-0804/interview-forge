@@ -9,7 +9,7 @@
 </ul>
 <p>Claude Code 里跟「多 agent」沾边的代码其实有三套不同的机制：<strong>常规 Subagent、Fork Subagent、Coordinator 协调者模式</strong>。</p>
 <p>后面我会按由浅入深的顺序，一个个讲清楚。</p>
-<p><img alt="" src="assets/b6c5b2c1ef-c26c99bf4d136d92ad52baae.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b6c5b2c1ef-c26c99bf4d136d92ad52baae.png" /></p>
 <hr />
 <h3>一、先搞明白 Multi-Agent 到底是个啥</h3>
 <p>在扒源码之前，我想先花一点篇幅，把 Multi-Agent 这个词的底层逻辑讲清楚。因为我发现很多人连「为啥要有多 agent」都没想明白，光盯着代码看是看不懂的。</p>
@@ -21,7 +21,7 @@
 <p><strong>第一，上下文会爆炸</strong>。调研阶段要看大量文档和 StackOverflow 链接，实现阶段要读项目代码，评审阶段又要重新读实现。三个阶段的内容全塞到一个 agent 的上下文里，token 蹭蹭往上涨，后面直接塞不下。</p>
 <p><strong>第二，职责混乱</strong>。一个 agent 既当研究员又当程序员又当评审员，它自己都不知道现在是什么角色，容易跑偏。比如调研到一半就开始写代码了，代码写到一半又去查文档。</p>
 <p><strong>第三，没法并发</strong>。一个 agent 一次只能做一件事，它在查文档的时候，项目代码就在那干等着。</p>
-<p><img alt="单 agent 硬扛三件事" src="assets/a6dc42ea42-e893f04b78ded2a2ed854c6b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="单 agent 硬扛三件事" src="assets/a6dc42ea42-e893f04b78ded2a2ed854c6b.png" /></p>
 <p><em>单 agent 硬扛三件事</em></p>
 <h4>老板派活的思路</h4>
 <p>这时候 Multi-Agent 的思路就来了。说白了，就像一个老板带团队：</p>
@@ -30,26 +30,26 @@
 <p>这就是 Multi-Agent 的核心思想：<strong>把一个大任务拆给多个职责清晰的 agent 去做，它们之间通过某种方式通信和协作</strong>。</p>
 <h4>Multi-Agent 的三种常见形态</h4>
 <p>绕开花哨的术语，Multi-Agent 系统在工业界落地时，一般就三种形态。</p>
-<p><img alt="" src="assets/af97a94826-2a9e5c2944f160dd3a0ea702.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/af97a94826-2a9e5c2944f160dd3a0ea702.png" /></p>
 <p><strong>第一种，父子型</strong>。主 agent 处理整个任务，遇到某个子问题时派一个 subagent 出去搞定，拿结果回来接着干。这是最常见的，Claude Code 里的 Task 工具就是这种。</p>
 <p><strong>第二种，平级协作型</strong>。几个 agent 职责对等，通过共享状态或者消息互相协作。不过这种在工程上比较难落地，状态同步很麻烦。</p>
 <p><strong>第三种，主从型（Coordinator-Worker）</strong>。有一个专门的「协调者 agent」，它自己不干活，只负责派 worker、收结果、做合成。worker 之间互不通信，全靠协调者调度。这种是高并发场景的标配。</p>
 <p>Claude Code 源码里，<strong>常规 Subagent</strong> 对应父子型，<strong>Coordinator 模式</strong>对应主从型，<strong>Fork Subagent</strong> 是父子型的一个特殊优化版本（跟 cache 有关，后面讲）。</p>
-<p><img alt="" src="assets/461536fc80-6f4bca1eab37628d463da0c5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/461536fc80-6f4bca1eab37628d463da0c5.png" /></p>
 <h4>subagent 在 Claude Code 里到底长啥样？</h4>
 <p>讲到这儿可能还有朋友有点虚：「subagent 听起来挺抽象，它在 Claude Code 里到底长啥样，看得见吗？」</p>
 <p>我举个真实能感知的场景你就懂了。</p>
 <p>你跟 Claude Code 说「调研一下这个项目的认证模块」，它自己判断一下：这活得派个「侦察兵」去干，而不是我亲自扎进去。于是它在内部调了一个叫 <strong>Agent 的工具</strong>（对，这个工具的名字就叫 Agent），把任务交给一个叫 <strong>Explore</strong> 的内置 subagent 去跑。</p>
 <p>Explore 带着一套精简的工具池（只有读文件、搜代码这些只读工具），带着一份独立的上下文，跑完调研把结果打包回来交给主 agent。主 agent 收到结果后，该改代码改代码、该回答回答。</p>
 <p>所以 subagent 不是什么玄学，说白了就是「主 agent 通过一个特定工具派出去的另一个独立 agent 实例」。每一个 subagent 都是一个真实存在的执行单元，有自己的工具池、上下文、生命周期。</p>
-<p><img alt="" src="assets/ebfbfa98e6-3fced5c5f89903d9bbc116a9.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ebfbfa98e6-3fced5c5f89903d9bbc116a9.png" /></p>
 <p>明白了这些，咱们就可以进入 Claude Code 的源码了。</p>
 <hr />
 <h3>二、Subagent 的隔离机制</h3>
 <p>在讲通信、讲并发之前，我想先从 Claude Code 多 agent 设计里<strong>最关键的一环</strong>讲起：<strong>隔离机制</strong>。</p>
 <p>为什么隔离最关键？你想想，多 agent 系统本质就是「一堆 agent 共处一个进程、共享一个底层运行时」。如果隔离做得不好，一个 subagent 偷偷污染了父 agent 的状态、或者调了不该调的工具，整个系统就会乱成一锅粥。</p>
 <p>Claude Code 在 subagent 启动时，把隔离做到了<strong>两个维度</strong>：<strong>工具隔离</strong>（不给子 agent 它不该有的工具）和 <strong>上下文隔离</strong>（不让子 agent 搅乱父 agent 的运行时状态）。咱们一个一个看。</p>
-<p><img alt="" src="assets/06d7b99a48-bf0a800c83ea3bec36ef384e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/06d7b99a48-bf0a800c83ea3bec36ef384e.png" /></p>
 <h4>第一维度：给子 agent 发一个定制工具箱</h4>
 <p>先说工具隔离。这是 Claude Code 多 agent 设计里<strong>最容易被忽略，但又很重要</strong>的一环。</p>
 <p>什么意思呢？主 agent 拥有一大堆工具（读文件、写文件、执行命令、派 subagent、问用户问题等等几十个），但你不能把这堆工具原封不动地丢给 subagent。为啥？</p>
@@ -66,7 +66,7 @@
 <p><strong>第二道门是「自定义 agent 多套一层黑名单」</strong>。用户自己写的 agent（比如在项目里自己配的那种 Markdown agent）比内置 agent 要再严一点，因为用户写的没经过官方审核，多防一道更安全。</p>
 <p><strong>第三道门反过来，是「后台异步 agent 走白名单」</strong>。这类 agent 是完全后台跑的，没法跟用户交互，所以只准用事先圈定好的一小批工具（读文件、搜代码、执行命令、编辑文件这些）。白名单的哲学是「默认不准用，明确列出来的才能用」，比黑名单更保险。</p>
 <p>三道门走下来，每个 subagent 拿到的都是一份<strong>量身定制</strong>的工具池，既够它干活，又不会越权。</p>
-<p><img alt="" src="assets/b7ed3b828e-20505ced362e083c0645c871.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b7ed3b828e-20505ced362e083c0645c871.png" /></p>
 <p>这个机制在源码里其实就是一个过滤函数：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/tools/AgentTool/agentToolUtils.ts:70</span>
 <span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">filterToolsForAgent</span><span class="p">({</span><span class="w"> </span><span class="nx">tools</span><span class="p">,</span><span class="w"> </span><span class="nx">isBuiltIn</span><span class="p">,</span><span class="w"> </span><span class="nx">isAsync</span><span class="p">,</span><span class="w"> </span><span class="nx">permissionMode</span><span class="w"> </span><span class="p">})</span><span class="o">:</span><span class="w"> </span><span class="nx">Tools</span><span class="w"> </span><span class="p">{</span>
@@ -82,7 +82,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>可以看到就是顺着「全局黑名单 → 自定义 agent 加严 → 异步白名单」这三道条件依次判定。最后留下来的，才是这个 subagent 能用的工具。</p>
-<p><img alt="" src="assets/4716458016-ed631fcdc8fc09fad04e2b8b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4716458016-ed631fcdc8fc09fad04e2b8b.png" /></p>
 <p>这个设计看着简单，其实挺有工程智慧的。我在设计自己的多 agent 系统时，就学到了一条原则：<strong>不要假设所有 agent 都能用所有工具，按 agent 类型做细粒度的权限控制</strong>。</p>
 <h4>第二维度：搭一个隔离的运行环境</h4>
 <p>说完工具，再来聊第二维度：<strong>上下文隔离</strong>。这块是 Claude Code 多 agent 设计里<strong>最精髓的一块</strong>，我觉得全篇文章最值得细读的就是这一节。</p>
@@ -104,7 +104,7 @@
 <p><strong>决策四：给每个 subagent 发独立 ID、深度代代 +1</strong></p>
 <p>每派一个 subagent，都给它一个独立的 ID，并且在父 agent 的深度基础上 +1。这样系统能随时知道「当前这个 agent 处于嵌套的第几层」。深度超过阈值（比如 5 层）就报警甚至强制停止，防止意外嵌套失控。</p>
 <p>这四个决策其实回答了四类问题：<strong>信息怎么传、状态怎么写、通路怎么留、身份怎么追踪</strong>。</p>
-<p><img alt="" src="assets/67c181f488-29e9777fdaf15bc30470dcc7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/67c181f488-29e9777fdaf15bc30470dcc7.png" /></p>
 <p>对应到源码里，就是一个叫 <code>createSubagentContext</code> 的函数，我把最能说明上面四个决策的部分精简出来：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/utils/forkedAgent.ts:345</span>
 <span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createSubagentContext</span><span class="p">(</span><span class="nx">parentContext</span><span class="p">,</span><span class="w"> </span><span class="nx">overrides</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">ToolUseContext</span><span class="w"> </span><span class="p">{</span>
@@ -127,7 +127,7 @@
 </code></pre></div>
 <p>你看这几行代码，一一对应上面讲的四个决策：克隆缓存、关掉写权限、保留任务通路、发独立 ID。</p>
 <p>看完这块，我的感受是：<strong>所谓上下文隔离，不是一刀切地「全隔离」或者「不隔离」，而是按每个状态的语义单独决策</strong>。这个细腻劲儿，正是 Claude Code 这种工业级产品稳定跑的根基。</p>
-<p><img alt="" src="assets/610656bb66-3a029fc905867bb05954616a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/610656bb66-3a029fc905867bb05954616a.png" /></p>
 <p>走完「工具隔离」和「上下文隔离」这两道门，一个 subagent 就拿到了干净的工具池 + 干净的运行环境，可以独立跑起来了。那父 agent 和这个跑起来的 subagent，又是怎么互相说话的呢？下一章见真章。</p>
 <hr />
 <h3>三、父子 Agent 是怎么通信的</h3>
@@ -150,7 +150,7 @@
 <p>那又冒出一个新问题：如果子任务跑得特别久，父 agent 干等着不就被卡死了吗？Claude Code 这里有个补丁，叫 <strong>auto-background</strong>。</p>
 <p><strong>如果 subagent 很快跑完（比如 30 秒内），父 agent 就在前台阻塞等</strong>，像一次普通工具调用，完事就拿结果继续。<strong>但如果 subagent 跑超过 2 分钟还没完，Claude Code 会自动把它转到后台</strong>，让父 agent 可以先继续干别的。子任务真完成时，再回头通知父 agent。</p>
 <p>这个设计本质上是<strong>把同步工具调用自动降级成异步通知</strong>的优化。没有它，长任务会一直占着父 agent 的执行权，用户也没法跟父 agent 继续对话。</p>
-<p><img alt="" src="assets/c9a89811c4-b62339b81cc6f879a2dca8df.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c9a89811c4-b62339b81cc6f879a2dca8df.png" /></p>
 <p>源码里这个「2 分钟阈值」就是一个常量开关，而且它本身也带着 feature 门控，不是无条件开的：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/tools/AgentTool/AgentTool.tsx:72</span>
 <span class="kd">function</span><span class="w"> </span><span class="nx">getAutoBackgroundMs</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">{</span>
@@ -180,13 +180,13 @@
 <blockquote>
 <p>📌 配图建议：task-notification XML 渲染示意，高亮各个 tag 的含义</p>
 </blockquote>
-<p><img alt="" src="assets/f92e2fa475-1b604244bc77d7b721978d0c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f92e2fa475-1b604244bc77d7b721978d0c.png" /></p>
 <p><strong>为啥要搞 XML 不用结构化对象？</strong> 这个设计有它的巧妙之处，我特意想明白过。</p>
 <p><strong>第一</strong>，LLM 对 XML 非常友好。Anthropic 训练 Claude 的时候就强调了 XML 的结构化表达。你把 XML 塞到 prompt 里，LLM 能很自然地解析出语义，不用额外教它。</p>
 <p><strong>第二</strong>，XML 是纯文本，可以直接塞进对话历史。如果是结构化对象，还得额外走个「工具结果」的字段结构，流程更复杂。</p>
 <p><strong>第三</strong>，它伪装成用户消息，<strong>天然地复用了 agentic loop 的处理逻辑</strong>。父 agent 不需要额外的状态机去「等通知」，它就像收到一条新的用户输入一样处理。</p>
 <p>这种「把系统事件伪装成对话」的设计思路，在 LLM 应用里是非常值得学的一招。</p>
-<p><img alt="" src="assets/b55441235a-8209f4eb59fd7193c379be85.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b55441235a-8209f4eb59fd7193c379be85.png" /></p>
 <p>对应到源码里，生成这段 XML 的代码就是在拼字符串：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/tasks/LocalAgentTask/LocalAgentTask.tsx:197</span>
 <span class="kd">const</span><span class="w"> </span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`&lt;</span><span class="si">${</span><span class="nx">TASK_NOTIFICATION_TAG</span><span class="si">}</span><span class="sb">&gt;</span>
@@ -212,7 +212,7 @@
 <blockquote>
 <p>配图意见：沿用原「函数调用 vs 消息驱动」对比图，无需重画。只需把图注/标题里若有「Claude Code 的通信用消息驱动」这类绝对说法，收窄成「团队模式选了消息驱动」，避免读者误以为这是默认形态的通用机制。</p>
 </blockquote>
-<p><img alt="" src="assets/1764a29bbe-6ec73017bd48684954f3f2f0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1764a29bbe-6ec73017bd48684954f3f2f0.png" /></p>
 <p><strong>先看每个 subagent 的「员工档案」</strong>。Claude Code 给每个 subagent 建了一份档案：一个对象，里面记着这个 subagent 的 ID、当前状态（等待中/跑步中/已完成/失败/被停了）、它的信箱（待处理消息数组）、已经产生的结果、进度信息等等。</p>
 <p>要说明的是，这份档案本身是通用的，不是团队模式才有，默认形态下那套「转后台、发完成通知」也是靠它来追踪每个子任务的。我们这里要重点盯住的，是里面那个<strong>信箱字段</strong>，它才是团队模式真正用起来、支撑起「父→子 扔字条」的部分。</p>
 <p>所有跟 subagent 有关的读写（父要发消息，子要改状态），都通过全局的 task 表里这份档案来进行。</p>
@@ -232,7 +232,7 @@
 <span class="p">};</span>
 </code></pre></div>
 <p>重点关注的是 <code>pendingMessages</code> 数组，它就是我们说的「信箱」，父 agent 往里扔字条，子 agent 自己来捡。</p>
-<p><img alt="" src="assets/78a8a2b87f-b700ab96e210dca2a7659b5b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/78a8a2b87f-b700ab96e210dca2a7659b5b.png" /></p>
 <p><strong>再看父 → 子怎么扔字条</strong>。父 agent 要给跑着的 subagent 发指令的流程，拆开看就是两步：</p>
 <p><strong>第一步：父往信箱扔字条</strong>。父 agent 在自己的 agentic loop 里调用一个叫 SendMessage 的工具，工具内部做的事情很简单：<strong>往目标 subagent 档案的信箱末尾追加一条消息，然后立刻返回</strong>。父 agent 扔完走人，不等子 agent 看。</p>
 <p>这里要点一句关键的：<strong>SendMessage 这个工具本身就是团队模式才启用的</strong>。它的 isEnabled 判断挂的就是「有没有开 agent-teams」这个开关，没开团队模式，主 agent 的工具箱里压根没有 SendMessage，父→子 这条路自然就不存在。这也是前面说「默认形态是单向」的根本原因。</p>
@@ -242,7 +242,7 @@
 <blockquote>
 <p>配图意见：沿用原父子通信时序图，无需重画。但标题/图注要补上「团队模式下」这个前提（比如「团队模式下的父子双向通信时序」），别让读者误以为这套父→子 + 子→父 的完整来回是默认形态的通用流程。</p>
 </blockquote>
-<p><img alt="" src="assets/fd04eef0c2-a4f435fc89a4e83a0cfce7bb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fd04eef0c2-a4f435fc89a4e83a0cfce7bb.png" /></p>
 <p>对应到源码，SendMessage 工具里的核心逻辑长这样：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/tools/SendMessageTool/SendMessageTool.ts:800</span>
 <span class="kd">const</span><span class="w"> </span><span class="nx">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">appState</span><span class="p">.</span><span class="nx">tasks</span><span class="p">[</span><span class="nx">agentId</span><span class="p">]</span>
@@ -276,9 +276,9 @@
 <blockquote>
 <p>配图意见：这张「通信全貌」图建议重画。原图若只画了一套双向通信，现在撑不起「两条线」这个新框架了。改成上下或左右两栏：一栏「默认形态」画「父派出 → 子跑 →（超 2 分钟转后台）→ 子发完成通知」的单向链路，一栏「团队模式」在其上叠加「父→子 SendMessage 扔字条」的回路。重点让读者一眼看出：团队模式是在默认形态之上「补了父→子这一条」，而不是另起炉灶。</p>
 </blockquote>
-<p><img alt="" src="assets/fa554a491a-4d3f86ef756cf4fe1a3178ec.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fa554a491a-4d3f86ef756cf4fe1a3178ec.png" /></p>
 <p>而且不管走哪条线，这套「不阻塞」的底子都带来一个特别大的好处：<strong>天然支持多 subagent 并发</strong>。只要父 agent 不傻等着某个子跑完，它就能同时派 5 个 subagent 出去，谁先完成谁先给它发通知，父 agent 按到达顺序处理就行。并发不是团队模式的专利，默认形态配合 auto-background 也能并发，后面要讲的 Coordinator 模式更是把并发拉到极致。</p>
-<p><img alt="" src="assets/d3481a815c-63dbc15bbd775d05500bb12e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d3481a815c-63dbc15bbd775d05500bb12e.png" /></p>
 <p>下一章，我们再讲一个特别精妙的优化：<strong>Fork Subagent</strong>。</p>
 <hr />
 <h3>四、Fork Subagent：省钱又省延迟的隐藏大招</h3>
@@ -295,7 +295,7 @@
 <p>公布：是<strong>最严格的那个，字节级别完全相同</strong>。系统 prompt 一个字不一样、工具列表顺序不一样、甚至空格位置不一样，都会直接没命中缓存。</p>
 <p>是不是比你想的严格多了？</p>
 <p>那既然这么严，能不能设计一种 subagent，它的 system prompt 和工具池跟父 agent <strong>完全一样</strong>，这样就能复用父的缓存了？这就是 Fork Subagent 的起点。</p>
-<p><img alt="" src="assets/6ee16f4c40-53eaa266db55373b1d0b9846.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6ee16f4c40-53eaa266db55373b1d0b9846.png" /></p>
 <h4>Fork 的核心思路：派一个「字节级相同」的分身</h4>
 <p>Fork Subagent 的直觉是这样的：<strong>派一个子 agent 出去干活，但这个子 agent 的 API 请求前缀跟父 agent 一模一样，让 Anthropic 那边一看：「哦这个前缀我认识」，走缓存</strong>。</p>
 <p>这里的「一模一样」要做到什么程度？<strong>字节级</strong>。一个字节不对都不行。</p>
@@ -324,7 +324,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>你看这个类型的意思很明显：<strong>凡是会影响缓存命中的字段，我全列在这儿，你 Fork 的时候严格按这份清单跟父 agent 对齐</strong>。</p>
-<p><img alt="" src="assets/d0a2cce3a5-c1ccc24ee49627cf93d74d9c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d0a2cce3a5-c1ccc24ee49627cf93d74d9c.png" /></p>
 <h4>一个有意思的细节：system prompt 不重新生成</h4>
 <p>Fork Subagent 的合成定义里有个有意思的细节，值得单独说。</p>
 <p>正常一个 subagent 有个生成 system prompt 的函数，跑的时候现生成一段 prompt 文本。但 Fork 机制用的那个 subagent 的生成函数<strong>直接返回空字符串</strong>：</p>
@@ -344,7 +344,7 @@
 <p>原因很简单：如果重新调一次生成函数，里面可能有些小差异（比如某个功能开关的缓存状态变了、某个动态字段的值变了），生成出来的 prompt 跟父 agent 就可能差一个字符，缓存就没了。</p>
 <p>最稳的办法是：<strong>把父 agent 那边已经渲染出来的 prompt，作为字节原样拿过来用，一个字节都不动</strong>。</p>
 <p>这个细节非常工业级，普通人写 agent 系统根本想不到。</p>
-<p><img alt="" src="assets/ed2f5c3b0f-d029771d76b13193f1884bc6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ed2f5c3b0f-d029771d76b13193f1884bc6.png" /></p>
 <h4>什么时候用 Fork，什么时候用常规 subagent？</h4>
 <p>Fork 机制不是万能的，它的<strong>适用场景很特定</strong>：你希望子 agent 完全继承父 agent 的整个上下文（对话历史、system prompt、工具池），只是「派个分身去试试另一条路」。</p>
 <p>比如「Ctrl+F 生成 PR 描述」「运行 /btw 命令做 post-turn 总结」，这些任务需要父 agent 的完整上下文，但又不希望污染父 agent 的主循环。</p>
@@ -360,13 +360,13 @@
 <span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
 <span class="p">}</span>
 </code></pre></div>
-<p><img alt="" src="assets/8367022caa-45eb2d6321836098c2137877.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8367022caa-45eb2d6321836098c2137877.png" /></p>
 <h4>Fork 的工程启示</h4>
 <p>Fork 机制我想单独说下它对我们的启示。</p>
 <p>很多人做 agent 系统只关心「能不能跑起来」，不关心「跑起来要花多少钱」。但在生产环境，这两个是一回事。Claude Code 靠 Fork 机制，在缓存友好的场景下能把 subagent 的成本降到原来的 <strong>10%</strong> 左右。</p>
 <p>这意味着什么？意味着你的 subagent 可以调得<strong>更频繁</strong>。原本成本考虑不敢派的活，现在都能派了，这反过来又让整个 agent 系统的能力边界扩大了。</p>
 <p>所以<strong>成本优化本身就是能力的一部分</strong>。这个思路我觉得对自建 agent 系统的朋友特别重要。</p>
-<p><img alt="" src="assets/83ca9d927c-f9d01e90fe054622533c8df6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/83ca9d927c-f9d01e90fe054622533c8df6.png" /></p>
 <p>好了，讲完 Fork，下面进入整篇文章最「多 agent」的一章：Coordinator 模式。</p>
 <hr />
 <h3>五、Coordinator 模式：真正的多 Agent 并行协作</h3>
@@ -400,7 +400,7 @@ You are a **coordinator**. Your job is to:
   that you can handle without tools
 </code></pre></div>
 <p>翻译一下：<strong>你的身份是协调者，你的工作是指挥 worker 去做研究、实现、验证，然后自己合成结果跟用户交流。能自己回答的问题不要派人去做</strong>。</p>
-<p><img alt="" src="assets/3f73265365-f03f5bf3dbebacc2b164163b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3f73265365-f03f5bf3dbebacc2b164163b.png" /></p>
 <h4>三大内部工具</h4>
 <p>既然主 agent 要协调，就得有专门的协调工具。Coordinator 模式下，主 agent 多了一套「团队管理」工具箱：</p>
 <ul>
@@ -414,7 +414,7 @@ You are a **coordinator**. Your job is to:
 <blockquote>
 <p>📌 配图建议：协调者工具箱图，把五个工具画成五个按钮，标注每个按钮的作用</p>
 </blockquote>
-<p><img alt="" src="assets/0d608acfdd-91ee8aafe81968efac69af33.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0d608acfdd-91ee8aafe81968efac69af33.png" /></p>
 <p>对应到源码里，有这么一组常量把这几样工具圈在一起：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/coordinator/coordinatorMode.ts:29</span>
 <span class="kd">const</span><span class="w"> </span><span class="nx">INTERNAL_WORKER_TOOLS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Set</span><span class="p">([</span>
@@ -439,14 +439,14 @@ You are a **coordinator**. Your job is to:
 派 worker 调研 token 模块
 </code></pre></div>
 <p>这三个调用同时启动，三个 worker 同时干活，协调者等通知一条条返回。</p>
-<p><img alt="" src="assets/bdf5eb9d5f-f4cd78322dc6f7aa3d4d6ce5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bdf5eb9d5f-f4cd78322dc6f7aa3d4d6ce5.png" /></p>
 <p>对比一下：</p>
 <ul>
 <li><strong>串行</strong>：派 worker1 → 等 → 结果 → 派 worker2 → 等 → 结果 → 派 worker3... 用户等十分钟</li>
 <li><strong>并行</strong>：同时派三个 worker → 三份结果陆续到 → 用户等三分钟多一点</li>
 </ul>
 <p>这就是「并行是超能力」的真正含义。工业级多 agent 系统，没有并行就没有可用性。</p>
-<p><img alt="" src="assets/e3cdde2527-30c759a01985fd0ac9648f23.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e3cdde2527-30c759a01985fd0ac9648f23.png" /></p>
 <h4>协调者的「任务流水线」</h4>
 <p>Coordinator 模式下，一个典型的任务流程被切成四个阶段：</p>
 <table>
@@ -481,9 +481,9 @@ You are a **coordinator**. Your job is to:
 </tbody>
 </table>
 <p>注意中间的「合成」阶段是协调者<strong>亲自</strong>做，这是协调者存在的意义：<strong>理解全局，做决策</strong>。prompt 里反复强调：不要偷懒让 worker「based on your findings, implement the fix」，而是自己把 findings 读懂、写成具体的规格再派下去。</p>
-<p><img alt="" src="assets/e330de8314-5352181e1f1f643ac89ad3e1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e330de8314-5352181e1f1f643ac89ad3e1.png" /></p>
 <p>这是一个非常重要的 multi-agent 设计哲学：<strong>协调者必须「理解」而不能「转发」</strong>。如果协调者只是转发，它就没有存在价值，worker 直接跟用户对话就行了。</p>
-<p><img alt="" src="assets/4b556cdfe2-8bb5d7291f248c5ad342049b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4b556cdfe2-8bb5d7291f248c5ad342049b.png" /></p>
 <h4>Continue vs Spawn：老 worker 还是新 worker？</h4>
 <p>协调者要持续派活，遇到一个新任务，是<strong>给老 worker 发消息续命</strong>，还是<strong>派个新 worker 从头开始</strong>？这是个有经验才能做好的决策。</p>
 <p>Claude Code 的 prompt 里给出了一张决策表，我总结一下核心逻辑：</p>
@@ -493,11 +493,11 @@ You are a **coordinator**. Your job is to:
 <li><strong>验证</strong>这种需要「新鲜眼光」的工作，永远派新 worker，不能让刚写完代码的 worker 自己验自己。</li>
 </ul>
 <p>这个设计其实也挺反映人类团队合作的直觉：有的活就该让懂上下文的人接着干（沟通成本低），有的活就该换个人做（避免认知偏差）。</p>
-<p><img alt="" src="assets/96a116f850-68602b56e270f5c1f4cee86a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/96a116f850-68602b56e270f5c1f4cee86a.png" /></p>
 <h4>Worker 的工具限制</h4>
 <p>Coordinator 模式下，worker 拿到的工具有什么不同？关键在于：<strong>协调者专属的那套内部工具（创建团队、发消息、合成输出等等），不给 worker 用</strong>。worker 不需要再去协调别人，它的活是干事情。</p>
 <p>这其实是一个<strong>递归防护</strong>：如果 worker 也能派 worker，整个系统就变成递归树了，没完没了。通过工具白名单把 worker 的「派人权」收回，让系统结构保持「一个协调者 + 一堆 worker」的扁平形态。</p>
-<p><img alt="" src="assets/6310ddc34b-6aef41148abc0ad67a56ae30.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6310ddc34b-6aef41148abc0ad67a56ae30.png" /></p>
 <h4>跟常规 subagent 对比</h4>
 <p>讲完这些我们对比一下 Coordinator 模式和常规 subagent：</p>
 <table>
@@ -536,18 +536,18 @@ You are a **coordinator**. Your job is to:
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/c5c060861f-bcd2935c1f9c0d8e8b342faf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c5c060861f-bcd2935c1f9c0d8e8b342faf.png" /></p>
 <h4>Coordinator 模式的工程启示</h4>
 <p>讲完 Coordinator，我想提炼几条值得学的设计思想。</p>
 <p><strong>第一，角色分离</strong>。协调和干活是两件事，不要让同一个 agent 身兼二职。角色清晰的系统更稳定。</p>
 <p><strong>第二，并发优先</strong>。异步 + 消息队列是并发的基础，有了这套基础，多 agent 才能真正发挥威力。</p>
 <p><strong>第三，合成不转发</strong>。协调者要理解中间结果，不能把它当传话筒。这是 Multi-Agent 系统里最容易踩坑的一点。</p>
 <p><strong>第四，扁平不递归</strong>。通过工具权限把层级限制在两层（协调者 + worker），避免失控的递归嵌套。</p>
-<p><img alt="" src="assets/db1fa61efc-b43b54f96edda97eee356b01.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/db1fa61efc-b43b54f96edda97eee356b01.png" /></p>
 <hr />
 <h3>六、5 条 Multi-Agent 设计原则</h3>
 <p>Claude Code 的源码扒得差不多了。我把前面讲的所有东西浓缩一下，沉淀成 5 条可以直接用到自己项目、也可以直接用到面试答案里的设计原则。</p>
-<p><img alt="" src="assets/386695869a-cefcaf4f86ff0784cb9afa3a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/386695869a-cefcaf4f86ff0784cb9afa3a.png" /></p>
 <h4>原则 1：上下文隔离要按字段粒度做</h4>
 <p>这是我最想强调的一条。很多 agent 框架的「隔离」就是粗暴地给 subagent 一个空 context，结果缺这缺那一堆 bug。</p>
 <p>Claude Code 的做法是：<strong>每个状态单独决策</strong>。读文件缓存克隆（避免污染），写全局状态关掉（避免两边抢），任务注册通路保留（不然孤儿进程没人回收），深度计数 +1（可追踪，防失控嵌套）。</p>

@@ -19,7 +19,7 @@
 <p>LangChain 早期把模型、向量库、工具、Retriever 和大量预制 Chain 都放在相近的包结构中，快速验证想法很方便。可项目一大，第三方 SDK 的一次更新就可能牵动整个依赖树。</p>
 <p>依赖问题只是第一层。继续往上看，不同 Chain 的调用和组合方式并不统一，开发者需要记住越来越多专用 API；再遇到复杂 Agent，执行循环又藏在执行器内部，很难插入分支、审批和恢复逻辑。功能越加越多，核心职责反而越来越模糊。</p>
 <p>因此，大版本演进的重点并不是单纯增加功能，而是重新划分边界：哪些协议需要保持稳定，哪些集成应该独立更新，哪些流程应该由更底层的运行时管理。</p>
-<p><img alt="" src="assets/8789bb36e1-9a75b9d543950e1f6700c1a1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8789bb36e1-9a75b9d543950e1f6700c1a1.png" /></p>
 <h4>核心与集成为何拆开？</h4>
 <p>模型厂商、向量数据库和外部工具的 SDK 变化很快，而消息、Runnable、Tool 等核心协议应该尽量稳定。把它们全部放在同一个包中，会让两种不同的迭代节奏互相影响。</p>
 <p>拆分后，主要职责可以这样理解：</p>
@@ -50,7 +50,7 @@
 </tbody>
 </table>
 <p>这种设计让项目只安装真正需要的集成，也降低了某个模型 SDK 升级对整个框架的影响。面试时不需要背出所有包名，重点应放在「稳定内核，释放边缘」这一架构思想。</p>
-<p><img alt="" src="assets/5bedf13811-0654ed6829693eb3e121fe38.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5bedf13811-0654ed6829693eb3e121fe38.png" /></p>
 <h4>Runnable 改变了什么？</h4>
 <p>早期 LangChain 为不同流程提供了大量 Chain 类，调用方式和扩展方式并不完全一致。Runnable 协议与 LCEL 将 Prompt、Model、Parser、Retriever 等组件统一为可组合单元。</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># Prompt、Model 和 Parser 统一遵循 Runnable 协议</span>
@@ -65,14 +65,14 @@
 <p>传统 Agent 执行器通常在内部运行「模型判断、调用工具、再次判断」的循环。简单 Agent 使用方便，但一旦加入规划、反思、并行分支、人工审批或故障恢复，隐藏的循环就会变得难以修改。</p>
 <p>LangGraph 的解决思路，是把隐藏循环摊开成 <code>State + Node + Edge</code>。State 保存消息和业务进度，Node 执行模型、工具或普通业务逻辑，Edge 决定结果接下来流向哪里。</p>
 <p>这样，循环和分支不再隐藏在执行器内部，检查点还能保存运行状态，为暂停恢复、人工介入和长时间执行提供基础。</p>
-<p><img alt="" src="assets/c07119a437-68eb3f5d4c3eb9215964d6ce.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c07119a437-68eb3f5d4c3eb9215964d6ce.png" /></p>
 <p>LangGraph 并不是把 LangChain 完全替换掉。LangChain 提供模型、Tool、middleware 和 <code>create_agent</code> 等高层开发体验，LangGraph 提供底层状态与执行能力。简单 Agent 使用 LangChain 即可，复杂流程再下沉到 LangGraph。</p>
 <h4>LangChain v1 聚焦了什么？</h4>
 <p>LangChain v1 将主线进一步收敛到 Agent 开发。要理解这次收敛，可以先从开发者最常接触的入口看起。</p>
 <p>新项目通常从 <code>create_agent</code> 开始。开发者提供模型、工具和系统提示词，底层由 LangGraph 运行 Agent loop，因此这套高层入口能够继续使用持久化、流式输出和人工介入等运行能力。换句话说，易用性留在 LangChain，复杂执行能力则由 LangGraph 承接。</p>
 <p>Agent 跑起来后，总会出现动态提示词、模型选择、工具筛选、对话摘要、重试和人工审批等需求。如果每增加一项能力都重写循环，高层入口很快又会失去意义。因此 v1 把 middleware 作为主要扩展方式，让这些横切逻辑插入关键执行阶段，而不是复制整套 Agent loop。</p>
 <p>高层入口和扩展机制明确以后，主命名空间也能顺势精简。旧 Chain、Retriever、Indexing 和 Hub 等能力主要迁到 <code>langchain-classic</code>，存量项目仍可渐进迁移，新的 <code>langchain</code> 包则把注意力留给 Agent 主线。</p>
-<p><img alt="" src="assets/bbe2613bc4-cccb78061c441140138e8220.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bbe2613bc4-cccb78061c441140138e8220.png" /></p>
 <p>因此，不能把 v1 简单理解成「旧 API 全部删除」。更准确的说法是：新项目使用聚焦后的 Agent API，旧项目通过 <code>langchain-classic</code> 保持运行，再根据需要逐步迁移。</p>
 <h4>Pydantic 2 值得重点背吗？</h4>
 <p>Python v0.3 将内部数据模型迁移到 Pydantic 2，并停止使用 Pydantic 1 兼容层。这属于重要的迁移背景，因为工具 Schema、结构化输出和配置对象都依赖 Pydantic。</p>

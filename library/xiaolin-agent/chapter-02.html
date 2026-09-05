@@ -14,10 +14,10 @@
 <h3>📝 详细解析</h3>
 <p>理解了 Agent 是什么之后，我们来看它的内部结构，一个完整的 Agent 系统，到底由哪几个核心部件组成。</p>
 <p>你可以把整个 Agent 系统类比成一家公司：<strong>LLM 是老板</strong>，所有决策都经过它拍板；<strong>工具系统是外包执行团队</strong>，老板说「去搜这个」「去发这封邮件」，他们负责真正干活；<strong>记忆系统是公司档案室</strong>，各种信息的存档和调档都靠它；<strong>规划模块是项目经理</strong>，拿到一个大目标后负责拆解成可执行的任务单。四个角色各司其职，才撑起了 Agent 的自主运行能力。</p>
-<p><img alt="" src="assets/cb623f791c-9071de74d753f6d5cfc21c17.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/cb623f791c-9071de74d753f6d5cfc21c17.png" /></p>
 <h4>LLM 核心</h4>
 <p>先来说 <strong>LLM 核心</strong>。它是整个 Agent 的大脑，所有的输入，不管是用户的指令、工具返回的结果还是记忆里调出来的内容，最终都要经过 LLM 来理解和决策。它负责判断：下一步该做什么？是继续思考、调用某个工具、还是已经可以给出最终答案了？没有 LLM，其他三个组件就是一堆零件，没有人来统一指挥。</p>
-<p><img alt="" src="assets/9d2f7c2825-ab4f21fbef4ffa78d3f820e9.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9d2f7c2825-ab4f21fbef4ffa78d3f820e9.png" /></p>
 <p>不过很多人忽略了一个重要的东西：System Prompt（系统提示词）。</p>
 <p>你可以把它理解成给老板的「岗位说明书」，在 Agent 开始工作之前，System Prompt 就已经定义好了它的角色、行为边界、输出格式要求等等。</p>
 <p>比如你做一个客服 Agent，System Prompt 里会写「你是一个专业的客服助手，只回答产品相关问题，遇到不确定的信息要说不知道，不要编造答案」。这段话看着简单，但它决定了 Agent 的「人格」和行为准则，写得好不好直接影响 Agent 的表现。实际工程里，System Prompt 的调优往往占了开发时间的相当大一部分，因为它是你能最直接控制 Agent 行为的手段。</p>
@@ -27,11 +27,11 @@
 <p>但推理模型的代价是延迟更高、token 消耗更大，所以不是所有场景都适合用。一个常见的工程做法是：用推理能力强的大模型做核心决策（比如任务规划、关键判断），用更快更便宜的小模型做简单任务（比如意图分类、格式提取），根据不同环节的需求来搭配。</p>
 <p>其次是工具调用的稳定性，有些模型生成的 JSON 格式经常出错、参数乱填，导致工具调用失败，这在生产环境里会带来大量的重试和 token 浪费。</p>
 <p>最后是上下文窗口大小，Agent 每一步的工具返回结果都要塞进上下文，一个复杂任务跑十几步下来，上下文很容易就撑满了，如果模型的窗口太小，后面的步骤就「看不到」前面发生了什么。所以在实际项目里，模型选择不是一个「越贵越好」的问题，而是要根据任务复杂度、延迟要求、成本预算来做权衡。</p>
-<p><img alt="" src="assets/84a0e6523f-7480cf01872c617fd7b06306.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/84a0e6523f-7480cf01872c617fd7b06306.png" /></p>
 <h4>工具系统</h4>
 <p>然后是 <strong>工具系统</strong>，这是 Agent 和外部世界交互的唯一入口。</p>
 <p>LLM 本身是个纯粹的「语言处理器」，它不能上网、不能读文件、不能执行代码，但这些限制都可以通过工具来突破。工具可以是搜索引擎、数据库查询、代码执行器、发邮件的 API，任何你能用函数封装的能力都可以变成工具。</p>
-<p><img alt="" src="assets/9d6fd97437-9525e1d9ba43b9c2b450bd35.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9d6fd97437-9525e1d9ba43b9c2b450bd35.png" /></p>
 <p>工具是怎么定义的？我给你看一个最标准的格式：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 定义工具的结构（以 OpenAI function calling 格式为例）</span>
 <span class="c1"># 你只需要告诉模型三件事：工具叫什么名、能做什么事、需要哪些参数</span>
@@ -63,7 +63,7 @@
 <p>这里还有一个非常容易被忽略的点：工具描述的质量直接影响 Agent 的表现。</p>
 <p>模型是根据你写的 description 来判断「什么时候该用这个工具」的，如果描述写得含糊、有歧义，模型就可能在不该用的时候调了它，或者该用的时候没调。</p>
 <p>举个例子，你有一个查数据库的工具，如果 description 只写了「查询数据」，模型可能在用户问天气的时候也去查数据库，因为「查询数据」太宽泛了。但如果你写成「查询公司内部销售数据库，支持按日期、产品类别筛选」，模型就能精确判断什么场景该用它。所以在实际开发中，工具描述其实是需要反复调优的，它的重要性不亚于 prompt 工程。</p>
-<p><img alt="" src="assets/6fcf9537b6-1c06d635cb869bb7e661501d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6fcf9537b6-1c06d635cb869bb7e661501d.png" /></p>
 <p>当工具越来越多的时候，管理和标准化就变成了一个大问题。</p>
 <p>Anthropic 在 2024 年底提出了 MCP（Model Context Protocol，模型上下文协议），它底层是一套基于 JSON-RPC 的通信协议，不只是把「工具」标准化了，还定义了三类能力：Tools（会改变外部世界的操作，比如发邮件）、Resources（只读的数据源，比如文件内容）、Prompts（预定义的提示词模板，比如代码审查模板）。</p>
 <p>MCP 的架构分三层：最外层是 Host，就是用户交互的 AI 应用（比如 Claude Desktop、Cursor）；中间是 Client，负责管理和 MCP Server 之间的连接；最里层是 Server，就是真正暴露这些能力的服务端。</p>
@@ -71,7 +71,7 @@
 <p>2025 年 12 月，Anthropic 把 MCP 捐给了 Linux 基金会旗下新成立的 Agentic AI Foundation，生态已经非常壮大，数千个公开 MCP Server 可用。</p>
 <h4>记忆系统</h4>
 <p>接下来是 <strong>记忆系统</strong>，它分几个层次，你可以类比人的记忆方式来理解。</p>
-<p><img alt="" src="assets/c7e464e761-2ead29648ba986eb34090125.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c7e464e761-2ead29648ba986eb34090125.png" /></p>
 <p>最基础的是<strong>短期记忆</strong>，就是当前这轮对话的上下文，装在 context window 里。</p>
 <p>Agent 在一次任务执行过程中靠它记住中间状态，比如第一步搜索到了什么、第二步执行结果是什么。这就像人的「工作记忆」，容量有限，任务一结束就清空了。</p>
 <p>然后是<strong>长期记忆</strong>，通常用向量数据库来实现，把重要信息 embedding 之后存起来，下次用的时候做语义检索拿回来。</p>
@@ -82,7 +82,7 @@
 <li>情景记忆（Episodic Memory）存的是具体的经历，比如「上次用户问退款问题时我们查了订单系统，发现他的订单已过退款期」；</li>
 <li>还有一种是程序性记忆（Procedural Memory），存的是「怎么做事」的经验，比如「处理退款问题的标准流程是先查订单状态再核实支付方式」。程序性记忆特别有意思，它不是存某个具体的事实，而是把 Agent 做事的方法论沉淀下来，让它下次碰到类似任务时能直接套用高效的处理流程，而不是每次都从头摸索。</li>
 </ul>
-<p><img alt="" src="assets/a87e7af361-963571113c69f302f2c4fe59.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a87e7af361-963571113c69f302f2c4fe59.png" /></p>
 <p>不过记忆系统在工程实践中有几个挑战是经常被忽视的。</p>
 <p>短期记忆最大的问题是上下文窗口有限，一个复杂任务执行十几步，每步工具返回大量文本，上下文很快就满了，这时候你要么做摘要压缩（把前面的步骤浓缩成关键信息），要么做滑动窗口（只保留最近几步的详细内容），但不管哪种方式都会丢失信息，怎么在「记住够多」和「不撑爆上下文」之间取舍，是记忆工程里最核心的设计问题。</p>
 <p>长期记忆的挑战则在于「什么该存、什么不该存」以及「存了之后怎么管理」。</p>
@@ -93,7 +93,7 @@
 <h4>规划模块</h4>
 <p>最后是 <strong>规划模块</strong>，它决定了 Agent 能不能应对复杂任务。</p>
 <p>简单任务一步就搞定了，但如果你让 Agent「帮我写一份竞品分析报告」，它需要先把这个目标拆解：搜索竞品资料 -&gt; 整理关键数据 -&gt; 对比分析 -&gt; 撰写报告。规划模块就是做这件事的。</p>
-<p><img alt="" src="assets/dc6353cdce-e71fa5db141427cdc8539ff8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dc6353cdce-e71fa5db141427cdc8539ff8.png" /></p>
 <p>规划模块的底层其实依赖的是 LLM 的推理能力，而提升推理能力有几种主要的技术手段。</p>
 <p>最基础的是 <strong>CoT</strong>（Chain of Thought，思维链），它的核心思想是让模型「把思考过程写出来」，而不是直接输出最终答案。你可以在 prompt 里加一句「Let's think step by step」，模型就会把推理的中间步骤一步步展开。</p>
 <p>为什么这么简单一句话就能提升效果？因为 LLM 的 token 生成是逐步进行的，每一步推理的输出会成为下一步推理的输入，把中间步骤写出来，等于给了模型更多的「思考空间」。</p>
@@ -104,7 +104,7 @@
 <li>第一种是「先规划后执行」，也就是 <strong>Plan-and-Execute 模式</strong>，先让 LLM 输出一个完整的步骤列表，然后按顺序逐步执行。好处是整体结构清晰，你能在执行前就看到完整计划，方便人工审核；缺点是如果中间某一步的结果和预期不一样，原来的计划可能就不合适了，需要重新调整。</li>
 <li>第二种是「边执行边规划」，也就是 <strong>ReAct 模式</strong>，每走一步就根据当前结果重新思考下一步该做什么，不提前制定完整计划。好处是灵活性极高，能根据实际情况随时调整；缺点是容易「走偏」，因为每一步都是局部最优决策，有时候会忽略整体目标。在实际工程里，很多团队会把两种模式结合起来，先做一个粗略的计划确定大方向，执行过程中再根据反馈动态微调。</li>
 </ul>
-<p><img alt="" src="assets/62df691ad7-88004b9bbcb75b3d2323245d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/62df691ad7-88004b9bbcb75b3d2323245d.png" /></p>
 <p>这四个组件合在一起，到底是怎么跑起来的？我用一段伪代码来还原整个运行过程，看完你就能理解它们是怎么协作的：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># Agent 运行的核心 loop（伪代码）</span>
 <span class="k">def</span> <span class="nf">agent_run</span><span class="p">(</span><span class="n">user_goal</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
@@ -130,7 +130,7 @@
             <span class="k">return</span> <span class="n">action</span><span class="o">.</span><span class="n">content</span>  <span class="c1"># LLM 判断任务完成，返回最终答案</span>
 </code></pre></div>
 <p>看完这段伪代码，你会发现 Agent 的核心节奏其实很简单：规划 -&gt; 决策 -&gt; 执行 -&gt; 结果存入记忆 -&gt; 再决策，循环往复，直到任务完成。LLM 始终是那个做决策的角色，工具系统是执行者，记忆系统让它不会「失忆」，规划模块帮它把大目标拆成小步骤。</p>
-<p><img alt="" src="assets/5864e91f92-4d0470124bbf0e03ce5a5b77.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5864e91f92-4d0470124bbf0e03ce5a5b77.png" /></p>
 <p>LangChain、LlamaIndex、AutoGen 这些主流框架，本质上都是围绕这四个组件来设计的，只是封装方式和侧重点各有不同。</p>
 <h3>🎯 面试总结</h3>
 <p>开头对话里踩了三个雷，面试时都要注意避开。</p>

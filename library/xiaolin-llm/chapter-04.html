@@ -18,7 +18,7 @@
 <p>预训练让模型掌握了语言能力和世界知识；SFT（监督微调）让模型学会了用对话格式回答问题。但 SFT 本质上是「模仿」，模型在模仿标注人员写的标准答案的格式和风格。这里有一个根本问题：SFT 告诉模型「怎么写」，但没有告诉模型「哪个更好」。</p>
 <p>举个例子，同一个问题「怎么学好 Python」，可以有很多种合格的回答：有的很简洁，有的很详细，有的带代码，有的全文字。SFT 只学了某一种写法，但用户对质量的偏好是有排序的，比如带代码示例的回答会更受欢迎，或者承认「我不知道」比自信地胡说更安全。</p>
 <p>这种「知道合格，但不知道哪个更好」的局限，就是对齐阶段要解决的问题。不经过对齐的模型可能会生成有毒内容、一本正经地胡说八道，或者输出让用户不满意的答案。PPO 和 DPO 都是解决这个问题的方案，只是路径不同。</p>
-<p><img alt="" src="assets/67b1f8cb05-c48a1aeb0fbdf6a210e62245.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/67b1f8cb05-c48a1aeb0fbdf6a210e62245.png" /></p>
 <h4>PPO：先培养「裁判」，再训练「选手」</h4>
 <p>PPO（Proximal Policy Optimization，近端策略优化）是强化学习里的一个经典算法，最早不是为大模型设计的，但 OpenAI 在 InstructGPT 里把它用到了 RLHF（基于人类反馈的强化学习）流程里。</p>
 <p><strong>第一步：训练奖励模型（Reward Model）</strong></p>
@@ -34,7 +34,7 @@
 <span class="n">value_model</span>      <span class="o">=</span> <span class="n">load_value_model</span><span class="p">()</span>  <span class="c1"># 价值模型（RL 辅助，估算未来奖励期望）</span>
 </code></pre></div>
 <p>4 个模型同时加载到显存里，每个都和主模型差不多大，光是显存占用就是 SFT 训练的好几倍。加上 RL 训练本身的不稳定性（超参数敏感、容易 reward hacking、训练曲线震荡），PPO 的工程难度和资源成本都极高，能驾驭 PPO 的团队在业界凤毛麟角。</p>
-<p><img alt="" src="assets/874bd040f6-a7c96d1315aa683f8ce7c542.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/874bd040f6-a7c96d1315aa683f8ce7c542.png" /></p>
 <h4>DPO：绕过裁判，直接看回放</h4>
 <p>DPO（Direct Preference Optimization，直接偏好优化）是 2023 年斯坦福提出的方法，核心思路是一个数学上的等价转化。</p>
 <p>研究者们发现：RLHF（PPO 方案）的优化目标，可以通过推导改写成一个纯监督学习的目标函数，不需要显式训练和调用奖励模型。直觉上，「奖励模型」的功能可以被「主模型相对于参考模型的概率比值」完全替代，如果主模型在某个回答上比参考模型提升了更多概率，那这个回答就被认为更受偏好。</p>
@@ -64,7 +64,7 @@
 <span class="c1"># 相比 PPO 少了 reward_model 和 value_model，资源需求减半</span>
 </code></pre></div>
 <p>DPO 把对齐训练变成了一个普通的监督学习问题，用现成的深度学习框架就能实现，训练稳定，超参数也容易调。这就是为什么开源社区大量采用 DPO 的原因，不需要复杂的 RL 基础设施。</p>
-<p><img alt="" src="assets/5259dcc6ab-14d391de7a348aa9b50e48a1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5259dcc6ab-14d391de7a348aa9b50e48a1.png" /></p>
 <h4>两种方案的对比</h4>
 <table>
 <thead>
@@ -107,7 +107,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/170a1fe774-ae367bb8e4f6e3bc263d6860.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/170a1fe774-ae367bb8e4f6e3bc263d6860.png" /></p>
 <h4>PPO 的进阶版：GRPO 简介</h4>
 <p>讲 PPO 和 DPO 的同时，最近两年（2024-2026）非常火的一个新方案是 <strong>GRPO（Group Relative Policy Optimization）</strong>，是 DeepSeek 在 2024 年 <em>DeepSeekMath</em> 论文里提出的 PPO 改进版。</p>
 <p>GRPO 的核心创新是<strong>砍掉了 PPO 的 Value Model</strong>。</p>
@@ -117,7 +117,7 @@
 </code></pre></div>
 <p>「组内平均分」充当了 Value Model 的角色，这个基线天然就有，不用单独训练 Value Model。整个 PPO 的 4 模型架构变成 3 模型架构（Policy / Reference / Reward），显存占用接近 DPO 但保留了 RL 探索能力。</p>
 <p>GRPO 还有一个杀手级特性：<strong>对「可验证任务」特别友好</strong>。数学题、代码题这类「答案对就是对、错就是错」的场景，r_i 直接用 0/1 判定就行，连 Reward Model 都可以省。DeepSeek R1-Zero 就是这么做的，纯靠强化学习训出推理能力。</p>
-<p><img alt="" src="assets/5938242f16-655a5f08e4555b0d1647f924.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5938242f16-655a5f08e4555b0d1647f924.png" /></p>
 <p>谁在用 GRPO：</p>
 <ul>
 <li><strong>DeepSeek R1 / R1-Zero</strong>：推理模型的代表</li>
@@ -130,7 +130,7 @@
 <p><strong>PPO 适合</strong>对对齐效果要求极高、资源充足、有 RL 工程能力的团队。它能探索训练数据里没有的高质量回答方式，理论上表达能力更强，ChatGPT 早期的强大效果很大程度上就来自精心调优的 PPO 流程。但门槛极高，能驾驭它的团队凤毛麟角。</p>
 <p><strong>DPO 适合</strong>快速迭代、GPU 资源有限、开源社区场景。不需要 RL 工程能力，偏好数据收集相对容易（众包打排名就可以），训练一次成功率高。大多数开源模型在资源有限的情况下都选 DPO，效果虽然可能略逊于精心调优的 PPO，但工程代价小得多。</p>
 <p>一个简单的判断原则是：如果你想在已有偏好数据的分布上把模型质量提升一步，DPO 够用且高效；如果你需要模型探索超出现有数据的能力边界、或者对齐效果要求接近 OpenAI 的水平，才值得投入 PPO 的工程成本。</p>
-<p><img alt="" src="assets/9dc8dc7f8a-8e5f02e1405434174bf36496.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9dc8dc7f8a-8e5f02e1405434174bf36496.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到 DPO 和 PPO 的区别，最重要的是先讲清楚<strong>两者都在解决「SFT 之后的对齐问题」</strong>。SFT 让模型学会按指令回答，但回答风格不一定符合人类偏好，所以需要进一步训练让模型学会「哪种回答更受人类欢迎」。这一句铺垫先讲到，面试官就知道你抓到了对齐这件事的本质。</p>
 <p>接下来讲 PPO 的流程：先收集人类偏好排序数据 → 训一个奖励模型代替人类打分 → 用 PPO 算法调整主模型参数让它生成的回答尽量得高分。整个流程要同时维护 4 个模型（policy / reference / reward / value），训练复杂、不稳定、调参难。能把「4 个模型分别做什么」讲清楚，面试官就知道你真的研究过 RLHF 流程。</p>

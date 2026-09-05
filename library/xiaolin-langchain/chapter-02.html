@@ -20,7 +20,7 @@
 <h4>什么才算完整 Agent？</h4>
 <p>模型成功调用一次天气工具，只能说明 Demo 跑通了。真正进入业务后，我们先要知道它能做什么、不能做什么；模型选中工具后，还要检查参数是否正确，失败或重复调用会不会带来副作用。</p>
 <p>流程跑得更久时，新的问题又会出现：会话中断后能否恢复，最终结果能否稳定进入业务系统，线上出错后能不能复现？因此，完整 Agent 不是一次模型调用，而是一条从任务设计、能力接入、运行控制走到测试监控的工程链路。</p>
-<p><img alt="" src="assets/133cf0242a-dcb3014c9ed4b06b98f1b728.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/133cf0242a-dcb3014c9ed4b06b98f1b728.png" /></p>
 <h4>第一步：明确任务边界</h4>
 <p>构建 Agent 的第一步不是选择模型，而是定义任务。</p>
 <p>例如订单客服 Agent 可以查询订单和解释物流状态，但不能自行退款；订单不存在、身份验证失败或用户要求高风险操作时，必须转人工。最终输出需要包含答复、订单状态和是否转人工。</p>
@@ -41,7 +41,7 @@
     <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">order_id</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;已发货&quot;</span><span class="p">}</span>
 </code></pre></div>
 <p>工具描述中的「只读」很重要。模型会根据名称、描述和 Schema 选择工具，业务服务则负责真正的权限控制。Prompt 中写「禁止退款」，不能替代退款接口本身的身份校验。</p>
-<p><img alt="" src="assets/e34948a804-b611deef5bd4b17d03aac849.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e34948a804-b611deef5bd4b17d03aac849.png" /></p>
 <h4>第三步：约束行为与输出</h4>
 <p><code>system_prompt</code> 应说明角色、目标、信息边界、工具规则和失败策略。例如：回答订单状态前必须查询工具，不能猜测数据库中不存在的信息，高风险请求必须转人工。</p>
 <p>如果输出只供人阅读，自然语言即可；如果结果还要进入前端、工单或后续工作流，应该定义结构化输出：</p>
@@ -85,7 +85,7 @@
 模型判断 -&gt; 最终结果（没有工具调用）
 </code></pre></div>
 <p>模型没有工具调用时，Agent 输出最终结果；模型请求工具时，LangGraph 运行时执行工具并把结果写回消息状态，再让模型继续判断。</p>
-<p><img alt="" src="assets/330ceb0bbf-18e9c47df5e5f480c98e5872.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/330ceb0bbf-18e9c47df5e5f480c98e5872.png" /></p>
 <p>旧资料中的 <code>create_tool_calling_agent</code> 和 <code>AgentExecutor</code> 仍可能出现在存量项目中，但 LangChain v1 新项目应优先使用 <code>create_agent</code>。</p>
 <h4>第五步：补齐状态与安全</h4>
 <p>Agent 能跑通之后，还要处理状态、故障和高风险动作。</p>
@@ -93,7 +93,7 @@
 <p>跨线程的用户偏好或长期事实则放入 Store，通过 namespace 和 key 隔离不同租户与用户。Checkpointer 和 Store 的作用不同，不能因为二者都能落盘就混为一谈。</p>
 <p>接下来，重试、摘要、权限和审批应该写在哪里？它们往往会同时影响多个模型或工具调用，如果散落在每个节点中，规则很快就会重复。Middleware 就是用来承接这类横切逻辑的。</p>
 <p>例如，模型或只读工具临时失败时，可以在调用周围做有上限的重试；上下文过长时，可以在模型调用前压缩历史；用户权限变化时，可以动态隐藏工具。遇到敏感动作，Middleware 还能在工具执行前暂停等待审批，并在模型输出后补充格式或安全检查。</p>
-<p><img alt="" src="assets/881d1b1b7e-cad31da6c986d668474f4062.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/881d1b1b7e-cad31da6c986d668474f4062.png" /></p>
 <p>付款、发邮件、删除数据等工具必须具备幂等、最小权限和审计能力。自动重试不能导致重复扣款或重复发信。</p>
 <h4>第六步：选择调用方式</h4>
 <p>调用方式需要与产品形态匹配：</p>
@@ -125,7 +125,7 @@
 <p>第一层测试 Tool。检查正常输入、非法参数、权限错误、超时和幂等性。Tool 是相对确定的业务代码，应该优先做到稳定。</p>
 <p>第二层测试 Agent 轨迹。检查是否选择正确工具、参数是否正确、是否发生越权调用，以及结构化输出是否符合 Schema。</p>
 <p>第三层做端到端评测和线上监控。把典型问题、边界案例和历史故障整理成数据集，对比模型、Prompt 和 Tool 版本；上线后通过 Trace 观察模型调用、工具调用、延迟、Token、失败率和人工转接率。</p>
-<p><img alt="" src="assets/2f5b68fca3-671c431ae1a30f968871fd3d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2f5b68fca3-671c431ae1a30f968871fd3d.png" /></p>
 <h4>上线前检查什么？</h4>
 <p>上线前可以快速检查：</p>
 <ol>

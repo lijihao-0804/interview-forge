@@ -30,7 +30,7 @@
 第 10 步：输入 [P, t1, t2, ..., t9]，算 attention，输出 token 10
 </code></pre></div>
 <p>每一步都把前面所有 token 重新算一遍 attention，包括 P 这个长 Prompt（可能几千 tokens）。</p>
-<p><img alt="" src="assets/b1736b1f2c-7725d8a8402b94a80cda0225.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b1736b1f2c-7725d8a8402b94a80cda0225.png" /></p>
 <p>总计算量分析：第 i 步要对 i 个 token 做 attention，attention 复杂度是 O(i²)，总计算量是 Σ i² 从 1 到 N，约 O(N³)。生成一个 1000 token 的回答，等于做 10 亿次单 token 计算量的运算。这个开销在 GPT-2 时代可能还能忍，到了大模型时代根本跑不动。</p>
 <p>注意一件事：<strong>第 2 步算的「P」的 attention，和第 1 步算的「P」的 attention 是完全一样的</strong>（因为输入和模型参数都没变）。每一步重算前缀，是纯粹的浪费。</p>
 <p>KV Cache 就是为了消除这个浪费而生的。</p>
@@ -46,7 +46,7 @@
 <li>但前面所有 token 的 K 和 V 是<strong>固定的</strong>，不会随新 token 而变（因为 K 和 V 是从已有 token 的 embedding 算的，新 token 不影响它们）</li>
 </ul>
 <p>所以<strong>前面所有 token 的 K 和 V 完全可以缓存</strong>，每次只算新 token 自己的 Q、K、V，然后跟缓存的 K/V 拼起来做 attention。</p>
-<p><img alt="" src="assets/5a1708903f-f1bc35af9cae8f6ba0f867e8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5a1708903f-f1bc35af9cae8f6ba0f867e8.png" /></p>
 <p>工作流程详细看：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 朴素实现（无 KV Cache）</span>
 <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_tokens</span><span class="p">):</span>
@@ -95,7 +95,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/0005757f02-6508d2d4cd6a1693c8b62a46.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0005757f02-6508d2d4cd6a1693c8b62a46.png" /></p>
 <p>KV Cache 不是「锦上添花的优化」，是「<strong>让自回归生成可行的基本盘</strong>」。所有现代 LLM 推理框架（vLLM、SGLang、TGI、llama.cpp）都默认开启 KV Cache，没人会关掉它。</p>
 <h4>KV Cache 的显存代价</h4>
 <p>KV Cache 让计算速度大幅提升，但代价是显存占用。前面所有 token 的 K/V 都要常驻显存，长上下文下这是个不小的负担。</p>
@@ -106,12 +106,12 @@
 <div class="codehilite"><pre><code>2 × 1 × 32000 × 32 × 32 × 128 × 2 ≈ 17 GB
 </code></pre></div>
 <p>光 KV Cache 就要 17GB，加上模型权重 14GB，总共 31GB，一张 4090（24GB）根本放不下。</p>
-<p><img alt="" src="assets/0e26f753e7-23fd478109f8ec22213f067c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0e26f753e7-23fd478109f8ec22213f067c.png" /></p>
 <p>这就是为什么大模型部署有一系列围绕 KV Cache 的优化（PagedAttention、KV Cache 量化、MQA/GQA 共享 K/V 等），目标都是把 KV Cache 显存压下来。这些优化是另一个层面的话题，本节不展开，只需要知道 <strong>KV Cache 的显存压力是 LLM 工程的核心议题之一</strong>。</p>
 <h4>从 KV Cache 到 Prompt Caching：同一机制的扩展</h4>
 <p>到这里，KV Cache 解决的是「<strong>单次生成内</strong>」的重复计算问题。但还有一个更隐蔽的浪费：<strong>不同请求之间的重复计算</strong>。</p>
 <p>考虑一个真实场景：你做了一个客服 AI，System Prompt 写了 3000 tokens 的产品知识、对话规则、Few-shot 示例，所有用户的请求都用这同一个 System Prompt 开头。一天 10 万次对话，每次请求都从零开始处理这 3000 tokens 的 System Prompt，重新算 3000 个 token 的 KV Cache 才能开始生成。这就是巨大的算力浪费。</p>
-<p><img alt="" src="assets/3caf55716b-9ffeb68673140e3640f32e1c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3caf55716b-9ffeb68673140e3640f32e1c.png" /></p>
 <p>Prompt Caching 的核心思路就是：<strong>把 KV Cache 的复用范围从「单次推理内」扩展到「不同请求之间」</strong>。</p>
 <p>具体机制：</p>
 <ul>
@@ -156,7 +156,7 @@
 <p><strong>OpenAI：自动缓存</strong></p>
 <p>OpenAI 的做法更轻量：只要请求中的 Prompt 前缀超过一定长度（1024 tokens），系统会自动尝试缓存。命中时不需要额外操作，API 响应里会告诉你有多少 token 命中了缓存。</p>
 <p>自动缓存的好处是开发者不用改代码就能享受到，缺点是控制粒度不如显式标记精细。</p>
-<p><img alt="" src="assets/6c7cbe60c1-bad95130dbd56e91a6fd8646.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6c7cbe60c1-bad95130dbd56e91a6fd8646.png" /></p>
 <p><strong>价格优势</strong>：</p>
 <p>以 Claude 的 ephemeral prompt cache 为例：</p>
 <ul>
@@ -173,7 +173,7 @@
 <p>比如「把合同文本放进 Prompt，然后问 10 个不同的问题」。第一次问问题时建立缓存，后续 9 次都命中缓存，节省了大量重复处理文档的成本。法律 AI、金融 AI、医疗 AI 这种场景特别多。</p>
 <p><strong>场景 3：大量 Few-shot 示例</strong></p>
 <p>如果你的 Prompt 里有 10-20 组 Few-shot 示例（用于引导模型输出特定格式），这部分内容非常适合缓存。每次用户的实际问题不同，但 Few-shot 部分一样。</p>
-<p><img alt="" src="assets/1a511b6a72-954ebc911e107d774eab41ff.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1a511b6a72-954ebc911e107d774eab41ff.png" /></p>
 <h4>工程陷阱：固定内容在前、动态内容在后</h4>
 <p>Prompt Caching 听起来很美，但实战中有一个最常见的陷阱：<strong>前缀必须完全一致才能命中缓存，哪怕多了一个空格、改了一个字符，就算缓存 miss、重新计算</strong>。</p>
 <p>最经常踩的雷是把日期、用户名这类动态内容放在固定内容<strong>前面</strong>：</p>
@@ -194,7 +194,7 @@
 用户问题：我想退换货
 </code></pre></div>
 <p>把所有固定内容集中到断点之前，动态内容放在断点之后。前缀稳定不变，每次都能命中缓存。</p>
-<p><img alt="" src="assets/4359d7be8d-f35a7af0588ab054836f8963.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4359d7be8d-f35a7af0588ab054836f8963.png" /></p>
 <p>第二个常见陷阱是<strong>缓存的时效性</strong>。Claude 的 ephemeral 缓存默认有效期是 5 分钟，如果超过 5 分钟没有命中过，缓存就会失效。这意味着：</p>
 <ul>
 <li>高流量应用（每分钟几十次以上请求）通常能自然保持缓存活跃</li>
@@ -205,7 +205,7 @@
 <p>最后简单提两个 KV Cache 的进阶优化方向，作为面试加分项。</p>
 <p><strong>KV Cache 量化</strong>：把 KV Cache 从 FP16 量化到 INT8 甚至 INT4，显存占用减半到 1/4。但 KV Cache 对量化误差比权重更敏感，特别是长链路推理（数学题、代码题），所以这是 2024-2026 年研究热点，主流方案还在演进。</p>
 <p><strong>PagedAttention</strong>：vLLM 框架的核心创新，灵感来自操作系统虚拟内存。把 KV Cache 切成固定大小的「Block」（典型 16 个 token 一块），每个请求拿到的是逻辑 Block 列表，由一张 Block Table 映射到物理显存。这样消除了 KV Cache 的显存碎片，部署时显存利用率从 30-40% 拉到 90%+。</p>
-<p><img alt="" src="assets/42a1f8cb58-1c2365716d968b1a91dd26d8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/42a1f8cb58-1c2365716d968b1a91dd26d8.png" /></p>
 <p>这两个方向的具体细节是另一个层面的话题，但能在面试里提一句，会显示你对 KV Cache 这个核心机制有深入跟进。</p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到 KV Cache 和 Prompt Caching，最重要的是先把<strong>核心关系</strong>讲清楚：这两个不是不相关的优化，是<strong>同一个底层机制在两个时间尺度上的应用</strong>。KV Cache 是「单次推理内」的优化（同一次生成里不同 token 之间复用），Prompt Caching 是「跨请求」的优化（不同请求之间复用相同前缀）。这一句话能讲清楚，就已经比绝大多数候选人深刻了。</p>

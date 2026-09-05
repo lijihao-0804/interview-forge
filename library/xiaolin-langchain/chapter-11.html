@@ -23,7 +23,7 @@
 <p>模型看不到 Python 函数的源码，那它凭什么知道该调用谁？注册工具时，LangChain 会先把函数转换成一份模型能够理解的说明。</p>
 <p>模型首先看到 <code>name</code> 和 <code>description</code>，借此判断工具叫什么、应该在什么情况下使用。决定调用后，它再按照 <code>args_schema</code> 生成满足类型和约束的参数。真正拿着这些参数做事的，则是应用侧的函数或协程，也就是 executor。</p>
 <p>模型先生成包含工具名和参数的调用请求，运行时执行函数，再把结果作为 <code>ToolMessage</code> 返回给模型。模型拿到结果后，决定继续调用工具还是生成最终回答。</p>
-<p><img alt="" src="assets/770636129c-fdeb9d8759dcf8db51062d9d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/770636129c-fdeb9d8759dcf8db51062d9d.png" /></p>
 <p>所以，工具描述和 Schema 不是普通注释，而是模型与业务代码之间的调用合同。描述过于模糊，模型可能选错工具；参数缺少约束，模型可能生成无法执行的数据。</p>
 <h4>常用方式怎么选？</h4>
 <p>日常开发中，没有必要为了显得专业而直接继承最底层的类。选择方式时，可以先问这个工具到底还是不是一个普通函数。</p>
@@ -63,13 +63,13 @@
 <span class="p">)</span>
 </code></pre></div>
 <p>这个例子中，模型只需要决定 <code>order_id</code> 和 <code>detail</code>。Pydantic 的字段描述和枚举限制会进入工具 Schema，既帮助模型正确填写参数，也能在执行前拦截非法输入。</p>
-<p><img alt="" src="assets/897d4d67e0-ecba709f44bab10d2ec3f2d3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/897d4d67e0-ecba709f44bab10d2ec3f2d3.png" /></p>
 <p>如果只是已有的简单函数，也可以不加装饰器，直接传给 <code>tools</code>。不过函数必须有清楚的名称、类型注解和 docstring，否则自动生成的工具说明很难指导模型正确调用。</p>
 <h4>何时使用高级定义？</h4>
 <p><code>StructuredTool.from_function</code> 更适合「原函数不能修改，但需要改变它对模型的呈现方式」的场景。例如，同一个业务函数需要注册成不同名称，或者要把同步函数和异步协程组合成一个工具对象。</p>
 <p>什么时候才需要 <code>BaseTool</code>？当工具不再只是一个函数，而是要长期持有数据库或第三方客户端，并同时管理同步、异步、tags、metadata 和回调时，它已经变成了一个有生命周期的组件。此时使用 <code>BaseTool</code>，才值得承担更多样板代码。</p>
 <p>选择原则可以概括为：函数能够说清楚就用普通函数，需要明确 Schema 就用 <code>@tool</code>，需要运行时组装再用 <code>StructuredTool</code>，出现组件生命周期后才考虑 <code>BaseTool</code>。</p>
-<p><img alt="" src="assets/2147d0313b-01b5d313d4dad373b6f10b05.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2147d0313b-01b5d313d4dad373b6f10b05.png" /></p>
 <h4>可信参数如何注入？</h4>
 <p>假设「查询我的账户余额」工具需要用户 ID。如果把 <code>user_id</code> 放进模型可见的 Schema，模型可能填错用户，也可能被恶意提示诱导查询其他账户。</p>
 <p>因此，需要区分两类参数：</p>
@@ -122,7 +122,7 @@
     <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;用户 </span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2"> 的 </span><span class="si">{</span><span class="n">account_type</span><span class="si">}</span><span class="s2"> 账户余额为 100 元&quot;</span>
 </code></pre></div>
 <p>模型能够看到并填写 <code>account_type</code>，却看不到 <code>runtime</code>。可信用户身份由应用传入，而不是由模型生成。这是工具权限控制的重要边界。</p>
-<p><img alt="" src="assets/8d58fd5c80-6f4344c6180970c8d50a480b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8d58fd5c80-6f4344c6180970c8d50a480b.png" /></p>
 <h4>异步工具怎么处理？</h4>
 <p>搜索、数据库和远程 API 通常属于 I/O 密集型操作。如果底层客户端支持异步，工具也应使用原生 <code>async def</code>，并通过 Agent 的 <code>ainvoke</code> 或异步流式接口调用。</p>
 <p>不要只把函数声明成 <code>async def</code>，内部却继续调用阻塞式 HTTP 客户端；这种写法不会自动提高并发能力。工具是否异步，应该和底层客户端以及整条 Agent 调用链保持一致。</p>

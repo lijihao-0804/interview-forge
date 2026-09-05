@@ -15,38 +15,38 @@
 <p>要理解为什么语音场景需要 WebRTC，得先想清楚一个问题：传输文字和传输语音，对网络的要求本质上是不同的。</p>
 <p>传输文字时，你希望每个字符都能准确到达，顺序不能乱，丢一个字母整段话可能就不对了。所以 TCP 的可靠有序传输对文字来说是刚需，你愿意等网络重传，因为等来的是完整正确的内容。</p>
 <p>传输语音时，情况完全反过来。人类大脑对语音时序极其敏感，当两个人对话时，超过 200ms 的延迟就会让人明显感觉到「卡顿」，超过 400ms 就会开始出现「说话串线」的尴尬：你以为对方说完了开口说话，结果对方话还没说完。</p>
-<p><img alt="" src="assets/1e4f22bd8a-ce13daf5c9b8742ccd04d1b1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1e4f22bd8a-ce13daf5c9b8742ccd04d1b1.png" /></p>
 <p>在这个场景里，丢掉一个 20ms 的音频小片段不是什么大事，人耳感知不到一小段静音；但为了等这 20ms 的片段重传，把后续所有音频都堵住，延迟积累到几百毫秒，体验就彻底崩了。<strong>语音容忍丢包，绝不容忍延迟</strong>，TCP 的设计哲学正好和这个需求相反。</p>
 <p>WebSocket 底层是 TCP，所以它天然带着 TCP 的这个问题。用 WebSocket 传语音，每次网络轻微抖动导致丢包，TCP 就会触发重传等待，整条流的延迟都会随之堆积，不可避免。</p>
 <h4>WebRTC 的根本：选择 UDP，主动放弃可靠性</h4>
 <p>WebRTC 是 Google 主导开发、W3C 和 IETF 联合标准化的协议族，2011 年开始推进，最初目的就是让浏览器之间能直接做实时音视频通话，不需要安装任何插件。它最核心的设计决策是把底层从 TCP 换成 UDP。</p>
 <p>UDP 完全不管可靠性，发出去的包丢了就丢了，没有重传，也没有等待。</p>
 <p>这听起来很不可靠，但对语音来说恰恰是正确的选择。WebRTC 在 UDP 之上自己实现了一套对语音友好的丢包处理策略：当一个音频帧丢失时，不是等待重传，而是用「丢包隐藏（Packet Loss Concealment）」技术自动填补，用前后帧插值生成一段听起来合理的音频来替代，整体播放不中断，只是极短暂的音质轻微下降，人耳感知不到。</p>
-<p><img alt="" src="assets/32369b5ee4-0ee20ce2230c952bbdabaeb7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/32369b5ee4-0ee20ce2230c952bbdabaeb7.png" /></p>
 <p>这是一个典型的工程权衡：用偶尔轻微的音质损失，换取稳定的低延迟。对语音通话而言，这是正确的取舍。</p>
 <h4>WebRTC 不是单一协议，而是一套协议组合</h4>
 <p>你可能以为 WebRTC 就是一个协议，跟 WebSocket 一样，换个名字而已。其实不是，WebRTC 更像是一套「协议全家桶」，在 UDP 之上叠加了好几层协议，每层各管一件事，组合在一起才能完成实时音视频通信。</p>
-<p><img alt="" src="assets/0319bf1f11-a4db8a3aa477a25966c3ce11.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0319bf1f11-a4db8a3aa477a25966c3ce11.png" /></p>
 <p>最底层是 UDP，负责低延迟传输，这是整个 WebRTC 的地基。</p>
 <p>UDP 上面跑的是 DTLS，负责密钥协商和加密。为什么需要单独搞一层加密呢？因为 UDP 不像 TCP 有现成的 TLS 握手机制，所以 WebRTC 用 DTLS（可以理解为「UDP 版的 TLS」）来完成加密通道的建立，保证音视频数据在传输过程中不会被窃听。</p>
 <p>加密通道建好之后，媒体数据用 SRTP（Secure RTP）传输。</p>
 <p>RTP 是专门为实时媒体设计的协议，每个包都带时间戳和序列号，接收方可以知道包的时序和是否有丢失，配合 RTCP 做传输质量的监控和反馈。你可以把 RTP 理解成「给每个音频包贴了标签」，接收方根据标签知道这个包应该排在哪里、前面有没有包丢了。</p>
 <p>在连接建立阶段，WebRTC 使用 ICE（Interactive Connectivity Establishment）框架来处理 NAT 穿透，这是实际部署中最复杂的部分，后面单独解释。</p>
-<p><img alt="" src="assets/7678f9da9e-9e3f2f68bb4af9db20c9f182.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7678f9da9e-9e3f2f68bb4af9db20c9f182.png" /></p>
 <h4>SDP 信令：WebRTC 握手的「协商书」</h4>
 <p>WebRTC 建立连接前，双方需要互相告知对方自己的能力：支持哪些音视频编解码格式、网络地址是什么、加密参数是什么。这个协商过程通过 SDP（Session Description Protocol）来完成。</p>
 <p>SDP 本身只是一种格式，不规定如何传输。双方需要通过一个「信令通道」来交换 SDP，这个信令通道可以是 WebSocket、HTTP 或者任何能双向传输的方式，WebRTC 不关心。这就是为什么用 WebRTC 做 AI 语音时，还是需要一个 WebSocket 连接：WebSocket 负责信令交换（告诉对方「我的网络地址是 xxx，我支持 Opus 编解码」），真正的音频流走 WebRTC 的 UDP 通道。两者各司其职，不是替代关系。</p>
-<p><img alt="" src="assets/ed5e0574e1-c01ceca4162f4d7a5f85cdd4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ed5e0574e1-c01ceca4162f4d7a5f85cdd4.png" /></p>
 <h4>NAT 穿透：ICE/STUN/TURN 解决的问题</h4>
 <p>现实中大多数用户都在路由器后面，没有公网 IP，直接用内网地址互相连接是行不通的。WebRTC 用 ICE 框架来解决这个问题，ICE 会按优先级依次尝试三种连接方式：</p>
-<p><img alt="" src="assets/90da4f9baa-814628d9213fd0071ad47c31.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/90da4f9baa-814628d9213fd0071ad47c31.png" /></p>
 <p>第一优先级是本地直连，如果两个用户在同一个局域网里，直接用内网地址连，延迟最低。第二优先级是 STUN 辅助的 NAT 穿透，STUN 服务器帮助客户端发现自己的公网 IP 和端口，然后双方尝试「打洞」建立 P2P 连接，大多数家用路由器环境下这个方式能成功，延迟仍然很低。第三优先级是 TURN 中转，当 NAT 打洞失败时，流量通过 TURN 服务器中转，失去了 P2P 直连的延迟优势，但至少能通。</p>
 <p>你可能会问，为什么有些情况下打洞会失败、非得走 TURN？</p>
 <p>最常见的原因是「对称 NAT」：这类 NAT（常见于企业防火墙、某些运营商级 NAT）对每个目标地址都会分配一个不同的出口端口号，STUN 探测到的那个端口在对端尝试连进来时已经换了，打洞自然打不通。这时候只能退一步找一台双方都能访问到的中转服务器（TURN），把流量从一方送到服务器、再从服务器送到另一方。</p>
 <p>这三层降级保证了 WebRTC 在各种网络环境下都能建立连接，只是在最差情况下退化成类似 WebSocket 经过服务器中转的模式。</p>
 <h4>WebRTC 内置的音频处理能力</h4>
 <p>WebRTC 不只是一个传输协议，它把多年来实时语音通信领域积累的工程经验都内置进去了，这是用 WebSocket 传语音最难补齐的部分。</p>
-<p><img alt="" src="assets/40d0485dfd-2c93bd219c45fba76c78ec5a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/40d0485dfd-2c93bd219c45fba76c78ec5a.png" /></p>
 <p>回声消除（AEC）是其中最重要的一个。当你用扬声器外放 AI 的声音时，麦克风会同时把这段声音采集进去，如果不做处理，AI 就会听到自己说话的回声，形成反馈循环。WebRTC 内置了多年优化的回声消除算法，能实时识别并消除这部分回声，让对话不产生干扰。</p>
 <p>噪声抑制（NS）解决环境噪声问题，比如用户在嘈杂的咖啡厅说话，WebRTC 会自动把背景噪声过滤掉，只传人声。自动增益控制（AGC）解决音量不稳定的问题，说话声音太小时自动放大，太大时自动降低，保证对方听到稳定的音量。</p>
 <p>最后是自适应码率控制（ABR）：WebRTC 通过 RTCP 持续监测网络状况，动态调整音频比特率。网络好时用高码率保证音质，网络差时降低码率优先保证流畅，不会因为网络波动就直接卡死。这些能力组合在一起，才让 WebRTC 能在各种真实网络环境下维持可接受的通话质量。</p>
@@ -54,7 +54,7 @@
 <p>OpenAI 在 2024 年发布了 Realtime API，用于实现实时语音对话：用户说话，AI 实时听，AI 说话，用户实时听，双方可以随时打断对方。</p>
 <p>这个场景对技术方案的要求是非常苛刻的。首先，端到端延迟必须低于 300ms 才有自然的对话感，超过这个阈值用户就会明显感觉到「卡」。其次，语音必须双向同时流动，不能等一方说完再切换，这样才能实现自然的你一言我一语。再者，用户说话时必须能随时打断 AI 正在说的内容，不能让用户干等。最后还有回声消除的问题，麦克风采集的声音不能把 AI 正在播放的声音再传回去，否则会形成回声循环。</p>
 <p>把这些要求综合起来看，TCP 系的方案（WebSocket）在网络抖动时达不到延迟要求，而且没有内置的音频处理能力，需要大量额外工程。WebRTC 天然满足所有这些要求，所以 Realtime API 选择了 WebRTC 作为媒体传输层。</p>
-<p><img alt="" src="assets/264a377ad9-8d823de259597c72d16e3eed.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/264a377ad9-8d823de259597c72d16e3eed.png" /></p>
 <h4>WebSocket 和 WebRTC 的核心差异总结</h4>
 <table>
 <thead>

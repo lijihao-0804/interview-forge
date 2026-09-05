@@ -18,11 +18,11 @@
 <p>其次是上下文窗口的限制，128K tokens 听起来很多，但复杂任务积累的中间产物，搜索结果、草稿、反思记录，会很快把窗口塞满，后面的生成根本顾不上前面写了什么。</p>
 <p>最后是专业能力的限制，同一个 Agent 既做代码审查又做市场分析，不如专门为各自任务配置或微调的 Agent 效果好。</p>
 <p>举一个具体任务：「帮我做一份 AI 编程工具的竞品分析报告，要有行业趋势、技术对比、商业模式分析和 SWOT」。让单个 Agent 做这件事，问题是：搜索结果和草稿会把上下文撑满，等到写 SWOT 时，前面的行业趋势分析早就被挤出了有效注意力范围；而且市场调研和技术分析需要不同的知识侧重，一个 Agent 很难全面兼顾。</p>
-<p><img alt="" src="assets/064ae9f7ee-7ee958e8684b00ce8535c4a8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/064ae9f7ee-7ee958e8684b00ce8535c4a8.png" /></p>
 <p>你可能会问，拆成多个 Agent 协作，上下文压力就真的变小了吗？</p>
 <p>关键就在这里：调度 Agent 把「做行业趋势分析」委托给市场 Agent，市场 Agent 自己去搜几十个网页、写草稿、反复迭代，这些中间过程都在它自己的上下文里。任务做完，它只把最终结论（比如一份几百字的摘要）通过 A2A 返回给调度 Agent。</p>
 <p>调度 Agent 的上下文里只多了一份摘要，而不是几十个网页的原文。这就把「调研过程」的上下文压力隔离在了市场 Agent 内部，调度 Agent 保持轻量，这是多 Agent 协作在上下文层面的核心收益。</p>
-<p><img alt="" src="assets/f8d210b389-6e299876512bed33c62d68f0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f8d210b389-6e299876512bed33c62d68f0.png" /></p>
 <p>解决方案很自然：把任务拆开，交给不同的专业 Agent 并行处理，最后汇总。一个「调度 Agent」负责任务拆分，「市场分析 Agent」专门做趋势调研，「技术研究 Agent」专门做工具对比，每个只需聚焦自己擅长的部分，整体效果远好于一个 Agent 包揽所有。</p>
 <h4>多 Agent 的基础问题，Agent 之间怎么互相认识？</h4>
 <p>多 Agent 系统有一个绕不开的基础问题：Agent A 要把任务委托给 Agent B，它得先知道 B 能做什么。但怎么知道呢？</p>
@@ -30,14 +30,14 @@
 <p>更好的方案是让 B 主动「发名片」，声明自己能做什么，A 来查。这就是 A2A 里 <strong>Agent Card</strong> 的设计思路。</p>
 <p>每个 A2A Agent 都在一个约定位置发布一张 JSON 格式的名片（A2A 规范推荐的路径是 <code>/.well-known/agent-card.json</code>，早期版本叫 <code>agent.json</code>，两种路径在社区里都能看到），里面写清楚自己叫什么、能做哪类任务（Skill 列表）、支不支持流式返回、支不支持异步回调（push notification，任务完成后主动通知调用方）。任何想和它协作的 Agent，先去拿这张名片，再决定要不要把任务委托给它。</p>
 <p>Agent Card 里最关键的是 <strong>Skill 列表</strong>，每个 Skill 描述一类能力，比如「竞品分析」「行业趋势分析」，并带有示例输入。调度 Agent 用这些 Skill 描述来做任务路由决策，「这个任务和哪个 Agent 的哪个 Skill 最匹配？」。</p>
-<p><img alt="" src="assets/705eec2503-1c3e255bd903f4aece791b90.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/705eec2503-1c3e255bd903f4aece791b90.png" /></p>
 <p>这套机制让整个多 Agent 系统变得可插拔：新加一个 Agent，发布它的 Agent Card，调度 Agent 就能自动发现和利用它，完全不需要改调度 Agent 的代码。</p>
-<p><img alt="" src="assets/982aecf385-dad70150806e61df16d3e696.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/982aecf385-dad70150806e61df16d3e696.png" /></p>
 <h4>Task，A2A 里的一等公民</h4>
 <p>A2A 里任务协作的基本单位是 <strong>Task</strong>。</p>
 <p>调度 Agent 把一段任务委托给另一个 Agent，就是创建一个 Task；接收方执行这个 Task；完成后把结果作为 Task 的产出（artifacts，可以是文本、文件等）返回。</p>
 <p>Task 有完整的生命周期状态管理。一个 Task 刚被创建时是 submitted 状态，表示已提交、等待处理。接收方开始执行后变为 working 状态，最终根据执行结果进入 completed（成功）或 failed（失败）状态。</p>
-<p><img alt="" src="assets/c98391e89e-2928c43311f6acf86ea39527.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c98391e89e-2928c43311f6acf86ea39527.png" /></p>
 <p>为什么需要这么完整的状态机？因为 A2A 专门为<strong>长时间任务</strong>设计。</p>
 <p>一个「竞品分析」任务可能要跑几分钟，先搜索、再整理、再写报告，不可能让调度 Agent 同步等着。</p>
 <p>所以调度 Agent 提交任务后可以去处理其他事情，通过轮询状态或者 push notification（任务完成时接收方主动回调通知）来得知任务完成了。这套状态管理机制，正是为了支持这种异步长任务协作的。</p>
@@ -47,14 +47,14 @@
 <p>在微服务架构里，每个服务是独立部署的 HTTP 服务，有自己的 API 文档，服务之间通过 HTTP 互相调用，支持异步消息队列处理耗时任务。A2A 的设计几乎照搬了这套思路，只不过把「服务」换成了「Agent」。</p>
 <p>怎么理解这个对应关系呢？Agent Card 就像 API 文档，告诉别人「我能做什么、怎么调用我」。Task 状态机就像异步消息队列，支持提交任务后去做别的事、完成了再来取结果。而 <code>.well-known</code> 下的 Agent Card 就像微服务注册中心里的一条记录，让其他 Agent 能自动发现你。</p>
 <p>所以每个 A2A Agent 对外其实就是一个 HTTP 服务，任何支持 A2A 的系统都可以发现它、向它发任务、接收结果，不绑定特定的 AI 框架，也不依赖特定的编程语言。这个设计理念和 MCP 是一脉相承的：MCP 让工具成为独立标准化服务，A2A 让 Agent 成为独立标准化服务。</p>
-<p><img alt="" src="assets/aac56723ff-3eb85189f82c67f2d71270cd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/aac56723ff-3eb85189f82c67f2d71270cd.png" /></p>
 <h4>A2A 和 MCP 的关系，一纵一横，各管一层</h4>
 <p>理清两者关系最简单的方式是看方向：MCP 是 Agent 向下连工具，A2A 是 Agent 向外连其他 Agent。</p>
 <p>具体来说，一个专业 Agent 内部，用 MCP 连各种工具，比如数据库、浏览器、代码执行器，用 Function Calling 让 LLM 触发这些工具调用，这是「纵向」的连接。而多个 Agent 之间需要分工协作的时候，就用 A2A 来互相通信、委派任务、接收结果，这是「横向」的连接。两个协议解决的是完全不同维度的问题，不存在谁替代谁。</p>
 <p>打个比方，MCP 就像公司里每个员工的「工具箱」，决定了这个人能用什么工具干活。A2A 就像公司里的「协作流程」，决定了不同岗位的人怎么分工、怎么交接任务。工具箱和协作流程是两回事，缺了哪个都不行。</p>
-<p><img alt="" src="assets/ba7351ada9-03e0f9f6d85d145797af9c4e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ba7351ada9-03e0f9f6d85d145797af9c4e.png" /></p>
 <p>在一个复杂的多 Agent 系统里，这两者通常同时在用：MCP 负责每个 Agent 和工具之间的纵向连接，A2A 负责 Agent 之间的横向协作通信。两层协议各管一个维度，合在一起才能支撑起真正复杂的 Agent 系统。</p>
-<p><img alt="" src="assets/8a6c909474-102bf2b431e26a21394d0abd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8a6c909474-102bf2b431e26a21394d0abd.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头的面试对话，最大的雷是把 A2A 当成 MCP 的「竞品」或「替代方案」，这说明没搞清楚两者面向的对象完全不同。</p>
 <p>面试回答这道题，第一个必须说清楚的点是定位差异：MCP 是 Agent 向下连工具和数据源，A2A 是多个 Agent 之间向外互相通信协作，一纵一横，各管一层。</p>

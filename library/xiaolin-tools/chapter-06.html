@@ -16,7 +16,7 @@
 <p>很多人第一次看到 MCP 会有一个直觉困惑：Function Calling 不是已经能调工具了吗，模型想用工具直接定义 schema 就行，为什么还要再搞一个协议出来？</p>
 <p>这个困惑的根源，是把「能调工具」和「管好工具」混在一起了。这两件事完全是不同层次的问题。</p>
 <p>有一个很好的类比可以帮你理解：HTTP 协议出来之后，我们已经能在网络上传数据了，为什么还需要 REST API 规范？</p>
-<p><img alt="" src="assets/d10b8a1a7a-87af4e8fa8c5675847b528c8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d10b8a1a7a-87af4e8fa8c5675847b528c8.png" /></p>
 <p>因为 HTTP 解决的是「怎么传」（一次请求长什么样、用什么方法、怎么编码），REST 解决的是「怎么组织和管理」（资源怎么命名、端点怎么设计、状态怎么表达、多个服务之间怎么复用同一套约定），两者是不同层次的事。</p>
 <p>Function Calling 和 MCP 也是同样的关系：Function Calling 管「一次函数调用请求长什么样」，MCP 管「一堆工具怎么被组织、发现、跨项目复用」。前者是格式，后者是规范+生态约定，少了谁这套机制都运转不起来。</p>
 <h4>Function Calling 解决的是「一次调用」的格式问题</h4>
@@ -26,20 +26,20 @@
 <p>那「每次手动」到底有多痛？你可能觉得复制一份 schema 也没多大工作量，但工具一多、项目一多，问题就暴露出来了。</p>
 <p>假设你在 A 项目里定义了 10 个工具的 schema 和对接逻辑。现在 B 项目也要用这些工具，怎么办？把那 10 个 schema 定义复制过来，把对接逻辑重写一遍。好，写完了。但 A 项目用的是 Claude API，B 项目换成了 GPT-4，两边的 Function Calling 格式不完全一样，又得各自维护一套适配代码。这还没完，如果某个工具的接口改了呢？你得去每个用到它的项目里逐一更新，漏改一处就是 bug。</p>
 <p>把这个账算一下你就知道痛点的规模了：假设你团队里有 5 个应用，每个应用要接 8 个工具，也就是 40 份工具对接代码在维护。某天 GitHub API 的某个字段变了，你要在 5 个地方同步改，只要其中一个忘了，那个应用在凌晨报警；再假设你要从 Claude 迁到 GPT-4，这 40 份代码里的 Function Calling 格式全要重新适配一遍，整个组的季度就这么交代了。</p>
-<p><img alt="" src="assets/e26cedf8ac-206209c3951434af85d1c5e5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e26cedf8ac-206209c3951434af85d1c5e5.png" /></p>
 <p>有没有发现问题？同一个工具，换个项目就要重新对接一遍，每次都是一次性的手工活。这就是 Function Calling 解决不了的核心问题：<strong>工具的管理、复用和跨平台兼容</strong>。</p>
 <h4>MCP 解决的是「工具生态」的问题</h4>
 <p>既然痛点是「每个应用各自维护一套工具定义」，那解决思路也就很自然了：把工具做成独立的标准化服务，谁要用就来连，不用每次都重写一遍。这就是 MCP 的核心思路。</p>
 <p>工具提供方实现一个 MCP Server，这个 Server 是一个独立运行的进程，对外暴露标准接口，告诉外界「我有哪些工具、每个工具怎么调用」。任何支持 MCP 的 AI 客户端连上来，就能自动发现和使用里面的工具，完全不需要手写任何对接代码。</p>
-<p><img alt="" src="assets/734693d928-701f10d6aefd6a1e37153feb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/734693d928-701f10d6aefd6a1e37153feb.png" /></p>
 <p>这带来的改变是质的：工具只需要实现一次，所有 AI 客户端都能用。GitHub 的官方 MCP Server 写好之后，不管你用 Claude Desktop、Cursor 还是自己写的 Agent，连上去就能用，不需要各自维护一份 GitHub API 的调用代码。这才是 MCP 的真正价值。</p>
-<p><img alt="" src="assets/781361e7f2-2fda600a2b0ed6deac5cd890.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/781361e7f2-2fda600a2b0ed6deac5cd890.png" /></p>
 <h4>最关键的联系，MCP 底层依然靠 Function Calling 驱动</h4>
 <p>这是很多人没想清楚的一点：MCP 不是 Function Calling 的替代品，而是建立在 Function Calling 之上的。</p>
 <p>当 MCP Client 连上一个 Server 之后，会自动向 Server 拉取所有工具的定义（调用 <code>list_tools</code> 接口），然后把这些定义<strong>转换成模型原生的 Function Calling 格式</strong>传给模型。模型依然通过输出 <code>tool_calls</code> 来表达「我要调哪个工具」，MCP Client 再把这个请求路由到对应的 Server 去执行，拿到结果后以 tool 消息的形式喂回对话。</p>
 <p>从<strong>模型的视角</strong>来看，它完全感知不到 MCP 的存在，它以为自己只是在做普通的 Function Calling，根本不知道背后有一套 Server 在运行。MCP 的所有「魔法」都发生在宿主程序层：工具的自动发现、schema 的格式转换、调用请求的路由、执行结果的返回，全都在这一层默默完成。</p>
 <p>这也意味着一件事：如果模型本身不支持 Function Calling，MCP 就完全没办法用，因为这个「翻译层」失效了。</p>
-<p><img alt="" src="assets/456609d18b-125e9cf2a024b73368fb519b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/456609d18b-125e9cf2a024b73368fb519b.png" /></p>
 <h4>实际体验，接入一个 MCP Server</h4>
 <p>以 Claude Desktop 接入文件系统 MCP 为例。只需要编辑 <code>claude_desktop_config.json</code>，加入如下配置：</p>
 <div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
@@ -135,7 +135,7 @@
 <p>如果只是临时给自己的应用接一两个工具，Function Calling 就够用了，简单直接，不需要引入额外的进程和协议。</p>
 <p>但如果工具多了、需要跨项目复用、或者想直接用社区里已有的成熟 Server（GitHub、数据库、浏览器自动化都有现成的），MCP 就值得上了。接一个新工具就是在配置文件里加几行，重启后自动生效，比手写对接代码省事很多。</p>
 <p>做 Agent 系统的话更应该考虑 MCP。工具来源杂、数量多，如果全靠手写 Function Calling 来维护，工具定义代码会散落在各处，很难管理。MCP 的自动发现和统一管理能让架构干净很多，新增工具不需要改主程序逻辑，接上 Server 就行。</p>
-<p><img alt="" src="assets/3b6c848c87-ecf2bb377aaca8f4cbe0bf1e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3b6c848c87-ecf2bb377aaca8f4cbe0bf1e.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头的面试对话，最大的雷就是把 MCP 当成 Function Calling 的「替代品」或「升级版」，这是很多人的第一反应，但完全搞反了两者的关系。</p>
 <p>面试回答这道题，第一个必须说清楚的点是：Function Calling 解决的是单次调用的消息格式问题，MCP 解决的是工具生态的标准化管理和复用问题，两者是不同抽象层次的东西。</p>

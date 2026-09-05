@@ -32,7 +32,7 @@
 <p>朴素批量处理（static batching）是「凑齐 N 个请求一起跑、所有请求一起结束」。但每个请求生成长度不同（有的 50 tokens 就完了、有的要 1000 tokens），短的请求等长的请求，GPU 大量时间在「跑了一半在等」。吞吐率上不去。</p>
 <p><strong>3. 重复计算</strong></p>
 <p>如果每个用户都用同一段 System Prompt（比如 1000 tokens 的产品知识库），朴素实现每次都要重新算这 1000 tokens 的 KV Cache，浪费极大。</p>
-<p><img alt="" src="assets/f572c93929-0e2314dfa23e6337d918a606.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f572c93929-0e2314dfa23e6337d918a606.png" /></p>
 <p>部署框架就是为了解决这三个痛点。三大优化方向：<strong>内存高效（显存碎片）+ 批量调度（吞吐率）+ 缓存复用（重复计算）</strong>。每个主流框架在这三个方向上都有自己的创新。</p>
 <h4>vLLM 与 PagedAttention：操作系统虚拟内存的灵感</h4>
 <p>vLLM 是 UC Berkeley 在 2023 年开源的推理框架，一出来就把行业标准提了一个量级。核心创新是 <strong>PagedAttention</strong>。</p>
@@ -45,7 +45,7 @@
 <li>一个请求实际用了 200 tokens 就只占 13 个 Block（200/16），用完即释放</li>
 <li>没有「预分配 4096 但只用 200」的浪费</li>
 </ul>
-<p><img alt="" src="assets/c583a86113-b4d8a84ab7cd5d85ae8a2d11.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c583a86113-b4d8a84ab7cd5d85ae8a2d11.png" /></p>
 <p>实测下来 PagedAttention 把显存利用率从 30-40% 拉到 90%+，同样硬件下能跑 2-4 倍并发请求。</p>
 <p>vLLM 还有第二个杀手锏：<strong>Continuous Batching（连续批处理）</strong>。</p>
 <p>朴素 static batching 是「凑齐 N 个请求一起跑、跑完一起结束」。Continuous Batching 是「请求异步加入和退出，每个 token 步骤动态组 batch」。比如：</p>
@@ -55,7 +55,7 @@
 <li>时刻 t8：B 也生成完了退出，新请求 E 加入</li>
 <li>这样 GPU 一刻不闲，吞吐率比 static batching 高 3-5 倍</li>
 </ul>
-<p><img alt="" src="assets/0ed2496390-5be8c4e055775e3c043b2975.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0ed2496390-5be8c4e055775e3c043b2975.png" /></p>
 <p>vLLM = PagedAttention（显存高效）+ Continuous Batching（吞吐高效），是当前生产环境部署 LLM API 的事实标准。OpenAI、Anthropic 等厂商虽然没开源他们的内部推理栈，但据传也用了类似的优化思路。</p>
 <h4>SGLang 与 RadixAttention：共享前缀的杀手锏</h4>
 <p>SGLang 是 LMSYS（创建 Vicuna、Chatbot Arena 的团队）在 2024 年推出的新一代推理框架。它<strong>不是要替代 vLLM</strong>，而是针对 vLLM 没解决好的特定场景：<strong>多请求共享前缀</strong>。</p>
@@ -68,7 +68,7 @@
 </ul>
 <p>vLLM 的 PagedAttention 虽然显存高效，但<strong>不同请求的 KV Cache 仍然各存各的</strong>。10 个用户都用同样的 1000 tokens System Prompt，vLLM 要存 10 份相同的 KV Cache。</p>
 <p>SGLang 的核心创新 <strong>RadixAttention</strong> 把这个问题解决了。</p>
-<p><img alt="" src="assets/53de5c8105-0dcd87f6e1de41efcd11a544.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/53de5c8105-0dcd87f6e1de41efcd11a544.png" /></p>
 <p>RadixAttention 用的是计算机科学里的经典数据结构 <strong>Radix Tree（基数树）</strong>：</p>
 <ul>
 <li>把 KV Cache 组织成一棵树</li>
@@ -79,7 +79,7 @@
 </ul>
 <p>这样 KV Cache 显存按「<strong>所有请求的并集</strong>」算，而不是「<strong>所有请求各自的并集和</strong>」。在前缀重复率高的场景下，显存能省下 50-80%。</p>
 <p>更妙的是，RadixAttention 还能<strong>自动复用历史请求</strong>的 KV Cache。如果 1 小时前有用户问过相同 System Prompt 的问题，那段 KV Cache 还在 GPU 显存里（按 LRU 淘汰），新用户直接复用，省去重新计算的几百 ms 延迟。</p>
-<p><img alt="" src="assets/afb39c288a-a070138ac835f0637abf3085.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/afb39c288a-a070138ac835f0637abf3085.png" /></p>
 <p>实测在 Agent 场景（多次调用同一个 System Prompt）下，SGLang 比 vLLM 首 token 延迟降低 2-3 倍、吞吐量提升 30-50%。所以现在 Agent 框架（LangGraph、AutoGen 等）都开始把 SGLang 作为推荐推理后端。</p>
 <p>但要注意：<strong>纯单请求、无前缀共享场景下，SGLang 相对 vLLM 优势不明显</strong>。两者目前是互补关系不是替代关系。</p>
 <h4>TGI：HuggingFace 生态集成方案</h4>
@@ -105,7 +105,7 @@
 <li>但在很多公开对比和工程实践里，极致吞吐通常不如 vLLM / SGLang</li>
 <li>胜在 HuggingFace 生态集成、服务接口和已有企业流程迁移成本低</li>
 </ul>
-<p><img alt="" src="assets/4e9facc61b-cd68fa548c7de0e44ea3715a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4e9facc61b-cd68fa548c7de0e44ea3715a.png" /></p>
 <p>适合用 TGI 的场景：</p>
 <ul>
 <li>公司本来就用 HuggingFace 全套（数据集 / Transformers / Hub）</li>
@@ -136,7 +136,7 @@
 <p>针对各种 CPU 指令集（AVX2、AVX512、ARM NEON）做手工优化的矩阵乘法 kernel，CPU 推理速度能跑到 GPU 的 30-50%（虽然不如 GPU，但对个人使用足够）。</p>
 <p><strong>3. Metal 后端（Apple Silicon）</strong></p>
 <p>苹果 M 系列芯片的统一内存架构特别适合 llama.cpp。M3 Max（128GB 统一内存）能跑 70B 模型，速度可观。这让 llama.cpp 在 Mac 用户中极其流行。</p>
-<p><img alt="" src="assets/c58695fd8f-76ca366c7d61e5cfb8a1802d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c58695fd8f-76ca366c7d61e5cfb8a1802d.png" /></p>
 <p>适合用 llama.cpp 的场景：</p>
 <ul>
 <li>个人开发者本地玩模型</li>
@@ -172,7 +172,7 @@
 <li>追求极致 GPU 利用率</li>
 <li>愿意承担额外的工程复杂度</li>
 </ul>
-<p><img alt="" src="assets/99f51157b3-42ab2e30a3ae8fb58e2e4069.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/99f51157b3-42ab2e30a3ae8fb58e2e4069.png" /></p>
 <h4>怎么选部署方案：决策矩阵</h4>
 <p>把上面几个框架放一起对比：</p>
 <table>
@@ -223,7 +223,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/e4f6dd327e-f224a777a0dd7f4b2cb7dd4f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e4f6dd327e-f224a777a0dd7f4b2cb7dd4f.png" /></p>
 <p>实战中常见的几个<strong>误用陷阱</strong>：</p>
 <p><strong>误用 1：用 vLLM 跑 Agent 多轮对话</strong></p>
 <p>Agent 场景前缀重复率高，vLLM 没有 RadixAttention 优化，每次重新算 KV Cache 浪费大量算力。改用 SGLang 后首 token 延迟降 2-3 倍。</p>
@@ -241,7 +241,7 @@
 <p>权重量化（FP16 -&gt; INT4）很多框架都支持，但 KV Cache 量化（FP16 -&gt; INT8 / FP8 / INT4）的支持差异很大，而且版本迭代很快。vLLM、SGLang、TensorRT-LLM 都在持续增强这块能力，TGI 和 llama.cpp 的支持方式也要看具体版本。如果你的瓶颈是长上下文 KV Cache 显存，选型前一定要查当前版本文档，别只听别人说「支持」。</p>
 <p><strong>陷阱 3：MoE 模型的部署支持差异</strong></p>
 <p>MoE 模型（DeepSeek V3、Mixtral）部署比 Dense 复杂得多（需要专家并行、All-to-All 通信优化）。vLLM 和 SGLang 都支持但配置复杂；llama.cpp 通过 GGUF 支持但性能一般；TensorRT-LLM 支持最好但工程门槛高。如果要部署 MoE 模型，建议先在测试环境跑通再上生产。</p>
-<p><img alt="" src="assets/fb394f6019-5a0d760f99274edf5a79a02f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fb394f6019-5a0d760f99274edf5a79a02f.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到部署方案，最重要的是先讲清楚<strong>部署框架解决什么问题</strong>。直接用 transformers 库部署有三大痛点：显存碎片严重、批量调度低效、共享前缀重复计算。每个主流框架的核心创新都是攻击这些痛点的某个维度。这一层铺垫先讲到，面试官就知道你不是在背工具，是真的理解部署框架的设计动机。</p>
 <p>接下来把<strong>四个主流框架的核心创新</strong>讲明白。vLLM 的杀手锏是 PagedAttention（模仿操作系统虚拟内存的分页 KV Cache，把显存利用率从 30% 拉到 90%+），加上 Continuous Batching 让请求动态进出，是当前生产 API 的常见选择。SGLang 走的是另一条路，核心创新是 RadixAttention（共享前缀的 KV Cache 树），在 Agent 和多轮对话场景下经常能降低首 token 延迟。TGI 的特点是和 HuggingFace 生态深度集成，适合已有 HF 流程的团队。llama.cpp 是另一种风格，纯 C++ 重写 + GGUF 量化，是 CPU / Mac / 边缘部署的事实标准。</p>

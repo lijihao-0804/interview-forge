@@ -52,7 +52,7 @@
 </tbody>
 </table>
 <p>可观测性贯穿各层，通过运行事件和 Trace 记录模型调用、工具调用、耗时和异常。</p>
-<p><img alt="" src="assets/d473ac2cfe-4a73aaaabdb770dd7c690584.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d473ac2cfe-4a73aaaabdb770dd7c690584.png" /></p>
 <p>这张图表达的是职责边界，不是严格的单向调用顺序。例如模型和编译后的 Agent 都遵循 Runnable 调用方式，但它们承担的架构角色不同。</p>
 <h4>核心协议如何统一？</h4>
 <p><code>langchain-core</code> 中最值得理解的不是类名数量，而是一条数据如何从用户走到模型，再进入业务系统。</p>
@@ -75,7 +75,7 @@ AIMessage(tool_calls) -&gt; Tool Runtime（有工具调用）
 Tool Runtime -&gt; ToolMessage(tool_call_id) -&gt; Model 再次判断
 </code></pre></div>
 <p>其中 <code>tool_call_id</code> 很重要。模型一轮可能请求多个工具，工具结果必须通过调用 ID 与原请求对应，模型才能知道每条结果属于哪次调用。</p>
-<p><img alt="" src="assets/2f529367f6-28627103bab64c13877adf67.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2f529367f6-28627103bab64c13877adf67.png" /></p>
 <p><code>create_agent</code> 会根据模型、工具、系统提示词和中间件创建这套循环。它返回的不是普通函数，而是编译后的 LangGraph 图，因此能够在每一步保存状态、输出进度并决定下一条执行边。</p>
 <h4>数据应该放在哪里？</h4>
 <p>Agent 中的数据不应该全部塞进消息或 Prompt。当前运行时会区分下面几类数据：</p>
@@ -105,13 +105,13 @@ Tool Runtime -&gt; ToolMessage(tool_call_id) -&gt; Model 再次判断
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/20c79a7fee-114386cbd17c3fc8139066a7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/20c79a7fee-114386cbd17c3fc8139066a7.png" /></p>
 <p>这样划分的好处是，可信用户身份不需要让模型生成，数据库连接也不会被写入对话上下文。工具可以通过 Runtime 读取这些数据，同时只把真正需要模型填写的参数暴露在工具 Schema 中。</p>
 <h4>Middleware 做什么？</h4>
 <p>真实应用通常需要处理动态提示词、模型切换、工具筛选、重试、对话摘要、敏感信息和人工审批。如果把这些逻辑全部塞进 Prompt 或 Tool，代码会很快纠缠在一起。</p>
 <p>Middleware 提供模型和工具调用前后的扩展点。请求进入模型前，可以根据用户身份生成系统提示词，或者在历史消息过长时先做摘要；模型决定调用工具后，可以先检查权限，敏感动作还可以暂停等待审批。</p>
 <p>真正执行工具时，如果遇到临时网络故障，可以在这一层做有上限的重试。结果返回后，再补上格式或安全校验。这样，一次请求从进入模型到离开 Agent 的各个阶段都有清楚的扩展位置。</p>
-<p><img alt="" src="assets/4eb1c2f0ea-4444448c64643abf484730b6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4eb1c2f0ea-4444448c64643abf484730b6.png" /></p>
 <p>Middleware 并不是另一套运行时。它会运行在 <code>create_agent</code> 编译出的 LangGraph 内部，对执行行为进行组合式扩展。</p>
 <h4>LangGraph 是什么角色？</h4>
 <p>如果只用 <code>while</code> 循环实现 Agent，进程退出后中间状态容易丢失，也很难在敏感工具前暂停几小时再继续。</p>

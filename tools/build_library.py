@@ -680,6 +680,9 @@ def topbar(prefix: str = "..") -> str:
 # CSS 链接带 ?v=ASSET_VERSION 查询串(与常量注释里的缓存破坏约定一致)；
 # scripts 参数追加页面尾部 JS(如章节页的 Mermaid 运行库与渲染驱动)。
 def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
+    # 图片懒加载：章节/模块页配图多（小林笔记单页可达 10+ 张截图），
+    # 统一加 loading=lazy 让视口外图片滚动到才加载。
+    body = body.replace("<img ", '<img loading="lazy" decoding="async" ')
     return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)} · 学习书架</title><link rel="stylesheet" href="{css_href}?v={ASSET_VERSION}"></head><body>{body}{scripts}</body></html>'''
 
 

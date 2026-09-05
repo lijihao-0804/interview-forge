@@ -2,7 +2,7 @@
 <main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</span></nav><div class="module-meta">Agent 工程 · 第 14 / 19 章</div><h1>Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
 <p>前阵子，有个林友跟我聊起他面试字节 AI Agent 岗的经历。</p>
 <p>被面试官问了一个问题：「为什么 Claude Code 不用 RAG 检索代码，而是直接用 grep？」</p>
-<p><img alt="" src="assets/c754b00ff8-7dc357ccc02ad6658b762786.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c754b00ff8-7dc357ccc02ad6658b762786.png" /></p>
 <p>我一愣。</p>
 <p>是啊，这两年 RAG 火成这样，几乎成了 Agent 的标配。谁去做个 AI 编程工具不上 RAG？</p>
 <p>结果 Claude Code 这么个被业内认证「最好用的 AI 编程工具之一」，反其道而行，连 embedding 和向量数据库的影子都没有，就靠 grep 加读文件这种最朴素的方式来获取代码上下文。</p>
@@ -10,7 +10,7 @@
 <p>是工程师水平不够吗？更不可能。</p>
 <p>那这背后到底是什么设计哲学？为什么他们偏偏不用 RAG？</p>
 <p>我把 Claude Code 的检索相关源码翻了个底朝天，越看越觉得这个选择很有意思。</p>
-<p><img alt="" src="assets/4f51752890-199bc1bc2ad333850d782fb5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4f51752890-199bc1bc2ad333850d782fb5.png" /></p>
 <p>今天就从源码视角，带你一层层拆开这个问题我会按这个顺序展开：</p>
 <ul>
 <li>先搞懂代码检索到底要解决什么？</li>
@@ -30,11 +30,11 @@
 <p>那你说，那把整个项目的代码全塞进去不就完了？</p>
 <p>理论上是这么个理。但 LLM 的上下文窗口是有限的。就算用 Claude Opus 4.7 这种已经支持 1M token 的超长上下文模型，听着是真的大对吧？换算一下大概有 200 多万字。但你想想，一个稍微像样点的项目动辄几百万行代码，再算上依赖库源码就更夸张了，光是这些就远超模型的承载量，更别说还要留位置给系统提示、对话历史、工具调用结果。</p>
 <p>塞不下，还是塞不下。</p>
-<p><img alt="上下文窗口 vs 代码库体积对比图" src="assets/85fe1db92f-4eb72038aa5132a7a6707f0e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="上下文窗口 vs 代码库体积对比图" src="assets/85fe1db92f-4eb72038aa5132a7a6707f0e.png" /></p>
 <p><em>上下文窗口 vs 代码库体积对比图</em></p>
 <p>所以代码检索这一步就出来了：从一堆代码里，<strong>精准地捞出和当前任务相关的几个片段，再塞给模型</strong>。</p>
 <p>这有点像你查字典。一本汉语词典几千页，你不会从头读到尾，而是先翻目录、看拼音索引，定位到「龘」这个字所在的那一页，然后只读那一页。代码检索干的就是这个活儿。</p>
-<p><img alt="字典查目录类比图" src="assets/b1b3f2c0c2-6392ef1d2bfe34a4bbfb2549.png" /></p>
+<p><img loading="lazy" decoding="async" alt="字典查目录类比图" src="assets/b1b3f2c0c2-6392ef1d2bfe34a4bbfb2549.png" /></p>
 <p><em>字典查目录类比图</em></p>
 <p>那「怎么查目录」、「怎么定位到那一页」，就是不同方案的差异所在了。</p>
 <hr />
@@ -46,16 +46,16 @@
 <p>RAG 在代码场景下，干的就是这个事儿。它的工作流可以拆成四步。</p>
 <p><strong>第一步，切片（Chunking）。</strong></p>
 <p>先把代码文件按某种规则切成小片段。常见的切法是按函数切、按类切，或者按固定行数切，比如每 100 行一段。这相当于把厚厚的书拆成一篇篇文章。</p>
-<p><img alt="" src="assets/71e98d5167-a71925392b886f48974fc171.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/71e98d5167-a71925392b886f48974fc171.png" /></p>
 <p><strong>第二步，向量化（Embedding）。</strong></p>
 <p>每个代码片段过一遍 embedding 模型，转成一串数字（一个高维向量）。你可以理解成给每个片段算了一个「语义指纹」，意思相近的片段，指纹也相近。</p>
-<p><img alt="Embedding 演示：代码经过模型变成数字向量" src="assets/4064a1ed45-712468c4c5af3823cc992fe7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Embedding 演示：代码经过模型变成数字向量" src="assets/4064a1ed45-712468c4c5af3823cc992fe7.png" /></p>
 <p><em>Embedding 演示：代码经过模型变成数字向量</em></p>
 <p><strong>第三步，建索引（Indexing）。</strong></p>
 <p>把所有的向量存到一个专门的向量数据库里，比如 Faiss、Pinecone、Milvus 这些。这一步就是「把分类卡片整理好，按抽屉摆放」。</p>
 <p><strong>第四步，召回（Retrieval）。</strong></p>
 <p>用户提问的时候，把问题也向量化一下，去库里找最相似的 Top-K 个片段，比如最像的 5 个，然后把这几段代码拼到 prompt 里，丢给 LLM。</p>
-<p><img alt="向量召回 Top-K 示意图" src="assets/20c1fa9678-c718fbc1dc5a1008616b2488.png" /></p>
+<p><img loading="lazy" decoding="async" alt="向量召回 Top-K 示意图" src="assets/20c1fa9678-c718fbc1dc5a1008616b2488.png" /></p>
 <p><em>向量召回 Top-K 示意图</em></p>
 <p>讲到这里，你可能已经看出 RAG 的核心套路了。</p>
 <p><strong>它把「找代码」这件事，转成了「算相似度」</strong>。所有的检索逻辑，最后都归结为「在向量空间里找最近的几个邻居」。</p>
@@ -69,7 +69,7 @@
 <p>文章是流式的，你拦腰切一刀，损失不大，前后段都还能独立读。但代码不一样，代码是有严格结构的。</p>
 <p>举个例子，一个函数 200 行，按 100 行一段切了。结果上半段是个 <code>if</code> 的开头，下半段是 <code>else</code> 的结尾，模型看到的两个片段，一个少了 else，一个少了 if，这玩意儿压根没法用。</p>
 <p>更糟糕的是，函数 A 调用了函数 B，但是 A 和 B 在不同片段里。模型只看到 A，根本不知道 B 是干嘛的，幻觉概率直接拉满。</p>
-<p><img alt="函数被切两半示意图" src="assets/fb3912d393-c2e6fef6804ab3950474d663.png" /></p>
+<p><img loading="lazy" decoding="async" alt="函数被切两半示意图" src="assets/fb3912d393-c2e6fef6804ab3950474d663.png" /></p>
 <p><em>函数被切两半示意图</em></p>
 <h4>痛点 2：精确匹配的活，向量干不了</h4>
 <p>向量召回的本质是「找相似的」，不是「找对的」。这在代码场景就麻烦了。</p>
@@ -80,7 +80,7 @@
 <blockquote>
 <p>配图意见：向量召回错误示意，用户问「找张三」，结果向量库返回「李四王五马六」</p>
 </blockquote>
-<p><img alt="向量召回错误示意图" src="assets/5225db899c-adc7d7ecdbb94a8e6ba5948e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="向量召回错误示意图" src="assets/5225db899c-adc7d7ecdbb94a8e6ba5948e.png" /></p>
 <p><em>向量召回错误示意图</em></p>
 <h4>痛点 3：代码每天在变，索引咋办</h4>
 <p>这是 RAG 在代码场景的另一个噩梦。</p>
@@ -88,12 +88,12 @@
 <p>要重建？整个项目重新切片、重新 embedding，成本不低，频繁 commit 直接性能爆炸。</p>
 <p>不重建？模型查到的全是旧版本，用过期信息写新代码，bug 不写都难。</p>
 <p>要做增量更新？听着合理，但实现起来一堆边界情况：哪些 chunk 要删、哪些要重新算、跨文件的引用关系怎么同步。说白了，简单事情搞复杂了。</p>
-<p><img alt="索引重建成本图" src="assets/521048b5a9-9784911cfe6a834b44f8babc.png" /></p>
+<p><img loading="lazy" decoding="async" alt="索引重建成本图" src="assets/521048b5a9-9784911cfe6a834b44f8babc.png" /></p>
 <p><em>索引重建成本图</em></p>
 <h4>痛点 4：冷启动慢得要命</h4>
 <p>你在一个百万行的代码库上跑 RAG，光是建索引就要十几分钟甚至更久。</p>
 <p>用户打开工具，看着进度条转，等几分钟才能开始用？这体验直接劝退一半人。Claude Code 的设计理念是「打开就能用」，RAG 这套显然不答应。</p>
-<p><img alt="冷启动等待图" src="assets/ade24b11f2-f82a2af963732616c5f5d756.png" /></p>
+<p><img loading="lazy" decoding="async" alt="冷启动等待图" src="assets/ade24b11f2-f82a2af963732616c5f5d756.png" /></p>
 <p><em>冷启动等待图</em></p>
 <h4>痛点 5：黑盒，不可解释</h4>
 <p>这点我觉得最关键。</p>
@@ -116,7 +116,7 @@
 <li><strong>Grep</strong>：按内容关键字找代码（对应你的 <code>grep -r</code>）</li>
 <li><strong>Read</strong>：按需读文件内容（对应你的 <code>cat</code> 和编辑器跳转）</li>
 </ul>
-<p><img alt="程序员工作流与 Claude Code 三件套对应关系" src="assets/92044985ee-e058c079364fb035e7b2d297.png" /></p>
+<p><img loading="lazy" decoding="async" alt="程序员工作流与 Claude Code 三件套对应关系" src="assets/92044985ee-e058c079364fb035e7b2d297.png" /></p>
 <p><em>程序员工作流与 Claude Code 三件套对应关系</em></p>
 <p>看似原始，但本质上是把「找代码」的决策权还给了 LLM。你不需要提前猜模型会问什么，也不需要给它装个「智能召回引擎」，模型自己想搜什么就搜什么，搜完看一眼结果，再决定下一步。</p>
 <p>这思路简单到让你怀疑人生：就这？真的够用？</p>
@@ -158,7 +158,7 @@
 <blockquote>
 <p>配图意见：Grep 三种输出模式示意，content 模式给行号+内容，files 模式只给文件名列表，count 模式只给数字</p>
 </blockquote>
-<p><img alt="Grep 三种输出模式示意图" src="assets/734702c270-4ffb2c326387211350f6df18.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Grep 三种输出模式示意图" src="assets/734702c270-4ffb2c326387211350f6df18.png" /></p>
 <p><em>Grep 三种输出模式示意图</em></p>
 <h4>5.2 Glob：按文件名找，按修改时间排序</h4>
 <p>Grep 是按内容找，那 Glob 是干啥的？是按文件名找。</p>
@@ -167,7 +167,7 @@
 <p><strong>第一，结果按修改时间倒序排列。</strong> 也就是说，最近改过的文件排在前面。为啥这样？因为大部分时候，「最近改过的」就是「跟当前任务最相关的」。这是个很朴素但很有效的启发式规则。</p>
 <p><strong>第二，结果有 100 文件硬上限。</strong> 超出会截断，避免输出爆炸把上下文塞满。模型如果还想看更多，可以收紧 pattern 再搜一次。</p>
 <p>是不是很像你平时用 IDE 的「最近打开文件」列表？设计哲学是相通的。</p>
-<p><img alt="Glob pattern 示意图" src="assets/33b27431c7-5de3d4f8b1a813388475c3a3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Glob pattern 示意图" src="assets/33b27431c7-5de3d4f8b1a813388475c3a3.png" /></p>
 <p><em>Glob pattern 示意图</em></p>
 <h4>5.3 Read：按需读取，绝不贪心</h4>
 <p>找到文件了，下一步就是看内容。Read 工具就是干这个的。</p>
@@ -188,7 +188,7 @@ This can be important for larger files.
 <p>「需要哪部分就只读哪部分」，这就是 Anthropic 在引导模型形成节约 token 的习惯。</p>
 <p>还有一个非常关键的细节：Read 工具每次都直接 stat 磁盘文件、读取最新内容，<strong>不缓存、不索引、不预处理</strong>。</p>
 <p>这意味着什么？意味着只要你刚改了文件，下一次 Read 立刻能看到新内容。这就是 Claude Code 实时性的来源。没有索引层，就没有索引滞后。</p>
-<p><img alt="磁盘实时读取 vs 索引缓存对比图" src="assets/b419db8f0d-521524393275db35a47c5689.png" /></p>
+<p><img loading="lazy" decoding="async" alt="磁盘实时读取 vs 索引缓存对比图" src="assets/b419db8f0d-521524393275db35a47c5689.png" /></p>
 <p><em>磁盘实时读取 vs 索引缓存对比图</em></p>
 <h4>5.4 三件套的组合用法</h4>
 <p>讲完单个工具，最关键的是看它们怎么组合。</p>
@@ -198,7 +198,7 @@ This can be important for larger files.
 <p>第二步，用 Grep 在这些文件里搜关键字，比如 <code>passport|auth|login</code>，定位到具体的几个命中行。</p>
 <p>第三步，用 Read 读命中文件的相关行段，看具体实现。</p>
 <p>整个过程是模型一步步推进的：每一步看到上一步的结果，决定下一步搜什么、读什么。</p>
-<p><img alt="Glob Grep Read 三件套组合工作流" src="assets/93b2ff71e2-5d41292755b253ab96781dda.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Glob Grep Read 三件套组合工作流" src="assets/93b2ff71e2-5d41292755b253ab96781dda.png" /></p>
 <p><em>Glob Grep Read 三件套组合工作流</em></p>
 <p>注意没有，这里没有「一次性召回所有相关代码」的步骤，而是「每一步都基于上一步的结果调整方向」。这是和 RAG 范式最大的不同点，我们第七节再细讲。</p>
 <p>但是有个问题：如果是更复杂的任务呢？比如「调研一下整个项目的认证模块流程」，这种活儿三件套循环几次就能搞定吗？</p>
@@ -210,7 +210,7 @@ This can be important for larger files.
 <p>如果让主 agent 自己一边 grep 一边 read 地干，会发生什么？</p>
 <p>主 agent 的上下文很快就会被一堆 grep 输出加文件片段塞满。等它好不容易想清楚「认证流程」、要回头给你写代码的时候，发现真正要解决的问题已经被检索过程的中间结果挤到角落里了，模型注意力被分散，质量直线下降。</p>
 <p>这就是大型探索任务的最大敌人：<strong>上下文污染</strong>。</p>
-<p><img alt="主 agent 上下文被污染示意图" src="assets/87b0aff83f-7c33b380fa669828c2f598a1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="主 agent 上下文被污染示意图" src="assets/87b0aff83f-7c33b380fa669828c2f598a1.png" /></p>
 <p><em>主 agent 上下文被污染示意图</em></p>
 <p>Claude Code 的解决办法很妙：<strong>派一个子 agent 出去探索</strong>。</p>
 <p>类比一下：老板要做战略决策，他要看大量的市场数据。他不会自己一头扎进 Excel 里翻几个小时，而是把这事派给秘书：「你帮我调研一下，明天给我一份精简报告」。秘书看了一堆资料，最后只把结论给老板。老板的注意力（对应主 agent 的上下文）就被保护起来了。</p>
@@ -219,7 +219,7 @@ This can be important for larger files.
 <p><strong>第二，子 agent 拿到一个精简的工具池。</strong> 通常是只读工具：Grep、Glob、Read、Bash（只读命令），但不能 Edit、不能 Write、不能再派子 agent（防止层层嵌套递归）。这种 agent 在源码里有个名字叫 Explore agent。</p>
 <p><strong>第三，子 agent 在自己的上下文里多轮迭代。</strong> 它可以 grep 几十次、read 几十次，过程中产生的中间结果都留在它自己的上下文里，跟主 agent 无关。</p>
 <p><strong>第四，子 agent 完成后，只把最终结论返回给主 agent。</strong> 主 agent 的上下文里只多了一段「认证流程是这样的：……」的精简结论，所有的搜索过程都被压缩没了。</p>
-<p><img alt="派子 agent 隔离与结论压缩示意图" src="assets/e842fa3c61-23f1a4e7d617d1728efd61d2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="派子 agent 隔离与结论压缩示意图" src="assets/e842fa3c61-23f1a4e7d617d1728efd61d2.png" /></p>
 <p><em>派子 agent 隔离与结论压缩示意图</em></p>
 <p>这就是「上下文压缩」的精髓：<strong>用一个隔离的子 agent 把脏活儿干了，主 agent 只接收干净的结论</strong>。</p>
 <p>源码 <code>src/tools/AgentTool/prompt.ts</code> 里有明确的引导规则：</p>
@@ -237,7 +237,7 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 <p>简单定向搜索（你知道要找啥）就直接用 Grep/Glob/Read；开放式探索（你不太确定要找啥）就派 Explore 子 agent。临界点大概是「预期超过 3 次查询」。</p>
 <p>这是个非常实用的工程经验：少于 3 次就别折腾派 agent，多于 3 次就别污染主 agent 上下文。</p>
 <p>还有一个加分项：<strong>子 agent 可以并行派多个</strong>。比如你要同时调研「认证模块」、「支付模块」、「订单模块」三块，主 agent 可以一次性派出三个子 agent 各干一块，干完同时回来报告。这种并发探索能极大缩短整体时延。</p>
-<p><img alt="并行派多个 Explore 子 agent 示意图" src="assets/36def6969e-5f2f883ebe1e0f2b87cda6dd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="并行派多个 Explore 子 agent 示意图" src="assets/36def6969e-5f2f883ebe1e0f2b87cda6dd.png" /></p>
 <p><em>并行派多个 Explore 子 agent 示意图</em></p>
 <p>到这里，你应该能看出 Claude Code 检索系统的层次感了：</p>
 <ul>
@@ -253,7 +253,7 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 <p>我用一个对比讲清楚。</p>
 <p><strong>RAG 的范式是「考试发卷子」</strong>：用户提问 → 系统一次性召回 Top-K 个片段 → 模型基于这些片段一次性生成答案。中间没有循环，没有反悔，没有「等等再看看」。这是一锤子买卖。</p>
 <p><strong>Claude Code 的范式是「现场探案」</strong>：用户提问 → 模型说「我先 Grep 一下」→ 系统执行 Grep 返回结果 → 模型看到结果说「嗯，看起来 UserService 比较像，我 Read 一下」→ 系统执行 Read 返回内容 → 模型说「找到了，逻辑是这样的：……」。这是循环、是边查边推理。</p>
-<p><img alt="RAG 一锤子 vs Agent 多轮循环对比图" src="assets/eacd90bee5-bf0c449ea2891dd083624d89.png" /></p>
+<p><img loading="lazy" decoding="async" alt="RAG 一锤子 vs Agent 多轮循环对比图" src="assets/eacd90bee5-bf0c449ea2891dd083624d89.png" /></p>
 <p><em>RAG 一锤子 vs Agent 多轮循环对比图</em></p>
 <p>这个循环本质上就是 query 主流程里的一个 while 死循环，源码 <code>src/query.ts</code> 里的核心逻辑大概长这样：</p>
 <div class="codehilite" data-lang="javascript"><pre><code class="language-javascript"><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -266,7 +266,7 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 <span class="p">}</span>
 </code></pre></div>
 <p>每一轮：模型说话 → 可能带 tool_use → 执行工具 → 把结果回填到对话历史 → 模型继续说话。直到模型自己说「我搞定了」，循环才停下来。</p>
-<p><img alt="query 多轮循环示意图" src="assets/6803a9d78c-2735ce3f02d3ed9ff0eebeaf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="query 多轮循环示意图" src="assets/6803a9d78c-2735ce3f02d3ed9ff0eebeaf.png" /></p>
 <p><em>query 多轮循环示意图</em></p>
 <p>这个看似简单的循环，其实是 Agent 范式的灵魂：<strong>它给了模型在每一步根据上一步结果调整方向的能力</strong>。</p>
 <p>你看到 Grep 结果是空的？那就改个关键字再搜。</p>
@@ -284,13 +284,13 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 <p>第四，<strong>Token 经济</strong>。grep 加 Read 按需读取，模型只看真正需要的几行；RAG 一上来就要给整个代码库做 embedding，存储和计算成本都不小。</p>
 <p>第五，<strong>可解释性</strong>。grep 每一步检索过程都对用户透明可审计；RAG 的 Top-K 召回是黑盒，出 bug 没法 debug。</p>
 <p>第六，<strong>决策权</strong>。grep 让 LLM 自己决定每一轮搜什么、读什么，多轮迭代逐步逼近答案；RAG 是一次性把材料丢给模型，模型只能将错就错。</p>
-<p><img alt="Claude Code grep 与 RAG 六大原因对比表" src="assets/57cf38f94d-62c5d5dfc3058b4a818fc6c0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Claude Code grep 与 RAG 六大原因对比表" src="assets/57cf38f94d-62c5d5dfc3058b4a818fc6c0.png" /></p>
 <p><em>Claude Code grep 与 RAG 六大原因对比表</em></p>
 <p>但如果再升一层，我觉得这背后还有更根本的东西：<strong>两种方案代表了两种不同的设计哲学</strong>。</p>
 <p>RAG 派的潜台词是：<strong>LLM 不够强，所以我们要用工程手段帮它把材料准备好</strong>。chunking、embedding、向量召回，本质都是「替模型做决定」。</p>
 <p>Claude Code 派的潜台词是：<strong>LLM 已经足够强，工程的角色是给它准备好工具，把决策权还给它</strong>。grep 不替模型做任何决定，它只是个工具。用还是不用、什么时候用、怎么用，全是模型说了算。</p>
 <p>Anthropic 押注的是「模型会越来越强」，所以他们选择信任模型的判断能力。这是个长期主义的选择。</p>
-<p><img alt="RAG 与 Claude Code 设计哲学对比图" src="assets/45791d76f0-dbd4a7afc635b1b00dbccb86.png" /></p>
+<p><img loading="lazy" decoding="async" alt="RAG 与 Claude Code 设计哲学对比图" src="assets/45791d76f0-dbd4a7afc635b1b00dbccb86.png" /></p>
 <p><em>RAG 与 Claude Code 设计哲学对比图</em></p>
 <hr />
 <h3>九、那 RAG 是不是该被淘汰了？</h3>
@@ -303,7 +303,7 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 <p>而 Claude Code 这套方案，最适合的是<strong>单项目、探索式开发、需要精确性、要求实时性</strong>的场景，恰好是大部分 AI 编程工具的主战场。</p>
 <p>工具是为场景服务的，没有银弹。</p>
 <p>最后留一个开放问题给你思考：如果未来 LLM 的上下文窗口能到 1 亿 token，整个代码库都能塞进去，RAG 还有意义吗？grep 还有意义吗？我自己也没想得特别清楚，欢迎你在评论区跟我聊聊。</p>
-<p><img alt="grep 与 RAG 场景适配对比图" src="assets/09891ce19a-ea6fe88c720e5cb99eb794b0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="grep 与 RAG 场景适配对比图" src="assets/09891ce19a-ea6fe88c720e5cb99eb794b0.png" /></p>
 <p><em>grep 与 RAG 场景适配对比图</em></p>
 <hr />
 <h3>结尾：回到面试题</h3>
@@ -316,7 +316,7 @@ subagent_type=Explore。……只有当你的任务明显需要超过 3 次查�
 </blockquote>
 <p>这道题表面是问技术选型，实际上问的是「你对 Agent 设计哲学的理解」。</p>
 <p>Anthropic 这套思路其实在告诉我们一件事：<strong>Agent 不是带工具的聊天机器人，而是会自己做决策的执行体</strong>。工程师的职责是给它一套好用的工具，而不是替它做决策。</p>
-<p><img alt="" src="assets/18b8cdafbe-7bbff95269c5357b92b2e24e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/18b8cdafbe-7bbff95269c5357b92b2e24e.png" /></p>
 <p>如果你觉得这篇文章有收获，记得点个赞、转发给身边做 Agent 的朋友。</p>
 <p>我们下篇见。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>
 <script>const contentId="xiaolin-tujie-claude-code:14",moduleId="xiaolin-tujie-claude-code";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

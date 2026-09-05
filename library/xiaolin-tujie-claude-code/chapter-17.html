@@ -21,14 +21,14 @@
 <p>这 30 秒里，到底发生了什么？</p>
 <p>很多没接触过 Agent 开发的同学，第一反应是：「这有啥，就是把你的问题发给大模型，大模型回个答案嘛。」</p>
 <p>如果真这么简单，那 Claude 怎么知道你说的「这个 bug」具体在哪个文件？它又是怎么把代码改到磁盘上的？</p>
-<p><img alt="多轮循环示意图" src="assets/4b71b42af3-7f9951305cdb9e91e46b3ba7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="多轮循环示意图" src="assets/4b71b42af3-7f9951305cdb9e91e46b3ba7.png" /></p>
 <p><em>多轮循环示意图</em></p>
 <p>真实情况是这样的：你这句话发出去之后，大模型第一次回复你的可能不是答案，而是「我需要先看一下你提到的那个文件」。</p>
 <p>Claude Code 听到这个，就去读那个文件，把文件内容塞回去再问一遍。大模型这时候可能又说「我得跑一下测试看看现在的报错」，于是 Claude Code 又去跑测试，把报错塞回去……</p>
 <p>来来回回好几轮，模型才会说「我知道了，这个 bug 是因为 X，我已经把修复写好了」。</p>
 <p>这时候这一轮对话才真正结束。</p>
 <p><strong>这个不停「调模型 → 看结果 → 决定下一步」的循环，就叫主循环（Query Loop），是整个 Agent 的「心脏」。</strong></p>
-<p><img alt="Agent 心脏示意图" src="assets/bd89a9bf03-91835ebefdd8c7e2e00b4171.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Agent 心脏示意图" src="assets/bd89a9bf03-91835ebefdd8c7e2e00b4171.png" /></p>
 <p><em>Agent 心脏示意图</em></p>
 <p>理解到这一层还不够。主循环这个东西，你们听上去会觉得很简单：</p>
 <div class="codehilite"><pre><code>while (true) {
@@ -49,7 +49,7 @@
 <li>跑了 50 轮还没收敛，要不要强行止损？</li>
 </ul>
 <p>Claude Code 的 1729 行主循环代码，80% 都在处理这些「异常路径」，真正的「正常路径」可能 200 行就写完了。这也是我说它是一份工业级教科书的原因。</p>
-<p><img alt="主循环代码占比柱状图" src="assets/ebfba2db4d-f8722b8910e6f9ab00495775.png" /></p>
+<p><img loading="lazy" decoding="async" alt="主循环代码占比柱状图" src="assets/ebfba2db4d-f8722b8910e6f9ab00495775.png" /></p>
 <p><em>主循环代码占比柱状图</em></p>
 <p>接下来我们一层一层剥开。</p>
 <h3>二、从 ask 到 queryLoop：一句话怎么穿过四层调用？</h3>
@@ -86,7 +86,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>注意每一层都是 <code>yield*</code> 接力往下传，意味着最里面 <code>queryLoop</code> 抛出的每一个事件，都能原封不动一路冒到最外面 <code>ask</code> 的调用方手里。这是「边干边吐」这条流水线能贯通的关键。</p>
-<p><img alt="四层调用链水流类比图" src="assets/0f64dbef01-1918eddb7c28ad5b365f18c5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="四层调用链水流类比图" src="assets/0f64dbef01-1918eddb7c28ad5b365f18c5.png" /></p>
 <p><em>四层调用链水流类比图</em></p>
 <p>我们从外往里看每一层。</p>
 <p><strong>最外面那层叫 <code>ask</code></strong>，是给 SDK 一次性调用的便捷入口。你写个脚本想跑一次 Claude，最少代码量就是 <code>await ask({ prompt, ... })</code>。它内部其实只做一件事：新建一个 <code>QueryEngine</code> 实例，然后转交给它。</p>
@@ -96,12 +96,12 @@
 <p>讲到这里你可能会问：为啥要分这么多层？尤其是 <code>query</code> 这一层，它就只是个简单的包装，为啥不直接把 <code>queryLoop</code> 暴露出去？</p>
 <p>这就要讲到主循环最关键的一个设计选择：<strong>为什么必须用异步生成器？</strong></p>
 <p>我们用一个生活类比来理解。</p>
-<p><img alt="水龙头 vs 水桶类比图" src="assets/cbecfa4976-561c0bd520e26f6117b8cd54.png" /></p>
+<p><img loading="lazy" decoding="async" alt="水龙头 vs 水桶类比图" src="assets/cbecfa4976-561c0bd520e26f6117b8cd54.png" /></p>
 <p><em>水龙头 vs 水桶类比图</em></p>
 <p>普通的 <code>async</code> 函数，就像让你接一桶水。你打开水龙头之后，必须等水接满了，整桶端走，才能用。对应到 Agent 上，就是「你问一句，等几十秒模型把完整答案吐完，你才能看到结果」。</p>
 <p>异步生成器就是水龙头本身。模型每吐出一个字符、每跑完一个工具，立刻就能流出来给你看。</p>
 <p>这就是为什么你在 Claude Code 里敲完回车，能立刻看到模型一个字一个字地在打字，而不是干等几十秒突然蹦出一大段文字。这种「边干边吐」的能力，不仅是用户体感，更是后面第五章会讲到的「流式 + 并行工具执行」的前提条件。</p>
-<p><img alt="事件接力流水线示意图" src="assets/e6b1130f82-6c2041a73a84d5d58d7268c6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="事件接力流水线示意图" src="assets/e6b1130f82-6c2041a73a84d5d58d7268c6.png" /></p>
 <p><em>事件接力流水线示意图</em></p>
 <p>异步生成器的语法长什么样？我们看一眼源码（来自 <code>query.ts</code>），里面有两个关键标记：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">query</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -111,12 +111,12 @@
 </code></pre></div>
 <p>第一个是函数前面那个 <code>*</code>（写法是 <code>async function*</code>），它告诉 JS 这是一个异步生成器，不是普通函数。第二个是 <code>yield*</code> 这个表达式，它的意思是「把 <code>queryLoop</code> 里所有抛出来的东西，原封不动地接力往外抛」，专门用来串联两个生成器。</p>
 <p>这层包装看上去什么都没做，但它的作用是把对话生命周期的收尾工作（比如最后还要通知一些清理事件），和核心循环逻辑解耦开，让 <code>queryLoop</code> 只管「转圈」，不操心「转完之后还要给谁打招呼」。</p>
-<p><img alt="四层职责对照表" src="assets/8067b1da11-cbac7dc863db6d73e460cb07.png" /></p>
+<p><img loading="lazy" decoding="async" alt="四层职责对照表" src="assets/8067b1da11-cbac7dc863db6d73e460cb07.png" /></p>
 <p><em>四层职责对照表</em></p>
 <p>四层调用链解释完了，我们终于可以走进最里面那间屋子，看看主循环转一圈到底干了啥。</p>
 <h3>三、主循环转一圈，到底跑了哪些动作？</h3>
 <p><code>queryLoop</code> 这个函数有近 1500 行，但骨架就是一个 <code>while (true)</code>。每一轮迭代，按顺序做五件事。</p>
-<p><img alt="主循环五步流程图" src="assets/c8ca04a5dd-fb96cb7772504b38cd62e5c3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="主循环五步流程图" src="assets/c8ca04a5dd-fb96cb7772504b38cd62e5c3.png" /></p>
 <p><em>主循环五步流程图</em></p>
 <p>这张图就是整个主循环的「素描」。如果你更喜欢从代码视角看，把这个流程翻译成伪代码就是：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="o">*</span><span class="w"> </span><span class="nx">queryLoop</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -162,7 +162,7 @@
 <p>为什么不主动压？因为压缩本身也要烧 token 调一次小模型做摘要，能不压就不压。主循环的策略很朴素：先试试看，被拒了再补救。</p>
 <p><code>State.hasAttemptedReactiveCompact</code> 这个标志位的作用，是<strong>同一轮内防止反复压</strong>。一次压完还是塞不下，就别再压第二次了，避免陷入「压缩 → 还是塞不下 → 再压」的死循环。新一轮开始时这个标志会被重置。</p>
 <p>Claude Code 的压缩策略我之前专门写过一篇（公众号文章《<a href="https://mp.weixin.qq.com/s/NBR6dRr3iO7KCTEChk8QUg">Claude Code 上下文压缩机制详解</a>》），这里就不重复展开了。</p>
-<p><img alt="消息历史滚雪球示意图" src="assets/22743c4ea6-460a5b8407b1b6ffe57d9b1d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="消息历史滚雪球示意图" src="assets/22743c4ea6-460a5b8407b1b6ffe57d9b1d.png" /></p>
 <p><em>消息历史滚雪球示意图</em></p>
 <p><strong>第二步：流式调大模型。</strong></p>
 <p>讲这一步之前，我得先帮大家把一个后面会反复出现的概念铺一下，否则后面看代码会很懵。</p>
@@ -173,7 +173,7 @@
 <li>第二种是「工具调用块」，长得像 <code>{ 工具名: "Read", 参数: { 文件路径: "config.ts" } }</code> 这种结构化的请求。这是模型在告诉你「我现在想用某某工具，参数是这些，麻烦你帮我跑一下」。</li>
 </ul>
 <p>这种「工具调用块」在 Anthropic API 协议里有个专门的名字，叫 <code>tool_use</code> 块（直译就是「使用工具」的意思）。后面的文字里我会经常用这个词，你只要记住「模型说要用工具的请求，就叫一个 <code>tool_use</code> 块」就够了。</p>
-<p><img alt="文字块 vs tool_use 块对比图" src="assets/c8be3149b9-dbec6fd67ec9761d98b214e1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="文字块 vs tool_use 块对比图" src="assets/c8be3149b9-dbec6fd67ec9761d98b214e1.png" /></p>
 <p><em>文字块 vs tool_use 块对比图</em></p>
 <p>铺垫完毕，回到第二步。</p>
 <p>调模型这一步是用流式接收的，模型每吐出一小段内容（可能是几个字符），主循环立刻就能拿到。收到的可能是文字块的一部分，也可能是 <code>tool_use</code> 块的一部分。</p>
@@ -185,11 +185,11 @@
 <p>如果判断要继续，就把模型这一轮要求的所有工具调用都跑掉，拿到每个工具的执行结果。Claude Code 在这一步有一个非常骚的「流式并行」设计，第五章细讲。</p>
 <p><strong>第五步：塞回结果，进下一轮。</strong></p>
 <p>所有工具结果跑完了，把它们当作「user 角色的消息」塞回消息历史里，更新一下「跨轮要带的状态对象」（这个状态对象第六章会专门讲），然后 <code>continue</code> 回到 <code>while</code> 头部。</p>
-<p><img alt="五步骨架环形图" src="assets/e3f26b1836-49a6b33ba489b844fe7b7b39.png" /></p>
+<p><img loading="lazy" decoding="async" alt="五步骨架环形图" src="assets/e3f26b1836-49a6b33ba489b844fe7b7b39.png" /></p>
 <p><em>五步骨架环形图</em></p>
 <p>注意一个细节：每跑一轮，消息历史都会变长（assistant 的回复 + 工具结果）。如果主循环跑了 20 轮，那第 20 轮发给模型的消息历史里，就有前 19 轮所有的对话和工具结果。</p>
 <p>这也是为什么压缩机制要存在：消息历史会像滚雪球一样越滚越大，不压就会爆炸。</p>
-<p><img alt="一轮迭代消息累积示意图" src="assets/b529e0b37f-95415ff2345a30a9f547783b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="一轮迭代消息累积示意图" src="assets/b529e0b37f-95415ff2345a30a9f547783b.png" /></p>
 <p><em>一轮迭代消息累积示意图</em></p>
 <p>主循环的骨架就这样。但「骨架」不等于「细节」，真正考验工程功力的是后面三章要讲的东西。</p>
 <h3>四、Agent 怎么知道「该用工具」还是「该停下来」？</h3>
@@ -211,7 +211,7 @@
 <p>为啥这么简单？因为「决定下一步做什么」这件事，本身就是大模型的工作。你只要看它最后吐出来的是「文字」还是「工具调用请求」，就知道它的意图了。</p>
 <p>我打个比方。你跟工位旁边的同事说：「帮我看下这个 bug。」他要么回你：「我得先看看你那段代码。」（动手 → 用工具），要么直接告诉你：「这是因为 X 导致的，你这样改一下就好了。」（停下 → 给答复）。</p>
 <p>Claude 主循环的判断逻辑就是这么朴素。</p>
-<p><img alt="tool_use 决策类比图" src="assets/a760ec240d-aef4a27244f8564a3cc0c508.png" /></p>
+<p><img loading="lazy" decoding="async" alt="tool_use 决策类比图" src="assets/a760ec240d-aef4a27244f8564a3cc0c508.png" /></p>
 <p><em>tool_use 决策类比图</em></p>
 <p><strong>但是！「停下来」并不只有「正常完成」这一种姿势。</strong></p>
 <p>这才是真正的工程深水区。</p>
@@ -229,7 +229,7 @@
 <p>这里列的是最有代表性的 8 个。源码里实际定义了 17 种 <code>reason</code>，剩下的多是细分子情况，原理一致，不影响理解。</p>
 <p>看到这十几种 reason，你应该能感受到一件事：<strong>一个工业级的 Agent 主循环，它要兜住的从来不是「正常退出」，而是十几种「异常退出」。</strong></p>
 <p>我们用一张图把这些退出 reason 按性质归一下类：</p>
-<p><img alt="主循环退出原因分类图" src="assets/10b182efed-339413b5173035d8c83c60c4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="主循环退出原因分类图" src="assets/10b182efed-339413b5173035d8c83c60c4.png" /></p>
 <p><em>主循环退出原因分类图</em></p>
 <p>这张图能让你直观感受到：<strong>正常完成只是分支里最小的一支，其他三支才是大头</strong>。</p>
 <p>每一种异常退出，都不是一个简单的 <code>throw new Error</code>，而是需要：</p>
@@ -238,14 +238,14 @@
 <li>第二，做必要的清理（比如取消正在跑的工具、解锁资源）；</li>
 <li>第三，返回结构化的 <code>reason</code>，让外层调用者知道是什么原因结束的，方便上报、重试或者给用户友好提示。</li>
 </ul>
-<p><img alt="主循环工程量冰山图" src="assets/594550b309-3a0f5b94ac9aa2c54c2b0dca.png" /></p>
+<p><img loading="lazy" decoding="async" alt="主循环工程量冰山图" src="assets/594550b309-3a0f5b94ac9aa2c54c2b0dca.png" /></p>
 <p><em>主循环工程量冰山图</em></p>
 <p>这才是「主循环」三个字背后真正的工程量。</p>
 <h3>五、模型还在吐字、工具就开跑了？这怎么做到的？</h3>
 <p>讲完决策，我们看主循环第四步：执行工具。</p>
 <p>这一步是 Claude Code 整个主循环里最骚的设计，我必须单独开一章来讲。</p>
 <p>我们先想想朴素做法是什么样的。</p>
-<p><img alt="朴素串行 vs 流式并行时间线" src="assets/286696c789-6e99d4809e0c3e2a3daaf551.png" /></p>
+<p><img loading="lazy" decoding="async" alt="朴素串行 vs 流式并行时间线" src="assets/286696c789-6e99d4809e0c3e2a3daaf551.png" /></p>
 <p><em>朴素串行 vs 流式并行时间线</em></p>
 <p>朴素做法是这样的：</p>
 <ul>
@@ -266,13 +266,13 @@
 </code></pre></div>
 <p>第一行 <code>addTool</code>，发生在主循环监听到模型吐出一个 <code>tool_use</code> 块的瞬间。这个工具立刻在后台开跑，主循环不等它，继续监听模型的下一段输出。</p>
 <p>第二行 <code>getRemainingResults</code>，发生在模型完整流完之后。这时候所有工具都已经在后台跑了一会儿了，这里只是把已完成的结果一次性收上来。</p>
-<p><img alt="点菜类比示意图" src="assets/61c2f29f14-97938a092713749fa5384ac2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="点菜类比示意图" src="assets/61c2f29f14-97938a092713749fa5384ac2.png" /></p>
 <p><em>点菜类比示意图</em></p>
 <p>用「点菜」打个比方就清楚了。</p>
 <p>传统模式是：你完整说完「我要一个红烧肉、一个清炒空心菜、一个鱼香肉丝」，服务员拿着单子跑去厨房，厨房才开始一道一道做。</p>
 <p>Claude Code 的模式是：你说「我要一个红烧肉」，服务员立刻冲到后厨喊「红烧肉一份！」，你接着说「再来一个清炒空心菜」，服务员又喊「空心菜一份！」。等你点完，红烧肉已经在锅里炒了一半了。</p>
 <p>最终上菜时间，比传统模式快了一大截。</p>
-<p><img alt="最终用时对比柱状图" src="assets/6c6f3f7346-d0445ac045487bc16e093b3a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="最终用时对比柱状图" src="assets/6c6f3f7346-d0445ac045487bc16e093b3a.png" /></p>
 <p><em>最终用时对比柱状图</em></p>
 <p><strong>但并不是所有工具都能这么并行</strong>。这里有个边界要讲清楚。</p>
 <p>Claude Code 的工具在定义的时候，每个工具都有一个属性，标明它是「只读」还是「会改东西的」。</p>
@@ -283,7 +283,7 @@
 <p>这个属性是在工具定义时就声明的。</p>
 <p>如果开发者一时忘了写，框架会 <strong>fail-closed 兜底</strong>，默认当成「会改东西的工具」（值为 <code>false</code>），强制串行执行。</p>
 <p>也就是说，宁可错杀让你慢一点，也绝不会因为漏写而出现并发踩踏。</p>
-<p><img alt="只读 vs 写操作并行性对照图" src="assets/4650fe7fb2-291b15deaaf494f1eae9c9d0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="只读 vs 写操作并行性对照图" src="assets/4650fe7fb2-291b15deaaf494f1eae9c9d0.png" /></p>
 <p><em>只读 vs 写操作并行性对照图</em></p>
 <p>讲到这里，我想抛出一个延伸思考：<strong>Claude Code 让 Agent 跑得快的秘密，不在于模型多聪明，而在于工程上把每一段空闲时间都榨干</strong>。</p>
 <p>这种「流式 + 并行」的设计，是把模型生成时间和工具执行时间高度重叠，最大化利用每一秒。</p>
@@ -304,13 +304,13 @@
 <span class="w">  </span><span class="nx">hasAttemptedReactiveCompact</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span><span class="w">   </span><span class="c1">// 本轮是不是已经触发过压缩了</span>
 <span class="p">}</span>
 </code></pre></div>
-<p><img alt="状态对象跨轮传递示意图" src="assets/0c1e1ccaa9-537e9e23512cf3f952ddc25f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="状态对象跨轮传递示意图" src="assets/0c1e1ccaa9-537e9e23512cf3f952ddc25f.png" /></p>
 <p><em>状态对象跨轮传递示意图</em></p>
 <p>注意看后面两个字段，一个是「已经恢复了几次」，一个是「本轮是不是已经压缩过了」。它们的本质都是「计数器」或「防重复标志」（同一轮内只让某件事发生一次），目的就一个：<strong>避免无限循环</strong>。</p>
 <p>举个例子：模型输出超长被截断了，主循环尝试恢复一下。如果恢复又失败，再来一次。但你不能无限重试，否则就死循环了。所以要计数：<strong>最多 3 次，超过就老老实实退出</strong>。</p>
 <p>再比如：上下文塞不下了，主循环触发一次压缩。但同一轮内只能压一次，否则连续压缩没意义还浪费 token。所以要标志位：本轮已经压过了，就别再压了。</p>
 <p>这些状态如果全藏在闭包变量里，调试的时候你根本不知道循环是因为什么继续的。摊在一个状态对象里，每一轮的「现场」都一目了然。</p>
-<p><img alt="闭包变量 vs 状态对象对照图" src="assets/39837a0489-60ec4cdcef22dcba8d972ff7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="闭包变量 vs 状态对象对照图" src="assets/39837a0489-60ec4cdcef22dcba8d972ff7.png" /></p>
 <p><em>闭包变量 vs 状态对象对照图</em></p>
 <p>这就是为什么你用 Claude Code 跑几十轮工具也不会陷进死循环，所有「还要不要继续」的标志都摊在明处，每一轮的「现场」都能干净结束，不会因为某个藏起来的变量没复位就鬼打墙。</p>
 <h4>6.2 工具跑挂之后，对话凭什么还能继续？</h4>
@@ -321,7 +321,7 @@
 <p>正常情况下没问题，工具跑完就有结果，配对很自然。但出错的时候呢？</p>
 <p>比如：模型刚吐完 <code>tool_use</code> 块，网络突然断了，工具根本没开始跑；或者工具跑到一半，用户按了 Ctrl+C；或者模型出了问题，主循环临时切换到备用模型（这种切换机制叫「模型降级」），前一个模型吐出的 <code>tool_use</code> 就没机会执行了。</p>
 <p>这些情况下，消息历史里就有了「孤立的 tool_use 块」。你不处理，下一轮想再调模型，API 直接拒收，会返回一个「请求格式不对」的错误。</p>
-<p><img alt="孤立 tool_use 块三种场景图" src="assets/818c79ac1a-b57179b55383aadcd658e2b5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="孤立 tool_use 块三种场景图" src="assets/818c79ac1a-b57179b55383aadcd658e2b5.png" /></p>
 <p><em>孤立 tool_use 块三种场景图</em></p>
 <p>Claude Code 的方案听起来有点奇葩：<strong>合成一个假的工具结果塞回去，内容写「这个工具因为 XX 错误没执行」</strong>。主循环里专门有段代码干这事，函数名也很直白，直译过来就是「把缺失的工具结果块补上」（源码里叫 <code>yieldMissingToolResultBlocks</code>）。</p>
 <p>这段补救代码就三个关键：标明类型是 <code>tool_result</code>、内容是错误消息、附上对应的工具调用 ID 让 API 能配对上。简化后长这样：</p>
@@ -332,7 +332,7 @@
 <span class="w">  </span><span class="nx">tool_use_id</span><span class="o">:</span><span class="w"> </span><span class="kt">对应的工具调用ID</span><span class="p">,</span><span class="w"> </span><span class="c1">// 让 API 能配对上</span>
 <span class="p">})</span>
 </code></pre></div>
-<p><img alt="孤立 tool_use 补救方案图" src="assets/f90a9de624-bf3b66b869b54ac6b410b8c7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="孤立 tool_use 补救方案图" src="assets/f90a9de624-bf3b66b869b54ac6b410b8c7.png" /></p>
 <p><em>孤立 tool_use 补救方案图</em></p>
 <p>这种设计可以叫「先认错，再继续」。API 协议是死的，但通过合成一个明确标了「这是错误」的假结果，主循环至少不会因为一个错误就彻底卡死，还能让模型知道「上个工具失败了」，从而做出合理的下一步决策。</p>
 <p>这就是为什么你用 Claude Code 按 Ctrl+C 打断之后，下一句话依然能接得上，主循环替你把那个「没人接的工具调用」伪造了一个错误结果，让 API 协议这个死规矩不会因为一次中断就把整个对话废掉。</p>
@@ -343,7 +343,7 @@
 <p>Claude Code 的处理是两段式的，非常有意思。</p>
 <p><strong>第一段：静默升档。</strong></p>
 <p>模型第一次触发 8k 截断时，主循环不报错，悄悄把上限调到 64k 然后重试这一轮。用户完全感知不到出过错，只是觉得「这次模型答得稍微慢了点」。</p>
-<p><img alt="8k 到 64k 静默升档示意图" src="assets/55ba190b31-795ac2c4e506d732121ef7d7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="8k 到 64k 静默升档示意图" src="assets/55ba190b31-795ac2c4e506d732121ef7d7.png" /></p>
 <p><em>8k 到 64k 静默升档示意图</em></p>
 <p><strong>第二段：在下一轮消息里轻轻推一把，让模型自己续写。</strong></p>
 <p>如果调到 64k 还截断，那是真的输出太长了。</p>
@@ -351,7 +351,7 @@
 <p>让模型从断点继续往下写。</p>
 <p>这种「在消息里轻推一把提示模型续写」的动作，英文里叫 nudge（轻推）。但 nudge 不能无限循环，会陷入死锁。</p>
 <p>所以源码里写死了 3 次上限：续写 3 次还不行，主循环就老老实实退出，返回原因「输出超长救不回来」。</p>
-<p><img alt="max_output_tokens 两段式恢复流程图" src="assets/04db302a17-7d2dea2c8feb83cdd07e1ab1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="max_output_tokens 两段式恢复流程图" src="assets/04db302a17-7d2dea2c8feb83cdd07e1ab1.png" /></p>
 <p><em>max_output_tokens 两段式恢复流程图</em></p>
 <p>我想在这里抛出一个延伸思考：<strong>工业级的容错，不是「报错弹窗」，而是用户根本感觉不到出过错</strong>。</p>
 <p>你用 Claude Code 这么多天，可能从来没注意过模型输出被截断这件事，因为它在背后默默地帮你处理了。这就是好工程的样子。</p>
@@ -361,7 +361,7 @@
 <p><strong>二、状态显式管理。</strong> 该计数的字段全部摊在一个状态对象里，不藏在闭包变量里。能调试的状态才是可靠的状态。</p>
 <p><strong>三、引擎层不掺业务。</strong> 主循环不知道工具具体在干嘛，新增能力零侵入，只需要往工具池里塞一个新工具就完事。</p>
 <p><strong>四、错误恢复优先于优雅。</strong> 每个失败路径都有兜底。宁可丑陋地合成一个假的工具结果塞回去，也不能优雅地崩溃。</p>
-<p><img alt="面试场景呼应图" src="assets/e9adcb4310-5a98d6487de20fdb0d74f226.png" /></p>
+<p><img loading="lazy" decoding="async" alt="面试场景呼应图" src="assets/e9adcb4310-5a98d6487de20fdb0d74f226.png" /></p>
 <p><em>面试场景呼应图</em></p>
 <p>回到开篇那个面试场景。</p>
 <p>再被问到「Claude Code 主循环 Query 是怎么跑的？」.</p>
