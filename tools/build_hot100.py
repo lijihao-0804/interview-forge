@@ -1063,7 +1063,7 @@ def render_readme() -> None:
 
 力扣没有第三方授权（无 OAuth），无法“一键授权”。项目采用**导入你的登录 Cookie** 方式：会话只保存在本机 SQLite，仅用于读取你的提交记录；提交代码仍在力扣官网进行，项目不会自动提交。
 
-#### 四步接入（[力扣连接页](leetcode-connect.html)）
+#### 四步接入（[力扣连接页](pages/leetcode-connect.html)）
 
 1. 打开 [leetcode.cn](https://leetcode.cn/) 并登录（用户名密码只交给力扣）；
 2. 复制登录 Cookie：
@@ -1120,14 +1120,22 @@ def render_readme() -> None:
 interview-forge/
 ├─ README.md                 项目总入口
 ├─ MAINTENANCE.md            维护、扩展与发布规范
-├─ QA-REPORT.md              发布前校验报告
 ├─ index.html                学习面板（由模板生成）
 ├─ guide.html                完整使用指南（由 README 生成）
 ├─ maintenance.html          维护指南（由 MAINTENANCE 生成）
-├─ leetcode-connect.html     力扣连接向导页
 ├─ 启动学习站.cmd            自动杀旧进程并启动本地服务
 ├─ manifest.webmanifest       PWA 清单
 ├─ service-worker.js          PWA 离线缓存
+├─ pages/                    独立功能页
+│  ├─ history.html           学习记录页
+│  ├─ leetcode-connect.html  力扣连接向导页
+│  ├─ login.html             登录页
+│  ├─ register.html          注册码注册页
+│  └─ admin.html             管理后台（仅管理员）
+├─ docs/                     文档与报告
+│  ├─ QA-REPORT.md/.html     发布前校验报告
+│  ├─ MOBILE-UX-REPORT.md    移动端 UX 优化报告
+│  └─ InterviewForge-SSH部署与版本更新指南.md
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
 ├─ library/                  学习书架生成结果（37 模块 / 709 章）

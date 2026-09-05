@@ -198,7 +198,7 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="history.html">学习记录</a><a class="lc-button" href="leetcode-connect.html">力扣连接</a></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>
   <div id="serverNotice" class="notice" hidden>数据库没有启动。请关闭这个页面，然后双击根目录中的 <code>启动学习站.cmd</code>；以后从自动打开的页面学习，记录才会写入 SQLite。</div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
@@ -255,7 +255,7 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
   </section>
   </div>
   <div id="toast" class="toast" aria-live="polite"></div>
-<footer><a href="guide.html">完整使用指南</a> · <a href="maintenance.html">维护指南</a> · <a href="leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 数据保存在本机 <code>data/hot100-study.db</code></footer>
+<footer><a href="guide.html">完整使用指南</a> · <a href="maintenance.html">维护指南</a> · <a href="pages/leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 数据保存在本机 <code>data/hot100-study.db</code></footer>
 </main>
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
@@ -547,9 +547,9 @@ async function updateLcStatus(){
     if(!response.ok)throw new Error();
     if(data.credentials_saved){
       if(data.connected){el.textContent=`力扣：已连接 ${data.user_name}`;}
-      else{el.innerHTML='力扣：<a href="leetcode-connect.html" style="color:var(--danger)">会话已失效，点击重新获取</a>';}
+      else{el.innerHTML='力扣：<a href="pages/leetcode-connect.html" style="color:var(--danger)">会话已失效，点击重新获取</a>';}
     }else{
-      el.innerHTML='力扣：<a href="leetcode-connect.html">未连接</a>';
+      el.innerHTML='力扣：<a href="pages/leetcode-connect.html">未连接</a>';
     }
   }catch(error){
     el.textContent='力扣：检测失败';

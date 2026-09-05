@@ -27,7 +27,7 @@
 
       if (me.role === "admin") {
         var adminLink = document.createElement("a");
-        adminLink.href = "/admin.html";
+        adminLink.href = "/pages/admin.html";
         adminLink.textContent = "管理后台";
         pill.appendChild(adminLink);
         var sep = document.createElement("span");
@@ -51,7 +51,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: "{}"
-        }).finally(function () { location.replace("/login.html"); });
+        }).finally(function () { location.replace("/pages/login.html"); });
       };
       pill.appendChild(logout);
 
