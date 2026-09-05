@@ -529,6 +529,22 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
     return {"username": username, "is_active": 1 if active else 0}
 
 
+def reset_user_password(username: str, new_password: str) -> dict[str, object]:
+    """管理员重置用户密码：更新哈希并清除该用户全部会话（强制重新登录）。"""
+    if len(new_password) < 6:
+        raise ValueError("密码至少 6 位")
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if row is None:
+            raise ValueError("用户不存在")
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                           (hash_password(new_password), row["id"]))
+        connection.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
+        connection.execute("COMMIT")
+    return {"username": username, "reset": True}
+
+
 # ---- 登录防爆破：进程内滑动窗口（IP → [失败次数, 解禁时间戳]），重启即清零 ----
 _LOGIN_FAILS: dict[str, list[float]] = {}
 _LOGIN_LOCK = threading.Lock()
@@ -2004,6 +2020,8 @@ def _parse_kb(text: str) -> int | None:
 
 class StudyHandler(SimpleHTTPRequestHandler):
     server_version = "Hot100Study/1.0"
+    # 不注入认证小部件的页面：这三页自带登录/退出界面，无需浮动小部件。
+    WIDGET_SKIP_PATHS = {"/login.html", "/register.html", "/admin.html"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2273,7 +2291,35 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 record_content_view(str(route["module_id"]), str(route["content_id"]), db)
             except (ValueError, OSError, sqlite3.Error):
                 pass
+        # ---- 前端认证小部件注入：阅读页/面板 HTML 在发送前插入 auth-widget.js ----
+        # 登录/注册/管理页自带完整界面、05-可视化 页面会被 iframe 内嵌，均跳过；
+        # 注入发生在服务层，不改任何生成产物，构建链无需重跑。
+        if (decoded_path.lower().endswith(".html")
+                and decoded_path not in self.WIDGET_SKIP_PATHS
+                and not decoded_path.startswith("/books/hot100/05-可视化/")):
+            if self.serve_html_with_widget(decoded_path):
+                return
         super().do_GET()
+
+    def serve_html_with_widget(self, decoded_path: str) -> bool:
+        """读取 HTML 文件、在 </body> 前注入认证小部件脚本后发送；文件不存在返回 False 交给默认 404。"""
+        try:
+            target = (ROOT / decoded_path.lstrip("/")).resolve()
+            if not (target.is_file() and str(target).startswith(str(ROOT.resolve()))):
+                return False
+            body = target.read_bytes()
+        except OSError:
+            return False
+        widget = b'<script src="/assets/auth-widget.js?v=1" defer></script>'
+        idx = body.lower().rfind(b"</body>")
+        body = body[:idx] + widget + body[idx:] if idx != -1 else body + widget
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        # end_headers 钩子会为 .html 自动附加 Cache-Control: no-store。
+        self.end_headers()
+        self.wfile.write(body)
+        return True
 
     def do_POST(self) -> None:
         # POST 路由白名单：公开（登录/注册）、管理员、普通登录用户三类，未知路径直接 404
@@ -2281,7 +2327,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         public_post = {"/api/login", "/api/register"}
-        admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle"}
+        admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
+                      "/api/admin/users/reset-password"}
         known_post = public_post | admin_post | {
             "/api/logout", "/api/complete", "/api/content/complete", "/api/mark", "/api/settings",
             "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
@@ -2353,6 +2400,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/admin/users/toggle：停用/启用用户（停用即踢下线；管理员账号不可停用）。
             elif path == "/api/admin/users/toggle":
                 result = set_user_active(str(payload.get("username", "")), bool(payload.get("active")))
+            # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
+            elif path == "/api/admin/users/reset-password":
+                result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")))
             # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
             elif path == "/api/complete":
                 result = complete_round(int(payload["problem_id"]), db)

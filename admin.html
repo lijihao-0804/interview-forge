@@ -77,6 +77,17 @@
   </div>
 </div>
 
+<dialog id="reset-dialog" style="border:1px solid #dfe4ee;border-radius:14px;padding:24px;box-shadow:0 16px 44px rgba(33,45,73,.18);font:15px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235;min-width:320px">
+  <h3 style="margin:0 0 6px;font-size:16px">重置密码</h3>
+  <p style="margin:0 0 14px;font-size:13px;color:#66748a">用户 <strong id="reset-username"></strong> · 重置后该用户全部会话立即失效，需用新密码重新登录</p>
+  <input id="reset-password" type="text" placeholder="新密码（至少 6 位）" autocomplete="off"
+         style="width:100%;padding:9px 11px;border:1px solid #dfe4ee;border-radius:8px;font:inherit;background:#fbfcff">
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+    <button id="reset-cancel" class="ghost" style="background:transparent;color:#5654d4;border:1px solid #dfe4ee;font-weight:500">取消</button>
+    <button id="reset-confirm">确认重置</button>
+  </div>
+</dialog>
+
 <script>
 function fmtBytes(n) {
   if (!n) return "—";
@@ -146,12 +157,40 @@ function loadUsers() {
             .then(function (res2) { if (!res2.ok) alert(res2.data.error || "操作失败"); loadUsers(); });
         };
         action.appendChild(btn);
+        action.appendChild(document.createTextNode(" "));
+        var resetBtn = el("button", "mini ghost", "重置密码");
+        resetBtn.onclick = function () { openResetDialog(user.username); };
+        action.appendChild(resetBtn);
       } else { action.textContent = "—"; }
       tr.appendChild(action);
       tbody.appendChild(tr);
     });
   });
 }
+
+// ---- 重置密码对话框 ----
+var resetTarget = "";
+function openResetDialog(username) {
+  resetTarget = username;
+  document.getElementById("reset-username").textContent = username;
+  document.getElementById("reset-password").value = "";
+  document.getElementById("reset-dialog").showModal();
+}
+document.getElementById("reset-cancel").onclick = function () {
+  document.getElementById("reset-dialog").close();
+};
+document.getElementById("reset-confirm").onclick = function () {
+  var newPassword = document.getElementById("reset-password").value;
+  if (newPassword.length < 6) { alert("密码至少 6 位"); return; }
+  api("/api/admin/users/reset-password", { method: "POST",
+    body: JSON.stringify({ username: resetTarget, new_password: newPassword }) })
+    .then(function (res) {
+      if (res.ok) {
+        document.getElementById("reset-dialog").close();
+        alert("已重置 " + resetTarget + " 的密码，该用户现有登录已全部失效");
+      } else { alert(res.data.error || "重置失败"); }
+    });
+};
 
 document.getElementById("gen").onclick = function () {
   var msg = document.getElementById("gen-msg");
