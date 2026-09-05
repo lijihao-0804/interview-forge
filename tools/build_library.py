@@ -87,7 +87,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 HOT100_ROOT = Path(__file__).resolve().parents[1]
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
-ASSET_VERSION = "20260906-p0-immersive"
+ASSET_VERSION = "20260906-p12"
 
 
 # 书架全局样式常量，构建时写入 library/assets/library.css(见 build() 第 0 步)。
@@ -98,14 +98,21 @@ ASSET_VERSION = "20260906-p0-immersive"
 LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");font-weight:100 800;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
-:root{color-scheme:light dark;--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075)}
-@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22)}}
+:root{color-scheme:light dark;--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075)/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1: 4px;--space-2: 8px;--space-3: 12px; --space-4: 16px;--space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;--fs-0: .8rem; --fs-1: .9rem; --fs-2: 1rem; --fs-3: 1.1rem;--fs-4: 1.25rem; --fs-5: 1.5rem; --fs-6: 1.8rem; --fs-7: 2.2rem;--radius-1: 6px; --radius-2: 10px; --radius-3: 14px; --radius-4: 20px;--ease-out: cubic-bezier(.22, 1, .36, 1);--ease-in-out: cubic-bezier(.65, 0, .35, 1);
+}@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22)}}
 *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:var(--radius-1);border:2px solid transparent;background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 72%,transparent);border:2px solid transparent;background-clip:padding-box}
-*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;color:var(--text);background:radial-gradient(circle at 12% 0%,color-mix(in srgb,var(--brand) 10%,transparent),transparent 34rem),var(--bg);font:16px/1.78 var(--font-sans)}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 48%,transparent);outline-offset:3px}.shell{width:calc(100% - 36px);margin:auto;padding:24px 0 56px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px;padding:11px 14px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:0 7px 24px rgba(31,42,68,.045)}.topbar nav{display:flex;gap:10px;flex-wrap:wrap}.brand{color:var(--text);font-weight:750}.hero{margin:30px 0}.hero h1{margin:0;font-size:clamp(30px,4vw,45px);line-height:1.2;letter-spacing:-.025em}.hero p{max-width:720px;margin:10px 0 0;color:var(--muted)}.filters{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 20px}.filters button{padding:7px 11px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel);cursor:pointer}.filters button.active{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px}.module-card{display:flex;min-width:0;flex-direction:column;padding:17px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:0 7px 22px rgba(31,42,68,.04)}.module-card h2{margin:0;font-size:18px;line-height:1.45}.module-meta{display:flex;justify-content:space-between;gap:12px;margin:8px 0;color:var(--muted);font-size:13px}.module-progress{height:7px;margin:7px 0 12px;overflow:hidden;border-radius:999px;background:var(--line)}.module-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--success))}.module-link{margin-top:auto}.chapter-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:20px;align-items:start}.chapter-list,.reader,.chapter-side{border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:var(--shadow)}.chapter-list{padding:18px}.chapter-list h1{margin:0 0 8px;font-size:28px}.chapter-list>p{color:var(--muted)}.chapters{list-style:none;margin:18px 0 0;padding:0}.chapters li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.chapters li:last-child{border-bottom:0}.chapter-no{color:var(--muted);font-variant-numeric:tabular-nums}.rounds{padding:2px 7px;border-radius:999px;color:var(--success);background:var(--success-soft);font-size:12px}.reader{min-width:0;padding:clamp(24px,5vw,52px)}.reader h1{margin:0 0 27px;font-size:clamp(29px,5vw,42px);line-height:1.25}.reader h2{margin:42px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:25px}.reader h3{margin:30px 0 12px;font-size:20px}.reader h4{margin:24px 0 9px;font-size:17px}.reader p{margin:13px 0}.reader ul,.reader ol{padding-left:1.55em}.reader li{margin:5px 0}.reader blockquote{margin:20px 0;padding:12px 16px;border-left:4px solid var(--brand);border-radius:0 10px 10px 0;background:var(--brand-soft)}.reader code{padding:.14em .36em;border-radius:5px;color:var(--brand);background:var(--brand-soft);font: .91em/1.5 var(--font-mono);font-variant-ligatures:none}.reader pre{max-width:100%;overflow:auto;padding:17px;border-radius:11px;color:#e9edf7;background:#151a24}.reader pre code{padding:0;color:inherit;background:transparent;font-variant-ligatures:none}.reader table{width:100%;border-collapse:collapse;display:block;overflow:auto}.reader th,.reader td{padding:9px 11px;border:1px solid var(--line);text-align:left}.reader img,.reader video{display:block;max-width:100%;height:auto;margin:20px auto;border-radius:11px}.reader math{font-family:"Cambria Math","STIX Two Math",serif;vertical-align:baseline}.plain-math{white-space:nowrap}.plain-math sup,.plain-math sub{font-size:.72em;line-height:0}.math-inline-wrap{display:inline-block;overflow-x:auto;overflow-y:hidden;vertical-align:-.12em;line-height:1.1}.math-display-wrap{display:block;margin:18px 0;padding:12px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--soft);text-align:center}.mermaid-diagram{max-width:100%;margin:24px 0;overflow-x:auto;overflow-y:hidden;border:1px solid color-mix(in srgb,var(--brand) 18%,var(--line));border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--brand) 5%,var(--panel)),var(--panel));box-shadow:0 9px 28px rgba(31,42,68,.05)}.reader pre.mermaid{display:flex;min-height:150px;align-items:center;justify-content:center;margin:0;padding:24px;overflow:visible;border-radius:0;color:var(--text);background:transparent;font-family:inherit;white-space:pre-wrap}.reader pre.mermaid svg{display:block;width:auto;max-width:100%!important;height:auto;margin:auto}.mermaid-diagram.is-rendered .mermaid{white-space:normal}.mermaid-error{display:none;margin:0;padding:12px 16px;border-top:1px solid var(--line);color:var(--warning);background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.mermaid-diagram.is-error .mermaid-error{display:block}.chapter-side{padding:16px}.chapter-side h2{margin:0 0 10px;font-size:16px}.chapter-side p{color:var(--muted);font-size:13px}.complete-button{width:100%;padding:9px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:9px;color:var(--brand);background:var(--brand-soft);cursor:pointer}.complete-button:disabled{cursor:not-allowed;opacity:.5}.chapter-nav{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:34px;padding-top:20px;border-top:1px solid var(--line)}.chapter-nav .nav-toc{padding:6px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:8px;color:var(--brand);background:var(--brand-soft);font-weight:650}.chapter-nav .nav-toc:hover{text-decoration:none;border-color:var(--brand)}.breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:-8px 0 18px;color:var(--muted);font-size:13px}.breadcrumb a{color:var(--brand);font-weight:650}.breadcrumb a:hover{text-decoration:underline}.breadcrumb span[aria-current]{color:var(--text)}.notice{margin:12px 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.toast{min-height:24px;margin-top:10px;color:var(--success);font-size:13px}.empty{padding:38px 15px;color:var(--muted);text-align:center}@media(max-width:860px){.chapter-layout{grid-template-columns:1fr}.chapter-side{order:-1}.reader{padding:24px}.reader pre.mermaid{padding:18px}}@media(max-width:560px){.shell{width:calc(100% - 20px);padding-top:14px}.chapters li{grid-template-columns:auto minmax(0,1fr)}.rounds{grid-column:2}.topbar{align-items:flex-start}.reader pre.mermaid{min-height:110px;padding:12px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;color:var(--text);background:radial-gradient(circle at 12% 0%,color-mix(in srgb,var(--brand) 10%,transparent),transparent 34rem),var(--bg);font:16px/1.78 var(--font-sans)}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 48%,transparent);outline-offset:3px}.shell{width:calc(100% - 36px);margin:auto;padding:24px 0 56px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:0 7px 24px rgba(31,42,68,.045)}.topbar nav{display:flex;gap:10px;flex-wrap:wrap}.brand{color:var(--text);font-weight:750}.hero{margin:30px 0}.hero h1{margin:0;font-size:clamp(30px,4vw,45px);line-height:1.2;letter-spacing:-.025em}.hero p{max-width:720px;margin:10px 0 0;color:var(--muted)}.filters{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 20px}.filters button{padding:7px 11px;border:1px solid var(--line);border-radius:var(--radius-2);color:var(--text);background:var(--panel);cursor:pointer}.filters button.active{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px}.module-card{display:flex;min-width:0;flex-direction:column;padding:17px;border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);box-shadow:0 7px 22px rgba(31,42,68,.04)}.module-card h2{margin:0;font-size:18px;line-height:1.45}.module-meta{display:flex;justify-content:space-between;gap:12px;margin:8px 0;color:var(--muted);font-size:13px}.module-icon{margin-right:9px;font-size:20px;line-height:1}
+.module-progress-row{display:flex;align-items:center;gap:9px;margin:7px 0 12px}
+.module-progress-pct{flex:0 0 34px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.module-progress{flex:1;height:7px;margin:7px 0 12px;overflow:hidden;border-radius:999px;background:var(--line)}.module-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--success))}.module-link{margin-top:auto}.chapter-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:20px;align-items:start}.chapter-list,.reader,.chapter-side{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);box-shadow:var(--shadow)}.chapter-list{padding:18px}.chapter-list h1{margin:0 0 8px;font-size:28px}.chapter-list>p{color:var(--muted)}.chapters{list-style:none;margin:18px 0 0;padding:0}.chapters li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.chapters li:last-child{border-bottom:0}.chapter-no{color:var(--muted);font-variant-numeric:tabular-nums}.rounds{padding:2px 7px;border-radius:999px;color:var(--success);background:var(--success-soft);font-size:12px}.reader{min-width:0;padding:clamp(24px,5vw,52px)}.reader h1{margin:0 0 27px;font-size:clamp(29px,5vw,42px);line-height:1.25}.reader h2{margin:42px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:25px}.reader h3{margin:30px 0 12px;font-size:20px}.reader h4{margin:24px 0 9px;font-size:17px}.reader p{margin:13px 0}.reader ul,.reader ol{padding-left:1.55em}.reader li{margin:5px 0}.reader blockquote{margin:20px 0;padding:12px 16px;border-left:4px solid var(--brand);border-radius:0 10px 10px 0;background:var(--brand-soft)}.reader code{padding:.14em .36em;border-radius:var(--radius-1);color:var(--brand);background:var(--brand-soft);font: .91em/1.5 var(--font-mono);font-variant-ligatures:none}.reader pre{max-width:100%;overflow:auto;padding:17px;border-radius:var(--radius-2);color:#e9edf7;background:#151a24}.reader pre code{padding:0;color:inherit;background:transparent;font-variant-ligatures:none}.reader table{width:100%;border-collapse:collapse;display:block;overflow:auto}.reader th,.reader td{padding:9px 11px;border:1px solid var(--line);text-align:left}.reader img,.reader video{display:block;max-width:100%;height:auto;margin:20px auto;border-radius:var(--radius-2)}.reader math{font-family:"Cambria Math","STIX Two Math",serif;vertical-align:baseline}.plain-math{white-space:nowrap}.plain-math sup,.plain-math sub{font-size:.72em;line-height:0}.math-inline-wrap{display:inline-block;overflow-x:auto;overflow-y:hidden;vertical-align:-.12em;line-height:1.1}.math-display-wrap{display:block;margin:18px 0;padding:12px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);text-align:center}.mermaid-diagram{max-width:100%;margin:24px 0;overflow-x:auto;overflow-y:hidden;border:1px solid color-mix(in srgb,var(--brand) 18%,var(--line));border-radius:var(--radius-3);background:linear-gradient(145deg,color-mix(in srgb,var(--brand) 5%,var(--panel)),var(--panel));box-shadow:0 9px 28px rgba(31,42,68,.05)}.reader pre.mermaid{display:flex;min-height:150px;align-items:center;justify-content:center;margin:0;padding:24px;overflow:visible;border-radius:0;color:var(--text);background:transparent;font-family:inherit;white-space:pre-wrap}.reader pre.mermaid svg{display:block;width:auto;max-width:100%!important;height:auto;margin:auto}.mermaid-diagram.is-rendered .mermaid{white-space:normal}.mermaid-error{display:none;margin:0;padding:12px 16px;border-top:1px solid var(--line);color:var(--warning);background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.mermaid-diagram.is-error .mermaid-error{display:block}.chapter-side{padding:16px}.chapter-side h2{margin:0 0 10px;font-size:16px}.chapter-side p{color:var(--muted);font-size:13px}.complete-button{width:100%;padding:9px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:var(--radius-2);color:var(--brand);background:var(--brand-soft);cursor:pointer}.complete-button:disabled{cursor:not-allowed;opacity:.5}.chapter-nav{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:34px;padding-top:20px;border-top:1px solid var(--line)}.chapter-nav .nav-toc{padding:6px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:var(--radius-1);color:var(--brand);background:var(--brand-soft);font-weight:650}.chapter-nav .nav-toc:hover{text-decoration:none;border-color:var(--brand)}.breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:-8px 0 18px;color:var(--muted);font-size:13px}.breadcrumb a{color:var(--brand);font-weight:650}.breadcrumb a:hover{text-decoration:underline}.breadcrumb span[aria-current]{color:var(--text)}.notice{margin:12px 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line));border-radius:var(--radius-2);background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.toast{min-height:24px;margin-top:10px;color:var(--success);font-size:13px}.empty{padding:38px 15px;color:var(--muted);text-align:center}
+.search-group{margin-bottom:22px}
+.search-group-title{margin:0 0 10px;color:var(--muted);font-size:13px;font-weight:700}
+mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--brand);border-radius:3px;padding:0 2px}
+.search-kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--panel);color:var(--muted);font-size:12px;font-family:var(--font-mono,monospace)}@media(max-width:860px){.chapter-layout{grid-template-columns:1fr}.chapter-side{order:-1}.reader{padding:24px}.reader pre.mermaid{padding:18px}}@media(max-width:560px){.shell{width:calc(100% - 20px);padding-top:14px}.chapters li{grid-template-columns:auto minmax(0,1fr)}.rounds{grid-column:2}.topbar{align-items:flex-start}.reader pre.mermaid{min-height:110px;padding:12px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 /* 表格居中：按内容宽度自适应并居中，宽表内部横向滚动 */
 .reader table{width:max-content;max-width:100%;margin:20px auto;border-collapse:collapse;display:block;overflow:auto}
@@ -137,7 +144,7 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .connection::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--warning)}
 .connection.online::before{background:var(--success)}
 .module-stats{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:9px}
-.module-stats .stat{min-width:0;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:0 5px 18px rgba(31,42,68,.035)}
+.module-stats .stat{min-width:0;padding:10px 13px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:0 5px 18px rgba(31,42,68,.035)}
 .module-stats .stat span{color:var(--muted);font-size:12px}
 .module-stats .stat strong{display:block;margin-top:1px;font-size:23px;line-height:1.25;font-variant-numeric:tabular-nums}
 .module-progress{margin:0 0 20px}
@@ -145,13 +152,13 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .module-progress .progress-head strong{color:var(--text)}
 .module-progress .bar{height:9px;overflow:hidden;border-radius:999px;background:var(--line)}
 .module-progress .bar>div{width:0;height:100%;background:linear-gradient(90deg,var(--brand),var(--success));transition:width .22s ease}
-.module-controls{display:grid;grid-template-columns:minmax(200px,2fr) repeat(2,minmax(140px,1fr));gap:12px;margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
+.module-controls{display:grid;grid-template-columns:minmax(200px,2fr) repeat(2,minmax(140px,1fr));gap:12px;margin:0 0 18px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);box-shadow:var(--shadow)}
 .module-controls .field{display:grid;gap:6px;min-width:0}
 .field[hidden]{display:none}
 .module-controls .field label{color:var(--muted);font-size:13px;font-weight:650}
-.module-controls input,.module-controls select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--soft)}
+.module-controls input,.module-controls select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-2);color:var(--text);background:var(--soft)}
 .chapter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:13px}
-.chapter-card{min-width:0;padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 7px 22px rgba(31,42,68,.04);transition:border-color .18s,transform .18s,box-shadow .18s}
+.chapter-card{min-width:0;padding:15px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:0 7px 22px rgba(31,42,68,.04);transition:border-color .18s,transform .18s,box-shadow .18s}
 .chapter-card:hover{border-color:color-mix(in srgb,var(--brand) 38%,var(--line));transform:translateY(-1px);box-shadow:0 11px 27px rgba(31,42,68,.075)}
 .chapter-card.studied{box-shadow:inset 4px 0 var(--success),0 7px 22px rgba(31,42,68,.04)}
 .chapter-card .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -167,14 +174,14 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .chapter-card .method{min-height:46px;color:var(--muted);overflow-wrap:anywhere}
 .chapter-card .card-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
 .chapter-card .last-study{min-width:0;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chapter-card .round-button{flex:0 0 auto;padding:6px 9px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:8px;color:var(--brand);background:var(--brand-soft);cursor:pointer}
+.chapter-card .round-button{flex:0 0 auto;padding:6px 9px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:var(--radius-1);color:var(--brand);background:var(--brand-soft);cursor:pointer}
 .chapter-card .round-button:hover:not(:disabled){border-color:var(--brand);color:var(--brand-strong)}
 .chapter-card .round-button:disabled{cursor:not-allowed;opacity:.52}
 @media(max-width:760px){.module-hero{align-items:flex-start}.module-stats{width:100%;grid-template-columns:repeat(3,1fr)}.module-controls{grid-template-columns:1fr;padding:12px}.chapter-card .method{min-height:0}}
 @media(max-width:520px){.module-stats{grid-template-columns:repeat(2,1fr)}.chapter-card .card-actions{align-items:flex-end}.chapter-card .last-study{white-space:normal}}
 
 /* 章节阅读页：学习记录状态条（替代原固定侧栏，阅读区恢复全宽） */
-.chapter-status{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 24px;padding:10px 14px;border:1px solid var(--line);border-radius:11px;background:var(--soft);color:var(--muted);font-size:13px}
+.chapter-status{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:0 0 24px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);color:var(--muted);font-size:13px}
 .chapter-status .complete-button{width:auto;margin-left:auto;padding:5px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;cursor:pointer}
 .chapter-status .complete-button:disabled{cursor:not-allowed;opacity:.5}
 .chapter-status .notice,.chapter-status .toast{margin:0}
@@ -197,7 +204,7 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .reader h1{margin:0 0 18px}
 .chapter-status{margin:0 0 30px}
 .chapter-nav{margin-top:44px;padding-top:26px}
-.demo-embed{margin:26px 0;border:1px solid color-mix(in srgb,var(--brand) 22%,var(--line));border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:0 9px 28px rgba(31,42,68,.05)}
+.demo-embed{margin:26px 0;border:1px solid color-mix(in srgb,var(--brand) 22%,var(--line));border-radius:var(--radius-3);overflow:hidden;background:var(--panel);box-shadow:0 9px 28px rgba(31,42,68,.05)}
 .demo-embed iframe{display:block;width:100%;height:560px;min-height:420px;border:0}
 
 /* 书架待复习：总页汇总条 / 模块角标 / 模块页到期区块 / 章节卡徽标 */
@@ -210,14 +217,14 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .module-card .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .module-card .card-head h2{min-width:0}
 .module-due-badge[hidden]{display:none}
-.module-due{margin:0 0 22px;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
+.module-due{margin:0 0 22px;padding:16px;border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);box-shadow:var(--shadow)}
 .module-due h2{margin:0 0 10px;font-size:18px}
 .due-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .due-head h2{margin:0}
 .due-summary{color:var(--muted);font-size:13px;margin:0 0 10px}
 .due-summary strong{color:var(--warning)}
 .due-list{display:grid;gap:8px}
-.due-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.due-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft)}
 .due-item a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:650}
 .due-item a:hover{color:var(--brand)}
 .due-item .due-date{flex:0 0 auto;padding:2px 8px;border-radius:999px;font-size:12px;color:var(--success);background:var(--success-soft);font-variant-numeric:tabular-nums}
@@ -321,18 +328,53 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7
 /* ===== On This Page 粘性目录 + 复制按钮（P0） ===== */
 .reader-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;align-items:start}
 .reader-grid.has-otp{grid-template-columns:minmax(0,1fr) 224px}
-.otp{position:sticky;top:14px;max-height:calc(100vh - 32px);overflow:auto;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:var(--shadow)}
+.otp{position:sticky;top:14px;max-height:calc(100vh - 32px);overflow:auto;padding:14px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
 .otp-title{margin:0 0 8px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em}
 .otp ul{list-style:none;margin:0;padding:0}
 .otp li{margin:2px 0}
-.otp a{display:block;padding:4px 8px;border-radius:7px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.otp a{display:block;padding:4px 8px;border-radius:var(--radius-1);color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .otp a:hover{color:var(--text);background:var(--soft);text-decoration:none}
 .otp a.active{color:var(--brand);background:var(--brand-soft);font-weight:650}
 .otp li.lv3 a{padding-left:20px;font-size:12px}
 .reader pre{position:relative}
-.copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid rgba(233,237,247,.35);border-radius:7px;color:#e9edf7;background:rgba(255,255,255,.08);font-size:12px;cursor:pointer;opacity:.72}
+.copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid rgba(233,237,247,.35);border-radius:var(--radius-1);color:#e9edf7;background:rgba(255,255,255,.08);font-size:12px;cursor:pointer;opacity:.72}
 .copy-btn:hover{opacity:1;background:rgba(255,255,255,.16)}
 @media(max-width:1150px){.reader-grid.has-otp{grid-template-columns:1fr}.otp{order:-1;position:static;max-height:none}}
+
+/* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
+.read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
+background:linear-gradient(90deg,var(--brand),var(--success));transition:width .1s linear}
+@media(prefers-reduced-motion:no-preference){
+.markdown-body a:not(.no-underline){text-decoration:none;
+background-image:linear-gradient(var(--brand),var(--brand));
+background-size:0% 1.5px;background-repeat:no-repeat;
+background-position:0 100%;transition:background-size .25s var(--ease-out)}
+.markdown-body a:not(.no-underline):hover{background-size:100% 1.5px}}
+.module-card,.chapter-card{transition:box-shadow .2s var(--ease-out),transform .2s var(--ease-out)}
+.module-card:hover,.chapter-card:hover{transform:translateY(-1px);
+box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 12%,transparent)}
+.aside{margin:18px 0;padding:12px 16px;border-radius:var(--radius-2);border:1px solid;
+border-left-width:4px;font-size:.95em}
+.aside .aside-title{font-weight:700;margin-bottom:4px;display:block}
+.aside-note{border-color:color-mix(in srgb,var(--brand) 35%,var(--line));
+background:color-mix(in srgb,var(--brand) 7%,var(--panel))}
+.aside-note .aside-title{color:var(--brand)}
+.aside-warn{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));
+background:color-mix(in srgb,var(--warning) 8%,var(--panel))}
+.aside-warn .aside-title{color:var(--warning)}
+.aside-ok{border-color:color-mix(in srgb,var(--success) 40%,var(--line));
+background:color-mix(in srgb,var(--success) 7%,var(--panel))}
+.aside-ok .aside-title{color:var(--success)}
+.aside-err{border-color:color-mix(in srgb,#c1363e 40%,var(--line));
+background:color-mix(in srgb,#c1363e 7%,var(--panel))}
+.aside-err .aside-title{color:#c1363e}
+.table-wrap,.reader table{position:relative}
+.table-scroll-hint{position:relative}
+.table-scroll-hint::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;
+pointer-events:none;background:linear-gradient(to left,var(--bg,rgba(0,0,0,.04)),transparent);
+opacity:0;transition:opacity .2s}
+.table-scroll-hint.has-overflow::after{opacity:1}
+
 """
 
 
@@ -1070,7 +1112,7 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
 # ---------------------------------------------------------------------------
 def search_page(chapter_count: int) -> str:
     body = '''<div class="shell">__TOPBAR__
-<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文。</p></section>
+<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文。</p><p style="margin-top:6px"><span class="search-kbd">Ctrl</span> / <span class="search-kbd">⌘</span> + <span class="search-kbd">K</span> 快速聚焦搜索框</p></section>
 <div class="module-controls"><div class="field"><label for="searchInput">关键词</label><input id="searchInput" type="search" placeholder="输入关键词，如 循环依赖、MVCC、线程池、Kafka" autocomplete="off"></div></div>
 <main id="results" class="chapter-grid" aria-live="polite"></main>
 </div>
@@ -1078,6 +1120,12 @@ def search_page(chapter_count: int) -> str:
 let entries=[],ready=false,serverMode=true;
 const input=document.getElementById('searchInput');
 const results=document.getElementById('results');
+function escHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function hl(text,q){const i=text.toLowerCase().indexOf(q.toLowerCase());if(i<0)return escHtml(text);
+return escHtml(text.slice(0,i))+'<mark>'+escHtml(text.slice(i,i+q.length))+'</mark>'+escHtml(text.slice(i+q.length))}
+document.addEventListener('keydown',e=>{
+if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select()}
+if(e.key==='/'&&document.activeElement!==input&&!e.metaKey&&!e.ctrlKey){e.preventDefault();input.focus()}});
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
 function score(entry,q){
   const title=entry.title.toLowerCase(),mod=entry.module_title.toLowerCase(),text=(entry.text||'').toLowerCase();
@@ -1091,7 +1139,14 @@ function renderLocal(){
   const q=input.value.trim().toLowerCase();
   if(!q){results.innerHTML='<p class="empty">输入关键词开始搜索。</p>';return}
   const hits=entries.map(e=>({e,s:score(e,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,60);
-  results.innerHTML=hits.length?hits.map(({e})=>card(e)):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+  const groups={};
+  hits.forEach(({e})=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
+  results.innerHTML=Object.keys(groups).map(m=>
+    '<div class="search-group"><div class="search-group-title">'+escHtml(m)+' · '+groups[m].length+'</div>'+
+    groups[m].map(e=>cardHl(e,q)).join('')+'</div>').join('');
+}
+function cardHl(e,q){
+  return '<article class="chapter-card"><div class="card-head"><h2><a href="'+escHtml(e.url)+'">'+hl(e.title,q)+'</a></h2></div><div class="meta"><span class="pill">'+escHtml(e.module_title)+'</span></div></article>';
 }
 async function searchServer(q){
   renderHint('搜索中…');
@@ -1099,7 +1154,11 @@ async function searchServer(q){
     const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store'});
     if(!r.ok)throw new Error('server');
     const d=await r.json();
-    results.innerHTML=d.items.length?d.items.map(card).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+    const groups={};
+    d.items.forEach(e=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
+    results.innerHTML=Object.keys(groups).map(m=>
+      '<div class="search-group"><div class="search-group-title">'+escHtml(m)+' · '+groups[m].length+'</div>'+
+      groups[m].map(e=>cardHl(e,q)).join('')+'</div>').join('');
   }catch(e){
     serverMode=false;                       // 服务端不可用 → 回退静态索引模式
     try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败，请稍后重试。')}
@@ -1354,10 +1413,11 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     #   显隐)；页面 JS 启动时 fetch /api/library 填进度条、/api/daily 填
     #   “全书架待复习”汇总与各模块角标上的待复习数；接口不可达时静默降级
     #   (进度条保持 0、汇总区保持提示文案)，保证静态打开也能浏览。
-    module_cards = "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}"><div class="card-head"><h2><a href="{html.escape(module["url"])}">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress"><span data-module-progress="{module["id"]}" style="width:0%"></span></div><a class="module-link" href="{html.escape(module["url"])}">进入课程 →</a></article>' for module in modules)
+    _module_icons = {'Java 语言': '☕', '计算机基础': '🖥️', '数据存储': '🗄️', 'Web 与框架': '🌿', '分布式与工程': '🌐', '算法刷题': '🧩', '校招冲刺': '🎯', '编程基础': '📘', '基础认知': '💡', '模型与训练': '🤖', '大模型应用': '✨', 'Agent 工程': '🛠️', '系统与基础设施': '⚙️'}
+    module_cards = "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}"><div class="card-head"><span class="module-icon" aria-hidden="true">{_module_icons.get(module["category"], "📗")}</span><h2><a href="{html.escape(module["url"])}">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" style="width:0%"></span></div></div><a class="module-link" href="{html.escape(module["url"])}">进入课程 →</a></article>' for module in modules)
     categories = ["全部", *dict.fromkeys(str(module["category"]) for module in modules)]
     filters = "".join(f'<button type="button" data-filter="{html.escape(category)}" class="{"active" if category == "全部" else ""}">{html.escape(category)}</button>' for category in categories)
-    index_body = f'''<div class="shell">{topbar(".")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};bar.style.width=`${{Math.round(info.completed/info.total*100)}}%`}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+    index_body = f'''<div class="shell">{topbar(".")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
     (OUTPUT_ROOT / "index.html").write_text(document("学习书架", index_body, "assets/library.css"), encoding="utf-8")
     build_cache.save_cache(HOT100_ROOT, cache)
     # 构建收尾统计(模块总数/章节总数)，供命令行确认与构建日志留痕；

@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260906-p0-immersive"
+ASSET_VERSION = "20260906-p12"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -218,8 +218,7 @@ SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff
 @font-face{font-family:"JetBrains Mono";src:url("fonts/JetBrainsMono-Variable.woff2") format("woff2");font-weight:100 800;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
 :root {
-  color-scheme: light dark;
-  --page-bg: #f4f6fb;
+  color-scheme: light dark;  --page-bg: #f4f6fb;
   --surface: #ffffff;
   --surface-soft: #f8f9fd;
   --surface-softer: #fbfcff;
@@ -261,7 +260,7 @@ SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: var(--radius-1); border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 72%, transparent); border: 2px solid transparent; background-clip: padding-box; }
 
 * { box-sizing: border-box; }
@@ -288,7 +287,7 @@ a:hover { text-decoration: underline; }
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-1);
 }
 .skip-link:focus { top: 12px; }
 
@@ -309,7 +308,7 @@ a:hover { text-decoration: underline; }
 }
 .site-brand { color: var(--text); font-weight: 760; letter-spacing: .01em; }
 .site-nav { display: flex; gap: 6px; flex-wrap: wrap; }
-.site-nav a { padding: 6px 9px; border-radius: 8px; color: var(--muted); font-size: 14px; }
+.site-nav a { padding: 6px 9px; border-radius: var(--radius-1); color: var(--muted); font-size: 14px; }
 .site-nav a:hover { color: var(--brand); background: var(--brand-soft); text-decoration: none; }
 .site-nav a.lc-button { background: var(--brand); color: #fff; font-weight: 650; }
 .site-nav a.lc-button:hover { background: var(--brand-strong); color: #fff; }
@@ -321,7 +320,7 @@ a:hover { text-decoration: underline; }
   padding: clamp(32px, 6vw, 72px);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-4);
   box-shadow: var(--shadow);
 }
 .markdown-body { width: min(100%, 1600px); min-width: 0; margin: 0 auto; overflow-wrap: break-word; }
@@ -331,7 +330,7 @@ a:hover { text-decoration: underline; }
   padding: 0 17px;
   background: var(--surface-soft);
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--radius-3);
 }
 .toc-box summary { cursor: pointer; padding: 12px 0; color: var(--brand); font-weight: 700; }
 .toc-box summary:hover { color: var(--brand-strong); }
@@ -362,19 +361,19 @@ a:hover { text-decoration: underline; }
   color: var(--inline-code);
   background: var(--inline-code-bg);
   border: 1px solid color-mix(in srgb, var(--brand) 17%, var(--line));
-  border-radius: 5px;
+  border-radius: var(--radius-1);
   font: .91em/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
   font-variant-ligatures: none;
 }
-.code-block { margin: 20px 0; border: 1px solid #303849; border-radius: 12px; overflow: hidden; background: #151a24; }
+.code-block { margin: 20px 0; border: 1px solid #303849; border-radius: var(--radius-3); overflow: hidden; background: #151a24; }
 .code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; color: #b6c0d4; background: #202735; font-size: 13px; }
-.copy-code { border: 1px solid #526079; border-radius: 7px; padding: 4px 9px; color: #f0f3ff; background: transparent; cursor: pointer; font: inherit; }
+.copy-code { border: 1px solid #526079; border-radius: var(--radius-1); padding: 4px 9px; color: #f0f3ff; background: transparent; cursor: pointer; font: inherit; }
 .copy-code:hover { background: #303a4d; }
 .copy-code:focus-visible { outline-color: #b8b6ff; }
 .markdown-body pre { margin: 0; padding: 22px 24px; max-width: 100%; overflow: auto; color: #e9edf7; background: #151a24; tab-size: 4; }
 .markdown-body pre code { padding: 0; color: inherit; background: transparent; border: 0; font-size: 14px; }
 .markdown-body pre { font-variant-ligatures: none; }
-.table-wrap { max-width: 100%; margin: 28px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.table-wrap { max-width: 100%; margin: 28px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-2); }
 .markdown-body table { width: 100%; min-width: 540px; border-collapse: collapse; margin: 0; }
 .markdown-body th:first-child, .markdown-body td:first-child { width: 200px; }
 .markdown-body th, .markdown-body td { min-width: 108px; padding: 13px 17px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
@@ -382,12 +381,12 @@ a:hover { text-decoration: underline; }
 .markdown-body tr:last-child td { border-bottom: 0; }
 .markdown-body th { background: var(--surface-soft); font-weight: 700; }
 .markdown-body tr:nth-child(even) td { background: var(--surface-softer); }
-.markdown-body img { display: block; max-width: 100%; height: auto; margin: 30px auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(33,45,73,.10); }
+.markdown-body img { display: block; max-width: 100%; height: auto; margin: 30px auto; border-radius: var(--radius-3); box-shadow: 0 8px 24px rgba(33,45,73,.10); }
 .markdown-body .task-list-item { list-style: none; margin-left: -1.2em; }
 .markdown-body input[type="checkbox"] { margin-right: 8px; accent-color: var(--brand); }
 .markdown-body strong { color: var(--text-strong); }
 .problem-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
-.problem-nav-btn { display: inline-flex; align-items: center; padding: 9px 14px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; font-weight: 650; text-decoration: none; }
+.problem-nav-btn { display: inline-flex; align-items: center; padding: 9px 14px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-2); font-weight: 650; text-decoration: none; }
 .problem-nav-btn:hover { color: var(--brand); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); text-decoration: none; }
 .problem-nav-btn.primary { color: #fff; background: var(--brand); border-color: var(--brand); }
 .problem-nav-btn.primary:hover { color: #fff; background: var(--brand-strong); border-color: var(--brand-strong); }
@@ -396,7 +395,7 @@ a:hover { text-decoration: underline; }
 .markdown-body .math-inline { display: inline math; min-width: max-content; font-size: 1em; vertical-align: baseline; }
 .plain-math { white-space: nowrap; }
 .plain-math sup, .plain-math sub { font-size: .72em; line-height: 0; }
-.math-display-wrap { position: relative; display: block; width: 100%; max-width: 100%; min-width: 0; contain: layout paint inline-size; margin: 18px 0; padding: 12px 14px; overflow-x: auto; overflow-y: hidden; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; text-align: center; }
+.math-display-wrap { position: relative; display: block; width: 100%; max-width: 100%; min-width: 0; contain: layout paint inline-size; margin: 18px 0; padding: 12px 14px; overflow-x: auto; overflow-y: hidden; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-2); text-align: center; }
 .markdown-body .math-display { display: block math; min-width: max-content; margin: 0 auto; font-size: 1.08em; }
 .reader-visual { margin-top: 52px; }
 .reader-visual > h2 { margin-top: 0; }
@@ -409,7 +408,7 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   background: var(--surface-soft);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-3);
 }
 .site-footer { padding: 22px 4px 0; color: var(--muted); text-align: center; font-size: 13px; }
 
@@ -436,7 +435,7 @@ body{overflow-x:clip}
 
 @media (max-width: 720px) {
   .site-shell { width: calc(100% - 20px); padding-top: 9px; }
-  .site-topbar { align-items: flex-start; padding: 10px 11px; border-radius: 12px; }
+  .site-topbar { align-items: flex-start; padding: 10px 11px; border-radius: var(--radius-3); }
   .site-nav { width: 100%; }
   .site-nav a { padding: 5px 7px; }
   .reader-card { padding: 22px 16px 34px; border-radius: 15px; }
@@ -451,7 +450,7 @@ body{overflow-x:clip}
   .copy-code{padding:6px 10px;min-height:36px}
   .toc-box { margin-bottom: 28px; padding-inline: 14px; }
   .reader-visual { margin-top: 40px; }
-  .reader-visual-frame { border-radius: 11px; }
+  .reader-visual-frame { border-radius: var(--radius-2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -486,6 +485,42 @@ html[data-theme="dark"]{color-scheme:dark;
     --shadow: 0 18px 48px rgba(0, 0, 0, .24);
   }
 html[data-theme="light"]{color-scheme:light;--page-bg:#f4f6fb;--surface:#ffffff;--surface-soft:#f8f9fd;--surface-softer:#fbfcff;--text:#182235;--text-strong:#111a2c;--muted:#66748a;--line:#dfe4ee;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#157a52;--warning:#a85b00;--inline-code:#443fb0;--inline-code-bg:#f0efff;--shadow:0 16px 44px rgba(33,45,73,.08)}
+
+/* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
+.read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
+background:linear-gradient(90deg,var(--brand),var(--success));transition:width .1s linear}
+@media(prefers-reduced-motion:no-preference){
+.markdown-body a:not(.no-underline){text-decoration:none;
+background-image:linear-gradient(var(--brand),var(--brand));
+background-size:0% 1.5px;background-repeat:no-repeat;
+background-position:0 100%;transition:background-size .25s var(--ease-out)}
+.markdown-body a:not(.no-underline):hover{background-size:100% 1.5px}}
+.module-card,.chapter-card{transition:box-shadow .2s var(--ease-out),transform .2s var(--ease-out)}
+.module-card:hover,.chapter-card:hover{transform:translateY(-1px);
+box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 12%,transparent)}
+.aside{margin:18px 0;padding:12px 16px;border-radius:var(--radius-2);border:1px solid;
+border-left-width:4px;font-size:.95em}
+.aside .aside-title{font-weight:700;margin-bottom:4px;display:block}
+.aside-note{border-color:color-mix(in srgb,var(--brand) 35%,var(--line));
+background:color-mix(in srgb,var(--brand) 7%,var(--panel))}
+.aside-note .aside-title{color:var(--brand)}
+.aside-warn{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));
+background:color-mix(in srgb,var(--warning) 8%,var(--panel))}
+.aside-warn .aside-title{color:var(--warning)}
+.aside-ok{border-color:color-mix(in srgb,var(--success) 40%,var(--line));
+background:color-mix(in srgb,var(--success) 7%,var(--panel))}
+.aside-ok .aside-title{color:var(--success)}
+.aside-err{border-color:color-mix(in srgb,#c1363e 40%,var(--line));
+background:color-mix(in srgb,#c1363e 7%,var(--panel))}
+.aside-err .aside-title{color:#c1363e}
+.table-wrap,.reader table{position:relative}
+.table-scroll-hint{position:relative}
+.table-scroll-hint::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;
+pointer-events:none;background:linear-gradient(to left,var(--bg,rgba(0,0,0,.04)),transparent);
+opacity:0;transition:opacity .2s}
+.table-scroll-hint.has-overflow::after{opacity:1}
+/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1: 4px;--space-2: 8px;--space-3: 12px; --space-4: 16px;--space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;--fs-0: .8rem; --fs-1: .9rem; --fs-2: 1rem; --fs-3: 1.1rem;--fs-4: 1.25rem; --fs-5: 1.5rem; --fs-6: 1.8rem; --fs-7: 2.2rem;--radius-1: 6px; --radius-2: 10px; --radius-3: 14px; --radius-4: 20px;--ease-out: cubic-bezier(.22, 1, .36, 1);--ease-in-out: cubic-bezier(.65, 0, .35, 1);
+
 """
 
 # =============================================================================
