@@ -2418,9 +2418,12 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # GET 路由总览：安全过滤 → 认证门禁 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
         parsed = urlparse(self.path)
         decoded_path = unquote(parsed.path)
-        # 敏感目录一律 403：data/（数据库与凭证）、tools/（服务端脚本）、.git/（版本库）。
-        if decoded_path.startswith(("/data", "/tools", "/.git")):
-            self.send_error(HTTPStatus.FORBIDDEN)
+        # 敏感/开发者内容不对外：403 = 存在但禁止；404 = 不暴露存在性。
+        # data/：数据库与凭证；tools/：服务端脚本；.git 与点文件：版本库与缓存；
+        # .md 与 docs/：开发者文档（含部署信息）；maintenance/QA-REPORT：维护与校验报告。
+        if decoded_path.startswith(("/data", "/tools", "/.git", "/.", "/docs", "/MAINTENANCE",
+                                    "/QA-REPORT", "/README"))                 or decoded_path in ("/maintenance.html", "/guide.html.md")                 or decoded_path.lower().endswith(".md"):
+            self.send_error(HTTPStatus.NOT_FOUND)
             return
         # ---- 认证门禁：未登录页面跳登录页、API 回 401；管理页/管理 API 仅限管理员 ----
         # 公开白名单：登录页、注册页、图标与健康检查。

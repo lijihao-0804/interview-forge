@@ -200,8 +200,8 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>
-  <div id="serverNotice" class="notice" hidden>数据库没有启动。请关闭这个页面，然后双击根目录中的 <code>启动学习站.cmd</code>；以后从自动打开的页面学习，记录才会写入 SQLite。</div>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>
+  <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请稍后刷新页面重试；若持续失败请联系管理员。</div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle">
@@ -257,7 +257,7 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
   </section>
   </div>
   <div id="toast" class="toast" aria-live="polite"></div>
-<footer><a href="guide.html">完整使用指南</a> · <a href="maintenance.html">维护指南</a> · <a href="pages/leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 数据保存在本机 <code>data/hot100-study.db</code></footer>
+<footer><a href="guide.html">完整使用指南</a> · <a href="pages/leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 你的学习数据保存在服务端，仅自己可见</footer>
 </main>
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
@@ -316,7 +316,7 @@ async function loadPick(randomize){
     const reasonLabels={due:'待复习',weak:'薄弱',new:'新题'};
     pickCard.innerHTML=plan.items.length?plan.items.map(item=>`<div class="plan-item"><a href="${esc(item.note)}" title="${esc(item.title)}">${item.id}. ${esc(item.title)}</a><span class="pick-meta"><span class="pill">${esc(item.category)}</span><span class="difficulty-${item.difficulty}">${item.difficulty}</span></span><span class="plan-reason ${item.reason}">${reasonLabels[item.reason]||item.reason}</span></div>`).join(''):'<div class="review-empty">暂无计划项，先完成几轮复习吧。</div>';
   }catch(_){
-    pickCard.innerHTML='<div class="review-empty">计划加载失败（请通过“启动学习站.cmd”访问）</div>';
+    pickCard.innerHTML='<div class="review-empty">计划加载失败，请稍后刷新重试</div>';
   }
 }
 const markLabels={weak:'薄弱',reviewing:'复习中',mastered:'已掌握'};

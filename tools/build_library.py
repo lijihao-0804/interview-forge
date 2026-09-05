@@ -673,7 +673,7 @@ def _render_chapter_body_worker(job: tuple[str, str]) -> tuple[str, str]:
 # 公共顶栏(书架首页/搜索页/模块页/章节页共用)：prefix 是相对路径深度——
 # 首页传 "."、二级页面传 ".."，据此拼出到书架首页/搜索页/Hot 100 站/维护指南的链接。
 def topbar(prefix: str = "..") -> str:
-    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html">学习书架</a><nav aria-label="主导航"><a href="{prefix}/search.html">全文搜索</a><a href="{prefix}/../index.html">Hot 100</a><a href="{prefix}/../maintenance.html">维护指南</a></nav></header>'
+    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html">学习书架</a><nav aria-label="主导航"><a href="{prefix}/search.html">全文搜索</a><a href="{prefix}/../index.html">Hot 100</a></nav></header>'
 
 
 # 页面 HTML 外壳：统一 lang/字符集/响应式 viewport/明暗色声明，标题做 HTML 转义，
@@ -1044,7 +1044,7 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
 # ---------------------------------------------------------------------------
 def search_page(chapter_count: int) -> str:
     body = '''<div class="shell">__TOPBAR__
-<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文，离线索引由构建器生成。</p></section>
+<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文。</p></section>
 <div class="module-controls"><div class="field"><label for="searchInput">关键词</label><input id="searchInput" type="search" placeholder="输入关键词，如 循环依赖、MVCC、线程池、Kafka" autocomplete="off"></div></div>
 <main id="results" class="chapter-grid" aria-live="polite"></main>
 </div>
@@ -1076,7 +1076,7 @@ async function searchServer(q){
     results.innerHTML=d.items.length?d.items.map(card).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
   }catch(e){
     serverMode=false;                       // 服务端不可用 → 回退静态索引模式
-    try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。')}
+    try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败，请稍后重试。')}
   }
 }
 async function loadIndex(){
@@ -1089,7 +1089,7 @@ async function loadIndex(){
 input.addEventListener('input',()=>{
   const q=input.value.trim();
   if(!q){renderHint('输入关键词开始搜索。');return}
-  if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。'))}
+  if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败，请稍后重试。'))}
 });
 </script>'''
     body = body.replace("__TOPBAR__", topbar(".")).replace("__CHAPTER_COUNT__", str(chapter_count))

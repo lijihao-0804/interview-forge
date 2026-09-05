@@ -1461,6 +1461,9 @@ def render_markdown(source: Path) -> None:
     raw = re.sub(r"\s*·\s*\[打开(?:本专题)?可视化\]\([^)]*\)", "", raw)
     raw = re.sub(r"\s*·\s*\[打开本专题演示\]\([^)]*\)", "", raw)
     raw = rewrite_markdown_links(raw, source, output)
+    # 运行期已对 maintenance.html 返回 404（开发者内容不对外），
+    # 渲染页里指向它的链接降级为纯文本，避免站内死链。
+    raw = re.sub(r'\[([^\]]+)\]\((?:MAINTENANCE\.html|maintenance\.html)\)', r"", raw)
     raw = render_math_in_markdown(raw)
     md = markdown.Markdown(
         extensions=["extra", "sane_lists", "toc", "codehilite"],
@@ -1623,7 +1626,7 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="maintenance.html">维护指南</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>'
+    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
         text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
