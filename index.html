@@ -196,6 +196,13 @@ html[data-theme="dark"]{color-scheme:dark;
   --shadow:0 18px 46px rgba(0,0,0,.22)
 }
 html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;--hot-hm-1:#9be9a8;--hot-hm-2:#40c463;--hot-hm-3:#30a14e;--hot-hm-4:#216e39;--shadow:0 14px 38px rgba(31,42,68,.075)}
+  /* P2-2 骨架屏 */
+  .skeleton{position:relative;overflow:hidden;background:var(--panel-soft);border-radius:9px;min-height:42px}
+  .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--muted) 14%,transparent),transparent);
+  animation:skel 1.4s infinite}
+  @keyframes skel{100%{transform:translateX(100%)}}
+  @media(prefers-reduced-motion:reduce){.skeleton::after{animation:none}}
 </style>
 </head>
 <body>
@@ -220,7 +227,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle">
     <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
-    <div id="reviewList" class="review-list"></div>
+    <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div></div>
   </section>
   <section class="review-section" aria-labelledby="pickTitle">
     <div class="review-head"><h2 id="pickTitle">今日计划</h2><button id="pickAgain" class="round-button" type="button">换一组</button></div>
@@ -390,19 +397,20 @@ function renderTrend(){
   if(!days.length){el.innerHTML='<div class="history-empty">还没有学习记录，完成几轮后这里会显示趋势。</div>';return}
   try{
     const width=Math.max(240,el.clientWidth||320);
-    const opts={
+    const cssv=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim()||'#647188';
+      const opts={
       width,height:210,
       legend:{show:true,isolate:false},
       scales:{x:{time:false},y:{min:0}},
       series:[
         {label:'日期'},
-        {label:'看题',stroke:'#5755d4',width:2,points:{show:false},value:(_u,v)=>v==null?'–':`${v} 题`},
-        {label:'完成轮次',stroke:'#13764b',width:2,strokeDash:[6,4],points:{show:false},value:(_u,v)=>v==null?'–':`${v} 轮`},
-        {label:'提交',stroke:'#c1363e',width:2,strokeDash:[2,3],points:{show:false},value:(_u,v)=>v==null?'–':`${v} 次`}
+        {label:'看题',stroke:cssv('--brand'),width:2,points:{show:false},value:(_u,v)=>v==null?'–':`${v} 题`},
+        {label:'完成轮次',stroke:cssv('--success'),width:2,strokeDash:[6,4],points:{show:false},value:(_u,v)=>v==null?'–':`${v} 轮`},
+        {label:'提交',stroke:cssv('--danger'),width:2,strokeDash:[2,3],points:{show:false},value:(_u,v)=>v==null?'–':`${v} 次`}
       ],
       axes:[
-        {stroke:'#647188',grid:{stroke:'rgba(100,113,136,.14)'},values:(_u,vals)=>vals.map(v=>{const d=days[Math.round(v)];return d?d.date.slice(5):''})},
-        {stroke:'#647188',grid:{stroke:'rgba(100,113,136,.14)'}}
+        {stroke:cssv('--muted'),grid:{stroke:cssv('--line')},values:(_u,vals)=>vals.map(v=>{const d=days[Math.round(v)];return d?d.date.slice(5):''})},
+        {stroke:cssv('--muted'),grid:{stroke:cssv('--line')}}
       ],
       cursor:{x:true,y:true}
     };
