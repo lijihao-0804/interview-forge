@@ -54,6 +54,7 @@
         closePanels("forge-chat-panel");
         chatState.myName = me.username;
         chatState.myRole = me.role;
+        chatState.lastId = -1;      // 重置增量游标：重新加载最近 50 条，否则旧游标导致面板卡在加载中
         chatState.lastTime = null;
         var panel = document.createElement("div");
         panel.id = "forge-chat-panel";
@@ -127,7 +128,14 @@
           fetch("/api/chat/messages?after=" + chatState.lastId, { cache: "no-store" })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-              if (chatState.lastId < 0) msgs.textContent = "";
+              if (chatState.lastId < 0) {
+                msgs.textContent = "";
+                if (!d.items.length) {
+                  var hint = el("div", null, "还没有人发言，来抢沙发！");
+                  hint.style.cssText = "color:#66748a;font-size:13px;padding:8px";
+                  msgs.appendChild(hint);
+                }
+              }
               d.items.forEach(function (m) { addMessage(m, chatState.lastId < 0); });
               if (d.items.length) chatState.lastId = d.items[d.items.length - 1].id;
             }).catch(function () {});
