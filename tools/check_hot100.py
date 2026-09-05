@@ -413,8 +413,8 @@ if status_select is not None and status_select.find("option", value="due") is No
 for element_id in ("todayViewed", "todayRounds", "completedCount", "totalRounds", "streakCount", "goalText", "goalInput", "reviewList", "reviewSummary", "remindButton", "pickCard", "pickAgain", "weakList", "mockStart", "mockStatus", "mockTimer", "mockList", "mockReport"):
     if dashboard.find(id=element_id) is None:
         errors.append(f"学习站缺少数据库状态区域：{element_id}")
-# 学习记录已拆到独立页面 history.html，最近学习日/最近活动挂载点改在那里校验。
-history_text = (ROOT / "history.html").read_text(encoding="utf-8")
+# 学习记录已拆到独立页面 pages/history.html，最近学习日/最近活动挂载点改在那里校验。
+history_text = (ROOT / "pages" / "history.html").read_text(encoding="utf-8")
 for element_id in ("dayList", "eventList"):
     if f'id="{element_id}"' not in history_text:
         errors.append(f"学习记录页缺少数据库状态区域：{element_id}")
@@ -447,9 +447,9 @@ if 'data-submit="' in dashboard_source or "recordSubmit" in dashboard_source or 
     errors.append("题卡仍残留手动已 AC/WA 按钮（应以同步数据为准）")
 # 力扣连接向导页：既要有独立页面，页内还必须带“全量同步”按钮（syncFullBtn），
 # 否则用户无法一次性拉取全部历史提交（只能增量同步）。
-if not (ROOT / "leetcode-connect.html").exists():
-    errors.append("学习站缺少力扣连接向导页 leetcode-connect.html")
-if "syncFullBtn" not in (ROOT / "leetcode-connect.html").read_text(encoding="utf-8-sig"):
+if not (ROOT / "pages" / "leetcode-connect.html").exists():
+    errors.append("学习站缺少力扣连接向导页 pages/leetcode-connect.html")
+if "syncFullBtn" not in (ROOT / "pages" / "leetcode-connect.html").read_text(encoding="utf-8-sig"):
     errors.append("力扣连接页缺少“全量同步”入口")
 # ============================================================================
 # ④ 学习站运行骨架与“生成脚本/模板/服务端/力扣功能”断言

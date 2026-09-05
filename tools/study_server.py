@@ -2021,7 +2021,7 @@ def _parse_kb(text: str) -> int | None:
 class StudyHandler(SimpleHTTPRequestHandler):
     server_version = "Hot100Study/1.0"
     # 不注入认证小部件的页面：这三页自带登录/退出界面，无需浮动小部件。
-    WIDGET_SKIP_PATHS = {"/login.html", "/register.html", "/admin.html"}
+    WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2088,17 +2088,17 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # ---- 认证门禁：未登录页面跳登录页、API 回 401；管理页/管理 API 仅限管理员 ----
         # 公开白名单：登录页、注册页、图标与健康检查。
         user = self.current_user()
-        public_get = {"/login.html", "/register.html", "/favicon.ico", "/api/health"}
+        public_get = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
         if user is None and decoded_path not in public_get:
             if decoded_path.startswith("/api/"):
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
             else:
                 self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
-                self.send_header("Location", f"/login.html?next={quote(decoded_path)}")
+                self.send_header("Location", f"/pages/login.html?next={quote(decoded_path)}")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
             return
-        if decoded_path == "/admin.html" or decoded_path.startswith("/api/admin/"):
+        if decoded_path == "/pages/admin.html" or decoded_path.startswith("/api/admin/"):
             if user is None or str(user["role"]) != "admin":
                 if decoded_path.startswith("/api/"):
                     self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)

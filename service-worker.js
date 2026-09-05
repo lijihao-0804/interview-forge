@@ -1,9 +1,9 @@
 /* Hot 100 学习站离线缓存（网络优先，离线回退缓存；API 一律走网络） */
-const VERSION = "hot100-v3";
-const STATIC_PREFIX = ["/index.html", "/history.html", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
+const VERSION = "hot100-v4";
+const STATIC_PREFIX = ["/index.html", "/pages/", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(["./index.html", "./history.html"])));
+  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(["./index.html", "./pages/history.html"])));
   self.skipWaiting();
 });
 
