@@ -20,11 +20,46 @@
 4. 团队结构与服务边界对齐
 5. 演进式拆分：先单体跑通，瓶颈出现再拆，不要为拆而拆
 </code></pre></div>
-<h3>1.4 面试追问</h3>
+<h3>1.4 典型反模式</h3>
+<table>
+<thead>
+<tr>
+<th>反模式</th>
+<th>表现</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分布式单体</td>
+<td>服务拆了，但服务间同步调用链漫长、共享同一个数据库</td>
+<td>享受分布式的复杂度，没拿到它的好处</td>
+</tr>
+<tr>
+<td>拆得太细</td>
+<td>一个“服务”只有几百行代码，调 3 个服务才能凑一个业务动作</td>
+<td>网络/运维开销远大于收益</td>
+</tr>
+<tr>
+<td>数据库共享</td>
+<td>多个服务直连同一个库“省事”</td>
+<td>数据边界名存实亡，schema 变更牵一发动全身</td>
+</tr>
+<tr>
+<td>同步长链路</td>
+<td>A → B → C → D 串行调用，任何一层抖动全链路抖动</td>
+<td>可用性按最差一环计算</td>
+</tr>
+</tbody>
+</table>
+<p><strong>正确示范</strong>：电商拆出订单/商品/库存/支付四个核心域，订单服务拥有订单库，支付结果通过 MQ 通知订单服务——边界清晰、异步解耦。面试讲拆分时，先讲“按什么维度拆”，再主动讲“拆分的代价与反模式”，体现的是权衡能力而不是口号。</p>
+<h3>1.5 面试追问</h3>
 <ul>
 <li>问：微服务拆分的依据？</li>
 <li>答：按业务域与团队边界，高内聚低耦合，数据归属清晰，演进式拆分。</li>
 <li>问：微服务带来的最大问题？</li>
 <li>答：网络调用与分布式一致性问题，以及运维和排查复杂度。</li>
+<li>问：什么是分布式单体？</li>
+<li>答：服务物理上拆开了，逻辑上仍同步强耦合、共享数据库——复杂度照付、收益全无，是最差的拆分状态。</li>
 </ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
 <script>const contentId="microservices-highconcurrency:02",moduleId="microservices-highconcurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

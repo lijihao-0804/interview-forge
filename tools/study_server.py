@@ -795,6 +795,41 @@ def chat_delete(feedback_id_alias: int) -> dict[str, object]:
     return {"id": feedback_id_alias, "deleted": True}
 
 
+# ---- 全文搜索（服务端执行）：索引常驻内存，公网搜索只传关键词与结果，
+#      免去浏览器拉取 1.5MB 的 search-index.json ----
+_SEARCH_INDEX: list[dict] | None = None
+_SEARCH_LOCK = threading.Lock()
+
+
+def _load_search_index() -> list[dict]:
+    """首次请求时加载 library/search-index.json 到内存（此后常驻）。"""
+    global _SEARCH_INDEX
+    if _SEARCH_INDEX is None:
+        with _SEARCH_LOCK:
+            if _SEARCH_INDEX is None:
+                path = ROOT / "library" / "search-index.json"
+                _SEARCH_INDEX = json.loads(path.read_text(encoding="utf-8"))
+    return _SEARCH_INDEX
+
+
+def search_index_server(query: str) -> list[dict[str, object]]:
+    """服务端评分搜索：标题命中 3 分、模块名 2 分、正文 1 分，降序取前 60。"""
+    q = query.strip().lower()
+    if not q:
+        return []
+    hits = []
+    for entry in _load_search_index():
+        title = str(entry.get("title", "")).lower()
+        mod = str(entry.get("module_title", "")).lower()
+        text = str(entry.get("text", "")).lower()
+        s = 3 if q in title else 2 if q in mod else 1 if q in text else 0
+        if s:
+            hits.append({"id": entry.get("id"), "title": entry.get("title"),
+                         "url": entry.get("url"), "module_title": entry.get("module_title"), "s": s})
+    hits.sort(key=lambda x: -x["s"])
+    return hits[:60]
+
+
 def get_profile(username: str) -> dict[str, object]:
     """读取自己的昵称与头像状态。"""
     with closing(connect_auth()) as connection:
@@ -2442,6 +2477,14 @@ class StudyHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "max-age=60")
             self.end_headers()
             self.wfile.write(blob)
+            return
+        # /api/search：服务端全文搜索（?q=关键词），公网免下载索引。
+        if parsed.path == "/api/search":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            try:
+                self.send_json({"items": search_index_server(params.get("q", ""))})
+            except (OSError, ValueError, json.JSONDecodeError):
+                self.send_json({"error": "搜索索引不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
         # /api/chat/messages：公屏聊天增量拉取（?after=<id>，-1 取最近 50 条）。
         if parsed.path == "/api/chat/messages":

@@ -1034,12 +1034,13 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
 # 全文搜索页(search.html)：
 #   - 构建期：生成 search-index.json(全部章节的 id/标题/模块名/清洗后正文，
 #     见 build() 末尾)，随书架一起落盘；
-#   - 运行期：页面 JS fetch 该索引，纯客户端评分排序(不依赖后端，双击打开
-#     静态文件也能搜索)：标题命中 3 分、模块名命中 2 分、正文命中 1 分，
-#     降序取前 60 条；搜不到时提示换词；
+#   - 运行期（服务端优先）：优先调 study_server 的 /api/search（索引常驻服务端
+#     内存，公网搜索免下载 1.5MB 索引文件），标题 3 分/模块名 2 分/正文 1 分，
+#     降序取前 60；服务端不可用时自动回退为“fetch 静态索引 + 客户端打分”的
+#     离线模式（双击打开静态文件也能搜索）；
 #   - 索引加载失败的提示引导用户经“启动学习站.cmd”访问(HTTP 服务才提供
 #     search-index.json 的 MIME 与缓存策略)。
-# 架构含义：搜索 = 构建期离线索引 + 客户端打分，属于“无后端全文检索”。
+# 架构含义：搜索 = 服务端在线搜索为主 + 构建期离线索引为兜底。
 # ---------------------------------------------------------------------------
 def search_page(chapter_count: int) -> str:
     body = '''<div class="shell">__TOPBAR__
@@ -1048,7 +1049,7 @@ def search_page(chapter_count: int) -> str:
 <main id="results" class="chapter-grid" aria-live="polite"></main>
 </div>
 <script>
-let entries=[];
+let entries=[],ready=false,serverMode=true;
 const input=document.getElementById('searchInput');
 const results=document.getElementById('results');
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
@@ -1058,14 +1059,38 @@ function score(entry,q){
   if(mod.includes(q))return 2;
   return text.includes(q)?1:0;
 }
-function render(){
+function card(e){return `<article class="chapter-card"><div class="card-head"><h2><a href="${esc(e.url)}">${esc(e.title)}</a></h2></div><div class="meta"><span class="pill">${esc(e.module_title)}</span></div></article>`}
+function renderHint(text){results.innerHTML='<p class="empty">'+text+'</p>'}
+function renderLocal(){
   const q=input.value.trim().toLowerCase();
   if(!q){results.innerHTML='<p class="empty">输入关键词开始搜索。</p>';return}
   const hits=entries.map(e=>({e,s:score(e,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,60);
-  results.innerHTML=hits.length?hits.map(({e})=>`<article class="chapter-card"><div class="card-head"><h2><a href="${esc(e.url)}">${esc(e.title)}</a></h2></div><div class="meta"><span class="pill">${esc(e.module_title)}</span></div></article>`).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+  results.innerHTML=hits.length?hits.map(({e})=>card(e)):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
 }
-input.addEventListener('input',render);
-fetch('search-index.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(data=>{entries=data;render()}).catch(()=>{results.innerHTML='<p class="empty">索引加载失败（请通过 启动学习站.cmd 访问）。</p>'});
+async function searchServer(q){
+  renderHint('搜索中…');
+  try{
+    const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store'});
+    if(!r.ok)throw new Error('server');
+    const d=await r.json();
+    results.innerHTML=d.items.length?d.items.map(card).join(''):'<p class="empty">没有匹配结果，换个关键词试试。</p>';
+  }catch(e){
+    serverMode=false;                       // 服务端不可用 → 回退静态索引模式
+    try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。')}
+  }
+}
+async function loadIndex(){
+  if(ready)return;
+  renderHint('索引加载中…（首次较慢，加载后走浏览器缓存）');
+  const r=await fetch('search-index.json');
+  if(!r.ok)throw new Error('index');
+  entries=await r.json();ready=true;
+}
+input.addEventListener('input',()=>{
+  const q=input.value.trim();
+  if(!q){renderHint('输入关键词开始搜索。');return}
+  if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败（请通过 启动学习站.cmd 访问）。'))}
+});
 </script>'''
     body = body.replace("__TOPBAR__", topbar(".")).replace("__CHAPTER_COUNT__", str(chapter_count))
     return document("全文搜索", body, "assets/library.css")

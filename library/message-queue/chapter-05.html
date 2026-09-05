@@ -24,7 +24,38 @@ Broker：多副本 + 持久化，副本同步后再确认
 </ul>
 <h3>4.4 死信队列兜底</h3>
 <p>重试 N 次仍失败的消息进<strong>死信队列（DLQ）</strong>，单独存储、人工或补偿任务处理，避免一直阻塞正常消费。</p>
-<h3>4.5 面试追问</h3>
+<h3>4.5 可靠性代码模板（Spring Boot）</h3>
+<p><strong>RabbitMQ 生产端 confirm + 消费端手动 ACK：</strong></p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// application.yml</span>
+<span class="c1">// spring.rabbitmq.publisher-confirm-type: correlated   开启 confirm 回调</span>
+<span class="c1">// spring.rabbitmq.listener.simple.acknowledge-mode: manual   消费端手动 ACK</span>
+
+<span class="c1">// 生产端：Broker 落盘/入副本后才回调，未确认记入本地重试表</span>
+<span class="n">rabbitTemplate</span><span class="p">.</span><span class="na">setConfirmCallback</span><span class="p">((</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">ack</span><span class="p">,</span><span class="w"> </span><span class="n">cause</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ack</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">retryTable</span><span class="p">.</span><span class="na">save</span><span class="p">(</span><span class="n">data</span><span class="p">.</span><span class="na">getId</span><span class="p">(),</span><span class="w"> </span><span class="n">cause</span><span class="p">);</span><span class="w">   </span><span class="c1">// 定时任务补偿重发</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">});</span>
+
+<span class="c1">// 消费端：处理成功才 ACK，失败 nack 进死信（requeue=false 防无限循环）</span>
+<span class="nd">@RabbitListener</span><span class="p">(</span><span class="n">queues</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;order.pay&quot;</span><span class="p">)</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">onMessage</span><span class="p">(</span><span class="n">Message</span><span class="w"> </span><span class="n">message</span><span class="p">,</span><span class="w"> </span><span class="n">Channel</span><span class="w"> </span><span class="n">channel</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">long</span><span class="w"> </span><span class="n">tag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">message</span><span class="p">.</span><span class="na">getMessageProperties</span><span class="p">().</span><span class="na">getDeliveryTag</span><span class="p">();</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">handle</span><span class="p">(</span><span class="n">message</span><span class="p">);</span>
+<span class="w">        </span><span class="n">channel</span><span class="p">.</span><span class="na">basicAck</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="n">Exception</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">channel</span><span class="p">.</span><span class="na">basicNack</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Kafka 生产端三件套：</strong></p>
+<div class="codehilite" data-lang="properties"><pre><code class="language-properties"><span class="na">spring.kafka.producer.acks</span><span class="o">=</span><span class="s">all                             # ISR 全部确认</span>
+<span class="na">spring.kafka.producer.retries</span><span class="o">=</span><span class="s">3</span>
+<span class="na">spring.kafka.producer.properties.enable.idempotence</span><span class="o">=</span><span class="s">true   # 幂等生产者：重试不重复</span>
+</code></pre></div>
+<p>三段代码分别对应“生产 confirm、Broker 多副本持久化、消费手动 ACK”，面试时直接按这三段讲。</p>
+<h3>4.6 面试追问</h3>
 <ul>
 <li>问：如何保证消息不丢失？</li>
 <li>答：三段防御：生产 confirm、Broker 多副本持久化、消费手动 ACK，失败进死信。</li>

@@ -44,11 +44,22 @@
 </tbody>
 </table>
 <p>时钟三件套：<strong>物理时钟</strong>（NTP 同步精度有限，跨机器不能直接比时间戳）、<strong>Lamport 逻辑时钟</strong>（计数器，只保证事件偏序）、<strong>向量时钟</strong>（能判断因果并发）。</p>
-<h3>1.3 面试追问</h3>
+<h3>1.3 架构演进五步</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">1. 单体架构：一个 war 包搞定一切 → 团队 &lt;10 人、日活万级完全够用
+2. 垂直拆分：按业务拆成多个应用（订单系统、用户系统），各自连自己的库
+3. SOA：抽公共服务（用户中心、支付中心），ESB/Dubbo 做服务治理
+4. 微服务：拆得更细 + 注册中心/网关/链路追踪全套基础设施
+5. 云原生：容器化 + K8s + Service Mesh，基础设施下沉
+</code></pre></div>
+<p>每一步的驱动力都是<strong>具体的痛</strong>：单体发布慢 → 垂直拆分；公共服务重复建设 → SOA；SOA 服务粒度太粗、扩展不灵活 → 微服务。面试讲架构演进，重点不是报名词，而是说出每一步“解决了什么、又带来了什么”。</p>
+<p><strong>数据库维度的同步演进</strong>：单库 → 读写分离 → 分库分表（垂直分库到业务库，水平分表到数据片）——分库分表正是后面“分布式事务”“分布式 ID”两章的根因：库一拆，跨库事务和全局唯一 ID 的需求就来了。</p>
+<h3>1.4 面试追问</h3>
 <ul>
 <li>问：分布式和单机最大的区别？</li>
 <li>答：单机假设“调用必达、状态一致”，分布式必须面对网络不可靠和部分失败。</li>
 <li>问：为什么分布式系统难做？</li>
 <li>答：没有全局时钟、没有全局状态视图，只能通过协议和权衡逼近“看起来一致”。</li>
+<li>问：你们项目为什么拆微服务？</li>
+<li>答：说具体的痛（发布互相阻塞、热点模块无法单独扩容），再讲拆分收益，不要背概念。</li>
 </ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
 <script>const contentId="distributed-basics:02",moduleId="distributed-basics";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

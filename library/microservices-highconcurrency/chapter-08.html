@@ -16,7 +16,27 @@
 <li>本地缓存兜底热点，降低 Redis 压力；</li>
 <li>布隆过滤器挡不存在请求（防穿透），见《Redis》。</li>
 </ul>
-<h3>7.4 面试追问</h3>
+<h3>7.4 Cache Aside 与延迟双删代码</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 读：未命中查库回填</span>
+<span class="kd">public</span><span class="w"> </span><span class="n">Product</span><span class="w"> </span><span class="nf">getById</span><span class="p">(</span><span class="n">Long</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">Product</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">redis</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="s">&quot;product:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">id</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="w">    </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">productMapper</span><span class="p">.</span><span class="na">selectById</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="n">redis</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="s">&quot;product:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">MINUTES</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">p</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// 写：先更新 DB，再删缓存</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="n">Product</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">productMapper</span><span class="p">.</span><span class="na">update</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+<span class="w">    </span><span class="n">redis</span><span class="p">.</span><span class="na">delete</span><span class="p">(</span><span class="s">&quot;product:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">getId</span><span class="p">());</span>
+<span class="w">    </span><span class="c1">// 延迟双删：并发下“旧读回填脏缓存”的窗口，延迟再删一次</span>
+<span class="w">    </span><span class="n">delayedExecutor</span><span class="p">.</span><span class="na">schedule</span><span class="p">(</span>
+<span class="w">        </span><span class="p">()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">redis</span><span class="p">.</span><span class="na">delete</span><span class="p">(</span><span class="s">&quot;product:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">getId</span><span class="p">()),</span><span class="w"> </span><span class="mi">500</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">MILLISECONDS</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>要点：删缓存而非更新缓存（并发写容易互相覆盖写回旧值）；延迟双删的 500ms 要略大于一次读请求的回填耗时；更彻底的方案是 Canal 订阅 binlog 异步删缓存，业务代码零侵入。</p>
+<h3>7.5 面试追问</h3>
 <ul>
 <li>问：更新 DB 后为什么删缓存而不是更新缓存？</li>
 <li>答：更新缓存并发下容易写入旧值，删除后按需回填更简单可靠。</li>

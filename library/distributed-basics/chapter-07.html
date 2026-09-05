@@ -40,7 +40,23 @@
 </table>
 <h3>6.3 与防重区别</h3>
 <p>幂等针对“同一业务多次执行结果一致”，防重更侧重“重复请求被拦截”；实践中常配合使用：分布式锁挡并发，唯一键/状态机保证落库不重复。</p>
-<h3>6.4 面试追问</h3>
+<h3>6.4 幂等代码三件套</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 1. Token 机制：进入表单页先领 token，提交时校验 + 删除原子完成</span>
+<span class="n">String</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">UUID</span><span class="p">.</span><span class="na">randomUUID</span><span class="p">().</span><span class="na">toString</span><span class="p">();</span>
+<span class="n">redis</span><span class="p">.</span><span class="na">opsForValue</span><span class="p">().</span><span class="na">set</span><span class="p">(</span><span class="s">&quot;token:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">token</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">MINUTES</span><span class="p">);</span>
+
+<span class="c1">// 提交时：delete 返回 true = 第一次提交；false = 重复提交，直接拒绝</span>
+<span class="n">Boolean</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">redis</span><span class="p">.</span><span class="na">delete</span><span class="p">(</span><span class="s">&quot;token:&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">token</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Boolean</span><span class="p">.</span><span class="na">FALSE</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">first</span><span class="p">))</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">RepeatSubmitException</span><span class="p">();</span>
+</code></pre></div>
+<div class="codehilite" data-lang="sql"><pre><code class="language-sql"><span class="c1">-- 2. 乐观锁：并发/重复更新只有一条生效</span>
+<span class="k">UPDATE</span><span class="w"> </span><span class="n">account</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span><span class="w">    </span><span class="c1">-- 影响行数 0 → 已处理过，按业务放弃或重试</span>
+</code></pre></div>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 3. 去重表：与业务同事务（见消息队列幂等一节），挡“重投”而非“并发”</span>
+</code></pre></div>
+<p>组合拳：<strong>token 挡前端重复点击，乐观锁挡并发更新，去重表挡消息重投</strong>——三层手段覆盖三类重复来源，面试按这个框架分层回答。</p>
+<h3>6.5 面试追问</h3>
 <ul>
 <li>问：接口幂等怎么实现？</li>
 <li>答：唯一业务键去重、token、状态机、乐观锁、分布式锁，按场景组合。</li>

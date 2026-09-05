@@ -14,7 +14,19 @@
 <p><strong>故障恢复细节</strong>：协调者崩溃后靠事务日志恢复，向参与者查询决策再续做；commit 一旦发出不可撤销；未收齐 prepare 应答时按 abort 决断。Seata 的 XA 模式就是基于数据库 XA 的 2PC 实现，把 3.2 与 4.3 串起来。</p>
 <h3>3.3 三阶段提交 3PC</h3>
 <p>3PC 在 2PC 基础上：增加 <strong>CanCommit</strong> 预询问阶段 + 引入超时机制（参与者超时自动 abort/commit），降低阻塞范围。但它依然无法彻底解决分区下的不一致，工程上主流是 TCC/最终一致方案。</p>
-<h3>3.4 面试追问</h3>
+<h3>3.4 Seata：把 2PC 做成生产可用</h3>
+<p>2PC 理论落地为 Seata 的三种模式，面试最常问 AT：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// AT 模式：一注解搞定，业务无侵入</span>
+<span class="nd">@GlobalTransactional</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">createOrder</span><span class="p">(</span><span class="n">Order</span><span class="w"> </span><span class="n">order</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">orderService</span><span class="p">.</span><span class="na">create</span><span class="p">(</span><span class="n">order</span><span class="p">);</span><span class="w">            </span><span class="c1">// 订单库（分支 1）</span>
+<span class="w">    </span><span class="n">stockService</span><span class="p">.</span><span class="na">deduct</span><span class="p">(</span><span class="n">order</span><span class="p">.</span><span class="na">getSku</span><span class="p">());</span><span class="w">   </span><span class="c1">// 库存服务（分支 2，远程调用）</span>
+<span class="w">    </span><span class="n">accountService</span><span class="p">.</span><span class="na">debit</span><span class="p">(</span><span class="n">order</span><span class="p">);</span><span class="w">           </span><span class="c1">// 账户服务（分支 3）</span>
+<span class="w">    </span><span class="c1">// 任一分支异常，TC 通知所有分支按 undo_log 反向补偿</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>AT 一阶段就把本地事务提交（只挂 undo_log 不长持锁），二阶段全局提交删日志、回滚则按镜像生成反向 SQL——把 2PC 的“同步阻塞”换成了“undo_log 补偿”，代价是全局事务中间态对外可见。AT 与 TCC/SAGA 的完整对比见下一章。</p>
+<h3>3.5 面试追问</h3>
 <ul>
 <li>问：2PC 流程？</li>
 <li>答：prepare 全部确认后 commit，任一失败 abort。</li>

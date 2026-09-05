@@ -44,7 +44,54 @@
 </tbody>
 </table>
 <p><strong>临时 vs 持久实例</strong>：Nacos 里临时实例走心跳、心跳断了就剔除；持久实例走主动探测、不自动摘除（适合 K8s 等有状态场景）。<strong>Eureka 自我保护</strong>：当心跳续约低于阈值（默认 15 分钟内低于 85%）时，Eureka 进入自我保护模式、不再剔除实例并亮红色警告——宁可保留可能已挂的实例，也不让注册表被误清空，这正是 AP 取向的体现。</p>
-<h3>2.3 面试追问</h3>
+<h3>2.3 Nacos / Eureka / Consul 对比</h3>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>Nacos</th>
+<th>Eureka</th>
+<th>Consul</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一致性模型</td>
+<td>AP（可切 CP）</td>
+<td>AP</td>
+<td>CP</td>
+</tr>
+<tr>
+<td>健康检查</td>
+<td>心跳 + 主动探测</td>
+<td>客户端心跳</td>
+<td>心跳 + gRPC 探测</td>
+</tr>
+<tr>
+<td>配置中心</td>
+<td>内置（动态刷新）</td>
+<td>无（需 Spring Cloud Config）</td>
+<td>内置 KV</td>
+</tr>
+<tr>
+<td>雪崩保护</td>
+<td>有（非健康实例保护阈值）</td>
+<td>有（自我保护机制）</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注册中心的本质权衡是 AP vs CP</strong>：服务发现要的是可用性（列表旧一点也别不可用），所以 Eureka/Nacos 默认 AP；Consul 选 CP，保证一致但分区时可能拒绝注册。</p>
+<h3>2.4 配置中心动态刷新</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@RestController</span>
+<span class="nd">@RefreshScope</span><span class="w">                       </span><span class="c1">// 配置变更后 Bean 自动重建</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">BizController</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nd">@Value</span><span class="p">(</span><span class="s">&quot;${biz.rate-limit:100}&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">rateLimit</span><span class="p">;</span><span class="w">          </span><span class="c1">// Nacos 控制台改配置 → 推送 → 立即生效，不用重启</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>动态刷新原理：客户端长轮询 Nacos（30s 超时机制实现准实时）→ 配置变更返回新值 → 发布 RefreshEvent → <code>@RefreshScope</code> 的 Bean 销毁重建，下次注入新值。</p>
+<h3>2.5 面试追问</h3>
 <ul>
 <li>问：服务注册发现流程？</li>
 <li>答：注册 → 心跳续约 → 调用方发现 → 负载均衡调用；实例下线被剔除。</li>
@@ -52,5 +99,7 @@
 <li>答：Nacos 还能当配置中心、可切换 AP/CP；Eureka 2.x 从未开源发布（2018 年官方叫停开发），现为 1.x 维护状态。</li>
 <li>问：注册中心挂了会怎样？</li>
 <li>答：已注册实例还能靠本地缓存继续调用，但新实例/变更感知失效，所以要高可用部署。</li>
+<li>问：注册中心选 AP 还是 CP？</li>
+<li>答：服务发现优先可用性（AP），注册列表短暂陈旧可容忍；配置管理要强一致（CP），改配置必须所有实例看到同一份。</li>
 </ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
 <script>const contentId="microservices-highconcurrency:03",moduleId="microservices-highconcurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
