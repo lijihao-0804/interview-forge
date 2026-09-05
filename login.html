@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · InterviewForge</title>
+<style>
+  :root { --page-bg:#f4f6fb; --surface:#fff; --text:#182235; --muted:#66748a; --line:#dfe4ee; --brand:#5654d4; --brand-strong:#4543bd; --brand-soft:#eeedff; --error:#b3372f; }
+  * { box-sizing:border-box; margin:0; }
+  body { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--page-bg); color:var(--text);
+         font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; padding:24px; }
+  .card { width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:36px 32px; box-shadow:0 16px 44px rgba(33,45,73,.08); }
+  h1 { font-size:22px; margin-bottom:6px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 6px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fbfcff; }
+  input:focus { outline:2px solid var(--brand-soft); border-color:var(--brand); }
+  button { width:100%; margin-top:22px; padding:11px; border:0; border-radius:8px; background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:hover { background:var(--brand-strong); }
+  button:disabled { opacity:.6; cursor:wait; }
+  .msg { margin-top:14px; font-size:13px; min-height:18px; }
+  .msg.error { color:var(--error); }
+  .links { margin-top:18px; font-size:13px; color:var(--muted); display:flex; justify-content:space-between; }
+  a { color:var(--brand); text-decoration:none; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>InterviewForge</h1>
+  <p class="sub">LeetCode Hot 100 深度整理版 · 请登录后继续</p>
+  <form id="form">
+    <label for="username">用户名</label>
+    <input id="username" name="username" autocomplete="username" required autofocus>
+    <label for="password">密码</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" id="btn">登 录</button>
+    <div class="msg error" id="msg" role="alert"></div>
+  </form>
+  <div class="links">
+    <a href="register.html">使用注册码注册</a>
+    <a href="library/index.html">只看看内容</a>
+  </div>
+</main>
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var next = params.get("next") || "/library/index.html";
+  // 只允许站内相对路径，防止开放重定向。
+  if (!next.startsWith("/") || next.startsWith("//")) next = "/library/index.html";
+  fetch("/api/me", { cache: "no-store" }).then(function (r) {
+    if (r.ok) { location.replace(next); }
+  }).catch(function () {});
+  document.getElementById("form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var btn = document.getElementById("btn"), msg = document.getElementById("msg");
+    btn.disabled = true; msg.textContent = "";
+    fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("username").value.trim(),
+        password: document.getElementById("password").value
+      })
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (res.ok) { location.replace(next); return; }
+        msg.textContent = res.data && res.data.error || "登录失败，请重试";
+        btn.disabled = false;
+      })
+      .catch(function () { msg.textContent = "网络错误，请确认服务已启动"; btn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

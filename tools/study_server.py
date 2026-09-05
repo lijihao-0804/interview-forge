@@ -5,7 +5,9 @@
 #   1) 静态文件服务：以项目根目录 ROOT 为文档根目录，直接服务网页/题解/题库等静态资源；
 #   2) REST API：提供 /api/* JSON 接口（仪表盘、每日计划、书架、导出、力扣同步等）；
 #   3) 学习记录：所有学习行为（浏览/完成轮次/提交/标记/设置）持久化到 SQLite 单文件数据库；
-#   4) 力扣同步：读取本机保存的 LEETCODE_SESSION，拉取力扣提交历史写回本地库（只读力扣、写本地）。
+#   4) 力扣同步：读取本机保存的 LEETCODE_SESSION，拉取力扣提交历史写回本地库（只读力扣、写本地）；
+#   5) 认证与多用户：账号存 data/auth.db（scrypt 哈希 + 服务端会话），全站登录后才能访问；
+#      每个用户在 data/users/<用户名>/ 拥有独立学习库，注册需管理员签发的一次性注册码。
 #
 # 启动方式（在学习站根目录下）：
 #   python tools/study_server.py [--host 127.0.0.1] [--port 8765]
@@ -29,23 +31,27 @@
 from __future__ import annotations
 
 # ---- 标准库导入分组说明 ----
-# argparse      命令行参数（--host/--port/--open/--init-only/--quiet）
+# argparse      命令行参数（--host/--port/--open/--init-only/--quiet/--create-admin）
 # json / sqlite3 HTTP 请求体解析、数据库读写（本库核心存储）
+# hashlib/hmac/secrets  scrypt 密码哈希与校验、随机会话令牌与注册码
 # random / re    随机抽题（今日推荐/组卷）、文本匹配（题解锚点、力扣耗时解析）
 # http.server    标准库 HTTP 服务器（ThreadingHTTPServer 每请求一线程）
 # urllib.parse   URL 解析/中文路径解码/查询参数解析
 # build_hot100   同目录下的题库构建模块：题目清单（PROBLEM_BY_ID）、力扣 slug 映射、文件名规则
 import argparse
+import hashlib
+import hmac
 import json
 import random
 import re
+import secrets
 import sqlite3
 import tempfile
 import threading
 import time
 import uuid
 import webbrowser
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -62,6 +68,18 @@ from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "hot100-study.db"
+# ---- 认证与多用户路径常量 ----
+# AUTH_DB_PATH   账户库（users/sessions/invite_codes），与学习记录库分离；
+# USERS_DIR      每用户独立学习库的根目录 data/users/<用户名>/hot100-study.db。
+AUTH_DB_PATH = DATA_DIR / "auth.db"
+USERS_DIR = DATA_DIR / "users"
+SESSION_COOKIE = "forge_session"
+SESSION_TTL = timedelta(days=30)
+# 用户名同时用作 data/users/ 下的目录名：只允许字母数字下划线连字符（2~32 位），
+# 从源头排除路径穿越与特殊字符。
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{2,32}$")
+# 注册码字符表：去掉易混淆的 0/O/1/I，便于口头转述与抄写。
+_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
 # 力扣同步后台任务：task_id -> 日志/状态/结果，供前端轮询打印进度。
 SYNC_TASKS: dict[str, dict[str, object]] = {}
@@ -182,29 +200,32 @@ CREATE TABLE IF NOT EXISTS credentials (
 
 
 # ---- 模块级进程内状态 ----
-# _SCHEMA_READY    建表完成标记：首次 connect 时执行一次 DDL，之后跳过（懒初始化）；
+# _SCHEMA_DONE     已建表数据库路径集合：多用户下每个用户的库文件首次连接都要各自建表，
+#                  因此按"绝对路径"记录，取代旧的全局布尔标记；
 # QUIET            请求日志开关（--quiet 或脚本内置 True 后不再打印每条请求）；
 # _SCHEMA_LOCK     建表互斥锁：多线程并发首次连接时，保证只有一个线程执行建表；
 # _MANIFEST_CACHE  书架 manifest.json 的内存缓存 (mtime, 内容)：文件没改动就直接复用。
-_SCHEMA_READY = False
+_SCHEMA_DONE: set[str] = set()
 QUIET = False
 _SCHEMA_LOCK = threading.Lock()
 _MANIFEST_CACHE: tuple[float, dict[str, object]] | None = None
 
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
-    """打开数据库连接：确保目录存在、设置行工厂、开启外键；首次连接时加锁执行建库 DDL。"""
-    global _SCHEMA_READY
+    """打开数据库连接：确保目录存在、设置行工厂、开启外键；该库文件首次连接时加锁执行建库 DDL。"""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path, timeout=10)
     # Row 工厂：查询结果支持按列名取值（row["problem_id"]），后面代码大量依赖它。
     connection.row_factory = sqlite3.Row
     # 开启外键约束（当前表结构暂无级联，保持规范）；timeout=10 秒缓解多线程并发写锁等待。
     connection.execute("PRAGMA foreign_keys = ON")
-    # 双检锁（先查标记、锁内再查标记）：多线程并发首次连接也只会执行一次建表脚本。
-    if not _SCHEMA_READY:
+    # WAL 日志模式：多用户并发下读不阻塞写（持久属性，写一次即可）。
+    connection.execute("PRAGMA journal_mode = WAL")
+    # 按库文件路径记录建表状态：新用户库首次连接执行幂等 DDL，之后同一库直接跳过。
+    schema_key = str(db_path)
+    if schema_key not in _SCHEMA_DONE:
         with _SCHEMA_LOCK:
-            if not _SCHEMA_READY:
+            if schema_key not in _SCHEMA_DONE:
                 connection.executescript(SCHEMA)
                 # 老库迁移：为 submissions 补充力扣提交 ID 列（幂等）。
                 try:
@@ -216,8 +237,330 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_submissions_lc ON submissions(lc_id) WHERE lc_id IS NOT NULL"
                 )
-                _SCHEMA_READY = True
+                _SCHEMA_DONE.add(schema_key)
     return connection
+
+
+# =============================================================================
+# 认证与多用户（auth.db + 每用户独立学习库）
+# -----------------------------------------------------------------------------
+# 设计要点（纯标准库实现，参考 sub2api 的邀请码注册模式）：
+#   * 账户数据放 data/auth.db 三张表，与各用户的学习库物理分离；
+#   * 密码用 hashlib.scrypt（n=2^14, r=8, p=1）+ 16 字节随机盐，格式
+#     "scrypt$n$r$p$盐hex$摘要hex"，校验用恒定时间比较；
+#   * 会话令牌服务端存储（sessions 表，可吊销），Cookie 带 HttpOnly + SameSite=Lax
+#     （Lax 本身就阻断跨站 POST 带 Cookie，天然防 CSRF）；
+#   * 注册必须持有管理员签发的一次性注册码；"占用注册码 + 创建用户"在同一
+#     BEGIN IMMEDIATE 事务中完成（仿 sub2api 的 createUserAndClaimInvitation），
+#     并发抢同一个码时 UPDATE 的 status 条件只可能让一个请求成功；
+#   * 每个注册用户在 data/users/<用户名>/hot100-study.db 拥有独立学习库，
+#     数据函数全部接受 db_path 参数，由路由层传入当前用户路径即完成隔离。
+# =============================================================================
+AUTH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_login TEXT
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_sessions_expiry ON sessions(expires_at);
+CREATE TABLE IF NOT EXISTS invite_codes (
+    code TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'unused' CHECK (status IN ('unused', 'used', 'revoked')),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    used_by INTEGER,
+    used_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_invite_status ON invite_codes(status);
+"""
+
+_AUTH_READY = False
+_AUTH_LOCK = threading.Lock()
+
+
+def connect_auth() -> sqlite3.Connection:
+    """打开账户库连接（首次连接建表并清理过期会话；事务改为手动模式支持原子注册）。"""
+    global _AUTH_READY
+    connection = sqlite3.connect(AUTH_DB_PATH, timeout=10, isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
+    if not _AUTH_READY:
+        with _AUTH_LOCK:
+            if not _AUTH_READY:
+                connection.executescript(AUTH_SCHEMA)
+                # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
+                connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
+                _AUTH_READY = True
+    return connection
+
+
+def now_iso() -> str:
+    """当前时间 ISO 字符串（会话过期判断与审计字段统一入口）。"""
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def hash_password(password: str) -> str:
+    """scrypt 加盐哈希：随机 16 字节盐，参数固定 n=2^14/r=8/p=1，输出可自校验的存储串。"""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=1 << 14, r=8, p=1, dklen=32)
+    return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """按存储串的参数重算 scrypt 并恒定时间比较；格式不合法一律返回 False。"""
+    try:
+        scheme, n, r, p, salt_hex, digest_hex = stored.split("$")
+        if scheme != "scrypt":
+            return False
+        digest = hashlib.scrypt(
+            password.encode("utf-8"), salt=bytes.fromhex(salt_hex),
+            n=int(n), r=int(r), p=int(p), dklen=32,
+        )
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def user_db_path(username: str) -> Path:
+    """用户独立学习库路径；用户名必须通过白名单正则（防目录穿越），否则拒绝。"""
+    if not USERNAME_RE.match(username):
+        raise ValueError("非法用户名")
+    return USERS_DIR / username / "hot100-study.db"
+
+
+def create_user(username: str, password: str, role: str = "user",
+                conn: sqlite3.Connection | None = None) -> dict[str, object]:
+    """创建用户：校验用户名/密码长度，scrypt 存哈希；可传入外部连接参与注册事务。"""
+    if not USERNAME_RE.match(username):
+        raise ValueError("用户名限 2~32 位字母数字下划线连字符")
+    if len(password) < 6:
+        raise ValueError("密码至少 6 位")
+    if role not in ("admin", "user"):
+        raise ValueError("非法角色")
+    own_connection = conn is None
+    connection = conn or connect_auth()
+    try:
+        connection.execute(
+            "INSERT INTO users(username, password_hash, role, is_active, created_at) VALUES (?, ?, ?, 1, ?)",
+            (username, hash_password(password), role, now_iso()),
+        )
+        row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(row)
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("用户名已被占用") from exc
+    finally:
+        if own_connection:
+            connection.close()
+
+
+def ensure_admin(username: str, password: str) -> dict[str, object]:
+    """幂等创建管理员：不存在则创建，已存在则原样返回（不重置密码、不改角色）。"""
+    if not USERNAME_RE.match(username):
+        raise ValueError("用户名限 2~32 位字母数字下划线连字符")
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    if row is not None:
+        return dict(row)
+    return create_user(username, password, role="admin")
+
+
+def auth_login(username: str, password: str) -> sqlite3.Row:
+    """登录校验：用户存在、已启用、密码正确三者缺一不可；成功则刷新 last_login。"""
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if row is None or int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
+            raise ValueError("用户名或密码错误")
+        connection.execute("UPDATE users SET last_login = ? WHERE id = ?", (now_iso(), row["id"]))
+        return row
+
+
+def create_session(user_id: int) -> str:
+    """签发会话：32 字节随机令牌入库，30 天有效；令牌只存一份、删除即吊销。"""
+    token = secrets.token_urlsafe(32)
+    expires = (datetime.now().astimezone() + SESSION_TTL).isoformat(timespec="seconds")
+    with closing(connect_auth()) as connection:
+        connection.execute(
+            "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, now_iso(), expires),
+        )
+    return token
+
+
+def destroy_session(token: str) -> None:
+    """登出：删除会话行（Cookie 由处理器置空）。"""
+    with closing(connect_auth()) as connection:
+        connection.execute("DELETE FROM sessions WHERE token = ?", (token,))
+
+
+def session_user(token: str) -> sqlite3.Row | None:
+    """由会话令牌解析当前用户：过期或被停用一律视为未登录。"""
+    if not token:
+        return None
+    with closing(connect_auth()) as connection:
+        return connection.execute(
+            """SELECT u.id, u.username, u.role, u.is_active
+               FROM sessions s JOIN users u ON u.id = s.user_id
+               WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
+            (token, now_iso()),
+        ).fetchone()
+
+
+def generate_invite_codes(count: int, days: int, note: str, created_by: int) -> list[str]:
+    """批量签发一次性注册码：days>0 时从当天起算过期日，note 记录用途便于审计。"""
+    count = max(1, min(count, 50))
+    days = max(0, min(days, 365))
+    expires = (datetime.now().astimezone().date() + timedelta(days=days)).isoformat() if days else None
+    codes: list[str] = []
+    with closing(connect_auth()) as connection:
+        while len(codes) < count:
+            body = "-".join(
+                "".join(secrets.choice(_CODE_ALPHABET) for _ in range(4)) for _ in range(2)
+            )
+            code = f"FORGE-{body}"
+            try:
+                connection.execute(
+                    "INSERT INTO invite_codes(code, status, note, created_at, expires_at) VALUES (?, 'unused', ?, ?, ?)",
+                    (code, note[:64], now_iso(), expires),
+                )
+                codes.append(code)
+            except sqlite3.IntegrityError:
+                continue  # 随机码撞车（概率极低），重抽即可
+    return codes
+
+
+def list_invite_codes() -> list[dict[str, object]]:
+    """注册码清单（新签发在前），供管理页展示与审计。"""
+    with closing(connect_auth()) as connection:
+        return [dict(row) for row in connection.execute(
+            "SELECT * FROM invite_codes ORDER BY created_at DESC, code LIMIT 500"
+        )]
+
+
+def revoke_invite_code(code: str) -> dict[str, object]:
+    """吊销未使用注册码（已用/已吊销的码不可再操作，保留审计记录）。"""
+    with closing(connect_auth()) as connection:
+        cursor = connection.execute(
+            "UPDATE invite_codes SET status = 'revoked' WHERE code = ? AND status = 'unused'",
+            (code,),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("注册码不存在或不可吊销")
+    return {"code": code, "status": "revoked"}
+
+
+def register_with_code(username: str, password: str, code: str) -> dict[str, object]:
+    """注册码兑换注册（原子）：占用码 + 建用户在同一事务，任一步失败整体回滚。"""
+    username = username.strip()
+    today = datetime.now().astimezone().date().isoformat()
+    connection = connect_auth()
+    try:
+        connection.execute("BEGIN IMMEDIATE")  # 写锁从校验那一刻就持有，杜绝并发抢码窗口
+        row = connection.execute("SELECT * FROM invite_codes WHERE code = ?", (code.strip().upper(),)).fetchone()
+        if row is None:
+            raise ValueError("注册码无效")
+        if row["status"] == "used":
+            raise ValueError("注册码已被使用")
+        if row["status"] == "revoked":
+            raise ValueError("注册码已被吊销")
+        if row["expires_at"] and str(row["expires_at"]) < today:
+            raise ValueError("注册码已过期")
+        if connection.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            raise ValueError("用户名已被占用")
+        # 条件更新抢占注册码：并发场景只有一个请求能把 status 从 unused 改掉。
+        cursor = connection.execute(
+            "UPDATE invite_codes SET status = 'used', used_at = ? WHERE code = ? AND status = 'unused'",
+            (now_iso(), code.strip().upper()),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("注册码已被使用")
+        user = create_user(username, password, conn=connection)
+        connection.execute("COMMIT")
+    except (ValueError, sqlite3.Error):
+        with suppress(sqlite3.Error):
+            connection.execute("ROLLBACK")  # 空事务回滚报错无害，吞掉即可
+        raise
+    finally:
+        connection.close()
+    # 建立该用户的独立学习库（幂等 DDL），注册后首次登录即可写记录。
+    with closing(connect(user_db_path(user["username"]))):
+        pass
+    return user
+
+
+def list_users() -> list[dict[str, object]]:
+    """用户清单：附学习库体积，供管理页展示。"""
+    items: list[dict[str, object]] = []
+    with closing(connect_auth()) as connection:
+        for row in connection.execute(
+            "SELECT id, username, role, is_active, created_at, last_login FROM users ORDER BY id"
+        ):
+            item = dict(row)
+            db_file = user_db_path(str(item["username"]))
+            item["db_bytes"] = db_file.stat().st_size if db_file.is_file() else 0
+            items.append(item)
+    return items
+
+
+def set_user_active(username: str, active: bool) -> dict[str, object]:
+    """停用/启用用户：停用时同步清除其全部会话（立即踢下线）。"""
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT id, role FROM users WHERE username = ?", (username,)).fetchone()
+        if row is None:
+            raise ValueError("用户不存在")
+        if str(row["role"]) == "admin":
+            raise ValueError("不能停用管理员账号")
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("UPDATE users SET is_active = ? WHERE id = ?", (1 if active else 0, row["id"]))
+        if not active:
+            connection.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
+        connection.execute("COMMIT")
+    return {"username": username, "is_active": 1 if active else 0}
+
+
+# ---- 登录防爆破：进程内滑动窗口（IP → [失败次数, 解禁时间戳]），重启即清零 ----
+_LOGIN_FAILS: dict[str, list[float]] = {}
+_LOGIN_LOCK = threading.Lock()
+_LOGIN_MAX_FAILS = 5
+_LOGIN_LOCKOUT_SECONDS = 600.0
+
+
+def login_rate_limit_ok(ip: str) -> bool:
+    """该 IP 当前是否允许尝试登录（失败 5 次锁 10 分钟）。"""
+    with _LOGIN_LOCK:
+        entry = _LOGIN_FAILS.get(ip)
+        if not entry:
+            return True
+        fails, unlock_at = entry
+        if fails < _LOGIN_MAX_FAILS or time.time() >= unlock_at:
+            return True
+        return False
+
+
+def login_rate_limit_fail(ip: str) -> None:
+    """记录一次登录失败，达到阈值时启动锁定期。"""
+    with _LOGIN_LOCK:
+        entry = _LOGIN_FAILS.setdefault(ip, [0, 0.0])
+        entry[0] += 1
+        if entry[0] >= _LOGIN_MAX_FAILS:
+            entry[1] = time.time() + _LOGIN_LOCKOUT_SECONDS
+
+
+def login_rate_limit_clear(ip: str) -> None:
+    """登录成功后清零该 IP 的失败计数。"""
+    with _LOGIN_LOCK:
+        _LOGIN_FAILS.pop(ip, None)
 
 
 def now_parts() -> tuple[str, str]:
@@ -1672,12 +2015,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def send_json(self, payload: object, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(self, payload: object, status: HTTPStatus = HTTPStatus.OK,
+                  extra_headers: list[tuple[str, str]] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # 附加响应头（登录/登出时携带 Set-Cookie）。
+        for name, value in (extra_headers or []):
+            self.send_header(name, value)
         # CORS：仅放行本机（浏览器扩展/书签脚本跨源到 localhost 提交记录）。
         origin = self.headers.get("Origin", "")
         if origin in ("http://localhost", "http://127.0.0.1", "http://localhost:8765", "http://127.0.0.1:8765"):
@@ -1686,6 +2033,17 @@ class StudyHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
         self.wfile.write(body)
+
+    def current_user(self) -> sqlite3.Row | None:
+        """解析请求 Cookie 中的会话令牌 → 当前登录用户行；未登录返回 None。"""
+        for part in self.headers.get("Cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                try:
+                    return session_user(value)
+                except sqlite3.Error:
+                    return None
+        return None
 
     def do_OPTIONS(self) -> None:
         # CORS 预检：浏览器在跨源 POST（浏览器扩展/书签脚本）前先发 OPTIONS 探测；
@@ -1702,13 +2060,35 @@ class StudyHandler(SimpleHTTPRequestHandler):
         self.send_error(HTTPStatus.METHOD_NOT_ALLOWED)
 
     def do_GET(self) -> None:
-        # GET 路由总览：安全过滤 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
+        # GET 路由总览：安全过滤 → 认证门禁 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
         parsed = urlparse(self.path)
         decoded_path = unquote(parsed.path)
         # 敏感目录一律 403：data/（数据库与凭证）、tools/（服务端脚本）、.git/（版本库）。
         if decoded_path.startswith(("/data", "/tools", "/.git")):
             self.send_error(HTTPStatus.FORBIDDEN)
             return
+        # ---- 认证门禁：未登录页面跳登录页、API 回 401；管理页/管理 API 仅限管理员 ----
+        # 公开白名单：登录页、注册页、图标与健康检查。
+        user = self.current_user()
+        public_get = {"/login.html", "/register.html", "/favicon.ico", "/api/health"}
+        if user is None and decoded_path not in public_get:
+            if decoded_path.startswith("/api/"):
+                self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
+            else:
+                self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
+                self.send_header("Location", f"/login.html?next={quote(decoded_path)}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+            return
+        if decoded_path == "/admin.html" or decoded_path.startswith("/api/admin/"):
+            if user is None or str(user["role"]) != "admin":
+                if decoded_path.startswith("/api/"):
+                    self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
+                else:
+                    self.send_error(HTTPStatus.FORBIDDEN)
+                return
+        # 已登录用户的独立学习库：本请求内所有 /api/* 读写与浏览埋点都落到该库。
+        db = user_db_path(str(user["username"])) if user is not None else DB_PATH
         # 根路径 302 重定向到书架首页 library/index.html："打开学习站"直达内容而非目录列表。
         if parsed.path == "/":
             self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
@@ -1716,32 +2096,45 @@ class StudyHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
+        # /api/me：当前登录用户信息（登录页/管理页/页面右上角展示用）。
+        if parsed.path == "/api/me":
+            self.send_json({"username": str(user["username"]), "role": str(user["role"])})
+            return
         # /api/dashboard：仪表盘聚合 —— 今日概览/每题进度/近 14 天/最近活动/365 天热力图/标记与提交统计。
         if parsed.path == "/api/dashboard":
-            self.send_json(dashboard_data())
+            self.send_json(dashboard_data(db))
             return
         # /api/health：健康检查 —— 返回 ok 与库文件名，供前端探测服务是否存活。
         if parsed.path == "/api/health":
-            self.send_json({"ok": True, "database": DB_PATH.name})
+            self.send_json({"ok": True, "database": db.name})
             return
         # /api/library：书架进度 —— 各模块 total/completed 进度条 + 每章节轮次与最近活动。
         if parsed.path == "/api/library":
-            self.send_json(library_data())
+            self.send_json(library_data(db))
+            return
+        # /api/admin/codes：注册码清单（管理员）。
+        if parsed.path == "/api/admin/codes":
+            self.send_json({"items": list_invite_codes()})
+            return
+        # /api/admin/users：用户清单（管理员）。
+        if parsed.path == "/api/admin/users":
+            self.send_json({"items": list_users()})
             return
         # /api/daily：今日待复习 —— 到期日 <= 今天 的题目与章节；?module= 指定只筛某模块的章节。
         if parsed.path == "/api/daily":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
-            self.send_json(daily_data(module_id=params.get("module", "")))
+            self.send_json(daily_data(db, module_id=params.get("module", "")))
             return
         # /api/settings：读全部设置 KV（前端初始化时填充每日目标等）。
         if parsed.path == "/api/settings":
-            self.send_json(get_settings())
+            self.send_json(get_settings(db))
             return
         # /api/pick：今日推荐 —— 未完成优先、按最久未碰排序；?random=1 随机抽（"换一题"）。
         if parsed.path == "/api/pick":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             try:
                 self.send_json(pick_problem(
+                    db_path=db,
                     randomize=params.get("random", "") == "1",
                     category=params.get("category", ""),
                     difficulty=params.get("difficulty", ""),
@@ -1772,11 +2165,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 count = max(1, min(int(params.get("count", "3") or "3"), 20))
             except ValueError:
                 count = 3
-            self.send_json(today_plan(count=count, randomize=params.get("random", "") == "1"))
+            self.send_json(today_plan(db, count=count, randomize=params.get("random", "") == "1"))
             return
         # /api/weaklist：薄弱题清单 —— 带轮次/首次浏览/标记时间，按标记时间排序。
         if parsed.path == "/api/weaklist":
-            self.send_json(weaklist())
+            self.send_json(weaklist(db))
             return
         # /api/submissions：单题提交记录 —— 按 id 倒序最近 limit 条；problem_id 缺失/非法 → 400。
         if parsed.path == "/api/submissions":
@@ -1786,7 +2179,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except ValueError:
                 self.send_json({"error": "缺少合法 problem_id"}, HTTPStatus.BAD_REQUEST)
                 return
-            self.send_json({"problem_id": problem_id, "items": submissions_for_problem(problem_id)})
+            self.send_json({"problem_id": problem_id, "items": submissions_for_problem(problem_id, db_path=db)})
             return
         # /api/leetcode/sync/status：后台同步任务进度（日志列表 + 完成状态）。
         if parsed.path == "/api/leetcode/sync/status":
@@ -1803,7 +2196,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/leetcode/status：力扣连接状态 —— 凭证是否已保存 + 实测登录态是否生效，合并成一个响应。
         if parsed.path == "/api/leetcode/status":
-            credentials = get_credentials()
+            credentials = get_credentials(db)
             self.send_json({
                 "credentials_saved": bool(credentials.get("leetcode_session")),
                 "session": credentials.get("leetcode_session", ""),
@@ -1819,7 +2212,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 try:
                     with tempfile.NamedTemporaryFile(suffix=".db", delete=False, dir=str(DATA_DIR)) as tmp:
                         tmp_path = Path(tmp.name)
-                    source = sqlite3.connect(DB_PATH)
+                    source = sqlite3.connect(db)
                     dest = sqlite3.connect(tmp_path)
                     try:
                         source.backup(dest)
@@ -1840,7 +2233,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             try:
-                content_type, filename, data = export_data(params.get("kind", ""))
+                content_type, filename, data = export_data(params.get("kind", ""), db)
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                 return
@@ -1869,7 +2262,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             try:
                 target = (ROOT / decoded_path.lstrip("/")).resolve()
                 if target.is_file() and str(target).startswith(str(ROOT.resolve())):
-                    record_view(int(filename[:4]))
+                    record_view(int(filename[:4]), db)
             except (ValueError, OSError, sqlite3.Error):
                 pass
         # 书架章节埋点：manifest routes 表映射 library/* 路径 → content_id 记章节浏览；
@@ -1877,34 +2270,103 @@ class StudyHandler(SimpleHTTPRequestHandler):
         route = load_library_manifest().get("routes", {}).get(decoded_path)
         if route:
             try:
-                record_content_view(str(route["module_id"]), str(route["content_id"]))
+                record_content_view(str(route["module_id"]), str(route["content_id"]), db)
             except (ValueError, OSError, sqlite3.Error):
                 pass
         super().do_GET()
 
     def do_POST(self) -> None:
-        # POST 路由白名单：只放行这 8 个 /api/* 动作，未知路径直接 404（不会误入静态文件服务）。
+        # POST 路由白名单：公开（登录/注册）、管理员、普通登录用户三类，未知路径直接 404
+        # （不会误入静态文件服务）。
         parsed = urlparse(self.path)
-        if parsed.path not in {"/api/complete", "/api/content/complete", "/api/mark", "/api/settings", "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear"}:
+        path = parsed.path
+        public_post = {"/api/login", "/api/register"}
+        admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle"}
+        known_post = public_post | admin_post | {
+            "/api/logout", "/api/complete", "/api/content/complete", "/api/mark", "/api/settings",
+            "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
+        }
+        if path not in known_post:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
+        # ---- 认证门禁：公开端点放行；其余需登录；admin_post 需管理员 ----
+        user = self.current_user()
+        if path not in public_post:
+            if user is None:
+                self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
+                return
+            if path in admin_post and str(user["role"]) != "admin":
+                self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
+                return
+        db = user_db_path(str(user["username"])) if user is not None else DB_PATH
+        cookie_headers: list[tuple[str, str]] = []
         try:
             # 请求体约束：必须是 JSON 且 1~4096 字节，空体/超大直接拒绝（防滥用与内存占用）。
             length = int(self.headers.get("Content-Length", "0"))
             if length < 1 or length > 4096:
                 raise ValueError("请求大小不正确")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            # /api/login：账号密码登录 —— 防爆破锁定期 → 校验 scrypt 哈希 → 签发会话 Cookie。
+            if path == "/api/login":
+                ip = self.client_address[0] if self.client_address else ""
+                if not login_rate_limit_ok(ip):
+                    raise ValueError("尝试次数过多，请 10 分钟后再试")
+                username = str(payload.get("username", "")).strip()
+                try:
+                    row_user = auth_login(username, str(payload.get("password", "")))
+                except ValueError:
+                    login_rate_limit_fail(ip)  # 失败计数：5 次锁 10 分钟
+                    raise
+                login_rate_limit_clear(ip)
+                token = create_session(int(row_user["id"]))
+                cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
+                result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/register：注册码注册 —— 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
+            elif path == "/api/register":
+                row_user = register_with_code(
+                    str(payload.get("username", "")),
+                    str(payload.get("password", "")),
+                    str(payload.get("code", "")),
+                )
+                token = create_session(int(row_user["id"]))
+                cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
+                result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/logout：删除服务端会话并清 Cookie。
+            elif path == "/api/logout":
+                token = self.current_token()
+                if token:
+                    destroy_session(token)
+                cookie_headers.append(("Set-Cookie", self.session_cookie("", expire=True)))
+                result = {"ok": True}
+            # /api/admin/codes：批量签发一次性注册码（count 1~50，days 有效天数，0=永久）。
+            elif path == "/api/admin/codes":
+                codes = generate_invite_codes(
+                    int(payload.get("count", 1)),
+                    int(payload.get("days", 0) or 0),
+                    str(payload.get("note", "")),
+                    int(user["id"]),
+                )
+                result = {"codes": codes}
+            # /api/admin/codes/revoke：吊销未使用注册码。
+            elif path == "/api/admin/codes/revoke":
+                result = revoke_invite_code(str(payload.get("code", "")))
+            # /api/admin/users/toggle：停用/启用用户（停用即踢下线；管理员账号不可停用）。
+            elif path == "/api/admin/users/toggle":
+                result = set_user_active(str(payload.get("username", "")), bool(payload.get("active")))
             # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
-            if parsed.path == "/api/complete":
-                result = complete_round(int(payload["problem_id"]))
+            elif path == "/api/complete":
+                result = complete_round(int(payload["problem_id"]), db)
             # /api/content/complete：书架章节完成一轮（独立的事件表与轮次序列）。
-            elif parsed.path == "/api/content/complete":
-                result = complete_content(str(payload["module_id"]), str(payload["content_id"]))
+            elif path == "/api/content/complete":
+                result = complete_content(str(payload["module_id"]), str(payload["content_id"]), db)
             # /api/mark：设置/清除标记 —— mastered/reviewing/weak，'' 表示删除标记。
-            elif parsed.path == "/api/mark":
-                result = set_mark(str(payload["target_type"]), str(payload["target_id"]), str(payload.get("mark", "")))
+            elif path == "/api/mark":
+                result = set_mark(str(payload["target_type"]), str(payload["target_id"]), str(payload.get("mark", "")), db)
+            # /api/settings：更新设置 KV（目前为每日目标轮次）。
+            elif path == "/api/settings":
+                result = set_setting(str(payload.get("key", "")), str(payload.get("value", "")), db)
             # /api/submit：记录一次力扣提交结果（ac/wa + 语言/耗时/内存，来自手动/书签/扩展）。
-            elif parsed.path == "/api/submit":
+            elif path == "/api/submit":
                 result = record_submission(
                     problem_id=int(payload["problem_id"]),
                     status=str(payload["status"]),
@@ -1912,24 +2374,25 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     runtime_ms=payload.get("runtime_ms"),
                     memory_kb=payload.get("memory_kb"),
                     source=str(payload.get("source", "manual")),
+                    db_path=db,
                 )
             # /api/leetcode/connect：保存力扣凭证（session/csrf）并立刻实测连接状态后返回。
-            elif parsed.path == "/api/leetcode/connect":
+            elif path == "/api/leetcode/connect":
                 set_credentials({
                     "leetcode_session": str(payload.get("leetcode_session", "")),
                     "leetcode_csrf": str(payload.get("leetcode_csrf", "")),
-                })
-                result = {"saved": True, **leetcode_status(get_credentials())}
+                }, db)
+                result = {"saved": True, **leetcode_status(get_credentials(db))}
             # /api/leetcode/sync：拉取力扣提交历史入库 —— full=1 全量翻页，否则增量最近 100 条。
-            elif parsed.path == "/api/leetcode/sync":
+            elif path == "/api/leetcode/sync":
                 full = str(payload.get("full", "0")) in ("1", "true", "True")
                 if payload.get("async") in (1, True, "1", "true", "True"):
-                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(), full)}
+                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(db), full)}
                 else:
-                    result = {"ok": True, **leetcode_sync(get_credentials(), full=full)}
+                    result = {"ok": True, **leetcode_sync(get_credentials(db), full=full)}
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
-                clear_credentials()
+                clear_credentials(db)
                 result = {"cleared": True}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             # 参数缺失/类型错/校验失败/JSON 非法 → 400（请求本身有问题，业务层抛 ValueError）。
@@ -1939,8 +2402,21 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # 数据库层故障 → 500（请求没问题但写入失败）。
             self.send_json({"error": "数据库写入失败"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
-        # POST 创建/更新资源成功统一回 201 Created；send_json 内部附加 CORS 头。
-        self.send_json(result, HTTPStatus.CREATED)
+        # POST 创建/更新资源成功统一回 201 Created；send_json 内部附加 CORS 与 Set-Cookie 头。
+        self.send_json(result, HTTPStatus.CREATED, extra_headers=cookie_headers)
+
+    def session_cookie(self, token: str, expire: bool = False) -> str:
+        """会话 Cookie：HttpOnly + SameSite=Lax（Lax 阻断跨站 POST 携带 Cookie，天然防 CSRF）。"""
+        max_age = 0 if expire else int(SESSION_TTL.total_seconds())
+        return f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
+
+    def current_token(self) -> str:
+        """从 Cookie 头提取会话令牌（登出时用于删除服务端会话行）。"""
+        for part in self.headers.get("Cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                return value
+        return ""
 
     def log_message(self, format: str, *args: object) -> None:
         if not QUIET:
@@ -1955,13 +2431,34 @@ def main() -> None:
     parser.add_argument("--open", action="store_true", help="启动后打开浏览器")
     parser.add_argument("--init-only", action="store_true", help="仅初始化数据库")
     parser.add_argument("--quiet", action="store_true", help="不打印请求日志")
+    parser.add_argument("--create-admin", metavar="USERNAME",
+                        help="幂等创建管理员账号（配合 --admin-password）；若旧单用户库存在且"
+                             "该管理员尚无独立学习库，则自动把 data/hot100-study.db 迁移为其学习库")
+    parser.add_argument("--admin-password", metavar="PASSWORD", help="与管理员用户名一起传入的初始密码")
     args = parser.parse_args()
     QUIET = args.quiet
-    # 首次连接即触发建表（幂等 DDL）；--init-only 到此为止 = 只初始化数据库。
-    with closing(connect()):
+    # ---- 管理员引导（幂等）：创建账号并按需收编旧单用户库 ----
+    adopted = False
+    if args.create_admin:
+        if not args.admin_password:
+            parser.error("--create-admin 需要同时提供 --admin-password")
+        admin = ensure_admin(args.create_admin, args.admin_password)
+        print(f"管理员账号就绪：{admin['username']}")
+        legacy, target = DB_PATH, user_db_path(str(admin["username"]))
+        if legacy.is_file() and not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            legacy.replace(target)
+            adopted = True
+            print(f"已将原学习库迁移为管理员学习库：{target}")
+    # 初始化账户库（幂等建表 + 清过期会话）；学习库在管理员迁移或首个请求时按需建表。
+    with closing(connect_auth()):
         pass
+    # 未发生迁移时保持旧行为：确保默认库存在（兼容 --init-only 与扩展脚本）。
+    if not adopted:
+        with closing(connect()):
+            pass
     if args.init_only:
-        print(f"Database ready: {DB_PATH}")
+        print(f"Database ready: {AUTH_DB_PATH}")
         return
     # 绑定 0.0.0.0 时浏览器仍应打开本机回环地址；0.0.0.0 不是浏览器可访问地址。
     browser_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
@@ -1973,7 +2470,7 @@ def main() -> None:
         # 延迟 0.5 秒再开浏览器：等服务就绪，避免浏览器首请求落空。
         threading.Timer(0.5, lambda: webbrowser.open(address)).start()
     print(f"Interview Forge：{address}")
-    print("学习记录数据库：" + str(DB_PATH))
+    print("账户数据库：" + str(AUTH_DB_PATH))
     print("按 Ctrl+C 停止服务。")
     try:
         server.serve_forever()

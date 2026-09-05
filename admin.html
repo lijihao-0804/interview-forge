@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理后台 · InterviewForge</title>
+<style>
+  :root { --page-bg:#f4f6fb; --surface:#fff; --surface-soft:#f8f9fd; --text:#182235; --muted:#66748a; --line:#dfe4ee;
+          --brand:#5654d4; --brand-strong:#4543bd; --brand-soft:#eeedff; --error:#b3372f; --success:#157a52; --warning:#a85b00; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--page-bg); color:var(--text); font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif; padding:24px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  h1 { font-size:20px; }
+  .who { font-size:13px; color:var(--muted); display:flex; gap:14px; align-items:center; }
+  .who a { color:var(--brand); text-decoration:none; }
+  section { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:20px; box-shadow:0 10px 30px rgba(33,45,73,.06); }
+  h2 { font-size:16px; margin-bottom:14px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:12px; font-weight:600; color:var(--muted); }
+  input { padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fbfcff; width:130px; }
+  input#note { width:220px; }
+  button { padding:8px 16px; border:0; border-radius:8px; background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:hover { background:var(--brand-strong); }
+  button.ghost { background:transparent; color:var(--brand); border:1px solid var(--line); font-weight:500; }
+  button.mini { padding:3px 10px; font-size:12px; font-weight:500; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; background:var(--surface-soft); }
+  td code { font-family:Consolas,monospace; background:var(--brand-soft); padding:2px 6px; border-radius:5px; user-select:all; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; }
+  .tag.unused { background:#e5f5ec; color:var(--success); }
+  .tag.used { background:#f0f1f5; color:var(--muted); }
+  .tag.revoked { background:#fbe9e7; color:var(--error); }
+  .tag.off { background:#fbe9e7; color:var(--error); }
+  .msg { font-size:13px; min-height:18px; margin-top:10px; }
+  .msg.ok { color:var(--success); } .msg.error { color:var(--error); }
+  .muted { color:var(--muted); }
+  #denied { text-align:center; padding:60px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>InterviewForge · 管理后台</h1>
+    <div class="who" id="who"></div>
+  </header>
+
+  <div id="denied" hidden>
+    <p>需要管理员权限。<a href="login.html">去登录</a></p>
+  </div>
+
+  <div id="panel" hidden>
+    <section>
+      <h2>签发注册码（一次性，白名单注册凭证）</h2>
+      <div class="row">
+        <div class="field"><label for="count">数量</label><input id="count" type="number" min="1" max="50" value="5"></div>
+        <div class="field"><label for="days">有效天数（0 = 永久）</label><input id="days" type="number" min="0" max="365" value="30"></div>
+        <div class="field"><label for="note">用途备注</label><input id="note" placeholder="如：发给 2027 届同学"></div>
+        <button id="gen">签发</button>
+      </div>
+      <div class="msg" id="gen-msg"></div>
+      <table id="codes-table">
+        <thead><tr><th>注册码</th><th>状态</th><th>备注</th><th>签发时间</th><th>过期日</th><th>使用者</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>用户管理</h2>
+      <table id="users-table">
+        <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+</div>
+
+<script>
+function fmtBytes(n) {
+  if (!n) return "—";
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1048576).toFixed(1) + " MB";
+}
+function fmtTime(s) { return (s || "—").replace("T", " "); }
+function el(tag, cls, text) { var node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; }
+
+function api(path, options) {
+  return fetch(path, Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {}))
+    .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+}
+
+function loadCodes() {
+  api("/api/admin/codes").then(function (res) {
+    if (!res.ok) return;
+    var tbody = document.querySelector("#codes-table tbody");
+    tbody.textContent = "";
+    res.data.items.forEach(function (code) {
+      var tr = el("tr");
+      tr.appendChild(el("td")).appendChild(el("code", null, code.code));
+      tr.appendChild(el("td")).appendChild(el("span", "tag " + code.status,
+        { unused: "未使用", used: "已使用", revoked: "已吊销" }[code.status]));
+      tr.appendChild(el("td", null, code.note || "—"));
+      tr.appendChild(el("td", "muted", fmtTime(code.created_at)));
+      tr.appendChild(el("td", "muted", code.expires_at || "永久"));
+      tr.appendChild(el("td", "muted", code.used_by != null ? "#" + code.used_by : "—"));
+      var action = el("td");
+      if (code.status === "unused") {
+        var btn = el("button", "mini ghost", "吊销");
+        btn.onclick = function () {
+          if (!confirm("吊销 " + code.code + "？")) return;
+          api("/api/admin/codes/revoke", { method: "POST", body: JSON.stringify({ code: code.code }) })
+            .then(function () { loadCodes(); });
+        };
+        action.appendChild(btn);
+      } else { action.textContent = "—"; }
+      tr.appendChild(action);
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+function loadUsers() {
+  api("/api/admin/users").then(function (res) {
+    if (!res.ok) return;
+    var tbody = document.querySelector("#users-table tbody");
+    tbody.textContent = "";
+    res.data.items.forEach(function (user) {
+      var tr = el("tr");
+      tr.appendChild(el("td")).appendChild(document.createTextNode(user.username));
+      tr.appendChild(el("td", null, user.role === "admin" ? "管理员" : "用户"));
+      var status = el("td");
+      status.appendChild(el("span", "tag " + (user.is_active ? "unused" : "off"), user.is_active ? "正常" : "已停用"));
+      tr.appendChild(status);
+      tr.appendChild(el("td", "muted", fmtTime(user.created_at)));
+      tr.appendChild(el("td", "muted", fmtTime(user.last_login)));
+      tr.appendChild(el("td", "muted", fmtBytes(user.db_bytes)));
+      var action = el("td");
+      if (user.role !== "admin") {
+        var btn = el("button", "mini ghost", user.is_active ? "停用" : "启用");
+        btn.onclick = function () {
+          api("/api/admin/users/toggle", { method: "POST",
+            body: JSON.stringify({ username: user.username, active: !user.is_active }) })
+            .then(function (res2) { if (!res2.ok) alert(res2.data.error || "操作失败"); loadUsers(); });
+        };
+        action.appendChild(btn);
+      } else { action.textContent = "—"; }
+      tr.appendChild(action);
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+document.getElementById("gen").onclick = function () {
+  var msg = document.getElementById("gen-msg");
+  api("/api/admin/codes", { method: "POST", body: JSON.stringify({
+    count: parseInt(document.getElementById("count").value, 10) || 1,
+    days: parseInt(document.getElementById("days").value, 10) || 0,
+    note: document.getElementById("note").value.trim()
+  })}).then(function (res) {
+    if (!res.ok) { msg.textContent = res.data.error || "签发失败"; msg.className = "msg error"; return; }
+    msg.textContent = "已签发：" + res.data.codes.join("、") + "（点击码即可复制）";
+    msg.className = "msg ok";
+    loadCodes();
+  });
+};
+
+api("/api/me").then(function (res) {
+  if (!res.ok) { location.replace("/login.html?next=/admin.html"); return; }
+  var who = document.getElementById("who");
+  who.appendChild(el("span", null, "当前：" + res.data.username + (res.data.role === "admin" ? "（管理员）" : "")));
+  var out = el("a", null, "退出登录");
+  out.href = "#";
+  out.onclick = function () {
+    api("/api/logout", { method: "POST", body: "{}" }).then(function () { location.replace("/login.html"); });
+  };
+  who.appendChild(out);
+  if (res.data.role !== "admin") { document.getElementById("denied").hidden = false; return; }
+  document.getElementById("panel").hidden = false;
+  loadCodes();
+  loadUsers();
+});
+</script>
+</body>
+</html>
