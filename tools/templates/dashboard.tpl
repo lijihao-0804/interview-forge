@@ -96,6 +96,8 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .review-item a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 .review-item a:hover{color:var(--brand);text-decoration:underline}
 .review-item .due-badge{flex:0 0 auto;padding:2px 8px;border-radius:999px;font-size:12px;color:var(--success);background:var(--success-soft)}
+/* 移动端防溢出：网格/弹性子项允许收缩，长标题不再撑宽 1fr 轨道把整页顶破 */
+.quick-cards>*,.review-list>*,.shelf-due-list>*,.review-item,.plan-item,.mock-item,.weak-list li{min-width:0;max-width:100%}
 .review-item.due-overdue .due-badge{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .review-empty{padding:14px 4px;color:var(--muted);font-size:13px}
 .due-pill{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
@@ -158,12 +160,12 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .trend-chart .u-title{font-size:14px;color:var(--muted)}
 #trend,#trend .uplot,#trend .u-wrap,.history{min-width:0}
 #trend .uplot,#trend .u-wrap{width:100%;max-width:100%}
-.quick-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;margin:0 0 22px}
+.quick-cards{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start;margin:0 0 22px}
 .quick-cards .review-section{margin:0}
 .quick-cards .review-list{display:grid;grid-template-columns:1fr;align-content:start;gap:8px;max-height:156px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
 #reviewList,#pickCard{scrollbar-width:thin}
 #reviewList::-webkit-scrollbar,#pickCard::-webkit-scrollbar{width:6px}
-.more-section{margin:22px 0 0;display:grid;gap:18px}
+.more-section{margin:22px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
 .mock-check{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin-top:10px}
 .shelf-due-fold{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--panel-soft)}
 .shelf-due-fold summary{cursor:pointer;padding:9px 12px;font-weight:650;color:var(--text);list-style:none}
@@ -174,7 +176,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .shelf-due-list{max-height:220px;overflow-y:auto;overscroll-behavior:contain}
 .shelf-due-link{flex:0 0 auto;color:var(--brand);font-size:13px;text-decoration:none;white-space:nowrap}
 .shelf-due-link:hover{text-decoration:underline}
-@media(max-width:980px){.quick-cards{grid-template-columns:1fr}}
+@media(max-width:980px){.quick-cards{grid-template-columns:minmax(0,1fr)}}
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:980px){.workspace{grid-template-columns:1fr}.history{order:-1}.history-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px}.history h3{margin-top:0}}
 @media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
@@ -250,7 +252,7 @@ footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
     <div class="track-head"><h2 id="trackTitle">学习轨迹</h2><span id="heatmapDetail" class="track-sub">近 365 天活跃热力图，点击格子看当日明细</span></div>
     <div id="heatmap" class="heatmap" role="img" aria-label="近 365 天学习活跃热力图"></div>
 <div class="hm-legend" aria-hidden="true"><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日力扣提交次数（0 / 1 / 2–4 / 5–9 / 10+）</span></div>
-    <div class="track-head" style="margin-top:20px"><h3 id="trendTitle">近 28 天趋势</h3><span class="track-sub">每日看题与完成轮次</span></div>
+    <div class="track-head" style="margin-top:20px"><h3 id="trendTitle">近 14 天趋势</h3><span class="track-sub">每日看题与完成轮次</span></div>
     <div id="trend" class="trend-chart"></div>
   </section>
   </div>
@@ -367,13 +369,13 @@ function renderHeatmap(){
 }
 let trendChart=null;
 function renderTrend(){
-  const days=(state.data.activity||[]).slice(-28);
+  const days=(state.data.activity||[]).slice(-14);
   const el=document.getElementById('trend');
   if(!el)return;
   if(!window.uPlot){el.innerHTML='<div class="history-empty">趋势图组件未加载</div>';return}
   if(!days.length){el.innerHTML='<div class="history-empty">还没有学习记录，完成几轮后这里会显示趋势。</div>';return}
   try{
-    const width=Math.max(320,el.clientWidth||800);
+    const width=Math.max(240,el.clientWidth||320);
     const opts={
       width,height:210,
       legend:{show:true,isolate:false},
@@ -535,7 +537,7 @@ document.getElementById('mockStart').addEventListener('click',mockStart);
 window.addEventListener('resize',()=>{
   if(!trendChart||!state.data.activity)return;
   const el=document.getElementById('trend');
-  const width=Math.max(320,el.clientWidth||800);
+  const width=Math.max(240,el.clientWidth||320);
   if(Math.abs(width-trendChart.width)>60)renderTrend();
 });
 async function updateLcStatus(){

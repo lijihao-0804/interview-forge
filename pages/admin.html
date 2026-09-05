@@ -26,6 +26,8 @@
   button.ghost { background:transparent; color:var(--brand); border:1px solid var(--line); font-weight:500; }
   button.mini { padding:3px 10px; font-size:12px; font-weight:500; }
   table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  /* 移动端：窄屏时表格横向滚动，不撑破页面 */
+  table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
   th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { color:var(--muted); font-weight:600; background:var(--surface-soft); }
   td code { font-family:Consolas,monospace; background:var(--brand-soft); padding:2px 6px; border-radius:5px; user-select:all; }
@@ -76,6 +78,19 @@
         <button id="pw-submit">修改密码</button>
       </div>
       <div class="msg" id="pw-msg"></div>
+    </section>
+
+    <section>
+      <h2>Bug 反馈
+        <span style="font-size:12px;font-weight:400;margin-left:10px">
+          <a href="#" id="fb-filter-open" style="color:#5654d4;text-decoration:none;font-weight:600">未处理</a> ·
+          <a href="#" id="fb-filter-all" style="color:#66748a;text-decoration:none">全部</a>
+        </span>
+      </h2>
+      <table id="feedback-table">
+        <thead><tr><th style="width:130px">时间</th><th>问题内容</th><th style="width:110px">联系方式</th><th style="width:200px">页面</th><th style="width:70px">状态</th><th style="width:130px">操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <section>
@@ -179,6 +194,56 @@ function loadUsers() {
   });
 }
 
+// ---- Bug 反馈管理 ----
+var fbFilter = "open";
+function loadFeedback() {
+  api("/api/admin/feedback" + (fbFilter === "open" ? "?status=open" : "")).then(function (res) {
+    if (!res.ok) return;
+    var tbody = document.querySelector("#feedback-table tbody");
+    tbody.textContent = "";
+    if (!res.data.items.length) {
+      var tr0 = el("tr"); var td0 = el("td", "muted", fbFilter === "open" ? "没有待处理的反馈 🎉" : "暂无反馈");
+      td0.colSpan = 6; tr0.appendChild(td0); tbody.appendChild(tr0); return;
+    }
+    res.data.items.forEach(function (fb) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "muted", fmtTime(fb.created_at)));
+      var content = el("td");
+      content.style.whiteSpace = "normal";
+      var main = el("div", null, fb.content.length > 120 ? fb.content.slice(0, 120) + "…" : fb.content);
+      content.appendChild(main);
+      if (fb.resolved_note) {
+        var note = el("div", "muted", "处理说明：" + fb.resolved_note);
+        note.style.fontSize = "12px";
+        content.appendChild(note);
+      }
+      tr.appendChild(content);
+      tr.appendChild(el("td", null, fb.contact || "—"));
+      var pg = el("td", "muted");
+      pg.title = fb.page;
+      pg.textContent = fb.page.length > 24 ? fb.page.slice(0, 24) + "…" : fb.page;
+      tr.appendChild(pg);
+      var st = el("td");
+      st.appendChild(el("span", "tag " + (fb.status === "open" ? "off" : "unused"), fb.status === "open" ? "待处理" : "已解决"));
+      tr.appendChild(st);
+      var act = el("td");
+      var btnFb = el("button", "mini ghost", fb.status === "open" ? "标记已解决" : "重新打开");
+      btnFb.onclick = function () {
+        var note = "";
+        if (fb.status === "open") { note = prompt("处理说明（可留空）：") || ""; }
+        api("/api/admin/feedback/resolve", { method: "POST",
+          body: JSON.stringify({ id: fb.id, resolved: fb.status === "open", note: note }) })
+          .then(function (r2) { if (!r2.ok) alert(r2.data.error || "操作失败"); loadFeedback(); });
+      };
+      act.appendChild(btnFb);
+      tr.appendChild(act);
+      tbody.appendChild(tr);
+    });
+  });
+}
+document.getElementById("fb-filter-open").onclick = function (e) { e.preventDefault(); fbFilter = "open"; loadFeedback(); };
+document.getElementById("fb-filter-all").onclick = function (e) { e.preventDefault(); fbFilter = "all"; loadFeedback(); };
+
 // ---- 重置密码对话框 ----
 var resetTarget = "";
 function openResetDialog(username) {
@@ -252,6 +317,7 @@ api("/api/me").then(function (res) {
   document.getElementById("panel").hidden = false;
   loadCodes();
   loadUsers();
+  loadFeedback();
 });
 </script>
 </body>

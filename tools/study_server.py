@@ -283,6 +283,30 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     used_at TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_invite_status ON invite_codes(status);
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY,
+    content TEXT NOT NULL,
+    contact TEXT NOT NULL DEFAULT '',
+    page TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    resolved_note TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS ix_feedback_status ON feedback(status, id DESC);
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS avatars (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data BLOB NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 _AUTH_READY = False
@@ -300,6 +324,11 @@ def connect_auth() -> sqlite3.Connection:
         with _AUTH_LOCK:
             if not _AUTH_READY:
                 connection.executescript(AUTH_SCHEMA)
+                # 老库迁移：users 补充聊天昵称列（幂等）。
+                try:
+                    connection.execute("ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''")
+                except sqlite3.OperationalError:
+                    pass  # 已存在
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
                 _AUTH_READY = True
@@ -415,7 +444,7 @@ def session_user(token: str) -> sqlite3.Row | None:
     _maybe_purge_sessions()
     with closing(connect_auth()) as connection:
         return connection.execute(
-            """SELECT u.id, u.username, u.role, u.is_active
+            """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname
                FROM sessions s JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
             (token, now_iso()),
@@ -627,6 +656,195 @@ def register_rate_limit_record(ip: str) -> None:
     with _REGISTER_LOCK:
         _REGISTER_ATTEMPTS.setdefault(ip, []).append(now)
         _REGISTER_GLOBAL.append(now)
+
+
+# ---- 反馈提交频控：每 IP 每小时 5 次（反馈接口公开，防垃圾灌水）----
+_FEEDBACK_ATTEMPTS: dict[str, list[float]] = {}
+_FEEDBACK_LOCK = threading.Lock()
+_FEEDBACK_WINDOW = 3600.0
+_FEEDBACK_MAX_PER_IP = 5
+
+
+def feedback_rate_limit_ok(ip: str) -> bool:
+    """该 IP 当前是否允许提交反馈（滑动 1 小时窗口 ≤5 次）。"""
+    now = time.time()
+    with _FEEDBACK_LOCK:
+        stamps = [t for t in _FEEDBACK_ATTEMPTS.get(ip, []) if now - t < _FEEDBACK_WINDOW]
+        _FEEDBACK_ATTEMPTS[ip] = stamps
+        return len(stamps) < _FEEDBACK_MAX_PER_IP
+
+
+def feedback_rate_limit_record(ip: str) -> None:
+    """记录一次反馈提交。"""
+    with _FEEDBACK_LOCK:
+        _FEEDBACK_ATTEMPTS.setdefault(ip, []).append(time.time())
+
+
+def submit_feedback(content: str, contact: str, page: str, user_agent: str) -> dict[str, object]:
+    """保存一条 Bug/问题反馈（公开接口，频控由调用方执行）。"""
+    content = content.strip()
+    if not (1 <= len(content) <= 2000):
+        raise ValueError("反馈内容需为 1~2000 字")
+    if len(contact) > 120 or len(page) > 500:
+        raise ValueError("联系方式或页面地址过长")
+    with closing(connect_auth()) as connection:
+        cursor = connection.execute(
+            "INSERT INTO feedback(content, contact, page, user_agent, status, created_at) "
+            "VALUES (?, ?, ?, ?, 'open', ?)",
+            (content, contact[:120], page[:500], user_agent[:300], now_iso()),
+        )
+    return {"id": cursor.lastrowid, "submitted": True}
+
+
+def list_feedback(status: str = "") -> list[dict[str, object]]:
+    """反馈清单（新提交在前）；status=open/resolved 过滤，空为全部。"""
+    sql = "SELECT * FROM feedback"
+    params: list[object] = []
+    if status in ("open", "resolved"):
+        sql += " WHERE status = ?"
+        params.append(status)
+    sql += " ORDER BY id DESC LIMIT 500"
+    with closing(connect_auth()) as connection:
+        return [dict(row) for row in connection.execute(sql, params)]
+
+
+def resolve_feedback(feedback_id: int, resolved: bool, note: str = "") -> dict[str, object]:
+    """管理员处理反馈：标记已解决（可附处理说明）或重新打开。"""
+    if resolved and not note.strip():
+        note = ""
+    with closing(connect_auth()) as connection:
+        cursor = connection.execute(
+            "UPDATE feedback SET status = ?, resolved_at = ?, resolved_note = ? WHERE id = ?",
+            ("resolved" if resolved else "open",
+             now_iso() if resolved else None,
+             note[:300], feedback_id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("反馈不存在")
+    return {"id": feedback_id, "status": "resolved" if resolved else "open"}
+
+
+# =============================================================================
+# 聊天室（公屏）：自研轻量实现 —— 登录用户可发、所有人可见、轮询拉增量。
+# 消息保留最近 CHAT_KEEP 条（超出自动清理）；昵称/头像在 users/avatars 表。
+# =============================================================================
+CHAT_KEEP = 2000
+CHAT_MAX_LEN = 500
+_CHAT_SEND_LOG: dict[int, list[float]] = {}   # user_id → 发送时间戳（10 条/分钟）
+_CHAT_SEND_LOCK = threading.Lock()
+_NICKNAME_MAX = 16
+_AVATAR_MAX_BYTES = 150 * 1024
+
+
+def chat_rate_limit_ok(user_id: int) -> bool:
+    """单用户发送频控：滑动 1 分钟窗口 ≤10 条。"""
+    now = time.time()
+    with _CHAT_SEND_LOCK:
+        stamps = [t for t in _CHAT_SEND_LOG.get(user_id, []) if now - t < 60.0]
+        _CHAT_SEND_LOG[user_id] = stamps
+        return len(stamps) < 10
+
+
+def chat_rate_limit_record(user_id: int) -> None:
+    with _CHAT_SEND_LOCK:
+        _CHAT_SEND_LOG.setdefault(user_id, []).append(time.time())
+
+
+def chat_send(user_id: int, username: str, content: str) -> dict[str, object]:
+    """发送一条公屏消息；超出保留量的最旧消息自动清理。"""
+    content = content.strip()
+    if not (1 <= len(content) <= CHAT_MAX_LEN):
+        raise ValueError(f"消息需为 1~{CHAT_MAX_LEN} 字")
+    with closing(connect_auth()) as connection:
+        cursor = connection.execute(
+            "INSERT INTO chat_messages(user_id, content, created_at) VALUES (?, ?, ?)",
+            (user_id, content, now_iso()),
+        )
+        connection.execute(
+            "DELETE FROM chat_messages WHERE id <= (SELECT MAX(id) FROM chat_messages) - ?",
+            (CHAT_KEEP,),
+        )
+    return {"id": cursor.lastrowid, "created_at": now_iso(), "username": username}
+
+
+def chat_messages_after(after_id: int, limit: int = 50) -> list[dict[str, object]]:
+    """拉取 id > after_id 的增量消息（昵称实时取自 users 表）；after_id=-1 时取最近 limit 条。"""
+    limit = max(1, min(limit, 100))
+    with closing(connect_auth()) as connection:
+        if after_id < 0:
+            rows = connection.execute(
+                "SELECT m.id, m.user_id, u.username AS username, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, "
+                "m.content, m.created_at, u.role FROM chat_messages m JOIN users u ON u.id = m.user_id "
+                "ORDER BY m.id DESC LIMIT ?", (limit,))
+            items = [dict(r) for r in rows]
+            items.reverse()
+            return items
+        rows = connection.execute(
+            "SELECT m.id, m.user_id, u.username AS username, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, "
+            "m.content, m.created_at, u.role FROM chat_messages m JOIN users u ON u.id = m.user_id "
+            "WHERE m.id > ? ORDER BY m.id ASC LIMIT ?", (after_id, limit))
+        return [dict(r) for r in rows]
+
+
+def chat_delete(feedback_id_alias: int) -> dict[str, object]:
+    """管理员删除一条消息（公屏治理）。"""
+    with closing(connect_auth()) as connection:
+        cursor = connection.execute("DELETE FROM chat_messages WHERE id = ?", (feedback_id_alias,))
+        if cursor.rowcount != 1:
+            raise ValueError("消息不存在")
+    return {"id": feedback_id_alias, "deleted": True}
+
+
+def get_profile(username: str) -> dict[str, object]:
+    """读取自己的昵称与头像状态。"""
+    with closing(connect_auth()) as connection:
+        row = connection.execute(
+            "SELECT username, COALESCE(nickname, '') AS nickname FROM users WHERE username = ?", (username,)).fetchone()
+        av = connection.execute("SELECT mime FROM avatars WHERE user_id = (SELECT id FROM users WHERE username = ?)",
+                                (username,)).fetchone()
+    if row is None:
+        raise ValueError("用户不存在")
+    return {"username": row["username"], "nickname": row["nickname"], "has_avatar": av is not None}
+
+
+def set_profile(username: str, nickname: str = None, avatar_data_url: str = None) -> dict[str, object]:
+    """更新昵称和/或头像。头像为 data URL（客户端已压至 64×64），传空串清除。"""
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if row is None:
+            raise ValueError("用户不存在")
+        if nickname is not None:
+            nickname = nickname.strip()
+            if not (1 <= len(nickname) <= _NICKNAME_MAX):
+                raise ValueError(f"昵称需为 1~{_NICKNAME_MAX} 个字符")
+            connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (nickname, row["id"]))
+        if avatar_data_url is not None:
+            if avatar_data_url == "":
+                connection.execute("DELETE FROM avatars WHERE user_id = ?", (row["id"],))
+            else:
+                import base64, re as _re
+                m = _re.match(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$", avatar_data_url)
+                if not m:
+                    raise ValueError("头像格式不支持（仅 png/jpeg/webp）")
+                blob = base64.b64decode(m.group(2))
+                if len(blob) > _AVATAR_MAX_BYTES:
+                    raise ValueError("头像过大（压缩后需小于 150KB）")
+                connection.execute(
+                    "INSERT INTO avatars(user_id, mime, data, updated_at) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at",
+                    (row["id"], "image/" + m.group(1), blob, now_iso()))
+    return get_profile(username)
+
+
+def get_avatar(username: str):
+    """读取用户头像，返回 (mime, bytes)；未设置返回 None。"""
+    with closing(connect_auth()) as connection:
+        row = connection.execute(
+            "SELECT a.mime, a.data FROM avatars a JOIN users u ON u.id = a.user_id WHERE u.username = ?",
+            (username,)).fetchone()
+    if row is None:
+        return None
+    return str(row["mime"]), bytes(row["data"])
 
 
 # 时序侧信道防御：用户名不存在时也跑一次等价 scrypt 校验，抹平"查无此用户"与
@@ -2095,8 +2313,10 @@ def _parse_kb(text: str) -> int | None:
 
 class StudyHandler(SimpleHTTPRequestHandler):
     server_version = "Hot100Study/1.0"
-    # 不注入认证小部件的页面：这三页自带登录/退出界面，无需浮动小部件。
-    WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+    # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
+    AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+    # 反馈小部件注入的脚本清单（v 参数用于更新缓存）。
+    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=1", "/assets/feedback-widget.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2194,7 +2414,41 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/me：当前登录用户信息（登录页/管理页/页面右上角展示用）。
         if parsed.path == "/api/me":
-            self.send_json({"username": str(user["username"]), "role": str(user["role"])})
+            self.send_json({"username": str(user["username"]), "nickname": str(user["nickname"]),
+                            "role": str(user["role"])})
+            return
+        # /api/avatar/<用户名>：读取用户头像（登录可见）。
+        if decoded_path.startswith("/api/avatar/"):
+            target_name = decoded_path[len("/api/avatar/"):]
+            avatar = None
+            try:
+                if USERNAME_RE.match(target_name):
+                    avatar = get_avatar(target_name)
+            except (ValueError, sqlite3.Error):
+                avatar = None
+            if avatar is None:
+                self.send_json({"error": "未设置头像"}, HTTPStatus.NOT_FOUND)
+                return
+            mime, blob = avatar
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(blob)))
+            self.send_header("Cache-Control", "max-age=60")
+            self.end_headers()
+            self.wfile.write(blob)
+            return
+        # /api/chat/messages：公屏聊天增量拉取（?after=<id>，-1 取最近 50 条）。
+        if parsed.path == "/api/chat/messages":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            try:
+                after = int(params.get("after", "-1"))
+            except ValueError:
+                after = -1
+            self.send_json({"items": chat_messages_after(after)})
+            return
+        # /api/profile：自己的昵称与头像状态。
+        if parsed.path == "/api/profile":
+            self.send_json(get_profile(str(user["username"])))
             return
         # /api/dashboard：仪表盘聚合 —— 今日概览/每题进度/近 14 天/最近活动/365 天热力图/标记与提交统计。
         if parsed.path == "/api/dashboard":
@@ -2215,6 +2469,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/admin/users：用户清单（管理员）。
         if parsed.path == "/api/admin/users":
             self.send_json({"items": list_users()})
+            return
+        # /api/admin/feedback：Bug 反馈清单（管理员）；?status=open/resolved 过滤。
+        if parsed.path == "/api/admin/feedback":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            self.send_json({"items": list_feedback(params.get("status", ""))})
             return
         # /api/daily：今日待复习 —— 到期日 <= 今天 的题目与章节；?module= 指定只筛某模块的章节。
         if parsed.path == "/api/daily":
@@ -2369,18 +2628,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 record_content_view(str(route["module_id"]), str(route["content_id"]), db)
             except (ValueError, OSError, sqlite3.Error):
                 pass
-        # ---- 前端认证小部件注入：阅读页/面板 HTML 在发送前插入 auth-widget.js ----
-        # 登录/注册/管理页自带完整界面、05-可视化 页面会被 iframe 内嵌，均跳过；
-        # 注入发生在服务层，不改任何生成产物，构建链无需重跑。
-        if (decoded_path.lower().endswith(".html")
-                and decoded_path not in self.WIDGET_SKIP_PATHS
-                and not decoded_path.startswith("/books/hot100/05-可视化/")):
+        # ---- 前端小部件注入：阅读页/面板 HTML 在发送前插入认证胶囊与反馈按钮 ----
+        # 05-可视化 页面会被 iframe 内嵌，均跳过；注入发生在服务层，不改任何生成产物。
+        if decoded_path.lower().endswith(".html") and not decoded_path.startswith("/books/hot100/05-可视化/"):
             if self.serve_html_with_widget(decoded_path):
                 return
         super().do_GET()
 
     def serve_html_with_widget(self, decoded_path: str) -> bool:
-        """读取 HTML 文件、在 </body> 前注入认证小部件脚本后发送；文件不存在返回 False 交给默认 404。"""
+        """读取 HTML 文件、在 </body> 前注入小部件脚本后发送；文件不存在返回 False 交给默认 404。
+        认证胶囊在登录/注册/管理页跳过（它们自带登录界面），反馈按钮全站可见。"""
         try:
             target = (ROOT / decoded_path.lstrip("/")).resolve()
             if not (target.is_file() and str(target).startswith(str(ROOT.resolve()))):
@@ -2388,7 +2645,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
             body = target.read_bytes()
         except OSError:
             return False
-        widget = b'<script src="/assets/auth-widget.js?v=1" defer></script>'
+        scripts = [
+            s for s in self.WIDGET_SCRIPTS
+            if not (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
+        ]
+        widget = "".join(f'<script src="{s}" defer></script>' for s in scripts).encode()
         idx = body.lower().rfind(b"</body>")
         body = body[:idx] + widget + body[idx:] if idx != -1 else body + widget
         self.send_response(HTTPStatus.OK)
@@ -2404,12 +2665,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # （不会误入静态文件服务）。
         parsed = urlparse(self.path)
         path = parsed.path
-        public_post = {"/api/login", "/api/register"}
+        public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
-                      "/api/admin/users/reset-password"}
+                      "/api/admin/users/reset-password", "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
-            "/api/logout", "/api/password", "/api/complete", "/api/content/complete", "/api/mark",
-            "/api/settings", "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
+            "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
+            "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
+            "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
         }
         if path not in known_post:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -2446,6 +2708,18 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/feedback：公开的 Bug/问题反馈（频控防灌水），由悬浮按钮提交。
+            elif path == "/api/feedback":
+                fb_ip = self.client_ip()
+                if not feedback_rate_limit_ok(fb_ip):
+                    raise ValueError("提交过于频繁，请稍后再试")
+                feedback_rate_limit_record(fb_ip)
+                result = submit_feedback(
+                    str(payload.get("content", "")),
+                    str(payload.get("contact", "")),
+                    str(payload.get("page", "")),
+                    self.headers.get("User-Agent", ""),
+                )
             # /api/register：注册码注册 —— 频控 → 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
             elif path == "/api/register":
                 reg_ip = self.client_ip()
@@ -2460,6 +2734,19 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/chat/send：公屏聊天发送（登录用户，10 条/分钟，500 字内）。
+            elif path == "/api/chat/send":
+                if not chat_rate_limit_ok(int(user["id"])):
+                    raise ValueError("发言太快了，休息一下再发")
+                chat_rate_limit_record(int(user["id"]))
+                result = chat_send(int(user["id"]), str(user["username"]), str(payload.get("content", "")))
+            # /api/profile：更新自己的昵称和/或头像（头像为 data URL，传空串清除）。
+            elif path == "/api/profile":
+                result = set_profile(
+                    str(user["username"]),
+                    payload.get("nickname") if "nickname" in payload else None,
+                    payload.get("avatar") if "avatar" in payload else None,
+                )
             # /api/password：登录用户修改自己的密码（验证原密码；成功后其余会话失效）。
             elif path == "/api/password":
                 result = change_own_password(
@@ -2493,6 +2780,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
             elif path == "/api/admin/users/reset-password":
                 result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")))
+            # /api/admin/chat/delete：管理员删除公屏消息（公屏治理）。
+            elif path == "/api/admin/chat/delete":
+                result = chat_delete(int(payload.get("id", 0)))
+            # /api/admin/feedback/resolve：标记反馈已解决（可附说明）或重新打开。
+            elif path == "/api/admin/feedback/resolve":
+                result = resolve_feedback(
+                    int(payload.get("id", 0)),
+                    bool(payload.get("resolved")),
+                    str(payload.get("note", "")),
+                )
             # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
             elif path == "/api/complete":
                 result = complete_round(int(payload["problem_id"]), db)
