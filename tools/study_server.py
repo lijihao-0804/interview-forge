@@ -2313,6 +2313,10 @@ def _parse_kb(text: str) -> int | None:
 
 class StudyHandler(SimpleHTTPRequestHandler):
     server_version = "Hot100Study/1.0"
+    # HTTP/1.1：启用 keep-alive，公网访问省去每请求的 TCP/TLS 握手。
+    # 前提：所有响应必须带准确 Content-Length（send_json/静态/头像/导出均已带；
+    # 手动 307 跳转补 Content-Length: 0，见 do_GET）。
+    protocol_version = "HTTP/1.1"
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
     AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
     # 反馈小部件注入的脚本清单（v 参数用于更新缓存）。
@@ -2393,6 +2397,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             else:
                 self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
                 self.send_header("Location", f"/pages/login.html?next={quote(decoded_path)}")
+                self.send_header("Content-Length", "0")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
             return
@@ -2409,6 +2414,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/":
             self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
             self.send_header("Location", "/library/index.html")
+            self.send_header("Content-Length", "0")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
