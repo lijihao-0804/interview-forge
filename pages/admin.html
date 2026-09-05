@@ -68,6 +68,17 @@
     </section>
 
     <section>
+      <h2>账号安全 · 修改自己的密码</h2>
+      <div class="row">
+        <div class="field"><label for="pw-old">原密码</label><input id="pw-old" type="password" autocomplete="current-password" style="width:180px"></div>
+        <div class="field"><label for="pw-new">新密码（至少 8 位）</label><input id="pw-new" type="password" autocomplete="new-password" style="width:180px"></div>
+        <div class="field"><label for="pw-confirm">确认新密码</label><input id="pw-confirm" type="password" autocomplete="new-password" style="width:180px"></div>
+        <button id="pw-submit">修改密码</button>
+      </div>
+      <div class="msg" id="pw-msg"></div>
+    </section>
+
+    <section>
       <h2>用户管理</h2>
       <table id="users-table">
         <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
@@ -80,7 +91,7 @@
 <dialog id="reset-dialog" style="border:1px solid #dfe4ee;border-radius:14px;padding:24px;box-shadow:0 16px 44px rgba(33,45,73,.18);font:15px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235;min-width:320px">
   <h3 style="margin:0 0 6px;font-size:16px">重置密码</h3>
   <p style="margin:0 0 14px;font-size:13px;color:#66748a">用户 <strong id="reset-username"></strong> · 重置后该用户全部会话立即失效，需用新密码重新登录</p>
-  <input id="reset-password" type="text" placeholder="新密码（至少 6 位）" autocomplete="off"
+  <input id="reset-password" type="text" placeholder="新密码（至少 8 位）" autocomplete="off"
          style="width:100%;padding:9px 11px;border:1px solid #dfe4ee;border-radius:8px;font:inherit;background:#fbfcff">
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
     <button id="reset-cancel" class="ghost" style="background:transparent;color:#5654d4;border:1px solid #dfe4ee;font-weight:500">取消</button>
@@ -176,12 +187,33 @@ function openResetDialog(username) {
   document.getElementById("reset-password").value = "";
   document.getElementById("reset-dialog").showModal();
 }
+// ---- 修改自己的密码 ----
+document.getElementById("pw-submit").onclick = function () {
+  var msg = document.getElementById("pw-msg");
+  var oldPw = document.getElementById("pw-old").value;
+  var newPw = document.getElementById("pw-new").value;
+  var confirmPw = document.getElementById("pw-confirm").value;
+  msg.textContent = "";
+  if (newPw.length < 8) { msg.textContent = "新密码至少 8 位"; msg.className = "msg error"; return; }
+  if (newPw !== confirmPw) { msg.textContent = "两次输入的新密码不一致"; msg.className = "msg error"; return; }
+  api("/api/password", { method: "POST", body: JSON.stringify({ old_password: oldPw, new_password: newPw }) })
+    .then(function (res) {
+      if (res.ok) {
+        msg.textContent = "密码已修改，其他设备的登录已失效，当前会话保留";
+        msg.className = "msg ok";
+        document.getElementById("pw-old").value = "";
+        document.getElementById("pw-new").value = "";
+        document.getElementById("pw-confirm").value = "";
+      } else { msg.textContent = res.data.error || "修改失败"; msg.className = "msg error"; }
+    });
+};
+
 document.getElementById("reset-cancel").onclick = function () {
   document.getElementById("reset-dialog").close();
 };
 document.getElementById("reset-confirm").onclick = function () {
   var newPassword = document.getElementById("reset-password").value;
-  if (newPassword.length < 6) { alert("密码至少 6 位"); return; }
+  if (newPassword.length < 8) { alert("密码至少 8 位"); return; }
   api("/api/admin/users/reset-password", { method: "POST",
     body: JSON.stringify({ username: resetTarget, new_password: newPassword }) })
     .then(function (res) {
