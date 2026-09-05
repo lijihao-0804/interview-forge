@@ -291,7 +291,7 @@ a:hover { text-decoration: underline; }
 }
 .skip-link:focus { top: 12px; }
 
-.site-shell { width: calc(100% - 36px); margin: 0 auto; padding: 20px 0 56px; }
+.site-shell { width: calc(100% - 100px); margin: 0 auto; padding: 20px 0 56px; }
 .site-topbar {
   display: flex;
   align-items: center;
