@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>KV Cache 是什么？Prompt Caching 的原理是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">KV Cache 是什么？Prompt Caching 的原理是什么？</span></nav><div class="module-meta">大模型应用 · 第 8 / 22 章</div><h1>KV Cache 是什么？Prompt Caching 的原理是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：来讲讲什么是 KV Cache？Prompt Caching 又是怎么回事？这两个有什么关系？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>KV Cache 是什么？Prompt Caching 的原理是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">KV Cache 是什么？Prompt Caching 的原理是什么？</span></nav><div class="module-meta">大模型应用 · 第 8 / 22 章 · <span class="muted">更新于 2026-09-01</span></div><h1>KV Cache 是什么？Prompt Caching 的原理是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：来讲讲什么是 KV Cache？Prompt Caching 又是怎么回事？这两个有什么关系？</p>
 <p>🙋‍♂️我：KV Cache 是 Transformer 里的一个东西，存的是 K 和 V 矩阵。Prompt Caching 是 Claude 的一个 API 功能，能减少 token 费用。</p>
 <p>👔面试官：……你只说了表面。KV Cache 具体是缓存什么、为了解决什么问题？为什么自回归生成必须要 KV Cache？没有 KV Cache 推理速度会变成什么样？</p>
 <p>🙋‍♂️我：哦哦，因为每次生成新 token 都要重新计算前面所有 token 的 attention，KV Cache 就是把前面算过的存起来。</p>
@@ -7,7 +7,7 @@
 <p>🙋‍♂️我：呃……KV Cache 是模型内部的，Prompt Caching 是 API 层面的？</p>
 <p>👔面试官：方向对，但具体差别能讲清楚吗？KV Cache 是「<strong>单次推理内</strong>」的优化（同一次生成的不同 token 之间复用），Prompt Caching 是「<strong>跨请求</strong>」的优化（不同请求之间复用相同前缀）。这两个是同一个底层机制在不同时间尺度上的应用，没搞清楚这层关系，就讲不出 Prompt Caching 的真正价值。</p>
 <p>把这几个反问串起来其实就一句话，KV Cache 和 Prompt Caching 是<strong>同一套缓存思路在两个时间尺度上的延伸</strong>，前者是单次推理内的、后者是跨请求的。理解这一层，省钱和加速到底怎么发生的就清楚了。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我理解 KV Cache 和 Prompt Caching 是同一个机制在两个时间尺度上的应用。</p>
 <p><strong>KV Cache</strong> 是「<strong>单次推理内</strong>」的优化。自回归生成时，每次生成新 token 都要让模型重新对前面所有 token 算 attention。如果每次都从零开始算，N 个 token 的总计算量是 O(N³)，根本不可接受。KV Cache 把前面所有 token 的 K 和 V 矩阵缓存在 GPU 显存里，每次新 token 只算自己的 Q、K、V，然后跟缓存的 K/V 做 attention，把总计算量从 O(N³) 降到 O(N²)。</p>
 <p><strong>Prompt Caching</strong> 是「<strong>跨请求</strong>」的优化。把上面 KV Cache 的概念从「单次生成内」扩展到「不同请求之间」。如果两个请求的 Prompt 前缀完全相同（比如都用同样的 System Prompt），第一个请求算完的 KV Cache 在 API 服务器上保留下来，第二个请求遇到相同前缀直接跳过计算、复用已有 KV Cache，只算新增的部分。</p>
@@ -18,8 +18,8 @@
 </ul>
 <p>最关键的认知是，<strong>Prompt Caching 不是新发明，是 KV Cache 这个底层机制的工程级延伸</strong>。理解了 KV Cache，Prompt Caching 几乎是自然推论。</p>
 <p>实际工程使用 Prompt Caching 的核心要点是：<strong>固定内容在前、动态内容在后</strong>，前缀只要差一个字符就缓存 miss。</p>
-<h3>📝 详细解析</h3>
-<h4>自回归生成里隐藏的低效问题</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="_3">自回归生成里隐藏的低效问题</h4>
 <p>要理解 KV Cache，得先看清楚自回归生成本身的低效在哪里。</p>
 <p>LLM 是自回归生成的，每次只产出一个新 token，把它拼到序列末尾，再让模型对<strong>整个新序列</strong>重新计算一遍 attention，得到下一个 token。听起来很自然，但隐藏着一个巨大的浪费。</p>
 <p>假设要生成 10 个 token，朴素实现的过程是：</p>
@@ -34,7 +34,7 @@
 <p>总计算量分析：第 i 步要对 i 个 token 做 attention，attention 复杂度是 O(i²)，总计算量是 Σ i² 从 1 到 N，约 O(N³)。生成一个 1000 token 的回答，等于做 10 亿次单 token 计算量的运算。这个开销在 GPT-2 时代可能还能忍，到了大模型时代根本跑不动。</p>
 <p>注意一件事：<strong>第 2 步算的「P」的 attention，和第 1 步算的「P」的 attention 是完全一样的</strong>（因为输入和模型参数都没变）。每一步重算前缀，是纯粹的浪费。</p>
 <p>KV Cache 就是为了消除这个浪费而生的。</p>
-<h4>KV Cache：单次推理内的优化</h4>
+<h4 id="kv-cache">KV Cache：单次推理内的优化</h4>
 <p>KV Cache 的核心思路一句话：<strong>把前面所有 token 的 K 和 V 矩阵缓存起来，每次新 token 只算自己的部分</strong>。</p>
 <p>具体怎么做？要先回到 attention 公式：</p>
 <div class="codehilite"><pre><code>Attention(Q, K, V) = softmax(Q · K^T / √d_k) · V
@@ -97,7 +97,7 @@
 </table>
 <p><img loading="lazy" decoding="async" alt="" src="assets/0005757f02-6508d2d4cd6a1693c8b62a46.png" /></p>
 <p>KV Cache 不是「锦上添花的优化」，是「<strong>让自回归生成可行的基本盘</strong>」。所有现代 LLM 推理框架（vLLM、SGLang、TGI、llama.cpp）都默认开启 KV Cache，没人会关掉它。</p>
-<h4>KV Cache 的显存代价</h4>
+<h4 id="kv-cache_1">KV Cache 的显存代价</h4>
 <p>KV Cache 让计算速度大幅提升，但代价是显存占用。前面所有 token 的 K/V 都要常驻显存，长上下文下这是个不小的负担。</p>
 <p>KV Cache 显存大小公式：</p>
 <div class="codehilite"><pre><code>KV Cache 显存 = 2（K 和 V 各一份）× B（batch size）× N（序列长）× L（层数）× H（头数）× d_k（每头维度）× 2 字节（FP16）
@@ -108,7 +108,7 @@
 <p>光 KV Cache 就要 17GB，加上模型权重 14GB，总共 31GB，一张 4090（24GB）根本放不下。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/0e26f753e7-23fd478109f8ec22213f067c.png" /></p>
 <p>这就是为什么大模型部署有一系列围绕 KV Cache 的优化（PagedAttention、KV Cache 量化、MQA/GQA 共享 K/V 等），目标都是把 KV Cache 显存压下来。这些优化是另一个层面的话题，本节不展开，只需要知道 <strong>KV Cache 的显存压力是 LLM 工程的核心议题之一</strong>。</p>
-<h4>从 KV Cache 到 Prompt Caching：同一机制的扩展</h4>
+<h4 id="kv-cache-prompt-caching">从 KV Cache 到 Prompt Caching：同一机制的扩展</h4>
 <p>到这里，KV Cache 解决的是「<strong>单次生成内</strong>」的重复计算问题。但还有一个更隐蔽的浪费：<strong>不同请求之间的重复计算</strong>。</p>
 <p>考虑一个真实场景：你做了一个客服 AI，System Prompt 写了 3000 tokens 的产品知识、对话规则、Few-shot 示例，所有用户的请求都用这同一个 System Prompt 开头。一天 10 万次对话，每次请求都从零开始处理这 3000 tokens 的 System Prompt，重新算 3000 个 token 的 KV Cache 才能开始生成。这就是巨大的算力浪费。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/3caf55716b-9ffeb68673140e3640f32e1c.png" /></p>
@@ -120,7 +120,7 @@
 <li>第二个请求来时，如果 Prompt 前缀和池子里某份缓存一致，<strong>直接复用那份 KV Cache</strong>，只算用户新增的部分</li>
 </ul>
 <p>技术上这就是 KV Cache 在「<strong>时间维度</strong>」的延伸：单次内的 KV Cache 在 token 之间共享，Prompt Caching 在请求之间共享。底层的「缓存 K/V 矩阵避免重复计算」机制完全一样。</p>
-<h4>主流 API 的 Prompt Caching 实现</h4>
+<h4 id="api-prompt-caching">主流 API 的 Prompt Caching 实现</h4>
 <p>不同的 API 厂商对 Prompt Caching 的实现方式不太一样，主要分两派。</p>
 <p><strong>Claude（Anthropic）：显式标记缓存断点</strong></p>
 <p>Claude 的做法是要用户显式告诉 API「我希望缓存到这里」。在希望缓存的内容末尾加一个 <code>cache_control</code> 标记：</p>
@@ -165,7 +165,7 @@
 <li>后续只要有 2 次以上命中，总体就是省钱的</li>
 </ul>
 <p>延迟优势：命中缓存时首 token 延迟通常会下降，因为 Prompt 部分不用重算了。具体能降多少，要看缓存前缀长度、模型、并发和服务端调度，工程上要用真实链路压测。</p>
-<h4>适合用 Prompt Caching 的场景</h4>
+<h4 id="prompt-caching">适合用 Prompt Caching 的场景</h4>
 <p>Prompt Caching 最适合「<strong>前面固定、后面变化</strong>」的使用模式，三类典型场景：</p>
 <p><strong>场景 1：固定 System Prompt 的应用</strong></p>
 <p>客服系统、AI 助手、代码 Review 工具，System Prompt 包含大量产品知识、规则说明、Few-shot 示例。用户每次发消息，System Prompt 都是固定的，可以一直命中缓存。这是最常见、收益最大的场景。</p>
@@ -174,7 +174,7 @@
 <p><strong>场景 3：大量 Few-shot 示例</strong></p>
 <p>如果你的 Prompt 里有 10-20 组 Few-shot 示例（用于引导模型输出特定格式），这部分内容非常适合缓存。每次用户的实际问题不同，但 Few-shot 部分一样。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/1a511b6a72-954ebc911e107d774eab41ff.png" /></p>
-<h4>工程陷阱：固定内容在前、动态内容在后</h4>
+<h4 id="_4">工程陷阱：固定内容在前、动态内容在后</h4>
 <p>Prompt Caching 听起来很美，但实战中有一个最常见的陷阱：<strong>前缀必须完全一致才能命中缓存，哪怕多了一个空格、改了一个字符，就算缓存 miss、重新计算</strong>。</p>
 <p>最经常踩的雷是把日期、用户名这类动态内容放在固定内容<strong>前面</strong>：</p>
 <p>❌ <strong>会让缓存失效的结构（动态内容在前）：</strong></p>
@@ -201,17 +201,32 @@
 <li>低流量应用（几小时一次请求）会频繁失效，反而省不了多少</li>
 </ul>
 <p>如果你的应用是低流量场景，Prompt Caching 的收益可能不如预期，甚至因为「写入缓存的 1.25x 费用」反而更贵。这是需要在使用前评估清楚的。</p>
-<h4>进阶：KV Cache 量化与 PagedAttention</h4>
+<h4 id="kv-cache-pagedattention">进阶：KV Cache 量化与 PagedAttention</h4>
 <p>最后简单提两个 KV Cache 的进阶优化方向，作为面试加分项。</p>
 <p><strong>KV Cache 量化</strong>：把 KV Cache 从 FP16 量化到 INT8 甚至 INT4，显存占用减半到 1/4。但 KV Cache 对量化误差比权重更敏感，特别是长链路推理（数学题、代码题），所以这是 2024-2026 年研究热点，主流方案还在演进。</p>
 <p><strong>PagedAttention</strong>：vLLM 框架的核心创新，灵感来自操作系统虚拟内存。把 KV Cache 切成固定大小的「Block」（典型 16 个 token 一块），每个请求拿到的是逻辑 Block 列表，由一张 Block Table 映射到物理显存。这样消除了 KV Cache 的显存碎片，部署时显存利用率从 30-40% 拉到 90%+。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/42a1f8cb58-1c2365716d968b1a91dd26d8.png" /></p>
 <p>这两个方向的具体细节是另一个层面的话题，但能在面试里提一句，会显示你对 KV Cache 这个核心机制有深入跟进。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_5">🎯 面试总结</h3>
 <p>回到开头那段对话，问到 KV Cache 和 Prompt Caching，最重要的是先把<strong>核心关系</strong>讲清楚：这两个不是不相关的优化，是<strong>同一个底层机制在两个时间尺度上的应用</strong>。KV Cache 是「单次推理内」的优化（同一次生成里不同 token 之间复用），Prompt Caching 是「跨请求」的优化（不同请求之间复用相同前缀）。这一句话能讲清楚，就已经比绝大多数候选人深刻了。</p>
 <p>接下来把 KV Cache 的来龙去脉讲明白。自回归生成的朴素实现是 O(N³)，每步都重算前面所有 token 的 attention。KV Cache 把前面所有 token 的 K/V 矩阵缓存起来，每步只算新 token 的部分，总计算量降到 O(N²)。这不是「锦上添花的优化」，是让自回归生成<strong>可行</strong>的基本盘，所有现代推理框架（vLLM、SGLang、TGI）默认都开。</p>
 <p>然后讲 Prompt Caching 的工程价值。把 KV Cache 复用范围扩展到不同请求之间，让 N 个用户共用一个 System Prompt 的 KV Cache。Claude 用显式断点（cache_control），OpenAI 用自动缓存，本质都是同一个机制，只是触发方式和计费规则不同。面试里说「能显著降低重复前缀成本和首 token 延迟」就够稳，不要把某一家价格比例说成全行业通用。</p>
 <p>最关键的一句话是讲清<strong>工程陷阱</strong>：<strong>固定内容在前、动态内容在后</strong>，前缀差一个字符就 miss。这是最容易踩的雷，把日期、用户名这种动态内容放前面，会让缓存永远失效。还有一条是低流量应用可能省不到，因为缓存通常只有 5 分钟时效性，没有持续命中的话写入费用反而更贵。</p>
 <p>如果还想再加分，可以提一句 KV Cache 量化和 PagedAttention 这种进阶优化方向，让面试官知道你对这个核心机制有持续跟进。能讲到这一层，已经是面试里很难追问的水平了。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-llm:08",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_5">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-llm:08",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

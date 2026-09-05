@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Prompt 工程：从字符串模板到可维护上下文 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">Prompt 工程：从字符串模板到可维护上下文</span></nav><div class="module-meta">大模型应用 · 第 24 / 33 章</div><h1>Prompt 工程：从字符串模板到可维护上下文</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>Prompt 工程的核心不是寻找一条“万能咒语”，而是构建清楚、可测试、可版本化的上下文。好的 Prompt 让模型明确任务、数据、约束和输出契约，同时把真正不可违反的规则放在代码层。</p>
-<h3>24.1 一个可维护 Prompt 的五部分</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Prompt 工程：从字符串模板到可维护上下文 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">Prompt 工程：从字符串模板到可维护上下文</span></nav><div class="module-meta">大模型应用 · 第 24 / 33 章 · <span class="muted">更新于 2026-08-30</span></div><h1>Prompt 工程：从字符串模板到可维护上下文</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>Prompt 工程的核心不是寻找一条“万能咒语”，而是构建清楚、可测试、可版本化的上下文。好的 Prompt 让模型明确任务、数据、约束和输出契约，同时把真正不可违反的规则放在代码层。</p>
+<h3 id="241-prompt">24.1 一个可维护 Prompt 的五部分</h3>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">角色与目标：你在解决什么业务问题
 可信规则：必须遵守的边界和拒答条件
 输入数据：用户问题、检索资料、工具结果
@@ -8,7 +8,7 @@
 输出契约：格式、字段、长度、引用方式
 </code></pre></div>
 <p>这些内容不一定越长越好。每条指令都应回答“它防止了哪个已知失败模式”。</p>
-<h3>24.2 使用 <code>MessagesPlaceholder</code> 插入历史</h3>
+<h3 id="242-messagesplaceholder">24.2 使用 <code>MessagesPlaceholder</code> 插入历史</h3>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_core.prompts</span> <span class="kn">import</span> <span class="n">ChatPromptTemplate</span><span class="p">,</span> <span class="n">MessagesPlaceholder</span>
 
 <span class="n">support_prompt</span> <span class="o">=</span> <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_messages</span><span class="p">([</span>
@@ -39,7 +39,7 @@ AIMessage =&gt; 已记录你的 Python 版本。
 HumanMessage =&gt; 那我该创建哪个虚拟环境？
 </code></pre></div>
 <p><code>MessagesPlaceholder</code> 保留了历史消息角色；把整段历史拼成一个字符串会丢失角色边界，也更容易造成格式混乱。</p>
-<h3>24.3 Few-shot 示例是在定义决策边界</h3>
+<h3 id="243-few-shot">24.3 Few-shot 示例是在定义决策边界</h3>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_core.prompts</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">ChatPromptTemplate</span><span class="p">,</span>
     <span class="n">FewShotChatMessagePromptTemplate</span><span class="p">,</span>
@@ -74,7 +74,7 @@ HumanMessage =&gt; 那我该创建哪个虚拟环境？
 <div class="codehilite" data-lang="text"><pre><code class="language-text">支付成功但订单没出现
 </code></pre></div>
 <p>这里打印的是渲染后最后一条输入消息；真正类别要再交给模型。Few-shot 的价值是展示边界案例，而不是用示例替代明确规则。示例应短、代表性强，并覆盖容易混淆的类别。</p>
-<h3>24.4 把上下文标成数据</h3>
+<h3 id="244">24.4 把上下文标成数据</h3>
 <p>检索文档、网页和用户粘贴文本都可能包含“忽略之前指令”之类内容。Prompt 应显式分隔数据：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">rag_prompt</span> <span class="o">=</span> <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_messages</span><span class="p">([</span>
     <span class="p">(</span>
@@ -90,7 +90,7 @@ HumanMessage =&gt; 那我该创建哪个虚拟环境？
 <span class="p">])</span>
 </code></pre></div>
 <p>标签只是帮助模型区分边界，并不能形成真正的安全隔离。权限过滤、危险工具审批和数据清洗必须由程序完成。</p>
-<h3>24.5 Prompt 版本化与回归</h3>
+<h3 id="245-prompt">24.5 Prompt 版本化与回归</h3>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">PROMPT_VERSION</span> <span class="o">=</span> <span class="s2">&quot;support-router-v3&quot;</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
@@ -107,7 +107,7 @@ HumanMessage =&gt; 那我该创建哪个虚拟环境？
 <span class="p">)</span>
 </code></pre></div>
 <p>Prompt 修改应像代码修改一样触发评估。只比较最终平均分不够，还应查看哪些旧案例变差。不要在不同线上实例中静默修改 Prompt，否则 Trace 无法重现。</p>
-<h3>24.6 Prompt 无法替代的约束</h3>
+<h3 id="246-prompt">24.6 Prompt 无法替代的约束</h3>
 <table>
 <thead>
 <tr>
@@ -150,5 +150,20 @@ HumanMessage =&gt; 那我该创建哪个虚拟环境？
 </tbody>
 </table>
 <p>一句话原则：Prompt 适合表达意图，代码负责执行不变量。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-23.html">← 上一章</a><a href="chapter-25.html">下一章 →</a></nav></main></div>
-<script>const contentId="langchain:24",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#241-prompt">24.1 一个可维护 Prompt 的五部分</a></li><li class="lv3"><a href="#242-messagesplaceholder">24.2 使用 MessagesPlaceholder 插入历史</a></li><li class="lv3"><a href="#243-few-shot">24.3 Few-shot 示例是在定义决策边界</a></li><li class="lv3"><a href="#244">24.4 把上下文标成数据</a></li><li class="lv3"><a href="#245-prompt">24.5 Prompt 版本化与回归</a></li><li class="lv3"><a href="#246-prompt">24.6 Prompt 无法替代的约束</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-23.html">← 上一章</a><a href="chapter-25.html">下一章 →</a></nav></main></div>'
+<script>const contentId="langchain:24",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

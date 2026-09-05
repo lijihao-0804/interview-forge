@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>二叉树算法演示 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>二叉树算法演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 二叉树演示：14 道题 · 统一框架 ===== */
+var TREE = [3, 9, 20, null, null, 15, 7];          // 示例 1 通用树（105/226 等共用变体见各题）
+
+/* 数组(层序) → 树；节点带 id（层序编号）便于高亮 */
+function toTree(arr) {
+  if (!arr.length) return null;
+  var root = { val: arr[0], id: "0", left: null, right: null };
+  var queue = [root], i = 1;
+  while (queue.length && i < arr.length) {
+    var n = queue.shift();
+    if (i < arr.length && arr[i] !== null) {
+      n.left = { val: arr[i], id: String(i), left: null, right: null };
+      queue.push(n.left);
+    }
+    i++;
+    if (i < arr.length && arr[i] !== null) {
+      n.right = { val: arr[i], id: String(i), left: null, right: null };
+      queue.push(n.right);
+    }
+    i++;
+  }
+  return root;
+}
+function height(n) { return n ? 1 + Math.max(height(n.left), height(n.right)) : 0; }
+
+/* 树渲染：SVG。view = { tree, hl:[id], done:[id], cur:id, side:{标题:内容}, path:[id] } */
+function drawTree(view, stage) {
+  var root = view.tree;
+  var H = height(root) || 1;
+  var W = Math.max(560, stage.clientWidth || 640);
+  var rowH = Math.min(74, 340 / H);
+  var pos = {};
+  var col = 0;
+  (function assign(n, d) {
+    if (!n) return;
+    assign(n.left, d + 1);
+    pos[n.id] = { x: 46 + (col++) * ((W - 90) / Math.max(1, countNodes(root) - 1) || 60), y: 40 + d * rowH };
+    assign(n.right, d + 1);
+  })(root, 0);
+  function countNodes(n) { return n ? 1 + countNodes(n.left) + countNodes(n.right) : 0; }
+  var svgNS = "http://www.w3.org/2000/svg";
+  var svg = document.createElementNS(svgNS, "svg");
+  var Ht = 40 + H * rowH + 46;
+  svg.setAttribute("width", "100%"); svg.setAttribute("height", Ht);
+  svg.setAttribute("viewBox", "0 0 " + W + " " + Ht);
+  var hl = view.hl || [], done = view.done || [], path = view.path || [];
+  var edges = el("g");
+  (function drawEdges(n) {
+    if (!n) return;
+    [[n.left, "L"], [n.right, "R"]].forEach(function (p) {
+      if (!p[0]) return;
+      var a = pos[n.id], b = pos[p[0].id];
+      var onPath = path.indexOf(n.id) >= 0 && path.indexOf(p[0].id) >= 0;
+      var line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", a.x); line.setAttribute("y1", a.y + 16);
+      line.setAttribute("x2", b.x); line.setAttribute("y2", b.y - 16);
+      line.style.stroke = onPath ? "var(--dk-brand)" : "var(--dk-line)";
+      line.style.strokeWidth = onPath ? 2.6 : 1.6;
+      edges.appendChild(line);
+    });
+    drawEdges(n.left); drawEdges(n.right);
+  })(root);
+  svg.appendChild(edges);
+  (function drawNodes(n) {
+    if (!n) return;
+    var p = pos[n.id];
+    var isCur = view.cur === n.id, inHl = hl.indexOf(n.id) >= 0, inDone = done.indexOf(n.id) >= 0;
+    var g = document.createElementNS(svgNS, "g");
+    var c = document.createElementNS(svgNS, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 17);
+    c.style.fill = isCur ? "var(--dk-brand)" : inHl ? "var(--dk-brand-soft)"
+      : inDone ? "color-mix(in srgb, var(--dk-ok) 16%, var(--dk-panel))" : "var(--dk-panel)";
+    c.style.stroke = isCur ? "var(--dk-brand-strong)" : inDone ? "var(--dk-ok)"
+      : inHl ? "var(--dk-brand)" : "var(--dk-line)";
+    c.style.strokeWidth = isCur ? 2.6 : 1.6;
+    g.appendChild(c);
+    var label = n.val === null ? "null" : String(n.val);
+    var tx = document.createElementNS(svgNS, "text");
+    tx.setAttribute("x", p.x); tx.setAttribute("y", p.y + 5);
+    tx.setAttribute("text-anchor", "middle");
+    tx.style.fill = inDone ? "var(--dk-muted)" : "var(--dk-text)";
+    tx.setAttribute("font-size", 13); tx.setAttribute("font-weight", 650);
+    tx.textContent = label;
+    g.appendChild(tx);
+    if (view.cur === n.id) {
+      var tag = document.createElementNS(svgNS, "text");
+      tag.setAttribute("x", p.x); tag.setAttribute("y", p.y - 24);
+      tag.setAttribute("text-anchor", "middle");
+      tag.style.fill = "var(--dk-brand)"; tag.setAttribute("font-size", 12); tag.setAttribute("font-weight", 700);
+      tag.textContent = "◀ 当前";
+      g.appendChild(tag);
+    }
+    svg.appendChild(g);
+    drawNodes(n.left); drawNodes(n.right);
+  })(root);
+  stage.textContent = "";
+  stage.appendChild(svg);
+  if (view.side) {
+    var box = document.createElement("div");
+    box.style.cssText = "margin-top:12px;display:flex;gap:8px;flex-wrap:wrap";
+    Object.keys(view.side).forEach(function (k) {
+      var n = document.createElement("span");
+      n.className = "dk-var";
+      n.innerHTML = "<b>" + k + ":</b> " + String(view.side[k]);
+      box.appendChild(n);
+    });
+    stage.appendChild(box);
+  }
+}
+
+function treeOf(arr) { return { tree: toTree(arr) }; }
+var el = DemoKit.el;   // 页面级别名：drawTree 里使用 kit 的 DOM 构造器
+
+/* ===== 14 个题的演示定义 ===== */
+var DEMOS = {
+  "0094": { no: "94", title: "二叉树的中序遍历", tag: "二叉树 · 递归",
+    example: "输入：root = [1,null,2,3]　输出：[1,3,2]",
+    build: function (ctx) {
+      var root = toTree([1, null, 2, 3]);
+      var out = [], done = [], stack = [];
+      function go(n) {
+        var path = [];
+        (function sp(x) { while (x) { path.push(x.id); stack.push(x.val === null ? "null" : x.val); x = x.left; } })(n);
+        ctx.step("递归左子树到底，路径 " + path.join("→"), { tree: root, cur: path[path.length - 1], side: { 栈: stack.join(","), 输出: out.join(",") || "空" } });
+        while (stack.length) {
+          var v = stack.pop();
+          if (v === "null") continue;
+          out.push(v); done.push(v);
+          ctx.step("弹出栈顶 " + v + " → 访问（中序：左-根-右），加入输出", { tree: root, done: done, side: { 输出: out.join(",") } });
+          var p = []; (function sp(x) { path.length = 0; })(0);
+          ctx.step("转向它的右子树…", { tree: root, cur: v, done: done, side: { 输出: out.join(",") } });
+        }
+      }
+      ctx.step("中序遍历 = 左子树 → 根 → 右子树，用递归（显式栈）模拟", treeOf([1, null, 2, 3]));
+      go(root);
+      ctx.step("完成！输出 [1,3,2]", { tree: root, done: done, side: { 输出: out.join(",") } });
+    },
+    render: drawTree },
+
+  "0098": { no: "98", title: "验证二叉搜索树", tag: "二叉树 · 递归 + 值域",
+    example: "输入：root = [5,1,4,null,null,3,6]　输出：false（4 < 5 违反左子树约束）",
+    build: function (ctx) {
+      var root = toTree([5, 1, 4, null, null, 3, 6]);
+      var ok = true;
+      function go(n, lo, hi, path) {
+        if (!n) { ctx.step("空子树，直接通过", { tree: root, side: { 路径: path || "—" } }); return; }
+        ctx.step("检查节点 " + n.val + " 是否在开区间 (" + lo + ", " + hi + ") 内",
+          { tree: root, cur: n.id, hl: [n.id], side: { 下界: lo, 上界: hi } });
+        if (!(lo < n.val && n.val < hi)) {
+          ok = false;
+          ctx.step("❌ " + n.val + " 不在 (" + lo + ", " + hi + ") 内 → 不是 BST！", { tree: root, hl: [n.id], side: { 结论: "false" } });
+          throw { done: true };
+        }
+        go(n.left, lo, n.val, path + "→" + n.val + "L");
+        go(n.right, n.val, hi, path + "→" + n.val + "R");
+      }
+      ctx.step("每个节点带 (下界, 上界) 约束：左子树上界=父值，右子树下界=父值", treeOf([5, 1, 4, null, null, 3, 6]));
+      try { go(root, -Infinity, Infinity, ""); } catch (e) { if (!e.done) throw e; }
+      if (ok) ctx.step("全部通过 → 是合法 BST", { tree: root, done: [1, 2, 4, 5, 3, 6], side: { 结论: "true" } });
+    },
+    render: drawTree },
+
+  "0101": { no: "101", title: "对称二叉树", tag: "二叉树 · 镜像递归",
+    example: "输入：root = [1,2,2,3,4,4,3]　输出：true",
+    build: function (ctx) {
+      var root = toTree([1, 2, 2, 3, 4, 4, 3]);
+      var ok = true, checked = [];
+      function mirror(a, b) {
+        if (!a && !b) { ctx.step("两边都为空 → 对称 ✓", { tree: root, side: { 检查过: checked.join(",") || "—" } }); return; }
+        if (!a || !b || a.val !== b.val) {
+          ok = false;
+          ctx.step("❌ " + (a ? a.val : "null") + " 与 " + (b ? b.val : "null") + " 不对称", { tree: root, hl: [a && a.id, b && b.id].filter(Boolean), side: { 结论: "false" } });
+          throw { done: true };
+        }
+        checked.push(a.val, b.val);
+        ctx.step("比较镜像位置：" + a.val + " 与 " + b.val + " 相等 ✓，继续比较 (左.左, 右.右) 和 (左.右, 右.左)",
+          { tree: root, hl: [a.id, b.id], side: { 已比较: checked.join(",") } });
+        mirror(a.left, b.right);
+        mirror(a.right, b.left);
+      }
+      ctx.step("对称 = 每个节点的左子树与右子树互为镜像（比较 双左vs双右 + 双右vs双左）", treeOf([1, 2, 2, 3, 4, 4, 3]));
+      mirror(root.left, root.right);
+      ctx.step("所有镜像位置相等 → 对称 ✓", { tree: root, done: checked, side: { 结论: "true" } });
+    },
+    render: drawTree },
+
+  "0102": { no: "102", title: "二叉树的层序遍历", tag: "二叉树 · BFS 队列",
+    example: "输入：root = [3,9,20,null,null,15,7]　输出：[[3],[9,20],[15,7]]",
+    build: function (ctx) {
+      var root = toTree([3, 9, 20, null, null, 15, 7]);
+      var queue = [root], done = [], levels = [];
+      var level = 0;
+      while (queue.length) {
+        var n = queue.length, vals = [], next = [];
+        ctx.step("第 " + level + " 层开始：队列里有 " + n + " 个节点 [" + queue.map(function (x) { return x.val; }).join(",") + "]",
+          { tree: root, hl: queue.map(function (x) { return x.id; }), side: { 队列: queue.map(function (x) { return x.val; }).join(","), 层: level } });
+        for (var i = 0; i < n; i++) {
+          var cur = queue.shift();
+          vals.push(cur.val); done.push(cur.id);
+          if (cur.left) next.push(cur.left);
+          if (cur.right) next.push(cur.right);
+          ctx.step("出队 " + cur.val + " 加入本层输出；子节点入下一层队列",
+            { tree: root, done: done, cur: cur.id, side: { 本层: vals.join(","), 下一层: next.map(function (x) { return x.val; }).join(",") || "空" } });
+        }
+        levels.push(vals);
+        queue = next; level++;
+      }
+      ctx.step("完成！按层输出 [[" + levels.map(function (l) { return l.join(","); }).join("],[") + "]]",
+        { tree: root, done: done, side: { 结果: JSON.stringify(levels) } });
+    },
+    render: drawTree },
+
+  "0104": { no: "104", title: "二叉树的最大深度", tag: "二叉树 · 后序递归",
+    example: "输入：root = [3,9,20,null,null,15,7]　输出：3",
+    build: function (ctx) {
+      var root = toTree([3, 9, 20, null, null, 15, 7]);
+      var best = 0, visited = [];
+      function go(n, d) {
+        if (!n) { ctx.step("到达空节点，深度 0，回溯", { tree: root, side: { 当前深度: d, 最大: best } }); return; }
+        visited.push(n.id);
+        ctx.step("进入节点 " + n.val + "，深度 " + d, { tree: root, cur: n.id, hl: [n.id], side: { 当前深度: d, 最大: best } });
+        go(n.left, d + 1);
+        go(n.right, d + 1);
+        best = Math.max(best, d);
+        ctx.step("节点 " + n.val + " 子树的最大深度 = " + d + "，回传", { tree: root, done: visited.slice(), side: { 最大深度: best } });
+      }
+      ctx.step("最大深度 = 左右子树深度的 max + 1，自底向上回传", treeOf([3, 9, 20, null, null, 15, 7]));
+      go(root, 1);
+      ctx.step("完成！最大深度 = 3（3 → 20 → 15）", { tree: root, done: [1, 3, 5], side: { 答案: 3 } });
+    },
+    render: drawTree },
+
+  "0105": { no: "105", title: "从前序与中序遍历序列构造二叉树", tag: "二叉树 · 分治",
+    example: "输入：preorder = [3,9,20,15,7]，inorder = [9,3,15,20,7]",
+    build: function (ctx) {
+      var pre = [3, 9, 20, 15, 7], ino = [9, 3, 15, 20, 7];
+      var idx = {}; ino.forEach(function (v, i) { idx[v] = i; });
+      var built = [];
+      var tree = null;
+      function build(preL, preR, inL, inR) {
+        if (preL > preR) { ctx.step("区间为空，返回 null", { tree: tree, side: { 前序: pre.slice(preL, preR + 1).join(","), 中序: ino.slice(inL, inR + 1).join(",") } }); return null; }
+        var rootVal = pre[preL];
+        var inRoot = idx[rootVal], leftSize = inRoot - inL;
+        ctx.step("前序第一个 " + rootVal + " 是根；在中序中定位到 " + inRoot + "，左子树规模 " + leftSize,
+          { tree: tree, side: { 前序段: pre.slice(preL, preR + 1).join(","), 中序段: ino.slice(inL, inR + 1).join(",") } });
+        var node = { val: rootVal, id: "n" + rootVal, left: null, right: null };
+        built.push(node);
+        attach(node);
+        tree = tree || node;
+        ctx.step("创建节点 " + rootVal + "，递归构建左右子树", { tree: tree, hl: [node.id] });
+        node.left = build(preL + 1, preL + leftSize, inL, inRoot - 1);
+        node.right = build(preL + leftSize + 1, preR, inRoot + 1, inR);
+        return node;
+      }
+      function attach(n) { }
+      // 用一个固定的示例树来渲染（与输入一致）
+      var render_tree = toTree([3, 9, 20, null, null, 15, 7]);
+      var base_build = build;
+      build = function (a, b, c, d) {
+        var before = built.length;
+        var node = base_build(a, b, c, d);
+        return node;
+      };
+      // 渲染时始终用固定示例树
+      var viewTree = toTree([3, 9, 20, null, null, 15, 7]);
+      var origStep = ctx.step;
+      ctx.step = function (d, view) { view = view || {}; view.tree = viewTree; origStep(d, view); };
+      build(0, pre.length - 1, 0, ino.length - 1);
+      ctx.step("构造完成！", { tree: viewTree, done: [1, 3, 5, 6, 7] });
+    },
+    render: drawTree },
+
+  "0108": { no: "108", title: "将有序数组转换为二叉搜索树", tag: "二叉树 · 二分构造",
+    example: "输入：nums = [-10,-3,0,5,9]　输出：[0,-3,9,-10,null,5]",
+    build: function (ctx) {
+      var nums = [-10, -3, 0, 5, 9];
+      var tree = toTree([0, -3, 9, -10, null, 5, null]);
+      function build(l, r) {
+        if (l > r) { ctx.step("区间空 [" + l + "," + r + "]，返回 null", { tree: tree, side: { 区间: "[" + l + "," + r + "]" } }); return null; }
+        var mid = (l + r) >> 1;
+        ctx.step("取中点 " + nums[mid] + "（下标 " + mid + "）作为子树根 → 保证左右平衡",
+          { tree: tree, hl: [String(mid + 1)], side: { 区间: "[" + l + "," + r + "]", 中点: nums[mid] } });
+        build(l, mid - 1);
+        build(mid + 1, r);
+      }
+      ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", tree);
+      build(0, nums.length - 1);
+      ctx.step("完成！高度平衡的 BST 构造完毕", { tree: tree, done: [2, 4, 1, 6, 3] });
+    },
+    render: drawTree },
+
+  "0114": { no: "114", title: "二叉树展开为链表", tag: "二叉树 · 前序重排",
+    example: "输入：root = [1,2,5,3,4,null,6]",
+    build: function (ctx) {
+      var root = toTree([1, 2, 5, 3, 4, null, 6]);
+      var order = [];
+      function pre(n) {
+        if (!n) return;
+        order.push(n.id);
+        pre(n.left); pre(n.right);
+      }
+      pre(root);
+      ctx.step("展开后按前序遍历串成单链（right 当 next，left 置空）", treeOf([1, 2, 5, 3, 4, null, 6]));
+      var flat = toTree([1, null, 2, null, 3, null, 4, null, 5, null, 6]);
+      var shown = [];
+      for (var i = 0; i < order.length; i++) {
+        shown.push(order[i]);
+        ctx.step("按前序接入第 " + (i + 1) + " 个节点 " + order[i],
+          { tree: flat, done: shown, cur: order[i], side: { 已接入: shown.length + "/" + order.length } });
+      }
+      ctx.step("完成！整棵树变成一条右倾链表", { tree: flat, done: shown });
+    },
+    render: drawTree },
+
+  "0199": { no: "199", title: "二叉树的右视图", tag: "二叉树 · BFS 每层最后一个",
+    example: "输入：root = [1,2,3,null,5,null,4]　输出：[1,3,4]",
+    build: function (ctx) {
+      var root = toTree([1, 2, 3, null, 5, null, 4]);
+      var queue = [root], right = [], done = [];
+      var level = 0;
+      while (queue.length) {
+        var n = queue.length;
+        ctx.step("第 " + level + " 层有 " + n + " 个节点，最右边的就是右视图答案",
+          { tree: root, hl: queue.map(function (x) { return x.id; }), side: { 右视图: right.join(",") } });
+        for (var i = 0; i < n; i++) {
+          var cur = queue.shift();
+          done.push(cur.id);
+          if (i === n - 1) {
+            right.push(cur.val);
+            ctx.step(cur.val + " 是本层最后一个 → 加入右视图", { tree: root, cur: cur.id, done: done, side: { 右视图: right.join(",") } });
+          } else {
+            ctx.step(cur.val + " 不是本层最后，跳过（但仍扩展子节点）", { tree: root, cur: cur.id, done: done });
+          }
+          if (cur.left) queue.push(cur.left);
+          if (cur.right) queue.push(cur.right);
+        }
+        level++;
+      }
+      ctx.step("完成！右视图 = [" + right.join(",") + "]（站在右侧能看到的节点）", { tree: root, done: done, side: { 答案: "[" + right.join(",") + "]" } });
+    },
+    render: drawTree },
+
+  "0226": { no: "226", title: "翻转二叉树", tag: "二叉树 · 递归交换",
+    example: "输入：root = [4,2,7,1,3,6,9]　输出：[4,7,2,9,6,3,1]",
+    build: function (ctx) {
+      var root = toTree([4, 2, 7, 1, 3, 6, 9]);
+      var flipped = [];
+      function swapView() {
+        var mirror = toTree([4, 7, 2, 9, 6, 3, 1]);
+        return mirror;
+      }
+      function go(n, doneIds) {
+        if (!n) return;
+        var before = toTree([4, 2, 7, 1, 3, 6, 9]);
+        ctx.step("进入节点 " + n.val + "：交换左右子树",
+          { tree: before, cur: n.id, side: { 已翻转: flipped.join(",") || "—" } });
+        var tmp = n.left; n.left = n.right; n.right = tmp;
+        flipped.push(n.val);
+        ctx.step("节点 " + n.val + " 的左右已交换，继续递归子节点",
+          { tree: swapView(), hl: doneIds.map(String), side: { 已翻转: flipped.join(",") } });
+        go(n.left, doneIds); go(n.right, doneIds);
+      }
+      go(root, [2, 7]);
+      ctx.step("完成！整棵树镜像翻转 → [4,7,2,9,6,3,1]", { tree: swapView(), done: [1, 7, 2, 9, 6, 3, 1] });
+    },
+    render: drawTree },
+
+  "0230": { no: "230", title: "二叉搜索树中第 K 小的元素", tag: "二叉树 · 中序计数",
+    example: "输入：root = [5,3,6,2,4,null,null,1]，k = 3　输出：3",
+    sizes: [{ label: "k = 1", k: 1 }, { label: "k = 3（示例 1）", k: 3 }, { label: "k = 4", k: 4 }],
+    defaultSize: 1,
+    build: function (ctx, size) {
+      var k = (size && size.k) || 3;
+      var root = toTree([5, 3, 6, 2, 4, null, null, 1]);
+      var count = 0, answer = null, visited = [];
+      ctx.step("BST 的中序遍历就是升序序列 → 第 " + k + " 个被访问的就是第 " + k + " 小", { tree: root, side: { k: k } });
+      function go(n) {
+        if (!n || answer !== null) return;
+        go(n.left);
+        if (answer !== null) return;
+        count++; visited.push(n.id);
+        if (count === k) {
+          answer = n.val;
+          ctx.step("第 " + count + " 个访问 " + n.val + " → 就是第 " + k + " 小！", { tree: root, hl: [n.id], done: visited, side: { 答案: n.val } });
+          return;
+        }
+        ctx.step("第 " + count + " 个访问 " + n.val + "（还不是第 " + k + " 小），继续", { tree: root, done: visited, side: { 计数: count, k: k } });
+        go(n.right);
+      }
+      go(root);
+      ctx.step("完成！第 " + k + " 小 = " + answer, { tree: root, done: visited, side: { 答案: answer } });
+    },
+    render: drawTree },
+
+  "0236": { no: "236", title: "二叉树的最近公共祖先", tag: "二叉树 · 后序递归",
+    example: "输入：root = [3,5,1,6,2,0,8,null,null,7,4]，p = 5，q = 1　输出：3",
+    sizes: [{ label: "p=5, q=1（示例 1）", p: 5, q: 1 }, { label: "p=5, q=4", p: 5, q: 4 }, { label: "p=6, q=2", p: 6, q: 2 }],
+    defaultSize: 1,
+    build: function (ctx, size) {
+      var P = (size && size.p) || 5, Q = (size && size.q) || 1;
+      var root = toTree([3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]);
+      var answer = null;
+      function go(n) {
+        if (!n) { ctx.step("空节点，返回 null", { tree: root, side: { p: P, q: Q } }); return null; }
+        if (n.val === P || n.val === Q) {
+          ctx.step("命中目标 " + n.val + "，向上报告", { tree: root, hl: [n.id], side: { p: P, q: Q } });
+          return n.val;
+        }
+        ctx.step("检查节点 " + n.val + "：递归左右子树找 p=" + P + " 和 q=" + Q, { tree: root, cur: n.id });
+        var l = go(n.left), r = go(n.right);
+        if (l !== null && r !== null) {
+          if (answer === null) {
+            answer = n.val;
+            ctx.step("左右各找到一个 → " + n.val + " 就是最近公共祖先！", { tree: root, hl: [n.id], side: { 答案: n.val } });
+          }
+          return n.val;
+        }
+        ctx.step("节点 " + n.val + "：左右结果 [" + (l === null ? "null" : l) + ", " + (r === null ? "null" : r) + "]，向上传递非空的", { tree: root, cur: n.id });
+        return l !== null ? l : r;
+      }
+      ctx.step("后序递归：左右找 p 和 q；两边都找到的最低节点就是 LCA", treeOf([3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]));
+      go(root);
+      ctx.step("完成！最近公共祖先 = " + answer, { tree: root, side: { 答案: answer } });
+    },
+    render: drawTree },
+
+  "0437": { no: "437", title: "路径总和 III", tag: "二叉树 · 前缀和 + 回溯",
+    example: "输入：root = [10,5,-3,3,2,null,11,3,-2,null,1]，targetSum = 8　输出：3",
+    build: function (ctx) {
+      var root = toTree([10, 5, -3, 3, 2, null, 11, 3, -2, null, 1]);
+      var target = 8, count = 0;
+      var prefix = { 0: 1 }, cur = 0;
+      var order = [];
+      function go(n) {
+        if (!n) { ctx.step("空节点，返回", { tree: root, side: { 路径和: cur, 计数: count } }); return; }
+        cur += n.val; order.push(n.id);
+        var need = cur - target;
+        var hit = prefix[need] || 0;
+        var before = prefix[cur] || 0;
+        count += hit;
+        ctx.step("到达 " + n.val + "：前缀和 = " + cur + "，需要历史前缀 " + need + "（出现 " + hit + " 次）→ 找到 " + hit + " 条路径",
+          { tree: root, cur: n.id, hl: [n.id], side: { 路径和: cur, 命中: hit, 计数: count } });
+        prefix[cur] = (prefix[cur] || 0) + 1;
+        ctx.step("登记当前前缀和 " + cur + "，继续向下（回溯时要撤销）", { tree: root, done: order.slice(), side: { 前缀表: JSON.stringify(prefix) } });
+        go(n.left); go(n.right);
+        prefix[cur] -= 1; cur -= n.val; order.pop();
+        ctx.step("回溯离开 " + n.val + "：撤销前缀登记（防止跨分支误配）", { tree: root, side: { 路径和: cur, 计数: count } });
+      }
+      ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", tree);
+      go(root);
+      ctx.step("完成！和为 " + target + " 的路径共 " + count + " 条", { tree: root, side: { 答案: count } });
+    },
+    render: drawTree },
+
+  "0543": { no: "543", title: "二叉树的直径", tag: "二叉树 · 后序递归",
+    example: "输入：root = [1,2,3,4,5]　输出：3（路径 4→2→1→3 或 5→2→1→3）",
+    build: function (ctx) {
+      var root = toTree([1, 2, 3, 4, 5]);
+      var best = 0, bestPair = [2, 3];
+      function go(n, d) {
+        if (!n) { ctx.step("空节点，深度 0", { tree: root, side: { 最大直径: best } }); return 0; }
+        ctx.step("进入 " + n.val, { tree: root, cur: n.id });
+        var L = go(n.left, d + 1), R = go(n.right, d + 1);
+        var through = L + R + 1;
+        if (through > best) { best = through; bestPair = [n.left ? n.left.val : "—", n.right ? n.right.val : "—"]; }
+        ctx.step(n.val + "：左深 " + L + " + 右深 " + R + " + 1 = 经过它的路径长 " + through + "（历史最大 " + best + "）",
+          { tree: root, cur: n.id, side: { 左深: L, 右深: R, 最大直径: best } });
+        return Math.max(L, R) + 1;
+      }
+      ctx.step("直径 = 某节点左右子树深度之和最大值；后序遍历自底向上统计", treeOf([1, 2, 3, 4, 5]));
+      go(root, 0);
+      ctx.step("完成！最大直径 = " + best + "（节点 " + bestPair[0] + " → " + bestPair[1] + "，经过它们的公共祖先）",
+        { tree: root, side: { 答案: best } });
+    },
+    render: drawTree }
+};
+
+</script>
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no || "") + " " + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      build: d.build, render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var params = new URLSearchParams(location.search);
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

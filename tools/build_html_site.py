@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260830-mobile1"
+ASSET_VERSION = "20260906-p0-immersive"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -89,6 +89,56 @@ ASSET_VERSION = "20260830-mobile1"
 # 可视化只作为题解页底部的交互组件出现。每个绑定项选择一个确实与
 # 题目方法一致的面板/模式；不要仅因为专题相同就绑定泛化演示。
 VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
+    "books/hot100/03-题解/07-链表/0002-两数相加.md": ("链表演示.html", {"mode": "0002"}),
+    "books/hot100/03-题解/07-链表/0019-删除链表的倒数第 N 个结点.md": ("链表演示.html", {"mode": "0019"}),
+    "books/hot100/03-题解/07-链表/0021-合并两个有序链表.md": ("链表演示.html", {"mode": "0021"}),
+    "books/hot100/03-题解/07-链表/0024-两两交换链表中的节点.md": ("链表演示.html", {"mode": "0024"}),
+    "books/hot100/03-题解/07-链表/0138-随机链表的复制.md": ("链表演示.html", {"mode": "0138"}),
+    "books/hot100/03-题解/07-链表/0141-环形链表.md": ("链表演示.html", {"mode": "0141"}),
+    "books/hot100/03-题解/07-链表/0142-环形链表 II.md": ("链表演示.html", {"mode": "0142"}),
+    "books/hot100/03-题解/07-链表/0146-LRU 缓存.md": ("链表演示.html", {"mode": "0146"}),
+    "books/hot100/03-题解/07-链表/0148-排序链表.md": ("链表演示.html", {"mode": "0148"}),
+    "books/hot100/03-题解/07-链表/0160-相交链表.md": ("链表演示.html", {"mode": "0160"}),
+    "books/hot100/03-题解/07-链表/0234-回文链表.md": ("链表演示.html", {"mode": "0234"}),
+    "books/hot100/03-题解/15-动态规划/0070-爬楼梯.md": ("动态规划演示.html", {"mode": "0070"}),
+    "books/hot100/03-题解/15-动态规划/0118-杨辉三角.md": ("动态规划演示.html", {"mode": "0118"}),
+    "books/hot100/03-题解/15-动态规划/0139-单词拆分.md": ("动态规划演示.html", {"mode": "0139"}),
+    "books/hot100/03-题解/15-动态规划/0152-乘积最大子数组.md": ("动态规划演示.html", {"mode": "0152"}),
+    "books/hot100/03-题解/15-动态规划/0198-打家劫舍.md": ("动态规划演示.html", {"mode": "0198"}),
+    "books/hot100/03-题解/15-动态规划/0279-完全平方数.md": ("动态规划演示.html", {"mode": "0279"}),
+    "books/hot100/03-题解/15-动态规划/0300-最长递增子序列.md": ("动态规划演示.html", {"mode": "0300"}),
+    "books/hot100/03-题解/15-动态规划/0322-零钱兑换.md": ("动态规划演示.html", {"mode": "0322"}),
+    "books/hot100/03-题解/16-多维动态规划/0005-最长回文子串.md": ("动态规划演示.html", {"mode": "0005"}),
+    "books/hot100/03-题解/16-多维动态规划/0064-最小路径和.md": ("动态规划演示.html", {"mode": "0064"}),
+    "books/hot100/03-题解/12-栈/0020-有效的括号.md": ("栈贪心技巧演示.html", {"mode": "0020"}),
+    "books/hot100/03-题解/12-栈/0155-最小栈.md": ("栈贪心技巧演示.html", {"mode": "0155"}),
+    "books/hot100/03-题解/12-栈/0232-用栈实现队列.md": ("栈贪心技巧演示.html", {"mode": "0232"}),
+    "books/hot100/03-题解/12-栈/0394-字符串解码.md": ("栈贪心技巧演示.html", {"mode": "0394"}),
+    "books/hot100/03-题解/14-贪心/0045-跳跃游戏 II.md": ("栈贪心技巧演示.html", {"mode": "0045"}),
+    "books/hot100/03-题解/14-贪心/0055-跳跃游戏.md": ("栈贪心技巧演示.html", {"mode": "0055"}),
+    "books/hot100/03-题解/14-贪心/0121-买卖股票的最佳时机.md": ("栈贪心技巧演示.html", {"mode": "0121"}),
+    "books/hot100/03-题解/14-贪心/0763-划分字母区间.md": ("栈贪心技巧演示.html", {"mode": "0763"}),
+    "books/hot100/03-题解/17-技巧/0031-下一个排列.md": ("栈贪心技巧演示.html", {"mode": "0031"}),
+    "books/hot100/03-题解/17-技巧/0075-颜色分类.md": ("栈贪心技巧演示.html", {"mode": "0075"}),
+    "books/hot100/03-题解/17-技巧/0136-只出现一次的数字.md": ("栈贪心技巧演示.html", {"mode": "0136"}),
+    "books/hot100/03-题解/17-技巧/0169-多数元素.md": ("栈贪心技巧演示.html", {"mode": "0169"}),
+    "books/hot100/03-题解/17-技巧/0287-寻找重复数.md": ("栈贪心技巧演示.html", {"mode": "0287"}),
+    "books/hot100/03-题解/11-二分查找/0033-搜索旋转排序数组.md": ("二分数组演示.html", {"mode": "0033"}),
+    "books/hot100/03-题解/11-二分查找/0074-搜索二维矩阵.md": ("二分数组演示.html", {"mode": "0074"}),
+    "books/hot100/03-题解/11-二分查找/0153-寻找旋转排序数组中的最小值.md": ("二分数组演示.html", {"mode": "0153"}),
+    "books/hot100/03-题解/05-普通数组/0053-最大子数组和.md": ("二分数组演示.html", {"mode": "0053"}),
+    "books/hot100/03-题解/05-普通数组/0056-合并区间.md": ("二分数组演示.html", {"mode": "0056"}),
+    "books/hot100/03-题解/05-普通数组/0189-轮转数组.md": ("二分数组演示.html", {"mode": "0189"}),
+    "books/hot100/03-题解/05-普通数组/0238-除自身以外数组的乘积.md": ("二分数组演示.html", {"mode": "0238"}),
+    "books/hot100/03-题解/06-矩阵/0048-旋转图像.md": ("矩阵演示.html", {"mode": "0048"}),
+    "books/hot100/03-题解/06-矩阵/0054-螺旋矩阵.md": ("矩阵演示.html", {"mode": "0054"}),
+    "books/hot100/03-题解/06-矩阵/0073-矩阵置零.md": ("矩阵演示.html", {"mode": "0073"}),
+    "books/hot100/03-题解/06-矩阵/0240-搜索二维矩阵 II.md": ("矩阵演示.html", {"mode": "0240"}),
+    "books/hot100/03-题解/13-堆/0215-数组中的第K个最大元素.md": ("堆图滑窗回溯演示.html", {"mode": "0215"}),
+    "books/hot100/03-题解/13-堆/0347-前 K 个高频元素.md": ("堆图滑窗回溯演示.html", {"mode": "0347"}),
+    "books/hot100/03-题解/09-图论/0207-课程表.md": ("堆图滑窗回溯演示.html", {"mode": "0207"}),
+    "books/hot100/03-题解/03-滑动窗口/0438-找到字符串中所有字母异位词.md": ("堆图滑窗回溯演示.html", {"mode": "0438"}),
+    "books/hot100/03-题解/10-回溯/0131-分割回文串.md": ("堆图滑窗回溯演示.html", {"mode": "0131"}),
     "books/hot100/03-题解/01-哈希表/0001-两数之和.md": ("01-哈希表.html", {"panel": "0"}),
     "books/hot100/03-题解/01-哈希表/0049-字母异位词分组.md": ("01-哈希表.html", {"panel": "1"}),
     "books/hot100/03-题解/01-哈希表/0128-最长连续序列.md": ("01-哈希表.html", {"panel": "2"}),
@@ -104,6 +154,20 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/07-链表/0023-合并 K 个升序链表.md": ("困难题核心状态实验室.html", {"mode": "merge-k"}),
     "books/hot100/03-题解/07-链表/0025-K 个一组翻转链表.md": ("困难题核心状态实验室.html", {"mode": "reverse-k"}),
     "books/hot100/03-题解/07-链表/0206-反转链表.md": ("链表指针实验室.html", {}),
+    "books/hot100/03-题解/08-二叉树/0094-二叉树的中序遍历.md": ("二叉树演示.html", {"mode": "0094"}),
+    "books/hot100/03-题解/08-二叉树/0098-验证二叉搜索树.md": ("二叉树演示.html", {"mode": "0098"}),
+    "books/hot100/03-题解/08-二叉树/0101-对称二叉树.md": ("二叉树演示.html", {"mode": "0101"}),
+    "books/hot100/03-题解/08-二叉树/0102-二叉树的层序遍历.md": ("二叉树演示.html", {"mode": "0102"}),
+    "books/hot100/03-题解/08-二叉树/0104-二叉树的最大深度.md": ("二叉树演示.html", {"mode": "0104"}),
+    "books/hot100/03-题解/08-二叉树/0105-从前序与中序遍历序列构造二叉树.md": ("二叉树演示.html", {"mode": "0105"}),
+    "books/hot100/03-题解/08-二叉树/0108-将有序数组转换为二叉搜索树.md": ("二叉树演示.html", {"mode": "0108"}),
+    "books/hot100/03-题解/08-二叉树/0114-二叉树展开为链表.md": ("二叉树演示.html", {"mode": "0114"}),
+    "books/hot100/03-题解/08-二叉树/0199-二叉树的右视图.md": ("二叉树演示.html", {"mode": "0199"}),
+    "books/hot100/03-题解/08-二叉树/0226-翻转二叉树.md": ("二叉树演示.html", {"mode": "0226"}),
+    "books/hot100/03-题解/08-二叉树/0230-二叉搜索树中第 K 小的元素.md": ("二叉树演示.html", {"mode": "0230"}),
+    "books/hot100/03-题解/08-二叉树/0236-二叉树的最近公共祖先.md": ("二叉树演示.html", {"mode": "0236"}),
+    "books/hot100/03-题解/08-二叉树/0437-路径总和 III.md": ("二叉树演示.html", {"mode": "0437"}),
+    "books/hot100/03-题解/08-二叉树/0543-二叉树的直径.md": ("二叉树演示.html", {"mode": "0543"}),
     "books/hot100/03-题解/08-二叉树/0124-二叉树中的最大路径和.md": ("困难题核心状态实验室.html", {"mode": "max-path"}),
     "books/hot100/03-题解/09-图论/0200-岛屿数量.md": ("网格搜索实验室.html", {"mode": "dfs"}),
     "books/hot100/03-题解/09-图论/0208-实现 Trie.md": ("树形查找算法可视化.html", {"panel": "4"}),
@@ -150,7 +214,9 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
 # 之间；改动需重跑 build() 才写进 assets/site.css，check_hot100.py 会按站点
 # 规则校验该产物（含“无沉浸模式残留”断言）。
 # =============================================================================
-SITE_CSS = r"""
+SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"JetBrains Mono";src:url("fonts/JetBrainsMono-Variable.woff2") format("woff2");font-weight:100 800;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
 :root {
   color-scheme: light dark;
   --page-bg: #f4f6fb;
@@ -207,7 +273,7 @@ body {
   background:
     radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 34rem),
     var(--page-bg);
-  font: 16px/1.9 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font: 16px/1.9 var(--font-sans);
 }
 
 a { color: var(--brand); text-decoration: none; overflow-wrap: anywhere; }
@@ -226,7 +292,7 @@ a:hover { text-decoration: underline; }
 }
 .skip-link:focus { top: 12px; }
 
-.site-shell { width: min(100% - 32px, 1040px); margin: 0 auto; padding: 20px 0 56px; }
+.site-shell { width: calc(100% - 36px); margin: 0 auto; padding: 20px 0 56px; }
 .site-topbar {
   display: flex;
   align-items: center;
@@ -249,7 +315,7 @@ a:hover { text-decoration: underline; }
 .site-nav a.lc-button:hover { background: var(--brand-strong); color: #fff; }
 
 .reader-card {
-  width: min(100%, 980px);
+  width: 100%;
   min-width: 0;
   margin: 0 auto;
   padding: clamp(32px, 6vw, 72px);
@@ -258,7 +324,7 @@ a:hover { text-decoration: underline; }
   border-radius: 20px;
   box-shadow: var(--shadow);
 }
-.markdown-body { width: min(100%, 880px); min-width: 0; margin: 0 auto; overflow-wrap: break-word; }
+.markdown-body { width: min(100%, 1600px); min-width: 0; margin: 0 auto; overflow-wrap: break-word; }
 .page-kicker { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 .toc-box {
   margin: 30px 0 40px;
@@ -369,7 +435,7 @@ body{overflow-x:clip}
 .code-toolbar{flex-wrap:wrap;gap:6px}
 
 @media (max-width: 720px) {
-  .site-shell { width: min(100% - 18px, 1040px); padding-top: 9px; }
+  .site-shell { width: calc(100% - 20px); padding-top: 9px; }
   .site-topbar { align-items: flex-start; padding: 10px 11px; border-radius: 12px; }
   .site-nav { width: 100%; }
   .site-nav a { padding: 5px 7px; }
@@ -400,6 +466,26 @@ body{overflow-x:clip}
   .code-block { break-inside:avoid; }
 }
 
+/* ===== 手动主题切换（theme-toggle.js 设置 data-theme） ===== */
+html[data-theme="dark"]{color-scheme:dark;
+    --page-bg: #0f131b;
+    --surface: #181e29;
+    --surface-soft: #141a24;
+    --surface-softer: #1b222e;
+    --text: #eaf0fa;
+    --text-strong: #f6f8ff;
+    --muted: #a3afc2;
+    --line: #313b4c;
+    --brand: #b1afff;
+    --brand-strong: #c4c2ff;
+    --brand-soft: #292955;
+    --success: #79d8a8;
+    --warning: #ffc174;
+    --inline-code: #cfcdff;
+    --inline-code-bg: #272751;
+    --shadow: 0 18px 48px rgba(0, 0, 0, .24);
+  }
+html[data-theme="light"]{color-scheme:light;--page-bg:#f4f6fb;--surface:#ffffff;--surface-soft:#f8f9fd;--surface-softer:#fbfcff;--text:#182235;--text-strong:#111a2c;--muted:#66748a;--line:#dfe4ee;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#157a52;--warning:#a85b00;--inline-code:#443fb0;--inline-code-bg:#f0efff;--shadow:0 16px 44px rgba(33,45,73,.08)}
 """
 
 # =============================================================================

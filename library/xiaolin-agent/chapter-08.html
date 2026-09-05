@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？</span></nav><div class="module-meta">Agent 工程 · 第 8 / 16 章</div><h1>请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你来讲讲 Agent 的记忆机制，分哪几种，各自有什么作用？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？</span></nav><div class="module-meta">Agent 工程 · 第 8 / 16 章 · <span class="muted">更新于 2026-09-01</span></div><h1>请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：你来讲讲 Agent 的记忆机制，分哪几种，各自有什么作用？</p>
 <p>🙋‍♂️我：有短期记忆和长期记忆……短期就是当前对话历史，长期就是存到数据库里的内容？</p>
 <p>👔面试官：分类方向对，但不够完整。短期记忆和长期记忆之外还有两种，你知道是哪两种吗？</p>
 <p>🙋‍♂️我：还有……缓存？或者工具调用的结果？</p>
@@ -7,12 +7,12 @@
 <p>🙋‍♂️我：向量数据库？用 embedding 存起来做语义检索？</p>
 <p>👔面试官：对，但光会存还不够。你有没有想过记忆模块真正的难点在哪里：存什么内容值得存、用什么介质存、什么时机取出来用，这三个问题才是设计记忆系统的核心。</p>
 <p>把四种记忆类型和「存什么、怎么存、什么时候取」这三个工程问题答全，才是一个完整的记忆模块方案。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>Agent 需要记忆才能在多步任务中保持状态、跨任务积累知识。</p>
 <p>记忆机制分四层：感知记忆（当前输入的原始内容）、短期记忆（context window 里的对话历史）、长期记忆（存在外部数据库、语义检索召回）、实体记忆（结构化提取的关键事实）。</p>
 <p>实际设计时要解决三个核心问题：存什么、怎么存、什么时候取出来用，根据信息类型选合适的存储方式，再搭配主动检索和按需检索两种策略使用。</p>
-<h3>📝 详细解析</h3>
-<h4>没有记忆的 Agent 有多不好用</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="agent">没有记忆的 Agent 有多不好用</h4>
 <p>要搞清楚记忆机制为什么重要，得先感受一下「没有记忆」的 Agent 到底有多难用。</p>
 <p>你今天告诉 Agent「我喜欢代码风格简洁、变量命名用英文、不要过度注释」，它帮你完成了今天的任务。明天你重新打开对话，让它帮你写一个新功能，它输出的代码风格完全和昨天说好的不一样，中文注释一堆，变量名也很啰嗦。</p>
 <p>你很困惑，但对 Agent 来说，昨天的对话压根不存在，每次对话都是全新的开始，之前达成的所有约定都消失了。</p>
@@ -20,7 +20,7 @@
 <p>你让它「先查资料，再整理成报告」，没有记忆的话，整理报告这一步根本不知道查到了什么。</p>
 <p>记忆，是 Agent 从「单次问答工具」变成「真正助手」的关键分水岭。有了记忆，它才能积累对你的了解，才能在多步任务中保持连贯，才能跨任务沉淀知识。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/09fe79180d-de398eb41a2563f024e6d90e.png" /></p>
-<h4>四种记忆类型（从最短暂到最持久）</h4>
+<h4 id="_3">四种记忆类型（从最短暂到最持久）</h4>
 <p>记忆机制其实可以对应到人类的记忆系统来理解，从最短暂到最持久，分四个层次。这里要提醒一句：下面的「感知 / 短期 / 长期 / 实体」是工程上方便把记忆管理拆成四档的一种划分，借用了认知科学的一些词（情节、语义、程序），但和心理学严格意义上的分类不完全一致，目的是帮你建立直觉，不是学术标准。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/3eefd46502-b9eec2e4faea2a38662a744c.png" /></p>
 <p><strong>第一层：感知记忆（Sensory Memory）</strong></p>
@@ -78,7 +78,7 @@
 </tr>
 </tbody>
 </table>
-<h4>实际设计记忆模块的三个核心问题</h4>
+<h4 id="_4">实际设计记忆模块的三个核心问题</h4>
 <p>理解了四种记忆类型，设计记忆模块时还要解决三个工程问题。</p>
 <p><strong>第一个：存什么？</strong></p>
 <p>不是所有内容都值得写入长期记忆，存太多反而会引入噪音，让检索的精准度下降。判断标准其实很简单：「这条信息，下次任务开始时如果知道，会让 Agent 做得更好吗？」</p>
@@ -96,7 +96,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/556f369fe1-702ec5d6ee878e8e8eb61fc9.png" /></p>
 <p>第一种叫「主动检索」，在任务开始前，用当前任务的描述去检索相关记忆，把结果注入 system prompt 作为背景知识。这样 Agent 一开始就带着「历史记忆」进入任务，不需要用户每次重新交代背景。第二种叫「被动触发」，Agent 在推理过程中，判断当前步骤需要某类特定知识时，主动发起检索。具体做法是把「查记忆」封装成一个 Tool，让 Agent 自己决定什么时候调。这种方式更灵活，但依赖模型判断什么时候该去查。</p>
 <p>实践上两种结合效果最好：session 开始时做一次主动检索，把关于用户偏好和背景的记忆加载进 system prompt；任务执行过程中，遇到需要专业知识或历史数据的步骤，再让 Agent 按需检索。</p>
-<h4>Context Window 管理：短期记忆的「工作台」不够大怎么办</h4>
+<h4 id="context-window">Context Window 管理：短期记忆的「工作台」不够大怎么办</h4>
 <p>短期记忆存在 context window 里，而 context window 是有 token 上限的。一个复杂的多步任务，对话历史越来越长，工具返回的结果越来越多，很快就会把 context window 塞满。满了之后新的内容就进不去了，或者被迫截断早期的历史，Agent 就会「失忆」，不知道前面做了什么。</p>
 <p>这个问题在实际项目中非常常见，解决方案有好几种思路，从简单到复杂都有。</p>
 <p>最简单的是「<strong>滑动窗口</strong>」，只保留最近 N 轮对话，更早的历史直接丢弃。好处是实现简单，代价是早期的重要信息可能被丢掉。比如用户在第一轮就说了「所有代码用 TypeScript」，到了第十轮这条信息被滑出窗口了，Agent 又开始写 JavaScript，用户就会很崩溃。</p>
@@ -109,14 +109,14 @@
 <p>Core Memory 是始终留在 context window 里的核心信息（比如用户画像、当前任务目标），类似于操作系统的主存，随时可读可写；Recall Memory 是最近的对话历史，类似于缓存，按时间顺序存储，支持快速回溯；Archival Memory 是长期归档的知识，类似于磁盘，容量无限但检索需要主动发起。</p>
 <p>最有意思的一点是，Letta 让 Agent 自己通过工具调用来管理这三层记忆，Agent 会自己决定什么时候把信息从 Core Memory 移到 Archival Memory，什么时候从 Recall Memory 里检索旧对话。这种「让 Agent 自己管理记忆」的思路，比固定规则更灵活，但也更依赖模型的判断能力。</p>
 <p>还有一个值得关注的是 <strong>Zep（及其开源组件 Graphiti）</strong>，它的独特之处在于引入了「时间感知」的概念。很多记忆框架只存内容不存时间，但 Zep 会给每条记忆标注「有效时间窗口」，比如「用户的预算是 5 万」这条记忆可能在三个月后就过期了。它通过时序知识图谱来管理记忆的生命周期，自动识别哪些记忆已经过时，哪些仍然有效，这在长期运行的 Agent 系统中非常实用。</p>
-<h4>知识图谱：让记忆之间产生关联</h4>
+<h4 id="_5">知识图谱：让记忆之间产生关联</h4>
 <p>前面讲的向量数据库做语义检索，本质上是「一条一条」地存记忆、「一条一条」地取记忆，每条记忆之间是独立的，没有关联。但很多时候，信息之间的关系和信息本身一样重要。比如你存了「用户 A 是公司 B 的 CTO」和「公司 B 的主营业务是云计算」，如果这两条记忆之间没有关联，当你问「用户 A 所在公司做什么业务」的时候，纯向量检索可能检索不到，因为这两条记忆的文本相似度并不高。</p>
 <p>知识图谱就是用来解决这个问题的。它用「实体 -&gt; 关系 -&gt; 实体」的三元组结构来存储信息。什么是三元组呢？就是把一条知识拆成「主语、谓语、宾语」三个部分，每一组就是一个三元组。比如「用户 A -&gt; 担任 CTO -&gt; 公司 B」是一个三元组，「公司 B -&gt; 主营业务 -&gt; 云计算」是另一个三元组，「公司 B -&gt; 成立于 -&gt; 2015 年」又是一个。实体和实体之间通过明确的关系连接起来，形成一张网状的知识网络。</p>
 <p>查询时可以沿着关系链条做多跳推理，这是知识图谱最厉害的地方。举个例子，你想知道「用户 A 所在公司做什么业务」，查询过程是这样的：先从「用户 A」这个实体出发，沿着「担任 CTO」这条关系找到「公司 B」，再从「公司 B」出发，沿着「主营业务」这条关系找到「云计算」，两跳就拿到了答案。</p>
 <p>如果你还想知道「用户 A 的同事有谁」，可以从「公司 B」出发，沿着「员工」这条关系找到所有关联的人。这种沿着关系链条跳转查询的能力，是向量检索做不到的，因为向量检索只能找到文本语义相近的内容，而「用户 A」和「云计算」这两个文本在语义上根本不相近。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/4d883e3c62-88a59f4e967003be9f532b72.png" /></p>
 <p>在 Agent 的记忆模块里引入知识图谱，通常是和向量数据库配合使用的。向量数据库负责处理模糊的语义检索（比如用户说「之前那个项目」，向量检索能找到最相关的项目记忆），知识图谱负责处理精确的关系推理（比如查某个用户的所有相关公司和角色），两者互补。具体做法是：对话过程中用 LLM 自动提取出实体和关系，存入知识图谱。检索时先用向量检索拿到一批候选记忆，再用知识图谱补充关联信息，最后把两部分结果合并后注入 context。</p>
-<h4>记忆整合：从碎片到知识</h4>
+<h4 id="_6">记忆整合：从碎片到知识</h4>
 <p>Agent 用久了之后，长期记忆里会积累大量的碎片化信息。同一个主题可能存了十几条不同时间的记忆，有些内容重复，有些已经过时，有些甚至互相矛盾。如果不做整理，检索时噪音越来越大，有用的记忆被淹没在无用的碎片里。</p>
 <p>记忆整合就是定期对长期记忆做「清理和升华」的过程，它包含几个关键环节。</p>
 <p>第一个环节是去重。把语义相近的多条记忆合并成一条更完整的版本。比如你存了「用户喜欢简洁的代码」「用户说过代码要精简」「用户要求不要冗余代码」三条，其实表达的是同一个意思，合并成一条「用户偏好简洁精练的代码风格，反对冗余」就够了。</p>
@@ -127,7 +127,7 @@
 <p>这条从多次经历中「蒸馏」出来的规律，就是语义记忆。它比任何一条情节记忆都更通用、更浓缩、更容易在未来的新任务中被检索命中。这个转化过程可以用 LLM 来自动完成：把一批相关的情节记忆喂给 LLM，让它总结出通用的知识和规律，然后把总结结果作为新的语义记忆存入长期记忆。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/44793e993e-a94b68fd736917437fd8e03a.png" /></p>
 <p>整合的节奏也很重要。每次任务结束后做一次轻量级的去重和更新就行，不需要大动干戈。然后每隔一段时间（比如每天或每周）再做一次深度的整理和提炼，把累积的情节记忆批量转化为语义记忆。有些框架（比如前面提到的 Mem0）已经内置了这种整合逻辑，它会在后台异步地对记忆做去重、冲突消解和提炼，你不需要手动触发。这样长期记忆会越来越精炼、越来越有价值，而不是越积越乱。</p>
-<h4>完整记忆模块的配合方式</h4>
+<h4 id="_7">完整记忆模块的配合方式</h4>
 <p>把四层记忆和三个核心问题放在一起，来走一遍一次完整任务里它们是怎么协作的。整个过程可以用「读 -&gt; 用 -&gt; 写」三个阶段来描述。</p>
 <p><strong>第一阶段：任务开始前，先「读」记忆</strong></p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/69215461c6-ce93bafa3f691e7917c515e1.png" /></p>
@@ -143,9 +143,24 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/76f534416b-78eb57e767c2cb4600b2b0af.png" /></p>
 <p>「读 -&gt; 用 -&gt; 写」三个阶段形成完整闭环：每次任务开始时把历史积累读进来，执行中靠短期记忆保持连贯，结束后把新知识写回去沉淀。Agent 用得越多，积累越厚，越来越「了解」用户，这才是记忆系统真正的价值所在。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6b252f3a48-b69118462f1e40303b4f095b.png" /></p>
-<h3>🎯 面试总结</h3>
+<h3 id="_8">🎯 面试总结</h3>
 <p>回答 Agent 记忆机制这道题，先把四层分类说清楚：感知记忆是当次调用的原始输入，最短暂；短期记忆是 context window 里的 messages，维持任务状态；长期记忆是存在向量或关系数据库里、跨任务持久化的内容；实体记忆是从对话中提炼出来的结构化事实，信息密度最高。</p>
 <p>说完分类，再答三个工程核心问题：存什么（只存对下次任务有价值的内容，过滤噪音）、怎么存（语义内容用向量数据库，结构化偏好用关系数据库，混合存储是主流）、什么时候取（任务开始前主动检索加载背景，执行中按需检索特定知识）。</p>
 <p>最后用「读 -&gt; 用 -&gt; 写」三阶段闭环收尾，整个回答结构清晰、有深度，面试官很难挑剔。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-agent:08",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_8">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-07.html">← 上一章</a><a href="chapter-09.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-agent:08",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

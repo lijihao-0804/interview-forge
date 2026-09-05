@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>如何赋予 LLM 规划能力？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">如何赋予 LLM 规划能力？</span></nav><div class="module-meta">Agent 工程 · 第 14 / 16 章</div><h1>如何赋予 LLM 规划能力？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：说说你是怎么给 LLM 加规划能力的？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>如何赋予 LLM 规划能力？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">如何赋予 LLM 规划能力？</span></nav><div class="module-meta">Agent 工程 · 第 14 / 16 章 · <span class="muted">更新于 2026-09-01</span></div><h1>如何赋予 LLM 规划能力？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：说说你是怎么给 LLM 加规划能力的？</p>
 <p>🙋‍♂️我：规划能力主要靠 CoT，就是在 prompt 里加一句「请一步步思考」，让 LLM 把推理过程写出来，就有规划能力了。</p>
 <p>👔面试官：CoT 就是规划能力的全部？你有没有想过 CoT 最大的问题是什么？</p>
 <p>🙋‍♂️我：CoT 的问题……就是有时候推理链比较长，token 消耗多一些？</p>
@@ -7,7 +7,7 @@
 <p>🙋‍♂️我：ToT 是同时生成多条推理链，然后选最好的那个，类似于 beam search 的思路？</p>
 <p>👔面试官：方向对，但不够准确。ToT 不是最后才选，而是边探索边评估边剪枝，是一个循环的过程。那 GoT 又比 ToT 多解决了什么问题，你说说看？</p>
 <p>被问到这里，才发现「加个 CoT 就是规划能力」这个认知太浅了。三种机制是层层递进的，搞清楚每一步在解决什么问题，才是真正理解了规划能力。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>给 LLM 加规划能力主要靠这几种思路。</p>
 <ul>
 <li>CoT 是让 LLM 把推理步骤写出来，线性地一步步推导到答案；</li>
@@ -15,7 +15,7 @@
 <li>GoT 是图结构推理，推理节点可以复用和合并，适合更复杂的任务。</li>
 </ul>
 <p>工程上我用 CoT 最多，因为实现成本最低，就是改个 prompt；ToT 效果更好但调用次数多，成本大概是 3 到 5 倍；GoT 目前还比较学术，生产环境我没见过有人真正落地用的。</p>
-<h3>📝 详细解析</h3>
+<h3 id="_2">📝 详细解析</h3>
 <p>要理解为什么需要规划能力，先看 LLM 在没有任何规划机制时是怎么运作的。</p>
 <p>普通的问答模式下，LLM 接到一个问题，就直接「一口气」生成答案，中间没有任何推理过程。这对简单问题没啥大问题，但遇到需要多步推导的任务就很容易翻车。</p>
 <p>比如让它做一道需要 3 步推导的逻辑题，如果直接让它给答案，出错概率会远高于让它把每步都写出来。</p>
@@ -24,7 +24,7 @@
 <p>「规划能力」要解决的就是这个问题：把 LLM 隐式的推理过程显式化，让它不再是「一步跳到答案」，而是「一步一步推到答案」，每步都有迹可循。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/60feb25c43-a7ada805c064032c57621537.png" /></p>
 <p>CoT、ToT、GoT 是这个方向上依次演进的三种方案，每一个都在解决前一个的局限性。</p>
-<h4>CoT：最简单的激活方式，加一句话就够了</h4>
+<h4 id="cot">CoT：最简单的激活方式，加一句话就够了</h4>
 <p>CoT 的全称是 Chain of Thought（思维链），核心思路极其简单：在 prompt 里加一句「请一步步思考」，LLM 就会把推理过程逐步写出来，而不是直接蹦出答案。</p>
 <p>为什么这么简单的改变就有效？</p>
 <p>本质是因为 LLM 的输出是顺序生成的，当它先输出推理步骤，这些推理内容会进入上下文，影响下一个 token 的生成。换句话说，「写下来的推理过程」本身就成为了后续生成的依据，帮助 LLM 不跳步、不乱想。就好比你在纸上演算数学题，把每一步写出来之后，下一步出错的概率会比在脑子里算要低得多，原理是一样的。</p>
@@ -36,7 +36,7 @@
 </ul>
 <p>CoT 的局限很明显：它只有「一条推理路径」。如果一开始走错了方向，整条链就歪了，没有任何纠偏机制。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/a9b3a1b966-79bb64ca14eb88d9d6eef058.png" /></p>
-<h4>ToT：从「一条链」到「一棵树」，解决走错方向的问题</h4>
+<h4 id="tot">ToT：从「一条链」到「一棵树」，解决走错方向的问题</h4>
 <p>ToT 的全称是 Tree of Thoughts（思维树），针对的正是 CoT「一旦走错就全错」的问题。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/5dc938221c-f4d801db89d07f2af901056d.png" /></p>
 <p>核心改变是把「生成一条推理链」变成「同时探索多条推理路径，边探索边剪枝，最终选出最优路径」。用一个生活类比来理解：CoT 像你做题时只想了一个解法，一路做到底；ToT 像你先想了三种可能的解题思路，评估了一下哪种最靠谱，选了最好的那条继续深入，另外两条直接放弃。</p>
@@ -47,7 +47,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/36aac2b973-28647890b6adcb2ce18ace71.png" /></p>
 <p>这个「生成 -&gt; 评估 -&gt; 剪枝」的循环，让 LLM 不再是「一条道走到黑」，而是有了探索多条路、选好的走、发现走错了还能回头的能力。代价也很明显：原来 CoT 一次生成就搞定，ToT 需要多次 LLM 调用（多条路径 × 多层深度 × 每层还要评估）。具体多几倍要看路径数和搜索深度：典型设置（每层 3 条路径、搜 2-3 层）下成本通常是 CoT 的 3-5 倍；极端场景（深搜、更多路径、每步都打分）可能到 10 倍以上。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/528026f06b-888b67a9bb8c6adb22c712c0.png" /></p>
-<h4>GoT：从「树」到「图」，解决推理结果不能复用的问题</h4>
+<h4 id="got">GoT：从「树」到「图」，解决推理结果不能复用的问题</h4>
 <p>GoT 的全称是 Graph of Thoughts（思维图），是在 ToT 基础上再进一步的进化。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/65b35620e0-3cd583bb411e0fae489be4c1.png" /></p>
 <p>ToT 虽然引入了多路径探索，但它是树形结构，不同分支之间完全独立，两条推理路径上的中间结论无法互相借用。GoT 把推理结构换成了图，允许不同路径的中间结果合并、复用，也就是说一个推理节点可以接收来自多个前置节点的输出作为输入。</p>
@@ -55,12 +55,12 @@
 <p>GoT 的图结构允许把「研究 A 的节点」和「研究 B 的节点」的输出，汇聚到「综合对比分析节点」，这种「多个中间结论合并输入到下一步」的操作在图里是一等公民，表达起来非常自然。</p>
 <p>GoT 能建模的推理模式比 ToT 更丰富，也更接近人类实际处理复杂任务的思考方式。但落地复杂度很高，目前主要还是学术研究场景，生产环境里极少见到真正用起来的。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ef3ffeff1d-6824cdea3064061d9cf47984.png" /></p>
-<h4>三者的演进关系</h4>
+<h4 id="_3">三者的演进关系</h4>
 <p>把这三者放在演进视角里看，逻辑非常清晰。</p>
 <p>CoT 解决了「要不要把推理显式化」的问题，答案是要，把过程写出来就能显著减少跳步出错。ToT 解决了「走错方向怎么办」的问题，答案是先多探索几条路，边走边评估边剪枝。GoT 解决了「不同推理路径的中间结论能不能复用」的问题，答案是把结构从树换成图，自然支持结论汇聚与复用。每一步都是在前一步的基础上发现局限、针对性改进。</p>
 <p>工程上怎么选？CoT 几乎是所有任务的标配，加一句话、零成本，直接加到 system prompt 里就行。ToT 在准确率要求很高、任务比较复杂的场景值得考虑，但要做好调用成本增加 3-5 倍（极端情况更多）的心理准备。GoT 目前工程落地不成熟，主要了解它的思想即可，真实项目里不必强行引入。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b828302dfc-5bc77913d44cf55c9a8f5e3d.png" /></p>
-<h4>工程里真正常用的规划模式：Plan-and-Execute</h4>
+<h4 id="plan-and-execute">工程里真正常用的规划模式：Plan-and-Execute</h4>
 <p>CoT、ToT、GoT 说的都是「怎么让 LLM 把推理过程做得更好」，但在真实的 Agent 项目里，还有一种更贴近工程实践的规划模式，叫做 Plan-and-Execute（先规划再执行）。</p>
 <p>这个模式的思路很直白：面对一个复杂任务，先让 LLM 制定一份完整的执行计划，把任务拆成若干步骤，然后一步一步执行，每完成一步就检查一下进度，必要时调整后续计划。你可以把它理解成「先写大纲再动笔」的写作方式，而不是拿到题目就开始一口气往下写。</p>
 <p>为什么需要这种模式？因为 CoT 虽然能让 LLM 逐步推理，但它是「边想边做」的，走到哪算哪，没有全局视角。对于一个需要调用多个工具、经历多个环节的复杂任务来说，如果没有一个整体规划，LLM 很容易在某一步跑偏，后面的步骤全都白费。Plan-and-Execute 的核心价值就是：先用一次 LLM 调用建立全局视角，再用后续调用逐步落地，把「规划」和「执行」分成两个阶段来做。</p>
@@ -73,12 +73,27 @@
 <p>这个模式和 ReAct 是什么关系？ReAct（Reasoning + Acting）是一种让 LLM 在每一步都先「思考」再「行动」再「观察」的循环模式，它的特点是每步都是即时决策，没有提前规划。Plan-and-Execute 则是在 ReAct 的基础上加了一层全局规划，你可以理解成 ReAct 负责每一步怎么执行，Plan-and-Execute 负责这些步骤的整体编排和动态调整。两者不是替代关系，而是经常搭配使用的。</p>
 <p>工程上 Plan-and-Execute 的好处很明显：规划和执行分离之后，规划阶段可以用更强的模型（比如 GPT-4）来保证方向正确，执行阶段可以用更快更便宜的模型来提高效率，成本和质量都能分别优化。LangGraph 里就内置了这种模式的支持，用起来相当方便。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/e7562e9842-bf8bc8431ff0638eccaa7542.png" /></p>
-<h3>🎯 面试总结</h3>
+<h3 id="_4">🎯 面试总结</h3>
 <p>回顾开头踩的雷，第一个最典型：把「CoT 就是规划能力」画等号，这是这道题最常见的误区。规划能力是个方向，CoT 只是最基础的一种实现手段。</p>
 <p>答好这道题有几个层次。</p>
 <p>首先要说清楚为什么需要规划能力，LLM 默认「一口气」生成答案，没有显式推理过程，多步推理任务容易跳步出错，规划机制就是把隐式推理过程显式化。</p>
 <p>然后要说三种机制的演进逻辑：CoT 解决「要不要把推理写出来」，ToT 解决「走错了方向怎么纠偏」，GoT 解决「不同路径的中间结论能不能复用」，每一个都是针对上一个的局限性改进。</p>
 <p>最容易被忽略的考点是工程取舍：CoT 几乎零成本；ToT 效果更好但典型调用次数是 CoT 的 3-5 倍（具体看路径数和深度），要明确说出这个数字；GoT 目前学术阶段，生产环境没有成熟落地。</p>
 <p>面试里如果能把工程成本和适用场景说清楚，比只讲原理要加分得多。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-agent:14",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_4">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-agent:14",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

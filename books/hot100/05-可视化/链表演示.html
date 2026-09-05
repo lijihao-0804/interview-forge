@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>链表算法演示 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>链表算法演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 链表演示：11 道题 · 统一框架 =====
+ * 视图模型：view = { rows: [{name, vals, st:{idx:state}, ptrs:[{i,label,c}], ghost:[i]}] }
+ * 状态色：hot 当前 / cmp 比较中 / swap 待换 / write 刚写入 / done 完成 / dim 弱化
+ * 指针色：c1 蓝 / c2 橙 / c3 青 / c4 红
+ */
+var el = DemoKit.el;
+
+function renderRows(view, stage) {
+  stage.textContent = "";
+  (view.rows || []).forEach(function (row) {
+    var line = document.createElement("div");
+    line.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:10px 0;position:relative;padding-top:40px";
+    line.appendChild(el("span", "dk-var", row.name));
+    if (!row.vals || !row.vals.length) {
+      line.appendChild(el("span", "dk-var", "null"));
+      stage.appendChild(line);
+      return;
+    }
+    row.vals.forEach(function (v, i) {
+      var st = (row.st && row.st[i]) || "";
+      var cell = el("div", "dk-cell" + (st ? " " + st : ""), String(v));
+      if (row.ptrs) {
+        row.ptrs.forEach(function (pr) {
+          if (pr.i !== i) return;
+          var tag = el("span", "dk-ptr " + (pr.c || "c1"), pr.label);
+          cell.appendChild(tag);
+        });
+      }
+      line.appendChild(cell);
+      if (i < row.vals.length - 1) line.appendChild(el("span", "dk-arrow", "→"));
+    });
+    if (row.tail) line.appendChild(el("span", "dk-note", row.tail));
+    stage.appendChild(line);
+  });
+  if (view.note) {
+    var n = el("div", "dk-note", view.note);
+    stage.appendChild(n);
+  }
+}
+
+/* 工具：造一行视图 */
+function row(name, vals, extra) {
+  var r = { name: name, vals: vals.slice() };
+  if (extra) for (var k in extra) r[k] = extra[k];
+  return r;
+}
+function st1(i, s) { var m = {}; m[i] = s; return m; }
+function mergeSt(a, b) { var m = {}; for (var k in a) m[k] = a[k]; for (var k in b) m[k] = b[k]; return m; }
+
+var DEMOS = {
+
+  "0002": { no: "2", title: "两数相加", tag: "链表 · 逐位加法 + 进位",
+    example: "输入：l1 = [9,9,9,9,9,9,9]，l2 = [9,9,9,9]　输出：[8,9,9,9,0,0,0,1]",
+    build: function (ctx) {
+      var a = [9, 9, 9, 9, 9, 9, 9], b = [9, 9, 9, 9];
+      var carry = 0, out = [];
+      var n = Math.max(a.length, b.length) + 1;
+      for (var i = 0; i < n; i++) {
+        var x = i < a.length ? a[i] : 0, y = i < b.length ? b[i] : 0;
+        var sum = x + y + carry;
+        ctx.step("第 " + i + " 位：" + x + " + " + y + " + 进位 " + carry + " = " + sum + " → 写入 " + (sum % 10) + "，新进位 " + Math.floor(sum / 10),
+          { rows: [
+            row("l1", a, { st: i < a.length ? st1(i, "hot") : null, ptrs: [{ i: i, label: "p1", c: "c1" }] }),
+            row("l2", b, { st: i < b.length ? st1(i, "hot") : null, ptrs: [{ i: i, label: "p2", c: "c2" }] }),
+            row("输出", out.concat([sum % 10]), { st: st1(out.length, "write") })
+          ], note: "sum % 10 是本位，Math.floor(sum / 10) 是进位" });
+        out.push(sum % 10);
+        carry = Math.floor(sum / 10);
+      }
+      if (carry) {
+        out.push(carry);
+        ctx.step("最高位还有进位 " + carry + " → 追加节点", { rows: [row("输出", out, { st: st1(out.length - 1, "write") })] });
+      }
+      ctx.step("完成！结果 [8,9,9,9,0,0,0,1]", { rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0019": { no: "19", title: "删除链表的倒数第 N 个结点", tag: "链表 · 快慢双指针",
+    example: "输入：head = [1,2,3,4,5]，n = 2　输出：[1,2,3,5]",
+    build: function (ctx) {
+      var vals = [1, 2, 3, 4, 5], n = 2;
+      var dummy = -1;
+      var fast = 0, slow = 0;
+      ctx.step("哑头节点 -1 起步；fast 先走 n+1 = 3 步（保持 fast 与 slow 间距 n+1）",
+        { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], st: st1(0, "dim") })] });
+      fast = 3;
+      for (var k = 1; k <= 3; k++) {
+        ctx.step("fast 先行第 " + k + " 步 → 位置 " + k,
+          { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(0, "dim"), st1(k, "hot")) })] });
+      }
+      while (fast < vals.length + 1) {
+        ctx.step("fast、slow 同速前进…", { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] })] });
+        fast++; slow++;
+      }
+      ctx.step("fast 到尾，slow 停在被删节点（" + vals[slow] + "）的前驱 → 删除下一节点",
+        { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }], st: mergeSt(st1(0, "dim"), st1(slow + 1, "swap")) })] });
+      vals.splice(slow, 1);
+      ctx.step("删除完成 → [1,2,3,5]", { rows: [row("链表", [dummy].concat(vals), { st: mergeSt(st1(0, "dim"), st1(slow, "write")) })] });
+    },
+    render: renderRows },
+
+  "0021": { no: "21", title: "合并两个有序链表", tag: "链表 · 双指针归并",
+    example: "输入：l1 = [1,2,4]，l2 = [1,3,4]　输出：[1,1,2,3,4,4]",
+    build: function (ctx) {
+      var a = [1, 2, 4], b = [1, 3, 4];
+      var i = 0, j = 0, out = [];
+      while (i < a.length && j < b.length) {
+        if (a[i] <= b[j]) {
+          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l1 的 " + a[i], { rows: [
+            row("l1", a, { st: st1(i, "hot"), ptrs: [{ i: i, label: "p1", c: "c1" }] }),
+            row("l2", b, { st: st1(j, "dim"), ptrs: [{ i: j, label: "p2", c: "c2" }] }),
+            row("输出", out.concat([a[i]]), { st: st1(out.length, "write") })] });
+          out.push(a[i++]);
+        } else {
+          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l2 的 " + b[j], { rows: [
+            row("l1", a, { st: st1(i, "dim"), ptrs: [{ i: i, label: "p1", c: "c1" }] }),
+            row("l2", b, { st: st1(j, "hot"), ptrs: [{ i: j, label: "p2", c: "c2" }] }),
+            row("输出", out.concat([b[j]]), { st: st1(out.length, "write") })] });
+          out.push(b[j++]);
+        }
+      }
+      while (i < a.length) { out.push(a[i++]); }
+      while (j < b.length) { out.push(b[j++]); }
+      ctx.step("某链取空 → 另一链剩余直接接上", { rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0024": { no: "24", title: "两两交换链表中的节点", tag: "链表 · 指针重排",
+    example: "输入：head = [1,2,3,4,5]　输出：[2,1,4,3,5]",
+    build: function (ctx) {
+      var vals = [1, 2, 3, 4, 5];
+      var out = vals.slice();
+      for (var i = 0; i + 1 < out.length; i += 2) {
+        ctx.step("交换第 " + (i + 1) + "、" + (i + 2) + " 个节点（" + out[i] + " ↔ " + out[i + 1] + "）：三个指针临时保存，重接 next",
+          { rows: [row("链表", out, { st: mergeSt(st1(i, "swap"), st1(i + 1, "swap")) })] });
+        var tmp = out[i]; out[i] = out[i + 1]; out[i + 1] = tmp;
+        ctx.step("交换后：" + out.join(" → "), { rows: [row("链表", out, { st: mergeSt(st1(i, "write"), st1(i + 1, "write")) })] });
+      }
+      ctx.step("剩余奇数个节点保持原位 → [2,1,4,3,5]", { rows: [row("链表", out, { st: st1(out.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0138": { no: "138", title: "随机链表的复制", tag: "链表 · 哈希映射",
+    example: "输入：head = [[7,null],[13,0],[11,4],[10,2],[1,0]]",
+    build: function (ctx) {
+      var vals = [7, 13, 11, 10, 1], random = [null, 0, 4, 2, 0];
+      var clones = [];
+      ctx.step("第一遍：只复制 next，建立 原节点 → 新节点 的哈希映射", { rows: [
+        row("原链表", vals, { dimAll: true }),
+        row("新链表", vals.map(function () { return "·"; }), { st: null }) ] });
+      vals.forEach(function (v, i) {
+        clones.push(v + "'");
+        ctx.step("复制节点 " + v + " → " + v + "'（映射表记下对应关系）", { rows: [
+          row("原链表", vals, { st: st1(i, "hot") }),
+          row("新链表", clones.concat(vals.slice(i + 1).map(function () { return "·"; })), { st: st1(i, "write") })] });
+      });
+      for (var i = 0; i < vals.length; i++) {
+        var r = random[i];
+        ctx.step("补 random 指针：" + vals[i] + "' → " + (r === null ? "null" : vals[r] + "'"),
+          { rows: [
+            row("原链表", vals, { st: st1(i, "cmp") }),
+            row("新链表", vals, { st: st1(i, "write") })], note: "random 指针映射：" + vals.map(function (v, k) { return v + "→" + (random[k] === null ? "null" : vals[random[k]] + "'"); }).join("；") });
+      }
+      ctx.step("完成！映射表让 random 指针一步定位，时间 O(n)、空间 O(n)", { rows: [
+        row("原链表", vals),
+        row("新链表", vals.map(function (v) { return v + "'"; }), { st: st1(vals.length - 1, "target") })], note: "进阶：原地插入克隆法可以做到 O(1) 空间" });
+    },
+    render: renderRows },
+
+  "0141": { no: "141", title: "环形链表", tag: "链表 · Floyd 快慢指针",
+    example: "输入：head = [3,2,0,-4]，pos = 1（尾部连接到下标 1）　输出：true",
+    build: function (ctx) {
+      var vals = [3, 2, 0, -4];
+      var pos = 1;
+      var slow = 0, fast = 0, met = false, stepNo = 0;
+      ctx.step("Floyd 判圈：slow 每次走 1 步、fast 走 2 步；有环则必在环内相遇", { rows: [
+        row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ 尾部连回下标 " + pos }) ] });
+      for (var s = 0; s < 12 && !met; s++) {
+        slow = (slow + 1) % vals.length;
+        fast = (fast + 2) % vals.length;
+        stepNo++;
+        met = slow === fast;
+        ctx.step("第 " + stepNo + " 轮：slow=" + vals[slow] + "，fast=" + vals[fast] + (met ? " → 相遇！有环 ✓" : ""),
+          { rows: [row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(slow, met ? "target" : "hot"), met ? {} : st1(fast, "cmp")), tail: "⟲ " + pos }) ] });
+      }
+      ctx.step("结论：有环。原理：进入环后 fast 每轮追近 1 步，必然追上", { rows: [
+        row("链表(有环 " + pos + ")", vals, { st: st1(slow, "target"), tail: "⟲ " + pos }) ] });
+    },
+    render: renderRows },
+
+  "0142": { no: "142", title: "环形链表 II", tag: "链表 · Floyd 两阶段",
+    example: "输入：head = [3,2,0,-4]，pos = 1　输出：返回环的入口节点 2",
+    build: function (ctx) {
+      var vals = [3, 2, 0, -4], pos = 1;
+      var slow = 0, fast = 0;
+      ctx.step("阶段一：slow/fast 判圈，直到相遇", { rows: [
+        row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
+      var met = -1;
+      for (var s = 0; s < 12; s++) {
+        slow = (slow + 1) % vals.length;
+        fast = (fast + 2) % vals.length;
+        if (slow === fast) { met = slow; break; }
+        ctx.step("追击中：slow=" + vals[slow] + "，fast=" + vals[fast], { rows: [
+          row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
+      }
+      ctx.step("相遇于 " + vals[met] + "。数学结论：头到入口 = 入口到相遇点（模环长）",
+        { rows: [row("链表", vals, { ptrs: [{ i: met, label: "相遇", c: "c4" }], tail: "⟲ " + pos }) ] });
+      slow = 0;
+      var ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
+      while (slow !== met) {
+        ctx.step("两指针同速前进：slow=" + vals[slow] + "，meet=" + vals[met], { rows: [
+          row("链表", vals, { ptrs: ptrs2.slice(), tail: "⟲ " + pos }) ] });
+        slow = (slow + 1) % vals.length;
+        met = (met + 1) % vals.length;
+        ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
+      }
+      ctx.step("两指针在 " + vals[met] + " 相会 → 这就是环的入口 ✓", { rows: [
+        row("链表", vals, { st: st1(met, "target"), ptrs: ptrs2.slice(), tail: "⟲ " + pos }) ] });
+    },
+    render: renderRows },
+
+  "0146": { no: "146", title: "LRU 缓存", tag: "链表 · 双向链表 + 哈希",
+    example: "容量 capacity = 2；操作 [put,put,get,put,get,put,get,get,put]，见步骤",
+    build: function (ctx) {
+      var cap = 2;
+      var list = [];                       // 头=最新，尾=最旧
+      var map = {};
+      var seq = [
+        ["put", 1, 1], ["put", 2, 2], ["get", 1, null], ["put", 3, 3],
+        ["get", 2, null], ["put", 4, 4], ["get", 1, null], ["get", 3, null], ["get", 4, null]
+      ];
+      function view(opDesc, opIdx) {
+        return { rows: [row("缓存(新→旧)", list.map(function (e) { return e.k + ":" + e.v; }), { tail: "容量 " + list.length + "/" + cap })], note: "操作 " + (opIdx + 1) + "：" + opDesc };
+      }
+      var oi = 0;
+      seq.forEach(function (op, opIdx) {
+        oi = opIdx;
+        var kind = op[0];
+        if (kind === "put") {
+          var k = op[1], v = op[2];
+          if (map[k] !== undefined) {
+            list.splice(list.map(function (e) { return e.k; }).indexOf(k), 1);
+          } else if (list.length >= cap) {
+            var evicted = list.pop();
+            delete map[evicted.k];
+            list.unshift({ k: k, v: v }); map[k] = 1;
+            ctx.step("put(" + k + "," + v + ")：缓存满 → 淘汰最久未用的 " + evicted.k + "，新节点插头部", view("put(" + k + "," + v + ") 淘汰 " + evicted.k, opIdx));
+            return;
+          }
+          list.unshift({ k: k, v: v }); map[k] = 1;
+          ctx.step("put(" + k + "," + v + ")：插入头部", view("put(" + k + "," + v + ")", opIdx));
+        } else {
+          var gk = op[1];
+          if (map[gk] === undefined) {
+            ctx.step("get(" + gk + ")：未命中 → -1", view("get(" + gk + ") 未命中", opIdx));
+          } else {
+            var idx = list.map(function (e) { return e.k; }).indexOf(gk);
+            var entry = list.splice(idx, 1)[0];
+            list.unshift(entry);
+            ctx.step("get(" + gk + ") 命中 → " + entry.v + "，节点移到头部（最新）", view("get(" + gk + ")=" + entry.v + "，移到头部", opIdx));
+          }
+        }
+      });
+      ctx.step("全部操作完成。双向链表 O(1) 移动/淘汰 + 哈希表 O(1) 定位", view("结束", seq.length - 1));
+    },
+    render: renderRows },
+
+  "0148": { no: "148", title: "排序链表", tag: "链表 · 归并排序",
+    example: "输入：head = [-1,5,3,4,0]　输出：[-1,0,3,4,5]",
+    build: function (ctx) {
+      var vals = [-1, 5, 3, 4, 0];
+      function mergeView(l, r, merged, hi) {
+        return { rows: [
+          row("左半", l, { ptrs: [{ i: 0, label: "L", c: "c1" }] }),
+          row("右半", r, { ptrs: [{ i: 0, label: "R", c: "c2" }] }),
+          row("合并中", merged.concat(hi !== undefined ? [hi] : []), { st: hi !== undefined ? st1(merged.length, "write") : null }) ] };
+      }
+      ctx.step("归并排序：快慢指针找中点 → 递归拆半 → 有序合并", { rows: [row("链表", vals)] });
+      var mid = 2;
+      var left = vals.slice(0, mid), right = vals.slice(mid);
+      ctx.step("找中点拆半：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []));
+      left.sort(function (a, b) { return a - b; }); right.sort(function (a, b) { return a - b; });
+      ctx.step("两半分别递归排序完成（子问题规模减半）：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []));
+      var merged = [], i = 0, j = 0;
+      while (i < left.length && j < right.length) {
+        if (left[i] <= right[j]) {
+          merged.push(left[i]);
+          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + left[i], mergeView(left, right, merged, merged.length - 1));
+          i++;
+        } else {
+          merged.push(right[j]);
+          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + right[j], mergeView(left, right, merged, merged.length - 1));
+          j++;
+        }
+      }
+      while (i < left.length) merged.push(left[i++]);
+      while (j < right.length) merged.push(right[j++]);
+      ctx.step("合并完成 → [-1,0,3,4,5]", { rows: [row("结果", merged, { st: st1(merged.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0160": { no: "160", title: "相交链表", tag: "链表 · 双指针走位",
+    example: "listA = [4,1,8,4,5]，listB = [5,6,1,8,4,5]，从 8 开始相交　输出：8",
+    build: function (ctx) {
+      var common = [8, 4, 5];
+      var aHead = [4, 1], bHead = [5, 6, 1];
+      var pa = 0, pb = 0, swap = false;
+      ctx.step("技巧：pA 走完 A 就走 B，pB 走完 B 就走 A——两指针走过的总长度相同，必然在交点相遇",
+        { rows: [row("A 独有", aHead), row("公共尾", common), row("B 独有", bHead)] });
+      var routeA = aHead.concat(common), routeB = bHead.concat(common);
+      var la = aHead.length, lb = bHead.length;
+      for (var s = 0; s < 12; s++) {
+        var va = pa < aHead.length ? aHead[pa] : common[pa - aHead.length];
+        var vb = pb < bHead.length ? bHead[pb] : common[pb - bHead.length];
+        var rowView = { rows: [
+          row("A 路径", routeA, { st: st1(pa, "hot"), ptrs: [{ i: pa, label: "pA", c: "c1" }] }),
+          row("B 路径", routeB, { st: st1(pb, "hot"), ptrs: [{ i: pb, label: "pB", c: "c2" }] }) ] };
+        if (va === vb) {
+          ctx.step("pA=" + va + " 与 pB=" + vb + " 相同 → 相交节点是 " + va + " ✓", rowView);
+          break;
+        }
+        ctx.step("pA=" + va + "，pB=" + vb + "：不等，各走一步（走完自己就切到对方）", rowView);
+        pa = (pa + 1) % 12; pb = (pb + 1) % 12;
+        if (pa > 11 || pb > 11) break;
+      }
+    },
+    render: renderRows },
+
+  "0234": { no: "234", title: "回文链表", tag: "链表 · 找中 + 反转 + 比较",
+    example: "输入：head = [1,2,3,2,1]　输出：true",
+    build: function (ctx) {
+      var vals = [1, 2, 3, 2, 1];
+      var half = 2;
+      ctx.step("第一步：快慢指针找中点（fast 每次 2 步）", { rows: [
+        row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
+      var slow = 0, fast = 0;
+      for (var s = 0; s < 3; s++) {
+        slow++; fast += 2;
+        ctx.step("slow=" + vals[slow] + "，fast=" + (fast < vals.length ? vals[fast] : "到尾") + " → 中点定位完成", { rows: [
+          row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: Math.min(fast, vals.length - 1), label: "fast", c: "c2" }] }) ] });
+      }
+      var second = vals.slice(slow).reverse();
+      ctx.step("第二步：反转后半段 → [" + second.join(",") + "]（原地反转，O(1) 空间）", { rows: [
+        row("前半", vals.slice(0, slow)),
+        row("后半(反转)", second, { st: st1(0, "write") }) ] });
+      var ok = true;
+      for (var k = 0; k < second.length; k++) {
+        var equal = vals[k] === second[k];
+        ctx.step("比较 " + vals[k] + " vs " + second[k] + "：" + (equal ? "相等 ✓" : "不等 ✗"), { rows: [
+          row("前半", vals.slice(0, slow), { st: st1(k, "cmp") }),
+          row("后半(反转)", second, { st: st1(k, equal ? "done" : "swap") }) ] });
+        if (!equal) ok = false;
+      }
+      ctx.step(ok ? "全部相等 → 是回文链表 ✓" : "不相等 → 不是回文", { rows: [
+        row("结论", ok ? ["是回文"] : ["不是回文"], { st: st1(0, "target") }) ] });
+    },
+    render: renderRows }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      build: d.build, render: d.render
+    });
+  }
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

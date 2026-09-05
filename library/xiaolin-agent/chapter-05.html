@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？</span></nav><div class="module-meta">Agent 工程 · 第 5 / 16 章</div><h1>Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你做过 Agent 项目，那你说说 ReAct 是什么，跟普通的 LLM 调用有什么区别？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？</span></nav><div class="module-meta">Agent 工程 · 第 5 / 16 章 · <span class="muted">更新于 2026-09-01</span></div><h1>Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：你做过 Agent 项目，那你说说 ReAct 是什么，跟普通的 LLM 调用有什么区别？</p>
 <p>🙋‍♂️我：ReAct 就是让模型一边思考一边行动，调工具拿结果，然后继续思考……就是一个循环。</p>
 <p>👔面试官：好，那你说说这个循环是谁在驱动？是模型自己在转，还是有别的机制？</p>
 <p>🙋‍♂️我：应该是……模型自己在循环？它判断完成了就停下来？</p>
@@ -7,12 +7,12 @@
 <p>🙋‍♂️我：那可能是框架帮它跑的？解析输出，执行工具，再把结果传回去？</p>
 <p>👔面试官：对了，这才是关键。模型每次只做一件事：根据历史输出下一步的 Thought 和 Action。你的代码负责检测输出、执行工具、把 Observation 填回历史，再次调用模型，这才叫 ReAct 的真正实现方式。</p>
 <p>理解了「模型负责推理、代码负责驱动」这个分工，ReAct 就不再神秘了。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>Agent 的推理模式我用过几种。</p>
 <p>最基础的是直接输出答案，没有中间推理；CoT 是让 LLM 先把推理过程写出来再给答案，准确率更高；ReAct 是在 CoT 基础上加了「行动」，让 LLM 交替输出思考和工具调用，每次行动后再根据结果继续思考，形成一个循环。</p>
 <p>我觉得 ReAct 是目前 Agent 用得最广的模式，因为它推理过程可见，又能动态利用外部工具，两个优点都有。</p>
-<h3>📝 详细解析</h3>
-<h4>什么是推理模式？</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="_3">什么是推理模式？</h4>
 <p>要理解「推理模式」这个词，得先说清楚 LLM 面临的一个根本困境。</p>
 <p>LLM 的工作原理，是根据你给它的输入，一个 token 一个 token 地往后预测。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/c68c62ce00-f948e2ef613a03a1764bb623.png" /></p>
@@ -22,7 +22,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/efba6393bd-1eda1e321bef8f1bc68e3d1c.png" /></p>
 <p>原因不是你突然变聪明了，而是「写下来的过程」本身帮助你避免在中间某步跳跃出错。LLM 也一样，把推导过程写出来，就等于在每一步都有了一个可以依赖的「前文」，下一步的预测建立在一个已经写清楚的正确基础之上。</p>
 <p>「推理模式」存在的根本原因就是这个：通过不同的方式，让 LLM 把隐式的思考过程显式化出来，从而减少多步推理中的累积误差。CoT、ReAct 就是这个方向上的两种解法，每一个都在解决前一个的局限性。</p>
-<h4>CoT是什么？</h4>
+<h4 id="cot">CoT是什么？</h4>
 <p><strong>CoT</strong>，全称 Chain of Thought（思维链），由 Wei 等人在 2022 年提出，是最早也最简单的解法。</p>
 <p>核心想法极其朴素：在 prompt 里加一句「<strong>让我们一步步思考</strong>」，<strong>LLM 就会先把推理步骤写出来，再给答案，而不是直接蹦出结论</strong>。为什么加一句话就有效？</p>
 <p>本质是因为 LLM 的输出是顺序生成的，先写出来的推理内容会进入上下文，成为后续生成的依据。</p>
@@ -37,7 +37,7 @@
 <p>推理过程再完整，也拿不到实时数据，不能执行计算，不能访问数据库。</p>
 <p>如果你问 LLM「现在苹果公司的市值是多少？」，它只能根据训练数据里的知识回答，而那些知识可能已经过时好几个月了。严格说，CoT 框架里不是不能调工具（你可以用 Prompt 让它生成一个「建议调用 API」的文本），但 CoT 的设计本身没有把推理和工具调用交织在一起，接工具需要你自己在外面额外胶水。</p>
 <p>你需要的不只是一个能把推理写出来的 LLM，而是<strong>一个能在推理过程中「出去拿数据」「执行工具」再「回来继续推理」、并且这件事是原生设计的系统。于是有了 ReAct</strong>。</p>
-<h4>ReAct 是什么？</h4>
+<h4 id="react">ReAct 是什么？</h4>
 <p><strong>ReAct</strong> 是 Reasoning and Acting 的缩写，由 Yao 等人在 2022 年提出，核心思路是在 CoT 的推理链里，插入真实的「行动」。</p>
 <p>它让 LLM 按照「思考 -&gt; 行动 -&gt; 观察」这个循环来推进任务：先思考当前该怎么做，然后调用一个工具去获取信息或执行操作，把工具返回的结果作为新的「观察」接收回来，再进入下一轮思考，直到 LLM 判断任务完成。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6ccc579175-ca441dc5bdd1557b436488d6.png" /></p>
@@ -128,7 +128,7 @@ Final Answer: 当你确定可以回答时，在这里给出最终答案
 <p>这两个问题的根源其实是同一个：ReAct 是纯粹的「前向推理」，每一步都是走一步看一步，没有全局规划来约束方向，也没有反思机制来纠正错误。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/419fc418f0-3573dfa750a776147c2caeae.png" /></p>
 <p>那怎么解决呢？既然问题出在「没有全局规划」，那最直接的思路就是：先让 LLM 站在全局视角把整个任务想清楚，列出一份完整的执行计划，然后再一步一步去执行。这就是 Plan-and-Execute 模式的核心思路。</p>
-<h4>Plan-and-Execute：先规划再执行</h4>
+<h4 id="plan-and-execute">Plan-and-Execute：先规划再执行</h4>
 <p>你可以把 ReAct 和 Plan-and-Execute 的区别，类比成「边走边问路」和「先看地图再出发」的区别。</p>
 <p>ReAct 就像你到了一个陌生城市，没有地图，每到一个路口就问一次路人该往哪走。路人给的方向大致没错，但走着走着你可能被街边的小吃摊吸引，拐进了一条巷子，忘了自己要去哪。Plan-and-Execute 则是你出发之前先打开地图，把从起点到终点的路线全部规划好，标出途中要经过哪几个关键节点，然后按照这个路线一站一站地走。即使中途某条路封了，你也知道大方向在哪，可以绕路但不会迷路。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/04856baa4e-c4afc8076f36de0049eb680b.png" /></p>
@@ -185,9 +185,24 @@ Final Answer: 当你确定可以回答时，在这里给出最终答案
 <p>实际工程中，两者经常被混合使用。一个常见的做法是：用 Plan-and-Execute 做全局规划，用 ReAct 做每一步的执行。</p>
 <p>规划阶段用能力更强的大模型（比如 GPT-4、Claude Opus）来保证计划质量，执行阶段用便宜的小模型来跑具体的工具调用，这样既保证了全局方向不跑偏，又控制了成本。这种大小模型搭配的架构，在实际项目中能降低 70% 到 90% 的 LLM 调用成本，是非常实用的工程技巧。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/62ff8deae0-001584e526f772b5df558e79.png" /></p>
-<h3>🎯 面试总结</h3>
+<h3 id="_4">🎯 面试总结</h3>
 <p>回答 ReAct 相关问题，最容易踩的坑就是开头说的那个误区：以为模型自己在「循环」。</p>
 <p>面试官最想听到的核心点是两个：第一，ReAct 的本质是「思考 -&gt; 行动 -&gt; 观察」的循环，推理过程显式化，又能动态调用外部工具，解决了 CoT 只能纯文字推理的局限；第二，这个循环是由你的代码框架驱动的，模型每次只输出 Thought + Action，你的代码负责解析、执行工具、把 Observation 填回历史，再把完整历史传给模型进入下一轮。</p>
 <p>把这两点说清楚之后，主动提一下 ReAct 的两个实战局限（循环漂移和错误传播），再顺带说一下 Plan-and-Execute 是怎么通过「先规划再执行」来解决 ReAct 的漂移问题的，以及实际项目中两者经常混合使用（规划用大模型、执行用小模型），整个回答就会很有深度。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-agent:05",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_4">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-agent:05",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

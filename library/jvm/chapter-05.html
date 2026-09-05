@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>垃圾回收算法与分代收集 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">JVM：内存区域、垃圾回收与类加载</a><span aria-hidden="true">›</span><span aria-current="page">垃圾回收算法与分代收集</span></nav><div class="module-meta">Java 语言 · 第 5 / 12 章</div><h1>垃圾回收算法与分代收集</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>三种基础算法是收集器设计的最小单元，理解它们才能看懂 G1/ZGC 为什么那样设计。</p>
-<h3>4.1 标记-清除（Mark-Sweep）</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>垃圾回收算法与分代收集 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">JVM：内存区域、垃圾回收与类加载</a><span aria-hidden="true">›</span><span aria-current="page">垃圾回收算法与分代收集</span></nav><div class="module-meta">Java 语言 · 第 5 / 12 章 · <span class="muted">更新于 2026-09-05</span></div><h1>垃圾回收算法与分代收集</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>三种基础算法是收集器设计的最小单元，理解它们才能看懂 G1/ZGC 为什么那样设计。</p>
+<h3 id="41-mark-sweep">4.1 标记-清除（Mark-Sweep）</h3>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">标记：标记所有可达对象
 清除：回收所有未标记对象
 </code></pre></div>
@@ -8,7 +8,7 @@
 <li>优点：实现简单；</li>
 <li>缺点：产生大量<strong>内存碎片</strong>；碎片多了以后分配大对象困难，可能提前触发 GC。</li>
 </ul>
-<h3>4.2 标记-复制（Mark-Copy）</h3>
+<h3 id="42-mark-copy">4.2 标记-复制（Mark-Copy）</h3>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">把存活对象复制到另一块区域，然后整块清空原区域
 </code></pre></div>
 <ul>
@@ -16,7 +16,7 @@
 <li>缺点：内存利用率低（需要一块空闲区），存活对象多时复制成本高；</li>
 <li>应用：新生代。Eden:S0:S1 = 8:1:1，每次把 Eden + 一块 Survivor 的存活对象复制到另一块 Survivor，利用率 90%。</li>
 </ul>
-<h3>4.3 标记-整理（Mark-Compact）</h3>
+<h3 id="43-mark-compact">4.3 标记-整理（Mark-Compact）</h3>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">标记存活对象 → 把存活对象向一端移动 → 清理边界之外的空间
 </code></pre></div>
 <ul>
@@ -25,7 +25,7 @@
 <li>应用：老年代。</li>
 </ul>
 <p><strong>成本模型</strong>：标记-清除的碎片会让大对象分配失败，进而<strong>提前触发 Minor GC</strong>，形成恶性循环；标记-复制成本 O(存活对象数)、标记-清除/整理成本 O(堆大小)——新生代存活少所以用复制划算，这是分代选型的数学理由。</p>
-<h3>4.4 分代收集</h3>
+<h3 id="44">4.4 分代收集</h3>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     subgraph 新生代
         E[Eden] --&gt; S0[Survivor0]
@@ -39,7 +39,7 @@
 <li><strong>老年代</strong>：长期存活对象，GC 频率低（Major GC / Full GC），用标记-整理或标记-清除；</li>
 <li><strong>跨代引用</strong>：老年代对象引用新生代对象时，用<strong>记忆集/卡表</strong>记录，避免每次 GC 都全堆扫描。</li>
 </ul>
-<h3>4.5 并发标记：三色标记与写屏障</h3>
+<h3 id="45">4.5 并发标记：三色标记与写屏障</h3>
 <p>并发标记（CMS/G1 的标记阶段）用<strong>三色标记</strong>描述对象状态：</p>
 <ul>
 <li><strong>白色</strong>：尚未被访问，可能是垃圾；</li>
@@ -52,7 +52,7 @@
 <li><strong>G1 SATB（Snapshot-At-The-Beginning）</strong>：记录并发标记开始时刻的引用快照，并发期间被覆盖/删除的旧引用（快照时刻存在的引用）也会保留并在标记结束重扫，防止灰色对象在并发期间失去对存量白色对象的引用而漏标；代价是多保留一些本可回收的对象（浮动垃圾）。</li>
 </ul>
 <p>记忆集/卡表就是写屏障维护的跨代/跨 Region 引用记录，避免每次 GC 全堆扫描。</p>
-<h3>4.6 面试追问</h3>
+<h3 id="46">4.6 面试追问</h3>
 <ul>
 <li>问：三种 GC 算法的区别？</li>
 <li>答：三种基础算法是所有收集器的积木：① <strong>标记-清除</strong>：先标记存活对象，再清除死对象——实现简单，缺点是清除后内存出现大量不连续<strong>碎片</strong>（大对象放不下，明明总空间够），且效率不高；② <strong>标记-复制</strong>：把内存对半分（或 Eden+2 Survivor），活着的对象复制到另一半，然后整体清空——无碎片、复制效率与存活数成正比（存活少就快），缺点是内存利用率减半；③ <strong>标记-整理</strong>：标记后把存活对象向一端移动，清理边界外内存——无碎片且利用率 100%，代价是移动对象要更新所有引用，成本高且需要 STW。搭配逻辑：新生代存活率低 → 复制算法（浪费 10% 空间换效率）；老年代存活率高 → 复制不划算 → 整理（或 CMS 的清除+定期整理）。三色标记法是现代收集器把“标记”做并发化的实现基础。</li>
@@ -60,5 +60,20 @@
 <li>答：核心依据是“对象存活率决定算法成本”。新生代的特点：绝大多数对象朝生夕死（99% 的对象在一次 Minor GC 内死亡），每次 GC 只有极少数存活——复制算法的成本正比于<strong>存活对象数</strong>，所以复制很便宜（复制 1% 的对象），清空剩下 99% 的空间零碎片；老年代的特点：对象大多是长期存活的（存活率高达 90%+），复制意味着把 90% 的对象搬来搬去，成本爆炸——标记-整理虽然要移动对象，但只整理一次、不产生碎片。再补一句“为什么要有老年代”：如果所有对象都在新生代反复复制，长期存活对象每轮 GC 都要被搬一次，成本不可接受；分代的本质是按存活时间把对象分区，各区用最匹配的算法——这也是“绝大多数对象都是朝生夕死的”这个经验假设（弱分代假说）的价值。</li>
 <li>问：什么是卡表/记忆集？</li>
 <li>答：解决一个跨代引用问题：Minor GC 只回收新生代，但老年代的对象可能引用着新生代对象（比如一个老对象的字段指向新创建的小对象），这些老年代对象也是新生代对象的 GC Root——不扫描它们就会漏标、错误回收活对象。最笨的办法是 Minor GC 时把整个老年代也扫一遍（等于每次 Minor GC 都做了全堆扫描，分代失去意义）。卡表的方案：把老年代按 512 字节一组划分成“卡页”，用一个字节数组记录“哪一页存在跨代引用”——写屏障在引用字段赋值时把对应卡页标记为“脏”；Minor GC 只扫描被标记的卡页，扫描范围从整个老年代缩小到几个卡页。G1 的 Remembered Set 是更细粒度的版本（每个 Region 一个记忆集），代价是内存与维护开销更大——这是 G1 实现按 Region 回收的支撑技术。</li>
-</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
-<script>const contentId="jvm:05",moduleId="jvm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-mobile1"></script><script src="../assets/library-mermaid.js?v=20260830-mobile1"></script></body></html>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#41-mark-sweep">4.1 标记-清除（Mark-Sweep）</a></li><li class="lv3"><a href="#42-mark-copy">4.2 标记-复制（Mark-Copy）</a></li><li class="lv3"><a href="#43-mark-compact">4.3 标记-整理（Mark-Compact）</a></li><li class="lv3"><a href="#44">4.4 分代收集</a></li><li class="lv3"><a href="#45">4.5 并发标记：三色标记与写屏障</a></li><li class="lv3"><a href="#46">4.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>'
+<script>const contentId="jvm:05",moduleId="jvm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-p0-immersive"></script><script src="../assets/library-mermaid.js?v=20260906-p0-immersive"></script></body></html>

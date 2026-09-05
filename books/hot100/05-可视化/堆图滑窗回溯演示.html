@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>堆 · 图 · 滑窗 · 回溯演示 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>堆 · 图 · 滑窗 · 回溯演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 堆（快速选择）· 图（课程表）· 滑窗（异位词）· 回溯（分割回文串）：5 道题 ===== */
+var el = DemoKit.el;
+
+function cells(vals, st, ptrs) {
+  var wrap = el("div", "dk-cells");
+  vals.forEach(function (v, i) {
+    var cell = el("div", "dk-cell" + ((st && st[i]) ? " " + st[i] : ""), String(v));
+    if (ptrs) ptrs.forEach(function (p) {
+      if (p.i === i) cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+    });
+    wrap.appendChild(cell);
+  });
+  return wrap;
+}
+function row(name, vals, extra) {
+  var r = { name: name, vals: vals.slice() };
+  if (extra) for (var k in extra) r[k] = extra[k];
+  return r;
+}
+function renderRows(view, stage) {
+  stage.textContent = "";
+  (view.rows || []).forEach(function (row) {
+    var line = document.createElement("div");
+    line.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:10px 0;position:relative;padding-top:40px";
+    line.appendChild(el("span", "dk-var", row.name));
+    (row.vals || []).forEach(function (v, i) {
+      var st = (row.st && row.st[i]) || "";
+      var cell = el("div", "dk-cell" + (st ? " " + st : ""), String(v));
+      if (row.ptrs) row.ptrs.forEach(function (p) {
+        if (p.i === i) cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+      });
+      line.appendChild(cell);
+      if (i < row.vals.length - 1) line.appendChild(el("span", "dk-arrow", "→"));
+    });
+    if (row.tail) line.appendChild(el("span", "dk-note", row.tail));
+    stage.appendChild(line);
+  });
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
+}
+
+var DEMOS = {
+
+  "0215": { no: "215", title: "数组中的第K个最大元素", tag: "堆 · 快速选择",
+    example: "输入：nums = [3,2,1,5,6,4]，k = 2　输出：5",
+    build: function (ctx) {
+      var nums = [3, 2, 1, 5, 6, 4];
+      var k = 2;
+      var targetIdx = k - 1;    // 降序第 k-1（升序排后第 n-k）
+      ctx.step("快速选择：partition 后若基准落在第 k 位直接得到答案；平均 O(n)，不必全排序", { rows: [row("nums", nums)] });
+      var lo = 0, hi = nums.length - 1;
+      function partition(lo, hi) {
+        var pivot = nums[lo];
+        var i = lo, j = hi;
+        ctx.step("基准 pivot = " + pivot + "（区间 [" + lo + "," + hi + "]），i/j 相向移动", { rows: [
+          row("nums", nums, { st: st1(lo, "hot"), ptrs: [{ i: lo, label: "pivot", c: "c4" }, { i: i, label: "i", c: "c1" }, { i: j, label: "j", c: "c2" }] }) ] });
+        while (i < j) {
+          while (i < j && nums[j] <= pivot) j--;
+          while (i < j && nums[i] >= pivot) i++;
+          if (i < j) {
+            var t = nums[i]; nums[i] = nums[j]; nums[j] = t;
+            ctx.step("i=" + i + " j=" + j + "：逆序对交换", { rows: [
+              row("nums", nums, { st: mergeSt(st1(i, "swap"), st1(j, "swap")), ptrs: [{ i: lo, label: "pivot", c: "c4" }, { i: i, label: "i", c: "c1" }, { i: j, label: "j", c: "c2" }] }) ] });
+          }
+        }
+        nums[lo] = nums[i]; nums[i] = pivot;
+        ctx.step("基准归位到下标 " + i + "（左边都 ≥ " + pivot + "，右边都 ≤）", { rows: [
+          row("nums", nums, { st: mergeSt(st1(i, "target"), st1(lo, "dim")), ptrs: [{ i: i, label: "第k位?", c: "c3" }] }) ] });
+        return i;
+      }
+      for (var guard = 0; guard < 10; guard++) {
+        var pos = partition(lo, hi);
+        if (pos === targetIdx) {
+          ctx.step("基准下标 " + pos + " == 目标 " + targetIdx + " → 第 " + k + " 大 = " + nums[pos] + " ✓", { rows: [
+            row("nums", nums, { st: st1(pos, "target") }) ] });
+          return;
+        }
+        if (pos < targetIdx) { lo = pos + 1; ctx.step("基准在 " + pos + " < 目标 " + targetIdx + " → 右半继续", { rows: [row("nums", nums, { st: st1(lo, "hot") })] }); }
+        else { hi = pos - 1; ctx.step("基准在 " + pos + " > 目标 " + targetIdx + " → 左半继续", { rows: [row("nums", nums, { st: st1(hi, "hot") })] }); }
+      }
+    },
+    render: renderRows },
+
+  "0347": { no: "347", title: "前 K 个高频元素", tag: "堆 · 计数 + 桶排序",
+    example: "输入：nums = [1,1,1,2,2,3]，k = 2　输出：[1,2]",
+    build: function (ctx) {
+      var nums = [1, 1, 1, 2, 2, 3], k = 2;
+      var count = {};
+      ctx.step("第一步：哈希表统计每个数字的出现频率", { rows: [row("nums", nums)] });
+      nums.forEach(function (x) {
+        count[x] = (count[x] || 0) + 1;
+        ctx.step("统计 " + x + "：出现 " + count[x] + " 次", { rows: [row("nums", nums, { st: st1(nums.indexOf(x), "hot") })], note: "频率表：" + JSON.stringify(count) });
+      });
+      var buckets = [];
+      Object.keys(count).forEach(function (num) {
+        var f = count[num];
+        if (!buckets[f]) buckets[f] = [];
+        buckets[f].push(parseInt(num, 10));
+      });
+      ctx.step("第二步：按频率建桶（桶下标 = 频率），从高频往低频收集前 k 个", { rows: [
+        row("数字", Object.keys(count).map(Number)), row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
+      var result = [];
+      for (var f = buckets.length - 1; f >= 0 && result.length < k; f--) {
+        if (buckets[f]) {
+          result = result.concat(buckets[f].slice(0, k - result.length));
+          ctx.step("频率 " + f + " 的桶里有 " + JSON.stringify(buckets[f]) + " → 收集，当前结果 [" + result.join(",") + "]", { rows: [
+            row("数字", Object.keys(count).map(Number), { st: (function () { var m = {}; Object.keys(count).forEach(function (n) { if (count[n] === f) m[count[n]] = "hot"; }); return m; })() }),
+            row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
+        }
+      }
+      ctx.step("完成！前 " + k + " 个高频元素 = [" + result.join(",") + "]（桶排序 O(n)，比堆更省）", { rows: [
+        row("结果", result, { st: st1(result.length - 1, "target") }) ] });
+    },
+    render: renderRows },
+
+  "0207": { no: "207", title: "课程表", tag: "图 · 拓扑排序（Kahn）",
+    example: "输入：numCourses = 4，prerequisites = [[1,0],[2,1],[3,2]]　输出：true（修课链 0→1→2→3）",
+    build: function (ctx) {
+      var n = 4;
+      var prereq = [[1, 0], [2, 1], [3, 2]];
+      var indeg = [], adj = [];
+      for (var i = 0; i < n; i++) { indeg.push(0); adj.push([]); }
+      prereq.forEach(function (p) { adj[p[1]].push(p[0]); indeg[p[0]]++; });
+      var queue = [];
+      for (var i = 0; i < n; i++) if (indeg[i] === 0) queue.push(i);
+      ctx.step("构建邻接表与入度表；入度为 0 的课程可以立刻修（队列 [" + queue.join(",") + "]）",
+        { rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; queue.forEach(function (q) { m[q] = "hot"; }); return m; })() })], note: "入度：" + JSON.stringify(indeg) + "（依赖几门课）" });
+      var taken = 0, order = [];
+      while (queue.length) {
+        var cur = queue.shift();
+        taken++; order.push(cur);
+        ctx.step("修课程 " + cur + "（已修 " + taken + "/" + n + "）；它解锁的后继课程入度 -1",
+          { rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; m[cur] = "write"; return m; })() })], note: "已修顺序：" + order.join(" → ") });
+        adj[cur].forEach(function (next) {
+          indeg[next]--;
+          if (indeg[next] === 0) { queue.push(next); ctx.step("课程 " + next + " 的先修全部完成 → 入度归 0，入队", { rows: [row("课程", [0, 1, 2, 3], { st: st1(next, "hot") })] }); }
+        });
+      }
+      ctx.step(taken === n ? "全部 " + n + " 门课修完 → 无环，可以完成 ✓" : "只修了 " + taken + " 门 → 有环！返回 false", { rows: [
+        row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; for (var k = 0; k < taken; k++) m[order[k]] = "done"; return m; })() }) ] });
+    },
+    render: renderRows },
+
+  "0438": { no: "438", title: "找到字符串中所有字母异位词", tag: "滑窗 · 定长窗口计数",
+    example: "输入：s = \"cbaebabacd\"，p = \"abc\"　输出：[0, 6]",
+    build: function (ctx) {
+      var s = "cbaebabacd", p = "abc";
+      var need = {}, win = {};
+      p.split("").forEach(function (c) { need[c] = (need[c] || 0) + 1; });
+      var wlen = p.length, left = 0, right = 0, valid = 0, result = [];
+      var keys = Object.keys(need);
+      function winStr() { return s.slice(Math.max(0, right - wlen), right); }
+      ctx.step("窗口长度固定为 p 的长度 " + wlen + "：right 扩张，窗口超长收缩 left；窗口内计数与 need 完全一致即命中",
+        { rows: [row("s", s.split(""), { st: st1(0, "hot") })], note: "need: a=1, b=1, c=1" });
+      for (right = 0; right < s.length; right++) {
+        var ch = s[right];
+        if (need[ch] !== undefined) {
+          win[ch] = (win[ch] || 0) + 1;
+          if (win[ch] === need[ch]) valid++;
+        }
+        if (right - left + 1 > wlen) {
+          var out = s[left];
+          if (need[out] !== undefined && win[out] === need[out]) valid--;
+          if (win[out] !== undefined) win[out]--;
+          left++;
+        }
+        var l = Math.max(0, left);
+        ctx.step("right=" + right + "（'" + ch + "'）：窗口 \"" + s.slice(Math.max(0, left), right + 1) + "\"，满足条件的字符种数 " + valid + "/" + keys.length,
+          { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = Math.max(0, left); k <= right; k++) m[k] = k === right ? "hot" : "cmp"; return m; })() })], note: "窗口 \"" + s.slice(Math.max(0, left), right + 1) + "\" · valid " + valid + "/" + keys.length });
+        if (valid === keys.length) {
+          result.push(left);
+          ctx.step("✓ 窗口 \"" + s.slice(left, right + 1) + "\" 是 \"" + p + "\" 的异位词 → 记录起始下标 " + left,
+            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = left; k <= right; k++) m[k] = "target"; return m; })() })], note: "命中下标 " + left } );
+        }
+      }
+      ctx.step("完成！所有异位词起始下标 = [" + result.join(", ") + "]", { rows: [row("结果", result.map(function (x) { return "s[" + x + "]"; }), { st: st1(result.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0131": { no: "131", title: "分割回文串", tag: "回溯 · 决策树 + 剪枝",
+    example: "输入：s = \"aab\"　输出：[[\"a\",\"a\",\"b\"],[\"aa\",\"b\"]]",
+    build: function (ctx) {
+      var s = "aab";
+      var path = [], results = [];
+      function isPal(l, r) { while (l < r) { if (s[l] !== s[r]) return false; l++; r--; } return true; }
+      var nodeCount = 0;
+      function backtrack(start) {
+        if (start === s.length) {
+          results.push(path.slice());
+          ctx.step("✓ 到达叶子：切分方案 " + JSON.stringify(path.slice()), { rows: [
+            row("路径", path.slice(), { st: st1(path.length - 1, "target") }) ], note: "已收集方案数：" + results.length });
+          return;
+        }
+        for (var end = start + 1; end <= s.length; end++) {
+          var piece = s.slice(start, end);
+          if (!isPal(start, end - 1)) {
+            ctx.step("剪枝：\"" + piece + "\" 不是回文 → 整个分支丢弃", { rows: [
+              row("已选路径", path.slice().concat([piece + "✗"]), { st: st1(path.length, "swap") }) ], note: "当前路径：" + JSON.stringify(path) });
+            continue;
+          }
+          path.push(piece);
+          ctx.step("选择 \"" + piece + "\"（是回文 ✓）→ 递归剩余 \"" + s.slice(end) + "\"", { rows: [
+            row("已选路径", path.slice(), { st: st1(path.length - 1, "hot") }) ], note: "当前路径：" + JSON.stringify(path) });
+          backtrack(end);
+          path.pop();
+          ctx.step("撤销 \"" + piece + "\"，尝试下一切分点", { rows: [
+            row("已选路径", path.slice(), { st: st1(path.length - 1, "dim") }) ], note: "当前路径：" + JSON.stringify(path) });
+        }
+      }
+      ctx.step("回溯 = 决策树遍历：每层决定“下一个切分点”，非回文前缀直接剪枝", { rows: [row("s", s.split(""), { st: null })] });
+      backtrack(0);
+      ctx.step("完成！共 " + results.length + " 种切分方案：" + JSON.stringify(results), { rows: [
+        row("结果数", [results.length], { st: st1(0, "target") }) ] });
+    },
+    render: renderRows }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      build: d.build, render: d.render
+    });
+  }
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

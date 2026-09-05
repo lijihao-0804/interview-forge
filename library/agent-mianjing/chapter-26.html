@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>文档处理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">文档处理</span></nav><div class="module-meta">Agent 工程 · 第 26 / 55 章</div><h1>文档处理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>在 RAG 系统中，文档处理（Document Processing）是整个知识库构建流程中的关键环节之一。虽然 在整体架构中，向量数据库和大语言模型往往更受关注，但在实际工程实践中，文档处理往往决定了 RAG 系统检索效果的上限。如果文档解析不准确、文本切分不合理或元数据设计混乱，即使使用性能 再强的 Embedding 模型和向量数据库，也很难获得理想的检索结果。 因此，在构建 RAG 知识库时，需要建立一套完整的文档处理 Pipeline，使原始数据能够被有效转换为 适合检索的结构化内容。一般来说，文档处理主要包括 文档解析、Chunking（文本切分）以及 Metadata 设计三个核心步骤。</p>
-<h4>文档解析</h4>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>文档处理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">文档处理</span></nav><div class="module-meta">Agent 工程 · 第 26 / 55 章 · <span class="muted">更新于 2026-09-04</span></div><h1>文档处理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>在 RAG 系统中，文档处理（Document Processing）是整个知识库构建流程中的关键环节之一。虽然 在整体架构中，向量数据库和大语言模型往往更受关注，但在实际工程实践中，文档处理往往决定了 RAG 系统检索效果的上限。如果文档解析不准确、文本切分不合理或元数据设计混乱，即使使用性能 再强的 Embedding 模型和向量数据库，也很难获得理想的检索结果。 因此，在构建 RAG 知识库时，需要建立一套完整的文档处理 Pipeline，使原始数据能够被有效转换为 适合检索的结构化内容。一般来说，文档处理主要包括 文档解析、Chunking（文本切分）以及 Metadata 设计三个核心步骤。</p>
+<h4 id="_1">文档解析</h4>
 <p>文档解析（Document Parsing）是文档处理流程的第一步，其目标是将各种格式的原始文件转换为可 用于后续处理的纯文本或结构化文本数据。在实际应用中，企业知识库中的数据来源通常非常复杂， 常见的文件格式包括：</p>
 <ul>
 <li>
@@ -77,12 +77,12 @@
 <li>不同语言、字体、排版标准差异</li>
 </ol>
 <p>特别是在多语种文档处理（如中英文混排、右到左语言等）中，不同语言的排版逻辑和标点规则可能 导致解析工具无法正确断句、分段，影响后续向量化建库质量。</p>
-<h5>基于规则的方法</h5>
+<h5 id="_2">基于规则的方法</h5>
 <p>这是最早期也是最基础的 PDF 解析思路，依赖 PDF 文档的结构信息（如页数、文本框、字体大小、位 置等），通过手动设计规则提取内容。以 Python 中的 <code>PyPDF2</code>  或 <code>PyPDF4</code>  为代表，它们支持读 取 PDF 文件中的文本、页码、元信息等。  以最基础的PyPDF库为例进行介绍。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/62ca2fc511-agent-.pdf-0107-00.png" /></p>
 <p>从图中的分析结果可以看到，PyPDF不对图片进行识别，输出的格式只支持txt，并且在文档换行的时 候对应的识别结果也出现换行，段落完整性较差。</p>
 <p>类似的基于规则的方法还有PyMuPDF等等， 这种方法适用于对文档结构非常了解的场景，如内部模板 化文档、批量合同抽取等。</p>
-<h5>基于深度学习的方法</h5>
+<h5 id="_3">基于深度学习的方法</h5>
 <p>为了解决规则方法在结构复杂文档中的局限，近年来出现了以 深度学习模型 为核心的解析方法。典型 代表如 <code>LayoutParser</code> 、 <code>Donut</code> 、 <code>DocTR</code>  等，结合图像分割、目标检测模型，对 PDF 页面进行 版面分析（Layout Analysis），流程大致如下：</p>
 <ol>
 <li>
@@ -103,7 +103,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/fd4d9caf51-agent-.pdf-0109-00.png" /></p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/bef41ab4c6-agent-.pdf-0110-00.png" /></p>
 <p>从上面的识别结果可以看出，相比于基于规则的识别方法，深度学习方法段落完整性较好，可适应多 种布局；模型可迁移至各类文档（论文、发票、报告等）；但是表格识别和图像识别仍然不够准确， 同时需依赖 GPU 计算资源，对于语义理解和上下文推理仍然有限。</p>
-<h5>基于多模态大模型的方法</h5>
+<h5 id="_4">基于多模态大模型的方法</h5>
 <p>随着多模态大模型的发展，PDF 内容解析开始进入“端到端智能理解”阶段。这类方法利用图文输入 能力强大的模型（如 GPT-4V、Gemini、Claude、MiniGPT-4），直接输入页面截图或文档图片，由大 模型进行内容提取与理解。典型方式如下：</p>
 <ol>
 <li>
@@ -119,20 +119,20 @@
 <p>以Qwen2.5-VL系列模型为例，在 Qwen2.5-VL 中设计了一种更全面的文档解析格式，称为 QwenVL  HTML 格式，它既可以将文档中的文本精准地识别出来，也能够提取文档元素（如图片、表格等）的 位置信息，从而准确地将文档中的版面布局进行精准还原。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/134affa09e-agent-.pdf-0112-00.png" /></p>
 <p>多模态模型无需预定义规则或模型训练，能处理复杂结构、跨页关联、图表内容，并支持语义级别的 问答、摘要、推理。但是成本高（API调用或推理资源），对上下文窗口长度、图像清晰度等有一定要 求。</p>
-<h4>Chunking 策略</h4>
+<h4 id="chunking">Chunking 策略</h4>
 <p>在完成文档解析之后，下一步是进行 Chunking（文本切分）。由于大语言模型存在上下文长度限 制，同时 Embedding 模型在处理过长文本时也会出现语义模糊的问题，因此通常需要将长文档拆分为 多个较小的文本块（Chunk）。</p>
 <p>Chunk 的大小和切分方式会直接影响检索质量。如果文本块过大，可能会包含多个不同主题，从而降 低向量语义的准确性；如果文本块过小，则可能导致上下文信息不足，使模型难以理解完整内容。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/1341c88761-agent-.pdf-0113-02.png" /></p>
 <p>固定大小切分</p>
 <p>将文档按照预设的字符数、词数或句子数进行等间隔划分。例如每段包含500个字符或5个句子。该方 法实现简单，但容易打断语义边界，可能导致上下文缺失或内容重复。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/3bddc37fcc-agent-.pdf-0114-01.png" /></p>
-<h5>语义切分</h5>
+<h5 id="_5">语义切分</h5>
 <p>通过自然语言处理技术（如句向量相似度、话题建模等）判断文本语义的边界，在语义上自然断句。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/2c49137f6c-agent-.pdf-0114-04.png" /></p>
 <p>以向量相似度为例，将句子或段落转换为向量，通过计算相邻句段的余弦相似度，如果判断两个段落 语义上属于同一单元，那么就进行合并。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/c5cd2e498e-agent-.pdf-0114-06.png" /></p>
 <p>这种方式能提升分块的语义连贯性，适用于逻辑紧密的文章，但计算代价较高，依赖模型质量。</p>
-<h5>递归切分</h5>
+<h5 id="_6">递归切分</h5>
 <p><img loading="lazy" decoding="async" alt="" src="assets/417d917d58-agent-.pdf-0115-00.png" /></p>
 <p>在保持固定长度的同时，尝试以语义结构（如段落、句子、标点）为边界递归地切分文本。若段落太 长无法容纳于块中，则再递归切分为句子，直到满足长度要求。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/5df5b0a26a-agent-.pdf-0115-02.png" /></p>
@@ -142,10 +142,10 @@
 <p>利用原始文档的结构信息（如HTML标签、Markdown标题、PDF书签、Word段落等）进行切分。比 如以章节、小标题、列表项为边界进行分块。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/73dd7e1643-agent-.pdf-0116-00.png" /></p>
 <p>这种方式在处理格式规范的文档（如手册、报告）时效果尤为突出。</p>
-<h5>基于LLM的切分</h5>
+<h5 id="llm">基于LLM的切分</h5>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ede3002860-agent-.pdf-0116-03.png" /></p>
 <p>借助大语言模型来“理解”文档内容并主动划定分块边界。例如，提示模型判断哪些段落构成完整的 语义单元，或根据任务需求生成最佳的分块方案。这种方式智能程度高，但计算成本也相对较大，适 合高精度应用场景。</p>
-<h4>Metadata 设计</h4>
+<h4 id="metadata">Metadata 设计</h4>
 <p>在完成文本切分之后，每一个 Chunk 通常都会被附加一组 Metadata（元数据）。Metadata 的作用 是为文本块提供额外的信息，使系统在检索和生成阶段能够更好地理解数据来源和上下文关系。 常见的 Metadata 信息包括：</p>
 <ul>
 <li>
@@ -169,7 +169,7 @@
 </ul>
 <p>在 RAG 系统中，Metadata 不仅用于数据管理，还可以在检索阶段发挥重要作用。例如，在某些场景 下，系统可能只需要检索某一类文档，例如“产品手册”或“技术文档”，这时就可以通过 Metadata  进行过滤，从而提高检索效率和准确率。</p>
 <p>此外，Metadata 还可以用于生成阶段。例如，当大模型输出答案时，可以通过 Metadata 提供引用来 源，使用户能够查看答案对应的原始文档。这种机制可以显著提高系统的可信度。</p>
-<h4>文档处理在 RAG 中的重要性</h4>
+<h4 id="rag">文档处理在 RAG 中的重要性</h4>
 <p>在 RAG 系统中，文档处理实际上决定了知识库的基础质量。如果文档解析混乱、文本切分不合理或者 元数据缺失，那么即使检索算法再先进，也很难获得高质量的检索结果。</p>
 <p>因此，在实际工程实践中，许多团队会投入大量时间优化文档处理流程，包括：</p>
 <ul>
@@ -183,5 +183,20 @@
 <p>构建清晰的 Metadata 结构</p>
 </li>
 </ul>
-<p>通过这些优化，可以显著提升 RAG 系统的检索效果，从而让大语言模型生成更加准确和可靠的回答。</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-25.html">← 上一章</a><a href="chapter-27.html">下一章 →</a></nav></main></div>
-<script>const contentId="agent-mianjing:26",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<p>通过这些优化，可以显著提升 RAG 系统的检索效果，从而让大语言模型生成更加准确和可靠的回答。</p></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-25.html">← 上一章</a><a href="chapter-27.html">下一章 →</a></nav></main></div>'
+<script>const contentId="agent-mianjing:26",moduleId="agent-mianjing";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

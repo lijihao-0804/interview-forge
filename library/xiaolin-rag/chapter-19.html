@@ -1,15 +1,15 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>RAG 知识库如何实现动态与持续更新？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">RAG 知识库如何实现动态与持续更新？</span></nav><div class="module-meta">大模型应用 · 第 19 / 20 章</div><h1>RAG 知识库如何实现动态与持续更新？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：你们 RAG 知识库上线之后，文档更新了怎么办？总不能每次改个文档就把整个知识库重建一遍吧。</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>RAG 知识库如何实现动态与持续更新？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">RAG 知识库如何实现动态与持续更新？</span></nav><div class="module-meta">大模型应用 · 第 19 / 20 章 · <span class="muted">更新于 2026-09-01</span></div><h1>RAG 知识库如何实现动态与持续更新？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：你们 RAG 知识库上线之后，文档更新了怎么办？总不能每次改个文档就把整个知识库重建一遍吧。</p>
 <p>🙋‍♂️我：可以直接找到变了的那个 chunk，更新它的向量就行了。</p>
 <p>👔面试官：你以为改了一段文字，chunk 的边界还能和之前一模一样？文档内容一变，切割结果可能完全不同，你根本没法把旧 chunk 和新 chunk 一一对应起来做局部更新。</p>
 <p>🙋‍♂️我：那我把整个文档对应的所有 chunk 都删掉，然后重新入库？但是系统怎么知道哪些文档变了呢？</p>
 <p>👔面试官：这还算靠点谱，但你怎么感知文档变更？总不能让人告诉你吧。</p>
 <p>接下来看看 RAG 知识库动态更新的完整方案。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我理解知识库更新的核心挑战是，文档变了，对应的 chunk 和向量都要跟着变，而且要做到增量处理，不能每次全量重建。我们的通用方案是给每个文档算一个内容 hash，通过轮询或者监听数据源变更，检测到文档新增、修改、删除的时候，先清掉旧的向量，再重新切割入库。对于实时性要求比较高的场景，我会用消息队列比如 Kafka 做变更事件驱动，实现秒级的入库。</p>
-<h3>📝 详细解析</h3>
+<h3 id="_2">📝 详细解析</h3>
 <p>知识库更新这个问题，很多同学做 RAG Demo 时不会碰到，一旦上生产就必须面对。文档本身是会变的，产品手册改版、政策文件更新、FAQ 内容迭代，如果知识库不及时跟进，RAG 就会一直给用户返回过期信息。所以动态更新能力是 RAG 系统投入生产的必备条件，而不是锦上添花的功能。</p>
-<h4>为什么更新 RAG 知识库比更新普通数据库麻烦？</h4>
+<h4 id="rag">为什么更新 RAG 知识库比更新普通数据库麻烦？</h4>
 <p>在讲具体方案之前，先搞清楚一个关键问题：为什么 RAG 知识库的更新不能像普通数据库那样直接 UPDATE？原因在于，普通数据库更新一条记录，直接 UPDATE 就行，数据是独立的，改一条不影响别的。但 RAG 知识库的麻烦在于：原始文档和向量库之间不是一对一的关系，而是一对多的关系。</p>
 <p>一篇文档会被切割成几十甚至上百个 chunk，每个 chunk 分别 Embedding 后存入向量库。当文档内容发生变化时，你不能简单地「更新一条记录」，因为文档结构变了，切割结果可能完全不同，chunk 的数量、边界、内容都会变。</p>
 <p>所以 RAG 知识库在工程上最可靠的更新逻辑是<strong>先删掉旧文档对应的所有 chunk，再重新切割入库</strong>，即「先删后增」，而不是在原来的 chunk 上做局部更新。理论上如果 Chunking 策略完全稳定（比如按固定 token 窗口切），某些场景可以做局部更新，但生产环境里 chunk 边界一变就全乱套，与其在这种不确定性上博弈，不如直接走「先删后增」简单可靠。</p>
@@ -19,28 +19,28 @@
 <p>原因很简单：文档内容一改，切割边界就变了，原来第 3 个 chunk 的内容可能现在分散在第 3 和第 4 个 chunk 里，你根本没法把旧 chunk 和新 chunk 一一对应起来做「局部打补丁」。就像装修时把一堵墙拆了重建，不能指望原来的插座位置还能对上，整面墙的电路要重新布。所以修改的正确做法是推倒重来：把这篇文档之前入库的所有 chunk 全部删掉，然后重新按新内容切割入库。操作虽然暴力，但是可靠，也是唯一不会出 bug 的做法。</p>
 <p>删除最直接，文档下线了，把它对应的所有 chunk 从向量库中清除，不能留着「僵尸 chunk」，否则用户还是会检索到这些已经失效的内容。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ef03bbd5e0-4d8ad1e9c39295dac57c8ed3.png" /></p>
-<h4>如何知道文档是否发生了变化？</h4>
+<h4 id="_3">如何知道文档是否发生了变化？</h4>
 <p>搞清楚了更新策略是「先删后增」，下一个绕不开的工程问题就是：系统怎么知道一篇文档「变没变」？</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/c18475c830-c4a774a9eca5668e960dab1b.png" /></p>
 <p>最常用的方案是<strong>内容 hash</strong>。每次文档入库时，计算文档内容的 MD5 或 SHA256 摘要，把这个 hash 值和文档 ID、对应的 chunk ID 列表一起存下来（存在 Redis、数据库都行）。下次检测到这篇文档时，重新计算 hash 和存储的值对比：相同说明内容没变，跳过；不同说明内容有更新，触发重处理流程。</p>
 <p>你可能会担心，每次都算 hash 性能会不会有问题？完全不会。hash 运算非常快，哪怕只改了文档里的一个标点符号，hash 值就会完全不同，不会漏掉任何变更，计算成本极低。</p>
 <p>实际工程里还有一个进一步优化：先用「最后修改时间」这个轻量字段做粗筛，只对时间戳发生变化的文档才计算 hash。比如数据源每晚同步一次，上百万篇文档里真正改过的可能只有几千篇，这样能把 99% 的文档过滤掉，hash 只对小部分计算，开销再降一个量级。</p>
-<h4>文档 ID 和 chunk ID 的设计</h4>
+<h4 id="id-chunk-id">文档 ID 和 chunk ID 的设计</h4>
 <p>有了变更检测的方案，还有一个容易被忽视但非常关键的设计问题：<strong>chunk ID 的命名规范</strong>。这个东西一开始不设计好，后面做更新的时候会非常痛苦。</p>
 <p>为什么？因为删除一篇文档的所有 chunk 时，你需要能快速找出「这篇文档对应了哪些 chunk」。</p>
 <p>常见的做法是让 chunk ID 带上文档 ID 作为前缀，比如 <code>product_manual_v3_chunk_001</code>、<code>product_manual_v3_chunk_002</code>，这样按前缀就能批量查找和删除对应的所有 chunk。</p>
 <p>另一种做法是在每个 chunk 的 metadata 里存上文档 ID 字段（比如 <code>source_doc_id: "product_manual_v3"</code>），向量库一般都支持按 metadata 字段过滤批量删除，效果是一样的。无论选哪种方式，关键是<strong>从一开始就把文档和 chunk 的关联关系设计好</strong>，等到需要更新时再临时想办法，会很狼狈。</p>
-<h4>两种主流的变更感知方式</h4>
+<h4 id="_4">两种主流的变更感知方式</h4>
 <p>前面说了怎么检测变更（hash）和怎么处理变更（先删后增），那系统怎么在第一时间感知到文档需要更新？有两种主流方案，各有适用场景。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/1163a8061f-ee0d81a70b0d5c0810e939ea.png" /></p>
 <p><strong>第一种是定时轮询（Polling）</strong>。系统按固定时间间隔（比如每天凌晨两点、每小时一次）扫描所有文档，对比 hash 值，把有变化的文档重新处理。这种方案实现简单，不依赖任何外部系统，适合文档更新频率低、对实时性要求不高的场景，比如内部知识库、产品文档这类一周才改几次的内容。缺点是有延迟，文档改完之后要等到下一个轮询周期才会生效；而且如果文档数量很多，全量扫描本身也是一笔开销，大多数文档根本没变，却每次都要算一遍 hash。</p>
 <p><strong>第二种是事件驱动（Event-Driven）</strong>。数据源有变更时，主动发出一条消息（通过 Kafka、RabbitMQ、或者 Webhook），知识库更新服务订阅这些消息，收到事件立刻处理。这种方案延迟低，文档变更后几秒内就能在知识库里生效，适合实时性要求高的场景，比如客服知识库（运营刚更新了退款政策，要求立刻在客服机器人里生效）、新闻资讯类应用（新文章发布就要入库）。代价是需要数据源支持发消息的能力，系统架构也更复杂一些。</p>
 <p>不少现代化的内容管理工具（Confluence、Notion、语雀等）都支持 Webhook，文档保存时会自动向你配置的地址推送一条 HTTP 请求，天然适合做事件驱动更新，不需要引入消息队列这么重的组件。</p>
-<h4>全量重建是最后的手段</h4>
+<h4 id="_5">全量重建是最后的手段</h4>
 <p>除了增量更新，还有一种「核弹级」方案：定期把整个知识库推倒重建。把所有文档重新切割、Embedding、写入，相当于从零开始建一遍。</p>
 <p>你可能会想，全量重建这么暴力，谁会用？其实这个方案的优点恰恰在于逻辑最简单，不需要维护文档和 chunk 的对应关系，不需要 hash 检测，也不用担心有旧 chunk 漏删的问题。缺点也很明显：如果知识库文档量大，重建一次要消耗大量时间和 Embedding API 费用；重建过程中知识库不可用（或者用旧数据），会影响线上服务。</p>
 <p>实际场景里，全量重建一般在两种情况下用：知识库规模很小（几十篇文档，重建几分钟搞定）；或者做了重大架构调整（比如换了 Embedding 模型、改了 Chunking 策略），新旧向量不兼容，必须全量重建。平时不推荐依赖这个方案。</p>
-<h4>灰度更新：稳妥地切换新版本</h4>
+<h4 id="_6">灰度更新：稳妥地切换新版本</h4>
 <p>对于核心的生产知识库，直接删旧数据、写新数据风险还是太大了。万一新切割的内容有问题，想回滚都来不及。那怎么办？更稳妥的做法是<strong>不直接删旧数据，而是先并行写入新版本，验证没问题再切换</strong>。</p>
 <p>具体操作是：把新版本的 chunk 写入时打上 <code>version=new</code> 的标签，旧版本保留 <code>version=old</code>。在验证阶段，用一批测试问题同时跑新旧两个版本，对比答案质量，确认新版本没有引入退化。验证通过后，把检索时的版本过滤条件从 <code>old</code> 切换到 <code>new</code>，最后再清理掉旧版本的 chunk。</p>
 <p>这个方案有点类似软件发布里的蓝绿部署，好处是：出了问题可以立刻回滚（把版本过滤条件切回去），切换是秒级的，不需要重新入库。对于知识库质量要求很高的场景，比如金融、医疗领域的问答系统，这种谨慎的更新策略是很有必要的。</p>
@@ -84,8 +84,23 @@
 </table>
 <p>总结一下：生产环境推荐「事件驱动 + hash 变更检测 + 先删后增」的组合方案，兼顾实时性和数据一致性。新增和删除操作相对简单，修改操作记住一个原则，永远先删掉旧的所有 chunk，再重新入库，不要尝试「局部更新」，这是最可靠也最不容易出 bug 的做法。</p>
 <hr />
-<h3>🎯 面试总结</h3>
+<h3 id="_7">🎯 面试总结</h3>
 <p>回到开头对话的问题，知识库更新绝对不能尝试「只更新变了的那个 chunk」，因为文档内容一变，chunk 的切割边界就完全不同了，没法做局部更新。</p>
 <p>正确的做法是给每个文档算内容 hash 来检测变更，检测到变化后先把旧文档对应的所有 chunk 删掉，再重新切割入库，也就是「先删后增」。变更感知方面，低频场景用定时轮询就够了，高频场景用 Kafka 或 Webhook 做事件驱动，实现秒级入库。生产环境推荐「事件驱动 + hash 检测 + 先删后增」的组合方案，同时要做好 chunk ID 与文档 ID 的关联设计，这样删除和更新才有据可查。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-18.html">← 上一章</a><a href="chapter-20.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-rag:19",moduleId="xiaolin-rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_7">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-18.html">← 上一章</a><a href="chapter-20.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-rag:19",moduleId="xiaolin-rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

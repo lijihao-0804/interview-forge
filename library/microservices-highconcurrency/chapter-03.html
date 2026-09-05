@@ -1,12 +1,12 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>注册与配置中心 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">微服务与高并发：Spring Cloud、限流熔断与秒杀设计</a><span aria-hidden="true">›</span><span aria-current="page">注册与配置中心</span></nav><div class="module-meta">分布式与工程 · 第 3 / 9 章</div><h1>注册与配置中心</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><h3>2.1 为什么需要注册中心</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>注册与配置中心 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">微服务与高并发：Spring Cloud、限流熔断与秒杀设计</a><span aria-hidden="true">›</span><span aria-current="page">注册与配置中心</span></nav><div class="module-meta">分布式与工程 · 第 3 / 9 章 · <span class="muted">更新于 2026-09-05</span></div><h1>注册与配置中心</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><h3 id="21">2.1 为什么需要注册中心</h3>
 <p>服务地址会随扩缩容变化，硬编码 IP 不可行。注册中心维护“服务名 → 实例列表”的映射，提供注册、发现、健康检查。</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">启动：服务启动后向注册中心注册（服务名 + IP + 端口）
 保活：心跳续约；注册中心发现心跳超时则剔除
 发现：调用方从注册中心拉取/订阅目标服务实例列表
 调用：负载均衡选一个实例发起调用
 </code></pre></div>
-<h3>2.2 Nacos vs Eureka</h3>
+<h3 id="22-nacos-vs-eureka">2.2 Nacos vs Eureka</h3>
 <table>
 <thead>
 <tr>
@@ -44,7 +44,7 @@
 </tbody>
 </table>
 <p><strong>临时 vs 持久实例</strong>：Nacos 里临时实例走心跳、心跳断了就剔除；持久实例走主动探测、不自动摘除（适合 K8s 等有状态场景）。<strong>Eureka 自我保护</strong>：当心跳续约低于阈值（默认 15 分钟内低于 85%）时，Eureka 进入自我保护模式、不再剔除实例并亮红色警告——宁可保留可能已挂的实例，也不让注册表被误清空，这正是 AP 取向的体现。</p>
-<h3>2.3 Nacos / Eureka / Consul 对比</h3>
+<h3 id="23-nacos-eureka-consul">2.3 Nacos / Eureka / Consul 对比</h3>
 <table>
 <thead>
 <tr>
@@ -82,7 +82,7 @@
 </tbody>
 </table>
 <p><strong>注册中心的本质权衡是 AP vs CP</strong>：服务发现要的是可用性（列表旧一点也别不可用），所以 Eureka/Nacos 默认 AP；Consul 选 CP，保证一致但分区时可能拒绝注册。</p>
-<h3>2.4 配置中心动态刷新</h3>
+<h3 id="24">2.4 配置中心动态刷新</h3>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@RestController</span>
 <span class="nd">@RefreshScope</span><span class="w">                       </span><span class="c1">// 配置变更后 Bean 自动重建</span>
 <span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">BizController</span><span class="w"> </span><span class="p">{</span>
@@ -91,7 +91,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>动态刷新原理：客户端长轮询 Nacos（30s 超时机制实现准实时）→ 配置变更返回新值 → 发布 RefreshEvent → <code>@RefreshScope</code> 的 Bean 销毁重建，下次注入新值。</p>
-<h3>2.5 面试追问</h3>
+<h3 id="25">2.5 面试追问</h3>
 <ul>
 <li>问：服务注册发现流程？</li>
 <li>答：注册 → 心跳续约 → 调用方发现 → 负载均衡调用；实例下线被剔除。</li>
@@ -101,5 +101,20 @@
 <li>答：已注册实例还能靠本地缓存继续调用，但新实例/变更感知失效，所以要高可用部署。</li>
 <li>问：注册中心选 AP 还是 CP？</li>
 <li>答：服务发现优先可用性（AP），注册列表短暂陈旧可容忍；配置管理要强一致（CP），改配置必须所有实例看到同一份。</li>
-</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>
-<script>const contentId="microservices-highconcurrency:03",moduleId="microservices-highconcurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#21">2.1 为什么需要注册中心</a></li><li class="lv3"><a href="#22-nacos-vs-eureka">2.2 Nacos vs Eureka</a></li><li class="lv3"><a href="#23-nacos-eureka-consul">2.3 Nacos / Eureka / Consul 对比</a></li><li class="lv3"><a href="#24">2.4 配置中心动态刷新</a></li><li class="lv3"><a href="#25">2.5 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-02.html">← 上一章</a><a href="chapter-04.html">下一章 →</a></nav></main></div>'
+<script>const contentId="microservices-highconcurrency:03",moduleId="microservices-highconcurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

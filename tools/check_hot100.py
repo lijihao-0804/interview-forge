@@ -287,7 +287,8 @@ for path in html_files:
                 errors.append(f"阅读页把 Markdown 标题显示成普通文字：{rel} -> {paragraph_text[:80]}")
             if re.match(r"^(?:[-+*]\s+|\d+[.)]\s+)\S", leading_text):
                 errors.append(f"阅读页把 Markdown 列表显示成普通文字：{rel} -> {paragraph_text[:80]}")
-        if "**" in visible_text or r"\*\*" in visible_text:
+        # 成对 **强调** 才判残留；单侧 ** 多为 Python 语法字面量（**kwargs、** 解包）
+        if re.search(r"\*\*[^*\n]+\*\*", visible_text) or r"\*\*" in visible_text:
             errors.append(f"阅读页残留 Markdown 强调符：{rel}")
         if "```" in visible_text or "~~~" in visible_text:
             errors.append(f"阅读页残留 Markdown 代码围栏：{rel}")

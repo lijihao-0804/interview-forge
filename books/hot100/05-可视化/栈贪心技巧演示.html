@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>栈 · 贪心 · 技巧演示 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>栈 · 贪心 · 技巧演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 栈与队列 · 贪心 · 技巧：13 道题 ===== */
+var el = DemoKit.el;
+
+/* 通用：一排单元格 */
+function cells(vals, st, ptrs) {
+  var wrap = el("div", "dk-cells");
+  vals.forEach(function (v, i) {
+    var cell = el("div", "dk-cell" + ((st && st[i]) ? " " + st[i] : ""), v === null ? "null" : String(v));
+    if (st && st["p" + i]) {
+      (st["p" + i]).forEach(function (p) {
+        cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+      });
+    }
+    if (ptrs) ptrs.forEach(function (p) {
+      if (p.i === i) cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+    });
+    wrap.appendChild(cell);
+  });
+  return wrap;
+}
+/* 通用：小表格 */
+function grid(g, st) {
+  var tbl = el("table");
+  tbl.style.cssText = "border-collapse:separate;border-spacing:5px";
+  for (var r = 0; r < g.length; r++) {
+    var tr = el("tr");
+    for (var c = 0; c < g[r].length; c++) {
+      var v = g[r][c];
+      var td = el("td", "dk-cell" + ((st && st[r] && st[r][c]) ? " " + st[r][c] : ""), String(v));
+      td.style.minWidth = "40px"; td.style.textAlign = "center";
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  return tbl;
+}
+
+var DEMOS = {
+
+  "0020": { no: "20", title: "有效的括号", tag: "栈 · 匹配消除",
+    example: "输入：s = \"{[()]}\"　输出：true（嵌套三层，栈逐步弹消）",
+    build: function (ctx) {
+      var s = "{[()]}";
+      var pairs = { ")": "(", "]": "[", "}": "{" };
+      var stack = [];
+      ctx.step("左括号入栈；右括号必须与栈顶配对消除", { rows: [] });
+      for (var i = 0; i < s.length; i++) {
+        var ch = s[i];
+        if (pairs[ch]) {
+          stack.push(ch);
+          ctx.step("'" + ch + "' 是左括号 → 入栈。栈（底→顶）：" + stack.join(" "),
+            { stackView: { vals: stack.slice() } });
+        } else {
+          var top = stack.pop();
+          var ok = top === pairs[ch];
+          ctx.step("'" + ch + "' 是右括号 → 期望栈顶 '" + pairs[ch] + "'，实际 '" + (top || "空") + "' " + (ok ? "✓ 消除" : "✗ 不匹配！"),
+            { stackView: { vals: stack.slice(), err: !ok } });
+          if (!ok) { ctx.step("不匹配 → false", { stackView: { vals: stack, err: true } }); return; }
+        }
+      }
+      if (stack.length) ctx.step("遍历结束但栈里还剩 " + stack.join(" ") + " → false", { stackView: { vals: stack, err: true } });
+      else ctx.step("栈空 → 全部匹配 ✓ true", { stackView: { vals: ["✓"] } });
+    },
+    render: function (view, stage) {
+      var sv = view.stackView || {};
+      var box = el("div", "dk-cells");
+      box.style.minHeight = "60px";
+      (sv.vals || []).forEach(function (v, i) {
+        var cell = el("div", "dk-cell" + ((sv.err && i === sv.vals.length - 1) ? " swap" : (i === sv.vals.length - 1 ? " hot" : "")), String(v));
+        box.appendChild(cell);
+        if (i < (sv.vals || []).length - 1) box.appendChild(el("span", "dk-arrow", "↑"));
+      });
+      var label = el("span", "dk-var", "栈（底→顶）");
+      var host = el("div");
+      host.appendChild(label); host.appendChild(box);
+      stage.textContent = ""; stage.appendChild(host);
+    } },
+
+  "0155": { no: "155", title: "最小栈", tag: "栈 · 辅助最小值",
+    example: "push(-2), push(0), push(-3), getMin()=-3, pop(), top()=0, getMin()=-2",
+    build: function (ctx) {
+      var stack = [], mins = [];
+      function v(opDesc, m) {
+        var minV = mins.length ? mins[mins.length - 1] : "—";
+        ctx.step(opDesc, { stackView: { vals: stack.slice() }, minV: minV, op: m });
+      }
+      function push(x) {
+        stack.push(x);
+        mins.push(Math.min(x, mins.length ? mins[mins.length - 1] : x));
+        v("push(" + x + ")：同步更新辅助最小栈", "push " + x);
+      }
+      function pop() { stack.pop(); mins.pop(); v("pop()：主栈与最小栈同时弹出", "pop"); }
+      function top() { v("top() = " + stack[stack.length - 1], "top"); }
+      function getMin() { v("getMin() = " + mins[mins.length - 1] + "（O(1) 直接读栈顶）", "getMin"); }
+      ctx.step("双栈：主栈存值，辅助栈存“到这一层为止的最小值”", { stackView: { vals: [] }, minV: "—", op: "初始化" });
+      push(-2); push(0); push(-3); getMin(); pop(); top(); getMin();
+    },
+    render: function (view, stage) {
+      var sv = view.stackView;
+      var st = {};
+      if (sv.vals.length) st[sv.vals.length - 1] = "hot";
+      stage.textContent = "";
+      var host = el("div");
+      host.appendChild(el("span", "dk-var", view.minV !== undefined ? "最小栈顶: " + view.minV : "栈"));
+      var cellsEl = el("div", "dk-cells");
+      cellsEl.style.marginTop = "8px";
+      sv.vals.forEach(function (v, i) {
+        var cell = el("div", "dk-cell" + (i === sv.vals.length - 1 ? " hot" : ""), String(v));
+        cellsEl.appendChild(cell);
+        if (i < sv.vals.length - 1) cellsEl.appendChild(el("span", "dk-arrow", "↑"));
+      });
+      host.appendChild(cellsEl);
+      host.appendChild(el("div", "dk-note", "辅助栈与主栈同层同步 push/pop"));
+      stage.appendChild(host);
+    } },
+
+  "0232": { no: "232", title: "用栈实现队列", tag: "栈 · 双栈倒手",
+    example: "push(1), push(2), peek()=1, pop()=1, empty()=false",
+    build: function (ctx) {
+      var inS = [], outS = [];
+      function view(opDesc) {
+        return { rows: [
+          row("入栈 in", inS.slice(), { tail: "push 进这里" }),
+          row("出栈 out", outS.slice().reverse(), { tail: "pop/peek 从这里出" }) ], note: opDesc };
+      }
+      function shift() {
+        if (!outS.length) { while (inS.length) outS.push(inS.pop()); }
+      }
+      ctx.step("push(1)：直接入 in 栈", view("push(1)"));
+      inS.push(1);
+      ctx.step("push(2)：直接入 in 栈", view("push(2)"));
+      inS.push(2);
+      ctx.step("peek()：out 空时把 in 全部倒入 out（顺序翻转一次，就是队列序）", view("peek 触发倒手"));
+      shift();
+      ctx.step("倒手后 out = [2,1]，peek = " + outS[outS.length - 1] + "（先进先出 ✓）", view("倒手完成"));
+      ctx.step("pop() = " + outS.pop() + "（从 out 弹出）", view("pop"));
+      ctx.step("empty() = " + ((inS.length + outS.length) === 0), view("empty"));
+      inS.push(3);
+      ctx.step("push(3)：in 里还有旧元素也不影响——out 非空时先消费 out", view("push(3)"));
+      shift();
+      ctx.step("pop() = " + outS.pop() + " ✓", view("pop"));
+      var empty = (inS.length + outS.length) === 0;
+      ctx.step("empty() = " + empty, view("empty"));
+    },
+    render: renderRows },
+
+  "0394": { no: "394", title: "字符串解码", tag: "栈 · 双栈表达式",
+    example: "输入：s = \"3[a2[c]]\"　输出：\"accaccacc\"",
+    build: function (ctx) {
+      var s = "3[a2[c]]";
+      var numStack = [], strStack = [], cur = "";
+      ctx.step("双栈：数字栈存重复次数，字符串栈存“上一层已完成的结果”", { rows: [] });
+      for (var i = 0; i < s.length; i++) {
+        var ch = s[i];
+        if (ch >= "0" && ch <= "9") {
+          var num = ch;
+          while (i + 1 < s.length && s[i + 1] >= "0" && s[i + 1] <= "9") num += s[++i];
+          numStack.push(parseInt(num, 10));
+          strStack.push(cur); cur = "";
+          ctx.step("数字 " + num + " → 压数字栈；当前串 \"" + cur + "\" 压字符串栈（进入新一层）", { rows: [] });
+        } else if (ch === "]") {
+          var times = numStack.pop(), prev = strStack.pop();
+          cur = prev + cur.repeat(times);
+          ctx.step("] 出栈：重复 \"" + cur.split(prev).pop() + "\" × " + times + "，拼回外层 → \"" + cur + "\"", { rows: [] });
+        } else {
+          cur += ch;
+          ctx.step("字母 '" + ch + "' → 当前串=\"" + cur + "\"", { rows: [] });
+        }
+      }
+      ctx.step("完成！解码结果 = \"" + cur + "\"", { rows: [] });
+    },
+    render: function (view, stage) {
+      var box = el("div", "dk-cells");
+      var nums = ["3"], strs = ["", "a", "a2[c]", "acc"];
+      box.appendChild(el("span", "dk-var", "数字栈: 3 | 字符串栈见步骤 | 本题嵌套结构见 desc 面板"));
+      stage.textContent = ""; stage.appendChild(box);
+    } },
+
+  "0045": { no: "45", title: "跳跃游戏 II", tag: "贪心 · 边界扩展",
+    example: "输入：nums = [2,3,1,1,4]　输出：2（两次跳跃到末尾）",
+    build: function (ctx) {
+      var nums = [2, 3, 1, 1, 4];
+      var end = 0, farthest = 0, jumps = 0;
+      ctx.step("贪心：当前边界内挑“能跳最远”的下一跳；到边界就跳数 +1", { rows: [row("nums", nums)] });
+      for (var i = 0; i < nums.length - 1; i++) {
+        farthest = Math.max(farthest, i + nums[i]);
+        if (i === end) {
+          jumps++;
+          end = farthest;
+          ctx.step("到达边界 " + i + "：最远可达 " + end + " → 第 " + jumps + " 跳，边界推到 " + end,
+            { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(end, "target")) })] });
+        } else {
+          ctx.step("i=" + i + "（可跳 " + nums[i] + "）：更新最远可达 = " + farthest, { rows: [
+            row("nums", nums, { st: mergeSt(st1(i, "cmp"), st1(Math.min(farthest, nums.length - 1), "hot")) }) ] });
+        }
+      }
+      ctx.step("完成！最少跳跃次数 = " + jumps, { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0055": { no: "55", title: "跳跃游戏", tag: "贪心 · 可达性",
+    example: "输入：nums = [2,3,1,1,4]　输出：true（反例 [3,2,1,0,4] → false）",
+    sizes: [{ label: "示例 1：[2,3,1,1,4]", arr: [2, 3, 1, 1, 4] }, { label: "反例：[3,2,1,0,4]", arr: [3, 2, 1, 0, 4] }],
+    defaultSize: 0,
+    build: function (ctx, size) {
+      var nums = (size && size.arr) || [2, 3, 1, 1, 4];
+      var farthest = 0;
+      for (var i = 0; i < nums.length; i++) {
+        if (i > farthest) {
+          ctx.step("i=" + i + " 超出最远可达 " + farthest + " → 卡死 ❌ false", { rows: [row("nums", nums, { st: st1(i, "swap") })] });
+          return;
+        }
+        farthest = Math.max(farthest, i + nums[i]);
+        ctx.step("i=" + i + "（跳 " + nums[i] + "）→ 最远可达 " + farthest + (farthest >= nums.length - 1 ? " ≥ 末尾 ✓" : ""),
+          { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(Math.min(farthest, nums.length - 1), "target")) })] });
+      }
+      ctx.step("完成！最远可达覆盖末尾 → true", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0121": { no: "121", title: "买卖股票的最佳时机", tag: "贪心 · 一次遍历",
+    example: "输入：prices = [7,1,5,3,6,4]　输出：5（1 买入 6 卖出）",
+    build: function (ctx) {
+      var prices = [7, 1, 5, 3, 6, 4];
+      var minP = prices[0], best = 0;
+      ctx.step("贪心：边扫边记历史最低价，今天的价 − 历史最低 = 今天卖出的最优", { rows: [row("prices", prices, { st: st1(0, "hot") })] });
+      for (var i = 1; i < prices.length; i++) {
+        var profit = prices[i] - minP;
+        best = Math.max(best, profit);
+        var oldMin = minP;
+        minP = Math.min(minP, prices[i]);
+        ctx.step("i=" + i + "（价 " + prices[i] + "）：若今天卖 → 利润 " + profit + "；历史最低 " + oldMin + "→" + minP + "；最优利润 " + best,
+          { rows: [row("prices", prices, { st: mergeSt(st1(i, "hot"), st1(i - 1, minP === prices[i] ? "write" : "dim")) })] });
+      }
+      ctx.step("完成！最大利润 = " + best + "（最低点 1 买入，6 卖出）", { rows: [row("prices", prices, { st: mergeSt(st1(1, "target"), st1(4, "target")) })] });
+    },
+    render: renderRows },
+
+  "0763": { no: "763", title: "划分字母区间", tag: "贪心 · 最远边界",
+    example: "输入：s = \"ababcbacadefegdehijhklij\"　输出：[9,7,8]",
+    build: function (ctx) {
+      var s = "ababcbacadefegdehijhklij";
+      var last = {};
+      for (var i = 0; i < s.length; i++) last[s[i]] = i;
+      ctx.step("先记下每个字母最后出现的位置", { rows: [row("s", s.split(""), { st: null })], note: "a 最后在 8，b 在 6，c 在 7…" });
+      var parts = [], start = 0, end = 0;
+      for (var i = 0; i < s.length; i++) {
+        end = Math.max(end, last[s[i]]);
+        if (i === end) {
+          parts.push(end - start + 1);
+          ctx.step("i=" + i + " 到达当前片段最远边界 → 切一段，长度 " + (end - start + 1),
+            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= end; k++) m[k] = "target"; return m; })() })], note: "片段长度：" + JSON.stringify(parts) });
+          start = i + 1;
+        } else {
+          ctx.step("i=" + i + "（'" + s[i] + "' 最远到 " + last[s[i]] + "）→ 扩展片段边界到 " + Math.max(end, last[s[i]]),
+            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= Math.max(end, last[s[i]]); k++) m[k] = "hot"; return m; })() })] });
+          end = Math.max(end, last[s[i]]);
+        }
+      }
+      ctx.step("完成！划分为 " + JSON.stringify(parts), { rows: [row("结果", parts, { st: st1(parts.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0031": { no: "31", title: "下一个排列", tag: "技巧 · 原地重排",
+    example: "输入：nums = [1,5,8,4,7,6,5,3,1]　输出：[1,5,8,5,1,3,4,6,7]",
+    build: function (ctx) {
+      var nums = [1, 5, 8, 4, 7, 6, 5, 3, 1];
+      ctx.step("第一步：从右往左找第一个“下降点”（nums[i] < nums[i+1]）", { rows: [row("nums", nums)] });
+      var i = nums.length - 2;
+      while (i >= 0 && nums[i] >= nums[i + 1]) i--;
+      ctx.step("下降点 i=" + i + "（" + nums[i] + " < " + nums[i + 1] + "）", { rows: [row("nums", nums, { st: st1(i, "hot") })] });
+      if (i >= 0) {
+        var j = nums.length - 1;
+        while (nums[j] <= nums[i]) j--;
+        ctx.step("第二步：从右往左找第一个大于 " + nums[i] + " 的数 → " + nums[j] + "（j=" + j + "），交换", { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(j, "swap")) })] });
+        var t = nums[i]; nums[i] = nums[j]; nums[j] = t;
+        ctx.step("交换后：" + nums.join(", "), { rows: [row("nums", nums, { st: mergeSt(st1(i, "write"), st1(j, "write")) })] });
+      }
+      var l = i + 1, r = nums.length - 1;
+      ctx.step("第三步：i 之后仍为降序 → 反转成升序（得到最小后缀）", { rows: [row("nums", nums, { st: (function () { var m = {}; for (var k = l; k <= r; k++) m[k] = "cmp"; return m; })() })] });
+      while (l < r) { var tt = nums[l]; nums[l] = nums[r]; nums[r] = tt; l++; r--; }
+      ctx.step("完成！下一个排列 = " + nums.join(", "), { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0075": { no: "75", title: "颜色分类", tag: "技巧 · 荷兰国旗三指针",
+    example: "输入：nums = [2,0,2,1,1,0]　输出：[0,0,1,1,2,2]（原地单遍）",
+    build: function (ctx) {
+      var nums = [2, 0, 2, 1, 1, 0];
+      var low = 0, mid = 0, high = nums.length - 1;
+      ctx.step("三指针：low 管 0 的边界，mid 扫描，high 管 2 的边界", { rows: [row("nums", nums, { ptrs: [{ i: 0, label: "low", c: "c3" }, { i: 0, label: "mid", c: "c1" }, { i: 5, label: "high", c: "c2" }] })] });
+      while (mid <= high) {
+        if (nums[mid] === 0) {
+          var t = nums[low]; nums[low] = nums[mid]; nums[mid] = t;
+          ctx.step("mid=" + mid + " 是 0 → 换到 low 头部，low++ mid++", { rows: [row("nums", nums, { st: mergeSt(st1(low, "write"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          low++; mid++;
+        } else if (nums[mid] === 2) {
+          var t2 = nums[mid]; nums[mid] = nums[high]; nums[high] = t2;
+          ctx.step("mid=" + mid + " 是 2 → 换到 high 尾部，high--（mid 不动：换来的还没看）", { rows: [row("nums", nums, { st: mergeSt(st1(high, "swap"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          high--;
+        } else {
+          ctx.step("mid=" + mid + " 是 1 → 正确位置，mid++", { rows: [row("nums", nums, { st: st1(mid, "hot"), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          mid++;
+        }
+      }
+      ctx.step("完成！[0,0,1,1,2,2] 单遍原地排序 ✓", { rows: [row("nums", nums, { st: st1(2, "target") })] });
+    },
+    render: renderRows },
+
+  "0136": { no: "136", title: "只出现一次的数字", tag: "技巧 · 异或折叠",
+    example: "输入：nums = [4,1,2,1,2]　输出：4",
+    build: function (ctx) {
+      var nums = [4, 1, 2, 1, 2];
+      var x = 0;
+      ctx.step("异或三大性质：x^x=0、x^0=x、交换律 → 成对的全部消掉，只剩出现一次的", { rows: [row("nums", nums)] });
+      for (var i = 0; i < nums.length; i++) {
+        x ^= nums[i];
+        ctx.step("ans ^= " + nums[i] + " → " + x + "（二进制逐位异或）", { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "当前 ans 的二进制： " + x.toString(2).padStart(3, "0") });
+      }
+      ctx.step("完成！只出现一次的数字 = " + x + "，O(n) 时间 O(1) 空间", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0169": { no: "169", title: "多数元素", tag: "技巧 · 摩尔投票",
+    example: "输入：nums = [2,2,1,1,1,2,2]　输出：2",
+    build: function (ctx) {
+      var nums = [2, 2, 1, 1, 1, 2, 2];
+      var cand = null, count = 0;
+      ctx.step("摩尔投票：不同的数互相抵消，剩下的必然是多数（出现次数 > n/2）", { rows: [row("nums", nums)] });
+      for (var i = 0; i < nums.length; i++) {
+        if (count === 0) {
+          cand = nums[i]; count = 1;
+          ctx.step("计数为 0 → 换候选人 " + cand, { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
+        } else if (nums[i] === cand) {
+          count++;
+          ctx.step(nums[i] + " 与候选人相同 → 计数 +1", { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
+        } else {
+          count--;
+          ctx.step(nums[i] + " 与候选人不同 → 计数 -1", { rows: [row("nums", nums, { st: st1(i, "dim") })], note: "候选人: " + cand + "，计数: " + count });
+        }
+      }
+      ctx.step("完成！抵消结束后剩下的候选人 = " + cand + "（多数元素）", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+    },
+    render: renderRows },
+
+  "0287": { no: "287", title: "寻找重复数", tag: "技巧 · Floyd 快慢指针（数组版）",
+    example: "输入：nums = [1,3,4,2,2]　输出：2",
+    build: function (ctx) {
+      var nums = [1, 3, 4, 2, 2];
+      var slow = 0, fast = 0;
+      ctx.step("把数组看成链表：i → nums[i]。有重复值 = 有环；找环入口 = 找重复值", { rows: [
+        row("nums", nums, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
+      for (var s = 0; s < 12; s++) {
+        slow = nums[slow];
+        fast = nums[nums[fast]];
+        if (slow === fast) { ctx.step("阶段一相遇于 " + nums[slow] + "（环内）", { rows: [
+          row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] }); break; }
+        ctx.step("slow 在 " + slow + "，fast 在 " + fast, { rows: [
+          row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] });
+      }
+      slow = 0;
+      var ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }];
+      while (slow !== fast) {
+        ctx.step("阶段二：同速前进", { rows: [row("nums", nums, { ptrs: ptrs2.slice() }) ] });
+        slow = nums[slow]; fast = nums[fast];
+        ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }];
+      }
+      ctx.step("阶段二相遇于下标 " + slow + " → 重复数字 = nums[" + slow + "] = " + nums[slow] + " ✓", { rows: [
+        row("nums", nums, { st: st1(slow, "target") }) ] });
+    },
+    render: renderRows }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      build: d.build, render: d.render
+    });
+  }
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

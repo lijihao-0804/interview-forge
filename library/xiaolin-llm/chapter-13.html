@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></nav><div class="module-meta">大模型应用 · 第 13 / 22 章</div><h1>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：来讲讲什么是 MoE 混合专家模型？为什么 DeepSeek V3、Qwen 这些主流大模型现在都在用 MoE？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></nav><div class="module-meta">大模型应用 · 第 13 / 22 章 · <span class="muted">更新于 2026-09-01</span></div><h1>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：来讲讲什么是 MoE 混合专家模型？为什么 DeepSeek V3、Qwen 这些主流大模型现在都在用 MoE？</p>
 <p>🙋‍♂️我：MoE 就是把多个小模型合在一起，每次用一个，效果好。</p>
 <p>👔面试官：……「合在一起」是怎么合的？「每次用一个」具体是哪个组件决定的？再说，MoE 是 2017 年 Google 就提出的，为什么 2024 年才在 LLM 领域火起来？</p>
 <p>🙋‍♂️我：哦哦，应该是有个 Router 来选用哪个专家。火起来是因为 DeepSeek？</p>
@@ -9,7 +9,7 @@
 <p>🙋‍♂️我：呃……</p>
 <p>👔面试官：专家不平衡（Expert Imbalance）是 MoE 训练的著名难题，意思是 Router 可能偏爱某几个专家，导致其他专家根本没被训过。这种问题不知道，去面试就是被怼。回去补一下。</p>
 <p>问到这里 MoE 这道题的真面目才浮出来，它的核心思想不是「拼几个小模型」，而是「稀疏激活换便宜推理」。Router 怎么挑专家、训练为什么会塌、推理为什么便宜，这几条得一条条拆。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我理解 MoE（Mixture of Experts，混合专家模型）的核心思想是把传统 Transformer 中的 FFN（前馈网络）层替换成 N 个并行的「专家网络」，再加一个 Router 来决定每个 token 进哪个专家。</p>
 <p>核心设计哲学是「<strong>总参数大，但激活参数小</strong>」。比如 DeepSeek V3 总参数 671B，但每个 token 推理时只激活 37B（约 1/18）。这样能用「总参数 671B 的知识量」+「激活参数 37B 的推理成本」，达到 Dense 模型做不到的「学得多 + 跑得快」。</p>
 <p>具体看 MoE 三个核心组件。</p>
@@ -24,8 +24,8 @@
 </ul>
 <p>但 MoE 也有挑战：训练难度高（专家不平衡、Router 训不稳、并行化复杂）；显存占用高（虽然激活只用 37B，但所有专家的参数都要加载到显存，671B 全量）；推理时通信开销（分布式部署时专家分散在多张 GPU，token 路由有跨卡通信）。</p>
 <p>MoE 是 2024-2026 年大模型最重要的架构方向之一，DeepSeek V3、DeepSeek R1、Mixtral、Grok、部分 Qwen MoE 模型都用了这条路线。但它不是唯一答案，很多主力 Dense 模型依然在生产里很常见，尤其是中小规模和部署稳定性优先的场景。</p>
-<h3>📝 详细解析</h3>
-<h4>MoE 是什么？为什么 Dense 模型不够用了</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="moe-dense">MoE 是什么？为什么 Dense 模型不够用了</h4>
 <p>要理解 MoE，得先看清楚传统 Dense 模型的瓶颈。</p>
 <p>Dense 模型（标准 Transformer）的特点是：<strong>每个 token 推理时，都要走一遍模型的全部参数</strong>。一个 175B 的 GPT-3，每生成一个 token 都要让 175B 个参数全部参与计算。</p>
 <p>这就带来一个棘手的权衡：</p>
@@ -45,7 +45,7 @@
 <p>直观的类比：Dense 像一本厚厚的百科全书，你查一个词要把整本书过一遍；MoE 像一个图书馆，前台咨询员（Router）听到你的问题，告诉你去 3 楼的「数学专家区」就好，不用整个图书馆都搜索。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.png" /></p>
 <p>这个设计让 MoE 在「<strong>同样推理成本下，参数量可以做到 Dense 的几倍甚至几十倍</strong>」。这就是 MoE 现在大火的根本原因。</p>
-<h4>MoE 的三个核心组件</h4>
+<h4 id="moe">MoE 的三个核心组件</h4>
 <p>理解了核心思想，下面拆解 MoE 的三个具体组件。</p>
 <p><strong>1. 多个专家（Experts）</strong></p>
 <p>MoE 把 Transformer 每一层的 FFN 替换成 N 个并行的 FFN。每个 FFN 结构完全一样，但参数独立，在训练中各自学会不同的「擅长方向」。</p>
@@ -83,7 +83,7 @@
 </code></pre></div>
 <p>这个损失项把「专家使用率不均」的方差作为惩罚加进总损失，迫使 Router 把任务均匀分配给所有专家。α 是个超参，平衡主任务和均衡性。</p>
 <p>DeepSeek V3 在这个基础上还提出了 <strong>Auxiliary-Loss-Free Load Balancing</strong> 策略，不用额外的辅助损失，而是动态调整每个专家的「偏置项」让负载自然均衡，进一步降低了对主任务的干扰。</p>
-<h4>总参数 vs 激活参数：MoE 的设计哲学</h4>
+<h4 id="vs-moe">总参数 vs 激活参数：MoE 的设计哲学</h4>
 <p>MoE 最反直觉、也最容易在面试踩坑的概念，是「<strong>总参数 vs 激活参数</strong>」的区别。</p>
 <p>来看一个具体计算：</p>
 <div class="codehilite"><pre><code>Dense 模型 70B：
@@ -102,7 +102,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p><strong>第三</strong>，推理速度按激活参数走。每个 token 只算 37B，所以 latency 接近 37B Dense 模型，<strong>而不是 671B</strong>。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.png" /></p>
 <p>这种「学得多 + 跑得快」的甜蜜组合，是 MoE 在 LLM 时代爆发的根本原因。Dense 模型走到 70B 量级已经是推理成本的极限，再往上 175B、500B、1T，推理几乎跑不起来；MoE 通过把激活参数控制在 37B-100B 这个区间，可以把总参数推到 600B、1T、甚至更多。</p>
-<h4>主流 MoE 模型对比：DeepSeek V3、Mixtral、Qwen 各自的设计</h4>
+<h4 id="moe-deepseek-v3mixtralqwen">主流 MoE 模型对比：DeepSeek V3、Mixtral、Qwen 各自的设计</h4>
 <p>不同家公司的 MoE 设计哲学差别挺大。来看几个代表：</p>
 <p><strong>DeepSeek V3 / R1（256 专家细粒度路由）</strong></p>
 <ul>
@@ -138,7 +138,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <li><strong>共享专家越来越普及</strong>：DeepSeek V3 引入 1 个 shared expert，避免常见知识被反复学</li>
 </ul>
 <p>这个趋势的内在逻辑是「<strong>更细粒度的稀疏化 = 更高的算力性价比</strong>」。256 个专家、激活 5%，相当于一个总参数极大但每次只用一小撮的智能图书馆。</p>
-<h4>MoE 的三大训练挑战</h4>
+<h4 id="moe_1">MoE 的三大训练挑战</h4>
 <p>MoE 看起来很美，但训练起来比 Dense 难得多。三个最大的坑：</p>
 <p><strong>挑战 1：专家不平衡</strong></p>
 <p>前面讲过，Router 容易陷入「只用几个专家」的恶性循环。除了负载均衡损失，业界还发展出几种应对：</p>
@@ -162,7 +162,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 </ul>
 <p><img loading="lazy" decoding="async" alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.png" /></p>
 <p>通信开销让 MoE 在多机训练时效率打折扣。DeepSeek V3 的工程优化里有大量篇幅讲怎么把 All-to-All 通信和计算重叠（DualPipe 算法），是工程实力的体现。</p>
-<h4>MoE 的部署挑战</h4>
+<h4 id="moe_2">MoE 的部署挑战</h4>
 <p>训练完之后，部署 MoE 还有自己的挑战。</p>
 <p><strong>挑战 1：显存占用按总参数走</strong></p>
 <p>虽然每个 token 只激活 37B，但所有 671B 参数都要加载到显存里（不然 Router 路由到没加载的专家就没法算）。这意味着 DeepSeek V3 部署需要至少 1.3TB FP16 显存（量化后约 350GB INT4），最少 8 卡 H100。这对很多企业来说是不小的硬件投入。</p>
@@ -172,7 +172,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p>部署时，如果某个专家热门（被很多 token 路由到），它所在的 GPU 就会过载，其他 GPU 空闲。需要动态负载均衡机制（专家迁移、复制热门专家等），这又是一个工程坑。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.png" /></p>
 <p>应对这些挑战，业界有一系列工具和优化（vLLM 的 MoE 并行支持、SGLang 的专家亲和性调度、TensorRT-LLM 的 MoE 优化），但整体来说，<strong>MoE 部署的技术成熟度还在快速演进</strong>。这也是为什么很多公司虽然喜欢 MoE 的训练性价比，但部署时还是选 Dense 模型的原因。</p>
-<h4>为什么 2024 年后 MoE 才在 LLM 领域火起来</h4>
+<h4 id="2024-moe-llm">为什么 2024 年后 MoE 才在 LLM 领域火起来</h4>
 <p>最后一个值得讨论的问题：MoE 不是新东西，1991 年就有人提出，2017 Google 的 GShard 就用过 MoE 训过 600B 模型。为什么直到 2024 年 DeepSeek V3 才让整个圈子开始用 MoE？</p>
 <p>三个原因：</p>
 <p><strong>1. 训练经验积累到位了</strong></p>
@@ -183,11 +183,26 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p>最关键的一击是 DeepSeek V3 在 2024 年底公开了一个 671B 总参数、37B 激活参数的 MoE 模型，并报告了非常低的训练成本和很强的效果。这让大家看到：MoE 不只是论文里的好方法，是真的能用更高的训练和推理性价比做出顶级模型。整个开源社区被点燃，2025 年之后越来越多大模型开始认真评估 MoE 路线。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/98730b86fd-259035155d88268756730870.png" /></p>
 <p>到 2026 年，MoE 已经成为大模型架构的主流方向之一，但还不能说「几乎所有新模型都用 MoE」。Dense 模型依然有很强生命力，尤其在 1B-70B 这类部署稳定、延迟敏感、工程复杂度要低的场景。更稳的说法是：<strong>MoE 适合把总容量做大、把激活成本压低；Dense 适合部署简单、负载稳定、延迟可控</strong>。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_3">🎯 面试总结</h3>
 <p>回到开头那段对话，问到 MoE，最重要的是先把<strong>核心思想</strong>讲清楚。MoE 把 Transformer 中的 FFN 复制成 N 份「专家」，加一个 Router 选 Top-K 个来处理每个 token。最关键的设计哲学是<strong>总参数 vs 激活参数解耦</strong>：训练时学 N 倍知识，推理时只用 K/N 的算力。这一句先点出来，就抓到了 MoE 的本质。</p>
 <p>接下来把<strong>三个核心组件</strong>讲清。多个专家（学到不同擅长方向，比如代码、数学、中文等）、Router（一个简单的线性层算分 + Top-K 选取）、负载均衡损失（防止 Router 偏爱某几个专家让其他专家躺平）。其中<strong>专家不平衡</strong>是 MoE 训练最著名的难题，DeepSeek V3 用 Auxiliary-Loss-Free 策略（动态调专家偏置项不引入额外损失）进一步优化，是 2024 年的工程亮点。</p>
 <p>然后举具体的<strong>主流模型对比</strong>。DeepSeek V3 用 256 个专家、激活 9 个（Top-8 routed + 1 shared），671B / 37B、激活率 5.5%；Mixtral 8x7B 用 8 专家激活 2 个，47B / 13B、激活率 28%。趋势是「专家越来越多、激活率越来越低」，更细粒度的稀疏化带来更好的算力性价比。能背出 DeepSeek V3 的具体配置数字，会让面试官知道你真的看过论文。</p>
 <p>最关键的一句话是讲清 MoE 的训练 + 部署挑战。训练上有专家不平衡、Router 不稳、All-to-All 通信复杂这些坑；部署上显存按总参数走、批量推理通信开销大、热门专家负载不均。能讲出「<strong>显存按总参数走，但推理速度按激活参数走</strong>」这一句反直觉但精确的话，面试官就知道你真的理解 MoE 在工程上的取舍。</p>
 <p>如果还想再加分，可以指出 MoE 是 1991 年就有的老想法，2024 年之后因为「训练经验成熟 + 推理框架完善 + DeepSeek 把成本打下来」才在 LLM 领域真正爆发。它是主流方向，但不是唯一方向，这种「知道趋势，也知道边界」的表达会更像真实工程师。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-12.html">← 上一章</a><a href="chapter-14.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-llm:13",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_3">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-12.html">← 上一章</a><a href="chapter-14.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-llm:13",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

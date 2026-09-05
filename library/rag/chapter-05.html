@@ -1,24 +1,24 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Chunking：知识应以多大单位被检索 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">RAG：从检索原理到生产实践</a><span aria-hidden="true">›</span><span aria-current="page">Chunking：知识应以多大单位被检索</span></nav><div class="module-meta">大模型应用 · 第 5 / 26 章</div><h1>Chunking：知识应以多大单位被检索</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>Chunking 是把长文档分成可检索单元。它同时影响召回和生成：块太小缺上下文，块太大主题混杂、占 token，并降低相似度的辨别力。</p>
-<h3>5.1 为什么整篇文档做一个向量通常不好</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Chunking：知识应以多大单位被检索 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">RAG：从检索原理到生产实践</a><span aria-hidden="true">›</span><span aria-current="page">Chunking：知识应以多大单位被检索</span></nav><div class="module-meta">大模型应用 · 第 5 / 26 章 · <span class="muted">更新于 2026-08-30</span></div><h1>Chunking：知识应以多大单位被检索</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>Chunking 是把长文档分成可检索单元。它同时影响召回和生成：块太小缺上下文，块太大主题混杂、占 token，并降低相似度的辨别力。</p>
+<h3 id="51">5.1 为什么整篇文档做一个向量通常不好</h3>
 <p>一份员工手册同时包含考勤、报销、安全和休假。整篇向量是多个主题的平均表示。查询“异地差旅住宿上限”时，相关细节在整篇文档中的信号很弱；即使召回，模型还要阅读几十页。</p>
 <p>另一方面，把句子“最高不超过 800 元”单独切出也不好，因为不知道它指住宿、交通还是餐费。合适的块应尽量做到：<strong>能够独立解释一个局部问题，同时不混入过多无关主题。</strong></p>
-<h3>5.2 常见策略</h3>
-<h4>固定长度切块</h4>
+<h3 id="52">5.2 常见策略</h3>
+<h4 id="_1">固定长度切块</h4>
 <p>每 N 个 token/字符切一次，并保留 overlap。实现简单，适合结构差的纯文本，也适合做基线。</p>
 <p>问题是边界不理解语义。<code>chunk_size=500, overlap=100</code> 也不是通用答案：中文字符、英文 token、代码 token 的比例不同；不同 embedding 模型的最大长度也不同。</p>
-<h4>递归切块</h4>
+<h4 id="_2">递归切块</h4>
 <p>依次尝试按章节、段落、句子、空格切分，只有单元过长才继续细分。它比固定窗口更能保留自然边界，LangChain 的 RecursiveCharacterTextSplitter 属于这类思想。</p>
-<h4>结构感知切块</h4>
+<h4 id="_3">结构感知切块</h4>
 <p>使用 Markdown 标题、HTML DOM、Word 样式、代码 AST 或 PDF 版面结构切分。对规章、API 文档和代码尤其有效，因为结构本身就是语义。</p>
 <p>块正文可以补上祖先标题：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">标题路径：员工手册 &gt; 差旅管理 &gt; 住宿标准
 正文：一线城市每晚不超过 800 元……
 </code></pre></div>
 <p>这样查询中即使出现“差旅”，正文只写“每晚”，向量和关键词仍能匹配。</p>
-<h4>语义切块</h4>
+<h4 id="_4">语义切块</h4>
 <p>计算相邻句子的 embedding，相似度突然下降时作为主题边界。它能处理没有标题的长访谈，但成本更高、结果依赖模型与阈值，也可能产生尺寸极不均匀的块。必须设置最小/最大长度兜底。</p>
-<h3>5.3 Overlap 不是越大越好</h3>
+<h3 id="53-overlap">5.3 Overlap 不是越大越好</h3>
 <p>重叠用于避免答案跨越边界。例如定义在上一块末尾、限制条件在下一块开头时，适度重叠能让一个块包含完整信息。</p>
 <p>代价是：</p>
 <ul>
@@ -28,7 +28,7 @@
 <li>上下文重复，浪费 token。</li>
 </ul>
 <p>因此应结合去重或按 <code>document_id/section_id</code> 限制每个来源的候选数，并通过评测决定 overlap。</p>
-<h3>5.4 Parent-Child 与 Small-to-Big</h3>
+<h3 id="54-parent-child-small-to-big">5.4 Parent-Child 与 Small-to-Big</h3>
 <p>这是一种非常实用的两种粒度策略：</p>
 <ol>
 <li>把小块做 embedding，用于精确匹配；</li>
@@ -36,9 +36,9 @@
 </ol>
 <p>例如 150 token 的子块容易命中“试用期年假折算”，但答案需要阅读该小节前后的适用范围和例外，于是最终返回 800 token 的父块。</p>
 <p>要防止父块过大，也要在多个子块命中同一父块时去重。该策略把“检索粒度”和“阅读粒度”分开，通常比寻找一个完美 chunk size 更现实。</p>
-<h3>5.5 滑动窗口与句子窗口</h3>
+<h3 id="55">5.5 滑动窗口与句子窗口</h3>
 <p>索引中心句或小窗口，命中后扩展前后若干句。它适合会议记录、论文和连续叙事文本。扩展窗口应停在章节边界，不能把下一个主题机械拼进来。</p>
-<h3>5.6 怎样选择 chunk 参数</h3>
+<h3 id="56-chunk">5.6 怎样选择 chunk 参数</h3>
 <p>不要凭感觉选择。建立包含以下类型的测试问题：</p>
 <ul>
 <li>答案在单一段落内；</li>
@@ -48,5 +48,20 @@
 <li>需要组合两个章节。</li>
 </ul>
 <p>对候选配置测量 Recall@K、命中块是否自包含、重复率、平均上下文 token 和答案正确率。若召回正确但上下文残缺，应调整父子策略或窗口；若完全召回不到，再检查切块、查询和 embedding。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>
-<script>const contentId="rag:05",moduleId="rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#51">5.1 为什么整篇文档做一个向量通常不好</a></li><li class="lv3"><a href="#52">5.2 常见策略</a></li><li class="lv3"><a href="#53-overlap">5.3 Overlap 不是越大越好</a></li><li class="lv3"><a href="#54-parent-child-small-to-big">5.4 Parent-Child 与 Small-to-Big</a></li><li class="lv3"><a href="#55">5.5 滑动窗口与句子窗口</a></li><li class="lv3"><a href="#56-chunk">5.6 怎样选择 chunk 参数</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-04.html">← 上一章</a><a href="chapter-06.html">下一章 →</a></nav></main></div>'
+<script>const contentId="rag:05",moduleId="rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

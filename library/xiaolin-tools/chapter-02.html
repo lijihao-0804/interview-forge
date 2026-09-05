@@ -1,11 +1,11 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LLM 是如何学会调用外部工具的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LLM 工具调用面试题</a><span aria-hidden="true">›</span><span aria-current="page">LLM 是如何学会调用外部工具的？</span></nav><div class="module-meta">大模型应用 · 第 2 / 16 章</div><h1>LLM 是如何学会调用外部工具的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：说说大模型是怎么学会调用外部工具的？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LLM 是如何学会调用外部工具的？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LLM 工具调用面试题</a><span aria-hidden="true">›</span><span aria-current="page">LLM 是如何学会调用外部工具的？</span></nav><div class="module-meta">大模型应用 · 第 2 / 16 章 · <span class="muted">更新于 2026-09-01</span></div><h1>LLM 是如何学会调用外部工具的？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：说说大模型是怎么学会调用外部工具的？</p>
 <p>🙋‍♂️我：大模型本身就很聪明嘛，参数量够大，涌现能力一出来，自然就会调用工具了，不需要额外训练吧？</p>
 <p>👔面试官：涌现能力说的是参数量到某个阈值后，模型突然展现出小模型没有的理解和推理能力，这是「量变引起质变」。但工具调用要的是输出可解析的结构化 JSON，这是预训练语料里根本不存在的模式，不是参数量大了就自动会的。没训练过的模型遇到「查天气」只会说「我需要查天气 API」，而不是输出可解析的 JSON 调用请求。你说说到底是怎么训练出来的？</p>
 <p>🙋‍♂️我：那应该是用 SFT 微调出来的吧？给模型喂大量工具调用的样本，它学会了就行了。</p>
 <p>👔面试官：SFT 只解决了「会不会调」的问题，但「该不该调」呢？用户问「1+1 等于几」，模型也去调计算器工具，这不是画蛇添足吗？SFT 之后还有一个关键阶段你完全没提到，回去把 RLHF 在工具调用训练中的作用搞清楚再来。</p>
 <p>看得出来，很多人知道 SFT 但忽略了 RLHF 在工具调用中的关键作用。下面我把「模型怎么学会调工具」这件事完整拆开，两个阶段各自解决什么问题，一次讲透。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>这道题我分两块来讲：模型怎么被训练出工具调用能力，以及训练好之后运行时是怎么工作的。</p>
 <p>训练层面靠两个阶段：</p>
 <ul>
@@ -14,14 +14,14 @@
 </ul>
 <p>运行层面，每次请求时，你的应用代码把工具描述（叫 schema，可以理解为工具的说明书）传给模型，模型如果判断需要工具，就输出一段结构化的 <code>tool_calls</code> JSON；你的代码拿到这段 JSON 去真正执行，把结果塞回对话，模型再给出最终答案。</p>
 <p>有一点非常关键：模型全程只是在「下指令」，真正执行工具的是你的代码，不是模型本身。这套「模型决策、代码执行」的运行时机制，就是我们常说的 <strong>Function Calling</strong>。</p>
-<h3>📝 详细解析</h3>
-<h4>原始 LLM 的世界，为什么不会调工具</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="llm">原始 LLM 的世界，为什么不会调工具</h4>
 <p>想象一个人从出生到成年，只生活在文字的世界里，读过几乎所有的书，却从没接触过任何工具，没用过锤子、没开过车、也没见过 API 是什么。你突然跟他说「去帮我查一下天气 API」，他最多只会用语言描述「我需要查天气 API 来获取数据……」，绝对不会真的去操作工具。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b903ee92c3-39f6cbe55a9afabf61f2288f.png" /></p>
 <p>大语言模型在预训练阶段经历的就是这样一个过程，学的是给定前面的文字预测下一个 token（token 可以理解为模型处理文字的最小单位，大致对应一个字或半个词），整个训练过程完全是在文本空间里进行的，模型从未见过「工具调用」这件事。所以哪怕你在 prompt 里写「你可以调用天气 API」，没经过专门训练的模型也只会生成一段自然语言描述，比如「我需要调用天气 API 来回答你」，而不是输出一段可以被程序解析的 JSON 调用请求。</p>
 <p>工具调用能力不是天生的，是后天「教」出来的。怎么教？靠两个阶段：<strong>SFT 教会怎么调，RLHF 教会什么时候调</strong>。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/e98e93df76-aff88a79ca40977b091d776b.png" /></p>
-<h4>第一阶段：SFT，让模型「见过」工具调用</h4>
+<h4 id="sft">第一阶段：SFT，让模型「见过」工具调用</h4>
 <p>SFT 是 Supervised Fine-Tuning（监督微调）的缩写，核心思路非常直接：给模型看大量正确的示例，让它学会模仿。就像培养一名新员工，前期让他看几百份填好的工单，他自然就学会了「遇到这类问题该怎么写工单、该走哪个流程」。</p>
 <p>要让模型学会工具调用，就要构造专门的训练数据。一条完整的训练样本长这样：</p>
 <p>首先是 <strong>System 消息</strong>，也就是工具说明书，列出模型现在有哪些工具可用，每个工具叫什么名、能做什么事、需要什么参数，模型从这里「认识」工具。接着是 <strong>User 消息</strong>，就是用户的提问，比如「北京今天天气怎么样？」。</p>
@@ -30,13 +30,13 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/90eecb4921-dd24ea229bb34f9e4e161f5f.png" /></p>
 <p>模型在几十万甚至上百万条这样的样本上反复训练，就学会了整套流程：识别工具定义、判断要不要调、输出格式规范的 JSON 请求。</p>
 <p>训练数据的来源通常有两种：人工标注，成本高但质量好，一般用于构造核心的种子数据；用更强的模型（比如 GPT-4）自动批量生成，再人工抽查，成本低、量大，是业界现在的主流做法。</p>
-<h4>SFT 的短板，会了，但不知道「该不该调」</h4>
+<h4 id="sft_1">SFT 的短板，会了，但不知道「该不该调」</h4>
 <p>SFT 让模型学会了「调工具」这个动作，但它不知道什么时候该调、什么时候不该调。你可以想象一个刚培训完的新员工，过于热情，每件事都想走流程，有人问他「1+1 等于几」，他也要去查手册，这明显多此一举，直接回答就行。</p>
 <p>为什么会这样？因为 SFT 的训练样本里，「该调的场景」占了绝大多数（毕竟我们就是要教它调工具），模型在模仿的过程中会过拟合这种「积极调用」的倾向，没看过足够多的「不该调」反例。再加上训练信号只告诉它「这是正确答案」，没有告诉它「为什么不该调也是一种正确」，所以它的边界感天然就弱。</p>
 <p>SFT 之后的模型也有类似的毛病：可能对简单问题也尝试调工具，或者遇到工具调用失败时不知道该怎么处理，行为边界感很弱。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/69d238cd8b-345a7c592182b41b730e15d8.png" /></p>
 <p>这个问题，需要第二阶段的 RLHF 来解决。</p>
-<h4>第二阶段：RLHF，用反馈建立边界感</h4>
+<h4 id="rlhf">第二阶段：RLHF，用反馈建立边界感</h4>
 <p>RLHF 是 Reinforcement Learning from Human Feedback（人类反馈强化学习）的缩写。如果说 SFT 是让新员工看示例学规范，那 RLHF 就是老板持续给他的工作表现打分，帮他建立判断力。</p>
 <p>它的流程分四步：</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b63f03d1cc-1c6818f6b2edf7ba12b49025.png" /></p>
@@ -49,7 +49,7 @@
 <p>经过这个过程，模型逐渐学会了更微妙的判断：能直接回答的就直接回答，不要多此一举调工具；需要实时数据、需要执行操作的，才去调。这个边界感是 SFT 给不了的，必须靠反馈信号来塑造。</p>
 <p>RLAIF（AI Feedback）是 RLHF 的变体，用另一个 AI 代替人类标注员打分，成本更低、速度更快，现在业界也很常用，效果和人工反馈相差不大。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b8271d65cb-f71cbafd0ac8efa99b946322.png" /></p>
-<h4>运行时，训练好之后怎么用</h4>
+<h4 id="_3">运行时，训练好之后怎么用</h4>
 <p>训练阶段结束，模型上线了。每次你的应用调用模型时，流程是这样的：</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6417f0be91-7722d0c8472ee28e46ef19ff.png" /></p>
 <p>首先，你的应用代码把「有哪些工具可用」打包成 JSON 格式（叫做 schema，也就是工具的说明书），连同用户的问题一起发给模型。比如告诉模型：「你现在有一个天气查询工具，接受 city 参数，返回该城市的实时天气。」</p>
@@ -65,17 +65,32 @@
 <p>接下来就轮到你的代码上场了。你的应用代码解析这段 JSON，找到对应的函数，真正去调天气 API，拿到实际数据。</p>
 <p>拿到结果之后，你把工具返回的结果（比如「北京今天晴，15°C，东北风3级」）塞回对话历史，再次调用模型，模型这才组织成一句话回答用户。</p>
 <p>这套「模型输出结构化调用请求 -&gt; 代码执行 -&gt; 结果喂回」的机制，有一个专有名词：<strong>Function Calling</strong>。换句话说，Function Calling 就是大模型工具调用能力在运行时的具体实现形式。</p>
-<h4>一个关键认知：模型只负责「决策」，不负责「执行」</h4>
+<h4 id="_4">一个关键认知：模型只负责「决策」，不负责「执行」</h4>
 <p>这是理解工具调用最重要的一点。</p>
 <p>模型在整个过程中只做了一件事：判断要调哪个工具、参数填什么，然后把这个决策用 JSON 格式输出出来。真正去跑函数、访问网络、查数据库的，是你写的宿主程序代码。</p>
 <p>这个分工设计得很合理：LLM 擅长理解意图和推理，但不应该有直接操作系统资源的权限；宿主程序负责执行，可以做权限控制、参数校验、执行沙箱等安全措施。这样的设计让工具调用既灵活又安全，是目前主流工具调用框架的核心设计原则。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/4517b5941d-36e6a86304e79a8bf69f0e46.png" /></p>
-<h3>🎯 面试总结</h3>
+<h3 id="_5">🎯 面试总结</h3>
 <p>回顾开头的面试对话，第一个雷是以为模型参数量够大就自然会调工具，这是把「语言涌现能力」和「工具调用能力」搞混了。工具调用需要输出结构化 JSON，这不是预训练能学到的，必须经过专项训练。</p>
 <p>第二个雷是只知道 SFT 而忽略了 RLHF，SFT 解决「会不会调」，RLHF 解决「该不该调」，两个阶段缺一不可。</p>
 <p>面试回答这道题，核心要讲清楚两个阶段各自的作用。</p>
 <p>SFT 通过大量包含完整工具调用流程的对话样本，让模型学会识别工具定义、判断要不要调、输出规范 JSON 的整套流程；RLHF 通过人类打分训练奖励模型，再用强化学习调整主模型，让它建立「能直接回答就不调工具」的边界感。</p>
 <p>另外要提到运行时的 Function Calling 机制，模型只负责决策输出 JSON，代码负责执行，这个分工设计是关键认知。</p>
 <p>如果能再补充 RLAIF 作为 RLHF 的低成本替代方案，就更完整了。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-tools:02",moduleId="xiaolin-tools";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_5">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-01.html">← 上一章</a><a href="chapter-03.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-tools:02",moduleId="xiaolin-tools";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

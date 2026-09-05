@@ -2375,8 +2375,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
     AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
-    # 反馈小部件注入的脚本清单（v 参数用于更新缓存）。
-    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=1", "/assets/feedback-widget.js?v=1"]
+    # 悬浮组件注入的脚本清单（v 参数用于更新缓存）：认证胶囊/反馈/主题切换。
+    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=1", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2392,7 +2392,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if suffix.endswith((".html", ".json", ".webmanifest")):
             self.send_header("Cache-Control", "no-store")
         elif suffix.endswith((".css", ".js")):
-            self.send_header("Cache-Control", "public, max-age=300, must-revalidate")
+            self.send_header("Cache-Control", "no-cache")   # 每次协商验证（304 秒回），保证部署后立刻新鲜
         elif suffix.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg",
                               ".ico", ".woff", ".woff2", ".ttf", ".mp4")):
             self.send_header("Cache-Control", "public, max-age=604800")
@@ -2462,7 +2462,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # 公开白名单：登录页、注册页、图标与健康检查。
         user = self.current_user()
         public_get = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
-        if user is None and decoded_path not in public_get:
+        # 字体非敏感且登录页也需要，放行（前缀判断）
+        public_prefixes = ("/assets/fonts",)
+        if user is None and decoded_path not in public_get                 and not decoded_path.startswith(public_prefixes):
             if decoded_path.startswith("/api/"):
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
             else:

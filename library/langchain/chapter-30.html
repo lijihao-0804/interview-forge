@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>服务化与并发：把 Demo 变成可调用后端 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">服务化与并发：把 Demo 变成可调用后端</span></nav><div class="module-meta">大模型应用 · 第 30 / 33 章</div><h1>服务化与并发：把 Demo 变成可调用后端</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>命令行中成功调用一次 Agent，只能证明基本链路可用。服务化还要处理输入校验、并发、超时、取消、会话隔离、错误映射、日志脱敏和优雅关闭。</p>
-<h3>30.1 服务边界</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>服务化与并发：把 Demo 变成可调用后端 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">服务化与并发：把 Demo 变成可调用后端</span></nav><div class="module-meta">大模型应用 · 第 30 / 33 章 · <span class="muted">更新于 2026-08-30</span></div><h1>服务化与并发：把 Demo 变成可调用后端</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>命令行中成功调用一次 Agent，只能证明基本链路可用。服务化还要处理输入校验、并发、超时、取消、会话隔离、错误映射、日志脱敏和优雅关闭。</p>
+<h3 id="301">30.1 服务边界</h3>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     C["客户端"] --&gt; API["FastAPI：校验/认证/限流"]
     API --&gt; A["LangChain Agent / Chain"]
@@ -10,7 +10,7 @@
     API -. request_id .-&gt; O["Trace / Metrics / Logs"]
     A -. run metadata .-&gt; O</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>FastAPI 不应直接接收任意模型名、任意 system prompt、工具列表或数据库过滤条件。客户端提供业务输入，服务端决定模型与权限。</p>
-<h3>30.2 最小异步 API</h3>
+<h3 id="302-api">30.2 最小异步 API</h3>
 <p>安装：</p>
 <div class="codehilite" data-lang="bash"><pre><code class="language-bash">pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span>fastapi<span class="w"> </span><span class="s2">&quot;uvicorn[standard]&quot;</span><span class="w"> </span>pydantic
 </code></pre></div>
@@ -124,14 +124,14 @@
 <p>这次请求依次发生：Pydantic 校验输入 → Semaphore 获取并发名额 → wait_for 启动 60 秒计时 → Agent 读取 thread 状态 → 模型生成 → Checkpointer 保存新状态 → FastAPI 按 ChatResponse 过滤并序列化输出。</p>
 <p>其中 30 秒的模型 <code>timeout</code> 限制单次供应商请求，60 秒限制整次 Agent 运行。后者可能包含多次模型和工具调用，因此两个超时不是重复配置。</p>
 <p>示例中的 <code>InMemorySaver</code> 仍只适合单进程学习。多 Worker 部署必须换共享持久 Checkpointer，否则同一 thread 的历史会随机落到不同进程。</p>
-<h3>30.3 thread ID 不是用户身份</h3>
+<h3 id="303-thread-id">30.3 thread ID 不是用户身份</h3>
 <p>示例为了简洁直接接收 thread ID，真实服务应做映射：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">登录身份 + 租户 + 客户端会话 ID
 → 服务端校验归属
 → 生成或查询内部 thread ID
 </code></pre></div>
 <p>若只要知道 thread ID 就能恢复对话，会形成越权读取风险。工具查询也必须使用认证中间件得到的真实用户与租户，不能信任模型或请求体声称的 <code>user_id</code>。</p>
-<h3>30.4 流式返回</h3>
+<h3 id="304">30.4 流式返回</h3>
 <p>SSE（Server-Sent Events）适合服务器单向发送 token。下面只演示模型文本流，避免把 Agent 的工具事件和 token 混为一种消息：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">asyncio</span>
 <span class="kn">import</span> <span class="nn">json</span>
@@ -175,7 +175,7 @@
 <li>citation：来源元数据。</li>
 </ul>
 <p>不要把原始内部事件不经筛选全部传给前端，其中可能包含工具参数、内部 Prompt 或敏感结果。</p>
-<h3>30.5 同步、异步和线程池</h3>
+<h3 id="305">30.5 同步、异步和线程池</h3>
 <table>
 <thead>
 <tr>
@@ -211,7 +211,7 @@
 </tbody>
 </table>
 <p>不要在 async 接口中直接调用耗时同步网络函数；它会阻塞事件循环。也不要无限 <code>asyncio.gather</code>，应使用 Semaphore 或工作队列限制并发。</p>
-<h3>30.6 工具的 HTTP 超时</h3>
+<h3 id="306-http">30.6 工具的 HTTP 超时</h3>
 <p>工具内部也要有独立超时，Agent 的总超时不能替代它：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">httpx</span>
 <span class="kn">from</span> <span class="nn">langchain.tools</span> <span class="kn">import</span> <span class="n">tool</span>
@@ -241,7 +241,7 @@
     <span class="p">}</span>
 </code></pre></div>
 <p>真实服务应复用 HTTP Client 连接池，而不是每次创建；这里写在函数内只是让示例自包含。URL 应由服务端固定或 Allowlist，避免 SSRF。</p>
-<h3>30.7 多实例部署必须共享什么</h3>
+<h3 id="307">30.7 多实例部署必须共享什么</h3>
 <table>
 <thead>
 <tr>
@@ -285,7 +285,7 @@
 </tbody>
 </table>
 <p>水平扩容前要移除对单进程内存状态的依赖。模型客户端、数据库池和 HTTP Client 应在应用生命周期内复用，并在关闭时释放。</p>
-<h3>30.8 生产错误分类</h3>
+<h3 id="308">30.8 生产错误分类</h3>
 <table>
 <thead>
 <tr>
@@ -338,7 +338,7 @@
 </tbody>
 </table>
 <p>重试次数、退避和 jitter 应集中配置。错误日志包含异常链，但外部响应不泄露堆栈和密钥。</p>
-<h3>30.9 可观测性字段</h3>
+<h3 id="309">30.9 可观测性字段</h3>
 <p>每次请求至少关联：</p>
 <ul>
 <li>request ID、trace ID、thread ID 的安全摘要；</li>
@@ -352,5 +352,20 @@
 <li>用户反馈。</li>
 </ul>
 <p>不要把用户原文、完整文档和密钥当成默认日志字段。对 Trace 设置访问控制、保留期和脱敏策略。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-29.html">← 上一章</a><a href="chapter-31.html">下一章 →</a></nav></main></div>
-<script>const contentId="langchain:30",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-mobile1"></script><script src="../assets/library-mermaid.js?v=20260830-mobile1"></script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#301">30.1 服务边界</a></li><li class="lv3"><a href="#302-api">30.2 最小异步 API</a></li><li class="lv3"><a href="#303-thread-id">30.3 thread ID 不是用户身份</a></li><li class="lv3"><a href="#304">30.4 流式返回</a></li><li class="lv3"><a href="#305">30.5 同步、异步和线程池</a></li><li class="lv3"><a href="#306-http">30.6 工具的 HTTP 超时</a></li><li class="lv3"><a href="#307">30.7 多实例部署必须共享什么</a></li><li class="lv3"><a href="#308">30.8 生产错误分类</a></li><li class="lv3"><a href="#309">30.9 可观测性字段</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-29.html">← 上一章</a><a href="chapter-31.html">下一章 →</a></nav></main></div>'
+<script>const contentId="langchain:30",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-p0-immersive"></script><script src="../assets/library-mermaid.js?v=20260906-p0-immersive"></script></body></html>

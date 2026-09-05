@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>附录 A：如何读懂前面的 LangChain 代码 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">附录 A：如何读懂前面的 LangChain 代码</span></nav><div class="module-meta">大模型应用 · 第 32 / 33 章</div><h1>附录 A：如何读懂前面的 LangChain 代码</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>这一附录不增加新的框架 API，而是把前面分散的代码重新翻译成自然语言。如果阅读代码时经常出现“每一行好像都认识，但不知道它们为什么要放在一起”的感觉，可以先读这一部分，再返回对应示例。</p>
-<h3>A.1 一条请求在 LangChain 中怎样流动</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>附录 A：如何读懂前面的 LangChain 代码 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">附录 A：如何读懂前面的 LangChain 代码</span></nav><div class="module-meta">大模型应用 · 第 32 / 33 章 · <span class="muted">更新于 2026-08-30</span></div><h1>附录 A：如何读懂前面的 LangChain 代码</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>这一附录不增加新的框架 API，而是把前面分散的代码重新翻译成自然语言。如果阅读代码时经常出现“每一行好像都认识，但不知道它们为什么要放在一起”的感觉，可以先读这一部分，再返回对应示例。</p>
+<h3 id="a1-langchain">A.1 一条请求在 LangChain 中怎样流动</h3>
 <p>先把模型调用看成普通的远程函数调用。<code>model</code> 是可复用的客户端对象，<code>invoke()</code> 才真正发起一次运行。LangChain 会把字符串、消息或提示词生成值转换为供应商需要的请求，再把供应商响应规范化为 <code>AIMessage</code>。</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">Python 输入
   → Prompt 或 Message
@@ -18,7 +18,7 @@
 <li><code>max_retries</code> 处理少量临时错误；认证失败和错误参数不能靠重试修复。</li>
 </ul>
 <p>创建模型对象与发送请求之所以分开，是因为客户端通常会复用连接。真实服务不应为每条消息重新创建模型客户端。</p>
-<h3>A.2 Prompt、Runnable 和 Chain 分别做什么</h3>
+<h3 id="a2-promptrunnable-chain">A.2 Prompt、Runnable 和 Chain 分别做什么</h3>
 <p>Prompt Template 的价值不是“让提示词看起来高级”，而是把稳定规则与运行时变量分开。例如系统规则可以固定，用户问题、语言和检索上下文则在运行时填入。这样更容易测试缺少变量、转义和不同输入组合。</p>
 <p>Runnable 是 LangChain 的统一执行协议。模型、提示词、输出解析器以及普通 Python 函数，只要被包装成 Runnable，就可以使用相似的调用形式：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">invoke：处理一个输入
@@ -34,7 +34,7 @@ stream / astream：逐步返回输出或事件
 <li>返回值是否正好符合下一组件的输入要求？</li>
 </ol>
 <p>许多 LangChain 错误不是模型能力问题，而是组件之间的数据形态接不上。例如 Prompt 返回消息值、Model 返回 <code>AIMessage</code>，而某个普通函数却假设输入一定是字符串。</p>
-<h3>A.3 结构化输出为何仍需要业务校验</h3>
+<h3 id="a3">A.3 结构化输出为何仍需要业务校验</h3>
 <p><code>with_structured_output(Course)</code> 主要解决“程序能否稳定拿到字段”。Pydantic 类承担数据契约，字段类型和 <code>Field</code> 限制承担第一层校验，模型包装器负责按该 Schema 请求和解析输出。</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">用户文字
   → 带 Schema 的模型调用
@@ -50,7 +50,7 @@ stream / astream：逐步返回输出或事件
 </ul>
 <p>结构化输出只能显著改善第一项。金额、库存、权限、数据库外键等事实仍要由确定性代码或权威数据源检查。一个结果即使成功构造成 Pydantic 对象，也不代表它可以直接触发付款、发信或修改数据库。</p>
 <p><code>Field(description=...)</code> 通常会成为模型可见 Schema 的一部分，所以描述应解释业务含义。<code>difficulty: int</code> 只告诉模型字段是整数；“难度，1 到 5，1 表示无前置知识”则能减少含义误判。</p>
-<h3>A.4 工具调用的本质：建议动作与执行权分离</h3>
+<h3 id="a4">A.4 工具调用的本质：建议动作与执行权分离</h3>
 <p>模型不会直接进入数据库或调用 Python 函数。它返回的是结构化的“调用建议”，大致类似：</p>
 <div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;multiply&quot;</span><span class="p">,</span>
@@ -69,7 +69,7 @@ stream / astream：逐步返回输出或事件
 </ul>
 <p>手工工具循环只有两个模型回合：第一回合模型请求工具；Python 执行工具并生成 <code>ToolMessage</code>；第二回合模型看到真实结果后形成回答。<code>tool_call_id</code> 相当于请求与响应的关联号，一次并行调用多个工具时尤其重要。</p>
 <p>为什么不直接把工具返回值展示给用户？简单计算当然可以。但通用 Agent 可能还要解释结果、组合多个来源，或根据结果继续选择下一步。结果送回模型后，决策循环才能继续。</p>
-<h3>A.5 <code>create_agent()</code> 究竟替你做了什么</h3>
+<h3 id="a5-create_agent">A.5 <code>create_agent()</code> 究竟替你做了什么</h3>
 <p><code>create_agent()</code> 并没有让模型获得无限自主权。它把手工工具循环编译成一个由 LangGraph 支撑的受控运行入口，并管理消息追加、工具分派、状态更新、流式事件和中间件。</p>
 <p>一次典型状态变化可以写成：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">初始：HumanMessage(用户目标)
@@ -83,7 +83,7 @@ stream / astream：逐步返回输出或事件
 <p>开发者仍然决定棋盘和规则：可用工具、系统指令、运行时上下文、最大调用次数、重试策略、审批条件和最终输出格式。模型只在这些边界内选择下一步。</p>
 <p><code>agent.invoke()</code> 的返回值是最终状态，而不是只有答案。<code>result["messages"][-1]</code> 只是方便取得最后一条消息。调试失败时必须查看完整消息或 Trace，才能回答：模型选了哪个工具、参数是什么、工具返回了什么、循环进行了几次。</p>
 <p>系统提示词中的“必须查询后回答”仍属于软约束。如果业务规定某一步绝不能跳过，就应在 Workflow、Middleware 或工具服务端强制执行，不能只相信模型遵守一句文字。</p>
-<h3>A.6 记忆不是模型自动学会了用户信息</h3>
+<h3 id="a6">A.6 记忆不是模型自动学会了用户信息</h3>
 <p>可以把模型比作每次接通后才开始工作的客服人员：上下文窗口是本次放在桌上的材料；checkpointer 是保存和重新取出材料的档案系统。若应用没有保存并重新提供历史，下一次请求对模型而言就是全新对话。</p>
 <p>示例中第一次使用某个 <code>thread_id</code> 调用后，checkpointer 保存该线程状态；第二次用同一标识调用时，运行时取出旧状态并追加新消息。换一个 <code>thread_id</code> 就是独立对话。</p>
 <p>这也说明线程标识是数据隔离边界的一部分。两个用户若错误复用同一 <code>thread_id</code>，可能发生上下文串线。生产系统应由服务端结合认证身份管理会话，不能把客户端随意传来的字符串直接当成可信隔离依据。</p>
@@ -121,7 +121,7 @@ stream / astream：逐步返回输出或事件
 </tbody>
 </table>
 <p>长对话不能无限追加。历史越长，费用和延迟越高，无关内容也会干扰模型。通常需要消息裁剪、摘要和按需读取长期记忆。</p>
-<h3>A.7 用两条流水线理解 RAG</h3>
+<h3 id="a7-rag">A.7 用两条流水线理解 RAG</h3>
 <p>教学代码常把建库和问答放在一个文件里，但它们本质上是两套不同生命周期的系统。</p>
 <p><strong>离线建库流水线：</strong></p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">原始文件 → Loader → Document → Splitter → Chunks
@@ -144,7 +144,7 @@ stream / astream：逐步返回输出或事件
 </ol>
 <p>RAG 有两个独立质量关口。第一是“正确证据是否被召回”，第二是“模型是否忠实使用证据”。最终答案错误时应先打印 <code>retrieved_docs</code>：若正确片段根本没出现，应改进解析、切块、查询、检索和重排；若证据已出现但模型误解，才应调整上下文格式、指令或模型。</p>
 <p><code>chunk_size</code>、<code>chunk_overlap</code> 和 <code>k</code> 都是需要通过评测确定的参数。块太小会切断语义，块太大则降低定位精度并浪费上下文；召回太少可能漏证据，召回太多会引入噪声。</p>
-<h3>A.8 怎样阅读完整知识库助手项目</h3>
+<h3 id="a8">A.8 怎样阅读完整知识库助手项目</h3>
 <p>完整项目不是几段代码的简单拼接。先按文件职责阅读，比从第一行顺序读到最后一行更容易：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">settings.py：系统使用哪些可配置参数
 ingest.py：资料怎样变成检索索引
@@ -173,7 +173,7 @@ ask：一次用户请求怎样进入和离开运行时
     A--&gt;&gt;App: 最终状态
     App--&gt;&gt;U: 显示答案与来源</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>这个示例采用 Agentic RAG，是为了展示工具、运行时上下文、中间件和线程状态如何组合。若业务规定每次回答都必须先查知识库，固定的 2-step RAG 通常更简单、更快、更可预测。框架示例展示的是一种能力，不等于所有项目都应使用相同架构。</p>
-<h3>A.9 遇到报错时按哪一层排查</h3>
+<h3 id="a9">A.9 遇到报错时按哪一层排查</h3>
 <p>不要看到错误就先修改 Prompt。可以按数据流从外向内定位：</p>
 <ol>
 <li><strong>环境层</strong>：虚拟环境是否正确，包版本和环境变量是否存在；</li>
@@ -187,7 +187,7 @@ ask：一次用户请求怎样进入和离开运行时
 <li><strong>生产层</strong>：检查并发、重试、幂等、日志脱敏和预算限制。</li>
 </ol>
 <p>LangSmith Trace 的价值就在于把这些层次展开。只看最后一句回答，无法区分是检索失败、工具失败、状态串线还是模型误判。</p>
-<h3>A.10 学完一段代码应能回答的问题</h3>
+<h3 id="a10">A.10 学完一段代码应能回答的问题</h3>
 <p>复制运行成功只是第一步。每个示例至少应能解释：</p>
 <ul>
 <li>输入对象和输出对象分别是什么；</li>
@@ -201,5 +201,20 @@ ask：一次用户请求怎样进入和离开运行时
 <li>换成生产数据库、向量库和并发服务时，哪些地方必须修改。</li>
 </ul>
 <p>能够回答这些问题，才算从“会调用 LangChain API”迈向“会设计 LLM 应用”。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-31.html">← 上一章</a><a href="chapter-33.html">下一章 →</a></nav></main></div>
-<script>const contentId="langchain:32",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-mobile1"></script><script src="../assets/library-mermaid.js?v=20260830-mobile1"></script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#a1-langchain">A.1 一条请求在 LangChain 中怎样流动</a></li><li class="lv3"><a href="#a2-promptrunnable-chain">A.2 Prompt、Runnable 和 Chain 分别做什么</a></li><li class="lv3"><a href="#a3">A.3 结构化输出为何仍需要业务校验</a></li><li class="lv3"><a href="#a4">A.4 工具调用的本质：建议动作与执行权分离</a></li><li class="lv3"><a href="#a5-create_agent">A.5 create_agent() 究竟替你做了什么</a></li><li class="lv3"><a href="#a6">A.6 记忆不是模型自动学会了用户信息</a></li><li class="lv3"><a href="#a7-rag">A.7 用两条流水线理解 RAG</a></li><li class="lv3"><a href="#a8">A.8 怎样阅读完整知识库助手项目</a></li><li class="lv3"><a href="#a9">A.9 遇到报错时按哪一层排查</a></li><li class="lv3"><a href="#a10">A.10 学完一段代码应能回答的问题</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-31.html">← 上一章</a><a href="chapter-33.html">下一章 →</a></nav></main></div>'
+<script>const contentId="langchain:32",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-p0-immersive"></script><script src="../assets/library-mermaid.js?v=20260906-p0-immersive"></script></body></html>

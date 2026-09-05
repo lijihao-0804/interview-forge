@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？</span></nav><div class="module-meta">大模型应用 · 第 9 / 12 章</div><h1>LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：LangGraph 相比 LangChain 有什么优势？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？</span></nav><div class="module-meta">大模型应用 · 第 9 / 12 章 · <span class="muted">更新于 2026-09-01</span></div><h1>LangGraph 相比于 LangChain 有哪些核心优势？更适配哪些 Agent 场景？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：LangGraph 相比 LangChain 有什么优势？</p>
 <p>🙋‍♂️我：LangChain 只能写线性 Chain，LangGraph 才支持分支、循环和 Agent。</p>
 <p>👔面试官：这还是早期教程里的印象。LangChain v1 的 <code>create_agent</code> 本身就是基于 LangGraph 构建的图运行时，标准 Agent loop 本来就有循环和条件路由。</p>
 <p>🙋‍♂️我：那 LangGraph 的优势就是多了一张流程图，复杂项目用它看起来更高级。</p>
@@ -7,7 +7,7 @@
 <p>🙋‍♂️我：懂了，只要项目要持久化、流式输出或记忆，就必须抛弃 LangChain，全部改成 LangGraph。</p>
 <p>👔面试官：又把上下层说成二选一了。LangChain Agent 已经继承这些底层能力。真正需要下沉到 LangGraph 的时机，是标准 Agent loop 不足以表达业务流程，而不是看到某个功能名就重写项目。</p>
 <p>这道题要回答好的关键，是把「功能有没有」换成「开发者需要把控制精确到哪一层」。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我会先纠正一个前提：LangGraph 和 LangChain 不是互斥的两套 Agent 框架。LangChain v1 提供模型、工具、中间件和预构建 Agent loop，<code>create_agent</code> 本身就运行在 LangGraph 上；LangGraph 是更低层的编排框架与运行时，让开发者直接控制 State、节点、边、路由、并行、子图、中断和恢复。</p>
 <p>因此，LangGraph 的核心优势不是「LangChain 没有这些能力」，而是把复杂 Agent 的运行过程变成显式、可持久化、可观察、可恢复的业务状态机。</p>
 <p>我们既可以用 <code>StateGraph</code> 声明拓扑和共享状态，也可以用 Functional API 在普通 Python 控制流上增加检查点与恢复能力。</p>
@@ -15,15 +15,15 @@
 <p>Checkpointer 保存线程内状态快照，Store 保存跨线程长期记忆；<code>interrupt()</code> 可以暂停任意业务节点；时间旅行可以从旧 checkpoint 重放或分叉；节点级容错则让失败路径也能被建模。</p>
 <p>如果需求只是常见的「模型选择工具 -&gt; 调用工具 -&gt; 返回模型」循环，我会优先使用 LangChain <code>create_agent</code>，再用 middleware 完成提示词、重试、护栏和审批等定制。</p>
 <p>只有当业务拓扑、恢复边界或多角色协作成为主要复杂度时，我才直接使用 LangGraph，也常把 LangChain Agent 作为图中的节点或子图复用。</p>
-<h3>📝 详细解析</h3>
-<h4>两者为什么不对立？</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="_3">两者为什么不对立？</h4>
 <p>很多林友听到「相比」两个字，就会下意识列一张功能表：LangChain 有模型和工具，LangGraph 有状态、循环和持久化。这个答法看似清楚，实际会制造一个错误前提，好像用了 LangChain 就没有 LangGraph 的运行能力。</p>
 <p>打个比方，LangChain 像一辆已经装好方向盘、刹车和导航的汽车，日常驾驶直接用就行；LangGraph 更像开放底盘、动力分配和道路控制系统。当业务真的需要多路调度、途中停车、事故恢复和路线回放时，底层控制才会成为核心价值。</p>
 <p>对应到开发中，LangChain 帮我们快速获得一个常见形态的 Agent；LangGraph 让我们继续向下控制完整业务流程，例如任务在哪暂停、失败后从哪恢复、过程如何持续反馈给用户。</p>
 <p>截至 2026 年 7 月，官方也把 LangChain 定位为高层 Agent 框架，把 LangGraph 定位为低层编排框架与运行时。LangChain v1 的 <code>create_agent</code> 会构建一个基于 LangGraph 的图运行时，所以两者不是互斥关系。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/5e1b9102c9-f615ed6bcc6f2885c783bd64.png" /></p>
 <p>因此，后面提到的持久化、流式输出和人工介入，并不是在说 LangChain Agent 无法获得这些能力。真正的优势是，直接使用 LangGraph 时，我们能决定这些能力放在哪个节点、围绕哪些状态生效、失败后从哪里恢复，以及不同子流程如何组合。</p>
-<h4>为什么要把流程与状态摊开？</h4>
+<h4 id="_4">为什么要把流程与状态摊开？</h4>
 <p>为什么标准工具调用 Agent 一复杂，就容易让人失去控制？因为模型通常既在理解问题，又在决定下一步做什么。</p>
 <p>流程只有两三个工具时问题不大。可一旦加入权限校验、并行取证、质量评估、人工审批和失败补偿，把所有规则塞进 Prompt，就等于把业务流程交给一个概率模型临场发挥。</p>
 <p>LangGraph 的核心价值，是让确定性规则与模型决策各自待在合适的位置。需要模型判断的步骤交给 Agent，需要严格执行的权限、金额阈值、审批顺序和结束条件写成节点与边。这样模型仍然有自主性，但自主性被放在明确的护栏里。</p>
@@ -34,7 +34,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/017c799560-32ff483edf1e090110bc04b6.png" /></p>
 <p>这种显式状态还有一个工程上的好处：我们可以把输入、输出和内部状态分开。外部请求只提交用户问题，内部节点维护证据、风险分、重试次数和审批意见，最后只返回对外结果。复杂流程的中间变量不必全部塞进消息历史，也不必让每个节点看到所有数据。</p>
 <p>不过，自由度也意味着责任。State 字段怎么设计，并行写入如何合并，节点边界切多细，都要由开发者决定。LangGraph 不会因为用了图就自动让流程合理，错误的 State 设计照样会造成状态膨胀、并发覆盖和难以维护。</p>
-<h4>两种编排 API 怎么选？</h4>
+<h4 id="api">两种编排 API 怎么选？</h4>
 <p>提到 LangGraph，很多人只知道 <code>StateGraph</code>。当前官方还提供 Functional API，两者共享同一套运行时能力，但编程方式不同。</p>
 <p>如果流程有复杂分支、并行汇合、多 Agent 路由，或者团队需要直观看清每条路径，Graph API 更合适。开发者声明 State、Node 和 Edge，业务拓扑非常明确，Studio 里也更容易沿着节点观察状态变化。</p>
 <p>如果团队已经有一大段普通 Python 流程，只是希望增加检查点、任务恢复和人工暂停，Functional API 往往更省改造成本。<code>@entrypoint</code> 表示工作流入口，<code>@task</code> 把有副作用或非确定性的操作变成可记录任务，流程仍然可以写普通的 <code>if</code>、<code>for</code> 和函数调用。</p>
@@ -75,7 +75,7 @@
 </tr>
 </tbody>
 </table>
-<h4>流程跨小时后如何继续？</h4>
+<h4 id="_5">流程跨小时后如何继续？</h4>
 <p>一个 Agent 运行几十秒，进程挂了可以让用户重试。可如果它要运行几小时，期间已经查了数据库、调用了外部服务，还在等审批，重新从第一步开始就不只是浪费 token，还可能重复发邮件、重复创建订单。</p>
 <p>LangGraph 的 persistence 会在图执行过程中保存 checkpoint，并按 <code>thread_id</code> 组织线程状态。这样一个运行可以暂停，甚至服务重启后再从已保存状态恢复。官方把 durable execution 作为核心能力，重点不只是「落盘」，而是把任务结果、状态快照和恢复位置纳入运行时。</p>
 <p>这里要说清两个很容易混淆的概念。</p>
@@ -85,14 +85,14 @@
 <p>但 durable execution 不是数据库开关。恢复时，节点里的代码可能重新执行；从旧 checkpoint 重放时，后续模型调用和 API 请求也会再次发生。</p>
 <p>因此，外部副作用必须有幂等保护，例如使用业务幂等键、upsert、发送记录或先查后写。复杂节点还应该把非确定性操作和副作用划分成更清楚的恢复边界。</p>
 <p>换句话说，LangGraph 能提供可靠执行的基础设施，却不能替业务自动发明幂等语义。面试时如果只说「加 Checkpointer 就绝对不会重复执行」，反而暴露了对恢复机制理解不够。</p>
-<h4>人工怎样进入任意一步？</h4>
+<h4 id="_6">人工怎样进入任意一步？</h4>
 <p>Agent 真正进入生产系统后，完全自治往往不是终点。退款、付款、删库、发送正式邮件、发布内容等动作，需要人看一眼；有些流程还要等人工补充材料、修改状态，甚至等待几天后再继续。</p>
 <p>LangGraph 的 <code>interrupt()</code> 可以放在节点内部任意位置。当代码触发中断时，运行时保存状态，并把一个可序列化的中断载荷交给外部系统。流程可以一直等待，之后使用相同 <code>thread_id</code> 和 <code>Command(resume=...)</code> 恢复，外部输入就成为 <code>interrupt()</code> 的返回值。</p>
 <p>这比只支持「确认或取消」更灵活。审核员可以批准、拒绝，也可以修改金额、补充证据或给出反馈，后续路由再根据这份输入决定去哪。多级审批也可以拆成多个节点，让每个角色只看到自己需要的信息。</p>
 <p>LangChain v1 已经有 <code>HumanInTheLoopMiddleware</code>，如果需求只是对若干敏感 Tool Call 做批准、编辑或拒绝，它通常更省事。LangGraph 的优势出现在审批对象不是一个标准工具调用，或者暂停点要嵌进更长的业务工作流时。</p>
 <p>还有一个必须主动说的坑：节点恢复时会从节点开头重新执行，而不是从 <code>interrupt()</code> 那一行继续跑。因此，放在中断之前的副作用也要幂等，<code>interrupt()</code> 的调用顺序不要随意改变，中断载荷应保持可序列化。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/4766c7ed83-a8a36dbf9cbefeb80393a230.png" /></p>
-<h4>失败后为什么不必整段重跑？</h4>
+<h4 id="_7">失败后为什么不必整段重跑？</h4>
 <p>传统脚本失败后，开发者常见的选择只有两个：整段重跑，或者手工改数据库再祈祷流程能继续。LangGraph 通过 checkpoint、节点边界和错误策略，把失败处理变成工作流的一部分。</p>
 <p>当前官方文档把节点失败处理拆成可组合的三层：Retry Policy 负责按异常类型和退避策略重试，Timeout 限制单次尝试时间，Error Handler 在重试耗尽后接管错误。处理函数还可以返回 <code>Command</code>，一边更新错误状态，一边把流程送往降级、补偿或人工处理节点。</p>
 <p>并行节点失败时又会怎样？LangGraph 会保存同一步中已经成功完成节点的结果。恢复时，成功分支不必全部重跑，只重试失败部分。</p>
@@ -101,7 +101,7 @@
 <p>它适合复现 Agent 为什么走错路、尝试不同人工决策，或者修正错误的中间状态。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/0e44b80fe2-ef7a8178b6edf3548a88d87d.png" /></p>
 <p>这里也要避免夸大。Time travel 不是把程序时光倒流后原样播放录像。checkpoint 之前的节点会跳过，之后的节点会重新执行，因此模型输出、网络响应和外部副作用可能不同。它提供的是「可定位、可重放、可分叉」的调试基础，不是自动撤销现实世界已经发生的操作。</p>
-<h4>复杂任务如何并行又汇合？</h4>
+<h4 id="_8">复杂任务如何并行又汇合？</h4>
 <p>深度研究类任务为什么适合图？因为它往往不是一个 Agent 从头想到尾，而是先拆主题，再并行搜索多个来源，随后交叉验证、合并证据、发现空白后继续补搜，最后统一写报告。</p>
 <p>Graph API 支持把一个任务拆成多条并行分支，再把结果汇合回来。如果任务数量在运行时才能确定，可以使用 <code>Send</code> 动态创建分支。</p>
 <p>并行节点更新同一个 State 字段时，需要通过 Reducer 明确合并方式，不能指望最后写入者碰巧正确。</p>
@@ -111,13 +111,13 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/41591a5336-5154acd742099d62098d9e15.png" /></p>
 <p>不过，多 Agent 不等于效果必然更好。角色越多，提示词、上下文交接、错误定位和 Token 成本越高。</p>
 <p>很多交接场景使用单 Agent 加 middleware 会更简单。只有角色需要不同工具、不同状态结构、独立生命周期，或者确实需要并行和跨团队维护时，子图才值得引入。</p>
-<h4>运行中怎样持续看见进度？</h4>
+<h4 id="_9">运行中怎样持续看见进度？</h4>
 <p>复杂 Agent 常常不是慢在最后回答，而是慢在搜索、文件处理、子 Agent 调用和人工等待。如果前端只显示一个转圈图标，用户不知道系统卡住了还是仍在工作。</p>
 <p>LangGraph 的 streaming 不只有模型 Token。它还能输出每步 State 更新、模型消息、自定义进度、checkpoint 和任务状态。</p>
 <p>产品界面可以展示「正在查询政策库」「已完成 3/5 个来源」「等待财务审批」，开发者则能观察哪个节点更新了什么、哪个任务失败。这样，底层事件才真正变成用户能理解的进度。</p>
 <p>LangChain Agent 因为运行在 LangGraph 上，也能使用相同的底层流式能力。直接使用 LangGraph 的优势，仍然是节点和业务阶段由我们定义，所以流式事件可以与产品进度条、审计日志和告警规则精确对应。</p>
 <p>这种可观察性与 LangSmith tracing、Studio 配合后更有价值。开发者可以查看实际走过的节点路径、状态变更和耗时，复杂流程不再只剩一长串难以还原的模型日志。</p>
-<h4>状态如何走向生产部署？</h4>
+<h4 id="_10">状态如何走向生产部署？</h4>
 <p>长时间运行的 Agent 不能只靠进程内列表保存状态，也不能把用户偏好和当前任务进度混进一个向量库。LangGraph 将线程内状态与跨线程长期资料分开后，系统边界会清楚很多。</p>
 <p>短期记忆跟随 State 和 Checkpointer，由 <code>thread_id</code> 隔离，适合当前会话消息、已完成步骤和审批上下文。</p>
 <p>长期记忆进入 Store，按 namespace 与 key 组织，用来召回用户偏好和历史事实。生产环境还要使用数据库后端，并补齐租户隔离、保留期限、删除更正与敏感信息治理。</p>
@@ -125,7 +125,7 @@
 <p>团队可以自行托管并接自己的 Checkpointer、Store 和队列，也可以使用托管的 Agent Server。后者把图、持久化数据库与任务队列组合起来，更适合后台运行、流式交互和有状态长任务。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/de65e0cace-dd6151d9402cd2d70c1d1cb1.png" /></p>
 <p>这套部署能力也是为什么 LangGraph 适合长任务，但不要说成「用了 LangGraph 就自动高可用」。自托管时，数据库、任务队列、Worker 扩缩容、重试策略、监控和数据保留都仍然是团队责任。即使使用托管平台，也需要做容量评估、幂等设计和故障演练。</p>
-<h4>完整流程示例</h4>
+<h4 id="_11">完整流程示例</h4>
 <p>假设我们要做一个采购 Agent。申请提交后，要并行做预算检查和合规检查，两个结果齐了才能进入人工审批，审批通过才调用采购系统，拒绝则结束。这个流程里，模型可以帮助理解材料，但顺序与权限不能交给模型自由发挥。</p>
 <p>下面用简化代码表达核心结构。示例重点是图的控制语义，不包含真实模型、数据库和鉴权实现。</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">TypedDict</span>
@@ -226,13 +226,13 @@
 </code></pre></div>
 <p>这段代码体现了四件事：业务拓扑是显式的，两项检查能并行且有明确汇合点，人工审批可以跨时间暂停，执行动作有业务幂等键。真正上线时，还要给外部查询增加 Retry Policy 与 Timeout，给执行失败设计补偿或人工接管路径，并把 InMemorySaver 换成持久化实现。</p>
 <p>如果用 LangChain，也不是不能实现这个系统。更自然的组合通常是：用 <code>create_agent</code> 做「材料理解」或「异常解释」节点，外层采购流程仍由 <code>StateGraph</code> 控制。这样高层 Agent 抽象和低层业务编排各司其职。</p>
-<h4>哪些场景适合 LangGraph？</h4>
+<h4 id="langgraph">哪些场景适合 LangGraph？</h4>
 <p>理解了前面的能力，场景判断就不用死记。我们只要先问一句：这个系统最难的是「让模型会用工具」，还是「让整个任务可靠地走完一条复杂路线」？</p>
 <p>如果难点只是让模型从几个工具中做选择，标准 Agent 往往已经足够。可一旦业务顺序不能交给模型自由发挥，问题就变了。理赔、退款、采购、合同审核和生产变更都有明确阶段、权限与审批点，模型只能参与理解和判断，真正的路线必须由确定性规则控制。LangGraph 的价值，就是把模型能力嵌进业务流程，而不是让 Prompt 充当流程引擎。</p>
 <p>路线明确以后，再看它是否会跨时间运行。深度研究、报表生成、代码迁移和跨系统工单可能持续数十分钟到数天，中间还要等待人或外部事件。这类任务需要 checkpoint、interrupt 和 durable execution 保住进度，否则每次等待或故障都可能让流程从头再来。</p>
 <p>任务继续变复杂时，单条路线还会长出并行分支。Planner 临时拆出多个研究主题，各分支分别搜索、抽取与验证，再用 Reducer 汇总证据；多个 Agent 也可能因为拥有不同工具、状态或团队边界而组成子图。此时 <code>Send</code>、fan-out、fan-in 和 subgraph 不是为了炫技，而是在表达真实存在的并发与协作关系。</p>
 <p>最后再看团队是否需要干预中间状态。复杂 RAG 会在证据不足时改写查询并重新检索，模型走错路线时也需要查看 checkpoint、修改状态后重放。只看最终答案已经无法解释问题时，显式节点、状态历史和分叉能力才会真正转化为调试价值。</p>
-<h4>哪些场景不必用 LangGraph？</h4>
+<h4 id="langgraph_1">哪些场景不必用 LangGraph？</h4>
 <p>LangGraph 更底层，不等于更适合所有项目。一个只需要查天气、查订单、总结文档的标准工具调用 Agent，使用 <code>create_agent</code> 往往更快、更短，也更符合团队认知。</p>
 <p>动态提示词、模型切换、工具过滤、消息摘要、重试、护栏和敏感工具审批，优先看看 LangChain middleware 能不能解决。</p>
 <p>如果流程只有固定的 Prompt、模型和解析器，也不一定需要 Agent，更不用为了「图」而引入 LangGraph。普通函数、LCEL 或一个队列任务可能就够了。</p>
@@ -295,14 +295,14 @@
 </table>
 <p>最稳妥的选型路径通常是渐进式的。先用 LangChain 搭出一个能工作的 Agent，当 middleware 已经开始承担业务路由、状态字段越来越多、任务必须跨时间恢复时，再把外围流程下沉到 LangGraph。已有 Agent 不必推倒重来，可以直接成为图里的节点或子图。</p>
 <p>最后再提醒一个常见误区：图越复杂，不代表系统越智能。节点过细会增加 checkpoint、序列化和维护成本，节点过粗又会降低恢复粒度。真正成熟的设计，是根据副作用、重试、人工介入和可观测性来划分边界，而不是追求节点数量。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_12">🎯 面试总结</h3>
 <p>回答这道题时，我会先把关系说准：LangChain v1 的 Agent 本身构建在 LangGraph 上，所以两者不是互斥框架。LangGraph 的优势不是凭空多出持久化、流式输出和人工介入，而是让开发者从高层 Agent loop 下沉，显式控制整个有状态业务流程。</p>
 <p>接着我会抓住三条主线。第一是控制，State、节点、边和确定性规则都能进入执行拓扑。第二是可靠，checkpoint、interrupt 和节点级容错让长任务可以暂停与恢复。</p>
 <p>第三是工程化，流式事件、短期与长期记忆以及部署服务，可以支撑有状态、长时间运行的生产系统。</p>
 <p>场景上，LangGraph 更适合高风险审批、跨小时或跨天任务、并行深度研究、多 Agent 协作、自纠错 RAG 和需要精确调试的复杂工作流。它尤其适合把确定性步骤与 LLM 驱动步骤混在一张图里，让模型负责需要判断的部分，让业务规则负责不能出错的部分。</p>
 <p>最后给出边界：标准工具调用 Agent 优先用 LangChain <code>create_agent</code>，简单审批优先用 middleware。只有当业务拓扑、状态作用域、恢复边界或多角色协作成为主要复杂度时，才直接使用 LangGraph。</p>
 <p>真实项目常见的成熟方案不是二选一，而是让 LangChain Agent 成为 LangGraph 中可复用的节点或子图。</p>
-<h3>📚 参考资料</h3>
+<h3 id="_13">📚 参考资料</h3>
 <ul>
 <li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph 官方文档：Overview</a></li>
 <li><a href="https://docs.langchain.com/oss/python/langchain/agents">LangChain 官方文档：Agents</a></li>
@@ -318,5 +318,20 @@
 <li><a href="https://docs.langchain.com/oss/python/langgraph/add-memory">LangGraph 官方文档：Memory</a></li>
 <li><a href="https://docs.langchain.com/langsmith/agent-server">LangSmith 官方文档：Agent Server</a></li>
 </ul>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-langchain:09",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_12">🎯 面试总结</a></li><li class="lv3"><a href="#_13">📚 参考资料</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-langchain:09",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

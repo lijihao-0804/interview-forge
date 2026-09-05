@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></nav><div class="module-meta">大模型应用 · 第 14 / 22 章</div><h1>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：来讲讲大模型为什么需要位置编码？sin/cos、RoPE、ALiBi 这几种各有什么区别？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></nav><div class="module-meta">大模型应用 · 第 14 / 22 章 · <span class="muted">更新于 2026-09-01</span></div><h1>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：来讲讲大模型为什么需要位置编码？sin/cos、RoPE、ALiBi 这几种各有什么区别？</p>
 <p>🙋‍♂️我：位置编码就是让模型知道每个词在第几个位置，用 sin 和 cos 函数算一下加到 token embedding 上就行。</p>
 <p>👔面试官：……「加到 embedding 上」是怎么加？是直接做加法还是别的什么操作？为什么要用 sin 和 cos 而不是 1, 2, 3, 4 这种简单序号？再说，RoPE 你也是「加到 embedding 上」吗？那它不就和 sin/cos 一样了？</p>
 <p>🙋‍♂️我：哦哦，RoPE 是相对位置编码，跟 sin/cos 不一样，是给 Q 和 K 做旋转。</p>
@@ -7,15 +7,15 @@
 <p>🙋‍♂️我：呃……ALiBi 我有点忘了……反正都是位置编码嘛，效果应该差不多吧？</p>
 <p>👔面试官：「效果差不多」？那为什么主流模型都换成 RoPE 了？为什么长上下文外推 RoPE 比 sin/cos 强？为什么 ALiBi 有它的支持者但没成主流？这些问题没搞清楚，面试就是被怼。回去补一下。</p>
 <p>从这几个反问里能听出，位置编码这道题真正想问的是「为什么 LLM 不用 sin/cos 而都跑去用 RoPE 了」。三种方案的设计思路、各自的外推上限、对长上下文的影响，把这条主线讲透，分高低自然就出来了。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我理解位置编码要解决的问题，本质上是 Self-Attention 的「位置盲」缺陷。Attention 的计算是对称的，不管词序怎么变，注意力分数都一样。「我打你」和「你打我」对模型来说是一回事，所以必须显式注入位置信息。</p>
 <p>三种主流位置编码各有不同的设计哲学。</p>
 <p>第一种是 <strong>sin/cos 绝对位置编码</strong>（原始 Transformer 用的）。给每个位置算一组固定的 sin/cos 值，加到 token embedding 上。优点是简单、不需要训练参数；缺点是「绝对位置」太死板，模型实际关心的是「相对距离」，而且训练时见过的最长位置之外的位置（比如训练 2K，推理时上 4K），效果会断崖下跌。</p>
 <p>第二种是 <strong>RoPE（旋转位置编码）</strong>。它不是把位置信息「加」到 embedding 上，而是「旋转」Q 和 K 向量。每个位置对应一个旋转角度，位置越靠后旋转的角度越大。两个 token 做注意力时，它们 Q/K 的点积自然带上了「相对距离」的信息。优点是相对位置直接编进了点积里、长上下文外推能力强，配合 NTK、YaRN 等扩展技巧，以及必要的继续训练或长上下文校准，可以把上下文推到更长。所以 Llama、Qwen、DeepSeek 等主流开源模型大量使用 RoPE。</p>
 <p>第三种是 <strong>ALiBi（Attention with Linear Biases）</strong>。最简单粗暴，直接在注意力分数里加一个「距离惩罚」，离得越远扣分越多，斜率随 head 不同。优点是不引入任何可学习参数、长上下文外推天然就好；缺点是表达力弱一些，对位置的精细建模不如 RoPE。MosaicML 的 MPT、BLOOM 用过 ALiBi，但没成主流。</p>
 <p>最关键的一句话是，<strong>主流大模型几乎全部选择了 RoPE</strong>，因为它在「相对位置编码 + 长上下文外推 + 兼容现代推理优化」三个维度上都最均衡。</p>
-<h3>📝 详细解析</h3>
-<h4>为什么 Attention 必须有位置编码</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="attention">为什么 Attention 必须有位置编码</h4>
 <p>要理解位置编码，得先搞清楚 Attention 本身有什么毛病。</p>
 <p>Self-Attention 的核心计算是 <code>softmax(QK^T/√d) · V</code>，每个 token 通过 Q 去和所有 token 的 K 做点积、算注意力权重，然后按权重加权聚合所有 token 的 V。这个过程有一个致命特点：<strong>它是对位置不敏感的</strong>，也就是俗称的「位置盲」。</p>
 <p>什么意思呢？看个例子。</p>
@@ -32,7 +32,7 @@
 <li><strong>能泛化到长序列</strong>，最好支持外推到训练时没见过的长度</li>
 </ul>
 <p>带着这三个要求，再来看三种主流方案就好理解了。</p>
-<h4>sin/cos 绝对位置编码：原始 Transformer 的方案</h4>
+<h4 id="sincos-transformer">sin/cos 绝对位置编码：原始 Transformer 的方案</h4>
 <p>2017 年的 Transformer 论文用的就是 sin/cos 位置编码，简称 <strong>Sinusoidal PE</strong>。它的核心思路是用一组不同频率的 sin/cos 函数，给每个位置生成一个独特的「指纹向量」。</p>
 <p>公式不展开背，直觉上这样理解。模型 embedding 维度有 d 维（比如 d=512），把这 d 维分成 d/2 对，每对用一组 sin/cos：</p>
 <ul>
@@ -52,14 +52,14 @@
 <p>虽然理论上 sin/cos 可以算任意长度，但实际效果会在训练时见过的最长位置之外迅速恶化。如果模型只在 2K 长度上训练过，推理时给它 4K 输入，模型表现会断崖下跌。原因是模型在训练时只学过「2K 以内的相对位置关系」，超出 2K 的相对距离它从来没见过，注意力权重的分布会乱掉。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/41d59344b1-701fd2cecab3c55235cf3ba6.png" /></p>
 <p>所以 sin/cos 编码在小模型时代还行，到了大模型时代（要支持几十 K 甚至上百 K 长上下文）就明显不够用了。</p>
-<h4>绝对位置 vs 相对位置：模型真正想要什么</h4>
+<h4 id="vs">绝对位置 vs 相对位置：模型真正想要什么</h4>
 <p>在讨论 RoPE 之前，先想一个特别生活化的问题：<strong>你跟别人介绍你坐在哪儿，是说「我坐在前排第 3 个座位」，还是说「我坐在 XX 旁边」？</strong></p>
 <p>大部分时候你会选第二种，因为「相对位置」比「绝对位置」更有信息量。同样在 NLP 里，模型理解语言时关心的也是相对位置，不是绝对位置。</p>
 <p>举个例子。中文里「主语动词宾语」这种句法关系，关键的不是「主语在第 3 位、动词在第 5 位」这种绝对编号，而是「主语和动词之间隔了 2 个词」这种相对距离。一句话不管前面加了多少修饰语、语气词，主语和动词的相对关系是稳定的。同样的「我吃饭」，不管你前面加「今天」「中午」「饿了所以」，主谓宾的相对距离都没变。</p>
 <p>绝对位置编码（比如 sin/cos）的问题就在这里。它给每个位置发一个独立的「身份证」，要让模型自己从「位置 3 的身份证」和「位置 5 的身份证」推断出「相对距离是 2」。这个推断完全靠模型在训练里慢慢碰运气学到，没有显式的归纳偏置。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/7cf15ad2d6-68ad20edbe64d1c532286e3c.png" /></p>
 <p>相对位置编码的思路就是把「相对距离」这个信息显式地编进注意力计算里，让模型不用自己算。具体做法是让两个 token 的位置编码只取决于它们的差值 m-n，跟 m 和 n 各自的绝对值无关。这就是 RoPE 和 ALiBi 共同的出发点，它们走的是不同的实现路线，但目标一致。</p>
-<h4>RoPE：用旋转把相对位置编进点积</h4>
+<h4 id="rope">RoPE：用旋转把相对位置编进点积</h4>
 <p>RoPE（Rotary Position Embedding，旋转位置编码）是 2021 年中国学者苏剑林（@bojone）提出的，现在已经是大模型的标配。核心思路一句话：<strong>不把位置信息加到 embedding 上，而是旋转 Q 和 K 向量</strong>。</p>
 <p>什么意思？</p>
 <p>在 Attention 计算里，每个 token 都会被投影成 Q（Query）和 K（Key）。RoPE 在这一步动手脚：每个 token 的 Q/K 向量根据它的位置 m，被旋转一个对应角度 mθ（θ 是预设常数）。位置 0 的 token 不旋转，位置 1 的旋转 θ，位置 2 的旋转 2θ，依此类推。</p>
@@ -81,7 +81,7 @@
 <li><strong>GLM 系列</strong></li>
 </ul>
 <p>可以说 RoPE 已经是大模型架构的事实标准。</p>
-<h4>ALiBi：直接给注意力加距离惩罚</h4>
+<h4 id="alibi">ALiBi：直接给注意力加距离惩罚</h4>
 <p>ALiBi（Attention with Linear Biases）是另一种相对位置编码方案，2022 年提出，思路比 RoPE 更暴力：<strong>根本不动 Q、K、V，直接在注意力分数里加一个「距离惩罚项」</strong>。</p>
 <p>具体做法：在 <code>softmax(QK^T)</code> 这一步之前，给每对 token 的注意力分数加上一个偏置项，偏置值是 <code>-m × |i-j|</code>，其中 |i-j| 是两个 token 之间的距离，m 是一个固定的斜率（每个 head 不同）。</p>
 <p>直观理解：离得越远，注意力分数被扣得越多，模型越倾向于关注近邻的 token。每个 head 用不同的斜率，等于让不同的 head 关注不同范围的距离（有的 head 关注近邻，有的 head 关注远处）。</p>
@@ -104,7 +104,7 @@
 <li><strong>BLOOM 的某些版本</strong></li>
 </ul>
 <p>但这些模型都不是主流大模型，ALiBi 没能在大厂主力模型上推广开。</p>
-<h4>三种方案对比：为什么 RoPE 赢了</h4>
+<h4 id="rope_1">三种方案对比：为什么 RoPE 赢了</h4>
 <p>把三种方案放到一起比较：</p>
 <table>
 <thead>
@@ -159,7 +159,7 @@
 <p><strong>第二，相对位置 + 表达力的平衡</strong>。ALiBi 虽然外推也好，但表达力不够；sin/cos 表达力够，但外推差。RoPE 是唯一兼顾两者的方案。</p>
 <p><strong>第三，工程兼容性</strong>。RoPE 只在 Q/K 上做旋转，不改变其他计算，和 KV Cache、Flash Attention、MQA/GQA 都能无缝叠加。这一点对工业界部署至关重要。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/2c6a725f8e-4e4f6041f0b4105ecbe367cd.png" /></p>
-<h4>拓展：长上下文外推（NTK / YaRN 简介）</h4>
+<h4 id="ntk-yarn">拓展：长上下文外推（NTK / YaRN 简介）</h4>
 <p>最后简单提一下 RoPE 的外推扩展技巧，因为这一块面试时容易被追问。</p>
 <p>RoPE 训练时见过 2K，怎么推到 100K？直接喂 100K 输入是不行的，因为旋转角度超过 2K 之外，模型从来没见过那么大的角度，效果还是会衰减。所以业界搞出了几个「调整 RoPE 频率参数」的技巧：</p>
 <ul>
@@ -169,10 +169,25 @@
 </ul>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ea1bcb5666-bf01aafb77072cc20155a993.png" /></p>
 <p>需要强调的是，这些外推技巧有些可以在推理时直接改 RoPE 参数就看到收益，但要做到稳定的 100K+ 长上下文，很多模型还会配合长上下文继续训练、校准数据或专门的评测筛选。RoPE 在长上下文时代地位稳固，不是因为它能无成本无限外推，而是因为它给了社区一个很好调、很好扩展的基础。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_3">🎯 面试总结</h3>
 <p>回到开头那段对话，问到位置编码，最重要的是先讲清楚为什么需要它。Self-Attention 是「位置盲」的，「我打你」和「你打我」算出来的注意力是一样的，所以必须显式注入位置信息。而且不能直接用 1, 2, 3, 4 这种序号，因为数值范围会破坏 embedding，长序列还没法泛化。这一句铺垫先讲到，面试官就知道你理解为什么需要位置编码这件事。</p>
 <p>讲完铺垫之后，再把三种主流方案的设计哲学讲明白。sin/cos 是绝对位置编码，加到 token embedding 上，简单但长上下文外推差；RoPE 是相对位置编码，通过旋转 Q/K 向量把相对距离编进点积，外推能力强，是当前主流；ALiBi 是另一种相对位置编码，直接在注意力分数上加距离惩罚，零参数极简，但表达力弱、局部偏置过强，没成主流。三种方案的设计哲学和工业界采用情况都点出来，体现你对这条技术路线有完整的视角。</p>
 <p>最关键的一句话是：<strong>RoPE 赢在「相对位置 + 长上下文扩展 + 工程兼容性」三个维度的均衡</strong>。配合 NTK Scaling、YaRN 等扩展技巧，再加上必要的长上下文训练或校准，能把上下文扩到很长，所以 Llama、Qwen、DeepSeek、Mistral 等主流开源模型大量使用 RoPE。</p>
 <p>如果还想再加分，可以提一句长上下文外推的具体方案（PI / NTK / YaRN），或者点出 RoPE 兼容 KV Cache、Flash Attention、MQA/GQA 等现代推理优化，这才是它能在工业界站稳脚跟的关键。能讲到这一层，面试官基本就没什么追问的了。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-llm:14",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_3">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-13.html">← 上一章</a><a href="chapter-15.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-llm:14",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
