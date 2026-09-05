@@ -49,6 +49,10 @@ ssh ljh@$peer "hostname"     # 应输出 DESKTOP-RDRAIIJ
 > `$peer` 只在当前会话有效：新开终端后必须先重新执行 `$peer = ...`，再跑后面的命令。
 > 本指南后续所有命令统一使用 `$peer`，不再写死 IP。
 
+> 对端有**有线 + WiFi 双网卡**（成文时有线 `192.168.5.234`、WiFi `192.168.5.32`），
+> 同一台机器：学习站监听 `0.0.0.0:8765`，两个 IP 都能打开页面；
+> SSH 操作建议固定走有线 `192.168.5.234`，避免一半命令走一个网卡造成假象。
+
 ---
 
 ## 1. 固定环境（沿用你已配好的 SSH）
@@ -173,6 +177,10 @@ $b64 = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
 ssh ljh@$peer "pwsh -NoProfile -EncodedCommand $b64"
 ```
 
+> ⚠️ 如果 pull **长时间无输出**，或报 `curl 28 Recv failure: Connection was reset`：
+> 这是对端到 GitHub 的传输被中途重置（`Test-NetConnection` 只测 TCP 握手，测不出此问题），
+> 此时**不要反复重试**，直接改用第 7.2 节的 git bundle 离线更新，几分钟即可完成。
+
 如果更新的是服务端代码（`tools/study_server.py`）或静态资源版本号，需要重启服务：
 
 ```powershell
@@ -201,21 +209,65 @@ ssh ljh@$peer "pwsh -NoProfile -EncodedCommand $b64"
 
 ## 6. 数据不会丢失
 
-对端的学习记录在：
+学习记录按账号分库存放（多用户版本起）：
 
 ```text
-C:\Users\ljh\interview-forge\data\hot100-study.db
+C:\Users\ljh\interview-forge\data\auth.db                          # 账号库（用户/会话/注册码）
+C:\Users\ljh\interview-forge\data\users\<用户名>\hot100-study.db   # 每个账号的独立学习库
 ```
 
-`data/` 已被 `.gitignore` 排除，`git pull` 不会覆盖它。以后升级/回滚都不需要备份数据库，但建议定期复制一份到本机。
+`data/` 已被 `.gitignore` 排除，`git pull` / bundle 更新都不会覆盖它们。以后升级/回滚都不需要备份学习数据，但建议定期把 `data\` 整个目录复制一份到本机。
 
 ---
 
 ## 7. 如果对端无法访问 GitHub
 
-可以先在本机打一个不含本地数据的压缩包，再通过 SSH 传过去。
+### 7.1 现象与判断
 
-在本机执行（PowerShell 下）：
+对端 `git pull` 长时间无输出/挂起，最后报 `curl 28 Recv failure: Connection was reset`。
+原因是对端到 GitHub 的**数据传输被中途重置**（`Test-NetConnection github.com -Port 443`
+返回 True 只说明 TCP 握手能通，测不出这个问题）。出现此现象不要反复重试，直接用 7.2。
+
+### 7.2 推荐：git bundle 增量离线更新（2026-09 实测可用）
+
+思路：本机把待更新的提交打成 bundle 文件 → scp 传到对端 → 对端从 bundle 拉取。
+只传 Git 对象，不碰对端工作区的 `data/` 与未跟踪文件。
+
+```powershell
+# ① 先停对端服务（见第 5 节重启脚本的前半段），并查对端当前 HEAD
+ssh ljh@$peer "cd C:\Users\ljh\interview-forge; git log --oneline -1"
+# 输出例如 27d469f —— 它就是 bundle 的基线
+
+# ② 本机：以对端 HEAD 为基线打增量 bundle（提交数不限，几十 KB 起）
+cd E:\interview-forge
+git bundle create $env:TEMP\forge-update.bundle 27d469f..main
+
+# ③ 传到对端
+scp $env:TEMP\forge-update.bundle ljh@${peer}:forge-update.bundle
+
+# ④ 对端：校验并从 bundle 拉取
+ssh ljh@$peer "cd C:\Users\ljh\interview-forge; git bundle verify $HOME\forge-update.bundle; git pull $HOME\forge-update.bundle main; git log --oneline -1"
+
+# ⑤ 清理对端与本机的 bundle，然后按第 5 节重启服务
+ssh ljh@$peer "Remove-Item $HOME\forge-update.bundle"
+```
+
+首次部署且对端连 `git clone` 都不通时，可打**全量** bundle 代替 GitHub：
+
+```powershell
+git bundle create $env:TEMP\forge-full.bundle --all
+scp $env:TEMP\forge-full.bundle ljh@${peer}:forge-full.bundle
+ssh ljh@$peer "git clone $HOME\forge-full.bundle C:\Users\ljh\interview-forge"
+```
+
+> bundle 传完即可删除；对端拉取后其 `origin` 仍指向 GitHub，
+> 网络恢复时照常 `git pull origin main` 即可，无需额外处理。
+
+### 7.3 备选：tar | ssh 流式整包
+
+整目录覆盖式同步，**不推荐日常使用**：对端默认 Shell 是 PowerShell，管道里的二进制
+tar 流有被污染的风险，仅在没有 git 的极端情况下考虑；且它按文件覆盖，可能把对端
+`.git` 弄成不一致状态。
 
 ```powershell
 cd E:\interview-forge
@@ -231,17 +283,17 @@ $b64 = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
 ssh ljh@$peer "pwsh -NoProfile -EncodedCommand $b64"
 ```
 
-以后更新可重复执行上面的 `tar | ssh` 命令；它不会覆盖对端 `data/`。
-
 ---
 
 ## 8. 故障排查
 
 | 现象 | 处理 |
 |---|---|
-| `Connection timed out` | 多半是对端 IP 变了（DHCP 重新分配），回第 0 步重新探测 IP 并更新 `$peer` |
+| `Connection timed out` | 多半是对端 IP 变了（DHCP 重新分配），回第 0 步重新探测 IP 并更新 `$peer`（对端双网卡，优先用有线地址） |
 | `Permission denied` | 按桌面 SSH 指南重新把本机公钥加入对端 `administrators_authorized_keys` |
 | 22 端口不通 | 确认 IP 没变后，对端 `Start-Service sshd`，并放行 22 |
 | 8765 打不开 | 对端防火墙放行 8765；确认服务监听 `0.0.0.0:8765` |
-| 更新后还是旧页面 | `Ctrl + Shift + R` 强刷，或更新 Service Worker 后重开 |
+| `git pull` 挂起或 `Connection was reset` | 对端到 GitHub 传输被重置，改用第 7.2 节 git bundle 离线更新 |
+| SSH 多行 pwsh 脚本偶发卡住 | 拆成单行命令重试（`ssh ljh@$peer "命令1; 命令2"`），单行更稳 |
+| 更新后还是旧页面 | `Ctrl + Shift + R` 强刷，或更新 Service Worker 后重开（PWA 缓存版本在 service-worker.js 的 VERSION） |
 | 想回滚 | 在对端 `git log --oneline` 找旧提交，`git checkout <commit> .` 后重启服务 |
