@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>内存管理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">操作系统：进程线程、内存与 IO 模型</a><span aria-hidden="true">›</span><span aria-current="page">内存管理</span></nav><div class="module-meta">计算机基础 · 第 6 / 9 章</div><h1>内存管理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>内存管理回答三个问题：怎么隔离、怎么装得下、怎么换得快。</p>
-<h3>5.1 虚拟内存</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>内存管理 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">操作系统：进程线程、内存与 IO 模型</a><span aria-hidden="true">›</span><span aria-current="page">内存管理</span></nav><div class="module-meta">计算机基础 · 第 6 / 9 章 · <span class="muted">更新于 2026-08-30</span></div><h1>内存管理</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>内存管理回答三个问题：怎么隔离、怎么装得下、怎么换得快。</p>
+<h3 id="51">5.1 虚拟内存</h3>
 <p>每个进程拥有独立的虚拟地址空间，由 MMU（内存管理单元）把虚拟地址映射到物理内存：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">虚拟地址 → 页表 → 物理地址
 </code></pre></div>
@@ -12,7 +12,7 @@
 <li><strong>共享</strong>：同一份代码/库映射到多个进程。</li>
 </ul>
 <p>进程虚拟地址空间自低到高：<strong>text（代码）→ data/BSS（数据）→ heap（brk + mmap）→ 栈（向低地址增长）</strong>；JVM 的堆对应 heap 区，虚拟机栈对应进程栈。</p>
-<h3>5.2 分页与分段</h3>
+<h3 id="52">5.2 分页与分段</h3>
 <table>
 <thead>
 <tr>
@@ -43,7 +43,7 @@
     VA[虚拟页号+偏移] --&gt;|查页表| PTE[页表项: 物理帧号/状态位]
     PTE --&gt;|命中| PA[物理地址]
     PTE --&gt;|缺页| PF[缺页中断 → 磁盘读入 → 更新页表]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
-<h3>5.3 TLB 与局部性</h3>
+<h3 id="53-tlb">5.3 TLB 与局部性</h3>
 <ul>
 <li><strong>TLB（快表）</strong>：页表的硬件缓存，命中则免去一次内存访问；</li>
 <li><strong>局部性</strong>：时间局部性（刚访问的地址很快再访问）+ 空间局部性（附近地址会被访问），这是缓存和置换算法有效的前提。</li>
@@ -51,7 +51,7 @@
 <p><strong>地址翻译的因果链</strong>：单级页表下，一次取数据 = 访问内存 1 次 + 查页表 1 次 = <strong>2 次内存访问</strong>；多级页表让页表本身可以按需换入，但翻译路径更长——x86-64 四级页表一次翻译约 <strong>4~5 次内存访问</strong>（TLB 命中则回到 1 次）。翻译比取数本身还贵，所以必须有 TLB：命中时免去查页表，一次访问回到 1 次内存操作。</p>
 <p><strong>缺页中断 6 步</strong>：MMU 查 PTE 发现有效位为 0 → CPU 触发缺页异常 → 内核检查该地址是否在进程的 VMA（虚拟内存区域）内（非法地址直接段错误）→ 从磁盘读入页帧 → 更新 PTE 并置有效位 → 重新执行触发缺页的指令。</p>
 <p><strong>JVM 与 swap 的灾难场景</strong>：GC 要扫描并移动堆对象，一旦对象所在页被换到磁盘，扫描/移动会触发大量换入，GC 时间从毫秒级涨到秒级甚至分钟级（抖动）。生产上建议关闭 swap 或把 <code>vm.swappiness</code> 设为很低，宁可 OOM 快速失败重启，也不要让 GC 被 swap 拖垮。</p>
-<h3>5.4 页面置换算法</h3>
+<h3 id="54">5.4 页面置换算法</h3>
 <table>
 <thead>
 <tr>
@@ -90,13 +90,13 @@
 </table>
 <p><strong>Belady 异常</strong>：页框增加、缺页反而增多，只可能发生在 FIFO 这类算法；LRU/OPT 不会。</p>
 <p><strong>可数算例</strong>：引用串 1,2,3,4,1,2,5,1,2,3,4,5——FIFO 3 框 9 次缺页、4 框 10 次缺页，缺页随页框增加而变多，就是 Belady 的可数演示。Linux 实际用 active/inactive 双链表近似 LRU，靠访问位标记热页。</p>
-<h3>5.5 内存分配方式（简述）</h3>
+<h3 id="55">5.5 内存分配方式（简述）</h3>
 <ul>
 <li>连续分配的历史背景：首次适配/最佳适配/最差适配三种放置策略与外部碎片问题，伙伴系统正是为解决外部碎片而生；</li>
 <li><strong>伙伴系统</strong>：按 2 的幂拆分/合并块，减少外部碎片，Linux 页分配器；</li>
 <li><strong>slab</strong>：为常用对象（如 PCB）建立对象缓存，避免频繁创建/销毁。</li>
 </ul>
-<h3>5.6 面试追问</h3>
+<h3 id="56">5.6 面试追问</h3>
 <ul>
 <li>问：虚拟内存解决什么问题？</li>
 <li>答：隔离、按需加载、支持超过物理内存的程序、共享代码。</li>
@@ -106,5 +106,20 @@
 <li>答：访问的页不在内存时触发，从磁盘载入并更新页表，可能触发页面置换。</li>
 <li>问：为什么 LRU 不常用在硬件实现？</li>
 <li>答：需要记录精确访问历史，开销大；实际多用近似算法（Clock）。</li>
-</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>
-<script>const contentId="operating-system:06",moduleId="operating-system";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260830-mobile1"></script><script src="../assets/library-mermaid.js?v=20260830-mobile1"></script></body></html>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#51">5.1 虚拟内存</a></li><li class="lv3"><a href="#52">5.2 分页与分段</a></li><li class="lv3"><a href="#53-tlb">5.3 TLB 与局部性</a></li><li class="lv3"><a href="#54">5.4 页面置换算法</a></li><li class="lv3"><a href="#55">5.5 内存分配方式（简述）</a></li><li class="lv3"><a href="#56">5.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-05.html">← 上一章</a><a href="chapter-07.html">下一章 →</a></nav></main></div>'
+<script>const contentId="operating-system:06",moduleId="operating-system";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-p0-immersive"></script><script src="../assets/library-mermaid.js?v=20260906-p0-immersive"></script></body></html>

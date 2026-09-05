@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 架构模式：如何控制自主性与复杂度 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">Agent 架构模式：如何控制自主性与复杂度</span></nav><div class="module-meta">大模型应用 · 第 29 / 33 章</div><h1>Agent 架构模式：如何控制自主性与复杂度</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>Agent 不是单一架构。它只是把部分下一步决策交给模型。设计时应明确模型能决定什么、代码固定什么，以及失败后如何停止。</p>
-<h3>29.1 五种常见模式</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 架构模式：如何控制自主性与复杂度 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">Agent 架构模式：如何控制自主性与复杂度</span></nav><div class="module-meta">大模型应用 · 第 29 / 33 章 · <span class="muted">更新于 2026-08-30</span></div><h1>Agent 架构模式：如何控制自主性与复杂度</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>Agent 不是单一架构。它只是把部分下一步决策交给模型。设计时应明确模型能决定什么、代码固定什么，以及失败后如何停止。</p>
+<h3 id="291">29.1 五种常见模式</h3>
 <table>
 <thead>
 <tr>
@@ -44,7 +44,7 @@
 </tbody>
 </table>
 <p>应从固定 Workflow 或 Router 起步，只有评估证明固定流程无法满足需求，才增加自主性。</p>
-<h3>29.2 Router：模型分类，代码执行</h3>
+<h3 id="292-router">29.2 Router：模型分类，代码执行</h3>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
@@ -83,7 +83,7 @@
 <span class="n">result</span> <span class="o">=</span> <span class="n">handler</span><span class="p">(</span><span class="n">user_request</span><span class="p">)</span>
 </code></pre></div>
 <p>即使模型产生异常值，Pydantic 的 Literal 也会拒绝；业务还应提供默认人工队列。路由结果不应直接变成任意模块名或 URL。</p>
-<h3>29.3 ReAct 的本质</h3>
+<h3 id="293-react">29.3 ReAct 的本质</h3>
 <p>ReAct 可简化为循环：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">观察当前消息和工具
 → 推理下一步
@@ -93,7 +93,7 @@
 → 最终回答
 </code></pre></div>
 <p>现代供应商通常通过结构化 Tool Call 表达动作，不需要强迫模型输出可见的“Thought”。开发者真正需要审计的是工具名、参数、结果、错误和调用次数，而不是依赖模型暴露完整内部推理。</p>
-<h3>29.4 Planner-Executor 何时有价值</h3>
+<h3 id="294-planner-executor">29.4 Planner-Executor 何时有价值</h3>
 <p>如果任务可以分解为“查资料 → 比较 → 计算 → 生成报告”，Planner 可以先产出结构化步骤，Executor 逐步执行。计划必须被视为可修改草案：</p>
 <ul>
 <li>工具结果可能让后续步骤失效；</li>
@@ -103,7 +103,7 @@
 <li>设置最大步骤数、总时间和总费用。</li>
 </ul>
 <p>计划中的字符串不能直接当作 shell 命令、SQL 或代码执行。</p>
-<h3>29.5 多 Agent 不是“多开几个模型”</h3>
+<h3 id="295-agent">29.5 多 Agent 不是“多开几个模型”</h3>
 <p>拆分 Agent 应至少满足一个条件：</p>
 <ul>
 <li>工具权限边界不同；</li>
@@ -119,7 +119,7 @@
 └── 发布 Agent：必须人工审批，才可写入
 </code></pre></div>
 <p>不合理拆分是让三个拥有相同 Prompt、相同工具的 Agent 互相讨论。这样通常只增加 token、延迟和不确定性。</p>
-<h3>29.6 工具按风险分级</h3>
+<h3 id="296">29.6 工具按风险分级</h3>
 <table>
 <thead>
 <tr>
@@ -157,7 +157,7 @@
 </tbody>
 </table>
 <p>工具 Schema 描述用途，但真正的权限必须在工具实现中重新检查。不要把可信 <code>user_id</code> 作为模型可自由填写的参数。</p>
-<h3>29.7 错误应转成模型可处理但不泄密的信息</h3>
+<h3 id="297">29.7 错误应转成模型可处理但不泄密的信息</h3>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">safe_tool_result</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span>
@@ -173,7 +173,7 @@
     <span class="p">}</span>
 </code></pre></div>
 <p>不要把数据库连接串、完整堆栈、内部路径或第三方原始响应交给模型。详细异常写入受控日志，并用 request ID 关联。</p>
-<h3>29.8 Agent 与 MCP 的连接位置</h3>
+<h3 id="298-agent-mcp">29.8 Agent 与 MCP 的连接位置</h3>
 <p>MCP Server 可把外部工具、资源和 Prompt 以标准协议暴露给客户端 Agent。LangChain Agent 使用 MCP 工具时，控制关系仍然是：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">模型提出 Tool Call
 → Agent Runtime 校验
@@ -182,7 +182,7 @@
 → 结果返回 ToolMessage
 </code></pre></div>
 <p>MCP 解决连接标准化，不自动解决权限、安全、幂等和结果真实性。协议细节参见前文链接的 MCP 笔记。</p>
-<h3>29.9 架构评审的十个问题</h3>
+<h3 id="299">29.9 架构评审的十个问题</h3>
 <ol>
 <li>哪些决策必须由模型做，哪些可由规则做？</li>
 <li>工具列表是否过大或语义重叠？</li>
@@ -196,5 +196,20 @@
 <li>哪些评估样本能证明 Agent 比固定 Workflow 更好？</li>
 </ol>
 <p>如果这些问题没有答案，继续增加 Agent 或工具通常只会放大不确定性。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-28.html">← 上一章</a><a href="chapter-30.html">下一章 →</a></nav></main></div>
-<script>const contentId="langchain:29",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#291">29.1 五种常见模式</a></li><li class="lv3"><a href="#292-router">29.2 Router：模型分类，代码执行</a></li><li class="lv3"><a href="#293-react">29.3 ReAct 的本质</a></li><li class="lv3"><a href="#294-planner-executor">29.4 Planner-Executor 何时有价值</a></li><li class="lv3"><a href="#295-agent">29.5 多 Agent 不是“多开几个模型”</a></li><li class="lv3"><a href="#296">29.6 工具按风险分级</a></li><li class="lv3"><a href="#297">29.7 错误应转成模型可处理但不泄密的信息</a></li><li class="lv3"><a href="#298-agent-mcp">29.8 Agent 与 MCP 的连接位置</a></li><li class="lv3"><a href="#299">29.9 架构评审的十个问题</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-28.html">← 上一章</a><a href="chapter-30.html">下一章 →</a></nav></main></div>'
+<script>const contentId="langchain:29",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

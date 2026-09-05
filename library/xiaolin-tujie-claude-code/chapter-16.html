@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</span></nav><div class="module-meta">Agent 工程 · 第 16 / 19 章</div><h1>Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</span></nav><div class="module-meta">Agent 工程 · 第 16 / 19 章 · <span class="muted">更新于 2026-09-01</span></div><h1>Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>大家好，我是小林。</p>
 <p>最近不少朋友跟我反馈，说 AI Agent 岗的面试越来越多，十有八九都要问 Multi-Agent，什么「多 agent 之间怎么通信」「一个 agent 搞不定的任务怎么拆」「并发 agent 怎么调度」。</p>
 <p>所以这篇文章我就想带你从源码视角，把 Claude Code 的多 Agent 机制彻底讲明白，目标是让你看完能同时 get 三个问题：</p>
 <ul>
@@ -11,9 +11,9 @@
 <p>后面我会按由浅入深的顺序，一个个讲清楚。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b6c5b2c1ef-c26c99bf4d136d92ad52baae.png" /></p>
 <hr />
-<h3>一、先搞明白 Multi-Agent 到底是个啥</h3>
+<h3 id="multi-agent">一、先搞明白 Multi-Agent 到底是个啥</h3>
 <p>在扒源码之前，我想先花一点篇幅，把 Multi-Agent 这个词的底层逻辑讲清楚。因为我发现很多人连「为啥要有多 agent」都没想明白，光盯着代码看是看不懂的。</p>
-<h4>为什么一个 agent 不够用？</h4>
+<h4 id="agent">为什么一个 agent 不够用？</h4>
 <p>我们先回到最朴素的 agent 模型：一个 LLM + 一堆工具 + 一个循环。你给它一个任务，它自己决定调什么工具、调几次，直到做完。这就是经典的 agentic loop。</p>
 <p>看起来挺强的是吧？但一到真实项目里，问题就出来了。</p>
 <p>想象你让一个 agent 去做这么一件事：「<strong>调研下 React 18 的新特性，然后在我的项目里实现一个 useTransition 的例子，最后帮我把代码评审一遍</strong>」。</p>
@@ -23,12 +23,12 @@
 <p><strong>第三，没法并发</strong>。一个 agent 一次只能做一件事，它在查文档的时候，项目代码就在那干等着。</p>
 <p><img loading="lazy" decoding="async" alt="单 agent 硬扛三件事" src="assets/a6dc42ea42-e893f04b78ded2a2ed854c6b.png" /></p>
 <p><em>单 agent 硬扛三件事</em></p>
-<h4>老板派活的思路</h4>
+<h4 id="_1">老板派活的思路</h4>
 <p>这时候 Multi-Agent 的思路就来了。说白了，就像一个老板带团队：</p>
 <p>老板不自己一头扎进代码里，而是把任务拆成几块，派给不同的「专家」。研究员去调研，工程师去写代码，评审员去挑错。老板自己只负责看大方向、收结果、做决策。</p>
 <p>这样一来：每个专家的上下文是干净的（只装自己领域的信息）；职责也清楚（研究员就好好查资料别去写代码）；多个专家还能同时开工。</p>
 <p>这就是 Multi-Agent 的核心思想：<strong>把一个大任务拆给多个职责清晰的 agent 去做，它们之间通过某种方式通信和协作</strong>。</p>
-<h4>Multi-Agent 的三种常见形态</h4>
+<h4 id="multi-agent_1">Multi-Agent 的三种常见形态</h4>
 <p>绕开花哨的术语，Multi-Agent 系统在工业界落地时，一般就三种形态。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/af97a94826-2a9e5c2944f160dd3a0ea702.png" /></p>
 <p><strong>第一种，父子型</strong>。主 agent 处理整个任务，遇到某个子问题时派一个 subagent 出去搞定，拿结果回来接着干。这是最常见的，Claude Code 里的 Task 工具就是这种。</p>
@@ -36,7 +36,7 @@
 <p><strong>第三种，主从型（Coordinator-Worker）</strong>。有一个专门的「协调者 agent」，它自己不干活，只负责派 worker、收结果、做合成。worker 之间互不通信，全靠协调者调度。这种是高并发场景的标配。</p>
 <p>Claude Code 源码里，<strong>常规 Subagent</strong> 对应父子型，<strong>Coordinator 模式</strong>对应主从型，<strong>Fork Subagent</strong> 是父子型的一个特殊优化版本（跟 cache 有关，后面讲）。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/461536fc80-6f4bca1eab37628d463da0c5.png" /></p>
-<h4>subagent 在 Claude Code 里到底长啥样？</h4>
+<h4 id="subagent-claude-code">subagent 在 Claude Code 里到底长啥样？</h4>
 <p>讲到这儿可能还有朋友有点虚：「subagent 听起来挺抽象，它在 Claude Code 里到底长啥样，看得见吗？」</p>
 <p>我举个真实能感知的场景你就懂了。</p>
 <p>你跟 Claude Code 说「调研一下这个项目的认证模块」，它自己判断一下：这活得派个「侦察兵」去干，而不是我亲自扎进去。于是它在内部调了一个叫 <strong>Agent 的工具</strong>（对，这个工具的名字就叫 Agent），把任务交给一个叫 <strong>Explore</strong> 的内置 subagent 去跑。</p>
@@ -45,12 +45,12 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/ebfbfa98e6-3fced5c5f89903d9bbc116a9.png" /></p>
 <p>明白了这些，咱们就可以进入 Claude Code 的源码了。</p>
 <hr />
-<h3>二、Subagent 的隔离机制</h3>
+<h3 id="subagent">二、Subagent 的隔离机制</h3>
 <p>在讲通信、讲并发之前，我想先从 Claude Code 多 agent 设计里<strong>最关键的一环</strong>讲起：<strong>隔离机制</strong>。</p>
 <p>为什么隔离最关键？你想想，多 agent 系统本质就是「一堆 agent 共处一个进程、共享一个底层运行时」。如果隔离做得不好，一个 subagent 偷偷污染了父 agent 的状态、或者调了不该调的工具，整个系统就会乱成一锅粥。</p>
 <p>Claude Code 在 subagent 启动时，把隔离做到了<strong>两个维度</strong>：<strong>工具隔离</strong>（不给子 agent 它不该有的工具）和 <strong>上下文隔离</strong>（不让子 agent 搅乱父 agent 的运行时状态）。咱们一个一个看。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/06d7b99a48-bf0a800c83ea3bec36ef384e.png" /></p>
-<h4>第一维度：给子 agent 发一个定制工具箱</h4>
+<h4 id="agent_1">第一维度：给子 agent 发一个定制工具箱</h4>
 <p>先说工具隔离。这是 Claude Code 多 agent 设计里<strong>最容易被忽略，但又很重要</strong>的一环。</p>
 <p>什么意思呢？主 agent 拥有一大堆工具（读文件、写文件、执行命令、派 subagent、问用户问题等等几十个），但你不能把这堆工具原封不动地丢给 subagent。为啥？</p>
 <p>你想想，如果 subagent 也能调派新 subagent 的工具，那它就能派子子 agent，子子 agent 又派子子子 agent，层层嵌套没完没了，token 消耗直接起飞。</p>
@@ -84,7 +84,7 @@
 <p>可以看到就是顺着「全局黑名单 → 自定义 agent 加严 → 异步白名单」这三道条件依次判定。最后留下来的，才是这个 subagent 能用的工具。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/4716458016-ed631fcdc8fc09fad04e2b8b.png" /></p>
 <p>这个设计看着简单，其实挺有工程智慧的。我在设计自己的多 agent 系统时，就学到了一条原则：<strong>不要假设所有 agent 都能用所有工具，按 agent 类型做细粒度的权限控制</strong>。</p>
-<h4>第二维度：搭一个隔离的运行环境</h4>
+<h4 id="_2">第二维度：搭一个隔离的运行环境</h4>
 <p>说完工具，再来聊第二维度：<strong>上下文隔离</strong>。这块是 Claude Code 多 agent 设计里<strong>最精髓的一块</strong>，我觉得全篇文章最值得细读的就是这一节。</p>
 <p>先说问题。父 agent 跑起来后有一个庞大的<strong>运行时上下文</strong>，里面装着很多东西：已经读过哪些文件、每个文件读到第几行、全局的 UI 状态、中止信号、权限状态、任务注册表等等。</p>
 <p>现在轮到你做设计。要派一个 subagent，这份庞大上下文怎么传给它？</p>
@@ -130,7 +130,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/610656bb66-3a029fc905867bb05954616a.png" /></p>
 <p>走完「工具隔离」和「上下文隔离」这两道门，一个 subagent 就拿到了干净的工具池 + 干净的运行环境，可以独立跑起来了。那父 agent 和这个跑起来的 subagent，又是怎么互相说话的呢？下一章见真章。</p>
 <hr />
-<h3>三、父子 Agent 是怎么通信的</h3>
+<h3 id="agent_2">三、父子 Agent 是怎么通信的</h3>
 <p>隔离机制搞定了，但隔离只是开始，真正决定一个多 agent 系统好不好用的，是<strong>它们之间怎么通信</strong>。</p>
 <p>这一章我来讲 Claude Code 的通信方式。但开讲之前，得先立一个分水岭，不然很容易把人带沟里去：<strong>父子之间能怎么通信，取决于你开没开「团队（agent-teams）模式」</strong>。</p>
 <p>默认形态和团队形态，是两条很不一样的线：</p>
@@ -142,7 +142,7 @@
 <blockquote>
 <p>配图意见：父子通信「两条线」对照图。左右两栏，左边「默认形态」画一根从子指向父的单向箭头（标注「只有子→父 完成通知」），右边「团队模式」画父子之间两根来回箭头（标注「父→子 扔字条 + 子→父 通知」）。重点用箭头数量和方向直观表达「默认单向 vs 团队双向」，配色上左栏冷色（克制）、右栏暖色（双向激活）。</p>
 </blockquote>
-<h4>默认形态：派出去，跑完把结果交回来</h4>
+<h4 id="_3">默认形态：派出去，跑完把结果交回来</h4>
 <p>先看默认这条线。这里先停一下，问你一个问题：父 agent 派一个子 agent 出去调研，在子 agent 埋头跑的这段时间里，它俩还能不能说上话？父能不能临时补一句「顺便也看看权限模块」？</p>
 <p>凭直觉你可能觉得「应该可以吧」。但默认形态下的答案是：<strong>不能</strong>。</p>
 <p>你跟 Claude Code 说「调研一下认证模块」，它派一个 subagent 出去，这个 subagent 带着独立上下文自己跑，跑完把结果作为一次工具调用的返回值（tool_result）原样交回给父 agent。</p>
@@ -199,7 +199,7 @@
 </code></pre></div>
 <p>拼完就扔到主 agent 的待处理消息队列里，等主 agent 下一轮循环时当作一条用户消息来处理。</p>
 <p>讲到这里，把默认这条线小结一下：父 agent 派出去、等结果，长任务转后台后子 agent 回头发个完成通知。<strong>这条线里有「消息」的，基本只有子→父这一个方向的通知</strong>，父 agent 没法主动给在跑的子 agent 发新指令。如果你只看默认形态，说「subagent 的消息队列只是用来通知父 agent 的、是单向的」，这个判断是站得住的。</p>
-<h4>团队（agent-teams）模式：父子之间才真正双向对讲</h4>
+<h4 id="agent-teams">团队（agent-teams）模式：父子之间才真正双向对讲</h4>
 <p>那「父→子 也能发消息」的双向对讲是什么时候出现的？答案是：<strong>开了团队（agent-teams）模式之后</strong>。这是 Claude Code 的一个实验特性，外部用户要显式开启（比如带上 <code>--agent-teams</code> 启动），内部默认就开着。</p>
 <p>为什么要专门为这个场景设计一套双向通信？我建议你先停个 10 秒想想：如果让你来设计「父 agent 中途给子 agent 发指令」这套通信，你会怎么写？</p>
 <p>大概率你脑子里第一反应是「父 agent 调个函数，等 subagent 跑完返回」对吧？这跟我们平时写 RPC 调远程服务的思路一模一样，太自然了。</p>
@@ -266,7 +266,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>纯纯的「追加到数组末尾」。子→父 那条信道，复用的就是默认形态里讲过的那套 task-notification（伪装成用户消息）。两个方向凑齐，团队模式下的父子通信才算真正双向。</p>
-<h4>回头看通信设计的全貌</h4>
+<h4 id="_4">回头看通信设计的全貌</h4>
 <p>到这里我们把两条线都讲清楚了，串起来看：</p>
 <ul>
 <li><strong>默认形态</strong>：父 agent 派子 agent 出去、等结果，长任务转后台后子 agent 回头发完成通知。消息通路基本是<strong>子→父 单向通知</strong>，父 agent 不能中途插话。</li>
@@ -281,12 +281,12 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/d3481a815c-63dbc15bbd775d05500bb12e.png" /></p>
 <p>下一章，我们再讲一个特别精妙的优化：<strong>Fork Subagent</strong>。</p>
 <hr />
-<h3>四、Fork Subagent：省钱又省延迟的隐藏大招</h3>
+<h3 id="fork-subagent">四、Fork Subagent：省钱又省延迟的隐藏大招</h3>
 <p>前面讲的常规 subagent 已经是主流玩法了，但 Claude Code 还有一个更精妙的机制，叫 <strong>Fork Subagent</strong>。这个机制有点隐蔽，用起来是透明的，但对成本和延迟的优化非常显著。</p>
 <p>我先抛两个问题让你估算下，<strong>先别往下翻看答案</strong>：</p>
 <p>第一，Claude Code 的 system prompt 大概有多长？是几百 token、几千 token，还是上万 token？
  第二，每派一个 subagent，如果它有自己独立的 system prompt，LLM API 那边对这段 prompt 是从头算一遍，还是有办法复用？</p>
-<h4>subagent 的隐藏成本</h4>
+<h4 id="subagent_1">subagent 的隐藏成本</h4>
 <p>公布答案：Claude Code 的 system prompt 长度是<strong>上万 token</strong>，里面塞了大量的工具说明、规范约定、用户上下文。</p>
 <p>而每派一个 subagent，如果它有独立的 system prompt（内置的 Explore、Plan 这些都有独立的），LLM API 那边就得<strong>对这一万多 token 重新从头算一遍</strong>，就跟没见过似的。</p>
 <p>这有两个代价：<strong>钱</strong>（input token 重新算钱）和<strong>延迟</strong>（首 token 等更久）。在生产环境里，subagent 派得越频繁，这个开销线性放大，是个很可怕的成本黑洞。</p>
@@ -296,7 +296,7 @@
 <p>是不是比你想的严格多了？</p>
 <p>那既然这么严，能不能设计一种 subagent，它的 system prompt 和工具池跟父 agent <strong>完全一样</strong>，这样就能复用父的缓存了？这就是 Fork Subagent 的起点。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6ee16f4c40-53eaa266db55373b1d0b9846.png" /></p>
-<h4>Fork 的核心思路：派一个「字节级相同」的分身</h4>
+<h4 id="fork">Fork 的核心思路：派一个「字节级相同」的分身</h4>
 <p>Fork Subagent 的直觉是这样的：<strong>派一个子 agent 出去干活，但这个子 agent 的 API 请求前缀跟父 agent 一模一样，让 Anthropic 那边一看：「哦这个前缀我认识」，走缓存</strong>。</p>
 <p>这里的「一模一样」要做到什么程度？<strong>字节级</strong>。一个字节不对都不行。</p>
 <p>具体要对齐哪些东西呢？有五样必须跟父 agent 完全一致：</p>
@@ -325,7 +325,7 @@
 </code></pre></div>
 <p>你看这个类型的意思很明显：<strong>凡是会影响缓存命中的字段，我全列在这儿，你 Fork 的时候严格按这份清单跟父 agent 对齐</strong>。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/d0a2cce3a5-c1ccc24ee49627cf93d74d9c.png" /></p>
-<h4>一个有意思的细节：system prompt 不重新生成</h4>
+<h4 id="system-prompt">一个有意思的细节：system prompt 不重新生成</h4>
 <p>Fork Subagent 的合成定义里有个有意思的细节，值得单独说。</p>
 <p>正常一个 subagent 有个生成 system prompt 的函数，跑的时候现生成一段 prompt 文本。但 Fork 机制用的那个 subagent 的生成函数<strong>直接返回空字符串</strong>：</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/tools/AgentTool/forkSubagent.ts:60</span>
@@ -345,7 +345,7 @@
 <p>最稳的办法是：<strong>把父 agent 那边已经渲染出来的 prompt，作为字节原样拿过来用，一个字节都不动</strong>。</p>
 <p>这个细节非常工业级，普通人写 agent 系统根本想不到。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ed2f5c3b0f-d029771d76b13193f1884bc6.png" /></p>
-<h4>什么时候用 Fork，什么时候用常规 subagent？</h4>
+<h4 id="fork-subagent_1">什么时候用 Fork，什么时候用常规 subagent？</h4>
 <p>Fork 机制不是万能的，它的<strong>适用场景很特定</strong>：你希望子 agent 完全继承父 agent 的整个上下文（对话历史、system prompt、工具池），只是「派个分身去试试另一条路」。</p>
 <p>比如「Ctrl+F 生成 PR 描述」「运行 /btw 命令做 post-turn 总结」，这些任务需要父 agent 的完整上下文，但又不希望污染父 agent 的主循环。</p>
 <p>相反，如果你的任务有明确的专业分工（比如派一个专门搜代码的 agent、派一个专门做规划的 agent），那就用常规 subagent，它们的 system prompt 是定制的，Fork 机制反而不适用。</p>
@@ -361,7 +361,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p><img loading="lazy" decoding="async" alt="" src="assets/8367022caa-45eb2d6321836098c2137877.png" /></p>
-<h4>Fork 的工程启示</h4>
+<h4 id="fork_1">Fork 的工程启示</h4>
 <p>Fork 机制我想单独说下它对我们的启示。</p>
 <p>很多人做 agent 系统只关心「能不能跑起来」，不关心「跑起来要花多少钱」。但在生产环境，这两个是一回事。Claude Code 靠 Fork 机制，在缓存友好的场景下能把 subagent 的成本降到原来的 <strong>10%</strong> 左右。</p>
 <p>这意味着什么？意味着你的 subagent 可以调得<strong>更频繁</strong>。原本成本考虑不敢派的活，现在都能派了，这反过来又让整个 agent 系统的能力边界扩大了。</p>
@@ -369,11 +369,11 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/83ca9d927c-f9d01e90fe054622533c8df6.png" /></p>
 <p>好了，讲完 Fork，下面进入整篇文章最「多 agent」的一章：Coordinator 模式。</p>
 <hr />
-<h3>五、Coordinator 模式：真正的多 Agent 并行协作</h3>
+<h3 id="coordinator-agent">五、Coordinator 模式：真正的多 Agent 并行协作</h3>
 <p>前面讲的 subagent（不管是常规的还是 Fork 的），本质都是<strong>父子结构</strong>：父 agent 派一个子，自己该干啥干啥，子完成了通知一声。</p>
 <p>但如果你的任务量很大，需要<strong>一堆 agent 同时开工</strong>呢？比如一个大的代码迁移，要并行调研 10 个模块。这时候父子结构就显得单薄了。</p>
 <p>Claude Code 为此设计了一个专门的模式：<strong>Coordinator 模式</strong>。这是 Claude Code 多 agent 设计里最「多 agent」的部分，也是最能打的地方。</p>
-<h4>Coordinator 模式的启用</h4>
+<h4 id="coordinator">Coordinator 模式的启用</h4>
 <p>这个模式不是默认开的，要显式打开。需要同时满足两个条件：<strong>编译时的功能开关</strong>和<strong>运行时的环境变量 <code>CLAUDE_CODE_COORDINATOR_MODE=1</code></strong>。</p>
 <div class="codehilite" data-lang="typescript"><pre><code class="language-typescript"><span class="c1">// src/coordinator/coordinatorMode.ts:36</span>
 <span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">isCoordinatorMode</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="p">{</span>
@@ -384,7 +384,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>开启之后，主 agent 的行为模式会发生根本性变化。</p>
-<h4>核心设计：主 agent 退化成「纯协调者」</h4>
+<h4 id="agent_3">核心设计：主 agent 退化成「纯协调者」</h4>
 <p>常规模式下，主 agent 是「全能型选手」：它读代码、写代码、跑测试、做规划全都干，只在需要时才派 subagent 帮一把。</p>
 <p>Coordinator 模式下，主 agent 不干实际工作了，它只做三件事：<strong>派 worker、收结果、合成答案</strong>。</p>
 <p>这个角色转换是通过主 agent 的 system prompt 强制约束出来的。打开源码里那段 prompt，开头就写得很明白：</p>
@@ -401,7 +401,7 @@ You are a **coordinator**. Your job is to:
 </code></pre></div>
 <p>翻译一下：<strong>你的身份是协调者，你的工作是指挥 worker 去做研究、实现、验证，然后自己合成结果跟用户交流。能自己回答的问题不要派人去做</strong>。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/3f73265365-f03f5bf3dbebacc2b164163b.png" /></p>
-<h4>三大内部工具</h4>
+<h4 id="_5">三大内部工具</h4>
 <p>既然主 agent 要协调，就得有专门的协调工具。Coordinator 模式下，主 agent 多了一套「团队管理」工具箱：</p>
 <ul>
 <li><strong>派 worker 的工具</strong>：派一个新 worker 出去干某件具体的活，派完立刻返回 worker 的 ID。</li>
@@ -426,7 +426,7 @@ You are a **coordinator**. Your job is to:
 </code></pre></div>
 <p>这里得说清楚它的真实用途，免得误会：这组常量其实是一张<strong>给 worker 用的「黑名单」</strong>。Coordinator 模式下，系统会把这几样工具从 worker 的工具池里<strong>摘掉</strong>，让 worker 只管干活、没法反过来去创建团队、给别人发消息、调度别人。所以它不是「只有协调者才有这些工具」，而是「这些协调专用的工具，不发给 worker」。特别是 SendMessage，它本身并不是 Coordinator 模式专属的东西，前面第三章讲的团队（agent-teams）模式里，父 agent 用的就是它。</p>
 <p>顺带厘清一个容易混的点：<strong>agent-teams（团队/队友）模式和 Coordinator 模式是两个独立的开关</strong>。前者管的是「父子之间双向发消息、派队友」，后者是更进一步的「主 agent 退化成纯协调者」的编排模式，别把两者当成一回事。</p>
-<h4>并行才是真本事</h4>
+<h4 id="_6">并行才是真本事</h4>
 <p>Coordinator 模式的 prompt 里有一句我特别喜欢：</p>
 <blockquote>
 <p>Parallelism is your superpower. Workers are async. Launch independent workers concurrently whenever possible, don't serialize work that can run simultaneously and look for opportunities to fan out.</p>
@@ -447,7 +447,7 @@ You are a **coordinator**. Your job is to:
 </ul>
 <p>这就是「并行是超能力」的真正含义。工业级多 agent 系统，没有并行就没有可用性。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/e3cdde2527-30c759a01985fd0ac9648f23.png" /></p>
-<h4>协调者的「任务流水线」</h4>
+<h4 id="_7">协调者的「任务流水线」</h4>
 <p>Coordinator 模式下，一个典型的任务流程被切成四个阶段：</p>
 <table>
 <thead>
@@ -484,7 +484,7 @@ You are a **coordinator**. Your job is to:
 <p><img loading="lazy" decoding="async" alt="" src="assets/e330de8314-5352181e1f1f643ac89ad3e1.png" /></p>
 <p>这是一个非常重要的 multi-agent 设计哲学：<strong>协调者必须「理解」而不能「转发」</strong>。如果协调者只是转发，它就没有存在价值，worker 直接跟用户对话就行了。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/4b556cdfe2-8bb5d7291f248c5ad342049b.png" /></p>
-<h4>Continue vs Spawn：老 worker 还是新 worker？</h4>
+<h4 id="continue-vs-spawn-worker-worker">Continue vs Spawn：老 worker 还是新 worker？</h4>
 <p>协调者要持续派活，遇到一个新任务，是<strong>给老 worker 发消息续命</strong>，还是<strong>派个新 worker 从头开始</strong>？这是个有经验才能做好的决策。</p>
 <p>Claude Code 的 prompt 里给出了一张决策表，我总结一下核心逻辑：</p>
 <ul>
@@ -494,11 +494,11 @@ You are a **coordinator**. Your job is to:
 </ul>
 <p>这个设计其实也挺反映人类团队合作的直觉：有的活就该让懂上下文的人接着干（沟通成本低），有的活就该换个人做（避免认知偏差）。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/96a116f850-68602b56e270f5c1f4cee86a.png" /></p>
-<h4>Worker 的工具限制</h4>
+<h4 id="worker">Worker 的工具限制</h4>
 <p>Coordinator 模式下，worker 拿到的工具有什么不同？关键在于：<strong>协调者专属的那套内部工具（创建团队、发消息、合成输出等等），不给 worker 用</strong>。worker 不需要再去协调别人，它的活是干事情。</p>
 <p>这其实是一个<strong>递归防护</strong>：如果 worker 也能派 worker，整个系统就变成递归树了，没完没了。通过工具白名单把 worker 的「派人权」收回，让系统结构保持「一个协调者 + 一堆 worker」的扁平形态。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6310ddc34b-6aef41148abc0ad67a56ae30.png" /></p>
-<h4>跟常规 subagent 对比</h4>
+<h4 id="subagent_2">跟常规 subagent 对比</h4>
 <p>讲完这些我们对比一下 Coordinator 模式和常规 subagent：</p>
 <table>
 <thead>
@@ -537,7 +537,7 @@ You are a **coordinator**. Your job is to:
 </tbody>
 </table>
 <p><img loading="lazy" decoding="async" alt="" src="assets/c5c060861f-bcd2935c1f9c0d8e8b342faf.png" /></p>
-<h4>Coordinator 模式的工程启示</h4>
+<h4 id="coordinator_1">Coordinator 模式的工程启示</h4>
 <p>讲完 Coordinator，我想提炼几条值得学的设计思想。</p>
 <p><strong>第一，角色分离</strong>。协调和干活是两件事，不要让同一个 agent 身兼二职。角色清晰的系统更稳定。</p>
 <p><strong>第二，并发优先</strong>。异步 + 消息队列是并发的基础，有了这套基础，多 agent 才能真正发挥威力。</p>
@@ -545,31 +545,31 @@ You are a **coordinator**. Your job is to:
 <p><strong>第四，扁平不递归</strong>。通过工具权限把层级限制在两层（协调者 + worker），避免失控的递归嵌套。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/db1fa61efc-b43b54f96edda97eee356b01.png" /></p>
 <hr />
-<h3>六、5 条 Multi-Agent 设计原则</h3>
+<h3 id="5-multi-agent">六、5 条 Multi-Agent 设计原则</h3>
 <p>Claude Code 的源码扒得差不多了。我把前面讲的所有东西浓缩一下，沉淀成 5 条可以直接用到自己项目、也可以直接用到面试答案里的设计原则。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/386695869a-cefcaf4f86ff0784cb9afa3a.png" /></p>
-<h4>原则 1：上下文隔离要按字段粒度做</h4>
+<h4 id="1">原则 1：上下文隔离要按字段粒度做</h4>
 <p>这是我最想强调的一条。很多 agent 框架的「隔离」就是粗暴地给 subagent 一个空 context，结果缺这缺那一堆 bug。</p>
 <p>Claude Code 的做法是：<strong>每个状态单独决策</strong>。读文件缓存克隆（避免污染），写全局状态关掉（避免两边抢），任务注册通路保留（不然孤儿进程没人回收），深度计数 +1（可追踪，防失控嵌套）。</p>
 <p>做多 agent 系统时，对着父 agent 的每项状态问一句：「子 agent 拿这个状态干啥？会不会影响父？」，就能避开大部分坑。</p>
-<h4>原则 2：通信走消息，不走函数调用</h4>
+<h4 id="2">原则 2：通信走消息，不走函数调用</h4>
 <p><strong>父 → 子</strong>：写入子 agent 的消息队列，子 agent 下一轮循环自己读取。</p>
 <p><strong>子 → 父</strong>：把完成通知包装成 XML 消息，伪装成用户消息注入父 agent 对话。</p>
 <p>这套模型的好处：天然异步、天然支持并发、天然兼容 agentic loop、天然持久化（消息都能落盘）。</p>
 <p>要补一句严谨的：上面这套完整的<strong>双向</strong>消息驱动，是 Claude Code 团队（agent-teams）模式打开后的形态。默认的常规 subagent 更接近「同步派发 + 子→父 完成通知」，父→子 这条主动发消息的路是团队模式才接通的。面试时把这个边界讲清楚，比笼统说「双向」更显你真读过源码。</p>
 <p>如果你问面试官「你们的多 agent 之间怎么通信」，把这套答出来，基本就到位了。</p>
-<h4>原则 3：工具权限要分级管控</h4>
+<h4 id="3">原则 3：工具权限要分级管控</h4>
 <p><strong>全局黑名单</strong>（防递归、防乱问用户），<strong>类型黑名单</strong>（自定义 agent 更严），<strong>异步白名单</strong>（后台 agent 只能用子集）。</p>
 <p>每种 agent 按自己的场景配工具，不要一刀切。</p>
-<h4>原则 4：缓存友好是一种架构能力</h4>
+<h4 id="4">原则 4：缓存友好是一种架构能力</h4>
 <p>API 成本和延迟对生产环境 agent 来说是<strong>能力的一部分</strong>。设计 subagent 的时候，考虑它的 prompt 前缀能不能复用父 agent 的缓存，能省 80-90% 的成本。</p>
 <p>Claude Code 那套「严格锁定缓存前缀 + 复用父 agent 已渲染字节」的思路，是这方面的教科书式实现。</p>
-<h4>原则 5：并行优先 + 协调者合成</h4>
+<h4 id="5">原则 5：并行优先 + 协调者合成</h4>
 <p>真正的多 agent 系统威力在<strong>并发</strong>。通过异步消息和消息队列做基础，通过协调者做合成，避免「大 agent 大循环什么都自己扛」的窘境。</p>
 <p>并且协调者要<strong>亲自合成</strong>，不能当传话筒。</p>
 <p>这 5 条原则背后，其实都能看到 Claude Code 源码里的清晰落点。我建议你别光记这些原则，<strong>下次看到 Multi-Agent 相关的东西，都拿这 5 条去对照</strong>，会迅速看出对方系统的深浅。</p>
 <hr />
-<h3>最后</h3>
+<h3 id="_8">最后</h3>
 <p>写到这里，Claude Code 的多 Agent 机制基本就扒完了。</p>
 <p>回过头看，Claude Code 这套系统不是简单的「一个主 agent 嵌几个 subagent」那么朴素。它在架构、通信、并发、成本、隔离每一个维度都做了精致的设计：</p>
 <ul>
@@ -579,5 +579,20 @@ You are a **coordinator**. Your job is to:
 <li><strong>Coordinator 模式</strong> 把主 agent 彻底解放成纯协调者，让多 worker 真正并行起来。</li>
 </ul>
 <p>每一块拆开看都不是啥复杂技术，但组合在一起，就成了一个能支撑 Anthropic 这种级别产品的工业级多 agent 系统。</p>
-<p>今天分享都到这里，我们下篇见！</p><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-15.html">← 上一章</a><a href="chapter-17.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-tujie-claude-code:16",moduleId="xiaolin-tujie-claude-code";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<p>今天分享都到这里，我们下篇见！</p></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#multi-agent">一、先搞明白 Multi-Agent 到底是个啥</a></li><li class="lv3"><a href="#subagent">二、Subagent 的隔离机制</a></li><li class="lv3"><a href="#agent_2">三、父子 Agent 是怎么通信的</a></li><li class="lv3"><a href="#fork-subagent">四、Fork Subagent：省钱又省延迟的隐藏大招</a></li><li class="lv3"><a href="#coordinator-agent">五、Coordinator 模式：真正的多 Agent 并行协作</a></li><li class="lv3"><a href="#5-multi-agent">六、5 条 Multi-Agent 设计原则</a></li><li class="lv3"><a href="#_8">最后</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-15.html">← 上一章</a><a href="chapter-17.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-tujie-claude-code:16",moduleId="xiaolin-tujie-claude-code";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

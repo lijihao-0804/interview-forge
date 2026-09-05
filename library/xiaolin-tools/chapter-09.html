@@ -1,22 +1,22 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Skill 是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LLM 工具调用面试题</a><span aria-hidden="true">›</span><span aria-current="page">Skill 是什么？</span></nav><div class="module-meta">大模型应用 · 第 9 / 16 章</div><h1>Skill 是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：说说 Agent Skill 是什么？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Skill 是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LLM 工具调用面试题</a><span aria-hidden="true">›</span><span aria-current="page">Skill 是什么？</span></nav><div class="module-meta">大模型应用 · 第 9 / 16 章 · <span class="muted">更新于 2026-09-01</span></div><h1>Skill 是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：说说 Agent Skill 是什么？</p>
 <p>🙋‍♂️我：Skill 就是提示词嘛，把常用的 prompt 保存下来，下次用的时候直接贴上去就行了，跟复制粘贴差不多。</p>
 <p>👔面试官：就是「复制粘贴 prompt」？那我每次开新对话都要手动贴一遍，团队里十个人每个人贴的还不一样，这算什么「能力」？你觉得这样能规模化吗？</p>
 <p>🙋‍♂️我：那……可以把 prompt 写到一个共享文档里，大家统一从那里复制？</p>
 <p>👔面试官：你说的是人工流程管理，不是技术方案。Skill 的核心不是「保存 prompt」，而是把指令、脚本、模板打包成一个模块，Agent 能自动发现它、按需加载它，根本不需要人手动去贴。你连 Skill 和普通 prompt 的区别都没搞清楚，更别提它和 MCP 工具的关系了。</p>
 <p>好，这段对话踩的雷很典型，很多人一上来就把 Skill 等同于「保存好的 prompt」。下面我把 Skill 的本质和设计思路拆开讲清楚。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>Agent Skill 是把「指令、脚本、模板」一体化打包成可复用能力包的机制，关键在于三件事：Agent 能自动发现它、按需加载它、在需要时调用里面的脚本和资源。它不只是「存 prompt」，而是一份 Agent 能自己翻阅的「操作手册 + 工具箱」。每个 Skill 是一个文件夹，里面有一份 <a href="http://SKILL.md">SKILL.md</a> 指令文件，还可以带上脚本、模板、参考文档这些资源。</p>
 <p>它和普通 prompt 最大的区别是：Skill 能被 Agent 自动发现和按需加载，不用你每次手动输入；和 MCP 工具的区别是：MCP 给 Agent 提供外部工具和数据的访问能力，而 Skill 教 Agent 拿到这些工具和数据之后该怎么用。</p>
 <p>Anthropic 在 2025 年 10 月推出了 Agent Skills，同年 12 月把规范作为开放标准发布出来，允许其他 Agent 平台按照这套格式来兼容 Skills 生态。</p>
-<h3>📝 详细解析</h3>
-<h4>为什么需要 Skill？从「重复贴 prompt」的痛点说起</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="skill-prompt">为什么需要 Skill？从「重复贴 prompt」的痛点说起</h4>
 <p>你一定遇到过这种情况：每次让 AI 帮你做代码审查，你都要贴一大段指令，告诉它「检查这几类问题、用这种格式输出、重点关注安全漏洞」。第一次贴的时候还好，第二次、第三次你就开始烦了，每次新对话都要从头贴一遍，漏掉某个细节就会导致输出质量不稳定。</p>
 <p>这还只是一个人的情况。如果是团队协作呢？十个人做代码审查，每个人贴的 prompt 都不一样，有的人关注安全，有的人关注性能，审查标准完全没法统一。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/2e55de3c96-efe1ea23d10380da0a05fce6.png" /></p>
 <p>你可能想到把 prompt 写到一个共享文档里让大家复制，但这本质上还是靠人工去维护和执行，版本一多就容易乱，更新了文档但有人还在用旧版的 prompt，质量把控根本做不到。</p>
 <p>Skill 要解决的就是这个问题：把那些你反复在用的指令、流程、模板，打包成一个标准化的模块，Agent 自己知道什么时候该用它、怎么用它，不再依赖你手动复制粘贴。</p>
-<h4>Skill 的结构长什么样</h4>
+<h4 id="skill">Skill 的结构长什么样</h4>
 <p>一个 Skill 说白了就是一个文件夹，里面最核心的是一份叫 <a href="http://SKILL.md">SKILL.md</a> 的文件，再加上一些可选的辅助资源。结构很直观：</p>
 <div class="codehilite"><pre><code>code-review/                  # Skill 文件夹，名字就是这个 Skill 的标识
 ├── SKILL.md                  # 核心指令文件（必须有）
@@ -52,7 +52,7 @@
 <span class="l l-Scalar l-Scalar-Plain">使用 assets/report_template.md 的模板格式，输出结构化的审查报告。</span>
 </code></pre></div>
 <p>你会发现，这和普通 prompt 的区别就很明显了。普通 prompt 只是一段文字，用完就没了；而 Skill 是一个完整的文件夹，里面的指令、脚本、模板可以持续维护、版本管理，团队里所有人用的都是同一份。</p>
-<h4>渐进式加载：Skill 最聪明的设计</h4>
+<h4 id="skill_1">渐进式加载：Skill 最聪明的设计</h4>
 <p>Skill 最让人眼前一亮的设计，不是「能打包」这件事本身，而是它的加载方式。</p>
 <p>你可能会想，既然 Skill 可以打包那么多东西，Agent 启动的时候是不是要把所有 Skill 的内容全部读进来？想象一下这个账：假设你有 20 个 Skill，每个 Skill 的指令加上参考文档平均 2000 token，全部加载就是 4 万 token 打底。现在市面上常见的模型上下文窗口是 20 万 token，光 Skill 就吃掉了五分之一，剩下的要分给系统提示、对话历史、用户文件，留给模型真正思考的空间就很紧张了。更糟的是，这 20 个 Skill 里大部分在当前这一次任务里根本用不上，加载了也是白加载。</p>
 <p>所以 Skill 用了一套叫「渐进式加载」（Progressive Disclosure）的三层机制来解决这个问题。</p>
@@ -65,7 +65,7 @@
 <p>这个设计用一个类比就很好理解：Skill 就像公司给新员工准备的入职手册。你入职第一天不会把整本手册从头到尾看完，而是先扫一眼目录，知道里面有「报销流程」「请假制度」「代码规范」这些章节就行了。等你真的要报销了，再翻开「报销流程」那一章仔细看。这样既不会信息过载，又确保你需要的时候能找到。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/8a4fa6b7ba-c5a654595c3843dc0b2f0473.png" /></p>
 <p>为什么这个设计这么重要？因为 context window 是 Agent 最宝贵的资源。如果把所有 Skill 的全部内容一股脑塞进去，真正有用的用户任务信息反而会被淹没，Agent 的注意力被分散，输出质量反而下降。渐进式加载的本质就是「让 Agent 只在需要的时候获取需要的知识」，这和人类的工作方式其实是一样的。</p>
-<h4>Skill 和 Tool、Prompt 分别是什么关系</h4>
+<h4 id="skill-toolprompt">Skill 和 Tool、Prompt 分别是什么关系</h4>
 <p>这三个概念经常被混淆，但它们处于完全不同的层次，用一个类比就能讲清楚。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/a34fc7a2a0-ee58ef4d4063dc5df50570ed.png" /></p>
 <p>你可以把 Tool（包括 MCP 工具）想象成公司给员工配的电脑、软件和数据库访问权限。有了 Tool，Agent 就能「做事」，比如查数据库、调 API、读写文件。但光有工具不够，你给一个新人配了一台电脑和所有系统权限，他也不知道该按什么流程做代码审查，不知道先查什么、后查什么、用什么格式输出报告。</p>
@@ -73,15 +73,30 @@
 <p>那 Prompt 呢？Prompt 就像你口头跟员工说的一句话指令，比如「帮我看看这段代码有没有问题」。这句话说完就没了，下次你还得再说一遍。Prompt 是一次性的、临时的，而 Skill 是持久化的、可复用的。</p>
 <p>还有一个容易搞混的是 Slash Command（斜杠命令）。Slash Command 也是把指令保存下来复用，但它必须由你手动触发，比如你得输入 <code>/code-review</code> 才能调用。而 Skill 可以被 Agent 自动发现和调用，Agent 看到你的任务后，自己判断「这个任务需要用 code-review Skill」，然后主动去加载和执行，不需要你告诉它该用哪个 Skill。这个自动发现的能力，就是 Skill 比 Slash Command 更进一步的地方。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/e21a68a3f6-4112627c2bc62581def30c22.png" /></p>
-<h4>Skill 从 Anthropic 走向开放标准</h4>
+<h4 id="skill-anthropic">Skill 从 Anthropic 走向开放标准</h4>
 <p>Agent Skills 最早是 Anthropic 在 2025 年 10 月推出的，一开始只在 Claude 自家的生态里用，覆盖了 Claude Code、Claude API 和 <a href="http://claude.ai">claude.ai</a> 这三个入口。推出两个月后，Anthropic 做了一个很聪明的决定：在 2025 年 12 月把 Agent Skills 的规范作为开放标准发布出来，任何想做 Agent 平台的团队都可以按这个规范来实现自己的 Skills 支持。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/b1dfba6820-828c2be6c842a21fae8f0e84.png" /></p>
 <p>为什么要把规范开放？核心原因是 Skills 的设计足够简单。一个 Skill 就是一个文件夹加一份 Markdown 文件，不需要安装特殊的运行时，不需要学新的编程语言，任何支持文件系统的 Agent 平台理论上都能实现这套格式。这种「零门槛」的设计让它有希望成为跨平台的通用约定。</p>
 <p>你可能会问，开放成标准有什么好处？好处是你写一份 Skill，未来有机会在不同的 Agent 平台之间复用，而不是被某一家产品绑死。这就像 USB 接口一样，你买一根 USB-C 数据线，手机能用、电脑也能用，不用每个设备买一根专用线。Anthropic 想做的就是让 Agent Skills 朝着这个方向发展，虽然现在主要还是 Claude 生态在用，社区里也有项目开始探索在其他 Agent 平台上兼容这个格式，后续能走到哪一步还要看行业的采纳情况。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_3">🎯 面试总结</h3>
 <p>回到开头踩的雷，最常见的误区就是把 Skill 等同于「保存好的 prompt」。面试回答这道题，第一个要说清楚的是 Skill 的本质：它不是一段 prompt，而是一个包含指令、脚本、模板的可复用能力模块，Agent 可以自动发现和按需加载。</p>
 <p>第二个关键点是渐进式加载的设计。三层加载机制（只读元数据 -&gt; 按需加载指令 -&gt; 用到时才取资源）让 Skill 既能提供丰富的能力，又不会浪费宝贵的 context window 空间。这个设计思想在面试里说出来会很加分，因为它体现了你对「context 工程」的理解。</p>
 <p>第三个要讲清楚的是 Skill 和其他概念的关系：MCP/Tool 提供外部工具和数据访问，Skill 提供用这些工具完成任务的知识和流程，两者互补；Prompt 是一次性的临时指令，Skill 是持久化的可复用模块；Slash Command 需要手动触发，Skill 可以被 Agent 自动发现。</p>
 <p>最后可以加一句，Agent Skills 已经从 Anthropic 的产品功能发展成了开放标准（2025 年 12 月开源），目前主要在 Claude Code、Claude API、<a href="http://claude.ai">claude.ai</a> 这三个入口上使用，社区也在探索把这个格式带到其他 Agent 平台，未来有望成为跨平台的能力模块约定。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-tools:09",moduleId="xiaolin-tools";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_3">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-08.html">← 上一章</a><a href="chapter-10.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-tools:09",moduleId="xiaolin-tools";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

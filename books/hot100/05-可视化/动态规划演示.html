@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script id="hot100-embed-bootstrap">
+(() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  document.documentElement.classList.add('hot100-embedded');
+  if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>动态规划演示 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
+
+<style id="hot100-polish">
+:root {
+  color-scheme: light dark;
+  --hot-bg: #f4f6fb;
+  --hot-surface: #ffffff;
+  --hot-surface-soft: #f8f9fd;
+  --hot-text: #182235;
+  --hot-muted: #66748a;
+  --hot-line: #dfe4ee;
+  --hot-brand: #5654d4;
+  --hot-brand-soft: #eeedff;
+  --hot-on-brand: #ffffff;
+  --hot-hero-start: #314fc7;
+  --hot-hero-end: #5546ca;
+  --hot-hero-text: #ffffff;
+  --hot-hero-muted: #e7ebff;
+  --hot-success: #167a52;
+  --hot-success-soft: #def7e9;
+  --hot-warning: #934b00;
+  --hot-warning-soft: #fff0d8;
+  --hot-danger: #b52b3a;
+  --hot-danger-soft: #ffe5e9;
+  --hot-canvas-bg: #f8fafc;
+  --hot-canvas-line: #c9d2df;
+  --hot-shadow: 0 12px 34px rgba(33,45,73,.075);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hot-bg: #0f131b;
+    --hot-surface: #181e29;
+    --hot-surface-soft: #141a24;
+    --hot-text: #eaf0fa;
+    --hot-muted: #a3afc2;
+    --hot-line: #313b4c;
+    --hot-brand: #b1afff;
+    --hot-brand-soft: #292955;
+    --hot-on-brand: #111521;
+    --hot-hero-start: #263677;
+    --hot-hero-end: #39256f;
+    --hot-hero-text: #f8f9ff;
+    --hot-hero-muted: #dfe4ff;
+    --hot-success: #79d8a8;
+    --hot-success-soft: #183c2d;
+    --hot-warning: #ffc174;
+    --hot-warning-soft: #47311b;
+    --hot-danger: #ff9ba6;
+    --hot-danger-soft: #47242b;
+    /* 旧 Canvas 内部仍使用深色文字，因此绘图区保持柔和浅底以确保可读。 */
+    --hot-canvas-bg: #edf2f7;
+    --hot-canvas-line: #bac5d2;
+    --hot-shadow: 0 16px 42px rgba(0,0,0,.22);
+  }
+}
+* { box-sizing: border-box; }
+html { min-width: 0; background: var(--hot-bg) !important; }
+body {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 34px !important;
+  color: var(--hot-text) !important;
+  background: radial-gradient(circle at 12% 0%, color-mix(in srgb,var(--hot-brand) 9%,transparent), transparent 34rem), var(--hot-bg) !important;
+}
+:focus-visible { outline: 3px solid color-mix(in srgb,var(--hot-brand) 48%,transparent) !important; outline-offset: 3px; }
+.hot100-topnav {
+  width: min(100% - 24px, 1400px);
+  margin: 12px auto 16px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--hot-muted);
+  background: color-mix(in srgb,var(--hot-surface) 94%,transparent);
+  border: 1px solid var(--hot-line);
+  border-radius: 13px;
+  box-shadow: var(--hot-shadow);
+  font: 14px/1.45 system-ui, "Microsoft YaHei", sans-serif;
+}
+.hot100-topnav .hot100-links { display: flex; gap: 7px; flex-wrap: wrap; }
+.hot100-topnav a { padding: 6px 9px; color: var(--hot-brand); background: var(--hot-brand-soft); border-radius: 7px; text-decoration: none; }
+.hot100-topnav a:hover { filter: brightness(.97); }
+.hot100-topnav strong { min-width: 0; color: var(--hot-text); overflow-wrap: anywhere; }
+body > .container, body > .shell, body > main, body > .wrap {
+  width: min(100% - 24px, 1400px) !important;
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-bottom: 44px;
+}
+body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group {
+  width: min(100% - 24px, 1400px);
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+canvas, svg, img { max-width: 100% !important; }
+button, input, select, textarea { max-width: 100%; }
+body h1 {
+  margin-top: 0;
+  color: var(--hot-text) !important;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+body h2 { color: var(--hot-text); line-height: 1.3; }
+body h3 { color: var(--hot-text); line-height: 1.4; }
+button, input, select, textarea { font: inherit; }
+button {
+  min-height: 36px;
+  padding: 8px 12px;
+  color: var(--hot-text);
+  background: var(--hot-surface);
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 2px 8px rgba(33,45,73,.04);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb,var(--hot-brand) 42%,var(--hot-line)) !important;
+  background: color-mix(in srgb,var(--hot-brand-soft) 58%,var(--hot-surface));
+  box-shadow: 0 5px 14px rgba(33,45,73,.08);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: .52; cursor: not-allowed; box-shadow: none; }
+button.primary, button.btn-primary, button.btn-apply, .primary, .btn-primary, .btn-apply {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-brand) !important;
+  border-color: var(--hot-brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 36px;
+  padding: 7px 10px !important;
+  color: var(--hot-text) !important;
+  background: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 8px !important;
+}
+input[type="range"] { accent-color: var(--hot-brand); }
+.controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
+.controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+.sort-tabs, .ds-tabs {
+  display: flex;
+  gap: 7px !important;
+  margin-block: 18px !important;
+  padding: 4px !important;
+  background: color-mix(in srgb,var(--hot-surface) 84%,transparent) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 6px 20px rgba(33,45,73,.045);
+}
+.sort-tab, .ds-tab, .code-tab, .preset-btn {
+  padding: 8px 11px !important;
+  color: var(--hot-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease;
+}
+.sort-tab:hover, .ds-tab:hover, .code-tab:hover, .preset-btn:hover {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+}
+.sort-tab.active, .ds-tab.active, .code-tab.active, .preset-btn.active {
+  color: var(--hot-brand) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 28%,var(--hot-line)) !important;
+  box-shadow: 0 3px 10px rgba(33,45,73,.065);
+}
+.container, .shell, main, .wrap, .content, .layout, .code-section, .vis-section, .content > *, .layout > *, .wrap > * { min-width: 0 !important; }
+.vis-canvas-wrap, .panel, .box, .table-responsive, .code-scroll, .notes-section { max-width: 100%; }
+.table-responsive, .code-scroll, .notes-section { overflow: auto; }
+.panel { overflow: hidden !important; }
+.box { overflow: visible; }
+.panel, .box {
+  color: var(--hot-text);
+  background-color: var(--hot-surface) !important;
+  border: 1px solid var(--hot-line) !important;
+  border-radius: 15px !important;
+  box-shadow: var(--hot-shadow) !important;
+}
+.code-section { border-color: var(--hot-line) !important; }
+.vis-section { background-color: var(--hot-surface-soft) !important; }
+.vis-msg, .target-info, .algo-desc, .desc, .status, .log {
+  color: var(--hot-text) !important;
+  border-color: var(--hot-line) !important;
+}
+.vis-msg, .target-info, .algo-desc, .desc {
+  background: color-mix(in srgb,var(--hot-brand-soft) 48%,var(--hot-surface)) !important;
+}
+.legend {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface) !important;
+  border-color: var(--hot-line) !important;
+}
+.step-info, .size-info, .sub, .muted { color: var(--hot-muted) !important; }
+/* 题头必须使用独立的前景/背景色对；不能继承正文的灰色文字。 */
+.panel-header {
+  color: var(--hot-hero-text) !important;
+  background: linear-gradient(135deg,var(--hot-hero-start),var(--hot-hero-end)) !important;
+}
+.panel-header h1, .panel-header h2, .panel-header h3 {
+  color: inherit !important;
+}
+.panel-header .sub, .panel-header p, .panel-header .info {
+  max-width: 88ch;
+  color: var(--hot-hero-muted) !important;
+  opacity: 1 !important;
+  line-height: 1.65;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+/* 复杂度徽标中的色点不是第二层徽标，避免白块套白块。 */
+.complexity .badge-time, .complexity .badge-space {
+  display: inline !important;
+  margin-right: 6px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+/* 动画安全区：标签、指针和高亮不再贴边或被相邻区域裁掉。 */
+.lane { min-height: 220px !important; padding: 36px 6px !important; row-gap: 52px !important; overflow: visible !important; }
+.lane .label.top { bottom: 66px !important; }
+.lane .label.bottom { top: 66px !important; }
+.bars { height: 300px !important; padding-top: 38px !important; padding-bottom: 34px !important; overflow: visible !important; }
+.bars .col { min-width: 0; }
+.bars .idx, .bars .answer { z-index: 2; }
+.hot100-bar-stage {
+  min-height: 300px !important;
+  padding: 32px 12px 32px !important;
+  overflow-x: auto !important;
+  overflow-y: clip !important;
+  scroll-padding-inline: 12px;
+}
+.hot100-bar-stage .bar-wrapper { z-index: 2; }
+.hot100-bar-stage .water-rect { z-index: 1; }
+.hot100-native-canvas {
+  min-height: clamp(400px, 48vh, 540px) !important;
+  padding: 0 !important;
+  overflow: clip !important;
+  isolation: isolate;
+  background: var(--hot-canvas-bg) !important;
+  border: 1px solid var(--hot-canvas-line);
+}
+.hot100-native-canvas > canvas { display: block; max-width: 100% !important; }
+/* 高亮使用边框/阴影，不再放大后覆盖相邻格子。 */
+.curr, .board-cell.current, .val-box.current, .val-box.found, .set-num.checking { transform: none !important; }
+.curr, .board-cell.current { box-shadow: inset 0 0 0 2px color-mix(in srgb,var(--hot-brand) 58%,transparent) !important; }
+.bar-label, .idx { color: var(--hot-muted) !important; }
+pre { max-width: 100%; overflow: auto !important; }
+table { max-width: 100%; }
+
+@media (prefers-color-scheme: dark) {
+  body > .container > h1, body > .shell > h1, body > main > h1, body > h1, body > h2 { color: var(--hot-text) !important; }
+  .panel, .box, .code-section, .vis-section, .notes-section, .input-section, .top-tags,
+  .controls, .complexity, .complexity-bar, .code-header, .code-tab, .legend, .algo-desc,
+  .op-bar, .map-container, .formula-box, .desc, .false, .token, .status, .log {
+    color: var(--hot-text) !important;
+    background-color: var(--hot-surface) !important;
+    border-color: var(--hot-line) !important;
+  }
+  .vis-canvas-wrap, .table-responsive { background-color: var(--hot-surface-soft) !important; }
+  .sub, .muted, .info, .row-label, .step-info, .size-info { color: var(--hot-muted) !important; }
+  input, select, textarea { color: var(--hot-text) !important; background: var(--hot-surface) !important; border-color: var(--hot-line) !important; }
+  button:not(.primary):not(.btn-primary):not(.active) { color: var(--hot-text); background-color: var(--hot-surface); border-color: var(--hot-line); }
+}
+/* 状态配色：前景与底色成对定义，避免只改背景造成文字消失。 */
+.code-line.highlight-line {
+  color: var(--hot-text) !important;
+  background: var(--hot-warning-soft) !important;
+  box-shadow: inset 3px 0 var(--hot-warning);
+}
+.code-line.highlight-line .lineno { color: var(--hot-warning) !important; }
+.code .active {
+  display: inline-block;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-radius: 4px;
+}
+.token, .pair, .node, .dp-cell, .cell:not(.wall) {
+  color: var(--hot-text);
+  background-color: var(--hot-surface-soft);
+  border-color: color-mix(in srgb,var(--hot-text) 17%,var(--hot-line)) !important;
+}
+.header { color: var(--hot-muted) !important; background: transparent !important; border-color: transparent !important; }
+.filled, .cell.in, .frontier {
+  color: var(--hot-text) !important;
+  background: var(--hot-brand-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-brand) 58%,var(--hot-line)) !important;
+}
+.true, .map-pair.found, .op-badge.found, .board-cell.matched, .queen-cell.safe, .cell.visited, .source {
+  color: var(--hot-success) !important;
+  background: var(--hot-success-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 66%,var(--hot-line)) !important;
+}
+.false {
+  color: var(--hot-muted) !important;
+  background: var(--hot-surface-soft) !important;
+  border-color: var(--hot-line) !important;
+}
+.curr, .board-cell.current, .val-tag.active, .str-token.current, .set-num.checking, .cell.current, .col.current .bar {
+  color: var(--hot-warning) !important;
+  background: var(--hot-warning-soft) !important;
+  border-color: var(--hot-warning) !important;
+  outline-color: color-mix(in srgb,var(--hot-warning) 56%,transparent) !important;
+}
+.val-box.current {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-warning) !important;
+  border-color: color-mix(in srgb,var(--hot-warning) 78%,#000) !important;
+}
+.val-box.found {
+  color: var(--hot-on-brand) !important;
+  background: var(--hot-success) !important;
+  border-color: color-mix(in srgb,var(--hot-success) 78%,#000) !important;
+}
+.board-cell.visited, .queen-cell.conflict, .set-num.active-check {
+  color: var(--hot-danger) !important;
+  background: var(--hot-danger-soft) !important;
+  border-color: color-mix(in srgb,var(--hot-danger) 68%,var(--hot-line)) !important;
+}
+.wall { color: #fff !important; background: #465066 !important; border-color: #465066 !important; }
+.saved { outline-color: var(--hot-warning) !important; background: var(--hot-warning-soft) !important; }
+.hot100-native-canvas { background: var(--hot-canvas-bg) !important; }
+/* 题解页内嵌模式：只保留交互状态、必要图例和控制器。 */
+html.hot100-embedded { background: transparent !important; }
+html.hot100-embedded body {
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  background: transparent !important;
+  font-size: 15px;
+}
+html.hot100-embedded .hot100-topnav,
+html.hot100-embedded body > h1,
+html.hot100-embedded body > h2,
+html.hot100-embedded body > .info,
+html.hot100-embedded .container > h1,
+html.hot100-embedded .shell > a:first-child,
+html.hot100-embedded .shell > h1,
+html.hot100-embedded .shell > h1 + .muted,
+html.hot100-embedded .shell > h1 + div:not(.toolbar),
+html.hot100-embedded .panel-header,
+html.hot100-embedded .top-tags,
+html.hot100-embedded .notes-section,
+html.hot100-embedded .input-section,
+html.hot100-embedded .complexity,
+html.hot100-embedded .complexity-bar,
+html.hot100-embedded .code-section,
+html.hot100-embedded .algo-desc,
+html.hot100-embedded .status > .code {
+  display: none !important;
+}
+html.hot100-single-panel .container > .sort-tabs,
+html.hot100-single-panel .container > .ds-tabs {
+  display: none !important;
+}
+html.hot100-embedded body > .container,
+html.hot100-embedded body > .shell,
+html.hot100-embedded body > main,
+html.hot100-embedded body > .wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+html.hot100-embedded .content { min-height: 0 !important; }
+html.hot100-embedded .vis-section { width: 100% !important; flex: 1 1 100% !important; }
+html.hot100-embedded .panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html.hot100-embedded .sort-tabs,
+html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
+@media (max-width: 760px) {
+  .hot100-topnav { width: min(100% - 16px, 1400px); margin-top: 8px; padding: 9px 10px; align-items: flex-start; }
+  .hot100-topnav .hot100-links { width: 100%; }
+  body > .container, body > .shell, body > main, body > .wrap { width: min(100% - 12px, 1400px) !important; padding-left: 4px !important; padding-right: 4px !important; }
+  body > h1, body > h2, body > h3, body > .info, body > .desc, body > .btn-group { width: min(100% - 20px, 1400px); }
+  .content, .layout, .wrap { flex-direction: column !important; grid-template-columns: minmax(0,1fr) !important; }
+  .box, .panel { width: 100% !important; min-width: 0 !important; }
+  .code-section { width: 100% !important; border-right: 0 !important; }
+  .vis-canvas-wrap:not(.hot100-native-canvas):not(.hot100-bar-stage) { padding-left: 10px !important; padding-right: 10px !important; }
+  .hot100-native-canvas { min-height: 360px !important; }
+  .hot100-bar-stage { min-height: 280px !important; padding: 30px 10px 30px !important; }
+  .bar { min-width: 4px !important; }
+  .code-line, pre, pre code { white-space: pre !important; }
+  .step-info { width: 100%; margin-left: 0 !important; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>动态规划演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 动态规划演示：10 道题 · 表格逐格填充视图 =====
+ * view = { table: [ [ {v, st} ] 或 [值] ], cols, rowLabels, colLabels, hl:{r,c}, note }
+ */
+var el = DemoKit.el;
+
+function renderTable(view, stage) {
+  var t = view.table;
+  var tbl = document.createElement("table");
+  tbl.style.cssText = "border-collapse:separate;border-spacing:5px";
+  for (var r = 0; r < t.length; r++) {
+    var tr = document.createElement("tr");
+    for (var c = 0; c < t[r].length; c++) {
+      var cell = t[r][c];
+      var v = (cell && typeof cell === "object") ? cell.v : cell;
+      var st = (cell && typeof cell === "object") ? cell.st : null;
+      var td = el("td", "dk-cell" + (st ? " " + st : ""), v === undefined || v === null ? "·" : String(v));
+      td.style.minWidth = "46px";
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  stage.textContent = "";
+  stage.appendChild(tbl);
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
+}
+
+var DEMOS = {
+
+  "0070": { no: "70", title: "爬楼梯", tag: "DP · 斐波那契",
+    example: "输入：n = 5（每次爬 1 或 2 个台阶）　输出：8",
+    sizes: [{ label: "n = 3", n: 3 }, { label: "n = 5（示例 1）", n: 5 }, { label: "n = 10", n: 10 }],
+    defaultSize: 1,
+    build: function (ctx, size) {
+      var n = (size && size.n) || 5;
+      var dp = [0];
+      dp[1] = 1; if (n >= 2) dp[2] = 2;
+      ctx.step("dp[i] = 到达第 i 阶的方法数：dp[i] = dp[i-1] + dp[i-2]（最后一步跨 1 或 2 阶）",
+        { table: [dp.map(function (v, i) { return { v: i === 0 ? "—" : v, st: null }; })] });
+      for (var i = 3; i <= n; i++) {
+        dp[i] = dp[i - 1] + dp[i - 2];
+        ctx.step("dp[" + i + "] = dp[" + (i - 1) + "] + dp[" + (i - 2) + "] = " + dp[i - 1] + " + " + dp[i - 2] + " = " + dp[i],
+          { table: [dp.map(function (v, k) { return { v: k === 0 ? "—" : v, st: k === i ? "hot" : k < i ? "done" : null }; })] });
+      }
+      ctx.step("完成！爬 " + n + " 阶共有 " + dp[n] + " 种方法（就是斐波那契数列）", { table: [dp.map(function (v, k) { return { v: k === 0 ? "—" : v, st: k === n ? "target" : "done" }; })] });
+    },
+    render: renderTable },
+
+  "0118": { no: "118", title: "杨辉三角", tag: "DP · 递推构造",
+    example: "输入：numRows = 5",
+    sizes: [{ label: "5 行（示例 1）", n: 5 }, { label: "7 行", n: 7 }, { label: "9 行", n: 9 }],
+    defaultSize: 0,
+    build: function (ctx, size) {
+      var n = (size && size.n) || 5;
+      var tri = [];
+      for (var r = 0; r < n; r++) {
+        var row = [];
+        for (var c = 0; c <= r; c++) {
+          row.push(c === 0 || c === r ? { v: 1, st: "write" } : { v: (tri[r - 1][c - 1].v || 0) + (tri[r - 1][c].v || 0), st: "hot" });
+        }
+        row = row.map(function (x) { return { v: x.v, st: x.st === "hot" ? "write" : "hot" }; });
+        tri.push(row);
+        ctx.step("第 " + (r + 1) + " 行：两端为 1，中间 = 上一行左右之和", { table: tri.map(function (rw) { return rw.map(function (x) { return { v: x.v, st: null }; }); }) });
+      }
+      ctx.step("完成！" + n + " 行杨辉三角（每个数 = 上一行左右两数之和）", { table: tri });
+    },
+    render: renderTable },
+
+  "0139": { no: "139", title: "单词拆分", tag: "DP · 可达性",
+    example: "输入：s = \"leetcode\"，wordDict = [\"leet\", \"code\"]　输出：true",
+    build: function (ctx) {
+      var s = "leetcode", dict = ["leet", "code"];
+      var dp = [true];
+      for (var i = 1; i <= s.length; i++) {
+        dp[i] = false;
+        for (var j = 0; j < i; j++) {
+          if (dp[j] && dict.indexOf(s.slice(j, i)) >= 0) {
+            dp[i] = true;
+            ctx.step("dp[" + i + "]：s[0.." + i + ") 能拆（dp[" + j + "] 为真 且 \"" + s.slice(j, i) + "\" 在字典中）", { table: [dp.map(function (v, k) { return { v: v ? "✓" : "✗", st: k === i ? "target" : k === j ? "hot" : k < i ? "done" : null }; })] });
+            break;
+          }
+        }
+        if (!dp[i]) ctx.step("dp[" + i + "]：找不到可行的拆分点 → false", { table: [dp.map(function (v, k) { return { v: v ? "✓" : "✗", st: k === i ? "swap" : k < i ? "done" : null }; })] });
+      }
+      ctx.step(dp[s.length] ? "完成！s 可以拆分为字典单词" : "无法拆分", { table: [dp.map(function (v) { return { v: v ? "✓" : "✗", st: null }; })] });
+    },
+    render: renderTable },
+
+  "0152": { no: "152", title: "乘积最大子数组", tag: "DP · 正负双状态",
+    example: "输入：nums = [2,3,-2,4]　输出：6",
+    build: function (ctx) {
+      var nums = [2, 3, -2, 4];
+      var maxP = nums[0], minP = nums[0], ans = nums[0];
+      var mx = [nums[0]], mn = [nums[0]];
+      for (var i = 1; i < nums.length; i++) {
+        var x = nums[i];
+        var cands = [x, maxP * x, minP * x];
+        maxP = Math.max.apply(null, cands);
+        minP = Math.min.apply(null, cands);
+        mx.push(maxP); mn.push(minP);
+        ans = Math.max(ans, maxP);
+        ctx.step("x=" + x + "：max = max(x, 上一max×x, 上一min×x) = " + maxP + "（负数×负数可能翻正！），min = " + minP + "，ans = " + ans,
+          { table: [mx.map(function (v) { return { v: v }; }), mn.map(function (v) { return { v: v }; })], note: "第一行 max[i]，第二行 min[i]" });
+      }
+      ctx.step("完成！最大乘积子数组 = " + ans, { table: [mx.map(function (v) { return { v: v, st: null }; })] });
+    },
+    render: renderTable },
+
+  "0198": { no: "198", title: "打家劫舍", tag: "DP · 不相邻选取",
+    example: "输入：nums = [2,7,9,3,1]　输出：12",
+    build: function (ctx) {
+      var nums = [2, 7, 9, 3, 1];
+      var dp = [nums[0]];
+      dp[1] = Math.max(nums[0], nums[1]);
+      ctx.step("dp[0] = 2；dp[1] = max(2, 7) = 7（相邻不能都偷）", { table: [dp.map(function (v) { return { v: v, st: "write" }; }), nums.map(function (v) { return { v: v, st: null }; })] });
+      for (var i = 2; i < nums.length; i++) {
+        dp[i] = Math.max(dp[i - 1], dp[i - 2] + nums[i]);
+        ctx.step("dp[" + i + "] = max(不偷 dp[" + (i - 1) + "]=" + dp[i - 1] + "，偷 dp[" + (i - 2) + "]+" + nums[i] + "=" + (dp[i - 2] + nums[i]) + ") = " + dp[i],
+          { table: [dp.map(function (v, k) { return { v: v, st: k === i ? "hot" : k < i ? "done" : null }; }), nums.map(function (v, k) { return { v: v, st: k === i ? "cmp" : null }; })] });
+      }
+      ctx.step("完成！能偷到的最高金额 = " + dp[nums.length - 1], { table: [dp.map(function (v) { return { v: v, st: null }; }), nums.map(function (v) { return { v: v, st: null }; })] });
+    },
+    render: renderTable },
+
+  "0279": { no: "279", title: "完全平方数", tag: "DP · 完全背包",
+    example: "输入：n = 12　输出：3（12 = 4 + 4 + 4）",
+    build: function (ctx) {
+      var n = 12;
+      var dp = [0];
+      for (var i = 1; i <= n; i++) dp[i] = Infinity;
+      for (var i = 1; i <= n; i++) {
+        for (var s = 1; s * s <= i; s++) {
+          dp[i] = Math.min(dp[i], dp[i - s * s] + 1);
+          ctx.step("dp[" + i + "]：尝试 " + (s * s) + "（dp[" + (i - s * s) + "] + 1 = " + (dp[i - s * s] + 1) + "）→ 当前最小 " + dp[i],
+            { table: [dp.map(function (v, k) { return { v: v === Infinity ? "∞" : v, st: k === i ? "hot" : k < i ? "done" : null }; })] });
+        }
+      }
+      ctx.step("完成！12 = 4 + 4 + 4 → 最少 3 个完全平方数", { table: [dp.map(function (v) { return { v: v, st: null }; })] });
+    },
+    render: renderTable },
+
+  "0300": { no: "300", title: "最长递增子序列", tag: "DP · O(n²) 经典",
+    example: "输入：nums = [10,9,2,5,3,7,101,18]　输出：4（[2,3,7,101] 或 [2,5,7,101]）",
+    build: function (ctx) {
+      var nums = [10, 9, 2, 5, 3, 7, 101, 18];
+      var dp = [];
+      for (var i = 0; i < nums.length; i++) {
+        dp[i] = 1;
+        for (var j = 0; j < i; j++) {
+          if (nums[j] < nums[i]) dp[i] = Math.max(dp[i], dp[j] + 1);
+        }
+        ctx.step("dp[" + i + "]（" + nums[i] + "）：扫前面所有比它小的，取最大 dp+1 → " + dp[i],
+          { table: [dp.map(function (v, k) { return { v: v, st: k === i ? "hot" : k < i ? "done" : null }; }), nums.map(function (v, k) { return { v: v, st: k === i ? "cmp" : null }; })] });
+      }
+      var ans = Math.max.apply(null, dp);
+      ctx.step("完成！LIS 长度 = " + ans + "（答案不一定在 dp 末尾，取全局 max）", { table: [dp.map(function (v, k) { return { v: v, st: v === ans ? "target" : null }; }), nums.map(function (v) { return { v: v, st: null }; })] });
+    },
+    render: renderTable },
+
+  "0322": { no: "322", title: "零钱兑换", tag: "DP · 完全背包",
+    example: "输入：coins = [1, 2, 5]，amount = 11　输出：3（5+5+1）",
+    build: function (ctx) {
+      var coins = [1, 2, 5], amount = 11;
+      var dp = [0];
+      for (var i = 1; i <= amount; i++) dp[i] = Infinity;
+      for (var i = 1; i <= amount; i++) {
+        for (var c = 0; c < coins.length; c++) {
+          var coin = coins[c];
+          if (coin <= i && dp[i - coin] + 1 < dp[i]) {
+            dp[i] = dp[i - coin] + 1;
+            ctx.step("dp[" + i + "]：用面值 " + coin + "（dp[" + (i - coin) + "] + 1 = " + dp[i] + "）→ 当前最少 " + dp[i] + " 枚",
+              { table: [dp.map(function (v, k) { return { v: v === Infinity ? "∞" : v, st: k === i ? "hot" : k < i ? "done" : null }; })] });
+          }
+        }
+        if (dp[i] === Infinity) ctx.step("dp[" + i + "] = ∞（凑不出来）", { table: [dp.map(function (v, k) { return { v: v === Infinity ? "∞" : v, st: null }; })] });
+      }
+      ctx.step("完成！凑出 " + amount + " 最少需要 " + dp[amount] + " 枚硬币（5+5+1）", { table: [dp.map(function (v) { return { v: v === Infinity ? "∞" : v, st: null }; })] });
+    },
+    render: renderTable },
+
+  "0005": { no: "5", title: "最长回文子串", tag: "DP · 区间 DP",
+    example: "输入：s = \"babad\"　输出：\"bab\"（\"aba\" 也合法）",
+    build: function (ctx) {
+      var s = "babad", n = s.length;
+      var dp = [];
+      for (var i = 0; i < n; i++) { dp.push([]); for (var j = 0; j < n; j++) dp[i].push({ v: i === j ? "✓" : "·" }); }
+      var bestL = 0, bestLen = 1;
+      ctx.step("dp[i][j] = s[i..j] 是否回文。先填单字符（全 ✓）", { table: dp });
+      for (var i = 0; i + 1 < n; i++) {
+        if (s[i] === s[i + 1]) { dp[i][i + 1] = { v: "✓", st: "write" }; if (2 > bestLen) { bestL = i; bestLen = 2; } }
+      }
+      ctx.step("再填相邻相同的长 2 子串", { table: dp });
+      for (var len = 3; len <= n; len++) {
+        for (var i = 0; i + len - 1 < n; i++) {
+          var j = i + len - 1;
+          var pal = s[i] === s[j] && dp[i + 1][j - 1].v === "✓";
+          dp[i][j] = { v: pal ? "✓" : "✗" };
+          if (pal) {
+            ctx.step("s[" + i + ".." + j + "]=\"" + s.slice(i, j + 1) + "\"：首尾相等 且 内部回文 → 回文！长度 " + len,
+              { table: dp.map(function (row, r) { return row.map(function (x, c) { return { v: x.v, st: (r === i || r === j || (r > i && r < j)) ? "write" : null }; }); }) });
+            if (len > bestLen) { bestL = i; bestLen = len; }
+          }
+        }
+      }
+      ctx.step("完成！最长回文子串 = \"" + s.slice(bestL, bestL + bestLen) + "\"（长度 " + bestLen + "）", { table: dp });
+    },
+    render: renderTable },
+
+  "0064": { no: "64", title: "最小路径和", tag: "DP · 网格",
+    example: "输入：grid = [[1,3,1],[1,5,1],[2,4,1]]　输出：7（右→右→下→下→左…即 1→3→1→1→1）",
+    build: function (ctx) {
+      var g = [[1, 3, 1], [1, 5, 1], [2, 4, 1]];
+      var dp = [];
+      for (var i = 0; i < g.length; i++) dp.push(g[i].map(function () { return { v: "·" }; }));
+      dp[0][0] = { v: g[0][0], st: "hot" };
+      ctx.step("起点 dp[0][0] = " + g[0][0], { table: dp.map(function (r) { return r.map(function (x) { return { v: x.v }; }); }) });
+      for (var c = 1; c < g[0].length; c++) {
+        dp[0][c] = { v: dp[0][c - 1].v + g[0][c] };
+        ctx.step("首行只能向右：dp[0][" + c + "] = " + dp[0][c].v, { table: dp });
+      }
+      for (var r = 1; r < g.length; r++) {
+        dp[r][0] = { v: dp[r - 1][0].v + g[r][0] };
+        ctx.step("首列只能向下：dp[" + r + "][0] = " + dp[r][0].v, { table: dp });
+      }
+      for (var r = 1; r < g.length; r++) {
+        for (var c = 1; c < g[0].length; c++) {
+          dp[r][c] = { v: Math.min(dp[r - 1][c].v, dp[r][c - 1].v) + g[r][c] };
+          ctx.step("dp[" + r + "][" + c + "] = min(上 " + dp[r - 1][c].v + "，左 " + dp[r][c - 1].v + ") + " + g[r][c] + " = " + dp[r][c].v,
+            { table: dp });
+        }
+      }
+      ctx.step("完成！右下角 = 最小路径和 " + dp[g.length - 1][g[0].length - 1], { table: dp });
+    },
+    render: renderTable }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      build: d.build, render: d.render
+    });
+  }
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
+
+<script id="hot100-a11y">
+(() => {
+  const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
+  const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+  tabLike.forEach((item) => {
+    if (!item.hasAttribute('role')) item.setAttribute('role', 'button');
+    if (!item.hasAttribute('tabindex')) item.setAttribute('tabindex', '0');
+    syncState(item);
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
+    new MutationObserver(() => syncState(item)).observe(item, { attributes: true, attributeFilter: ['class'] });
+  });
+  document.querySelectorAll('button').forEach((button) => { if (!button.type) button.type = 'button'; });
+  document.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (control.matches('[aria-label], [aria-labelledby]')) return;
+    if (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`)) return;
+    if (control.closest('label')) return;
+    const fallback = control.getAttribute('placeholder') || control.getAttribute('name') || control.id || (control.type === 'range' ? '播放速度' : '参数');
+    control.setAttribute('aria-label', fallback);
+  });
+  document.querySelectorAll('canvas').forEach((canvas) => {
+    if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+    if (!canvas.hasAttribute('aria-label')) {
+      const heading = canvas.closest('.panel')?.querySelector('h2, h3')?.textContent?.trim();
+      canvas.setAttribute('aria-label', `${heading || document.title} 的算法状态图`);
+    }
+    canvas.parentElement?.classList.add('hot100-native-canvas');
+  });
+  document.querySelectorAll('.vis-canvas-wrap').forEach((stage) => {
+    if (stage.querySelector('.bar-wrapper')) stage.classList.add('hot100-bar-stage');
+  });
+  document.querySelectorAll('.log, .status, .vis-msg, .desc').forEach((node) => {
+    if (!node.hasAttribute('aria-live')) node.setAttribute('aria-live', 'polite');
+  });
+  const embedParams = new URLSearchParams(location.search);
+  if (embedParams.get('embed') === '1') {
+    const panelIndex = embedParams.get('panel');
+    if (panelIndex !== null) {
+      const panelTab = [...document.querySelectorAll('.sort-tab, .ds-tab')]
+        .find((item) => item.dataset.idx === panelIndex);
+      panelTab?.click();
+    }
+    const mode = embedParams.get('mode');
+    const modeSelect = document.getElementById('mode');
+    if (mode && modeSelect && [...modeSelect.options].some((option) => option.value === mode)) {
+      modeSelect.value = mode;
+      modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const reportHeight = () => requestAnimationFrame(() => {
+      const bottoms = [...document.body.children]
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect().bottom);
+      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
+    });
+    new ResizeObserver(reportHeight).observe(document.body);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'hot100:measure') reportHeight();
+    });
+    window.addEventListener('load', reportHeight, { once: true });
+    document.fonts?.ready.then(reportHeight);
+    reportHeight();
+  }
+})();
+</script>
+
+</body>
+</html>

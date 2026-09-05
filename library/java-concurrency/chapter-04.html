@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>volatile 深入 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">volatile 深入</span></nav><div class="module-meta">Java 语言 · 第 4 / 17 章</div><h1>volatile 深入</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>volatile 是最轻量的同步手段，也是面试最喜欢“挖坑”的关键字。</p>
-<h3>3.1 volatile 的两条语义</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>volatile 深入 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">volatile 深入</span></nav><div class="module-meta">Java 语言 · 第 4 / 17 章 · <span class="muted">更新于 2026-09-05</span></div><h1>volatile 深入</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>volatile 是最轻量的同步手段，也是面试最喜欢“挖坑”的关键字。</p>
+<h3 id="31-volatile">3.1 volatile 的两条语义</h3>
 <ol>
 <li><strong>可见性</strong>：volatile 变量的写会立即刷新到主内存，读会直接从主内存读取；</li>
 <li><strong>有序性</strong>：禁止指令重排序，JVM 在读写前后插入内存屏障。</li>
@@ -10,7 +10,7 @@
 <span class="kd">volatile</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
 <span class="c1">// 100 个线程各执行 count++ 1000 次，结果 &lt; 100000</span>
 </code></pre></div>
-<h3>3.2 内存屏障</h3>
+<h3 id="32">3.2 内存屏障</h3>
 <p>JMM 的保守插入策略：</p>
 <table>
 <thead>
@@ -40,7 +40,7 @@
 </ul>
 <p>补充：x86（TSO 内存模型）上 volatile <strong>读</strong>通常不需要额外指令（普通 load 本身就具备 acquire 语义），volatile <strong>写</strong>才体现为 <code>lock</code> 前缀指令。</p>
 <p>注意：volatile 的语义由 JMM 定义，<strong>不是“禁用 CPU 缓存”</strong>；具体实现依赖屏障指令与缓存一致性协议。</p>
-<h3>3.3 典型应用一：状态标志</h3>
+<h3 id="33">3.3 典型应用一：状态标志</h3>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">volatile</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">stopped</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
 
 <span class="c1">// 工作线程</span>
@@ -51,7 +51,7 @@
 <span class="c1">// 主线程</span>
 <span class="n">stopped</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">    </span><span class="c1">// 可见性保证工作线程能退出</span>
 </code></pre></div>
-<h3>3.4 典型应用二：双重检查锁单例</h3>
+<h3 id="34">3.4 典型应用二：双重检查锁单例</h3>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Singleton</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">volatile</span><span class="w"> </span><span class="n">Singleton</span><span class="w"> </span><span class="n">instance</span><span class="p">;</span><span class="w">   </span><span class="c1">// 必须 volatile</span>
 
@@ -69,7 +69,7 @@
 </code></pre></div>
 <p>为什么必须 volatile：<code>new Singleton()</code> 分为“分配内存 → 初始化字段 → 把引用赋给 instance”三步，没有 volatile 时，CPU 可能把“赋引用”重排到“初始化”之前，另一个线程第一次检查时看到非 null 却拿到未初始化的“半个对象”。volatile 的 StoreStore 屏障保证初始化完成前引用不会被发布。</p>
 <p>JDK 5 之后还有另一条路：把 <code>instance</code> 字段设为 <code>final</code>，利用 final 规则保证安全发布。</p>
-<h3>3.5 volatile 与 synchronized 对比</h3>
+<h3 id="35-volatile-synchronized">3.5 volatile 与 synchronized 对比</h3>
 <table>
 <thead>
 <tr>
@@ -111,7 +111,7 @@
 </tr>
 </tbody>
 </table>
-<h3>3.6 面试追问</h3>
+<h3 id="36">3.6 面试追问</h3>
 <ul>
 <li>问：volatile 能保证原子性吗？</li>
 <li>答：不能。volatile 只保证两件事：读到的永远是最新值（可见性）、读写不会被重排序打乱（有序性）。但 <code>i++</code> 是“读 i → 加 1 → 写回”三步复合操作，volatile 挡不住线程切换：线程 A 读到 5，还没写回，线程 B 也读到 5，两人都写 6——两次自增只加了 1。正确做法三选一：<code>AtomicInteger.incrementAndGet()</code>（CAS 无锁）、<code>synchronized</code> 块、或 LongAdder（超高并发计数）。用一个反例检验自己：volatile boolean flag 做开关可以（单次读写，天然原子），volatile int count 做计数器不行（复合操作）——区别就在“单次读写”和“读改写”上。</li>
@@ -121,5 +121,20 @@
 <li>答：DCL（Double-Checked Locking）单例的标准写法是 <code>private static volatile Singleton instance;</code>，两次判空 + synchronized。没有 volatile 时的问题出在 <code>instance = new Singleton();</code> 这一行——它不是原子操作，分三步：① 分配内存；② 调用构造器初始化；③ 把引用指向内存。② 和 ③ 可能被重排序成 ①③②：线程 A 执行到 ③（对象还没初始化完），线程 B 进来第一次判空发现 instance 不为 null，直接返回——拿到一个“字段还是默认值”的半成品对象。volatile 禁止这个重排序，保证“初始化完成后引用才可见”。追问方向：静态内部类单例（利用类加载的天然线程安全）和枚举单例可以完全绕开这个问题，也是更推荐的写法。</li>
 <li>问：volatile 能替代锁吗？</li>
 <li>答：不能完全替代。volatile 能做的：状态的发布与可见（开关、配置引用）、“一写多读”的简单场景——因为只有一个线程写，不存在写写冲突。volatile 做不到的：① 原子性的复合操作（i++、check-then-act“先检查再执行”）；② 互斥——多个线程同时进入临界区时它没有排他能力；③ 它无法保护一组变量的整体一致性（volatile 只约束自己）。所以替代规则：状态标志位、一次性发布用 volatile；涉及“读-改-写”或“多变量联动”就用锁或原子类。能答出“volatile 是可见性工具不是互斥工具”这个本质，就是合格答案。</li>
-</ul><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-03.html">← 上一章</a><a href="chapter-05.html">下一章 →</a></nav></main></div>
-<script>const contentId="java-concurrency:04",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#31-volatile">3.1 volatile 的两条语义</a></li><li class="lv3"><a href="#32">3.2 内存屏障</a></li><li class="lv3"><a href="#33">3.3 典型应用一：状态标志</a></li><li class="lv3"><a href="#34">3.4 典型应用二：双重检查锁单例</a></li><li class="lv3"><a href="#35-volatile-synchronized">3.5 volatile 与 synchronized 对比</a></li><li class="lv3"><a href="#36">3.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-03.html">← 上一章</a><a href="chapter-05.html">下一章 →</a></nav></main></div>'
+<script>const contentId="java-concurrency:04",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

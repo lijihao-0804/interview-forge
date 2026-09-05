@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangChain 如何实现短期记忆和长期记忆？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">LangChain 如何实现短期记忆和长期记忆？</span></nav><div class="module-meta">大模型应用 · 第 10 / 12 章</div><h1>LangChain 如何实现短期记忆和长期记忆？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：LangChain 中的短期记忆和长期记忆怎么实现？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>LangChain 如何实现短期记忆和长期记忆？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：LangChain 框架面试题</a><span aria-hidden="true">›</span><span aria-current="page">LangChain 如何实现短期记忆和长期记忆？</span></nav><div class="module-meta">大模型应用 · 第 10 / 12 章 · <span class="muted">更新于 2026-09-01</span></div><h1>LangChain 如何实现短期记忆和长期记忆？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：LangChain 中的短期记忆和长期记忆怎么实现？</p>
 <p>🙋‍♂️我：短期记忆就是把最近几轮对话放进 Prompt，长期记忆就是把全部聊天记录存进向量数据库。</p>
 <p>👔面试官：全部聊天记录都值得长期保存吗？当前线程状态由谁管理？用户换一个会话后，又如何读取以前的偏好？</p>
 <p>🙋‍♂️我：可以使用 <code>ConversationBufferMemory</code> 和 <code>ConversationSummaryMemory</code>。</p>
@@ -7,7 +7,7 @@
 <p>🙋‍♂️我：Checkpointer 和 Store 都能把数据保存下来，项目里选择其中一个应该就够了。</p>
 <p>👔面试官：它们的作用域完全不同。Checkpointer 保存当前线程的状态，Store 才负责跨线程数据，混用后不是换会话失忆，就是发生用户数据串读。</p>
 <p>这道题的重点不是背 Memory 类名，而是理解信息应该存在哪个作用域、如何召回，以及怎样避免串用户、上下文膨胀和错误记忆。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>在 LangChain v1 中，可以用一句话区分两类记忆：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">短期记忆 = State + thread_id + Checkpointer
 长期记忆 = namespace/key + Store
@@ -16,13 +16,13 @@
 <p>长期记忆不应该绑定某个线程，而是保存到 Store。Store 使用 namespace 和 key 组织数据，namespace 通常包含租户、用户和记忆类型。即使用户新建了线程，只要使用相同的可信用户身份和 namespace，仍然可以读取以前保存的偏好或经验。</p>
 <p>工具可以通过 <code>ToolRuntime</code> 读取当前 State、可信 Context 和长期 Store。用户 ID、租户和权限应由应用运行时注入，不能让模型自己填写。</p>
 <p>长对话还需要控制上下文：裁剪只减少本次模型输入，删除会真正移除持久状态，摘要则用更短文本保留主要语义。生产环境要使用数据库型 Checkpointer 和 Store，并做好租户隔离、写入幂等、记忆更正、过期删除、敏感信息保护和检索评测。</p>
-<h3>📝 详细解析</h3>
-<h4>应该记住什么？</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="_3">应该记住什么？</h4>
 <p>假设用户正在规划杭州旅行。当前对话中提到的日期、预算和下一步计划，只服务于这次任务，属于短期状态。</p>
 <p>一周后用户新建会话，Agent 仍然知道他不吃辣、喜欢住地铁附近，这些跨会话仍然有效的信息才属于长期记忆。</p>
 <p>因此，记忆设计的第一步不是选数据库，而是确定作用域。当前线程运行到了哪里，由 State 和 Checkpointer 管理；未来其他线程仍可能使用的用户偏好与事实，才由 Store 管理。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/f51aa42a87-9c865bb1ac33c765b7c4be67.png" /></p>
-<h4>短期记忆如何实现？</h4>
+<h4 id="_4">短期记忆如何实现？</h4>
 <p>LangChain v1 的 <code>create_agent</code> 底层运行在 LangGraph 上。Agent State 默认包含 <code>messages</code>，也可以扩展订单号、当前步骤和工具调用次数等业务字段。</p>
 <p>只有 State 还不够。请求可能由不同服务实例处理，进程也可能重启，因此需要 Checkpointer 持久化执行状态。调用 Agent 时传入稳定的 <code>thread_id</code>，同一编号就可以恢复同一线程：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.agents</span> <span class="kn">import</span> <span class="n">create_agent</span>
@@ -53,7 +53,7 @@
 </code></pre></div>
 <p><code>InMemorySaver</code> 只适合本地演示。生产环境要换成持久化实现，否则进程退出后状态会丢失。</p>
 <p>Checkpoint 保存的不只是聊天字符串，而是图执行过程中的 State 快照。因此它还可以支撑暂停恢复、人工审批和故障恢复。</p>
-<h4>消息太多怎么办？</h4>
+<h4 id="_5">消息太多怎么办？</h4>
 <p>Checkpointer 能保存历史，不代表每次都应该把全部历史交给模型。消息越多，Token、延迟和干扰越大。</p>
 <p>常用策略有三种：</p>
 <table>
@@ -84,7 +84,7 @@
 </table>
 <p>客服 Agent 可能需要保护当前工单和用户承诺，代码 Agent 可能需要保护最新报错和修改记录。因此不能只按固定消息条数处理，而应该结合 Token 预算、消息角色和业务重要性制定策略。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/7dcbcb3928-49856e1483d59b067b4dade7.png" /></p>
-<h4>长期记忆如何实现？</h4>
+<h4 id="_6">长期记忆如何实现？</h4>
 <p>新 <code>thread_id</code> 默认不会继承旧线程的 State，这是正确的线程隔离。如果某条信息需要跨线程使用，就应提炼后写入 Store。</p>
 <p>Store 中的数据通常使用下面的结构定位：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">namespace = (tenant_id, user_id, memory_type)
@@ -116,7 +116,7 @@ value     = JSON 数据
 </tbody>
 </table>
 <p>这些分类用于帮助设计数据结构，不是要求把每段原始对话都永久保存。写入前仍要做去重、脱敏、冲突处理和质量判断。</p>
-<h4>如何跨线程读取？</h4>
+<h4 id="_7">如何跨线程读取？</h4>
 <p>工具可以通过 <code>ToolRuntime</code> 访问这些信息，但不能把三个入口混成一个数据袋。当前线程的短期状态来自 <code>runtime.state</code>，可信用户身份和权限来自 <code>runtime.context</code>，只有跨线程长期数据才从 <code>runtime.store</code> 读取。</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
 
@@ -144,17 +144,17 @@ value     = JSON 数据
 <p>模型只负责生成 <code>preference</code>，<code>user_id</code> 由已认证的应用通过 Context 注入。这样可以防止模型填错身份或被提示注入诱导访问其他用户的数据。</p>
 <p>两个不同 <code>thread_id</code> 的会话，只要可信 <code>user_id</code> 相同，就可以访问同一个长期记忆 namespace；另一位用户则应被 namespace 和服务端权限隔离。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/ae2ecb6957-8f3936c21aedd32ecd6cd299.png" /></p>
-<h4>什么时候写入长期记忆？</h4>
+<h4 id="_8">什么时候写入长期记忆？</h4>
 <p>长期记忆不是越多越好。把每句闲聊都存进去，会产生噪声、冲突和隐私风险。</p>
 <p>用户明确说「请记住」时，可以在主链路中实时写入，使信息立即生效。普通对话中推断出的偏好和经验，更适合在会话结束后由后台任务提炼、去重和脱敏，再写入 Store。</p>
 <p>无论实时还是后台写入，都应保存来源、时间和置信度，并支持更新、纠错和删除。订单金额、账户余额和库存等实时事实仍应查询权威业务系统，不能使用长期记忆代替真实数据库。</p>
-<h4>生产环境要注意什么？</h4>
+<h4 id="_9">生产环境要注意什么？</h4>
 <p>把记忆从 Demo 带到生产，第一关不是换一套更大的模型，而是确认数据能否可靠保存。开发时的内存实现会随着进程退出而丢失，线上需要数据库型 Checkpointer 和 Store，并把表结构与迁移一起纳入部署流程。</p>
 <p>数据保存下来后，紧接着要解决「这是谁的记忆」。<code>thread_id</code>、<code>tenant_id</code> 和 <code>user_id</code> 必须来自可信身份体系，不能相信模型生成的身份，也不能让客户端随意指定另一个用户的 namespace。否则记得越多，越容易造成跨用户数据泄露。</p>
 <p>隔离做好以后，还要承认记忆会过时、会冲突，也会被用户纠正。系统要能够去重、更新和过期淘汰，同时支持用户查看、更正、导出和删除。敏感信息则默认不记，确实需要保存的数据要加密并限制访问，日志与 Trace 也不能成为隐私的另一个泄漏口。</p>
 <p>最后才是判断这套记忆到底有没有用。评测不能只看「成功写入多少条」，而要沿着整条链路检查：这条信息是否值得写入，相关问题能否召回，无关问题会不会误召回，注入模型后是否真正改善答案。只有写入、召回和使用三步都有效，记忆才不是一个不断膨胀的数据库。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/6b56150507-81b544930908ca630de94476.png" /></p>
-<h4>旧 Memory 还能用吗？</h4>
+<h4 id="memory">旧 Memory 还能用吗？</h4>
 <p>旧教程常见的 <code>ConversationBufferMemory</code>、<code>ConversationSummaryMemory</code> 等属于 Chain 时代的抽象，目前主要位于 <code>langchain-classic</code>，适合维护存量项目。</p>
 <p>LangChain v1 新项目更推荐使用：</p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">AgentState + Checkpointer -&gt; 管理线程内状态
@@ -162,11 +162,11 @@ Store + namespace/key -&gt; 管理跨线程长期记忆
 Middleware 或图节点 -&gt; 管理裁剪、摘要和写入策略
 </code></pre></div>
 <p>这套方式把状态作用域、持久化和记忆治理拆得更清楚，也更适合有工具调用、暂停恢复和多用户隔离要求的 Agent。</p>
-<h3>🎯 面试总结</h3>
+<h3 id="_10">🎯 面试总结</h3>
 <p>回答这道题时，首先说清楚两条主线：短期记忆是线程级 State，由 Checkpointer 按 <code>thread_id</code> 保存；长期记忆是跨线程数据，由 Store 按 namespace 和 key 管理。</p>
 <p>接着说明 <code>ToolRuntime</code> 的边界：模型只生成任务参数，可信用户身份通过 Context 注入，工具再访问当前 State 和长期 Store。这样即使用户更换线程，也能读取自己的长期偏好，同时避免跨用户数据泄露。</p>
 <p>最后补充长上下文治理和生产要求：消息需要裁剪、删除或摘要；线上使用持久化后端，并做好租户隔离、幂等写入、冲突更正、过期删除、隐私保护和召回评测。旧式 <code>Conversation*Memory</code> 可以维护存量项目，但不再是 v1 新项目的主路径。</p>
-<h3>📚 参考资料</h3>
+<h3 id="_11">📚 参考资料</h3>
 <ul>
 <li><a href="https://docs.langchain.com/oss/python/concepts/memory">LangChain 官方文档：Memory 概览</a></li>
 <li><a href="https://docs.langchain.com/oss/python/langchain/short-term-memory">LangChain 官方文档：Short-term Memory</a></li>
@@ -176,5 +176,20 @@ Middleware 或图节点 -&gt; 管理裁剪、摘要和写入策略
 <li><a href="https://docs.langchain.com/oss/python/langchain/tools">LangChain 官方文档：Tools 与 ToolRuntime</a></li>
 <li><a href="https://reference.langchain.com/python/langchain-classic">langchain-classic 官方 API Reference</a></li>
 </ul>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-09.html">← 上一章</a><a href="chapter-11.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-langchain:10",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_10">🎯 面试总结</a></li><li class="lv3"><a href="#_11">📚 参考资料</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-09.html">← 上一章</a><a href="chapter-11.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-langchain:10",moduleId="xiaolin-langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>

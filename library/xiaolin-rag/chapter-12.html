@@ -1,20 +1,20 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>如何润色用户的 Query（Query Rewrite）？目的是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">如何润色用户的 Query（Query Rewrite）？目的是什么？</span></nav><div class="module-meta">大模型应用 · 第 12 / 20 章</div><h1>如何润色用户的 Query（Query Rewrite）？目的是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>👔面试官：RAG 系统里为什么要做 Query Rewrite？你了解哪些方法？</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>如何润色用户的 Query（Query Rewrite）？目的是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-p0-immersive"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">如何润色用户的 Query（Query Rewrite）？目的是什么？</span></nav><div class="module-meta">大模型应用 · 第 12 / 20 章 · <span class="muted">更新于 2026-09-01</span></div><h1>如何润色用户的 Query（Query Rewrite）？目的是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：RAG 系统里为什么要做 Query Rewrite？你了解哪些方法？</p>
 <p>🙋‍♂️我：Query Rewrite 就是把用户的问题改写得更规范嘛，比如把口语转成书面语，主要就是为了提升检索效果，其他没什么特别的。</p>
 <p>👔面试官：那用户问「这个功能怎么用」，知识库里写的是「XX 模块操作指南」，你光改写成书面语就能命中了？如果改写之后还是对不上呢？</p>
 <p>🙋‍♂️我：那就多试几种改写方式呗，总能蒙对的……</p>
 <p>👔面试官：蒙？你是说靠运气做检索优化？你有没有听说过 HyDE、Step-back Prompting 这些方法？它们各自解决什么问题你清楚吗？</p>
 <p>这个问题其实比想象中更有深度，让我来展开讲讲。</p>
-<h3>💡 简要回答</h3>
+<h3 id="_1">💡 简要回答</h3>
 <p>我用 Query Rewrite 主要是为了弥补用户提问方式和知识库文档表述之间的语义鸿沟。用户的问题往往口语化、模糊、带缩写，而文档写的是正式书面语，向量相似度天然偏低，导致该召回的内容没被召回。</p>
 <p>我接触过的方法主要有四种：第一是直接改写，让 LLM 把口语化的问题转成更精准的表述；第二是 Query 扩展，补充相关关键词；第三是 HyDE，让 LLM 先生成一个假设答案，然后用答案的向量去检索；第四是 Step-back Prompting，把具体问题往上抽象一层，检索更通用的背景知识。</p>
-<h3>📝 详细解析</h3>
-<h4>为什么需要 Query Rewrite</h4>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="query-rewrite">为什么需要 Query Rewrite</h4>
 <p>用户和文档写作者之间有一道天然的表述鸿沟。</p>
 <p>用户可能这样问：「这东西坏了咋整」，而文档里写的是「产品故障排查与维修指南」。你可能会想，这两句话意思差不多，向量检索应该能匹配上吧？遗憾的是，实际效果往往不如预期——即便语义相关，向量相似度也可能低到召回不了正确文档，因为口语和书面语在向量空间里的「坐标」差距不小。</p>
 <p>Query Rewrite 就是在检索之前，先对用户的问题做加工，让它在向量空间里离正确文档更近。这相当于在出发前先校准导航，目的地不变，但路线更准。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/bcab9d6dfa-f95919f2a9212547cf55a0c9.png" /></p>
-<h4>方法一：直接改写（Query Rewriting）</h4>
+<h4 id="query-rewriting">方法一：直接改写（Query Rewriting）</h4>
 <p>表述鸿沟最简单的形态，就是口语化。把口语化、模糊的问题改写成更精准、更书面化的检索表述，这就是最基础的改写方式。改写的本质是消除口语化表达和书面知识库表述之间的向量距离，「这东西咋退」和「申请退款的操作流程」在向量空间里不是同一个邻居，改写就是把前者的向量拉近到后者。同时还可以补全上下文，处理代词指代（「这个功能」改写成具体功能名称），让多轮对话中的模糊引用变成检索可识别的具体词汇。</p>
 <p>发给 LLM 的 Prompt 模板如下：</p>
 <div class="codehilite"><pre><code>请将用户的问题改写成更适合知识库检索的表述。
@@ -29,7 +29,7 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/8f2d735eb3-7af8f237c1d10271e634fdc9.png" /></p>
 <p>直接改写能解决口语化和指代不清的问题，但还有另一种鸿沟是改写搞不定的，问题和文档本来就是不同的文体，一个是疑问句，一个是陈述句，就算你把问题改写得再规范，它在向量空间里还是「问句」的坐标，而文档是「陈述句」的坐标，两类文体之间天然有距离。</p>
 <p>这个问题催生了 HyDE 的出现。</p>
-<h4>方法二：HyDE（Hypothetical Document Embeddings）</h4>
+<h4 id="hydehypothetical-document-embeddings">方法二：HyDE（Hypothetical Document Embeddings）</h4>
 <p>理解了「问句和陈述句在向量空间里有距离」这个问题，HyDE 的思路就非常巧妙了。</p>
 <p>HyDE 的直觉可以这样理解：<strong>正常你用问题的影子去找答案的样子，HyDE 先描绘出答案可能长什么样子，再去找长得像它的文档</strong>。先让 LLM 根据用户问题生成一段「假设性的答案」，再用这段假设答案的向量去检索文档。假设答案不需要准确，只需要「风格像文档」就够了，它的作用是充当一个向量上更好的「检索代理」。</p>
 <p>很多人第一次听到 HyDE 会觉得奇怪：让 LLM 生成一个可能不准确的答案，再用这个答案去检索，这不是多此一举吗？其实不是。在向量空间里，答案到答案的距离，比问题到答案的距离要近得多。假设答案的作用不是「回答问题」，而是「扮演文档的角色」，用它当检索代理比用原始问题更高效。</p>
@@ -43,7 +43,7 @@
 <p>示例效果：问题向量「退款政策是什么」和文档「申请售后退款须知」距离较远；而假设答案向量「用户可在购买后 14 天内申请退款...」和文档距离很近，能被正确召回。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/13dbd37050-f427b28d4bdfcd7c5891d85b.png" /></p>
 <p>HyDE 解决的是「文体差异」的问题，但还有一类情况是 HyDE 和直接改写都处理不好的——用户的问题太具体了，知识库里压根没有直接对应的答案，但有相关的背景原理文档。这种情况下，不管你怎么改写、怎么假设，都很难从具体问题直接跳到背景知识。于是就有了 Step-back Prompting。</p>
-<h4>方法三：Step-back Prompting（后退提问）</h4>
+<h4 id="step-back-prompting">方法三：Step-back Prompting（后退提问）</h4>
 <p>对于涉及具体细节的问题，有时候知识库里没有直接对应的答案，但有背景原理。Step-back Prompting 把具体问题「后退一步」，提升到更抽象的层次，先检索背景知识，再结合背景知识回答具体问题。</p>
 <p>类比一下就很直观：就像你做一道数学题，不是一上来就硬套公式，而是先想想「这道题用的是哪种定理」，再用定理解题。知识库里可能没有「ef 参数设 100 是否合适」的直接答案，但一定有「HNSW 参数调优原则」这样的背景文档，把具体问题后退成背景问题，才能找到真正有用的参考资料。</p>
 <p>生成「后退版本」问题的 Prompt 模板：</p>
@@ -55,7 +55,7 @@
 <p>示例效果：具体问题「Qdrant 的 HNSW ef 参数设多少合适」-&gt; 后退问题「HNSW 索引的参数调优原则是什么」。后退后的问题能命中更多通用背景文档，让 LLM 生成有原理支撑的答案。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/decf710116-ec2bdaa11b3725f1486c6eb8.png" /></p>
 <p>前面三种方法都是在「一个问题」上做文章——要么改写它、要么给它配一个假设答案、要么把它抽象化。但有时候问题的角度本身就比较窄，用一个角度去检索，覆盖面不够。这时候就需要换个思路：不求一个问题改得更好，而是多生成几个不同角度的问题。</p>
-<h4>方法四：多 Query 扩展</h4>
+<h4 id="query">方法四：多 Query 扩展</h4>
 <p>用 LLM 把用户原始问题改写成 3～5 个不同角度的版本，分别去检索，然后把所有结果合并去重。核心思路是：只要有一个改写版本和文档的表述对上了，就能把正确的内容召回来，就像拦截网越宽，捕到鱼的概率越高。适合用户提问风格多变、和文档表述差异大的场景，代价是多几次 LLM 调用。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/d352f584c8-429482807091aa4375f06bc8.png" /></p>
 <p>把这四种方法放在一起对比一下，选型时就有了清晰的依据：</p>
@@ -95,9 +95,24 @@
 </tr>
 </tbody>
 </table>
-<h3>🎯 面试总结</h3>
+<h3 id="_3">🎯 面试总结</h3>
 <p>回到开头的问题，Query Rewrite 可不是简单地把口语转书面语就完事了。它的核心目的是弥合用户提问和文档表述之间的语义鸿沟，而这个鸿沟有多种不同的形态。</p>
 <p>口语化表达用直接改写，文体差异用 HyDE，问题太具体用 Step-back，角度单一用多 Query 扩展。</p>
 <p>面试中回答这道题，关键是把「为什么要做 Query Rewrite」和「四种方法各自解决什么问题」讲清楚，让面试官看到你不是只会一种改写方式，而是理解了不同场景需要不同策略。</p>
-<hr /><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-11.html">← 上一章</a><a href="chapter-13.html">下一章 →</a></nav></main></div>
-<script>const contentId="xiaolin-rag:12",moduleId="xiaolin-rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260830-mobile1')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_3">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a><a href="chapter-11.html">← 上一章</a><a href="chapter-13.html">下一章 →</a></nav></main></div>'
+<script>const contentId="xiaolin-rag:12",moduleId="xiaolin-rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{cache:'no-store'}),fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetch('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const css=await (await fetch('../assets/library.css?v=20260906-p0-immersive')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(_){toast.textContent='导出失败，请通过启动学习站.cmd访问'}});</script></body></html>
