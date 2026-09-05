@@ -20,11 +20,11 @@
 <p>不少人的第一反应是这个：「context 不够，那是不是该换更大模型？」</p>
 <p><strong>Anthropic 官方答案是：换模型没用，问题不在模型，在 Claude Code 怎么找代码。</strong></p>
 <p>你想啊，Opus 4.7 已经支持 1M token 了，换算下来两百多万字。但一个像样点的项目动辄几百万行代码，再算上依赖库就更夸张了。再大的窗口也塞不下整个代码库，这是物理上的事。</p>
-<p><img alt="" src="assets/e6b55b15f6-45c3da6c0ffce642847beaca.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e6b55b15f6-45c3da6c0ffce642847beaca.png" /></p>
 <p>那 Claude Code 在大代码库下怎么解决「精准找到要改的那几行代码」的？</p>
 <p>业内的主流答案是 RAG：把代码切片、做 embedding、塞向量数据库，要查的时候用相似度召回。Cursor、Copilot、Windsurf 走的都是这条路。</p>
 <p>但 Claude Code 偏偏不走。它连 embedding 和向量数据库的影子都没有，就靠 grep、读文件、看目录这种最朴素的方式。</p>
-<p><img alt="" src="assets/1b359c518d-3e39d9058e123b5ed3acbb13.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1b359c518d-3e39d9058e123b5ed3acbb13.png" /></p>
 <p>Anthropic 给这套办法起了个名字，叫 agentic search，翻译过来就是「让 Claude 像 agent 一样去搜」。</p>
 <p>Claude 像一个真人工程师一样：先 <code>ls</code> 看根目录、再进 <code>auth/</code> 看里面有啥、grep 一下「login」找到相关函数、再读 <code>middleware.ts</code> 和 <code>session.ts</code>，读一个文件决定下一步读什么，循环往复。</p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
@@ -34,7 +34,7 @@
     D --&gt; E{够了吗?}
     E --&gt;|不够| C
     E --&gt;|够了| F[动手改]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
-<p><img alt="" src="assets/5ae380753d-ff19dad236e397ad1f6cb548.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5ae380753d-ff19dad236e397ad1f6cb548.png" /></p>
 <p>为什么 Anthropic 选这个反主流的路线？官方博客给了三个理由。</p>
 <p>第一，<strong>索引会过期</strong>。千人团队每天提交几百个 commit，embedding pipeline 根本跟不上。等你查的时候，索引里返回的可能是两周前已经被重命名的函数。Claude 拿着过期信息推理，代码自然就崩了。agentic search 每次都基于当下的代码，没有这个问题。</p>
 <p>第二，<strong>冷启动几乎为零</strong>。RAG 在百万行代码库上建一次索引要十几分钟，Claude Code 是「打开就能用」。</p>
@@ -49,7 +49,7 @@
 <p>什么意思？</p>
 <p>Anthropic 说，大家评估 Claude Code 时都盯着 benchmark 看模型表现，但<strong>在实际生产中，围绕模型搭的那套外壳对最终效果的影响，比模型本身还大</strong>。</p>
 <p>打个比方。你请了个米其林三星大厨到家里给你做饭，他厉不厉害是模型能力；但你家里有没有趁手的灶台、菜刀、调料架、抽油烟机，这才是 harness。灶台不行，再牛的厨师也炒不出锅气。</p>
-<p><img alt="" src="assets/f09b0183f4-ba33390774335b7ed03d1d0a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f09b0183f4-ba33390774335b7ed03d1d0a.png" /></p>
 <p>Anthropic 的 harness 一共七层，每层都建立在前一层基础上：<strong><a href="http://CLAUDE.md">CLAUDE.md</a> → Hooks → Skills → Plugins → MCP</strong>，再加两个增强 <strong>LSP 和子 agent</strong>。</p>
 <p>听着多？其实下面几个 Q 就是按官方顺序一层一层把它们拆透：</p>
 <ul>
@@ -71,12 +71,12 @@
 <p>那大代码库下规则确实多怎么办？关键词是<strong>分层</strong>。</p>
 <p>Anthropic 在博客里有句原话挺狠的：「根目录的 <a href="http://CLAUDE.md">CLAUDE.md</a> 应该只放指针和关键的坑，其他细节都会变成噪音。」</p>
 <p>正确做法是 root 文件只放跨包通用约定（比如「生产数据库千万别动」「提 PR 前要跑 lint」），每个子目录再放自己的 <a href="http://CLAUDE.md">CLAUDE.md</a> 写模块细节。Claude 会自动从当前目录往上走树把沿途每个 <a href="http://CLAUDE.md">CLAUDE.md</a> 都加载进来。</p>
-<p><img alt="" src="assets/79802b9ddf-43cec598a37d558635570e61.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/79802b9ddf-43cec598a37d558635570e61.png" /></p>
 <p>但这还不够。Claude Code 创始人 Boris 还为 <a href="http://CLAUDE.md">CLAUDE.md</a> 维护放过一句口号当 slogan：「Ruthlessly edit your <a href="http://CLAUDE.md">CLAUDE.md</a> over time」，翻译过来就是<strong>对你的 <a href="http://CLAUDE.md">CLAUDE.md</a> 下狠手，毫不留情地删</strong>。</p>
 <p>怎么判断 <a href="http://CLAUDE.md">CLAUDE.md</a> 该不该留某一行？有个特别实用的检查法：对每一行你都问自己「如果删掉这行，Claude 还会按这条规则做事吗？」答案是「会」（常识或代码已经体现），就该删；答案是「不会」才值得留。</p>
-<p><img alt="" src="assets/476e740d78-c7ca12f610c13c7c17d0d625.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/476e740d78-c7ca12f610c13c7c17d0d625.png" /></p>
 <p>任何时候你发现 Claude 还在反复犯某个错，<strong>先别急着加新规则，先去看看 <a href="http://CLAUDE.md">CLAUDE.md</a> 是不是已经太长把规则淹没了</strong>。</p>
-<p><img alt="" src="assets/3c683a8767-7c8074649e684a3037be0a91.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3c683a8767-7c8074649e684a3037be0a91.png" /></p>
 <p>Boris 还分享过 Anthropic 内部团队怎么维护这份文件：整个 Claude Code 团队共享一份 <a href="http://CLAUDE.md">CLAUDE.md</a> 提交到 git，<strong>一旦发现 Claude 做错了什么就立刻加进 <a href="http://CLAUDE.md">CLAUDE.md</a></strong>。这份文件在他们那里不是「写一次放着」的文档，而是持续打磨的活文件。</p>
 <p>还有一条 Anthropic 官方建议特别容易被忽略：<strong>每 3-6 个月对你的 <a href="http://CLAUDE.md">CLAUDE.md</a> 做一次完整审查</strong>。</p>
 <p>为什么？因为模型在进化。</p>
@@ -93,7 +93,7 @@
 <p>挂一个 Stop hook，在每次会话结束时让它自动反思「这次 Claude 有没有什么常犯的错误？要不要写进 <a href="http://CLAUDE.md">CLAUDE.md</a>？」然后 hook 自己改 <a href="http://CLAUDE.md">CLAUDE.md</a>。</p>
 <p>或者挂一个 Start hook，根据你当前所在子目录动态加载这个模块特有的 context，今天在 <code>payments/</code> 下就自动拉支付 skill，明天换到 <code>auth/</code> 下就换成认证相关。</p>
 <p>这样一来，<strong>你的 <a href="http://CLAUDE.md">CLAUDE.md</a> 是被 Claude 自己持续打磨的，不再需要你手动维护</strong>。Boris 自己挂了一个 PostToolUse hook 给 Claude 写完的代码自动跑格式化，把偶尔遗漏的 10% 格式问题直接抹平。</p>
-<p><img alt="" src="assets/c5bc144097-02ad3189aa88b615c16dc51a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c5bc144097-02ad3189aa88b615c16dc51a.png" /></p>
 <p><strong><a href="http://CLAUDE.md">CLAUDE.md</a> 不是写一次的文档，是一份持续打磨的活文件。</strong></p>
 <hr />
 <h3>Q3：大代码库里让 Claude 找一个函数，总找错文件，怎么办？</h3>
@@ -105,15 +105,15 @@
 <p>Claude Code 接上 LSP 之后，搜代码就不再是按字符串 grep，而是按<strong>符号</strong>搜。</p>
 <p>举个例子。你在大代码库里 grep 一个 <code>getUser</code> 函数，可能返回三千个匹配，前端有、后端有、测试也有。Claude 得一个个读文件判断哪个是你真要改的，光这个过程就能把 context 烧光。</p>
 <p>但有 LSP 之后，Claude 直接问 LSP：「找跟 <code>auth/login.ts</code> 那个 getUser 同源的所有引用」。LSP 一口气返回精确的三个，过滤工作在 Claude 读文件之前就完成了。</p>
-<p><img alt="" src="assets/3cbf85de7a-d11bd820341847d9ffd6fcc4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3cbf85de7a-d11bd820341847d9ffd6fcc4.png" /></p>
 <p>Anthropic 官方博客直接把 LSP 称作多语言大代码库下「one of the highest-value investments」，并讲了一个真实案例：有家做企业软件的公司，在全公司铺 Claude Code 之前专门先把 LSP 集成在组织级别铺开，就是为了让 C 和 C++ 这种符号歧义高得离谱的语言能跟 Claude 配合得动。</p>
 <p>装 LSP 怎么操作？在 Claude Code 的 <code>/plugin</code> 里搜「lsp」，找到对应语言的 code intelligence plugin（<code>typescript-lsp</code> / <code>pyright-lsp</code> / <code>rust-analyzer-lsp</code> 等等）装上，再装对应的语言服务器二进制（pip 装 pyright、npm 装 typescript-language-server 之类）。整个过程不超过两分钟。</p>
-<p><img alt="" src="assets/d883297ce2-8233ba66832f2a85d7caf115.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d883297ce2-8233ba66832f2a85d7caf115.png" /></p>
 <p>再说子目录启动这件事，这是反直觉但官方博客被反复强调的一条。</p>
 <p>大多数人第一次用 Claude Code，习惯都是 <code>cd</code> 到项目根目录然后 <code>claude</code>。在小项目没毛病，但在大代码库里，这会让 Claude 一上来就把根目录那个超大的 <a href="http://CLAUDE.md">CLAUDE.md</a> 全部加载进 context，前端后端 infra 所有微服务的规则全来一遍。</p>
 <p>官方博客原话叫「Initializing in subdirectories, not at the repo root」。</p>
 <p>正确做法是直接在你要改的子目录启动。比如要改支付服务，就 <code>cd services/payments</code> 然后 <code>claude</code>。Claude 会自动往上走树把根目录的 <a href="http://CLAUDE.md">CLAUDE.md</a> 也加载进来，通用规则不丢；但优先加载 <code>payments/</code> 子目录的 <a href="http://CLAUDE.md">CLAUDE.md</a>，context 立刻聚焦到「支付」一个领域。</p>
-<p><img alt="" src="assets/5b6aeb2cc1-0bb22204c8155a175cc6ea16.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5b6aeb2cc1-0bb22204c8155a175cc6ea16.png" /></p>
 <p>除了 LSP 和子目录启动，官方博客还提了三个小细节，配合起来效果更好：</p>
 <p>第一，<strong>测试和 lint 命令按子目录写进 <a href="http://CLAUDE.md">CLAUDE.md</a></strong>。Claude 改了支付服务里一个文件，结果它跑整个项目的测试套件，几十分钟才出结果，context 也跟着烧光。每个子目录的 <a href="http://CLAUDE.md">CLAUDE.md</a> 应该明确写「这块用什么命令测，怎么 lint」，让 Claude 只跑该跑的那一部分。</p>
 <p>第二，<strong>用 <code>.ignore</code> 规则把生成文件、构建产物、第三方代码排除掉</strong>。把 <code>permissions.deny</code> 规则提交到 <code>.claude/settings.json</code>，整个团队就能自动共享这些排除规则，不用每个人手动配。</p>
@@ -137,16 +137,16 @@
     C --&gt; D[Subagent 写 200 字 findings 报告]
     D --&gt; E[主 Agent 拿到摘要]
     E --&gt; F[主 Agent 在干净 context 下动手改]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
-<p><img alt="" src="assets/efa8b9c305-0fb90ad850059eb5365b1ba1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/efa8b9c305-0fb90ad850059eb5365b1ba1.png" /></p>
 <p>最简单的操作就是直接跟 Claude 说：「先用 subagent 调查一下我们项目里 X 是怎么实现的，写成 findings 文件，再回来动手改。」</p>
 <p><strong>第二步：会话拆分。</strong></p>
 <p>会话 1 只做探索写 plan 不动代码；会话 2 加载 plan 实现一个模块跑通测试；会话 3 实现下一个模块。每个会话都从干净 context 开始，plan 文件做桥梁串联。</p>
-<p><img alt="" src="assets/c349f3bc06-aef681247c6bbab0b7885d46.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c349f3bc06-aef681247c6bbab0b7885d46.png" /></p>
 <p><strong>第三步：跑大型迁移用 <code>/batch</code>。</strong></p>
 <p>如果你的改动是「整个项目从一个框架迁到另一个」「把几十个文件的某种调用全部替换」这种大规模迁移，Claude Code 已经直接内置了一个专门工具叫 <code>/batch</code>。</p>
 <p>用法是这样的：先用对话方式把迁移方案敲定，然后它一次性派出几十个并行 subagent，每个在独立 git worktree 里跑、自测、开 PR。</p>
 <p>你不用守屏幕，跑完直接给你一堆 PR 等 review。</p>
-<p><img alt="" src="assets/0a6ce6db9b-ce1a97319ca54c928991e199.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0a6ce6db9b-ce1a97319ca54c928991e199.png" /></p>
 <p>这就是创始人 Boris 本人正在用的工作流，以前要自己手撸的多 agent 编排，现在一行命令就搞定。</p>
 <p><strong>跨大文件改动救不回来的不是 prompt，是会话边界。</strong></p>
 <hr />
@@ -159,7 +159,7 @@
 <p>什么是 skill？你可以理解成「针对某个具体任务的 SOP」。比如「这个项目的数据库迁移怎么做」「这个微服务上线的标准流程」，这些都是 skill 该干的事。</p>
 <p>Skill 跟 <a href="http://CLAUDE.md">CLAUDE.md</a> 最大的区别在一个词：<strong>按需加载</strong>。</p>
 <p><a href="http://CLAUDE.md">CLAUDE.md</a> 每次会话都全文加载，跟你这次任务有没有关系都加载；skill 不是，它只在 Claude 判断「当前任务需要」的时候才加载，平时静静躺在仓库里不占 context。官方有个专门的词叫 progressive disclosure（渐进式披露），讲的就是这个机制。</p>
-<p><img alt="" src="assets/ace356c3f6-4bb51519309935b4a6eea48c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ace356c3f6-4bb51519309935b4a6eea48c.png" /></p>
 <p>Boris 还说过一句话特别值得记下来：「如果一件事你一天做超过一次，就把它做成 skill。」一个大项目里高频操作就那么几十种，每个都做成 skill 全队共享，效率立刻是几何级提升。</p>
 <p>skill 还可以绑定到特定路径。「支付服务部署 skill」绑定到 <code>services/payments/</code>，只有 Claude 在这个目录下工作时才加载，避免「改前端代码结果支付 skill 也来凑热闹」这种 context 污染。</p>
 <h4>第二步：用 plugin 把好实践打包分发</h4>
@@ -167,7 +167,7 @@
 <p>大公司里有个经典问题：好的工具配置永远只在小圈子里流传。某个高级工程师本机配置了三十个 skill、十几个 hook、五个 MCP server，他用 Claude Code 爽得飞起。但旁边的实习生啥都没配，体验就跟用了个 demo 版差不多。</p>
 <p>Plugin 就是解决这个问题的。它本质上是一个安装包，把 skill、hook、MCP、LSP 配置打包在一起。新人入职第一天 install 一下，立刻和团队所有人有一样的 Claude Code 能力。</p>
 <p>官方博客讲过一个特别接地气的案例：一家大型零售公司搭了个 skill 让 Claude 连内部数据分析平台，业务分析师不用切工具就能拉销售数据。这个 skill 起初只是少数人的本地配置，后来打包成 plugin 全公司铺开，整个公司业务分析效率被拉高一个档次。</p>
-<p><img alt="" src="assets/b648e2521c-0fbe4a25f9ba51c9b34bd4fe.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b648e2521c-0fbe4a25f9ba51c9b34bd4fe.png" /></p>
 <p>公司还可以建自己的 plugin marketplace。谁有更好的实践就更新到 marketplace 里，全公司一起受益。</p>
 <h4>第三步：用 MCP 把团队内部系统接进来</h4>
 <p>光有 skill 和 plugin 还不够。</p>
@@ -177,7 +177,7 @@
 <p>听着很强，但官方在这块特别提醒了一个反直觉的点：<strong>别太早上 MCP</strong>。</p>
 <p>很多团队 <a href="http://CLAUDE.md">CLAUDE.md</a> 都还没写好，hook 也没挂，就着急忙慌接各种 MCP，结果反而把 context 搞得更乱。MCP 是 harness 里最后才该上的一层，前面的基础没搭好，MCP 接进来的数据就是噪音。</p>
 <p>正确的顺序是：先把 <a href="http://CLAUDE.md">CLAUDE.md</a> 和 skill 打磨好 → 再用 plugin 打包分发 → 最后才上 MCP 把外部世界接进来。</p>
-<p><img alt="" src="assets/10c502c9ff-4e53e41de67abd8e873bd43b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/10c502c9ff-4e53e41de67abd8e873bd43b.png" /></p>
 <h4>第四步：得有人负责维护</h4>
 <p>但官方还点出来一个更关键的事：<strong>光把工具堆起来不够，得有人负责维护</strong>。</p>
 <p>Anthropic 观察到，推广最顺的组织都有一个共同点：在大面积铺开之前，会先安排一小队人（甚至一两个人）把整套基础设施搭好，然后才放开访问。</p>
@@ -192,7 +192,7 @@
 <p>这一节其实是个彩蛋，但读完你会发现，里面藏着创始人对 Claude Code 用法的全部理解。</p>
 <p>Boris Cherny 是 Claude Code 的创始人，他分享过一段让我看完直接破防的话：</p>
 <p>「我同时在终端里跑 5 个 Claude，再加 5 到 10 个跑在 <a href="http://claude.ai/code">claude.ai/code</a> 上，并行处理不同任务。」</p>
-<p><img alt="" src="assets/699c725fb7-e110a262056ab00d296ef3f4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/699c725fb7-e110a262056ab00d296ef3f4.png" /></p>
 <p>听着是不是有点不可思议？</p>
 <p>但他的这套 setup 其实很值得拆解，里面藏着创始人对 Claude Code 用法的全部理解：</p>
 <p><strong>第一，他不用 <code>--dangerously-skip-permissions</code></strong>。他明确说过自己用 <code>/permissions</code> 命令把常用的安全命令预先加白名单，避免一遍遍点确认，但又不放弃权限审计。</p>
@@ -216,7 +216,7 @@
 </ul>
 <p>官方在博客结尾建议这种非常规场景需要更多定制化配置，他们的 Applied AI 团队会专门跟客户对接。换句话说，<strong>Claude Code 当下最擅长的还是「Git + 工程师 + 标准目录」这个最大公约数</strong>。</p>
 <p>如果你的项目正好踩在这几个非常规场景上，别死磕，找官方支持渠道才是正解。</p>
-<p><img alt="" src="assets/c48db11e14-8a382ecb6b8708118a6fb14e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c48db11e14-8a382ecb6b8708118a6fb14e.png" /></p>
 <p><strong>Claude Code 不是万能药，最擅长的是「Git + 工程师 + 标准目录」这个最大公约数。</strong></p>
 <hr />
 <h3>最后</h3>

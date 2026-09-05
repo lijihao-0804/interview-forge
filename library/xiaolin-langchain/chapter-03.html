@@ -20,12 +20,12 @@
 <p>如果全部手写，代码里很快就会出现一堆胶水逻辑：这个函数返回字符串，下一个函数却要消息对象；同步调用写一套，异步调用再写一套；想加流式输出、批处理、重试和链路追踪，又得分别改造每一步。</p>
 <p>步骤只有三个时还能忍，等流程变成「问题改写 -&gt; 检索 -&gt; 文档整理 -&gt; Prompt -&gt; 模型 -&gt; 结构化解析」，维护起来就像拿很多根散落的电线临时接出一台机器。每加一个零件，都要重新确认接口能不能接上。</p>
 <p>Chain 解决的就是这个问题。它先让每个零件暴露相对统一的插口，再把它们按照数据流接成一台完整机器。调用方不用逐个驱动内部步骤，只需要给整条链输入，再从整条链拿输出。</p>
-<p><img alt="" src="assets/5df2882f3f-11c53681d8d267f8cdf87b77.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5df2882f3f-11c53681d8d267f8cdf87b77.png" /></p>
 <p>所以，从业务视角看，Chain 是「把多个处理步骤串成一个完整任务」；从软件设计视角看，它是在做数据流编排和组件组合。</p>
 <h4>Chain 只能线性执行吗？</h4>
 <p>很多林友看到 Chain 这个单词，会自然地把它理解成从左到右的一根直线。这个直觉只对了一半。</p>
 <p>最简单的 Chain 确实是线性的，例如：</p>
-<p><img alt="" src="assets/edf0bf99e3-bce58aa5d960b291eec6b043.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/edf0bf99e3-bce58aa5d960b291eec6b043.png" /></p>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">用户输入 -&gt; Prompt 模板 -&gt; Chat Model -&gt; 输出解析器 -&gt; 字符串答案
 </code></pre></div>
 <p>但真实应用还可能出现并行分支。比如用户问题一边送去知识库检索，一边原样保留下来，等检索结束后再把「问题」和「上下文」汇合到 Prompt。它也可能根据分类结果走不同分支。</p>
@@ -38,13 +38,13 @@
 <p>按照当前 <code>langchain-core</code> 的官方参考，Runnable 是一个可以调用、批处理、流式处理、转换和组合的工作单元。处理单个输入时使用 <code>invoke</code> 或 <code>ainvoke</code>，输入变成一批时，接口自然对应为 <code>batch</code> 或 <code>abatch</code>。</p>
 <p>如果产品需要边生成边展示，可以使用 <code>stream</code> 或 <code>astream</code>，但前提是内部组件真正支持流式处理。执行方式统一以后，<code>with_config</code>、<code>with_retry</code> 和 <code>with_fallbacks</code> 才能继续在同一抽象上附加配置、重试和降级能力。</p>
 <p>这里最巧妙的地方是「组合后的结果仍然是 Runnable」。两个组件接成一条小链后，这条小链又可以作为一个普通步骤接到更大的链里。就像乐高积木，两个小块拼成一辆小车，小车还可以继续成为整座城市的一部分。</p>
-<p><img alt="" src="assets/6377d7ac13-c6e3ec77486460bc379e6d92.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6377d7ac13-c6e3ec77486460bc379e6d92.png" /></p>
 <p>Runnable 还暴露输入、输出和配置的 schema，并允许通过 <code>config</code> 携带标签、元数据等信息。这些能力让框架更容易检查数据契约，也方便 LangSmith 之类的追踪系统识别整条调用链里的父子运行关系。</p>
 <p>不过别把 Runnable 理解成魔法。前一个步骤输出什么类型，后一个步骤就必须能够接住什么类型。<code>ChatPromptTemplate</code> 通常接收字典，Chat Model 接收格式化后的 Prompt Value 或消息，<code>StrOutputParser</code> 接收模型消息并输出字符串。类型接不上，链照样会在运行时报错。</p>
 <h4>LCEL 不只是语法糖</h4>
 <p>LCEL 全称是 LangChain Expression Language。它最显眼的写法，是用 <code>|</code> 把 Runnable 接起来。</p>
 <p>为什么用一个符号值得单独起名字？因为这不是普通的 Python 管道，也不只是一颗语法糖。<code>prompt | model | parser</code> 声明的是三个 Runnable 的组合关系，LangChain 会据此构造一个 <code>RunnableSequence</code>。在这个序列里，前一步的输出会作为后一步的输入。</p>
-<p><img alt="" src="assets/1a49c9dd1d-f1ca9fa71673b0ccec78d180.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1a49c9dd1d-f1ca9fa71673b0ccec78d180.png" /></p>
 <p>下面用当前推荐方式写一条可以直接理解的链：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.chat_models</span> <span class="kn">import</span> <span class="n">init_chat_model</span>
 <span class="kn">from</span> <span class="nn">langchain_core.output_parsers</span> <span class="kn">import</span> <span class="n">StrOutputParser</span>
@@ -85,7 +85,7 @@
 <h4>如何并行与汇合？</h4>
 <p>真实的 RAG 链为什么也能用 LCEL 表达？关键是 Runnable 不只支持串行，还支持并行。</p>
 <p>比如同一篇文章，我们既想让模型生成摘要，又想让模型给出标题。两个任务互不依赖，没必要先后等待。可以使用 <code>RunnableParallel</code> 把同一个输入同时送到两条子链：</p>
-<p><img alt="" src="assets/9bb41477e7-69e4fc50a401ee8c43e2c7d0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9bb41477e7-69e4fc50a401ee8c43e2c7d0.png" /></p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.chat_models</span> <span class="kn">import</span> <span class="n">init_chat_model</span>
 <span class="kn">from</span> <span class="nn">langchain_core.output_parsers</span> <span class="kn">import</span> <span class="n">StrOutputParser</span>
 <span class="kn">from</span> <span class="nn">langchain_core.prompts</span> <span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
@@ -120,7 +120,7 @@
 <p>在 LCEL 里，字典也可以在组合上下文中被自动转换为 <code>RunnableParallel</code>。不过面试讲原理时，建议先说清楚显式类名，再补充字典简写。这样面试官能确认你知道背后真正生成了什么，而不是只记住了一个看起来很酷的写法。</p>
 <h4>为什么统一协议能不断扩展？</h4>
 <p>如果面试官继续问「为什么 LangChain 要这么设计」，只说方便串起来还不够。真正值得理解的是，一套统一协议如何让小流程逐渐长成大流程。</p>
-<p><img alt="" src="assets/2722416377-5d88edd0ec4c410dd84e2032.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2722416377-5d88edd0ec4c410dd84e2032.png" /></p>
 <p>起点是可组合。每个步骤只处理自己的输入和输出，小链可以继续组成大链。开发者能够替换某个模型、解析器或检索器，而不必推翻整条业务流程，这就降低了组件之间的耦合。</p>
 <p>但组件只是能接在一起还不够。如果每种组件都有完全不同的调用方式，组合只能停留在表面。Runnable 继续把单次、异步、批量和流式等执行方式收拢到统一接口上，组合后的流程才有机会继承这些能力。当然，最终效果仍取决于内部组件是否真正支持对应模式。</p>
 <p>接口统一后，LCEL 才能进一步把代码写成声明式数据流。开发者主要表达「数据先去哪，再去哪」，不用把线程调度、回调传递和中间结果搬运混在业务逻辑里，读代码时也能直接看出流程结构。</p>
@@ -128,7 +128,7 @@
 <h4>为什么弃用旧式 Chain？</h4>
 <p>这一段是现在面试最容易踩的版本坑。</p>
 <p>早期 LangChain 提供了大量面向具体场景的类。<code>LLMChain</code> 常用于封装 Prompt 加模型，<code>SequentialChain</code> 用于把多条旧式 Chain 顺序连接。它们在老项目和老教程里非常常见，所以很多人会误以为这就是今天的标准答案。</p>
-<p><img alt="" src="assets/c9e43e682a-74a0af34567dcf998038d162.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c9e43e682a-74a0af34567dcf998038d162.png" /></p>
 <p>但框架后来遇到了一个问题：专用 Chain 类越来越多，每个类的输入字段、返回结构和扩展方式不完全一致。开发者既要记住大量类名，又很难把它们自由拼装。</p>
 <p>Runnable 和 LCEL 的方向，是把重心从「为每个场景造一个专用类」转向「提供少量统一原语，让开发者自己组合」。<code>LLMChain(prompt=prompt, llm=model)</code> 能做的事情，现在通常直接写成 <code>prompt | model | parser</code>，数据流更清楚，组合能力也更一致。</p>
 <p>截至 2026 年 7 月，LangChain v1 迁移指南已经把旧式 chains 明确移到 <code>langchain-classic</code>，其中包括 <code>LLMChain</code>、<code>ConversationChain</code> 和 <code>SequentialChain</code> 等旧 API。</p>

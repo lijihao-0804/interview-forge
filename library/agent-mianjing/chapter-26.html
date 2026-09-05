@@ -23,7 +23,7 @@
 </li>
 </ul>
 <p>不同格式的文件在解析方式上会存在很大差异。例如，PDF 文件往往包含复杂的排版结构，例如多栏 文本、表格和图片，如果直接提取文本，可能会出现内容顺序错乱的问题。因此，在解析 PDF 文档 时，通常需要借助专门的解析工具，以尽可能保留原始文档的结构信息。</p>
-<p><img alt="" src="assets/92b26f6f20-agent-.pdf-0105-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/92b26f6f20-agent-.pdf-0105-00.png" /></p>
 <p>尽管 PDF（Portable Document Format）是一种通用、稳定、跨平台的文档格式，但它并不是为结构 化数据提取设计的格式，这也使得从中提取高质量、结构化的知识成为一项技术挑战。主要难点包 括：</p>
 <ol>
 <li>格式复杂、结构不统一</li>
@@ -79,7 +79,7 @@
 <p>特别是在多语种文档处理（如中英文混排、右到左语言等）中，不同语言的排版逻辑和标点规则可能 导致解析工具无法正确断句、分段，影响后续向量化建库质量。</p>
 <h5>基于规则的方法</h5>
 <p>这是最早期也是最基础的 PDF 解析思路，依赖 PDF 文档的结构信息（如页数、文本框、字体大小、位 置等），通过手动设计规则提取内容。以 Python 中的 <code>PyPDF2</code>  或 <code>PyPDF4</code>  为代表，它们支持读 取 PDF 文件中的文本、页码、元信息等。  以最基础的PyPDF库为例进行介绍。</p>
-<p><img alt="" src="assets/62ca2fc511-agent-.pdf-0107-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/62ca2fc511-agent-.pdf-0107-00.png" /></p>
 <p>从图中的分析结果可以看到，PyPDF不对图片进行识别，输出的格式只支持txt，并且在文档换行的时 候对应的识别结果也出现换行，段落完整性较差。</p>
 <p>类似的基于规则的方法还有PyMuPDF等等， 这种方法适用于对文档结构非常了解的场景，如内部模板 化文档、批量合同抽取等。</p>
 <h5>基于深度学习的方法</h5>
@@ -99,9 +99,9 @@
 </li>
 </ol>
 <p>以PaddleOCR团队自研的智能文档分析系统PP-StructureV2为例，系统首先经过图像矫正模块，判断 图方向并完成转正，随后进行版面信息分析和关键信息抽取。图像经过版面分析模型对文件不同区域 进行划分，包括文本，图像，表格等等，随后对不同的区域进行识别，最后使用版面恢复将其恢复为 与原始文件布局一致的文件中。</p>
-<p><img alt="" src="assets/c3186eedea-agent-.pdf-0108-04.png" /></p>
-<p><img alt="" src="assets/fd4d9caf51-agent-.pdf-0109-00.png" /></p>
-<p><img alt="" src="assets/bef41ab4c6-agent-.pdf-0110-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c3186eedea-agent-.pdf-0108-04.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fd4d9caf51-agent-.pdf-0109-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bef41ab4c6-agent-.pdf-0110-00.png" /></p>
 <p>从上面的识别结果可以看出，相比于基于规则的识别方法，深度学习方法段落完整性较好，可适应多 种布局；模型可迁移至各类文档（论文、发票、报告等）；但是表格识别和图像识别仍然不够准确， 同时需依赖 GPU 计算资源，对于语义理解和上下文推理仍然有限。</p>
 <h5>基于多模态大模型的方法</h5>
 <p>随着多模态大模型的发展，PDF 内容解析开始进入“端到端智能理解”阶段。这类方法利用图文输入 能力强大的模型（如 GPT-4V、Gemini、Claude、MiniGPT-4），直接输入页面截图或文档图片，由大 模型进行内容提取与理解。典型方式如下：</p>
@@ -117,33 +117,33 @@
 </li>
 </ol>
 <p>以Qwen2.5-VL系列模型为例，在 Qwen2.5-VL 中设计了一种更全面的文档解析格式，称为 QwenVL  HTML 格式，它既可以将文档中的文本精准地识别出来，也能够提取文档元素（如图片、表格等）的 位置信息，从而准确地将文档中的版面布局进行精准还原。</p>
-<p><img alt="" src="assets/134affa09e-agent-.pdf-0112-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/134affa09e-agent-.pdf-0112-00.png" /></p>
 <p>多模态模型无需预定义规则或模型训练，能处理复杂结构、跨页关联、图表内容，并支持语义级别的 问答、摘要、推理。但是成本高（API调用或推理资源），对上下文窗口长度、图像清晰度等有一定要 求。</p>
 <h4>Chunking 策略</h4>
 <p>在完成文档解析之后，下一步是进行 Chunking（文本切分）。由于大语言模型存在上下文长度限 制，同时 Embedding 模型在处理过长文本时也会出现语义模糊的问题，因此通常需要将长文档拆分为 多个较小的文本块（Chunk）。</p>
 <p>Chunk 的大小和切分方式会直接影响检索质量。如果文本块过大，可能会包含多个不同主题，从而降 低向量语义的准确性；如果文本块过小，则可能导致上下文信息不足，使模型难以理解完整内容。</p>
-<p><img alt="" src="assets/1341c88761-agent-.pdf-0113-02.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1341c88761-agent-.pdf-0113-02.png" /></p>
 <p>固定大小切分</p>
 <p>将文档按照预设的字符数、词数或句子数进行等间隔划分。例如每段包含500个字符或5个句子。该方 法实现简单，但容易打断语义边界，可能导致上下文缺失或内容重复。</p>
-<p><img alt="" src="assets/3bddc37fcc-agent-.pdf-0114-01.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3bddc37fcc-agent-.pdf-0114-01.png" /></p>
 <h5>语义切分</h5>
 <p>通过自然语言处理技术（如句向量相似度、话题建模等）判断文本语义的边界，在语义上自然断句。</p>
-<p><img alt="" src="assets/2c49137f6c-agent-.pdf-0114-04.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2c49137f6c-agent-.pdf-0114-04.png" /></p>
 <p>以向量相似度为例，将句子或段落转换为向量，通过计算相邻句段的余弦相似度，如果判断两个段落 语义上属于同一单元，那么就进行合并。</p>
-<p><img alt="" src="assets/c5cd2e498e-agent-.pdf-0114-06.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c5cd2e498e-agent-.pdf-0114-06.png" /></p>
 <p>这种方式能提升分块的语义连贯性，适用于逻辑紧密的文章，但计算代价较高，依赖模型质量。</p>
 <h5>递归切分</h5>
-<p><img alt="" src="assets/417d917d58-agent-.pdf-0115-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/417d917d58-agent-.pdf-0115-00.png" /></p>
 <p>在保持固定长度的同时，尝试以语义结构（如段落、句子、标点）为边界递归地切分文本。若段落太 长无法容纳于块中，则再递归切分为句子，直到满足长度要求。</p>
-<p><img alt="" src="assets/5df5b0a26a-agent-.pdf-0115-02.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5df5b0a26a-agent-.pdf-0115-02.png" /></p>
 <p>相比纯固定切分，该方法能更好地保留语义完整性。</p>
 <p>基于文档结构的切分</p>
-<p><img alt="" src="assets/191bde5a3a-agent-.pdf-0115-05.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/191bde5a3a-agent-.pdf-0115-05.png" /></p>
 <p>利用原始文档的结构信息（如HTML标签、Markdown标题、PDF书签、Word段落等）进行切分。比 如以章节、小标题、列表项为边界进行分块。</p>
-<p><img alt="" src="assets/73dd7e1643-agent-.pdf-0116-00.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/73dd7e1643-agent-.pdf-0116-00.png" /></p>
 <p>这种方式在处理格式规范的文档（如手册、报告）时效果尤为突出。</p>
 <h5>基于LLM的切分</h5>
-<p><img alt="" src="assets/ede3002860-agent-.pdf-0116-03.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ede3002860-agent-.pdf-0116-03.png" /></p>
 <p>借助大语言模型来“理解”文档内容并主动划定分块边界。例如，提示模型判断哪些段落构成完整的 语义单元，或根据任务需求生成最佳的分块方案。这种方式智能程度高，但计算成本也相对较大，适 合高精度应用场景。</p>
 <h4>Metadata 设计</h4>
 <p>在完成文本切分之后，每一个 Chunk 通常都会被附加一组 Metadata（元数据）。Metadata 的作用 是为文本块提供额外的信息，使系统在检索和生成阶段能够更好地理解数据来源和上下文关系。 常见的 Metadata 信息包括：</p>

@@ -1542,6 +1542,8 @@ def render_markdown(source: Path) -> None:
 </body>
 </html>
 """
+    # 图片懒加载：阅读页配图统一滚动到视口再加载
+    page = page.replace("<img ", '<img loading="lazy" decoding="async" ')
     output.write_text(page, encoding="utf-8")
 
 

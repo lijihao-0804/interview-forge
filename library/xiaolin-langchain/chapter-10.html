@@ -21,7 +21,7 @@
 <p>假设用户正在规划杭州旅行。当前对话中提到的日期、预算和下一步计划，只服务于这次任务，属于短期状态。</p>
 <p>一周后用户新建会话，Agent 仍然知道他不吃辣、喜欢住地铁附近，这些跨会话仍然有效的信息才属于长期记忆。</p>
 <p>因此，记忆设计的第一步不是选数据库，而是确定作用域。当前线程运行到了哪里，由 State 和 Checkpointer 管理；未来其他线程仍可能使用的用户偏好与事实，才由 Store 管理。</p>
-<p><img alt="" src="assets/f51aa42a87-9c865bb1ac33c765b7c4be67.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f51aa42a87-9c865bb1ac33c765b7c4be67.png" /></p>
 <h4>短期记忆如何实现？</h4>
 <p>LangChain v1 的 <code>create_agent</code> 底层运行在 LangGraph 上。Agent State 默认包含 <code>messages</code>，也可以扩展订单号、当前步骤和工具调用次数等业务字段。</p>
 <p>只有 State 还不够。请求可能由不同服务实例处理，进程也可能重启，因此需要 Checkpointer 持久化执行状态。调用 Agent 时传入稳定的 <code>thread_id</code>，同一编号就可以恢复同一线程：</p>
@@ -83,7 +83,7 @@
 </tbody>
 </table>
 <p>客服 Agent 可能需要保护当前工单和用户承诺，代码 Agent 可能需要保护最新报错和修改记录。因此不能只按固定消息条数处理，而应该结合 Token 预算、消息角色和业务重要性制定策略。</p>
-<p><img alt="" src="assets/7dcbcb3928-49856e1483d59b067b4dade7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7dcbcb3928-49856e1483d59b067b4dade7.png" /></p>
 <h4>长期记忆如何实现？</h4>
 <p>新 <code>thread_id</code> 默认不会继承旧线程的 State，这是正确的线程隔离。如果某条信息需要跨线程使用，就应提炼后写入 Store。</p>
 <p>Store 中的数据通常使用下面的结构定位：</p>
@@ -143,7 +143,7 @@ value     = JSON 数据
 </code></pre></div>
 <p>模型只负责生成 <code>preference</code>，<code>user_id</code> 由已认证的应用通过 Context 注入。这样可以防止模型填错身份或被提示注入诱导访问其他用户的数据。</p>
 <p>两个不同 <code>thread_id</code> 的会话，只要可信 <code>user_id</code> 相同，就可以访问同一个长期记忆 namespace；另一位用户则应被 namespace 和服务端权限隔离。</p>
-<p><img alt="" src="assets/ae2ecb6957-8f3936c21aedd32ecd6cd299.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ae2ecb6957-8f3936c21aedd32ecd6cd299.png" /></p>
 <h4>什么时候写入长期记忆？</h4>
 <p>长期记忆不是越多越好。把每句闲聊都存进去，会产生噪声、冲突和隐私风险。</p>
 <p>用户明确说「请记住」时，可以在主链路中实时写入，使信息立即生效。普通对话中推断出的偏好和经验，更适合在会话结束后由后台任务提炼、去重和脱敏，再写入 Store。</p>
@@ -153,7 +153,7 @@ value     = JSON 数据
 <p>数据保存下来后，紧接着要解决「这是谁的记忆」。<code>thread_id</code>、<code>tenant_id</code> 和 <code>user_id</code> 必须来自可信身份体系，不能相信模型生成的身份，也不能让客户端随意指定另一个用户的 namespace。否则记得越多，越容易造成跨用户数据泄露。</p>
 <p>隔离做好以后，还要承认记忆会过时、会冲突，也会被用户纠正。系统要能够去重、更新和过期淘汰，同时支持用户查看、更正、导出和删除。敏感信息则默认不记，确实需要保存的数据要加密并限制访问，日志与 Trace 也不能成为隐私的另一个泄漏口。</p>
 <p>最后才是判断这套记忆到底有没有用。评测不能只看「成功写入多少条」，而要沿着整条链路检查：这条信息是否值得写入，相关问题能否召回，无关问题会不会误召回，注入模型后是否真正改善答案。只有写入、召回和使用三步都有效，记忆才不是一个不断膨胀的数据库。</p>
-<p><img alt="" src="assets/6b56150507-81b544930908ca630de94476.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6b56150507-81b544930908ca630de94476.png" /></p>
 <h4>旧 Memory 还能用吗？</h4>
 <p>旧教程常见的 <code>ConversationBufferMemory</code>、<code>ConversationSummaryMemory</code> 等属于 Chain 时代的抽象，目前主要位于 <code>langchain-classic</code>，适合维护存量项目。</p>
 <p>LangChain v1 新项目更推荐使用：</p>

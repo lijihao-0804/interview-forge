@@ -43,6 +43,16 @@
       var chatTimer = null;
       var chatState = { lastId: -1, lastTime: null, myName: "", myRole: "user" };
       var CHAT_COLORS = ["#5654d4", "#157a52", "#a85b00", "#b3372f", "#4543bd", "#0f766e"];
+      var unread = 0, seenId = -1, unreadTimer = null, baseTitle = document.title;
+      function setUnread(n) {
+        unread = n;
+        var b = document.getElementById("fap-unread");
+        if (b) { b.textContent = n > 0 ? String(n) : ""; b.style.display = n > 0 ? "inline-block" : "none"; }
+        document.title = n > 0 ? "(" + n + ") " + baseTitle : baseTitle;
+      }
+      function authGone() {
+        location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname + location.search));
+      }
 
       function toggleChat() {
         var exist = document.getElementById("forge-chat-panel");
@@ -56,6 +66,7 @@
         chatState.myRole = me.role;
         chatState.lastId = -1;      // 重置增量游标：重新加载最近 50 条，否则旧游标导致面板卡在加载中
         chatState.lastTime = null;
+        setUnread(0);               // 打开面板即视为全部已读
         var panel = document.createElement("div");
         panel.id = "forge-chat-panel";
         panel.className = "forge-panel";
@@ -126,8 +137,9 @@
         }
         function poll() {
           fetch("/api/chat/messages?after=" + chatState.lastId, { cache: "no-store" })
-            .then(function (r) { return r.json(); })
+            .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json(); })
             .then(function (d) {
+              if (!d) return;
               if (chatState.lastId < 0) {
                 msgs.textContent = "";
                 if (!d.items.length) {
@@ -147,8 +159,9 @@
           if (!content) return;
           btn.disabled = true;
           fetch("/api/chat/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: content }) })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
             .then(function (res) {
+              if (!res) return;
               btn.disabled = false;
               if (!res.ok) { alert(res.data.error || "发送失败"); return; }
               input.value = "";
@@ -271,6 +284,10 @@
       chatLink.className = "fap-chat";
       chatLink.textContent = "聊天室";
       chatLink.onclick = function (e) { e.preventDefault(); toggleChat(); };
+      var unreadBadge = document.createElement("span");
+      unreadBadge.id = "fap-unread";
+      unreadBadge.style.cssText = "display:none;background:#b3372f;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px";
+      chatLink.appendChild(unreadBadge);
       pill.appendChild(chatLink);
       var sep0 = document.createElement("span");
       sep0.textContent = "·";
@@ -309,5 +326,25 @@
       pill.appendChild(logout);
 
       document.body.appendChild(pill);
+
+      // ---- 聊天未读感知：面板关闭时每 15 秒探针一次；401 视为会话过期跳登录 ----
+      fetch("/api/chat/messages?after=-1&limit=1", { cache: "no-store" })
+        .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json(); })
+        .then(function (d) { if (d && d.items && d.items.length) seenId = d.items[0].id; })
+        .catch(function () {});
+      unreadTimer = setInterval(function () {
+        if (document.getElementById("forge-chat-panel")) return;   // 面板自身在轮询
+        fetch("/api/chat/messages?after=" + seenId + "&limit=50", { cache: "no-store" })
+          .then(function (r) {
+            if (r.status === 401) { authGone(); return null; }
+            return r.json().then(function (d) { return { status: r.status, data: d }; });
+          })
+          .then(function (res) {
+            if (!res || !res.data) return;
+            var fromOthers = res.data.items.filter(function (m) { return m.username !== me.username; });
+            if (fromOthers.length) setUnread(unread + fromOthers.length);
+            if (res.data.items.length) seenId = res.data.items[res.data.items.length - 1].id;
+          }).catch(function () {});
+      }, 15000);
     });
 })();

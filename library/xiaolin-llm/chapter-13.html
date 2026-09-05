@@ -34,7 +34,7 @@
 <li>但参数加倍，推理成本（计算量 + 显存 + 延迟）也加倍</li>
 <li>一台 8 卡 H100 服务器，能跑动 70B Dense 模型，但跑不动 175B</li>
 </ul>
-<p><img alt="" src="assets/c472ded4ed-193ef70b3dc17d2ba9c19e84.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c472ded4ed-193ef70b3dc17d2ba9c19e84.png" /></p>
 <p>MoE 的核心创新是<strong>打破「知识量」和「推理成本」的绑定</strong>。它的思路是：</p>
 <ul>
 <li>模型有 N 个专家，每个专家是一份独立的 FFN</li>
@@ -43,7 +43,7 @@
 <li>激活参数量 = K × 单专家参数量，推理成本只有总参数的 K/N</li>
 </ul>
 <p>直观的类比：Dense 像一本厚厚的百科全书，你查一个词要把整本书过一遍；MoE 像一个图书馆，前台咨询员（Router）听到你的问题，告诉你去 3 楼的「数学专家区」就好，不用整个图书馆都搜索。</p>
-<p><img alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.png" /></p>
 <p>这个设计让 MoE 在「<strong>同样推理成本下，参数量可以做到 Dense 的几倍甚至几十倍</strong>」。这就是 MoE 现在大火的根本原因。</p>
 <h4>MoE 的三个核心组件</h4>
 <p>理解了核心思想，下面拆解 MoE 的三个具体组件。</p>
@@ -69,11 +69,11 @@
 <li><strong>K=2（Mixtral 风格）</strong>：每个 token 去 2 个专家，效果和效率折中</li>
 <li><strong>K=8（DeepSeek V3）</strong>：用更多专家，配合 256 个细粒度专家</li>
 </ul>
-<p><img alt="" src="assets/3e975bede0-4d1bb294155c7e5e44323b68.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3e975bede0-4d1bb294155c7e5e44323b68.png" /></p>
 <p><strong>3. 负载均衡损失</strong></p>
 <p>朴素的 Router 训练有个著名问题：<strong>专家不平衡（Expert Imbalance）</strong>。</p>
 <p>什么意思？训练初期 Router 是随机的，可能偶然几个专家分数高、被选中、得到训练；其他专家分数低、不被选中、不更新参数；下一轮还是那几个高分专家被选中、继续被训；恶性循环之后，整个模型只用 1-2 个专家在工作，其他专家躺平。</p>
-<p><img alt="" src="assets/4eb8dbc425-7de0b886bfeee591b8352e0a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4eb8dbc425-7de0b886bfeee591b8352e0a.png" /></p>
 <p>为了解决这个问题，MoE 训练时要加一个<strong>负载均衡损失（Load Balancing Loss）</strong>：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 负载均衡损失（直觉版）</span>
 <span class="n">expert_load</span> <span class="o">=</span> <span class="n">mean</span><span class="p">(</span><span class="n">expert_probability_distribution</span><span class="p">)</span>  <span class="c1"># 每个专家的平均使用率</span>
@@ -100,7 +100,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p><strong>第一</strong>，总参数 671B vs 激活参数 37B。模型「<strong>学过的东西</strong>」按 671B 算（专家分化、覆盖各种领域），但「<strong>每个 token 实际算的</strong>」只有 37B。</p>
 <p><strong>第二</strong>，显存占用按总参数走（1.3TB FP16，量化后约 350GB INT4）。所有专家都要常驻显存，不然 Router 路到没加载的专家就没法算。</p>
 <p><strong>第三</strong>，推理速度按激活参数走。每个 token 只算 37B，所以 latency 接近 37B Dense 模型，<strong>而不是 671B</strong>。</p>
-<p><img alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.png" /></p>
 <p>这种「学得多 + 跑得快」的甜蜜组合，是 MoE 在 LLM 时代爆发的根本原因。Dense 模型走到 70B 量级已经是推理成本的极限，再往上 175B、500B、1T，推理几乎跑不起来；MoE 通过把激活参数控制在 37B-100B 这个区间，可以把总参数推到 600B、1T、甚至更多。</p>
 <h4>主流 MoE 模型对比：DeepSeek V3、Mixtral、Qwen 各自的设计</h4>
 <p>不同家公司的 MoE 设计哲学差别挺大。来看几个代表：</p>
@@ -130,7 +130,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <li>xAI 早期开源的 MoE，激活率较高（25%）</li>
 <li>设计相对保守，没有 DeepSeek 那么激进</li>
 </ul>
-<p><img alt="" src="assets/d284f0619b-a7249a23a3c2921e0be76dae.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d284f0619b-a7249a23a3c2921e0be76dae.png" /></p>
 <p>观察这些模型，能看出 MoE 设计的几个趋势：</p>
 <ul>
 <li><strong>专家数越来越多</strong>：8 -&gt; 64 -&gt; 256</li>
@@ -160,7 +160,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <li><strong>Expert Parallel</strong>：不同专家分配到不同 GPU，token 在 GPU 之间路由</li>
 <li><strong>All-to-All 通信</strong>：每个 token 选了几个专家后，要把 token 发送到对应专家所在的 GPU，处理完再发回来。这是 MoE 训练通信开销最大的环节</li>
 </ul>
-<p><img alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.png" /></p>
 <p>通信开销让 MoE 在多机训练时效率打折扣。DeepSeek V3 的工程优化里有大量篇幅讲怎么把 All-to-All 通信和计算重叠（DualPipe 算法），是工程实力的体现。</p>
 <h4>MoE 的部署挑战</h4>
 <p>训练完之后，部署 MoE 还有自己的挑战。</p>
@@ -170,7 +170,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p>单 token 推理 MoE 还行，但批量推理（一次处理几十个用户请求）时，不同 token 选不同专家，导致大量跨卡通信。这就是为什么 MoE 模型的「<strong>吞吐量</strong>」往往不如同等激活参数的 Dense 模型。</p>
 <p><strong>挑战 3：专家不均衡导致负载不均</strong></p>
 <p>部署时，如果某个专家热门（被很多 token 路由到），它所在的 GPU 就会过载，其他 GPU 空闲。需要动态负载均衡机制（专家迁移、复制热门专家等），这又是一个工程坑。</p>
-<p><img alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.png" /></p>
 <p>应对这些挑战，业界有一系列工具和优化（vLLM 的 MoE 并行支持、SGLang 的专家亲和性调度、TensorRT-LLM 的 MoE 优化），但整体来说，<strong>MoE 部署的技术成熟度还在快速演进</strong>。这也是为什么很多公司虽然喜欢 MoE 的训练性价比，但部署时还是选 Dense 模型的原因。</p>
 <h4>为什么 2024 年后 MoE 才在 LLM 领域火起来</h4>
 <p>最后一个值得讨论的问题：MoE 不是新东西，1991 年就有人提出，2017 Google 的 GShard 就用过 MoE 训过 600B 模型。为什么直到 2024 年 DeepSeek V3 才让整个圈子开始用 MoE？</p>
@@ -181,7 +181,7 @@ MoE 模型 671B / 37B（DeepSeek V3）：
 <p>2023 年之前，主流推理框架对 MoE 的支持很差，部署困难。2024 年 vLLM、SGLang、TensorRT-LLM 都加入了 MoE 优化（专家并行、All-to-All 通信优化），让 MoE 模型能在生产环境跑起来。</p>
 <p><strong>3. DeepSeek V3 把成本打下来了</strong></p>
 <p>最关键的一击是 DeepSeek V3 在 2024 年底公开了一个 671B 总参数、37B 激活参数的 MoE 模型，并报告了非常低的训练成本和很强的效果。这让大家看到：MoE 不只是论文里的好方法，是真的能用更高的训练和推理性价比做出顶级模型。整个开源社区被点燃，2025 年之后越来越多大模型开始认真评估 MoE 路线。</p>
-<p><img alt="" src="assets/98730b86fd-259035155d88268756730870.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/98730b86fd-259035155d88268756730870.png" /></p>
 <p>到 2026 年，MoE 已经成为大模型架构的主流方向之一，但还不能说「几乎所有新模型都用 MoE」。Dense 模型依然有很强生命力，尤其在 1B-70B 这类部署稳定、延迟敏感、工程复杂度要低的场景。更稳的说法是：<strong>MoE 适合把总容量做大、把激活成本压低；Dense 适合部署简单、负载稳定、延迟可控</strong>。</p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到 MoE，最重要的是先把<strong>核心思想</strong>讲清楚。MoE 把 Transformer 中的 FFN 复制成 N 份「专家」，加一个 Router 选 Top-K 个来处理每个 token。最关键的设计哲学是<strong>总参数 vs 激活参数解耦</strong>：训练时学 N 倍知识，推理时只用 K/N 的算力。这一句先点出来，就抓到了 MoE 的本质。</p>

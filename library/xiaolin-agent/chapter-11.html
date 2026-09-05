@@ -18,29 +18,29 @@
 <p>它最大的优势不只是「架构简单」，更核心的是「整条任务链路完全在你掌控之内」。任务怎么走、用什么工具、什么时候结束，所有逻辑都是你在一个地方写清楚的，出了问题链路短，好排查。</p>
 <p>类比一下：一个人完全可以独立完成「写一篇博客」，自己查资料、想大纲、写下来，不需要团队协作，单人反而更高效，沟通成本为零。</p>
 <p>Single-Agent 真正开始力不从心，是在遇到这几类任务的时候：任务太长、信息量太大，context 撑爆，Agent 开始遗忘；不同步骤需要完全不同的专业能力，什么都塞进一个 Agent，每件事都做得不够专注；任务中有多个独立子任务，理论上可以并行，但单 Agent 只能一个个来。遇到这三类情况，Multi-Agent 就有了真实价值。</p>
-<p><img alt="" src="assets/647c964fcc-0dbada0b98c51cf5c51eb7ee.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/647c964fcc-0dbada0b98c51cf5c51eb7ee.png" /></p>
 <p>但需要强调的是：如果你的任务不属于这三类，Single-Agent 就够了，不要为了「用新技术」而强行引入 Multi-Agent，系统会变复杂、变难维护，但没有带来对应的收益。</p>
 <h4>Multi-Agent 的中心化方案</h4>
 <p>Multi-Agent 的中心化方案，核心是一个叫 Orchestrator 的特殊角色。「Orchestrator」直译是「交响乐指挥」，在 Multi-Agent 系统里，它的中文可以理解成「总调度员」或「项目经理」。它是整个系统里最特殊的那个 Agent，因为它不做任何具体工作，它只负责三件事：读懂用户的大目标、把它拆成一个个子任务；判断每个子任务该交给哪个 Worker Agent 去做；收集每个 Worker 的产出，把它们拼成最终答案。</p>
 <p>Orchestrator 其实有几种变体，适合不同复杂度的场景。最基础的是<strong>静态路由</strong>（Static Router），任务拆分和分配规则是预先定义好的，比如「遇到代码任务交给 Coder Agent，遇到搜索任务交给 Researcher Agent」，逻辑简单可预测。进阶一点的是<strong>动态规划</strong>（Dynamic Planner），Orchestrator 本身是一个 LLM，它会根据用户输入动态生成任务计划，决定需要几个步骤、每步交给谁，计划本身也可以在执行过程中调整。最复杂的是<strong>自适应编排</strong>（Adaptive Orchestration），Orchestrator 不仅动态规划，还会根据 Worker 的执行结果实时调整后续计划，比如 Researcher 搜回来的信息不够，Orchestrator 会追加一轮搜索任务，而不是硬着头皮往下走。实际项目里，大多数场景用动态规划就够了，自适应编排虽然更强大但调试复杂度也高很多。</p>
-<p><img alt="" src="assets/c502cb830c-b124fa0fdcdca8e7e7b65340.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c502cb830c-b124fa0fdcdca8e7e7b65340.png" /></p>
 <p>相对的，Worker Agent 就是「执行者」。每个 Worker 只关注自己那块，它不需要知道整体任务是什么，不需要知道其他 Worker 在做什么，只需要拿到属于自己的那部分指令，做完返回结果，然后退出。它的 context 是干净的，只装着和自己职责相关的信息。</p>
 <p>用一个具体任务来走一遍完整流程，帮你真正理解 Orchestrator 是怎么工作的。假设用户说「帮我写一份 AI 行业竞品分析」：</p>
 <p>这个流程最大的好处，是每个环节出了问题，你能精准定位。报告内容不够准确？可能是 Researcher 搜的信息不够好。分析逻辑有问题？可能是 Analyst 的对比维度不对。报告格式不符合要求？是 Writer 的输出问题。每个 Agent 职责清晰，排查不需要猜，顺着 Orchestrator 的调度记录一步步追下去就能找到根源。</p>
-<p><img alt="" src="assets/a6c35681d3-519f16b32d3f319df0633bf2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a6c35681d3-519f16b32d3f319df0633bf2.png" /></p>
 <h4>去中心化方案：为什么「听起来更灵活」却很少在工程上用</h4>
 <p>去中心化的思路是没有总调度，多个 Agent 通过共享的消息队列或状态空间自行协商、直接通信。听起来很美好，像一个能自我组织的团队，不需要领导，大家自动配合，还更灵活。</p>
 <p>但实际工程里会遇到什么问题？用一个具体场景来说明。</p>
 <p>假设三个 Agent 在处理同一个任务：Agent A 在搜索信息，Agent B 也在搜索类似的信息，Agent C 负责汇总结果，但没有人统筹调度。这时候几个问题会同时出现：首先，没有人告诉 A 和 B 「你们各搜什么范围」，很可能两个人搜了大量重叠的内容，做了重复工作；其次，C 需要等 A 和 B 都搜完才能汇总，但没有人告诉 C「A 和 B 什么时候算搜完了」，C 不知道该等多久，也不知道有没有漏掉某个 Agent 的结果；再者，如果 A 中途出错了，没有中央调度者收到错误通知，B 和 C 可能还在正常运行，最后汇总出来的是一份不完整的结果，但系统甚至不知道这里出了问题。</p>
 <p>总结下来，去中心化系统里这几类问题会频繁出现：任务分配没有协调、执行顺序没有保证、失败没有感知、没有人来确认「任务整体完成了」。类比一个没有项目经理的团队：每个人都很能干，但没有人协调时间节点和接口，最后交出来的可能是互不兼容的结果，而且没有人知道整体进度到底怎么样了。</p>
 <p>这就是为什么去中心化方案更多停留在学术研究里探索，研究的是「AI 系统能不能实现自主协调」这个更宏观的问题。而生产环境里，<strong>几乎所有正经项目都选 Orchestrator 模式</strong>，因为可控、可追踪、出了问题能排查，这才是工程上真正需要的。</p>
-<p><img alt="" src="assets/e8cb2d762a-0c0fb6220bd7c8adeee99a12.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e8cb2d762a-0c0fb6220bd7c8adeee99a12.png" /></p>
 <h4>怎么做选型决策？</h4>
 <p>选型的逻辑其实可以用两个问题来搞定。</p>
 <p>先问第一个问题：你的任务，Single-Agent 能搞定吗？如果任务流程明确、不太长、不需要多种专业分工，Single-Agent 就够了。架构简单、维护成本低、链路透明，不要为了「显得高级」而引入 Multi-Agent。</p>
 <p>如果任务确实超出了 Single-Agent 的边界，再问第二个问题：你能接受系统行为不可控的风险吗？生产环境里这个问题的答案几乎一定是「不能」，所以就用 Orchestrator 模式。</p>
 <p>实际工程里有一个很实用的策略叫<strong>渐进式演进</strong>：先用 Single-Agent 把系统跑起来，当你发现某个环节确实成为瓶颈了，比如 context 经常撑满、某类子任务质量不行，再把那个环节拆出来交给一个专门的 Worker Agent。不要一上来就设计一个五六个 Agent 的复杂系统，你可能连哪里是真正的瓶颈都还没搞清楚。从 Single-Agent 演进到 Multi-Agent 是一个自然的过程，而不是一开始就做的架构决策。</p>
-<p><img alt="" src="assets/0182e0dfe6-85f3a8867a9899c89fcd47aa.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0182e0dfe6-85f3a8867a9899c89fcd47aa.png" /></p>
 <p>另外值得关注的一个行业趋势是 <strong>A2A</strong>（Agent-to-Agent）协议，Google 在 2025 年 4 月提出的开放标准。它要解决的问题是：不同团队、不同框架开发的 Agent 之间怎么互相通信和协作。之前每个 Multi-Agent 框架都有自己的通信方式，Agent 只能在同一个框架内协作。A2A 定义了一套标准化的通信协议，让不同来源的 Agent 在协议层面可以互相发现和调用，思路上很像微服务。A2A 在 2025 年 6 月被捐给了 Linux 基金会维护，IBM 的 Agent Communication Protocol（ACP）也已并入 A2A。不过这个协议目前还在较早期阶段，实际生态里「真正能即插即用跨框架调用」还没完全成熟，更多的是社区实现和示范项目，生产级的跨框架互操作仍在演进，长远看这个方向会深刻改变 Multi-Agent 系统的构建方式。</p>
 <p>把三种方案放在一起对比，选型时一眼就能看清差异：</p>
 <table>

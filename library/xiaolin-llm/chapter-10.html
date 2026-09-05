@@ -35,7 +35,7 @@
 </code></pre></div>
 <p>A 和 B 两个小矩阵组成一个「旁路分支」，负责学习微调任务需要的增量知识；原始权重 W 保存着预训练学到的通用知识，一字不改。</p>
 <p>可以用「给书批注」来类比：全量微调是把书重新印一遍、改掉原文内容；LoRA 是在书的空白处贴便利贴，原书一个字都不动，便利贴上写的是修正和补充。读书的时候，原文和便利贴的内容都能看到，效果叠加在一起。这种「在旁边打补丁」的设计，是 LoRA 后续很多优点的根源。</p>
-<p><img alt="" src="assets/1b1ee37bfc-1279f2a1fa21c8f6baf2fc76.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1b1ee37bfc-1279f2a1fa21c8f6baf2fc76.png" /></p>
 <h4>「低秩分解」到底是什么意思？</h4>
 <p>LoRA 里最让初学者困惑的词是「低秩分解」。拆开来理解：</p>
 <p><strong>先说「秩」（rank）是什么。</strong> 矩阵的秩代表矩阵里「真正独立的信息维度」。一个 4096×4096 的大矩阵，秩最高可以是 4096，意味着里面有 4096 个完全独立的信息方向。但研究发现，微调时权重的「更新量」（即 ΔW = W微调后 - W原始）往往具有<strong>内在低秩性</strong>，这些变化只在很低维的子空间里发生，秩通常只有 8-16，其余几千个维度几乎没有有效信息。</p>
@@ -47,7 +47,7 @@
 <li>两者乘积 B·A 形状是 d×d，和原始更新矩阵同维，但参数量大幅减少</li>
 </ul>
 <p>这里的 r 就叫做<strong>秩（rank）</strong>，是 LoRA 最重要的超参，通常设 8 或 16。r 越小，参数越少，但表达能力也越弱；r 越大，参数越多，但更接近全量微调效果。大多数任务 r=8 到 r=16 就够了。</p>
-<p><img alt="" src="assets/6ab71dee74-cc62e32a0b03349ad942b9b1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6ab71dee74-cc62e32a0b03349ad942b9b1.png" /></p>
 <h4>参数量减少了多少？</h4>
 <p>来做一道具体的计算，有个直观感受：</p>
 <ul>
@@ -75,7 +75,7 @@
 <p>训练完成之后，把 <code>α * B·A</code> 的结果加到 W 上，得到一个新的 <code>W_merged</code>，这个合并操作只需要做一次。推理时直接用 <code>W_merged</code>，和原始模型结构完全一样，不需要带着 A、B 两个额外矩阵。</p>
 <p>这一点和另一种 PEFT（参数高效微调）方法，Adapter 形成了鲜明对比。Adapter 是在 Transformer 每层之间插入一个小型网络，推理时每次都要让激活值额外过一遍这个小网络，每层都有延迟叠加。在一个 32 层的模型里，每层多几毫秒，叠加起来就很可观了。LoRA 合并之后，推理阶段的计算图和原始模型完全相同，没有这个问题。</p>
 <p>对延迟敏感的在线服务来说，这个特性非常重要。</p>
-<p><img alt="" src="assets/a10b09332f-a9eed8e4dfba6f3788cb506a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a10b09332f-a9eed8e4dfba6f3788cb506a.png" /></p>
 <h4>优点二：模块化插拔，一个基底，多套能力</h4>
 <p>LoRA 带来了一种非常灵活的部署模式：<strong>一个基础模型 + 多套 LoRA 权重，按需加载</strong>。</p>
 <p>可以用手机来类比：基础模型就像手机的操作系统（14GB），每套 LoRA 就像一个 APP（10-100MB）。你不需要为「打电话」和「拍照」分别装两部手机，切换功能只需要切换 APP。</p>
@@ -100,7 +100,7 @@
 <span class="p">)</span>
 </code></pre></div>
 <p>可以看到，<code>base_model</code> 始终只有一份，两套 LoRA 都挂在同一个基础模型上，显存里不需要同时跑两个完整的 7B 模型。一个 7B 模型大约占 14GB 显存，而每套 LoRA 只有几十 MB。对于需要服务多个不同场景的平台，这个方案比「每个场景部署一个独立微调模型」要经济得多，存储和显存占用都大大降低。在 AI 应用平台里，这种「一基础模型 + 多 LoRA」的架构已经非常普遍。</p>
-<p><img alt="" src="assets/f2411f1c79-ce0a6867db9b071be4d59aa6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f2411f1c79-ce0a6867db9b071be4d59aa6.png" /></p>
 <h4>优点三：不丢通用能力，白板旁边贴便利贴</h4>
 <p>全量微调有一个著名的问题叫<strong>灾难性遗忘（Catastrophic Forgetting）</strong>。</p>
 <p>这个问题是这样产生的：全量微调时，所有参数都在被更新，模型为了在新任务上表现好，会把原来的权重改掉。如果新任务的训练数据分布比较窄（比如只有医疗问答），模型就会逐渐「忘掉」它在预训练时学到的通用能力，比如代码能力、逻辑推理能力。你微调完一个专门回答医疗问题的模型，发现它写代码的能力大幅下降了，这就是灾难性遗忘。</p>
@@ -129,7 +129,7 @@
 <span class="n">model</span><span class="o">.</span><span class="n">set_adapter</span><span class="p">([</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="s2">&quot;coding&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>这种技术被称为 <strong>LoRA Merging</strong>，是 Model Merging（模型融合）领域的重要方向。它的实际意义是：如果你分别微调了「擅长写代码的 LoRA」和「擅长遵循指令的 LoRA」，可以直接混合两者，得到「擅长写代码且遵循指令」的效果，不用专门为这个组合再收集数据、重新训练，大大节省了开发成本。</p>
-<p><img alt="" src="assets/ae1877ed53-e23e58ee452f8c4926004e27.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ae1877ed53-e23e58ee452f8c4926004e27.png" /></p>
 <h4>总结对比：LoRA vs 全量微调 vs Adapter</h4>
 <table>
 <thead>
@@ -186,7 +186,7 @@
 </tbody>
 </table>
 <p>从这张表里可以看到，LoRA 在「推理开销」「灵活性」「稳定性」「可组合性」上全面优于 Adapter，在「效果」上与全量微调接近，「资源需求」上远低于全量微调。这也是为什么 LoRA 已经成为 PEFT 方法里的绝对主流，从个人开发者到大型团队，都会优先选它作为微调方案。</p>
-<p><img alt="" src="assets/c7ea014492-6e6d2c11ebc62cfb13ede51a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c7ea014492-6e6d2c11ebc62cfb13ede51a.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到「LoRA 除了减少参数量还有哪些优点」，最关键的是要跳出「省参数」这一个点，把 LoRA 在多个维度上的优势都讲出来。</p>
 <p>最容易被低估的是<strong>推理零开销</strong>。训练完之后 LoRA 的 A、B 两个小矩阵可以直接合并回原始权重，推理时和原始模型完全一样，没有任何延迟。这一点和 Adapter 形成鲜明对比，Adapter 在推理时每层都要过一个额外的小网络，长模型上累积起来延迟可观。</p>

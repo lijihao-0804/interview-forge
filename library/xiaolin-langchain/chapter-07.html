@@ -22,11 +22,11 @@
 <p>LangGraph 可以使用 LangChain 的模型和工具组件，但并不强制依赖 LangChain，也可以直接接其他模型 SDK 或普通 Python 函数。</p>
 <p>更关键的是，LangChain v1 的 <code>create_agent</code> 会构建一个基于 LangGraph 的图运行时。Agent 在模型节点和工具节点之间循环，直到模型给出最终答案或命中停止条件。因此正确的层次关系是：</p>
 <p><code>LangChain 高层 Agent API -&gt; 编译后的 LangGraph -&gt; 检查点、流式事件、中断与执行运行时</code></p>
-<p><img alt="" src="assets/99d6f822a3-6740c8f108e30dfdef19662e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/99d6f822a3-6740c8f108e30dfdef19662e.png" /></p>
 <p>这也解释了为什么两者既有重叠能力，又不能说「选哪个都一样」。用 LangChain 时，框架已经替你搭好了常见 Agent 的拓扑，你主要配置零件和生命周期钩子；用 LangGraph 时，节点怎么拆、状态怎么更新、下一步去哪，都由你来决定。</p>
 <h4>核心差异：抽象层级</h4>
 <p>先把容易混淆的能力放进一张表里看，边界就清楚多了：</p>
-<p><img alt="" src="assets/27e1540587-f36e85955706fc51e16f4418.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/27e1540587-f36e85955706fc51e16f4418.png" /></p>
 <table>
 <thead>
 <tr>
@@ -110,7 +110,7 @@
 <h4>Middleware 与图编排有何不同？</h4>
 <p>看到 middleware 能在模型和工具前后执行代码，有些林友又会问：既然 middleware 什么都能插，为什么还要 LangGraph？</p>
 <p>关键要看我们是在「改造同一台机器」，还是「重新规划整条生产线」。</p>
-<p><img alt="" src="assets/0ca0bfaed1-6432c74b6f7e8909fc60e7d0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0ca0bfaed1-6432c74b6f7e8909fc60e7d0.png" /></p>
 <p>LangChain middleware 很适合改造标准 Agent loop。例如，在模型调用前动态生成提示词、裁剪消息、选择模型和工具，在模型调用后做安全检查，或者给工具调用增加重试和人工审批。</p>
 <p>这些逻辑都围绕 Agent、Model、Tool 的生命周期展开，不需要重新设计整张图。</p>
 <p>LangGraph 节点和边处理的是更一般的流程结构。它可以让分类节点进入完全不同的子流程，让多个节点并行后再汇合，也可以把数据库写入、人工表单、规则引擎和一个完整 Agent 放在同一张图中。这里的每一步不一定是模型或工具调用，甚至可以完全不使用 LLM。</p>
@@ -168,12 +168,12 @@
 <p>LangChain 为常见 Agent 准备了 <code>AgentState</code>，默认核心是 <code>messages</code>。用户消息、模型的工具调用、工具结果和最终回复都追加到这份状态中。业务还可以用 <code>TypedDict</code> 扩展额外字段，官方更推荐让相关 middleware 声明自己需要的状态，这样能力和数据不会散落在各处。</p>
 <p>LangGraph 则让状态设计本身成为工作流架构的一部分。开发者可以定义整体 State，也可以区分输入、输出和内部 Schema。节点只返回局部更新，reducer 决定并行或多次更新如何合并。</p>
 <p>为什么需要 reducer？假如多个研究节点同时写入 <code>evidence</code>，我们希望追加结果，而不是让后写入的结果覆盖前一份证据。因此，合并语义必须在 State 中提前定义。</p>
-<p><img alt="" src="assets/bfcd888c83-1417ebd2b6810686b4fefd35.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bfcd888c83-1417ebd2b6810686b4fefd35.png" /></p>
 <p>这不是说 LangChain 没有 State，因为它的 Agent State 就运行在 LangGraph 上。区别在于，用 LangChain 时通常接受一套为标准 Agent loop 设计好的状态骨架；直接使用 LangGraph 时，你要为整个业务工作流设计数据通道和更新规则，也因此拥有更大的自由度和责任。</p>
 <h4>谁提供持久化与记忆？</h4>
 <p>这一部分是面试里最容易说错的地方。有人会回答「LangChain 管记忆，LangGraph 管持久化」，也有人会说「只有 LangGraph 才能断点恢复」。两种说法都把上下层拆散了。</p>
 <p>当前 LangGraph 的持久化分成两套机制。Checkpointer 按 <code>thread_id</code> 保存图状态快照，适合线程内短期记忆、人工介入、时间旅行和故障恢复；Store 保存图状态之外、跨线程可读取的业务数据，适合用户偏好、事实和共享知识等长期记忆。</p>
-<p><img alt="" src="assets/481810f661-95d7a5ce5c034803ccd56bfd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/481810f661-95d7a5ce5c034803ccd56bfd.png" /></p>
 <p>LangChain 的 <code>create_agent</code> 会把 <code>checkpointer</code> 和 <code>store</code> 交给底层图，因此 LangChain Agent 同样可以获得短期记忆、长期记忆和恢复能力。使用 Agent Server 时，持久化基础设施还可以由服务端处理。</p>
 <p>真正的差异在控制粒度：LangChain 给标准 Agent 暴露便利入口，LangGraph 让开发者在任意节点和子图层面设计状态保存与恢复边界。</p>
 <p>durable execution 也不只是「把数据存进数据库」。一个长流程中途失败后，如果从头重跑发邮件、扣款等副作用，状态虽然保存了，业务仍可能出事故。</p>
@@ -192,7 +192,7 @@
 <p>有些回答会把 LangSmith 当成 LangGraph 专属控制台，这也不准确。LangSmith 承担 tracing、evaluation、Studio 和 Deployment 等平台能力，可以观察 LangChain Agent，也可以观察直接编写的 LangGraph，甚至支持其他框架接入 tracing。</p>
 <p>由于 <code>create_agent</code> 本身就是图，LangChain Agent 也可以在 Studio 中查看节点、线程、状态和执行轨迹。</p>
 <p>直接使用 LangGraph 时，业务步骤被拆成更明确的节点，往往更容易看到复杂路由走了哪条路径，并使用 checkpoint 做状态回放和时间旅行调试。但这种可见性来自图的建模粒度，不代表 LangChain 无法部署或调试。</p>
-<p><img alt="" src="assets/407f8b4097-fe375984df55bca4e94b8aec.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/407f8b4097-fe375984df55bca4e94b8aec.png" /></p>
 <p>生产部署同样如此。LangChain Agent 和 LangGraph 工作流都能部署到 LangSmith 的 Agent Server 体系，也可以根据团队基础设施自行托管。是否使用托管平台，是部署选择；是否使用 LangChain 高层 Agent API，是开发抽象选择，别把这两个问题混成一个。</p>
 <h4>什么时候下沉 LangGraph？</h4>
 <p>如果需求可以自然表达成「给模型一组工具，让它循环调用，直到完成任务」，优先从 LangChain <code>create_agent</code> 开始通常更省事。客服问答、数据库查询助手和内部知识助手，大量工作都属于这个范围。</p>

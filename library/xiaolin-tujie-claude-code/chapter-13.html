@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 上下文管理图解：Compact 压缩机制怎么实现？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
 <main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 上下文管理图解：Compact 压缩机制怎么实现？</span></nav><div class="module-meta">Agent 工程 · 第 13 / 19 章</div><h1>Claude Code 上下文管理图解：Compact 压缩机制怎么实现？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
 <p>最近有位林友跟我说，他去面试某大厂 AI 岗，被面试官追问了不少 Claude Code 源码相关的问题。</p>
-<p><img alt="" src="assets/ff3ce74d68-7e411c0ceb32d933cb0534e5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ff3ce74d68-7e411c0ceb32d933cb0534e5.png" /></p>
 <p>还好他面试前刚好啃过我公众号那两篇 Claude Code 源码分析的文章，几乎都答上来了，顺利拿下了 offer。</p>
 <p>他说的那两篇分别是：</p>
 <ul>
@@ -9,14 +9,14 @@
 <li><a href="https://mp.weixin.qq.com/s?__biz=MzUxODAzNDg4NQ==&amp;mid=2247557309&amp;idx=1&amp;sn=db872d9df4336797d2c364b5c4e4e880&amp;scene=21#wechat_redirect">万字长文图解 Claude Code 源码：多Agent实现机制</a></li>
 </ul>
 <p>基本把 Claude Code 比较核心的原理都剖析了一波，也收获了很多读者的好评。</p>
-<p><img alt="" src="assets/f21864c7f0-ac3a910d7e9481f8fb22c2ac.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f21864c7f0-ac3a910d7e9481f8fb22c2ac.png" /></p>
 <p>然后又有读者跟我反馈，想让我再深入聊聊 「<strong>Claude Code 的上下文窗口是怎么管理的？</strong>」</p>
 <p>原因很简单，因为他面试被深入问到了，这可以说是 agent 开发最常考察的知识点了。</p>
 <p>只要简历上做过 agent 项目」，面试官几乎都会追问一句：<strong>你这个 agent 项目的上下文是怎么管的？</strong></p>
 <p>那 Claude Code 这个被业内认证「最强 agent 范本」之一的产品，到底是怎么做的？</p>
 <p>我把 Claude Code 的 compact（压缩） 相关的源码翻了好几遍，越看越觉得有意思。别急，这篇文章我会一层一层拆给你看。</p>
 <p>读完之后，你不光能答出这道面试题，<strong>说不定还能把这套思路借鉴到你自己的 agent 项目里</strong>。</p>
-<p><img alt="" src="assets/79a44afb3a-0b01c86f953cfd9dd16dea1e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/79a44afb3a-0b01c86f953cfd9dd16dea1e.png" /></p>
 <p>我会按这几个层次展开：</p>
 <ul>
 <li>什么是上下文窗口？为什么 agent 跑起来分分钟爆窗口？</li>
@@ -45,7 +45,7 @@
 <li>部分 Gemini 模型甚至能到 2M</li>
 </ul>
 <p>200 万字听起来很大对吧？拿来塞一整套《三体》三部曲都绰绰有余。但你真去做 agent，会发现这张桌子还是不够大。</p>
-<p><img alt="模型工作台示意图" src="assets/8fc60e4bc8-6611486f64baf5aa917b7e0b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="模型工作台示意图" src="assets/8fc60e4bc8-6611486f64baf5aa917b7e0b.png" /></p>
 <p><em>模型工作台示意图</em></p>
 <h4>为什么 agent 更费窗口？</h4>
 <p>普通聊天为啥不太担心窗口？因为聊天就是「你一句我一句」，每轮可能也就几十到几百个 token。一个 200k 的窗口能撑上千轮对话。</p>
@@ -66,7 +66,7 @@
 <p><strong>第一个硬伤是钱</strong>。上下文越长，单次推理的 token 消耗就越大，账单也跟着膨胀。一个长跑的 agent，如果不做上下文管理，token 消耗会按几何级数往上涨。</p>
 <p><strong>第二个硬伤是慢</strong>。Attention 机制的计算复杂度跟序列长度是平方相关的，上下文越长，模型生成第一个 token 的延迟（业内叫 TTFT，也就是「从你按下回车到看到第一个字」的那段等待）就越高。一个 5000 token 的对话 1 秒返回，一个 150k 的对话可能要等十几秒。</p>
 <p><strong>第三个硬伤最致命，叫做 Lost in the Middle</strong>。这是个挺有名的现象：当上下文非常长时，大模型对首尾信息记得清楚，对<strong>中间段</strong>则记忆模糊。你以为塞进去就是塞进去了？不一定，中间那一大段，模型可能瞟一眼就过去了。这是注意力机制的固有特性，跟窗口多大没关系，所以哪怕窗口扩到 1 亿 token，中间段的信息照样看不清楚。</p>
-<p><img alt="token 消耗结构图" src="assets/7823ae1539-25cac83ff40953636bd63eaa.png" /></p>
+<p><img loading="lazy" decoding="async" alt="token 消耗结构图" src="assets/7823ae1539-25cac83ff40953636bd63eaa.png" /></p>
 <p><em>token 消耗结构图</em></p>
 <p>所以你看，光靠模型厂商扩窗口救不了 agent。要救，必须 agent 自己主动管理上下文。</p>
 <p><strong>管得好的 agent 能聊上千轮、跑通复杂任务，管不好的 agent 几十轮就开始胡言乱语、忘东忘西。</strong></p>
@@ -79,7 +79,7 @@
 <p>但你想啊，agent 跟普通聊天机器人不一样。一个 agent 跑复杂任务，最关键的决策往往就在最开始。比如用户开局说了一句「我们这次的目标是 A，注意一定要避免 B」，这种全局性指令，你把它砍掉了，后面 agent 就开始干 B 那种被禁止的事，等于完全失控。</p>
 <p>而且工具调用是有「上下文依赖」的。你前面用 Read 读了一个文件，把文件内容存进了 tool_result。后面 agent 引用了这个内容做决策。如果你把那个 tool_result 砍了，后面那段引用就变成无源之水，模型一脸懵：我之前说的是基于啥来着？</p>
 <p>所以滑动窗口本质是「用遗忘换续航」。对话能聊下去，但 agent 的脑子被打了。</p>
-<p><img alt="滑动窗口示意图" src="assets/5f3772bd80-dd542eddd9091bd8bbb7d84d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="滑动窗口示意图" src="assets/5f3772bd80-dd542eddd9091bd8bbb7d84d.png" /></p>
 <p><em>滑动窗口示意图</em></p>
 <h4>方案二：每 N 轮做摘要</h4>
 <p>这是稍微进阶一点的方案。每过 10 轮、或者每过 50k token，触发一次摘要：把这一段对话扔给一个小模型，让它生成一段话总结，然后用这段总结替换原来的消息。</p>
@@ -87,11 +87,11 @@
 <p>第一，<strong>触发时机太死板</strong>。10 轮可能是个非常重要的关键节点，你这一刀切下去，模型把那 10 轮压缩成一段话，关键细节就丢了。5 轮可能根本啥都没干，你也去压一遍，反而把好好的对话切碎了。</p>
 <p>第二，<strong>摘要的粒度也粗</strong>。一段话能装多少信息？对话里那些细微的状态、错误的修复过程、用户中途改的需求，全压成几句话，agent 接着干的时候很容易丢失这些细节。</p>
 <p>所以「每 N 轮摘要」是一种「机械主义」的方案，看似在管理上下文，其实是在按节奏粗暴破坏对话连贯性。</p>
-<p><img alt="每 N 轮摘要示意图" src="assets/cfddc5d643-97c2132e56c7037e13a1adc1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="每 N 轮摘要示意图" src="assets/cfddc5d643-97c2132e56c7037e13a1adc1.png" /></p>
 <p><em>每 N 轮摘要示意图</em></p>
 <h4>方案三：向量召回历史</h4>
 <p>这个方案就更「高大上」了。逻辑是这样：把所有历史消息切成片，丢到向量数据库里。每次 agent 要回答新问题，先用问题去召回 top-k 个最相关的历史片段，然后塞进上下文。</p>
-<p><img alt="向量召回历史示意图" src="assets/1a14a2595a-b4af4e592c604522bca3e6f9.png" /></p>
+<p><img loading="lazy" decoding="async" alt="向量召回历史示意图" src="assets/1a14a2595a-b4af4e592c604522bca3e6f9.png" /></p>
 <p><em>向量召回历史示意图</em></p>
 <p>这套思路在 RAG 系统里用得很普遍，所以很多人想当然觉得，agent 上下文也可以这么管。</p>
 <p>但你拿到 agent 场景来用，会立刻翻车。</p>
@@ -100,7 +100,7 @@
 <p>第三个问题更要命：<strong>召回 top-k 一定会漏掉东西</strong>。agent 的关键决策点可能就藏在某一条不起眼的消息里，相似度不一定高，但它就是关键。一旦漏掉，整个对话的逻辑就断了。</p>
 <p>所以向量召回这套，搞 RAG 检索文档行，搞 agent 上下文不行。这是两个完全不同的场景。</p>
 <p>你看，这三种方案各有各的硬伤。面试官听完，要么觉得你「就这？」，要么觉得你「想得太简单了」。</p>
-<p><img alt="三种方案对比示意图" src="assets/bfb32b9135-69aabfb07c0900ebdda5a9b4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="三种方案对比示意图" src="assets/bfb32b9135-69aabfb07c0900ebdda5a9b4.png" /></p>
 <p><em>三种方案对比示意图</em></p>
 <p>那 Claude Code 怎么干？</p>
 <p>它走的是完全不同的路子：<strong>不是「保留加召回」，是「重写整段对话」</strong>。听着是不是有点夸张？别急，我们一步一步拆。</p>
@@ -108,33 +108,33 @@
 <p>聊细节之前，必须先把全景给你，免得只见一棵树忘了整片森林。</p>
 <p>Claude Code 的上下文管理<strong>不是一招制敌</strong>，而是一套从轻到重的 <strong>5 层金字塔</strong>。它的设计原则一句话讲清：<strong>能不压就不压，必须压的时候从最轻的手段开始</strong>。</p>
 <p>5 层从底（轻）到顶（重）大概是这样。</p>
-<p><img alt="5 层压缩金字塔示意图" src="assets/4c31285540-da56e65b656e6069c71bc847.png" /></p>
+<p><img loading="lazy" decoding="async" alt="5 层压缩金字塔示意图" src="assets/4c31285540-da56e65b656e6069c71bc847.png" /></p>
 <p><em>5 层压缩金字塔示意图</em></p>
 <h4>第 1 层：大结果存磁盘</h4>
 <p>agent 调一个 Read 工具读了 10MB 的日志？这种「单工具结果超 50KB」的情况会直接被拦截：完整内容写到磁盘文件，消息里只留一个 2KB 的预览。</p>
 <p>完整内容<strong>没丢</strong>，模型需要时可以再次 Read 拿回来。零 API 开销。同一条消息里所有工具结果加起来还有个 200KB 总量上限，超了就挑大的存磁盘。</p>
-<p><img alt="大结果存磁盘示意图" src="assets/c219a7b17c-062818438ac4c80e8d428a8d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="大结果存磁盘示意图" src="assets/c219a7b17c-062818438ac4c80e8d428a8d.png" /></p>
 <p><em>大结果存磁盘示意图</em></p>
 <h4>第 2 层：Snip 砍掉远古消息</h4>
 <p>对话开头那几轮探索性提问可能已经完全没用了。Snip 这一层就负责把它们删掉，再插入一条「这之前的内容已被清理」的边界标记。</p>
 <p>不过这里有个容易被一句话带过的细节得说清楚：到底删哪些远古消息，不是写死的规则，而是模型在正常回答的那一回合里，顺手用一个专门的 snip 工具，按消息 id 把没用的那几条标记出来，真正的删除动作才在本地完成。</p>
 <p>所以它跟第 5 层 Auto-Compact 不一样。Auto-Compact 会专门「另发一次摘要请求」，Snip 没有这种独立调用，只是搭着模型本来就要跑的那一回合做的，顶多多注入一小段提示、给每条消息加个 id 标签，多花一点 token。换句话说它不是字面意义上的「零 API、纯本地」，但确实是一层很轻的开销。Snip 释放出来的 token 数还会传给第 5 层 Auto-Compact，避免两层重复压缩。</p>
-<p><img alt="Snip 砍头部示意图" src="assets/098bfc6de0-616e8ab701454bbb3a8bb611.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Snip 砍头部示意图" src="assets/098bfc6de0-616e8ab701454bbb3a8bb611.png" /></p>
 <p><em>Snip 砍头部示意图</em></p>
 <h4>第 3 层：Micro-Compact 时间衰减</h4>
 <p>距离上一次 API 调用超过约 60 分钟时触发。逻辑是：超过这个时间，大模型 API 端的 Prompt Cache 大概率已经过期了，那不如顺手清掉旧的工具结果。</p>
 <p>具体做法：把「可重新获取」的工具结果（Read / Bash / Grep / Glob / WebSearch / Edit / Write）清空，只保留最近 5 个。子 agent 输出、Task 状态这类「不可重复」的结果绝不裁剪。</p>
-<p><img alt="Micro-Compact 时间衰减示意图" src="assets/21c4f872db-ce666c8ff4f725c0d749db94.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Micro-Compact 时间衰减示意图" src="assets/21c4f872db-ce666c8ff4f725c0d749db94.png" /></p>
 <p><em>Micro-Compact 时间衰减示意图</em></p>
 <h4>第 4 层：Context Collapse 读时投影</h4>
 <p>上下文达到 90% 时触发，95% 时升级。这一层最巧妙：<strong>不修改原始消息</strong>，只在调用 API 的那一刻动态计算一个压缩视图给模型。</p>
 <p>原对话历史在本地完整保留，模型那边看到的是压缩版。这种「写时不动、读时投影」的思路在很多数据库里也常见。</p>
-<p><img alt="Context Collapse 读时投影示意图" src="assets/5bd741ad26-25506e922396fbd9b13d88ab.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Context Collapse 读时投影示意图" src="assets/5bd741ad26-25506e922396fbd9b13d88ab.png" /></p>
 <p><em>Context Collapse 读时投影示意图</em></p>
 <h4>第 5 层：Auto-Compact 全量摘要</h4>
 <p>最重的兜底。上下文逼近窗口上限时触发（具体阈值是从原始窗口里留出约 33K 缓冲，由 20K 摘要输出预留加 13K 额外冗余组成，下文第五节细拆），<strong>把整段对话全送进摘要器重写一份</strong>，配套做文件恢复、缓存清理、消息重组。</p>
 <p>这一层是真正意义上的「全量重写」，代价最高（要一次 API 调用）但效果也最强。</p>
-<p><img alt="Auto-Compact 全量摘要示意图" src="assets/14eacc3cdd-33e530f4a07d0f9e7866bbd7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Auto-Compact 全量摘要示意图" src="assets/14eacc3cdd-33e530f4a07d0f9e7866bbd7.png" /></p>
 <p><em>Auto-Compact 全量摘要示意图</em></p>
 <h4>为什么要分 5 层</h4>
 <p>这种「从轻到重」的设计有个隐藏的好处：绝大部分场景<strong>根本走不到最顶层</strong>。前面几层都在替后面「减负」，大文件没塞进上下文，Snip 就不会触发；Snip 把空间释放出来了，后面的重型压缩自然也不需要跑。</p>
@@ -157,7 +157,7 @@
 <p>好比你是一家公司的老板，每个季度要做总结。一种做法是「把所有的会议记录都翻一遍」。这种方法你能记住一堆细节，但脑子里乱成一锅粥。</p>
 <p>Auto-Compact 的做法是另一种：会议记录全部归档进档案室（这部分等于丢了，对话里看不到了）；桌面上换上一份新写的「精华版季度纪要」（这是摘要）；员工手册（也就是 <a href="http://CLAUDE.md">CLAUDE.md</a>）该挂哪挂哪不动，下次开会还能翻（下一轮重新加载）；最近用过的几份关键文档（最近 read 的文件），放到桌面随手翻的位置（重新注入为附件）。</p>
 <p>这套做法的精髓在哪？在于它承认对话历史是会过时的。过去的细节虽然有价值，但 95% 都不需要原样保留，重要的是「我的目标是什么、我做到哪一步了、犯过哪些错、下一步该干嘛」这种结构化的状态。</p>
-<p><img alt="Auto-Compact 全景图" src="assets/bd740c233c-aad29204ebbaa8cae5fc2f57.png" /></p>
+<p><img loading="lazy" decoding="async" alt="Auto-Compact 全景图" src="assets/bd740c233c-aad29204ebbaa8cae5fc2f57.png" /></p>
 <p><em>Auto-Compact 全景图</em></p>
 <p>OK，全景有了。下面四节，把这三件事一件件拆开看，先看触发时机。</p>
 <h3>五、什么时候触发压缩？</h3>
@@ -182,7 +182,7 @@
 <p>第一层是这 20k，从原始窗口里减掉，确保压缩时摘要那一大段输出有地方写得下，这一层才是 p99.99=17.3k 那个数据推出来的。</p>
 <p>第二层才是前面代码里的 13k，它是在「原始窗口减掉 20k」之后，再额外往回缩的一道安全线，让压缩稍微提前一点触发、别贴着边界跑。源码注释并没有给这 13k 挂上 p99.99 的依据，它就是一道独立的二层保护。</p>
 <p>换句话说，<strong>真正离原始窗口的距离是 20k + 13k ≈ 33k</strong>，而不是单看到的 13k。如果你只盯着 13k 还拿它去跟 17.3k 比，会觉得「留的冗余怎么比实际输出还小」，那是因为漏看了前面那 20k。能想到这一层、反推出「留冗余的数应该比 17.3k 大」的读者，思路是很对的。</p>
-<p><img alt="摘要输出长度的 p99.99 分布示意图" src="assets/f86d644527-97ce592427d469a82aa65252.png" /></p>
+<p><img loading="lazy" decoding="async" alt="摘要输出长度的 p99.99 分布示意图" src="assets/f86d644527-97ce592427d469a82aa65252.png" /></p>
 <p><em>摘要输出长度的 p99.99 分布示意图</em></p>
 <p>这个细节看着不起眼，但很显工程师味儿。绝对值阈值的好处是可预测：不管模型窗口未来扩到 500k 还是 1M，触发线永远是「上限减掉这固定的 20k + 13k」，不会因为窗口变大就跟着膨胀。如果用 80% 这种比例，模型窗口越大，剩余预算就越大，但摘要任务实际需要的预算其实没怎么变，那就是浪费。</p>
 <h4>手动和自动触发的区别</h4>
@@ -191,12 +191,12 @@
 <p>答案有意思：核心压缩函数是同一个，但传入的参数不一样。</p>
 <p>手动模式：你可以传一段 customInstructions（直译就是「自定义指令」），告诉摘要器「这次压缩，请特别关注 XXX 方面」。比如你正在调一个特定 bug，希望摘要的时候把这个 bug 的上下文重点保留。</p>
 <p>自动模式：不接受用户指令，而且会偷偷打开一个开关叫 <code>suppressFollowUpQuestions</code>（直译就是「禁止生成后续提问」）。这个开关的意思是：摘要里禁止生成「需要进一步确认」类的问题。为啥要这么干？因为自动压缩通常发生在 agent 正在干活的时候，你不想压完了对话被一个新问题打断节奏。</p>
-<p><img alt="手动 vs 自动触发对比图" src="assets/915cc4d052-eaf24464156d4e0c830455e7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="手动 vs 自动触发对比图" src="assets/915cc4d052-eaf24464156d4e0c830455e7.png" /></p>
 <p><em>手动 vs 自动触发对比图</em></p>
 <h4>熔断和递归守卫</h4>
 <p>自动模式还多了一个安全机制：<strong>circuit breaker（电路断路器）</strong>。如果 auto-compact 连续失败 3 次，系统就停止重试。</p>
 <p>这个机制其实是踩坑踩出来的。源码注释里讲，曾经有 1000 多个会话因为反复触发压缩失败、不停重试，把 API 账单当烟花放。Anthropic 工程师肯定开过紧急复盘会，最后定下来连续失败 3 次就熔断。<strong>这种带着血味儿的设计，才是从生产环境里活下来的</strong>。</p>
-<p><img alt="circuit breaker 熔断状态机" src="assets/7ac7c54e43-39e638d001c0bceb2dade8d6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="circuit breaker 熔断状态机" src="assets/7ac7c54e43-39e638d001c0bceb2dade8d6.png" /></p>
 <p><em>circuit breaker 熔断状态机</em></p>
 <p>还有一个细节也挺有意思，叫<strong>递归守卫</strong>。Claude Code 在跑摘要任务的时候，本质上也是开了一个子 agent 去调模型生成摘要。这个子 agent 自己也是要消耗 token 的，那它会不会因为消耗多了又触发 auto-compact，进入死循环？</p>
 <p>不会。源码里就这么一句判断：</p>
@@ -205,7 +205,7 @@
 <span class="p">}</span>
 </code></pre></div>
 <p><code>querySource</code> 是当前查询的「来源标签」。压缩任务跑起来时会被标成 <code>compact</code>，会话记忆任务会被标成 <code>session_memory</code>。一旦判断来源是这两种之一，直接 return false 不再触发压缩。短短三行，就把无限递归这个坑堵死了。</p>
-<p><img alt="触发时机示意图" src="assets/741ff511a5-c9f659054fa0170caea3b94e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="触发时机示意图" src="assets/741ff511a5-c9f659054fa0170caea3b94e.png" /></p>
 <p><em>触发时机示意图</em></p>
 <p>聊完触发，我们看下一个最反直觉的设计：<strong>全量重写</strong>。压缩的时候，到底压什么？留什么？</p>
 <h3>六、压什么、留什么、丢什么？</h3>
@@ -214,7 +214,7 @@
 <p>这里换个角度问一下：如果让你来设计压缩机制，遇到一段 200 轮的对话，你会怎么处理？</p>
 <p>绝大多数人的直觉是：保留最近 20 轮（最相关的），把前面那 180 轮压成一段摘要塞进去。这也是大多数 agent 框架的做法。</p>
 <p>但 Claude Code 不是这么干的。它的做法非常激进：<strong>所有 200 轮，全部送进摘要器，重新写一份</strong>。</p>
-<p><img alt="「直觉做法 vs Claude Code 做法」对比图" src="assets/e22b5d4719-bdb4f244878a343c94815327.png" /></p>
+<p><img loading="lazy" decoding="async" alt="「直觉做法 vs Claude Code 做法」对比图" src="assets/e22b5d4719-bdb4f244878a343c94815327.png" /></p>
 <p><em>「直觉做法 vs Claude Code 做法」对比图</em></p>
 <p>第一眼看到这个设计你大概率会愣一下：最近的对话也不保留？那 agent 不是丢了眼前正在做的事吗？</p>
 <p>不过转念一想还真有道理。还记得第一节讲的 <strong>Lost in the Middle</strong> 吗？就算你保留最近 20 轮，模型对中间几轮其实也看不清楚。与其留一堆半模糊的信息，不如全部压成结构化的精华，让模型一眼就能看清。</p>
@@ -238,7 +238,7 @@
 <p>举两组具体例子你就懂了。</p>
 <p>像「用户想给登录接口加验证码」「之前的技术方案改成了 JWT」「我们决定用 Redis 做缓存」这种语义信息，压成一两句话基本不损失，摘要器可以总结。</p>
 <p>像「<a href="http://a.py">a.py</a> 第 42 行有个 bug 在改」「文件已经读到第 100 行」「子任务 X 跑完了，输出在 result.txt」这种状态信息，差一个字 agent 就接不上了，必须原样恢复。</p>
-<p><img alt="信息半衰期对照图" src="assets/eab217fc70-d9e5c3061ff811e2255b7b96.png" /></p>
+<p><img loading="lazy" decoding="async" alt="信息半衰期对照图" src="assets/eab217fc70-d9e5c3061ff811e2255b7b96.png" /></p>
 <p><em>信息半衰期对照图</em></p>
 <p>语义信息走摘要、状态信息走附件，各管各的，效率最高。</p>
 <p>记住一个画面：原来 200 条消息的对话，压缩后只剩 4 段东西（边界标记 + 摘要 + 附件 + hook），其他都不见了。</p>
@@ -248,7 +248,7 @@
 <p>什么意思？就是先把对话里那些占大头的「工具调用结果」清空，只留一个元数据占位符。涉及的工具包括 Read、Bash、Grep、Glob、WebFetch、WebSearch、Edit、Write 这些。这些工具的输出动辄几千几万 token，先把内容清掉，对话瞬间瘦一圈。</p>
 <p>然后再把瘦完之后的对话送进摘要器，摘要器的负担也小很多，生成的摘要质量也更高。</p>
 <p>顺便插一句澄清：microcompact 本身也是第 3 节金字塔里的<strong>第 3 层独立机制</strong>，会按时间衰减（距离上次 API 调用超过 60 分钟）单独触发，并不是只在 Auto-Compact 时才跑。本文为了叙事流畅，重点讲它在 Auto-Compact 流程里扮演的「预处理」角色，但你要知道它有自己的独立生命周期。</p>
-<p><img alt="microcompact 前后瘦身对比图" src="assets/03f1ad353f-fd68fff5f3431c610ddc1f99.png" /></p>
+<p><img loading="lazy" decoding="async" alt="microcompact 前后瘦身对比图" src="assets/03f1ad353f-fd68fff5f3431c610ddc1f99.png" /></p>
 <p><em>microcompact 前后瘦身对比图</em></p>
 <h4>文件恢复：5 个、5K、50K</h4>
 <p>那有人会问：内容都清空了，agent 后面怎么继续工作？比如最近读的那个文件，内容都没了，agent 怎么知道里面是啥？</p>
@@ -260,7 +260,7 @@
 <p>三个常量，看着不起眼，其实是工程化的精华：压缩之后，最多重新加载 5 个文件；每个文件最多塞 5k token；总预算不超过 50k token。</p>
 <p>那怎么选这 5 个文件？按「最近活跃度」排，最近被 Read 过的优先。</p>
 <p>这个设计实际上是把「最近文件」这个概念量化了。不是模糊地说「保留最近的」，而是用 5 个文件、5k 每文件、50k 总额这三个参数，把它工程化定义死。这样不管对话多复杂，文件恢复的开销都是可控的。</p>
-<p><img alt="文件恢复策略示意图" src="assets/996f5dae42-88f1fb2d6c45c37c395836cf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="文件恢复策略示意图" src="assets/996f5dae42-88f1fb2d6c45c37c395836cf.png" /></p>
 <p><em>文件恢复策略示意图</em></p>
 <h4>CLAUDE.md 不进摘要</h4>
 <p>讲完文件，看另一个值得讲的东西：记忆文件，比如 <a href="http://CLAUDE.md">CLAUDE.md</a>。</p>
@@ -269,14 +269,14 @@
 <p>那它怎么生效？答案是：通过「清空缓存」让它在下一轮对话自动重新加载。</p>
 <p>逻辑是这样的：Claude Code 内部有个叫 <code>getUserContext</code> 的缓存（用来存「用户级上下文」，<a href="http://CLAUDE.md">CLAUDE.md</a> 的内容就放在这）。每次对话开始，会先查这个缓存。压缩的时候，系统把这个缓存清掉。这样下一轮对话发起的时候，Claude Code 发现缓存空了，就会从磁盘重新读 <a href="http://CLAUDE.md">CLAUDE.md</a>。</p>
 <p>为什么这么干？因为 <a href="http://CLAUDE.md">CLAUDE.md</a> 是「永久存活」的上下文，每一轮都会自动重新加载，不需要塞到压缩后的消息里占地方。这种「全局指令」和「当下对话」是两套机制管理的，互不干扰。</p>
-<p><img alt="CLAUDE.md 双通道处理示意图" src="assets/ec8ad96273-ac947d6b82064c54dccbae86.png" /></p>
+<p><img loading="lazy" decoding="async" alt="CLAUDE.md 双通道处理示意图" src="assets/ec8ad96273-ac947d6b82064c54dccbae86.png" /></p>
 <p><em><a href="http://CLAUDE.md">CLAUDE.md</a> 双通道处理示意图</em></p>
 <h4>system prompt 和异步任务</h4>
 <p>还有一个角色得提一下：<strong>system prompt</strong>。</p>
 <p>system prompt 完全不参与压缩。压缩之后，会用一个叫 <code>buildEffectiveSystemPrompt</code> 的方法（直译就是「构建有效的 system prompt」）重新构造一份新的，注入最新的工具列表、最新的权限设置、最新的 MCP server 列表。等于压缩完顺便把「操作手册」刷一遍。这样如果你在对话中途加了一个新工具，压缩之后 agent 就能立刻用上。</p>
 <p>最后还有一类东西要保住：异步任务的状态。</p>
 <p>如果你的 agent 起了几个子 agent 在后台跑任务，压缩的时候不能把这些任务状态丢了。Claude Code 把这些任务的状态（正在跑、跑完了、出错了）作为附件重新注入，确保压缩之后主 agent 依然能看到子任务的进度。</p>
-<p><img alt="压缩前后消息链对比图" src="assets/438e4caae3-b2f46cc46439f4f1e33f622b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="压缩前后消息链对比图" src="assets/438e4caae3-b2f46cc46439f4f1e33f622b.png" /></p>
 <p><em>压缩前后消息链对比图</em></p>
 <p>看到这儿你应该明白：Claude Code 的取舍逻辑，本质是信息分类管理。语义信息进摘要、状态信息走附件、永久信息靠缓存清理重新加载、操作配置每次重建。各司其职。</p>
 <p>整节读下来如果只让你记一句话，那就是：<strong>不同信息走不同通道，谁也别碰谁的地盘</strong>。</p>
@@ -297,7 +297,7 @@
 <p>这种行为在普通对话里很合理（agent 就是要主动调工具嘛），但在做摘要时是大忌：要它总结历史，不是要它做新动作。一旦它去调工具了，这次摘要就废了，得重新来。</p>
 <p>源码注释里讲了这是早期 Sonnet 4.6 留下的坑：那个版本的模型经常无视一次警告，所以工程师们干脆「前后包夹」，在 prompt 的开头讲一遍，结尾再讲一遍。</p>
 <p>你能想象那个工程师改完 prompt、跑测试一看模型又偷偷调了 Read 的表情吗？干脆前后各喊一遍：「我说了不许调工具」「我再说一遍不许调工具」。这种细节读起来挺有画面感的，<strong>再厉害的模型也有自己的「小动作」，prompt 工程很多时候就是在跟模型的惯性做拉扯</strong>。</p>
-<p><img alt="摘要 prompt「前后包夹」示意图" src="assets/6720b6f2f9-2a7fed3db03177a08389fed0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="摘要 prompt「前后包夹」示意图" src="assets/6720b6f2f9-2a7fed3db03177a08389fed0.png" /></p>
 <p><em>摘要 prompt「前后包夹」示意图</em></p>
 <h4>输出格式：XML + 9 部分清单</h4>
 <p>讲完防呆设计，看正经的输出要求。</p>
@@ -312,10 +312,10 @@
 </code></pre></div>
 <p><code>&lt;analysis&gt;</code> 块是「草稿区」，让模型先想清楚再写。这块最终会被剥离掉，不进入压缩后的对话。它的存在纯粹是为了让模型有个「思考的空间」，写出来的摘要质量更高。</p>
 <p><code>&lt;summary&gt;</code> 块才是真正进入对话的内容。</p>
-<p><img alt="XML 输出结构示意图" src="assets/4b88a5f925-ea8c3517910f84ee212687de.png" /></p>
+<p><img loading="lazy" decoding="async" alt="XML 输出结构示意图" src="assets/4b88a5f925-ea8c3517910f84ee212687de.png" /></p>
 <p><em>XML 输出结构示意图</em></p>
 <p>这块必须包含 <strong>9 个固定章节</strong>：</p>
-<p><img alt="摘要 prompt 结构示意图" src="assets/658edf2b24-26be933f2ee651458ce88060.png" /></p>
+<p><img loading="lazy" decoding="async" alt="摘要 prompt 结构示意图" src="assets/658edf2b24-26be933f2ee651458ce88060.png" /></p>
 <p><em>摘要 prompt 结构示意图</em></p>
 <ol>
 <li>Primary Request and Intent（主要请求和意图）</li>
@@ -339,7 +339,7 @@
 <p>为什么要这么细？想象一下压缩之后下一轮对话，agent 收到摘要后第一件事就是问自己：「我刚才做到哪了？」。摘要里这一项越细，agent 接续工作就越流畅。粗了的话，agent 会陷入「我好像在调试什么东西，但具体是啥？」的迷茫，可能会重新探索一遍上下文，浪费 token 和时间。</p>
 <p>所以你看，9 个清单不是凑数。每一项都有它要解决的问题：意图不丢、技术方向不丢、文件状态不丢、错误教训不丢、用户每句话不丢、待办不丢、当前进度不丢。</p>
 <p>剩下的 7 项也都各司其职，比如 Errors and fixes 让 agent 不会重复踩同一个坑，Pending Tasks 让 agent 知道还有哪些事没干完。</p>
-<p><img alt="第 6 项 vs 第 8 项对比图" src="assets/7d27bbb82e-8f3501c9579974e3dff1254f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="第 6 项 vs 第 8 项对比图" src="assets/7d27bbb82e-8f3501c9579974e3dff1254f.png" /></p>
 <p><em>第 6 项 vs 第 8 项对比图</em></p>
 <h4>摘要用什么模型？</h4>
 <p>最后一个值得讲的细节：你以为摘要任务会用一个便宜的小模型？</p>
@@ -363,7 +363,7 @@
 <p>那旧的消息哪去了？真的丢了。</p>
 <p>除非你打开了 Kairos 模式（一种 transcript 备份机制），那种情况下旧消息会写到本地的一个 transcript 文件里，可以事后回查。但在对话本身里面，旧消息是回不来的，压缩是一次性的、破坏性的操作。</p>
 <p>听起来挺暴力对吧？但其实是个明智的设计。如果允许「回滚」，整个对话状态就会很复杂，要维护「压缩前/压缩后」两套消息，token 也省不下来。一刀切，反而干净。</p>
-<p><img alt="旧消息「真丢了」示意图" src="assets/f6808324af-01492075c082465be61b6d44.png" /></p>
+<p><img loading="lazy" decoding="async" alt="旧消息「真丢了」示意图" src="assets/f6808324af-01492075c082465be61b6d44.png" /></p>
 <p><em>旧消息「真丢了」示意图</em></p>
 <h4>让模型无缝接活的小心思</h4>
 <p>不过 Claude Code 留了一个小心思：摘要的开头会被包装成这样一句话：</p>
@@ -374,14 +374,14 @@
 <p>这个开关只在 auto-compact 时打开。它的作用是：禁止摘要器在 Current Work 那部分生成「需要进一步确认」类的问题。</p>
 <p>为什么？想象一下场景：用户正在让 agent 干一个长任务，token 烧着烧着触发了自动压缩。如果摘要里塞了一个问题：「请问您是希望优先 A 还是 B？」，那 agent 下一轮就会卡在这个问题上等用户回答，整个任务流被打断了。</p>
 <p>而手动 <code>/compact</code> 的时候，这个开关是关闭的，因为用户主动触发压缩，本来就是个干预动作，模型问个问题确认一下也没毛病。</p>
-<p><img alt="压缩接力流程图" src="assets/3643989516-a09d284d38073d97e39809a1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="压缩接力流程图" src="assets/3643989516-a09d284d38073d97e39809a1.png" /></p>
 <p><em>压缩接力流程图</em></p>
 <p>到这儿，Claude Code 的整套压缩机制就拆完了。</p>
 <h3>九、面试该怎么答？</h3>
 <p>原理讲完了，回到文章开头那道面试题。下面这套节奏建议你背一下，下次面试官再问「Claude Code 的上下文窗口是怎么管理的？」，照着答就行。</p>
 <p>你可以<strong>先一句话亮观点</strong>：「Claude Code 用的不是滑动窗口、定期摘要、向量召回那一类常见方案，而是一种叫『全量重写加分通道恢复』的工程化思路。」</p>
 <p>这一句话本身就比 90% 的候选人讲得有结构感了。</p>
-<p><img alt="面试话术四层结构卡片图" src="assets/0acf3d9832-db0b6692a7b3e74964258230.png" /></p>
+<p><img loading="lazy" decoding="async" alt="面试话术四层结构卡片图" src="assets/0acf3d9832-db0b6692a7b3e74964258230.png" /></p>
 <p><em>面试话术四层结构卡片图</em></p>
 <p>接下来分四层铺细节，节奏要稳。</p>
 <p>第一层，触发时机。用的是绝对 token 阈值，公式是「有效上下文窗口减去 13k 缓冲」。这里有个细节最能体现你真翻过源码：所谓「有效上下文窗口」本身就已经先从原始窗口里抠掉了约 20k，专门留给摘要自己的输出，而这 20k 才是基于摘要任务 p99.99 输出长度（实测 17,387 token）向上取整加冗余得来的；13k 是在这之上再加的一道独立缓冲。所以离原始窗口的距离其实是 20k 加 13k 约 33k。这一层讲清楚，面试官就知道你不是临时抱佛脚。</p>

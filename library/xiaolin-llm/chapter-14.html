@@ -21,10 +21,10 @@
 <p>什么意思呢？看个例子。</p>
 <p>假如输入是「我打你」，每个字都被转成 embedding 向量。Attention 计算时，「我」会去看「打」和「你」，「打」会去看「我」和「你」，「你」会去看「我」和「打」。这个过程里，模型只知道「这三个字之间互相算了注意力」，但<strong>完全不知道谁在前谁在后</strong>。</p>
 <p>如果把输入换成「你打我」，这三个 embedding 一模一样（只是位置变了），Attention 算出来的结果和「我打你」<strong>几乎完全相同</strong>。但这两句话语义是反的。模型如果分不清位置，就分不清主语和宾语，根本没法理解语言。</p>
-<p><img alt="" src="assets/f16e2d07f3-ff5b8e416db64c67439327c7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f16e2d07f3-ff5b8e416db64c67439327c7.png" /></p>
 <p>那为什么不能直接用「1, 2, 3, 4」这种位置序号？</p>
 <p>因为序号是离散的整数，加到连续的 embedding 向量上会很别扭：第 1000 位的「1000」会把原本的 embedding 数值整个拉爆（embedding 通常是 -1 到 1 之间的小数）；而且整数序号对长序列没法泛化，训练时见过 1-2048，推理时来了 4096，这个数字模型从来没见过，效果一定崩。</p>
-<p><img alt="" src="assets/bc62cc5e4d-e0f3637ec76b7fd5443d3eeb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bc62cc5e4d-e0f3637ec76b7fd5443d3eeb.png" /></p>
 <p>所以位置编码必须满足三个要求：</p>
 <ul>
 <li><strong>数值范围合理</strong>，不能把 token embedding 给覆盖掉</li>
@@ -40,7 +40,7 @@
 <li>第 d/2 对的频率最慢（低频），相邻位置几乎一样，但跨越很远的位置才能区分开</li>
 </ul>
 <p>类比一下：就像几个不同频率的振子叠加，高频振子记录「精细位置」，低频振子记录「粗略位置」。每个位置在 d 维空间里都有一个独特的 sin/cos 组合，就是它的「身份证」。</p>
-<p><img alt="" src="assets/fd8a4ae6df-c3758ea0139243f0620f33a6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fd8a4ae6df-c3758ea0139243f0620f33a6.png" /></p>
 <p>这个方案怎么用？把每个位置的 sin/cos 指纹向量直接<strong>加到对应 token 的 embedding 上</strong>。即「最终输入向量 = token embedding + position embedding」。</p>
 <p>为什么是「加」而不是「拼接」？因为加法不增加维度，结构上更省事。神经网络强大到可以从相加的结果里把这两部分信息「自动解开」。</p>
 <p>sin/cos 编码的优点是显而易见的：</p>
@@ -50,24 +50,24 @@
 </ul>
 <p>但它的致命问题是<strong>长上下文外推能力差</strong>。</p>
 <p>虽然理论上 sin/cos 可以算任意长度，但实际效果会在训练时见过的最长位置之外迅速恶化。如果模型只在 2K 长度上训练过，推理时给它 4K 输入，模型表现会断崖下跌。原因是模型在训练时只学过「2K 以内的相对位置关系」，超出 2K 的相对距离它从来没见过，注意力权重的分布会乱掉。</p>
-<p><img alt="" src="assets/41d59344b1-701fd2cecab3c55235cf3ba6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/41d59344b1-701fd2cecab3c55235cf3ba6.png" /></p>
 <p>所以 sin/cos 编码在小模型时代还行，到了大模型时代（要支持几十 K 甚至上百 K 长上下文）就明显不够用了。</p>
 <h4>绝对位置 vs 相对位置：模型真正想要什么</h4>
 <p>在讨论 RoPE 之前，先想一个特别生活化的问题：<strong>你跟别人介绍你坐在哪儿，是说「我坐在前排第 3 个座位」，还是说「我坐在 XX 旁边」？</strong></p>
 <p>大部分时候你会选第二种，因为「相对位置」比「绝对位置」更有信息量。同样在 NLP 里，模型理解语言时关心的也是相对位置，不是绝对位置。</p>
 <p>举个例子。中文里「主语动词宾语」这种句法关系，关键的不是「主语在第 3 位、动词在第 5 位」这种绝对编号，而是「主语和动词之间隔了 2 个词」这种相对距离。一句话不管前面加了多少修饰语、语气词，主语和动词的相对关系是稳定的。同样的「我吃饭」，不管你前面加「今天」「中午」「饿了所以」，主谓宾的相对距离都没变。</p>
 <p>绝对位置编码（比如 sin/cos）的问题就在这里。它给每个位置发一个独立的「身份证」，要让模型自己从「位置 3 的身份证」和「位置 5 的身份证」推断出「相对距离是 2」。这个推断完全靠模型在训练里慢慢碰运气学到，没有显式的归纳偏置。</p>
-<p><img alt="" src="assets/7cf15ad2d6-68ad20edbe64d1c532286e3c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7cf15ad2d6-68ad20edbe64d1c532286e3c.png" /></p>
 <p>相对位置编码的思路就是把「相对距离」这个信息显式地编进注意力计算里，让模型不用自己算。具体做法是让两个 token 的位置编码只取决于它们的差值 m-n，跟 m 和 n 各自的绝对值无关。这就是 RoPE 和 ALiBi 共同的出发点，它们走的是不同的实现路线，但目标一致。</p>
 <h4>RoPE：用旋转把相对位置编进点积</h4>
 <p>RoPE（Rotary Position Embedding，旋转位置编码）是 2021 年中国学者苏剑林（@bojone）提出的，现在已经是大模型的标配。核心思路一句话：<strong>不把位置信息加到 embedding 上，而是旋转 Q 和 K 向量</strong>。</p>
 <p>什么意思？</p>
 <p>在 Attention 计算里，每个 token 都会被投影成 Q（Query）和 K（Key）。RoPE 在这一步动手脚：每个 token 的 Q/K 向量根据它的位置 m，被旋转一个对应角度 mθ（θ 是预设常数）。位置 0 的 token 不旋转，位置 1 的旋转 θ，位置 2 的旋转 2θ，依此类推。</p>
 <p>类比一下：把 Q/K 向量想象成钟表的指针，每个位置对应一个不同时刻的指针朝向。位置越靠后，指针转得越多。</p>
-<p><img alt="" src="assets/8a3c10edfb-367846bc10969a2c09b935ee.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8a3c10edfb-367846bc10969a2c09b935ee.png" /></p>
 <p>为什么旋转能表达位置？关键的数学性质是：<strong>两个旋转后的向量做点积，结果只依赖于它们的「旋转角度差」</strong>。</p>
 <p>具体说，位置 m 的 Q 和位置 n 的 K 做点积，旋转之后的点积结果只跟 (m-n) 这个相对距离有关，跟 m 和 n 各自的绝对值无关。这就把「相对位置」信息天然地编进了 Attention 计算里，模型不用自己学。</p>
-<p><img alt="" src="assets/b3446b438e-8a44ec2b26987739429ecd24.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b3446b438e-8a44ec2b26987739429ecd24.png" /></p>
 <p>RoPE 的优点非常突出，几个层面叠加起来才让它成为现在的标配。</p>
 <p>最直观的优点是<strong>天然的相对位置编码</strong>，不用模型自己学相对关系，直接编进点积。这是 RoPE 区别于 sin/cos 的核心。然后是<strong>零参数</strong>，整个操作就是数学上的旋转，不引入任何可学习参数，对模型容量没有额外开销。还有一个被忽视的细节是<strong>保留 token 向量的长度</strong>，旋转操作不改变向量的模长只改变方向，所以不会破坏原本 embedding 的数值范围，训练稳定性更好。最后是<strong>和现代推理优化的兼容性</strong>，RoPE 是在 Q/K 上做的旋转，跟 KV Cache、Flash Attention、MQA/GQA 这些主流推理优化都能无缝叠加，不会产生冲突。</p>
 <p>更关键的是 RoPE 的<strong>长上下文外推能力</strong>远好于 sin/cos。原因是 RoPE 的旋转是连续的角度变化，本身没有「训练截止」这个概念。即使训练时只见过 2K，推理时来了 4K，多出来的位置也只是更大的旋转角度而已，模型不会「彻底懵」，效果衰减比 sin/cos 平缓很多。</p>
@@ -85,7 +85,7 @@
 <p>ALiBi（Attention with Linear Biases）是另一种相对位置编码方案，2022 年提出，思路比 RoPE 更暴力：<strong>根本不动 Q、K、V，直接在注意力分数里加一个「距离惩罚项」</strong>。</p>
 <p>具体做法：在 <code>softmax(QK^T)</code> 这一步之前，给每对 token 的注意力分数加上一个偏置项，偏置值是 <code>-m × |i-j|</code>，其中 |i-j| 是两个 token 之间的距离，m 是一个固定的斜率（每个 head 不同）。</p>
 <p>直观理解：离得越远，注意力分数被扣得越多，模型越倾向于关注近邻的 token。每个 head 用不同的斜率，等于让不同的 head 关注不同范围的距离（有的 head 关注近邻，有的 head 关注远处）。</p>
-<p><img alt="" src="assets/1000feab94-df9c1e581ab7613187685290.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1000feab94-df9c1e581ab7613187685290.png" /></p>
 <p>ALiBi 的优点：</p>
 <ul>
 <li><strong>零参数</strong>：和 RoPE 一样不引入可学习参数</li>
@@ -97,7 +97,7 @@
 <li><strong>表达力弱</strong>：所有位置信息都靠「距离惩罚」这一个机制传递，对精细的位置关系（比如「主语动词宾语的语序」）建模不如 RoPE 灵活</li>
 <li><strong>过强的局部偏置</strong>：线性距离惩罚会让模型过度关注近邻，对需要捕捉长距离依赖的任务不利</li>
 </ul>
-<p><img alt="" src="assets/1389876747-016b955a8c0d4bbc1e935124.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1389876747-016b955a8c0d4bbc1e935124.png" /></p>
 <p>谁用过 ALiBi？</p>
 <ul>
 <li><strong>MosaicML 的 MPT 系列</strong></li>
@@ -158,7 +158,7 @@
 <p><strong>第一，长上下文外推能力</strong>。这是 2023 年之后最重要的需求之一。RoPE 配合 NTK/YaRN 这套生态，外推能力很强，但真正上线前还要看长上下文评测，不是把参数一改就天然无损。</p>
 <p><strong>第二，相对位置 + 表达力的平衡</strong>。ALiBi 虽然外推也好，但表达力不够；sin/cos 表达力够，但外推差。RoPE 是唯一兼顾两者的方案。</p>
 <p><strong>第三，工程兼容性</strong>。RoPE 只在 Q/K 上做旋转，不改变其他计算，和 KV Cache、Flash Attention、MQA/GQA 都能无缝叠加。这一点对工业界部署至关重要。</p>
-<p><img alt="" src="assets/2c6a725f8e-4e4f6041f0b4105ecbe367cd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2c6a725f8e-4e4f6041f0b4105ecbe367cd.png" /></p>
 <h4>拓展：长上下文外推（NTK / YaRN 简介）</h4>
 <p>最后简单提一下 RoPE 的外推扩展技巧，因为这一块面试时容易被追问。</p>
 <p>RoPE 训练时见过 2K，怎么推到 100K？直接喂 100K 输入是不行的，因为旋转角度超过 2K 之外，模型从来没见过那么大的角度，效果还是会衰减。所以业界搞出了几个「调整 RoPE 频率参数」的技巧：</p>
@@ -167,7 +167,7 @@
 <li><strong>NTK-aware Scaling</strong>：调整 RoPE 不同维度的频率，让高频维度（精细位置）几乎不动，低频维度（粗略位置）按比例缩小。比 PI 更精细</li>
 <li><strong>YaRN（Yet another RoPE extensioN）</strong>：在 NTK 基础上做了进一步精细化，引入温度参数和分段策略，目前是大厂用得最多的方案</li>
 </ul>
-<p><img alt="" src="assets/ea1bcb5666-bf01aafb77072cc20155a993.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ea1bcb5666-bf01aafb77072cc20155a993.png" /></p>
 <p>需要强调的是，这些外推技巧有些可以在推理时直接改 RoPE 参数就看到收益，但要做到稳定的 100K+ 长上下文，很多模型还会配合长上下文继续训练、校准数据或专门的评测筛选。RoPE 在长上下文时代地位稳固，不是因为它能无成本无限外推，而是因为它给了社区一个很好调、很好扩展的基础。</p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，问到位置编码，最重要的是先讲清楚为什么需要它。Self-Attention 是「位置盲」的，「我打你」和「你打我」算出来的注意力是一样的，所以必须显式注入位置信息。而且不能直接用 1, 2, 3, 4 这种序号，因为数值范围会破坏 embedding，长序列还没法泛化。这一句铺垫先讲到，面试官就知道你理解为什么需要位置编码这件事。</p>

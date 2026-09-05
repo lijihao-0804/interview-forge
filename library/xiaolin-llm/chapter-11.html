@@ -26,9 +26,9 @@
 <div class="codehilite"><pre><code>2 × 1 × 32000 × 32 × 32 × 128 × 2 ≈ 17 GB
 </code></pre></div>
 <p>光 KV Cache 就要 17GB，加上模型权重 14GB，加起来 31GB，一张 4090（24GB）根本放不下。这就是长上下文场景下的头号问题，也是面试里常被追问「KV Cache 怎么省」的根源。</p>
-<p><img alt="" src="assets/465b8cdcdf-4516b867204784f22350851e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/465b8cdcdf-4516b867204784f22350851e.png" /></p>
 <p>显存挤爆只是一面，更隐蔽的痛点是「<strong>速度也快不起来</strong>」。原因是 GPU 计算单元（CUDA Core / Tensor Core）的算力很猛，但显存带宽跟不上。Attention 计算里大量时间花在「等数据从显存搬到计算单元」，计算单元很多时候在「等米下锅」。这就是著名的 <strong>memory-bound（访存受限）</strong> 问题。哪怕你的 GPU 算力是另一台的两倍，跑 Attention 时速度可能只快 20%，因为瓶颈根本不在算力。</p>
-<p><img alt="" src="assets/847a0c3648-78cb2a94dde484bc9f117456.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/847a0c3648-78cb2a94dde484bc9f117456.png" /></p>
 <p>到这里，MHA 的三个痛点就连成一条线了。<strong>N² 复杂度让序列稍微长一点，计算量就按平方级膨胀；KV Cache 让长上下文显存爆掉；访存带宽让 GPU 算力发挥不出来</strong>。这三个痛点互相加剧，长上下文场景下尤其明显。后面的所有优化方案，都是在攻击这三个痛点中的一个或多个。</p>
 <h4>MQA：暴力共享 K/V，显存直接压到 1/H</h4>
 <p>MQA（Multi-Query Attention，多查询注意力）的思路非常暴力：<strong>所有 head 共享同一份 K 和 V，只有 Q 是每个 head 独立的</strong>。</p>
@@ -39,7 +39,7 @@
 <p>但 MQA 的代价也很明显，<strong>表达能力下降</strong>。</p>
 <p>直觉上理解：原本 32 个 head 各自有 32 套不同的「视角」（K 表示「我有什么标签」、V 表示「我的内容」），可以从 32 个角度去理解上下文；MQA 强行让 32 个 head 共用一套 K/V，等于 32 个视角变成「都看同样的标签和内容，只是用不同的 Query 去问」，多视角的能力被压缩成单视角。</p>
 <p>实测效果上，MQA 在大模型上效果会下降 2-5%，对简单任务可能差不多，但对推理类任务（数学、代码）会有明显损失。所以 MQA 在工业界不如它的折中版本受欢迎。</p>
-<p><img alt="" src="assets/d7e7903391-3d10881c260c46245f720656.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d7e7903391-3d10881c260c46245f720656.png" /></p>
 <h4>GQA：折中方案，效果与显存的甜蜜点</h4>
 <p>GQA（Grouped-Query Attention，分组查询注意力）是 MHA 和 MQA 的折中。</p>
 <p>它的思路是：<strong>把 H 个 head 分成 G 组，每组内部共享一份 K/V，组之间各自独立</strong>。</p>
@@ -54,7 +54,7 @@
 <p><strong>显存上</strong>：KV Cache 从原本的 H 套压到 G 套，显存占用是 G/H 比例。比如 H=32、G=8 时，显存压到 1/4，比 MQA 的 1/32 略大但也很省。</p>
 <p><strong>表达力上</strong>：每组内部共享 K/V，组间独立，等于每组都有自己的「视角」。组数越多视角越丰富，G=8 通常已经足够保持模型效果。</p>
 <p><strong>实测效果</strong>：Meta 的 GQA 论文里，G=8 配置下，模型效果几乎和 MHA 持平（差距 &lt; 0.5%），但 KV Cache 压到 1/4。这种「显存大幅下降、效果几乎不损失」的甜蜜点，让 GQA 成为现代大模型的标配。</p>
-<p><img alt="" src="assets/61f084ef34-c3956f23518c44bb16b7870e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/61f084ef34-c3956f23518c44bb16b7870e.png" /></p>
 <p>哪些主流模型用 GQA：</p>
 <ul>
 <li><strong>Llama 2</strong> 70B 开始用 GQA（H=64，G=8）</li>
@@ -82,7 +82,7 @@
 <p><strong>Flash Attention 的核心思路：分块 + 在线 softmax</strong></p>
 <p>Flash Attention 提出：既然 SRAM 带宽快但容量小，那就把 Q、K、V 切成小块（比如 128×128），每次只在 SRAM 里算一小块的注意力，算完就直接和最终输出 O 累加，不把 N×N 的中间矩阵写回 HBM。</p>
 <p>听起来简单，但有个数学难题：softmax 操作要看「整行」才能算出来，不能局部独立计算。Flash Attention 用了一个叫「<strong>在线 softmax（online softmax）</strong>」的算法，分块计算的同时维护一个「当前最大值 + 累积和」的状态，每来一块就做增量更新，最终结果和一次性算 softmax 完全一样。</p>
-<p><img alt="" src="assets/7c8de7aad7-b609838fcee9599ce31525b0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7c8de7aad7-b609838fcee9599ce31525b0.png" /></p>
 <p>这样做的好处是：</p>
 <p><strong>显存从 O(N²) 降到 O(N)</strong>：再也不需要把 N×N 的中间矩阵存 HBM，只存最终输出 O 就够了。</p>
 <p><strong>速度提升 2-4 倍</strong>：HBM 读写次数从 O(N²) 降到 O(N²/M)（M 是块大小），实际速度比标准 Attention 快 2-4 倍。</p>
@@ -126,7 +126,7 @@
 <div class="codehilite"><pre><code>GQA 结构 + Flash Attention 实现
 </code></pre></div>
 <p>比如 Llama 3、Qwen 2、DeepSeek V3 都是这个组合。GQA 把 KV Cache 显存压到 1/4，Flash Attention 让 Attention 计算速度提升 2-4 倍。两者叠加后，一个 7B 模型能在消费级显卡（4090 24GB）上跑 32K 长上下文，搁 5 年前是不敢想的事情。</p>
-<p><img alt="" src="assets/fa42dd9018-4121ff70ddfc62f2610d99e1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fa42dd9018-4121ff70ddfc62f2610d99e1.png" /></p>
 <p>这个「叠加」的认知很重要。面试官如果追问「MQA、GQA、Flash Attention 你只能选一个用，选哪个」，你应该指出这是个伪命题：<strong>真实工程里它们一定是组合用的，因为它们攻击的是不同维度的瓶颈</strong>。能说出这一句，面试官就知道你不是在背单点优化，而是真的理解了整套优化体系的层次结构。</p>
 <h4>拓展：长上下文时代还有哪些新方向</h4>
 <p>最近一两年，长上下文（100K+ token）成为各家大模型的标配，MHA 的优化也在继续往前推。简单提几个进阶方向，作为补充：</p>
@@ -136,7 +136,7 @@
 <li><strong>Linear Attention（线性注意力）</strong>：用核函数近似 softmax，把 Attention 复杂度从 O(N²) 降到 O(N)。代表是 Performer、Linformer，但效果离 MHA 还是差一截，没成为主流</li>
 <li><strong>Mamba / 状态空间模型（SSM）</strong>：完全抛弃 Attention，用状态空间方程替代。理论上可以处理无限长上下文，但实际效果还有争议，目前是研究热点而不是工程主流</li>
 </ul>
-<p><img alt="" src="assets/5a6db805fa-7b391585491cef36ab6d0355.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5a6db805fa-7b391585491cef36ab6d0355.png" /></p>
 <p>需要强调的是，这些方向大多还在演进，大厂面试问到 MHA 优化，把 MQA、GQA、Flash Attention 这三个讲清楚就足够拿高分了。MLA 作为加分项可以提一句，再深的就不用展开。</p>
 <h3>🎯 面试总结</h3>
 <p>回到开头那段对话，被怼三次后再回答这个问题，最重要的是先把 MHA 的三个痛点讲清楚，因为这是整道题的地基。</p>

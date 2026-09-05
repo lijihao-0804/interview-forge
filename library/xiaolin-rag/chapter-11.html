@@ -14,9 +14,9 @@
 <h4>关键词检索：字面匹配，靠统计</h4>
 <p>先从最直观的方式说起。关键词检索的代表是 BM25（Best Match 25），这是 Elasticsearch、Lucene 等传统搜索引擎的核心算法。</p>
 <p>它的基本思路可以用一个类比来理解：想象一个巨大的图书管理员，他给每本书建了一张「词汇卡片」，记录这本书里每个词出现了几次。用户来查「手机 截图」，管理员就把包含「手机」的书挑出来，再把包含「截图」的书挑出来，然后看哪些书同时被挑中、被挑中的词出现频率高，这些书就排前面。这个「词汇卡片」系统就是<strong>倒排索引</strong>，它记录的不是「每篇文档里有哪些词」，而是反过来，记录「每个词出现在哪些文档里」。</p>
-<p><img alt="" src="assets/37387e588c-563445dad155513e3c9a2829.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/37387e588c-563445dad155513e3c9a2829.png" /></p>
 <p>打分的时候核心看两个因素。</p>
-<p><img alt="" src="assets/45e1b5d957-525981a35a36b4281de2ca36.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/45e1b5d957-525981a35a36b4281de2ca36.png" /></p>
 <ul>
 <li>第一个是<strong>词频（TF）</strong>：这个词在这篇文档里出现了几次，出现越多说明越相关。</li>
 <li>第二个是<strong>稀缺度（IDF）</strong>：这个词在所有文档里有多罕见。</li>
@@ -49,7 +49,7 @@
 <p>那向量检索是不是万能的？很多人以为向量检索比关键词检索「高级」，所以所有场景都该用向量检索，其实不是。</p>
 <p>向量检索的优势是<strong>语义理解能力强</strong>，能跨越同义词、近义词、不同表达方式的障碍；但它的劣势是<strong>对精确词汇不敏感</strong>，产品型号「Pro Max 256GB」、人名、版本号这类词，在 Embedding 空间里可能彼此距离并不近，向量检索容易把它们混淆在一起，反而不如 BM25 直接命中准确。</p>
 <p>这就是为什么面试官会拿「M4 Pro 芯片参数」这个问题来追问：向量检索对这类精确专有名词天然不擅长，而 BM25 却能秒找到。两种方式的盲区恰好互补，谁也不能替代谁。</p>
-<p><img alt="" src="assets/fec9b32ecd-e92b0efd40aac85cfe1b2224.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fec9b32ecd-e92b0efd40aac85cfe1b2224.png" /></p>
 <h4>两者的核心区别对比</h4>
 <p>把前面分析过的要点整理成一张表，一目了然：</p>
 <table>
@@ -96,7 +96,7 @@
 <h4>混合检索：两路都跑，合并取长补短</h4>
 <p>既然两种方式各有盲区，而且刚好互补，那最自然的想法就是两路都跑。好比考试既考选择题（精确匹配）又考问答题（语义理解），两科综合评分比只考一科更全面。工程实践中的标准做法叫<strong>混合检索（Hybrid Search）</strong>：同时跑向量检索和 BM25，各自召回一批候选，然后用 RRF（Reciprocal Rank Fusion，互倒排名融合）算法把两路结果合并排序。</p>
 <p>RRF 的思路很巧妙：它不看各路的原始分数，只看排名。你可能会问，为什么不直接把两路的分数加权平均呢？原因是向量相似度（0 到 1 的余弦值）和 BM25 分数（可能是任意正数）的量纲完全不同，就像拿摄氏度和华氏度直接加在一起没有意义。RRF 用排名的倒数来打分，排名越靠前倒数越大，最终按总分降序排列。这样，两路都认为相关的文档会排在最前面，只有一路认为相关的文档也不会被完全丢掉。</p>
-<p><img alt="" src="assets/98b21ac449-e45e0bebb42bea0866aa666f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/98b21ac449-e45e0bebb42bea0866aa666f.png" /></p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">reciprocal_rank_fusion</span><span class="p">(</span><span class="n">results_list</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    results_list: 多路检索结果，每路是一个 [doc_id, ...] 的有序列表</span>

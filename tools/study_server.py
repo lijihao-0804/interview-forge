@@ -974,6 +974,27 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
     }
 
 
+# 面板聚合缓存：/api/dashboard 每次全量计算较重（100 题状态 + 365 天活动 + 提交统计），
+# 按"数据库路径"缓存 60 秒；任何写操作（完成/标记/提交）后立即失效。
+_DASH_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
+_DASH_CACHE_LOCK = threading.Lock()
+_DASH_TTL = 60.0
+
+
+def dashboard_cached(db_path: Path) -> dict[str, object]:
+    """带 60 秒缓存的仪表盘聚合；写操作后由调用方清缓存。"""
+    key = str(db_path)
+    now = time.time()
+    with _DASH_CACHE_LOCK:
+        hit = _DASH_CACHE.get(key)
+        if hit and now - hit[0] < _DASH_TTL:
+            return hit[1]
+    data = dashboard_data(db_path)
+    with _DASH_CACHE_LOCK:
+        _DASH_CACHE[key] = (now, data)
+    return data
+
+
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
     today = datetime.now().astimezone().date().isoformat()
@@ -2361,9 +2382,21 @@ class StudyHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def end_headers(self) -> None:
-        # 本地学习站始终返回最新内容，静态页面/脚本/样式一律禁止缓存，避免浏览器拿旧版。
+        # 缓存策略分级（慢链路下回访体验的关键）：
+        #   HTML/JSON/manifest → no-store：内容随部署与学习动作实时变化；
+        #   CSS/JS → 5 分钟强缓存 + Last-Modified 协商（过期后 304，不重传）；
+        #   图片/字体 → 7 天强缓存（静态资源基本不变）。
+        # 部署更新 CSS/JS 的场景由 ASSET_VERSION 查询参数与 SW 缓存版本兜底。
         path = getattr(self, "path", "") or ""
-        if path.split("?", 1)[0].lower().endswith((".html", ".js", ".css", ".webmanifest", ".json")):
+        suffix = path.split("?", 1)[0].lower()
+        if suffix.endswith((".html", ".json", ".webmanifest")):
+            self.send_header("Cache-Control", "no-store")
+        elif suffix.endswith((".css", ".js")):
+            self.send_header("Cache-Control", "public, max-age=300, must-revalidate")
+        elif suffix.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg",
+                              ".ico", ".woff", ".woff2", ".ttf", ".mp4")):
+            self.send_header("Cache-Control", "public, max-age=604800")
+        else:
             self.send_header("Cache-Control", "no-store")
         # 通用安全响应头：禁止 MIME 嗅探；页面只允许同源 iframe（05-可视化 内嵌即为同源）。
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -2376,7 +2409,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        # Cache-Control 由 end_headers 的分级策略统一添加（API 无扩展名 → no-store）。
         # 附加响应头（登录/登出时携带 Set-Cookie）。
         for name, value in (extra_headers or []):
             self.send_header(name, value)
@@ -2496,7 +2529,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 after = int(params.get("after", "-1"))
             except ValueError:
                 after = -1
-            self.send_json({"items": chat_messages_after(after)})
+            try:
+                limit = max(1, min(int(params.get("limit", "50")), 100))
+            except ValueError:
+                limit = 50
+            self.send_json({"items": chat_messages_after(after, limit)})
             return
         # /api/profile：自己的昵称与头像状态。
         if parsed.path == "/api/profile":
@@ -2504,7 +2541,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/dashboard：仪表盘聚合 —— 今日概览/每题进度/近 14 天/最近活动/365 天热力图/标记与提交统计。
         if parsed.path == "/api/dashboard":
-            self.send_json(dashboard_data(db))
+            self.send_json(dashboard_cached(db))
             return
         # /api/health：健康检查 —— 只回存活状态，不暴露库文件名等内部信息。
         if parsed.path == "/api/health":
@@ -2891,6 +2928,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # 数据库层故障 → 500（请求没问题但写入失败）。
             self.send_json({"error": "数据库写入失败"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
+        # 写操作成功后使面板聚合缓存失效，保证下一次 /api/dashboard 拿到最新状态。
+        if path not in public_post:
+            with _DASH_CACHE_LOCK:
+                _DASH_CACHE.pop(str(db), None)
         # POST 创建/更新资源成功统一回 201 Created；send_json 内部附加 CORS 与 Set-Cookie 头。
         self.send_json(result, HTTPStatus.CREATED, extra_headers=cookie_headers)
 

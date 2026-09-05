@@ -71,8 +71,12 @@
           contact: panel.querySelector("#fb-contact").value.trim(),
           page: location.pathname + location.search
         })
-      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      }).then(function (r) {
+          if (r.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname)); return { ok: false, data: { error: "登录已过期" } }; }
+          return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+        })
         .then(function (res) {
+          if (res.data && res.data.error === "登录已过期") return;
           if (res.ok) {
             hint.textContent = "已提交，感谢反馈！我们会尽快处理。";
             hint.className = "fap-hint ok";

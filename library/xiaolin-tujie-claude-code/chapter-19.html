@@ -2,14 +2,14 @@
 <main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 源码拆解：51 万行泄漏代码里的架构设计</span></nav><div class="module-meta">Agent 工程 · 第 19 / 19 章</div><h1>Claude Code 源码拆解：51 万行泄漏代码里的架构设计</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
 <p>Claude Code 源码泄漏这个瓜，大家都吃了吧？</p>
 <p>堂堂业界最强编程 Agent，就因为 npm 打包时配置手抖，不小心把 <code>.map</code> 文件一起传了上去，结果 51 万行核心代码直接全网裸奔。</p>
-<p><img alt="image.png" src="assets/90674fe191-153e01ca9e2f75ab176a8859.png" /></p>
+<p><img loading="lazy" decoding="async" alt="image.png" src="assets/90674fe191-153e01ca9e2f75ab176a8859.png" /></p>
 <p><em>image.png</em></p>
 <p>面对这场史诗级乌龙，大家都忙着吃瓜，而懂行的第一反应都是：<strong>赶紧下载源码</strong>！毕竟这可是目前地表最强 Agent 的底牌。</p>
-<p><img alt="" src="assets/908f1df201-94f7d5600b99c348638c4ff2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/908f1df201-94f7d5600b99c348638c4ff2.png" /></p>
 <p>先说清楚，这些泄漏的是 Claude Code 客户端的源码，并不是 Claude Opus 大模型的源码。</p>
 <p>可能就有同学疑惑了，客户端源码有啥好看的？</p>
 <p>说到这，不知道大家最近有没有注意到，AI 圈最近又造了一个新词，叫 <strong>Harness Engineering（线束工程）</strong>，大家最近都刷到了吧？</p>
-<p><img alt="" src="assets/7b6eb17b03-eb83fbddcf05e8ea82bee950.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7b6eb17b03-eb83fbddcf05e8ea82bee950.png" /></p>
 <p>听起来是不是特别唬人？每次 AI 圈一出这种高大上的新词，其实大半都是在「重新包装常识」。</p>
 <p>说白了，这词的意思就是大家终于认清现实了：<strong>与其天天「做法」祈求大模型变聪明、别产生幻觉，不如老老实实给这匹野马套上缰绳（Harness）</strong>。用系统去约束它的行为，给它划好赛道，它才能稳稳当当出活。</p>
 <p>这也是目前 AI 圈最真实的风向转变：从「拼模型智商」变成了「拼系统求稳」。</p>
@@ -20,20 +20,20 @@
 <h3>一、Claude Code 是什么</h3>
 <p>在拆源码之前，先简单介绍一下 Claude Code 到底是什么东西。</p>
 <p>Claude Code 是 Anthropic 官方推出的编程 Agent 工具。你可以把它理解成一个能直接在你的终端里干活的 AI 程序员，它不是一个聊天窗口，而是真正能读你的代码、改你的文件、跑你的命令、帮你管理 Git 的那种。</p>
-<p><img alt="" src="assets/6a72ef9494-9275b615b10ead5bb8e48339.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6a72ef9494-9275b615b10ead5bb8e48339.png" /></p>
 <p>说到底，Claude Code 的本质就是一个 <strong>AI Agent</strong>。但 Agent 这个词现在被用得太泛了，很多人会把它和聊天机器人搞混，所以我得先把这个概念说清楚。</p>
 <p>很多人会把 AI Agent 和聊天机器人搞混。其实它们的区别很大。ChatBot 就是你问一句它答一句，一次性的问答。Copilot 呢，是你写代码时给你补全建议，本质上也是一次性预测。</p>
 <p><strong>Agent 的核心是一个「感知-决策-行动」的自主循环</strong>。你给它一个目标（比如「帮我修复这个 bug」），它会自己决定先读哪个文件、再跑什么命令、然后改哪行代码，整个过程可能循环几十轮，直到任务完成。</p>
-<p><img alt="" src="assets/638018e7be-e5eb5b0bcda9a12afcb087e4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/638018e7be-e5eb5b0bcda9a12afcb087e4.png" /></p>
 <p>Claude Code 的 Agent 循环大概是这样的：</p>
-<p><img alt="" src="assets/6bc23ae12b-fe756f75c0a31f8a83c8cb8e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6bc23ae12b-fe756f75c0a31f8a83c8cb8e.png" /></p>
 <p>注意看这个循环的关键：<strong>大模型自己决定下一步做什么</strong>。</p>
 <p>它不是按照预定义的流程图走的，而是每次看到当前的对话上下文后，自主判断「我现在应该读个文件」还是「我应该执行一条命令」还是「我可以回复用户了」</p>
 <p>好，理解了 Claude Code 是什么、它的核心循环长什么样，接下来我们就可以开始看源码了。先从它的整体架构看起。</p>
 <h3>二、架构设计</h3>
 <p>一个能自主编程的 Agent 要处理的事情非常多：调大模型 API、执行 40 多种工具、管理权限、压缩上下文、维护记忆、支持多 Agent 协作……如果这些东西全部塞在一个文件里，代码会立刻变成一团乱麻。</p>
 <p>那 Claude Code 是怎么组织这些子系统的？它采用了一个<strong>四层分层架构</strong>：</p>
-<p><img alt="" src="assets/e32ecf49aa-4be361c44eb4b5fea44ef4cf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e32ecf49aa-4be361c44eb4b5fea44ef4cf.png" /></p>
 <p>我们从底层往上，一层一层来理解。</p>
 <ul>
 <li><strong>引擎层</strong>是 Agent 的「大脑」，负责思考和调度。它的关键设计原则是<strong>不包含任何业务逻辑</strong>，它不知道怎么读文件、怎么改代码、怎么搜索，这些全是工具层的事。引擎层只做三件事：第一，协调，把用户输入、系统指令、历史对话拼在一起，发给大模型；第二，分发，大模型说「我要用某个工具」时，找到对应的工具并执行；第三，决策，根据大模型的返回决定是继续循环还是结束对话。这种设计的好处是：<strong>新增能力只需要新增一个工具，引擎层完全不用改</strong>。</li>
@@ -47,10 +47,10 @@
 <p>Claude Code 的答案可能出乎你的意料，它没有用 ReAct，而是用了一个更简洁、更高效的模式。</p>
 <h4>什么是 ReAct</h4>
 <p>如果你接触过 Agent 开发，大概率听说过 ReAct（Reasoning + Acting）。它是 2022 年提出的一种 Agent 范式，核心思路是把 Agent 的每一步拆成三个阶段：</p>
-<p><img alt="" src="assets/179749410b-fef882ea934377a12f6a38bc.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/179749410b-fef882ea934377a12f6a38bc.png" /></p>
 <p>具体来说，模型在每一轮都会先输出一段「思考」（Thought），比如「我需要先读取 config.ts 文件来了解数据库连接配置」；然后选择一个工具调用（Action）；最后拿到工具结果（Observation）。这三步不断循环，直到模型认为任务完成。</p>
 <p>这个模式在 2022 年非常流行，因为当时的大模型（GPT-3.5 时代）推理能力有限，需要用显式的「Thought」步骤来引导模型一步步思考。</p>
-<p><img alt="" src="assets/364ce12694-ca40bb19a0b96d9c70b9d2cb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/364ce12694-ca40bb19a0b96d9c70b9d2cb.png" /></p>
 <p>但 ReAct 有几个问题：</p>
 <ul>
 <li><strong>第一个问题：Token 浪费。</strong> 每一轮都要输出一段 Thought 文本，这些文本要作为上下文的一部分发给 API，占用了宝贵的 Token 预算。对于编程 Agent 来说，一次任务可能循环 50 轮，每轮都写一段「我打算先读取……然后分析……」的思考过程，加起来就是好几万 Token 的浪费。</li>
@@ -60,14 +60,14 @@
 <h4>Tool-Use Loop</h4>
 <p>Claude Code 没有采用 ReAct 的 Thought-Action-Observation 三步循环，而是用了一个更简洁的模式，我把它叫做 <strong>Tool-Use Loop</strong>。</p>
 <p>核心思路非常简单，就一个 <code>while(true)</code> 循环：</p>
-<p><img alt="" src="assets/ab8b83c9c3-de0a8a87ae24d2b0ec7d91b0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ab8b83c9c3-de0a8a87ae24d2b0ec7d91b0.png" /></p>
 <p>看到区别了吗？<strong>没有 Thought 步骤</strong>。</p>
 <p>模型在内部完成推理（通过 Extended Thinking，这是 Claude Opus 的一个能力，模型在生成回复前会在内部进行一段不可见的深度推理，不占用上下文空间），然后直接返回两种结果之一：</p>
 <ul>
 <li><code>**tool_use**</code>：「我要用某个工具」，应用层执行工具，把结果拼入消息列表，继续循环</li>
 <li><code>**end_turn**</code>：「我说完了」，跳出循环，把最终结果返回给用户</li>
 </ul>
-<p><img alt="" src="assets/4974ca202d-e402f4b8225ba7d82f886507.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4974ca202d-e402f4b8225ba7d82f886507.png" /></p>
 <p>这个设计的核心哲学是：<strong>信任模型的推理能力，保持应用层框架尽可能简单</strong>。</p>
 <p>来看 <code>query.ts</code> 中的核心循环，它的实际代码长这样（这是一段 TypeScript 代码，其中 <code>yield</code> 的作用是流式输出，你可以理解为一边接收 API 的响应，一边把每个 token 实时传给 UI 显示）：</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">async function* queryLoop(
@@ -149,9 +149,9 @@
 <p>这种「大道至简」的设计，反而是最高效的。</p>
 <h4>Plan Mode</h4>
 <p>Claude Code 不仅有 Tool-Use Loop 这种「边想边做」模式，还有 <strong>Plan Mode</strong>，一个更精细的两阶段工作流：先规划、再执行。</p>
-<p><img alt="" src="assets/9038e19ef9-81fb9d40d822d6f443384290.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9038e19ef9-81fb9d40d822d6f443384290.png" /></p>
 <p>Plan Mode 的核心思想是：<strong>复杂任务应该先规划再执行，避免方向跑偏、浪费精力</strong>。它并不是一个独立的框架，而是在同一个 Tool-Use Loop 中通过 <code>EnterPlanMode</code> 和 <code>ExitPlanMode</code> 两个工具实现的：</p>
-<p><img alt="" src="assets/06358a6808-cd3002081dfed3e73c1124ae.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/06358a6808-cd3002081dfed3e73c1124ae.png" /></p>
 <p>整个流程分三步：</p>
 <ul>
 <li><strong>第一步：模型自主进入或用户手动触发。</strong> 当模型判断「这是一个复杂任务」时，它会调用 <code>EnterPlanMode</code> 工具。对于简单任务（修 typo、加 console.log），则明确不进入。用户也可以通过 Shift+Tab 手动切换。</li>
@@ -164,7 +164,7 @@
 <h3>四、System Prompt 的构造</h3>
 <p>System Prompt 就是 Claude Code 的灵魂，它定义了 Agent 的身份、行为规范、可用工具、安全约束……一切。</p>
 <p>但 Claude Code 的 System Prompt 不是一个静态的文本文件。它是<strong>动态组装</strong>的，由十几个 Section 拼接而成，而且在组装过程中做了非常精巧的<strong>缓存优化</strong>。</p>
-<p><img alt="" src="assets/131147fddb-1632769ce7167b85daade23c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/131147fddb-1632769ce7167b85daade23c.png" /></p>
 <p>我们先来看一下，Claude Code 的 System Prompt 到底长什么样，它是怎么「调教」大模型变成一个靠谱的编程 Agent 的。</p>
 <p><em>注：Claude Code 源码中所有 Prompt 原文均为英文。为了让大家更好地理解设计思路，下面展示的 Prompt 内容我翻译成了中文，并保留了关键术语的英文原文。</em></p>
 <h4>角色定义与安全红线</h4>
@@ -296,11 +296,11 @@
 │  [MCP 指令] 你已连接 GitHub MCP server...         │  ← 每个用户不一样
 └─────────────────────────────────────────────────┘
 </code></pre></div>
-<p><img alt="" src="assets/61baaf189b-d6a1eb31faa43c7b87d7f948.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/61baaf189b-d6a1eb31faa43c7b87d7f948.png" /></p>
 <p>看到中间那条粗线了吗？那就是 Claude Code 在 System Prompt 中插入的分割标记 <code>__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__</code>。</p>
 <p><strong>分割线之上的内容，对所有用户都完全一样。</strong> 不管你是北京的 Java 工程师还是纽约的 Python 开发者，你看到的「角色定义」「行为准则」「Git 安全协议」这些内容是一模一样的。</p>
 <p><strong>分割线之下的内容，每个用户都不同。</strong> 你的工作目录、你的 <a href="http://CLAUDE.md">CLAUDE.md</a>、你的记忆文件、你连接的 MCP 服务，这些是因人而异的。</p>
-<p><img alt="" src="assets/50824d9d0a-6849b39f242edb3049f65c68.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/50824d9d0a-6849b39f242edb3049f65c68.png" /></p>
 <p>为什么要这么分？因为 Claude API 有一个 <strong>Prompt Cache</strong> 机制：如果两次请求的 Prompt 前缀完全相同，API 会复用上次的计算结果，<strong>费用可以降低 90%</strong>。对于几万 Token 的 System Prompt 来说，缓存命中与否意味着每次请求几美分和几美元的差距。</p>
 <p>分割线之上的内容对所有用户都一样，所以可以<strong>全球所有用户共享同一份缓存</strong>——你用的和东京的开发者用的是同一份。而分割线之下的内容因人而异，没法共享，只能实时生成。</p>
 <p>这就是 Claude Code 的三级缓存体系：<strong>全局缓存</strong>（分割线之上，跨组织跨用户共享）→ <strong>组织缓存</strong>（同一组织内跨会话共享）→ <strong>会话缓存</strong>（同一个 Section 在一次会话内只计算一次）。每一级都在帮 API 省钱。</p>
@@ -308,15 +308,15 @@
 <p>回过头来看 Claude Code 的 System Prompt，你会发现它其实在做一件事：<strong>用最小的 Token 成本，给模型划出最清晰的行为边界</strong>。</p>
 <p>怎么划的呢？我总结了三个最值得抄作业的设计。</p>
 <p>第一个是「先给范围再画红线」。比如安全约束那段，它不是一上来就说「不准做这不准做那」，而是先说「安全测试、CTF 挑战这些可以做」，然后再说「DoS、供应链攻击这些不能做」。这比你写十句「不准 XX」管用得多，因为模型拿到了判断标准，而不是一堆模糊的禁令。</p>
-<p><img alt="" src="assets/525fc7d10b-0b6727a1c77b252e1085d658.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/525fc7d10b-0b6727a1c77b252e1085d658.png" /></p>
 <p>第二个是「用两个维度把风险分出层次」。Claude Code 判断一个操作安不安全，不看它「看起来危不危险」，而是看两件事：这操作能撤回吗？会影响别人吗？改本地代码当然能撤回、只影响自己，直接放行。<code>git push</code> 撤不回来、别人能看到，那就得确认。这个思路比笼统的「危险/安全」二分法精细太多了。</p>
-<p><img alt="" src="assets/dd681068d6-edaf21a551076b9f874f291d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dd681068d6-edaf21a551076b9f874f291d.png" /></p>
 <p>第三个是「静态内容和动态内容用分割线隔开」。那条分割线不是随便画的，它把所有用户都一样的部分和因人而异的部分切开了。这样做的好处是，分割线之上的内容可以被全球所有用户共享缓存，每次 API 调用能省 90% 的费用。一个看似简单的排版调整，背后是实打实的成本优化。</p>
-<p><img alt="" src="assets/2ea3685b3e-122ed1786d631764230f8b30.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2ea3685b3e-122ed1786d631764230f8b30.png" /></p>
 <h3>五、记忆系统</h3>
 <p>每次启动 Claude Code 都是一个全新的会话，模型不记得上次对话的任何内容。但用户的偏好、项目背景、行为反馈，这些信息需要跨会话保持。</p>
 <p>这个问题看起来简单，做起来却非常难。业界常见的方案是用向量数据库，把记忆存成 embedding，每次对话时做相似度检索。</p>
-<p><img alt="" src="assets/7ab24c707c-d455703229c187a2ba449d78.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7ab24c707c-d455703229c187a2ba449d78.png" /></p>
 <p>但 Claude Code 没有这么做。为什么？</p>
 <p>因为 Agent 需要记住的大部分不是「相似的文档片段」，而是「用户说过'不要 mock 数据库'」这种<strong>结构化的行为指令</strong>。</p>
 <p>用向量相似度去检索「不要 mock 数据库」这句话，效果其实很差，它可能匹配到一堆包含「数据库」关键词的无关内容，真正重要的行为反馈却被淹没了。</p>
@@ -331,26 +331,26 @@
 ] as const
 </code></pre></div>
 <p>注意，只有这四种，<strong>不能随便加新的</strong>。</p>
-<p><img alt="" src="assets/f11c4b3b54-72a28cea91b400250b0e62d7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f11c4b3b54-72a28cea91b400250b0e62d7.png" /></p>
 <p>为什么不搞一个通用的「any」类型什么都能存？因为无约束的记忆会迅速膨胀成垃圾堆。</p>
 <p>限定四种类型，就是在逼 Agent 做分类决策。每存一条记忆，它必须想清楚「这到底属于哪一类」，而不是一股脑往里塞。</p>
 <p>我逐个解释一下这四种类型的设计意图。</p>
 <p><strong>User（用户画像）</strong>是最个人化的一类，记住用户是谁、擅长什么、知识水平如何。比如用户说「我是一个写了十年 Go 的后端工程师，第一次接触 React」，Agent 就应该在解释前端概念时用后端的类比，而不是从零讲起。这类记忆让 Agent 的回答<strong>因人而异</strong>，而不是千篇一律。</p>
-<p><img alt="" src="assets/ef9e7cf82a-7c509a0694149b0dba735830.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ef9e7cf82a-7c509a0694149b0dba735830.png" /></p>
 <p><strong>Feedback（行为反馈）</strong>是最重要的一类，记住用户说过「不要做什么」和「做得好继续保持」。这类记忆的关键在于，它不仅记规则本身，还要求记录 <strong>Why（为什么）</strong> 和 <strong>How to apply（怎么应用）</strong>：</p>
 <div class="codehilite" data-lang="plain"><pre><code class="language-plain">规则本身：集成测试必须使用真实数据库，不能用 mock
 Why：上季度 mock 测试全部通过但生产环境迁移失败了
 How to apply：在这个模块写测试时，始终连接真实数据库
 </code></pre></div>
 <p>为什么一定要记 Why？因为光记住「不要 mock 数据库」是不够的。如果遇到一个边缘情况，比如一个纯单元测试不涉及数据库迁移，Agent 需要根据 Why 来判断「这条规则在这个场景下是否适用」。没有 Why，Agent 只能盲目遵守，可能在不该用真实数据库的地方也强行连接。</p>
-<p><img alt="" src="assets/eaf6035268-cacfa432819262f2be4cf3a7.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/eaf6035268-cacfa432819262f2be4cf3a7.png" /></p>
 <p><strong>Project（项目动态）</strong>记的是「正在发生什么」，谁在做什么、截止日期是什么、有什么重要决策。这类记忆有一个特殊要求：<strong>必须把相对日期转成绝对日期</strong>。用户说「周四之前冻结合并」，Agent 要存成「2026-03-05 之前冻结合并」，因为「周四」过几天就没意义了，但「2026-03-05」永远准确。</p>
-<p><img alt="" src="assets/be7ec0d078-071bb6ea1fb50c39581d7e92.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/be7ec0d078-071bb6ea1fb50c39581d7e92.png" /></p>
 <p><strong>Reference（外部指针）</strong>记的是「去哪找什么信息」，Bug 在 Linear 的哪个项目里追踪、Grafana 看板的地址是什么、Slack 的哪个频道能问到相关的人。这类记忆的价值在于，Agent 不需要知道外部系统的具体内容，只需要知道<strong>去哪里找</strong>。</p>
-<p><img alt="" src="assets/80a68139ba-a399abb344df023ab506358d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/80a68139ba-a399abb344df023ab506358d.png" /></p>
 <h4>不记什么：排除清单</h4>
 <p>Claude Code 明确规定了<strong>什么不应该存到记忆里</strong>，这个设计和「记什么」同样重要。</p>
-<p><img alt="" src="assets/688dd9080e-a84f2ec3138ebb8029267835.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/688dd9080e-a84f2ec3138ebb8029267835.png" /></p>
 <p>首先是代码模式、项目架构和文件结构这些信息，通过 <code>grep</code>、<code>git</code>、<code>CLAUDE.md</code> 就能获取，存在记忆里反而会导致记忆和代码实际状态不一致。</p>
 <p>然后是 Git 历史和最近的改动，<code>git log</code> 和 <code>git blame</code> 才是权威来源，不需要记忆系统再来存一遍。调试方案和修复方法也不存，因为修复已经在代码里了，commit 消息已经记录了上下文。</p>
 <p><a href="http://CLAUDE.md">CLAUDE.md</a> 里已经写了的内容也不存，避免重复。最后是临时任务状态和当前对话上下文，这些是会话级的信息，不需要跨会话保持。</p>
@@ -396,13 +396,13 @@ export function truncateEntrypointContent(raw: string): EntrypointTruncation {
 </code></pre></div>
 <p>它同时检查<strong>行数</strong>和<strong>字节数</strong>两个维度。为什么要两个？因为有人可能写了 199 行，每行 500 字，行数没超但字节数爆了。双重检查堵住了这个漏洞。</p>
 <p>现在来看整个存储架构的关键设计：<strong><a href="http://MEMORY.md">MEMORY.md</a> 索引始终被加载到 System Prompt 里</strong>，但独立记忆文件<strong>按需加载</strong>。</p>
-<p><img alt="" src="assets/05ad0a5654-d870d40df43d4356809b5e40.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/05ad0a5654-d870d40df43d4356809b5e40.png" /></p>
 <p>这解决了一个经典矛盾，如果把所有记忆都塞进 System Prompt，50 条记忆就可能占满上下文；如果完全不塞，Agent 又不知道有哪些记忆可用。</p>
 <p>索引文件两全其美：Agent 看到索引就知道有哪些记忆，但只加载真正相关的那几条。</p>
 <h4>怎么召回：Sonnet 当秘书</h4>
 <p>存好了记忆，关键问题来了：每次对话时，怎么从几十条记忆里挑出最相关的那几条加载进来？</p>
 <p>Claude Code 的做法非常巧妙，用一个廉价的小模型（Sonnet）来做记忆检索。</p>
-<p><img alt="" src="assets/9cf3a0a59a-cf1da29d6af2e0d6e821a74e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9cf3a0a59a-cf1da29d6af2e0d6e821a74e.png" /></p>
 <p>整个召回流程分为三步：</p>
 <p>第一步：扫描所有记忆文件的「头部信息」</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">export async function scanMemoryFiles(
@@ -477,13 +477,13 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 )
 </code></pre></div>
 <p>时序大概是这样的：</p>
-<p><img alt="" src="assets/5ee5514e96-73de3ac7ee391d89f7c0181a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5ee5514e96-73de3ac7ee391d89f7c0181a.png" /></p>
 <p>Sonnet 比 Opus 快得多（延迟通常只有几百毫秒），所以等主模型的响应回来时，记忆选择早就完成了。整个记忆召回过程<strong>几乎不增加任何额外延迟</strong>。</p>
 <p>还有一个小优化：如果用户当前正在使用某些工具（比如正在调用某个 MCP 工具），Sonnet 选择器会自动过滤掉该工具的使用文档类记忆，因为模型已经在用这个工具了，它的用法文档此刻是噪声，不是信号。</p>
 <p>但「该工具的已知 bug 和注意事项」类记忆仍然会被选中，<strong>正在用的时候，恰恰是最需要知道坑在哪里的时候</strong>。</p>
 <h4>小结</h4>
 <p>回顾一下 Claude Code 的记忆系统，它的核心设计哲学可以用三句话概括。</p>
-<p><img alt="" src="assets/c098b23fdf-11f05de290af982d89f84622.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c098b23fdf-11f05de290af982d89f84622.png" /></p>
 <ul>
 <li>第一句是「记该记的，不记能推导的」。通过四类型封闭集合加上排除清单，把记忆控制在有价值的范围内，防止它膨胀成一个什么都往里塞的垃圾堆。</li>
 <li>第二句是「存索引，按需加载详情」。<a href="http://MEMORY.md">MEMORY.md</a> 作为轻量索引始终常驻在 System Prompt 里，但每条记忆的具体内容是独立文件，用到的时候才加载。这样既让 Agent 知道有哪些记忆可用，又不会撑爆上下文。</li>
@@ -492,13 +492,13 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 <h3>六、上下文窗口管理</h3>
 <p>这可能是整个 Claude Code 里最复杂也最精妙的部分。</p>
 <p>大模型有上下文窗口限制。即使是 200K Token 的窗口，一次复杂的编程任务（读了几十个文件、执行了几十条命令）很容易就塞满了。</p>
-<p><img alt="" src="assets/0d27b0fa45-3c73ce7096eee069e9d767ed.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0d27b0fa45-3c73ce7096eee069e9d767ed.png" /></p>
 <p>业界常见的做法是「简单截断」，只保留最近的 N 条消息，旧的扔掉。但这对于编程 Agent 来说是灾难性的：你可能 20 轮前读过一个关键配置文件，现在要改代码时那个文件的信息已经被截掉了，Agent 就会犯低级错误。</p>
 <p>另一种做法是「全量摘要」，把整段对话总结成一段摘要。但这很贵（摘要本身就是一次 API 调用），而且有信息损失。</p>
 <h4>压缩五步走</h4>
 <p>Claude Code 的核心理念是：<strong>压缩一定有信息损失，所以能不压就不压，必须压的时候从最轻的手段开始</strong>。</p>
 <p>它设计了五个从轻到重的压缩手段，就像医院的分诊制度一样：先试最温和的，不行再上猛药。在每次 API 调用前依次尝试：</p>
-<p><img alt="" src="assets/40f7841169-004d8e76b0d02cedc8467651.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/40f7841169-004d8e76b0d02cedc8467651.png" /></p>
 <p>为什么要分五步，而不是一步到位做全量摘要？</p>
 <p>因为<strong>每一步的「代价」是递增的</strong>。</p>
 <ul>
@@ -512,7 +512,7 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 <p>接下来我们一层一层拆解。</p>
 <h4>第 1 步：大结果存磁盘</h4>
 <p><strong>问题是什么？</strong> 想象一下，你让 Agent 读一个 10MB 的日志文件。Read 工具忠实地返回了全部内容，一下子就吃掉了几万 Token。更夸张的是，如果模型同时读了 3 个大文件，一条消息就可能占掉大半个上下文窗口。</p>
-<p><img alt="" src="assets/ccd07dc529-9e0d11165b0a8f60dc55dc09.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ccd07dc529-9e0d11165b0a8f60dc55dc09.png" /></p>
 <p><strong>Claude Code 怎么做？</strong> 它在工具结果进入消息列表<strong>之前</strong>，就先做一道「体检」：</p>
 <div class="codehilite" data-lang="ts"><pre><code class="language-ts"><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">maybePersistLargeToolResult</span><span class="p">(</span>
 <span class="w">  </span><span class="nx">toolResultBlock</span><span class="o">:</span><span class="w"> </span><span class="kt">ToolResultBlockParam</span><span class="p">,</span>
@@ -531,12 +531,12 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 <span class="p">}</span>
 </code></pre></div>
 <p>它的逻辑很简单：如果单个工具的结果超过约 50KB，就把完整内容写到磁盘上，在消息里只留一个 2KB 的预览摘要。这样模型还是能看到文件的大概内容（前 2KB），但不会撑爆上下文。</p>
-<p><img alt="" src="assets/870fa75e5f-5ac5be37d37c11bfe7feee4b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/870fa75e5f-5ac5be37d37c11bfe7feee4b.png" /></p>
 <p>除了单个工具的限制，还有一个<strong>消息级的总量控制</strong>，同一条消息里所有工具结果的总大小不能超过 200KB。如果超了，系统会挑出最大的那几个结果存磁盘，直到总量降到限制以内。</p>
 <p>这一层的精妙之处在于：<strong>完整内容并没有丢</strong>，它还在磁盘上。如果模型后面真的需要那个大文件的某个片段，它可以再次调用 Read 工具去读取特定的行范围。</p>
 <h4>第 2 步：砍掉远古消息</h4>
 <p><strong>问题是什么？</strong> 一次长对话可能有上百轮。对话开头那几轮的内容，比如用户最初的探索性提问、模型早期的试探性回答，到了后面几乎完全没用了。但它们仍然占着宝贵的上下文空间。</p>
-<p><img alt="" src="assets/72790fa4ab-86e82ecad1440bf764dec265.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/72790fa4ab-86e82ecad1440bf764dec265.png" /></p>
 <p><strong>Claude Code 怎么做？</strong> Snip 是最「粗暴」但也最高效的一层，直接把对话开头的一批老消息移除掉，然后插入一个边界标记告诉模型「这之前的内容已经被清理了」。</p>
 <div class="codehilite" data-lang="ts"><pre><code class="language-ts"><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">feature</span><span class="p">(</span><span class="s1">&#39;HISTORY_SNIP&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">snipResult</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">snipModule</span><span class="p">.</span><span class="nx">snipCompactIfNeeded</span><span class="p">(</span><span class="nx">messagesForQuery</span><span class="p">)</span>
@@ -548,13 +548,13 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 <span class="p">}</span>
 </code></pre></div>
 <p>它不做任何摘要，不总结「前面聊了什么」，直接砍掉。听起来很暴力，但对于那些确实已经完全过时的消息来说，这是代价最低的做法，因为它<strong>不需要额外调用大模型来生成摘要</strong>，零 API 开销。</p>
-<p><img alt="" src="assets/a07319d678-b353603182213869b16e4550.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a07319d678-b353603182213869b16e4550.png" /></p>
 <p>还有一个重要的细节：Snip 会把「我释放了多少 Token」这个数字（<code>snipTokensFreed</code>）传给后面的第 5 层 Auto-Compact。</p>
 <p>为什么？因为 Auto-Compact 是根据「当前上下文占了多少 Token」来决定是否触发的。如果 Snip 已经释放了足够的空间，Auto-Compact 就不需要触发了，<strong>避免两层同时做无谓的压缩</strong>。</p>
 <h4>第 3 步：裁剪老的工具输出</h4>
 <p><strong>问题是什么？</strong> 经过前两层之后，上下文里剩下的都是「不太老但也不太新」的消息。</p>
 <p>这些消息不能直接砍掉（可能还有用），但里面大量的工具输出其实已经过时了，比如 30 分钟前读的一个文件，现在那个文件可能已经被改过了。</p>
-<p><img alt="" src="assets/e9b791f7d2-1fc7e39a212311e032d69e34.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e9b791f7d2-1fc7e39a212311e032d69e34.png" /></p>
 <p><strong>Claude Code 怎么做？</strong> Micro-Compact 的核心思想是<strong>时间衰减</strong>：越老的工具结果越不重要，可以被裁剪。但是，不是所有工具的结果都能裁剪：</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">const COMPACTABLE_TOOLS = new Set([
   FILE_READ_TOOL_NAME,    // 读文件 → 可以重新读
@@ -568,7 +568,7 @@ using pendingMemoryPrefetch = startRelevantMemoryPrefetch(
 </code></pre></div>
 <p>看到规律了吗？<strong>可以被裁剪的，都是「可重新获取」的工具</strong>，Read 的结果可以再读一次，Bash 的输出可以再执行一次，搜索结果可以再搜一次。</p>
 <p>但 AgentTool（子 Agent 的输出）、TaskTool（任务状态）这类工具的结果<strong>永远不会被裁剪</strong>，因为子 Agent 的推理过程是不可重复的，砍掉就真的丢了。</p>
-<p><img alt="" src="assets/279a913a2d-53c77543fa084b4614616f45.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/279a913a2d-53c77543fa084b4614616f45.png" /></p>
 <p>具体裁剪逻辑是「保留最近 N 个，清理其余的」：</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">// 收集所有可裁剪工具的结果 ID
 const compactableIds = collectCompactableToolIds(messages)
@@ -585,7 +585,7 @@ const clearSet = compactableIds.filter(id =&gt; !keepSet.has(id))
 <p>为什么叫「时间衰减」？因为它的触发条件跟时间有关，当距离上一次 API 调用超过一定时间（默认约 60 分钟），说明大模型 API 端的 Prompt Cache 大概率已经过期了。既然缓存已经没了，那清理旧的工具结果也不会浪费之前的缓存投入。</p>
 <h4>第 4 步：读时投影</h4>
 <p><strong>问题是什么？</strong> 经过前三层后，如果上下文还是太大，下一步就得做全量摘要了。但全量摘要代价很高（要额外调一次 API），而且会把整段对话的细节全部丢掉。有没有一个「中间态」，比全量摘要轻，但比 Micro-Compact 重？</p>
-<p><img alt="" src="assets/88a0b725f8-05111ab5415f034c2ca6d412.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/88a0b725f8-05111ab5415f034c2ca6d412.png" /></p>
 <p><strong>Claude Code 怎么做？</strong> Context Collapse 引入了一个非常巧妙的概念，<strong>读时投影（Read-Time Projection）</strong>。</p>
 <p>什么意思呢？前面三层都是「写时压缩」，直接修改消息列表，把内容替换掉或删掉。但 Context Collapse 不修改原始消息，它只在<strong>调用 API 的那一刻</strong>，动态计算一个「压缩视图」给模型看。</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">// 这是 query.ts 中的调用
@@ -617,13 +617,13 @@ if (feature(&#39;CONTEXT_COLLAPSE&#39;) &amp;&amp; contextCollapse) {
 }
 </code></pre></div>
 <p>以 200K Token 的模型为例：有效窗口大约 180K（预留 20K 给输出），减去 13K 缓冲区，<strong>当上下文达到 167K Token 时触发</strong>。</p>
-<p><img alt="" src="assets/5d98a37ee6-1d86473663f877319b65f541.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5d98a37ee6-1d86473663f877319b65f541.png" /></p>
 <p><strong>触发后做了什么？</strong> 三步走：</p>
 <p><strong>第一步：生成摘要</strong>。调用大模型，把整段对话总结成一段结构化摘要。这个摘要不是随便写的，Claude Code 用一个精心设计的 Prompt 要求模型按多个维度来总结：用户的主要请求和意图、关键技术概念、涉及的文件和代码片段、遇到的错误和修复方案、问题解决过程、用户的所有消息（不能遗漏任何一条）、待完成的任务、当前工作状态、建议的下一步。</p>
-<p><img alt="" src="assets/0b94f4e415-619e671303dd37f2457837aa.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0b94f4e415-619e671303dd37f2457837aa.png" /></p>
 <p>为什么要这么细？因为压缩后模型要靠这段摘要来「恢复记忆」。如果摘要漏掉了关键信息（比如「用户还有一个待完成的任务」），模型就会忘记这件事。</p>
 <p><strong>第二步：替换旧消息</strong>。把压缩边界之前的所有消息删掉，替换为刚才生成的摘要。同时插入一条边界标记消息，记录压缩前的 Token 数，方便后续追踪。</p>
-<p><img alt="" src="assets/4c9b9d9eb0-1a0b8574330a0a8e426082e0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4c9b9d9eb0-1a0b8574330a0a8e426082e0.png" /></p>
 <p><strong>第三步：Post-Compact Restoration（压缩后恢复）</strong>。这是整个流程中最关键的一步，压缩完不是就完了，还要<strong>主动恢复最重要的上下文</strong>：</p>
 <div class="codehilite" data-lang="tsx"><pre><code class="language-tsx">export const POST_COMPACT_MAX_FILES_TO_RESTORE = 5
 export const POST_COMPACT_TOKEN_BUDGET = 50_000
@@ -631,7 +631,7 @@ export const POST_COMPACT_MAX_TOKENS_PER_FILE = 5_000
 export const POST_COMPACT_SKILLS_TOKEN_BUDGET = 25_000
 </code></pre></div>
 <p>系统会从文件状态缓存（<code>fileStateCache</code>）中找出最近访问过的文件，按最后访问时间排序，挑选最多 5 个、总共不超过 50K Token 的文件内容重新注入。同时恢复活跃的 Skill（不超过 25K Token），如果有进行中的 Plan 也会恢复 Plan 文件。</p>
-<p><img alt="" src="assets/c621c63b64-ea4ccd79e9341d14fc8bc76c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c621c63b64-ea4ccd79e9341d14fc8bc76c.png" /></p>
 <p>为什么要做恢复？因为压缩后模型「失忆」了，它不记得刚才读过的文件内容了。</p>
 <p>如果不恢复，模型的第一反应就是「让我重新读一下文件」，白白浪费一轮工具调用。主动恢复最近的文件内容，可以让模型<strong>无缝继续工作</strong>，体验上几乎感觉不到压缩发生过。</p>
 <p>还有一个兜底机制：如果全量摘要连续失败 3 次（比如 API 超时），系统会自动放弃，不会无限重试，这就是<strong>熔断器</strong> 模式，防止一个失败的压缩操作拖垮整个 Agent。</p>

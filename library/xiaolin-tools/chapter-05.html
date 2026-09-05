@@ -15,23 +15,23 @@
 <h4>先建立整体感：三层来看就清楚了</h4>
 <p>很多人第一次接触 MCP 会被各种概念搞乱，什么 Host、Client、Server、Tools、Resources、Prompts、JSON-RPC、stdio、SSE……一堆名词扔过来，确实容易懵。其实你只要把它拆成三层来看就清楚了：第一层是角色架构，搞清楚谁和谁在通信；第二层是能力类型，搞清楚 Server 能暴露什么东西给模型用；第三层是传输协议，搞清楚消息是怎么传的。</p>
 <p>这三层各自独立、互不耦合，合在一起就是 MCP 的完整骨架。下面我一层一层拆开来讲。</p>
-<p><img alt="" src="assets/dc1e19dc2d-8bb96be56d6d29484f7b5865.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dc1e19dc2d-8bb96be56d6d29484f7b5865.png" /></p>
 <h4>第一层：角色架构，Host / Client / Server</h4>
 <p>MCP 定义了三个角色，弄清楚每个角色负责什么是理解整个系统的关键。</p>
 <p>先说 Host。Host 是整个系统的宿主，也就是你在用的 AI 应用本身，比如 Claude Desktop、Cursor、Windsurf。Host 负责启动和管理所有 MCP Client，控制连哪些 Server、什么时候断开连接，是整个 MCP 系统的调度中心。你可以把 Host 理解成一家公司，它决定要和哪些外部供应商（Server）合作，并派出自己的联络员（Client）去对接。</p>
 <p>再说 Client。Client 是 Host 内部的连接模块，一个 Client 对应一个 Server 连接。它负责三件事：初始化和 Server 的连接、向 Server 查询「你有哪些工具/资源/模板」（能力发现）、把模型的调用请求转发给 Server 并把结果带回来。Client 是 Host 派出的「驻场联络员」，专门负责和某一个 Server 打交道，Host 本身不直接和 Server 说话。</p>
 <p>最后是 Server。Server 是工具提供方实现的独立进程，对外暴露自己的工具、资源和提示词模板。Server 完全不关心上面是哪个 Host 在用它，只需要按 MCP 协议响应 Client 的请求就行。这也是 MCP 的核心价值所在：Server 写一次，任何支持 MCP 的 Host 都能直接用，GitHub 的官方 MCP Server 不需要分别为 Claude Desktop 和 Cursor 各写一份。</p>
 <p>三者的关系用图来看是这样的：</p>
-<p><img alt="" src="assets/5d9c5b7e75-aa74ce36befb463be76b39bd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5d9c5b7e75-aa74ce36befb463be76b39bd.png" /></p>
 <p>一个 Host 同时连多个 Server，模型就同时拥有了所有这些工具能力，而应用代码完全不需要为此多写一行。</p>
 <h4>第二层：能力类型，Tools / Resources / Prompts</h4>
 <p>理解了角色分工，接下来看 Server 到底能暴露什么给 Client。很多人以为 Server 就只提供「工具」，其实不止，MCP 定义了三类能力，每类解决不同的需求，设计上有明确的职责分工。</p>
-<p><img alt="" src="assets/c841c611df-05925a8b20d2344ecec58328.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c841c611df-05925a8b20d2344ecec58328.png" /></p>
 <p>第一类是 Tools（工具），这是最核心、使用最频繁的能力，对应的是有副作用的操作，执行之后会改变外部世界的状态。创建文件、提交代码、发送 Slack 消息、调用第三方 API，都属于 Tools。由模型主动触发，执行有不可逆性，所以通常需要用户授权确认。Tools 对应 Function Calling 里「函数」的概念，只是在 MCP 框架下被标准化打包了。</p>
 <p>第二类是 Resources（资源），这是只读数据，没有任何副作用，只是把数据提供给模型看。读取日志文件、查询数据库记录、获取文档内容，都是 Resources。和 Tools 最本质的区别是什么呢？Resources 不会改变任何东西，可以更宽松地暴露，不需要像 Tools 那样谨慎授权。你可以把 Resources 理解成「工具的资料室」，可以进去查资料，但不能修改里面的东西。</p>
 <p>第三类是 Prompts（提示模板），这是预定义的提示词模板，带参数占位符。它解决的是「每次都要手写重复 prompt」的问题。比如把团队固定的代码审查标准封装成模板，接受「编程语言」和「代码内容」两个参数，调用时只需传参，自动展开成完整提示词，不用每次从头写。这个能力特别适合团队内部的最佳实践共享，把积累的优质 prompt 模板化，所有人统一复用，标准也更一致。</p>
 <p>三者的本质区别可以这样记：Tools 改变世界，Resources 观察世界，Prompts 结构化表达。</p>
-<p><img alt="" src="assets/b7901e3ca6-6fe0a2ca277be1d81f03be2e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b7901e3ca6-6fe0a2ca277be1d81f03be2e.png" /></p>
 <h4>第三层：传输协议，JSON-RPC 2.0 + 传输方式</h4>
 <p>Client 和 Server 之间的通信由两部分组成：消息格式和传输方式，这两层是解耦的。</p>
 <p><strong>消息格式</strong>统一用 JSON-RPC 2.0。每条消息是一个 JSON 对象，格式固定：Client 发请求时说清楚「调哪个方法、参数是什么、这次请求的 ID 是多少」，Server 返回响应时带上执行结果或错误信息，通过 ID 匹配请求和响应。用 JSON 格式的好处是易读、易调试、任何编程语言都能实现，不管 Server 是 Python 写的还是 TypeScript 写的，消息格式是一样的。</p>
@@ -47,11 +47,11 @@
 <p>那消息格式定了，怎么传呢？MCP 支持两种传输方式，适合不同的部署场景。</p>
 <p>第一种是 stdio（标准输入输出），Server 作为本地子进程运行，Host 通过操作系统的管道和它通信，Server 从 stdin 读请求、把结果写到 stdout。这种方式适合本地工具，不需要网络，延迟极低，也没有端口占用和网络安全问题，Claude Desktop 接本地 MCP Server 走的就是这种方式。</p>
 <p>第二种是 <strong>Streamable HTTP</strong>，Server 作为 HTTP 服务独立部署，Client 通过 HTTP 连接和它通信。这种方式适合远程部署的场景，支持多个 Client 共享同一个 Server，比如团队共用一个部署在服务器上的数据库 MCP Server，所有人连同一个服务，不需要各自本地跑一份。</p>
-<p><img alt="" src="assets/e156f98d37-2af751411724ff20d9056ff3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e156f98d37-2af751411724ff20d9056ff3.png" /></p>
 <p>这里有个演进要说清楚：MCP 早期（2024-11-05 规范）的远程传输方案叫「HTTP + SSE」，是双端点结构，一个 GET 端点开 SSE 接收 Server 推送，一个 POST 端点用来发请求。这套方案在 2025 年 3 月的规范更新里被改成了单端点的 Streamable HTTP（老的 HTTP+SSE 被标记为 deprecated，但保留向后兼容）。</p>
 <p>Streamable HTTP 并不是抛弃 SSE，而是把双端点合并成一个 <code>/mcp</code>。Client 用 POST 发请求，Server 根据情况灵活返回：短请求直接回普通 JSON，长请求则把 HTTP 响应升级为 SSE 流持续推送中间结果。这样一个端点就能干完所有事，对负载均衡器和 serverless 环境都更友好。</p>
 <p>这里有一个很重要的设计点：消息格式（JSON-RPC 2.0）和传输方式（stdio / Streamable HTTP）是解耦的，同一套 JSON-RPC 消息可以跑在任意传输层上，切换传输方式不影响上层的工具调用逻辑。这个设计让 MCP Server 既可以轻量地作为本地进程运行，也可以作为正式的微服务部署，实现方式灵活但协议层始终一致。</p>
-<p><img alt="" src="assets/6eff3d7f8b-d885fa62381543ffbad55b8a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6eff3d7f8b-d885fa62381543ffbad55b8a.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回到开头踩的雷，最大的问题是把 MCP 简单理解成「Client + Server」的二元结构，忽略了 Host 这个角色。</p>
 <p>面试回答这道题，第一个要点是三层结构要说清楚：角色层（Host / Client / Server）、能力层（Tools / Resources / Prompts）、协议层（JSON-RPC 2.0 + stdio / Streamable HTTP）。</p>

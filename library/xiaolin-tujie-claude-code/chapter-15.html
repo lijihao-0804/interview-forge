@@ -1,17 +1,17 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 记忆机制图解：为什么不用向量数据库？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
 <main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 记忆机制图解：为什么不用向量数据库？</span></nav><div class="module-meta">Agent 工程 · 第 15 / 19 章</div><h1>Claude Code 记忆机制图解：为什么不用向量数据库？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
 <p>我在公众号已经陆陆续续写过好几篇<a href="https://mp.weixin.qq.com/mp/appmsgalbum?__biz=MzUxODAzNDg4NQ==&amp;action=getalbum&amp;album_id=4404340926102421504#wechat_redirect">图解 Claude Code 原理</a>的文章，基本每篇都是万字长文，配上几十张图解。</p>
-<p><img alt="" src="assets/71be866e5e-a8ee2b66e00133139fa2d774.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/71be866e5e-a8ee2b66e00133139fa2d774.png" /></p>
 <p>说实话，开写第一篇之前我心里是打鼓的。这种硬核到要啃源码的技术文，真的会有人愿意读吗？</p>
 <p>结果挺出乎我意料。这么硬核的图解原理文，竟然有好几篇阅读量冲到了 5w+，最高的一篇甚至直逼10w+了。</p>
-<p><img alt="" src="assets/22ff9230ae-ec45ca16a6775f01b738d98a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/22ff9230ae-ec45ca16a6775f01b738d98a.png" /></p>
 <p>不是，林友们，你们一个个都这么硬核的吗？</p>
 <p>既然大家爱看，那就接着写。</p>
 <p>最近陆续收到不少读者留言，好几位读者点名想看一篇深度讲 <strong>Claude Code 记忆机制的文章</strong>。理由出奇地一致：面试被问太多次了。</p>
 <p>这事我太能理解了。</p>
 <p>agent 的记忆机制，如今已经是个不折不扣的面试热点。</p>
 <p>只要你简历上挂着一个 agent 项目，面试官大概率会追着问一句：「你这个 agent 的记忆机制，到底是怎么做的？」</p>
-<p><img alt="" src="assets/265f464013-5ce4281e20d3c1d0a24a5d02.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/265f464013-5ce4281e20d3c1d0a24a5d02.png" /></p>
 <p>而大多数人能端出来的，往往只有一个标准答案：「上向量数据库，把对话存成 embedding，每次新会话做相似度检索。」这答案不能算错，但只要你知道 Claude Code 偏偏不这么做，就会发现它平平无奇。</p>
 <p>那这一篇，我们就把 Claude Code 的记忆机制，从源码层面翻个底朝天。</p>
 <p>读完你会撞见一件挺反直觉的事：它走的路子跟业界主流的「向量检索」完全不一样，土到没用一个向量数据库，但用起来反而比向量检索好用得多。</p>
@@ -37,7 +37,7 @@
 <p>……</p>
 <p>答案可能跟你想的不太一样。<strong>LLM 本身根本「记不住」任何东西</strong>，它是彻头彻尾<strong>无状态</strong>的。</p>
 <p>每次你按下回车，对它来说都是「从头看一遍」：把系统提示词（system prompt）、所有历史对话、当前问题，全部塞进去，然后输出一个回复。</p>
-<p><img alt="" src="assets/a6185d247f-4879db327e71d0484ba87fd5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a6185d247f-4879db327e71d0484ba87fd5.png" /></p>
 <p>你以为它记得，其实是因为你的客户端（比如 ChatGPT 的网页前端）<strong>偷偷把历史消息又一起发了过去</strong>。所谓「上下文窗口」，就是塞这些消息的最大长度。</p>
 <p>打个比方，LLM 就像一只金鱼，记忆只有 7 秒。你跟它说完话，它转个身就忘。如果你想让它记得，得每次开口前先把过往对话再念一遍。</p>
 <p>聊天场景下，这套办法还能凑合。毕竟聊天就是「你一句我一句」，每轮也就几百个 token（token 你可以粗略理解成模型眼里的「字」，一个汉字大概算一到两个 token），把历史全念一遍也撑得住。但放到 agent 上，就完全不够用了。</p>
@@ -45,7 +45,7 @@
 <p>agent 跟聊天最大的不同，是它在<strong>长跑</strong>。</p>
 <p>调工具、读文件、调 API、再调工具、再读文件……跑着跑着上下文就爆窗口了。你不能指望它「每次都把昨天的对话全念一遍」，那点窗口光塞历史都不够。</p>
 <p>更关键的是，agent 想记住的东西，跟「历史对话」其实不是一回事。</p>
-<p><img alt="" src="assets/dbea7e249c-831ffb47010b1442fc65ae56.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dbea7e249c-831ffb47010b1442fc65ae56.png" /></p>
 <p>你昨天可能说过一句「我是十年 Go 后端，第一次接触 React」。今天打开新会话问它一个前端问题，你希望它记住的是「这个用户后端经验丰富但前端是新手」这个<strong>事实本身</strong>，而不是「你昨天说过那句话」。这两者天差地别。</p>
 <p>再举个例子。你跟 agent 强调过「测试别用 mock，要打真实数据库」。下次写测试你希望它直接照做，<strong>而不是你重新强调一遍</strong>。这种「规则类」的记忆，跟「对话历史」更是完全两码事。</p>
 <p>所以你看，agent 真正想记住的，大概是这几类东西：</p>
@@ -56,9 +56,9 @@
 <li>外部指针：去哪查什么信息</li>
 </ul>
 <p>光靠把对话历史存起来，再搞个 RAG 检索（RAG 即「检索增强生成」，先去资料库里查到相关内容、再拼进上下文给模型参考），<strong>根本解决不了上面这些问题</strong>。</p>
-<p><img alt="" src="assets/f869b2d3da-1c091553697c373d315992dc.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/f869b2d3da-1c091553697c373d315992dc.png" /></p>
 <p>我觉得一个更贴切的比喻，是把 LLM 想象成一个<strong>得了失忆症的实习生</strong>。</p>
-<p><img alt="" src="assets/3b15602210-6f22b198efbb67ea5e9b64d2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3b15602210-6f22b198efbb67ea5e9b64d2.png" /></p>
 <p>这个实习生很聪明，写代码、查资料、做调研样样都行。但他每天早上一来上班，<strong>啥都不记得</strong>。你必须在他工位上贴满便签：「你叫某某某」「这是你正在做的项目」「老板不喜欢 PPT 用斜体」……否则他每天都从零开始，干一天还干不出昨天的进度。</p>
 <p>那「记忆机制」要解决的核心问题，就变成了：<strong>这些便签贴在哪、谁来贴、什么时候撕掉</strong>。</p>
 <p>在盘点之前，还得再说清一件事，免得后面看糊涂：记忆其实分两种。</p>
@@ -76,27 +76,27 @@
 <li>上向量数据库做相似度检索？</li>
 <li>学操作系统，分热的常驻、冷的归档？</li>
 </ul>
-<p><img alt="" src="assets/9a37cb82f9-c42b2e348dc871f5fc29ba3d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9a37cb82f9-c42b2e348dc871f5fc29ba3d.png" /></p>
 <p>很正常，你能想到的，业界<strong>全部都试过</strong>。GitHub 上扒一扒开源 agent 框架，记忆机制大概就这四类。</p>
 <p>我们一个一个过一遍，过完你会发现一件挺有意思的事：<strong>这些「看上去都很合理」的方案，真用起来全都不太够</strong>。</p>
 <h4>方案一：滑动窗口 Memory</h4>
 <p>最直观、最暴力的一种。</p>
 <p>原理是把最近 N 轮对话原样保留，超过 N 轮的就丢掉。LangChain 早期那个 buffer window memory 就是这思路（在新版本里这套已经被官方标记弃用了，但思路依然散落在很多框架里）。</p>
-<p><img alt="" src="assets/5ac4a1ae70-87060e7c0aa250d8cf2bc7cb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5ac4a1ae70-87060e7c0aa250d8cf2bc7cb.png" /></p>
 <p>听上去合理对吧？反正窗口有限，丢就丢呗。</p>
 <p>但有个问题，<strong>你丢的不一定是没用的</strong>。</p>
 <p>举个例子。用户在第 1 轮说「我是后端工程师」，然后跑了 50 轮各种问答，第 51 轮问「这段 useState 怎么用」。滑动窗口一砍，「我是后端工程师」这句早就不在窗口里了。agent 给你按零基础前端讲，你还得再花两轮告诉它「我有十年开发经验」。</p>
 <p><strong>关键信息和无关信息混在一起被丢</strong>，是滑动窗口的硬伤。</p>
 <h4>方案二：对话摘要 Memory</h4>
 <p>那再聪明点。不直接砍，而是定期把旧对话<strong>用 LLM 总结一下</strong>，把摘要塞回上下文。对应 LangChain 早期的 summary memory。</p>
-<p><img alt="" src="assets/7debceb1bd-97cb84d0079501f2b88a7dde.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7debceb1bd-97cb84d0079501f2b88a7dde.png" /></p>
 <p>这样原文丢了，但「精华」保留下来了。</p>
 <p>听起来还不错？我们看个真实场景。</p>
 <p>假设用户在 20 轮前说过一句「我们的 API gateway 用的是 Kong，不是 nginx」。LLM 做摘要的时候觉得这句不太重要，就压成了「讨论了一些技术栈细节」。等下一次你问「我们的 API gateway 怎么排查 502」，agent 完全不知道你用的是 Kong，按 nginx 给你答了一通。</p>
 <p><strong>重要的细节被压糊</strong>，这是摘要 Memory 的硬伤。而且 LLM 做摘要本身要耗 token、有延迟，每隔几轮就摘一次，成本不低。</p>
 <h4>方案三：向量检索 Memory</h4>
 <p>这是目前最热的方案。Mem0、Letta（原名 MemGPT）、Zep，甚至大部分自己搓的 agent 都是这思路。</p>
-<p><img alt="" src="assets/b6355c812c-9417ab49e55b749fdf6b6b3e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b6355c812c-9417ab49e55b749fdf6b6b3e.png" /></p>
 <p>先说清楚 embedding 是什么。你可以把它理解成，给每段文字在一个高维空间里标一个坐标，意思相近的两段话，坐标也会靠得近。</p>
 <p>向量检索就是基于这个坐标做文章。它把每条对话或每条记忆<strong>转成 embedding 向量</strong>（也就是上面说的那个坐标），存进向量数据库。每次新对话来，先把用户当前的问题（query）也转成向量，然后跟数据库里所有记忆比一比坐标远近，召回最相似的前 K 条（业界叫 top-K）塞回上下文。</p>
 <p>Mem0 是这条路上最响的选手，按他们 2025 年 4 月那篇论文（arxiv 2504.19413）的数据，在 LoCoMo 这个长对话记忆基准上能打到 91.6 分，落地框架也覆盖了一大票。</p>
@@ -105,11 +105,11 @@
 <p><strong>第二个问题，召回不稳定</strong>。embedding 模型换一个，召回结果差别巨大。你今天用 OpenAI 的 embedding 表现好好的，明天换成开源的，记忆系统可能从「能用」变「不能用」。</p>
 <p><strong>第三个问题，维护成本高</strong>。要部署向量数据库（pinecone、qdrant、milvus 任选一个），要选 embedding 模型，要管 chunk 大小，要管索引更新，要管冲突合并……上线一套向量记忆系统，工程量比写 agent 主流程还大。</p>
 <p><strong>第四个问题最致命，用户没法看</strong>。你存进向量数据库的记忆是一堆 768 维浮点数，<strong>人脑根本读不懂</strong>。哪天 agent 给你召回了一条错的记忆，你想去看看是哪条记忆引起的？对不起，先把向量反查回原文，还要 debug 一通索引。</p>
-<p><img alt="" src="assets/5d68210034-3ebc689ec47412cf858add05.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5d68210034-3ebc689ec47412cf858add05.png" /></p>
 <h4>方案四：分层存储 Memory</h4>
 <p>MemGPT（现在叫 Letta）那一派的方案。</p>
 <p>原理是把记忆分成几层：core memory（常驻上下文）、recall memory（最近对话可召回）、archival memory（远期归档）。LLM 自己当操作系统，<strong>用工具调用主动在不同层之间搬数据</strong>。</p>
-<p><img alt="" src="assets/8b382db6e8-c7491f40c36cdbed8f560d9f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8b382db6e8-c7491f40c36cdbed8f560d9f.png" /></p>
 <p>这套设计学术上确实漂亮，但工程上落地的反馈是「概念太多、迁移成本太大」。让 agent 自己管理三层记忆，意味着每个 prompt 都要训练它什么时候搬、搬哪条，复杂度直接翻倍。</p>
 <p>而且分层归分层，<strong>搬数据的依据本质上还是「相关性匹配」</strong>，依然要靠 embedding 召回，前面那几个硬伤一个都没躲过去。</p>
 <h4>这四类方案的共同病根</h4>
@@ -118,7 +118,7 @@
 <p><strong>第二，不区分类型</strong>。「用户画像」「项目动态」「外部指针」全部一锅炖、用同一种方式检索，最后哪个都查不准。</p>
 <p><strong>第三，没有老化机制</strong>。一条记忆存进去就是永久的。今天你跟 agent 说「我们项目用 Kong」，半年后换成了 nginx，旧记忆还在告诉它你用 Kong。这种「权威的错误」比没记忆还糟糕。</p>
 <p><strong>第四，重检索、轻写入</strong>。所有方案都把精力花在「怎么查到」，但「该不该存」「存什么」这一步基本是放任的，导致垃圾进、垃圾出。</p>
-<p><img alt="" src="assets/e5ee1aa166-1ba73bb12ebcff7725a04c20.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e5ee1aa166-1ba73bb12ebcff7725a04c20.png" /></p>
 <p>带着这四个病根，我们来看 Claude Code 是怎么治的。</p>
 <hr />
 <h3>三、Claude Code 的两层记忆架构鸟瞰</h3>
@@ -130,11 +130,11 @@
 <p>别急。等你看完整套机制，你会明白为什么这个看着「土」的方案，<strong>反而把向量检索那一套比了下去</strong>。</p>
 <p>讲细节之前，先给你一张地图，否则一头扎进源码容易迷路。</p>
 <p>Claude Code 的记忆机制其实是<strong>两条独立的线</strong>，并行工作：</p>
-<p><img alt="" src="assets/63d48ac7f4-81d34af310e6bf5728524bc6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/63d48ac7f4-81d34af310e6bf5728524bc6.png" /></p>
 <p><strong>静态层是 <a href="http://CLAUDE.md">CLAUDE.md</a> 体系</strong>，本质是「声明式指令」。你写好放那里，agent 启动时全量加载。这一层解决的是「我们怎么协作」「这个项目要遵守什么规则」这种<strong>确定性的事情</strong>。</p>
 <p><strong>动态层是自动记忆系统</strong>，本质是「学习式偏好」。agent 在跟你互动的过程中，把它认为「值得记下来的事」自动写成记忆文件存到磁盘上，下次对话再按需检索。这一层解决的是「我从跟你的互动中学到了什么」这种<strong>不确定的事情</strong>。</p>
 <p>打个比方，<strong>静态层就像你工位上的「公司员工手册」</strong>，每个新员工入职都得看一遍；<strong>动态层就像你工位旁那本「自己的工作笔记」</strong>，写的是「老板不喜欢 PPT 用斜体」「张三的需求经常变」这种你慢慢摸索出来的东西。</p>
-<p><img alt="" src="assets/000f4eef3a-90253d2ae899b87cb0af316e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/000f4eef3a-90253d2ae899b87cb0af316e.png" /></p>
 <p>两层一起用，才是 Claude Code 记忆机制的完整答案。</p>
 <p>接下来两节我们各自展开，先看静态层。</p>
 <hr />
@@ -147,7 +147,7 @@
 <p>这六种来源，可见范围不同、谁能改也不同，硬塞进一个 <a href="http://CLAUDE.md">CLAUDE.md</a> 只会要么打架要么混乱。所以 Claude Code 索性把它拆成了<strong>六个层级</strong>。</p>
 <h4>六个层级各管一摊</h4>
 <p>按加载顺序从低到高，长这样：</p>
-<p><img alt="" src="assets/0d23e3b3f7-d305dbe4d7471074b97e5f0e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0d23e3b3f7-d305dbe4d7471074b97e5f0e.png" /></p>
 <p>每一层的定位都很明确：</p>
 <ul>
 <li><strong>Managed</strong>：放在系统级路径，只有管理员能改。公司级强制策略走这层</li>
@@ -157,10 +157,10 @@
 <li><strong>Auto</strong>（源码标识符 <code>AutoMem</code>）：项目级的自动记忆目录，Claude Code 自动写入的偏好，下一节单独展开</li>
 <li><strong>Team</strong>（源码标识符 <code>TeamMem</code>）：在 Auto 目录下再开一个 <code>team/</code> 子目录，团队共享的 AI 学到的偏好（需要 feature flag 开启）</li>
 </ul>
-<p><img alt="" src="assets/02f83573d8-4a76253696f455bac3b271e3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/02f83573d8-4a76253696f455bac3b271e3.png" /></p>
 <p>你可能注意到了，后两层 Auto 和 Team 存的其实是 <code>MEMORY.md</code> 文件，不是 <code>CLAUDE.md</code>。这里把六层统称「层级」，是因为它们同属一套加载体系、最后都拼进 system prompt，不必纠结文件名的差别。</p>
 <p>六层之间是<strong>叠加关系</strong>不是覆盖关系。Claude Code 启动时把它们<strong>全部拼接</strong>进 system prompt，让模型一起看到。</p>
-<p><img alt="" src="assets/74bdfa83d0-2d4e2567d69f6a29f5db1676.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/74bdfa83d0-2d4e2567d69f6a29f5db1676.png" /></p>
 <h4>@include：让 CLAUDE.md 互相引用</h4>
 <p>光分层还不够，还有个实际问题。</p>
 <p>假设你们公司有一份「通用安全规范」，每个项目都得遵守，难道每个项目的 <a href="http://CLAUDE.md">CLAUDE.md</a> 都把它<strong>复制一遍</strong>吗？</p>
@@ -184,7 +184,7 @@ description: React + Tailwind 项目规范
 </code></pre></div>
 <p>加载的时候，Claude Code 会<strong>比对当前编辑的文件路径</strong>，只有匹配上的规则才会被拼进 system prompt，匹配不上的就跳过。</p>
 <p>这个设计的妙处在于，它让 <a href="http://CLAUDE.md">CLAUDE.md</a> <strong>不再是「一次性全塞」</strong>，而是「按需注入」。一个大项目可以有几十条规则，每条只在它真正需要的时候才占用 token，整体上下文窗口就省下来了。</p>
-<p><img alt="" src="assets/2a9daacab3-ca5bf22abc07e08590676d4f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2a9daacab3-ca5bf22abc07e08590676d4f.png" /></p>
 <h4>截断双保险：防长行索引炸弹</h4>
 <p>最后聊一个跟安全有关的小设计，挺巧的。</p>
 <p><a href="http://MEMORY.md">MEMORY.md</a> 索引文件（下一节会讲是什么）要塞进 system prompt，所以必须有大小上限，否则索引膨胀就把上下文撑爆了。</p>
@@ -199,7 +199,7 @@ description: React + Tailwind 项目规范
 </code></pre></div>
 <p>两个限制<strong>任意一个先触发</strong>，就截断。截断的时候还会主动追加一条警告告诉模型「这个索引被截过了，部分内容没加载进来」，让模型自己有数。</p>
 <p>这种「行数 + 字节」的双截断，本质上是在防御「<strong>长行索引炸弹</strong>」这种特殊形态的上下文溢出。在做 agent 项目的时候，凡是用户可控的文本要进 system prompt，都建议参考这种双保险设计。</p>
-<p><img alt="" src="assets/31cf65820a-9b4795352f6272f7c2a45489.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/31cf65820a-9b4795352f6272f7c2a45489.png" /></p>
 <p>静态层讲完了，但<strong>真正有意思的是动态层</strong>，下一节是文章的重头戏。</p>
 <hr />
 <h3>五、动态层：自动记忆系统的完整闭环</h3>
@@ -209,7 +209,7 @@ description: React + Tailwind 项目规范
 <p>你昨天跟 Claude 抱怨「这个 mock 测试又骗过 CI 了」，今天换会话再写测试，它依然得你重新强调「别用 mock」。<a href="http://CLAUDE.md">CLAUDE.md</a> 又不会自己长出新内容。</p>
 <p>理想的状态应该是：<strong>Claude 在跟你聊天的过程中，自动把它学到的东西记下来</strong>，下次你不用再说一遍。</p>
 <p>这就是动态层要解决的问题，让 agent <strong>自己学、自己写、自己用</strong>。</p>
-<p><img alt="" src="assets/b403559cd3-525f8914aa48c55ea0cd8c21.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b403559cd3-525f8914aa48c55ea0cd8c21.png" /></p>
 <p>听起来像 RAG 那一套对吧？但 Claude Code 做得很不一样。它没有用向量数据库、没有用 embedding，而是用了一套<strong>结构化的文件系统 + LLM 选择</strong>。</p>
 <p>我们一步步拆。</p>
 <h4>四种类型为什么这么分</h4>
@@ -228,7 +228,7 @@ description: React + Tailwind 项目规范
 <span class="p">]</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="kd">const</span>
 </code></pre></div>
 <p>短短四个词，背后的设计哲学非常重，我们来拆。</p>
-<p><img alt="" src="assets/e829534a54-89009b1347388ce627452fe2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e829534a54-89009b1347388ce627452fe2.png" /></p>
 <p><strong>user 用户画像</strong>，记的是「你是谁」。比如「这位用户写了十年 Go，刚接触 React」。这类记忆让 agent 的回答<strong>因人而异</strong>，对老兵和新手用完全不同的解释方式。</p>
 <p><strong>feedback 行为偏好</strong>，记的是「你不喜欢什么 / 你确认有效的做法」。比如「这位用户不希望每次回复后做总结，diff 就够了」。这类记忆是 Claude Code 最看重的一种，因为它直接决定了 agent <strong>下一次行为的对不对</strong>。</p>
 <p><code>feedback</code> 类型有一个<strong>强制结构</strong>，正文必须包含三段：</p>
@@ -237,7 +237,7 @@ description: React + Tailwind 项目规范
 <span class="gs">**Why:**</span> 用户为什么这么要求（往往是踩过的坑）
 <span class="gs">**How to apply:**</span> 什么情况下生效
 </code></pre></div>
-<p><img alt="" src="assets/e972c551a5-646581ebff5a32b76c36e35a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e972c551a5-646581ebff5a32b76c36e35a.png" /></p>
 <p>为什么这么严？因为只记规则不记原因，遇到边界情况就抓瞎。比如「不要用 mock 测试」，单纯一句话不够，加上「上季度 mock 测试通过但 prod 迁移挂了」这个 Why，agent 在边界情况下就能<strong>自己判断这个 case 该不该破例</strong>。</p>
 <p><strong>project 项目动态</strong>，记的是「项目正在发生什么」。比如「移动端 3 月 5 号开始合并冻结」。</p>
 <p>这类记忆其实跟 feedback 一样吃<strong>同一套强制结构</strong>：开头是事实/决定，然后 Why（这事为什么发生，是哪条约束或截止日期推动的）、How to apply（这件事应该怎么影响 agent 的建议）。Claude Code 把这套约束同时套在 feedback 和 project 上，是因为这两类记忆最容易过期、最需要让 agent 自己判断「现在还该不该信」。</p>
@@ -246,7 +246,7 @@ description: React + Tailwind 项目规范
 <p>四种类型限定死了，记忆系统的「信息形态」就有了纪律。每次想存一条记忆，agent 必须先想清楚「这属于哪一类」，而不是一股脑往里塞。</p>
 <h4>该存什么 vs 不该存什么</h4>
 <p>跟「该存什么」同样重要的，是「<strong>不该存什么</strong>」。Claude Code 在系统提示词里明确列了一份禁令清单。</p>
-<p><img alt="" src="assets/a3c3b016d9-c33daaa8327a2432913a358c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a3c3b016d9-c33daaa8327a2432913a358c.png" /></p>
 <p>不该存的有这些：</p>
 <ul>
 <li>代码模式、架构、文件路径、项目结构（用 <code>grep</code> / <code>CLAUDE.md</code> 就能得到，存了反而和实际状态不一致）</li>
@@ -257,7 +257,7 @@ description: React + Tailwind 项目规范
 </ul>
 <p>为什么这条「不该存」清单这么重要？</p>
 <p>因为<strong>代码是「活的」，记忆是「死的」</strong>。代码随时在变，但一条记忆存进去就定格了。如果记忆说「<code>AuthService</code> 在某个具体路径第 42 行」，但代码已经重构了，这条记忆就变成了一个<strong>「权威的错误」</strong>，比没有记忆还糟糕。</p>
-<p><img alt="" src="assets/d6779aabc5-55c022547febb105c0e73f7a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d6779aabc5-55c022547febb105c0e73f7a.png" /></p>
 <p>所以记忆系统的纪律是：<strong>只记代码推不出来的东西</strong>。这个原则贯穿了整套设计。</p>
 <h4>存储设计：单文件 + 索引</h4>
 <p>类型定下来了，下一个问题来了。</p>
@@ -279,7 +279,7 @@ description: 集成测试必须连真实数据库
 </code></pre></div>
 <p>frontmatter 里的三个字段是「身份证」：<code>name</code> 是标识，<code>description</code> 是「这条记忆是啥」（<strong>这一句话非常重要，决定了它能不能被检索到</strong>），<code>type</code> 是四种类型之一。</p>
 <p>所有记忆文件放在一个目录下，目录里还有一个<strong>特殊文件 <code>MEMORY.md</code></strong>，是所有记忆的索引清单。</p>
-<p><img alt="" src="assets/5ac547b949-43c14c5b30e87f842cd9ff49.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5ac547b949-43c14c5b30e87f842cd9ff49.png" /></p>
 <p>这里有一个<strong>很关键的设计</strong>，回到刚才那个两难问题，Claude Code 的答案是：<strong>只塞「目录」，不塞「正文」</strong>。</p>
 <div class="codehilite"><pre><code>MEMORY.md 索引 → 始终加载进 system prompt
 独立记忆文件 → 按需加载
@@ -291,7 +291,7 @@ description: 集成测试必须连真实数据库
 <li>真正需要某条的时候，再把完整内容加载进来</li>
 </ul>
 <p>这个设计还顺带解决了上一节提到的「截断双保险」问题：索引始终常驻，所以索引的大小必须严格控制，行 + 字节双限制就是这么来的。</p>
-<p><img alt="" src="assets/aa324845ff-aed8ea6b28e0ff9e7cdd527b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/aa324845ff-aed8ea6b28e0ff9e7cdd527b.png" /></p>
 <h4>写入：Extract Memories 代理</h4>
 <p>光设计好类型和存储格式还不够。<strong>记忆是怎么写进去的？</strong></p>
 <p>最朴素的做法你应该想到了，<strong>让主对话自己写</strong>呗。每轮结束让模型「想想这次有啥该记的」，然后自己写文件。</p>
@@ -302,14 +302,14 @@ description: 集成测试必须连真实数据库
 <p>那 Claude Code 怎么躲开这两个坑？</p>
 <p>它的方案是：<strong>每轮对话结束后，后台单独跑一个代理来抽取记忆</strong>。</p>
 <p>这个代理叫 <code>extractMemories</code>，触发时机是每轮 query loop 完整结束（也就是模型给出最终回复、没有任何 tool call 了），通过一个 <code>stopHook</code> 钩子触发。</p>
-<p><img alt="" src="assets/60d8c3295c-629ddd1ec03be6e1c206e6b0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/60d8c3295c-629ddd1ec03be6e1c206e6b0.png" /></p>
 <p>源码注释把它的精髓讲得很清楚：</p>
 <div class="codehilite" data-lang="ts"><pre><code class="language-ts"><span class="c1">// Uses the forked agent pattern (runForkedAgent) — a perfect fork of the main</span>
 <span class="c1">// conversation that shares the parent&#39;s prompt cache.</span>
 </code></pre></div>
 <p>这里有个<strong>很妙的小心思</strong>。Extract Memories 代理不是从零启动一个新对话，而是「<strong>完美 fork（复刻一份）主对话</strong>」，复用主对话的 prompt cache（把已经算过的 system prompt 缓存下来，下次不用重算）。</p>
 <p>这意味着什么？意味着它不用重新加载几千 token 的 system prompt，<strong>只需要看着对话历史，决定「这次有没有值得记的东西」就行</strong>。整个抽取过程多花的钱很少。</p>
-<p><img alt="" src="assets/95b6ebff4c-0e555799fc374cbc51380abb.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/95b6ebff4c-0e555799fc374cbc51380abb.png" /></p>
 <p>抽取代理的逻辑大致是：</p>
 <ul>
 <li>扫一遍这一轮对话里用户的反馈、纠正、信息</li>
@@ -343,14 +343,14 @@ Be selective and discerning.
 <p>意思就是「不确定的就别选」。宁可少选，不可错选。</p>
 <p>为什么是 Sonnet 不是 Haiku？Haiku 更便宜啊。</p>
 <p>我的理解是：<strong>Sonnet 比 Haiku 准很多</strong>，记忆相关性判错的代价远大于多花的那点钱。一旦把错的记忆塞进上下文，整个回复都会被污染。这道选择题的容错率非常低，所以宁可贵一点也要选准。</p>
-<p><img alt="" src="assets/70ec482158-42e9c577751dfbb3b04613bc.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/70ec482158-42e9c577751dfbb3b04613bc.png" /></p>
 <p>还有几个细节值得讲。</p>
 <ul>
 <li><strong><code>alreadySurfaced</code> 过滤</strong>：上一轮对话已经露过脸的记忆，这次直接排除。让 Sonnet 把 5 个名额花在新候选上，而不是反复挑同样的。</li>
 <li><strong><code>recentTools</code> 过滤</strong>：最近用过的工具的「用法参考文档」不要选。因为 agent 当前对话里已经在实际使用这些工具了，再塞一份文档纯粹是噪音。<strong>但工具的「警告、坑点、已知问题」记忆要保留</strong>，「正在用」的时候恰好是这些警告最该出现的时候。</li>
 </ul>
 <p>这两个细节看着小，但反映的是一个非常成熟的产品思维：<strong>检索不只是匹配，还要看「当前上下文已经有了什么」</strong>。</p>
-<p><img alt="" src="assets/33485b2c9b-9fa8f56bca2e6102c1b8e0f0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/33485b2c9b-9fa8f56bca2e6102c1b8e0f0.png" /></p>
 <h4>注入：system-reminder 包裹 + 老化警告</h4>
 <p>记忆被选出来之后，怎么塞进对话？</p>
 <p>直接拼到 user message 里？不行，模型可能把它当成「用户刚说的话」。</p>
@@ -361,7 +361,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 [记忆内容]
 &lt;/system-reminder&gt;
 </code></pre></div>
-<p><img alt="" src="assets/0c10b82b5c-3bb6fea9ddd7b53a48e8c659.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0c10b82b5c-3bb6fea9ddd7b53a48e8c659.png" /></p>
 <p>注意上面那句「This memory was saved 5 days ago」。这就是<strong>记忆老化</strong>的设计：</p>
 <div class="codehilite"><pre><code>今天 / 昨天 → 不警告
 2 天以前 → 主动加警告，提醒模型「这是过去的快照」
@@ -378,7 +378,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <p>「记忆说 X 存在」不等于「X 现在存在」，这句话写得非常重。</p>
 <h4>完整闭环图</h4>
 <p>到这里，自动记忆系统的完整闭环就讲完了。我们把它串成一张图：</p>
-<p><img alt="" src="assets/12b8ccd175-a0f25b73f48a1ba00b5c247b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/12b8ccd175-a0f25b73f48a1ba00b5c247b.png" /></p>
 <p>抽取在右边、检索在左边，一写一读，记忆系统转起来。</p>
 <p>而最妙的是，整套机制没有一行 embedding、没有一个向量数据库，<strong>全是结构化文件 + 一个小模型当选择器</strong>。简单，但<strong>比向量检索好用得多</strong>。</p>
 <hr />
@@ -391,7 +391,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <p>Claude Code 不让记忆是「自由文本流」，而是强制四种类型 + 强制 frontmatter。</p>
 <p>为什么这么重要？因为<strong>自由文本无约束 = 垃圾堆</strong>。三个月后回头看自由文本的记忆库，你会发现里面什么都有，什么都查不准。</p>
 <p>强制类型的本质是<strong>逼 agent 在写之前先做一次「分类决策」</strong>：这条信息属于「用户画像」还是「行为偏好」？是「项目动态」还是「外部指针」？想清楚才能写，写下来的东西就有用。</p>
-<p><img alt="" src="assets/05f996f93e-e88c2990e0bcb77de1dc70e4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/05f996f93e-e88c2990e0bcb77de1dc70e4.png" /></p>
 <p>迁移到自己的项目，这条原则可以变成：<strong>给记忆定一个 schema，强制每条都填齐</strong>。哪怕只是 4 个字段，比啥都不要强一百倍。</p>
 <h4>第二条：索引常驻 + 内容按需</h4>
 <p>这是我最喜欢的一个设计。</p>
@@ -401,7 +401,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <li>完整内容按需加载（不浪费 token）</li>
 </ul>
 <p>这个思路不只适用于记忆系统。<strong>任何「内容总量大但只有少数需要展开」的场景</strong>都可以套：长 RAG 文档、知识库、tool 列表、历史 PR……都可以做成索引 + 按需展开。</p>
-<p><img alt="" src="assets/56d14fd31f-ff5b118980d490f9b48a38d8.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/56d14fd31f-ff5b118980d490f9b48a38d8.png" /></p>
 <h4>第三条：廉价模型做选择题</h4>
 <p>向量检索流派把检索当成「数学题」（相似度计算）来做。Claude Code 把检索当成「选择题」来做，让小模型挑。</p>
 <p>这是一个<strong>非常重要的思维转换</strong>。</p>
@@ -409,7 +409,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <p>让 Sonnet 当选择器，它给你的是<strong>自然语言判断</strong>：「这条该选，那条不该选」。判错了也是模型可以解释的错，调起来比调阈值容易得多。</p>
 <p>成本上，Sonnet 一次选择几百 token，比维护一个向量数据库的人力 + 算力便宜得多。</p>
 <p>迁移到自己的项目：<strong>只要候选集合不大（几百以内），用小模型选择 &gt; 向量检索</strong>。</p>
-<p><img alt="" src="assets/2162496b8b-f1d2c2ecad184316ddd6af62.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2162496b8b-f1d2c2ecad184316ddd6af62.png" /></p>
 <h4>第四条：时间感知 + 主动验证</h4>
 <p>最后一条，是给「权威的错误」上锁。</p>
 <p>记忆系统最大的风险，不是「召回不准」，而是「召回了一条<strong>已经过时的记忆</strong>，agent 闭着眼睛信」。这种错误特别隐蔽，因为模型把记忆当 ground truth，错也不知道是错。</p>
@@ -419,7 +419,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <li><strong>主动验证</strong>：记忆里写了文件路径 / 函数 / flag，使用前先 grep 一下</li>
 </ul>
 <p>这两道防线背后是同一个心法：<strong>记忆不是真理，是历史快照</strong>。模型对待记忆的姿态应该像对待 git log，「这是过去发生的事」，不是「这是现在的状态」。</p>
-<p><img alt="" src="assets/2ee435f061-d82460534bd9d93eaffa6e7b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2ee435f061-d82460534bd9d93eaffa6e7b.png" /></p>
 <hr />
 <h3>七、这道面试题该怎么答？</h3>
 <p>回到开头那个面试问题：</p>
@@ -443,7 +443,7 @@ This memory was saved 5 days ago. Verify it&#39;s still accurate before acting o
 <p><strong>第四步，给出可迁移的设计原则</strong>：结构化优于自由文本、索引常驻 + 内容按需、廉价模型做选择题、时间感知 + 主动验证。</p>
 <p>到这里，<strong>面试官不光会觉得你看过 Claude Code 源码，还会觉得你能把这套思路用在自己的 agent 项目里</strong>。</p>
 <p>如果你能答到这个程度，下次再被问到记忆机制这道题，大概率能拿下 offer。</p>
-<p><img alt="" src="assets/17d50fdf3c-2b4a40f71e2ef5d917594507.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/17d50fdf3c-2b4a40f71e2ef5d917594507.png" /></p>
 <hr />
 <h3>最后</h3>
 <p>最后说一句，记忆机制这套设计的精髓。</p>

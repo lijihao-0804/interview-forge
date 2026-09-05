@@ -26,7 +26,7 @@
 <p>说完为什么需要，你可能会想：评估嘛，不就是对答案吗，有什么难的？事实上，RAG 评估比想象中难做得多。</p>
 <p>普通分类任务评估很简单，有标准答案对比就行。RAG 的评估难在几个地方：答案是自然语言，没有唯一标准答案；出了问题不知道是检索层的锅还是生成层的锅；人工标注成本高，难以大规模持续做。</p>
 <p>正确的做法是把评估拆成两层，分别衡量检索质量和生成质量，定位问题更精准。先看检索层。</p>
-<p><img alt="" src="assets/29cb79ec9e-2c7c5aae0d4eb76b99621767.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/29cb79ec9e-2c7c5aae0d4eb76b99621767.png" /></p>
 <h4>第一层：检索层评估</h4>
 <p>不管 LLM 生成什么，先单独评估检索有没有把正确的 chunk 召回来。需要准备一批「问题 + 对应的正确 chunk ID」的测评数据（可以从历史问答里标注，也可以让领域专家整理）。</p>
 <p>这一层主要有两个指标。</p>
@@ -34,14 +34,14 @@
 <p>这个指标回答的是「找到没」的问题，不关心找到的是第几名。一般 Hit@5 低于 0.7 就说明检索层有问题，需要考虑换 Embedding 模型或者优化 Chunking 策略；高于 0.8 说明检索层 OK，如果答案还不好，问题在生成层。</p>
 <p><strong>MRR</strong>（Mean Reciprocal Rank，平均倒数排名）更进一步，关心的是「你要找的东西排在第几名」。计算公式也很直观，就是对每个问题算 <code>1 / 排名</code>，然后对所有问题求平均。所以第一名找到得 1 分，第二名找到得 0.5 分，第三名得 0.33 分，第五名得 0.2 分，排名越靠后得分越低。MRR 越高，说明正确内容排名越靠前，用户越早看到它。这个指标回答的是「多快找到的」。MRR 低于 0.5 通常说明 Rerank 效果不够好，正确内容召回了但没排到前面。</p>
 <p>很多人容易混淆这两个指标，觉得差不多。简单来说：<strong>Hit@K 是「找到没」，MRR 是「多快找到的」</strong>。Hit@5 等于 0.9，说明 90% 的问题都能在前 5 个结果里找到相关内容；但 MRR 只有 0.3，说明相关内容虽然找到了，但排得很靠后，可能第 4、第 5 才出现。配合起来用能精确定位检索层的问题出在哪一步。</p>
-<p><img alt="" src="assets/8f490731b1-4587c8cd57171262816648e9.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8f490731b1-4587c8cd57171262816648e9.png" /></p>
 <h4>第二层：生成层评估（RAGAs 框架）</h4>
 <p>检索层评估回答了「找没找到」的问题，但找到之后 LLM 有没有好好利用这些内容？这就需要生成层评估。RAGAs（Retrieval Augmented Generation Assessment）是目前使用很广泛的 RAG 端到端评估框架，它的核心思路叫做「LLM-as-a-Judge」，意思是用 LLM 来当裁判，自动给答案打分，不需要人工标注每一条，大幅降低评估成本。</p>
 <p>它有四个核心指标，分别是 Faithfulness、Answer Relevancy、Context Recall 和 Context Precision，每个都有直观的理解方式，下面挨个讲。</p>
 <p><strong>Faithfulness（忠实度）</strong>：答案里说的每件事，在检索到的 chunk 里有没有出处？这个指标衡量的是幻觉程度。你可以把它理解为「LLM 裁判」在逐句问：「这句话你从哪条资料里找到的依据？」没有依据的句子越多，分越低。目标值是 &gt; 0.8。</p>
 <p><strong>Answer Relevancy（答案相关性）</strong>：答案有没有回答用户问的那个问题？注意这个指标和 Faithfulness 是两回事，很多人会把它们搞混。Faithfulness 是问「说的是不是真的」，Answer Relevancy 是问「说的是不是用户想要的」。一个答案可以字字有据、但完全跑题，Faithfulness 高、Answer Relevancy 低。</p>
 <p>打个比方，你问「北京天气怎么样」，AI 回答了一篇关于北京历史的资料，内容全是对的，但和天气没有半毛钱关系，这就是 Faithfulness 高、Answer Relevancy 低。目标值是 &gt; 0.8。</p>
-<p><img alt="" src="assets/e7e81a2e52-75aea2d0887582997e4a52b5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e7e81a2e52-75aea2d0887582997e4a52b5.png" /></p>
 <p><strong>Context Recall（上下文召回率）</strong>：要回答这个问题，所需要的信息有多少比例在检索结果里覆盖到了？这个指标需要有「标准答案」作为参照，衡量的是检索层有没有「漏掉该找到的内容」。目标值是 &gt; 0.7。</p>
 <p><strong>Context Precision（上下文精确率）</strong>：这个指标和 Context Recall 配对出现，衡量的是检索结果里「有用的内容」排名是否靠前。也就是说，如果你召回了 10 个 chunk，相关的那几个有没有被排在前面，而不是混在无关内容的后面。它同样需要 ground_truth 作为参照计算。Context Recall 关注「该找的有没有找全」，Context Precision 关注「找到的里面相关的是不是排在前面」，两个配合能完整刻画检索质量。</p>
 <p>需要注意的是，RAGAs 本质上是「LLM-as-a-Judge」，每次评估都要调用 LLM 来打分。如果测试集有几千条，全量跑一遍的 token 消耗和时间成本相当可观。工程上通常有两种缓解方式：一是对核心测试集抽样评估，只跑最有代表性的 200～500 条；二是把评判者模型从 GPT-4o 降级到 GPT-4o-mini，成本降低 10 倍，精度损失在可接受范围内。</p>
@@ -51,7 +51,7 @@
 <p>Context Precision 低，说明检索召回了太多噪音，相关内容是找到了，但不相关的内容也混进来了，把 LLM 的注意力稀释掉了，优化方向是加强 Rerank 模型、调低最终送给 LLM 的 chunk 数量。</p>
 <p>Faithfulness 低，说明 LLM 在编造，幻觉问题多，你回答里说的东西在参考资料里找不到依据，优化方向是加强 Prompt 约束、引入引用核查、或者做检索质量门控，防止低质量上下文进入生成阶段。</p>
 <p>Answer Relevancy 低，说明答案跑题了，没有聚焦在用户问的问题上，通常是 Prompt 的指令不够明确，告诉 LLM「请严格回答问题本身，不要展开无关内容」往往就能改善。</p>
-<p><img alt="" src="assets/871c0878ec-5399f1a85dd7ed35ae0f078b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/871c0878ec-5399f1a85dd7ed35ae0f078b.png" /></p>
 <h4>线上指标：最终衡量标准</h4>
 <p>上面说的都是离线指标，但离线指标再好，最终还是要看线上用户的反应。毕竟离线跑得再漂亮，用户不满意也是白搭。</p>
 <p>几个实用的线上指标，每一个都能反映 RAG 系统的某个方面。</p>
@@ -62,7 +62,7 @@
 <p>会话解决率（session_resolution_rate）是最综合的指标，衡量「一次对话能不能解决用户的问题」，是最贴近用户体验的衡量维度。</p>
 <p>离线评估（Hit@K + RAGAs）用来快速迭代和定位问题，线上指标（踩率、转人工率）是最终验收标准。两者结合，形成「离线测评 -&gt; 上线 -&gt; 线上观测 -&gt; 发现问题 -&gt; 离线复现 -&gt; 修复 -&gt; 再上线」的完整评估闭环。</p>
 <p>这里还要提醒一点：离线指标好不代表线上一定好，反过来也一样。常见的情况是离线测试集不能完整代表真实用户分布，或者离线指标优化过头反而损害了线上体验（比如为了 Faithfulness 把 Prompt 收得太死，结果模型回答过于保守、用户觉得不好用）。所以两者要定期交叉对照，发现偏差时往往是测试集需要更新或者指标权重需要调整。</p>
-<p><img alt="" src="assets/ca32cb7ce0-3f360aacbc3304a4e06b7be6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ca32cb7ce0-3f360aacbc3304a4e06b7be6.png" /></p>
 <p>把几个核心指标和它们的含义整理成表，方便对照排查：</p>
 <table>
 <thead>

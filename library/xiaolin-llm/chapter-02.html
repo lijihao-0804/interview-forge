@@ -28,7 +28,7 @@
 <h4>解码策略的本质：从概率分布里选下一个 token</h4>
 <p>要讲清楚解码策略，得先回到大模型生成的最底层机制。</p>
 <p>LLM 是自回归生成的，每生成一个新 token，模型都会输出一个 vocabulary 大小（典型 5 万到 15 万）的概率分布，告诉你「下一个 token 是『苹』的概率 30%、是『香』的概率 25%、是『桃』的概率 20%……」。所谓的「解码策略」，就是回答<strong>怎么从这个概率分布里选一个 token 出来</strong>。</p>
-<p><img alt="" src="assets/7f25b8f715-b9e5e1b884db58fbc671479c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7f25b8f715-b9e5e1b884db58fbc671479c.png" /></p>
 <p>不同的解码策略就是不同的「选择规则」。规则的差异不只是「选哪个」，更深层是<strong>对生成任务本质的不同假设</strong>：</p>
 <ul>
 <li>贪心和 Beam Search 假设「存在一个唯一最优答案」，目标是找到它</li>
@@ -37,7 +37,7 @@
 <p>理解了这个底层假设的差异，下面五种策略各自的取舍就好理解了。</p>
 <h4>贪心解码：最简单也最容易踩坑</h4>
 <p>贪心解码（Greedy Decoding）是最朴素的策略：<strong>每一步无脑选概率最高的那个 token</strong>，然后这个 token 拼到序列后面，进入下一步。</p>
-<p><img alt="" src="assets/2d23d3f86e-4c83e72503fabbeaf22cd65f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2d23d3f86e-4c83e72503fabbeaf22cd65f.png" /></p>
 <p>贪心解码的优点：</p>
 <ul>
 <li><strong>极简</strong>：每步只挑最大值，时间复杂度 O(V)，几乎没开销</li>
@@ -49,7 +49,7 @@
 <div class="codehilite"><pre><code>I love my dog because he is so cute. He is so cute. He is so cute. He is so cute. ...
 </code></pre></div>
 <p>为什么会这样？因为模型某一步生成了「He is so cute」，下一步在概率分布里发现「He is so cute」这个模式刚刚出现过、上下文里这个模式的概率很高，又选了它；再下一步又选了一遍。贪心策略一旦走进这种「自我加强的循环」，就出不来了，会一直无限重复。</p>
-<p><img alt="" src="assets/8513ccb395-0aa89d503a3aa8e29fa0c6e4.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8513ccb395-0aa89d503a3aa8e29fa0c6e4.png" /></p>
 <p>更隐蔽的问题是，贪心解码生成的文本<strong>乏味、保守、缺乏惊喜</strong>。因为模型每步都选最稳的那条路，最终生成的文本就是「最大众化的表达」，读起来很 boring。这对代码生成、信息抽取这类任务可能没问题，但对创意写作、对话场景就太单调了。</p>
 <p>不过贪心也有它的最佳战场：<strong>精确任务</strong>。比如代码生成、SQL 生成、JSON 抽取这种「输出有标准答案」的任务，贪心反而是首选，因为它确定、不会乱写。</p>
 <h4>Beam Search：翻译时代的王者</h4>
@@ -62,21 +62,21 @@
 <li>……一直进行到生成结束（遇到 EOS token）</li>
 <li>最后从 3 条最终路径里选<strong>整体概率乘积最高</strong>的那条作为输出</li>
 </ul>
-<p><img alt="" src="assets/01e2ca9d51-e809aa0cbf880aad7f180bde.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/01e2ca9d51-e809aa0cbf880aad7f180bde.png" /></p>
 <p>Beam Search 的优点：</p>
 <ul>
 <li><strong>全局视野更好</strong>：能避开贪心走进死胡同的情况。比如某一步贪心选错了，Beam Search 还有其他 B-1 条备份路径可以走</li>
 <li><strong>接近全局最优</strong>：总体概率上比贪心高得多，输出更「合理」</li>
 </ul>
 <p>Beam Search 在 2014-2018 年的<strong>机器翻译时代</strong>是绝对主流，几乎所有翻译模型（Google NMT、Facebook fairseq、OpenNMT）都用 Beam Search。原因是翻译任务有一个独特属性：<strong>给定源语言句子，存在一个或几个「最优译文」</strong>，Beam Search 的「找概率最高序列」目标和翻译任务高度匹配。</p>
-<p><img alt="" src="assets/95f6aa6f55-04184f111cb3b9d6a81459ab.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/95f6aa6f55-04184f111cb3b9d6a81459ab.png" /></p>
 <p>但到了 LLM 时代，Beam Search 几乎被弃用了。原因得单独讲一节。</p>
 <h4>为什么 LLM 时代 Beam Search 失宠了</h4>
 <p>这是一个面试里的高频追问点。表面理由是「Beam Search 慢」（B 倍计算量），但深层原因是<strong>生成式任务的本质和 Beam Search 的目标不匹配</strong>。</p>
 <p>Beam Search 的优化目标是「<strong>找到整体概率最高的那条序列</strong>」。这个目标在翻译时代很合理，因为「I love you -&gt; 我爱你」这种翻译任务确实有「最优答案」。但在 LLM 的开放式生成任务（写故事、对话、回答开放问题）里，<strong>根本不存在「最优答案」</strong>，存在的只是「一个广阔的合理回答空间」。</p>
 <p>更糟的是，Beam Search 在长序列上有一个反直觉的失效模式：<strong>它会输出最 boring、最重复的内容</strong>。</p>
 <p>为什么？因为「整体概率最高」往往等价于「每一步都选最稳的词」。最稳的词通常是「重复前面已经出现过的内容」，因为重复内容在概率分布上特别尖锐（模型对重复模式特别熟悉）。结果就是 Beam Search 在生成长文本时，会陷入和贪心类似的复读，甚至比贪心还严重。</p>
-<p><img alt="" src="assets/2bb593e0bf-2cc5cdd59247d3b778ad6690.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2bb593e0bf-2cc5cdd59247d3b778ad6690.png" /></p>
 <p>实测过 LLM Beam Search 的人会发现，B 越大，输出越保守乏味，B=8 比 B=4 还差。这就是有名的<strong>「Beam Search 困境（Beam Search Curse）」</strong>。</p>
 <p>还有一个工程上的硬伤：<strong>Beam Search 和现代 LLM 推理优化不兼容</strong>。</p>
 <p>KV Cache 假设序列是「单一前缀往下生成」，Beam Search 要同时维护 B 条不同前缀，KV Cache 要复制 B 份，显存爆炸。Flash Attention、PagedAttention 这些优化也是为单序列设计的，Beam Search 改起来很麻烦。</p>
@@ -86,7 +86,7 @@
 <p>最基础的采样叫<strong>普通采样（vanilla sampling）</strong>：直接按模型输出的概率分布随机抽。这样每次生成的结果都不一样，多样性是有了，但有一个新问题：<strong>长尾噪声</strong>。</p>
 <p>模型的概率分布往往有一个「长长的尾巴」，比如「下一个词」分布里前 20 个词概率合起来 90%，但后面还有几万个词分布着 10% 的概率，每个都极小。普通采样有概率从这堆极小概率的词里抽到一个完全不合理的词（比如生成中文时突然冒出「@$%」），让整段输出毁掉。</p>
 <p>为了解决长尾问题，业界发展出三种采样调节器：<strong>Temperature、Top-K、Top-P</strong>。</p>
-<p><img alt="" src="assets/fb357f9926-f517fb52b2b499bea7fd1c59.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fb357f9926-f517fb52b2b499bea7fd1c59.png" /></p>
 <p><strong>Temperature</strong> 控制的是分布的<strong>锐度</strong>。数学上 Temperature T 的作用是把每个 logit 除以 T 再做 softmax：</p>
 <ul>
 <li>T=0：等价于贪心（永远选最高）</li>
@@ -153,7 +153,7 @@
 </tr>
 </tbody>
 </table>
-<p><img alt="" src="assets/e797b48886-6fea5c276d06c23af027da57.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e797b48886-6fea5c276d06c23af027da57.png" /></p>
 <p>实践中有个简单的判断口诀：</p>
 <ul>
 <li><strong>任务有标准答案</strong> -&gt; 贪心或 Temperature=0</li>
@@ -165,7 +165,7 @@
 <p>讲到这里，主流策略基本覆盖了。再简单提两个进阶方向，作为面试加分项。</p>
 <p><strong>推测解码（Speculative Decoding）</strong> 是一种推理加速技术。核心思路是用一个<strong>小的草稿模型</strong>（比如 7B）快速生成多个 token，再用<strong>大的目标模型</strong>（比如 70B）一次性验证这几个 token。如果草稿模型的预测和大模型一致，就直接用；不一致就以大模型为准。</p>
 <p>为什么这能加速？因为大模型的推理瓶颈是「访存」（每次只生成一个 token，要把整个权重从显存搬到计算单元），如果一次能验证 5 个 token，访存次数就少了 5 倍。实测下来，推测解码可以让大模型推理速度提升 2-3 倍，结果完全等价。</p>
-<p><img alt="" src="assets/5722e6dfc7-eda4ca97138d45e86f706ad0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5722e6dfc7-eda4ca97138d45e86f706ad0.png" /></p>
 <p><strong>Self-Consistency</strong> 是用于推理类任务的解码增强。核心思路：对同一个数学题/逻辑题，用较高的 Temperature 采样生成 N 条独立的推理路径，最后取<strong>最终答案出现最多次</strong>的那个（多数投票）。</p>
 <p>直觉是：正确答案往往可以通过多种推理路径得到，错误答案是随机的，多条路径不太可能收敛到同一个错误。Self-Consistency 在 GSM8K 等数学推理任务上能比单次贪心提升 5-15 个百分点，代价是 N 倍 API 调用成本。</p>
 <p>这两个进阶策略都是「在主流采样基础上的加速/加强」，不替代基础解码策略，而是叠加使用。能在面试里提一句，会显得你跟得上工业界的最新实践。</p>

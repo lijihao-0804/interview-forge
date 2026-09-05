@@ -20,7 +20,7 @@
 <li>第三类是协商模式，多个 Agent 之间没有严格的上下级关系，通过互相沟通、辩论来达成一致。</li>
 </ul>
 <p>这三种模式不是互斥的，一个复杂系统里经常会混合使用。理解了这个大分类之后，再来看具体的通信方式和路由策略就很清晰了。</p>
-<p><img alt="" src="assets/423338c64b-9ffa68f380f201bae0619c40.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/423338c64b-9ffa68f380f201bae0619c40.png" /></p>
 <h4>先说协作：Agent 之间怎么传递信息</h4>
 <p>你可以把多 Agent 系统想象成一个公司里的多个部门：研究部、开发部、测试部各司其职。部门之间传递信息，有两种方式。</p>
 <ul>
@@ -28,7 +28,7 @@
 <li>第二种方式，像共享白板。公司里所有部门都盯着同一块白板，上面写着「当前任务是什么、进展到哪一步了、各部门完成了什么」。研究部写上「资料整理完成」，开发部一看，知道可以开始了，于是接手并写上「代码开发中」。这就是「共享状态」的思路，所有 Agent 都读写同一个状态对象。LangGraph 就是用这个思路来设计的，它有一个贯穿所有 Agent 的 State，每个 Agent 执行完就往 State 里写入自己的结果，下一个 Agent 直接从 State 里读取前面的产出。</li>
 </ul>
 <p>这两种方式怎么选？如果各 Agent 之间的依赖关系比较强，前一步的结果要直接传给后一步，用共享状态更直接。如果你希望 Agent 之间尽量解耦，互相不知道对方的存在，用消息传递更合适。</p>
-<p><img alt="" src="assets/74e87b0430-7020438eb0864dbd78928450.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/74e87b0430-7020438eb0864dbd78928450.png" /></p>
 <h4>状态管理：多 Agent 共享状态的设计要点</h4>
 <p>既然提到了共享状态，这里有必要展开聊一下状态管理的设计，因为这是多 Agent 系统里最容易出 bug 的地方之一。</p>
 <p>为什么状态管理这么重要？你想，多个 Agent 都在读写同一个状态对象，如果设计不好，很容易出现一个 Agent 写入的结果被另一个 Agent 意外覆盖，或者读到了一半更新的脏数据。这就像公司那块共享白板，如果没有任何规则，两个人同时往白板上写东西，写完之后谁也看不懂。</p>
@@ -37,7 +37,7 @@
 <p>局部状态存放每个 Agent 自己的中间结果，比如搜索 Agent 找到的候选文档列表、代码 Agent 生成的草稿代码，这些在 Agent 内部使用，不会直接暴露给其他 Agent，避免信息污染。</p>
 <p>其次是写入规则要明确。最简单也最可靠的做法是「只追加不覆盖」，每个 Agent 完成工作后把结果追加到状态里，而不是修改已有的字段。LangGraph 的 State 更新机制就是这个思路，你定义好 State 的 schema，每个节点返回的是一个「增量更新」，框架帮你合并到全局状态里，这样就不会出现互相覆盖的问题。</p>
 <p>最后是错误状态的处理。如果某个 Agent 执行失败了，它的错误信息也应该写入状态，而不是悄悄吞掉。后续的 Agent 或者 Orchestrator 读到这个错误状态后，才能做出正确的决策，比如跳过这一步、换一个 Agent 重试、或者直接终止任务。</p>
-<p><img alt="" src="assets/4e9d610a97-18c57b461fb0133ef279bb71.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4e9d610a97-18c57b461fb0133ef279bb71.png" /></p>
 <h4>再说切换：Orchestrator 怎么决定叫谁</h4>
 <p>「切换」就是决定下一步把任务交给哪个 Agent，这个决策动作在系统里叫做「路由」。Orchestrator 就是那个负责做路由决策的角色。</p>
 <p>路由有两种策略。</p>
@@ -45,9 +45,9 @@
 <p>这就像工厂流水线，每道工序完成后，下一步去哪个工位是固定的，效率高、可预测、好调试。但它覆盖不了你没预料到的情况，如果任务走了一条你没定义规则的路径，系统就不知道该怎么办了。</p>
 <p>动态路由，则是把「下一步找谁」的决策权交给 LLM 来做。Orchestrator 把当前任务描述、已经完成了什么、还有哪些 Agent 可以调用，全部告诉 LLM，让它判断「现在应该叫哪个 Agent 来做下一步」。</p>
 <p>这种方式的优点是灵活，能处理任何你没预先设计的路径，任务走到一个边缘情况时，LLM 也能做出合理判断。缺点是每次路由都要多一次 LLM 调用，增加了延迟和成本，而且 LLM 偶尔也会路由错，系统行为的可预测性就降低了。</p>
-<p><img alt="" src="assets/7eb55faff3-5a398da931aa7ed53c0c5cb5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7eb55faff3-5a398da931aa7ed53c0c5cb5.png" /></p>
 <p>两种路由策略的对比可以用一张图来理解：</p>
-<p><img alt="" src="assets/7d54d68bd5-d8cf5e726718557dc2086a20.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7d54d68bd5-d8cf5e726718557dc2086a20.png" /></p>
 <p>动态路由在代码层面是怎么实现的？其实核心就是让 LLM 做一次分类决策，把可用的 Agent 列表和当前上下文传给它，让它返回应该调用哪个 Agent。下面是一个简化的示例：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">dynamic_route</span><span class="p">(</span><span class="n">task_context</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">available_agents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;让 LLM 根据当前上下文决定下一步调用哪个 Agent&quot;&quot;&quot;</span>
@@ -74,12 +74,12 @@
 <p>这种模式的好处是每个 Agent 对自己的任务边界最清楚，它知道自己做完了什么、还缺什么，由它来决定下一步找谁，往往比一个外部的 Orchestrator 判断得更准确。而且没有中央节点的瓶颈，系统的扩展性更好。</p>
 <p>缺点也很明显：没有全局视角。如果 Agent A 把任务交给了 Agent B，但 Agent B 又觉得这不是自己的活儿，再交给 Agent C，甚至 Agent C 又交回给 Agent A，就形成了死循环。</p>
 <p>所以用 Handoff 模式时，必须设计好每个 Agent 的职责边界，并且加上防循环的机制，比如记录任务已经经过了哪些 Agent，如果发现重复经过同一个 Agent 就强制终止。</p>
-<p><img alt="" src="assets/769d69e7ae-798ea19b636df14122228845.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/769d69e7ae-798ea19b636df14122228845.png" /></p>
 <h4>工程上怎么用</h4>
 <p>实践中最稳健的做法是两种路由组合用：主流程用静态路由，把确定性的节点切换都写成规则，保证绝大多数情况下系统行为稳定可预测；只在遇到没有匹配规则的边缘情况时，才交给 LLM 动态决策。这样静态路由负责「保底」，动态路由负责「兜住异常」，两者互补。</p>
 <p>至于 Handoff 模式，它适合那种每个 Agent 职责边界非常清晰、任务流向相对确定的场景。如果你的系统里 Agent 数量不多、每个 Agent 的输入输出接口定义得很明确，用 Handoff 比用中央 Orchestrator 更简洁。但如果 Agent 数量多、任务流向复杂，还是建议用 Orchestrator 来统一调度，避免 Agent 之间的交接变成一团乱麻。</p>
 <p>通信方式的选择同理：如果你的多 Agent 流程是一条相对清晰的流水线，各步骤之间有明确的前后依赖，就用共享状态，简单直接；如果你的系统需要让多个 Agent 独立并行、互相不感知对方的存在，就用消息传递，解耦清晰。</p>
-<p><img alt="" src="assets/4bec88b49c-57c59b6d70ea35165f7814cd.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4bec88b49c-57c59b6d70ea35165f7814cd.png" /></p>
 <h3>🎯 面试总结</h3>
 <p>回顾开头踩的雷，把协作说成「流水线传结果」，把切换说成「全靠 LLM 动态决策」，都是停留在表面没有说到设计取舍。</p>
 <p>答好这道题有几个层次。首先，协作机制要说出两种通信方式的本质区别：消息传递的核心是解耦，发送方不需要知道接收方是谁，适合 Agent 之间需要独立运行的场景；共享状态的核心是直接，所有 Agent 读写同一个对象，LangGraph 就是这个思路，适合各步骤依赖关系明确的流水线型任务。</p>

@@ -1,18 +1,18 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>GraphRAG 和 LightRAG 详解：原理、对比与选型 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260830-mobile1"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html">学习书架</a><nav aria-label="主导航"><a href="../search.html">全文搜索</a><a href="../../index.html">Hot 100</a></nav></header>
 <main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">小林：图解 Agent</a><span aria-hidden="true">›</span><span aria-current="page">GraphRAG 和 LightRAG 详解：原理、对比与选型</span></nav><div class="module-meta">Agent 工程 · 第 7 / 8 章</div><h1>GraphRAG 和 LightRAG 详解：原理、对比与选型</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>请通过“启动学习站.cmd”进入，才能写入数据库。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><p>大家好，我是小林。</p>
 <p>前段时间发的<a href="https://mp.weixin.qq.com/s/BqOdWsCjtXoUllUuFVb29w">图解 RAG</a> 的文章，当时评论收到了很多同学的好评，很多同学说是他看过最通俗易懂的 RAG 文章。</p>
-<p><img alt="img" src="assets/45e40f211a-c53e3e1759571b9dae599433.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/45e40f211a-c53e3e1759571b9dae599433.png" /></p>
 <p><em>img</em></p>
 <p>评论区还有也有同学在催更，让我讲讲 <strong>GraphRAG</strong> 和 <strong>LightRAG</strong>。</p>
-<p><img alt="img" src="assets/77a3fda0bb-01047b5c6bf135ea6cc8173f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/77a3fda0bb-01047b5c6bf135ea6cc8173f.png" /></p>
 <p><em>img</em></p>
 <p>那么，今天这篇就是来还债的。</p>
 <p>上一篇讲的是「传统 RAG」（也叫 Naive RAG），核心思路是：把文档切成块（Chunk）→ 做向量化（Embedding）→ 存入向量数据库 → 查询时基于语义相似度检索 Top-K 个文本块 → 塞给大模型生成答案。</p>
-<p><img alt="img" src="assets/75374fbf37-f274f64b4c77e90b31759dd0.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/75374fbf37-f274f64b4c77e90b31759dd0.png" /></p>
 <p><em>img</em></p>
 <p>这套流程很经典，也解决了大模型「闭卷考试」的难题。</p>
 <p>但这套方案在实际企业场景落地的时候，会撞上几堵很硬的墙。<strong>GraphRAG 和 LightRAG 就是为了绕过这几堵墙而出现的</strong>。</p>
-<p><img alt="img" src="assets/40525d855f-dabe8f015425041fd0c96b63.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/40525d855f-dabe8f015425041fd0c96b63.png" /></p>
 <p><em>img</em></p>
 <p>所以，这篇讲重点介绍下面这些内容，而且也都是我从大厂面经中收集到的面试题：</p>
 <ul>
@@ -44,7 +44,7 @@
 <p>因为传统 RAG 的检索逻辑是「找语义最相近的 Top-K 个文本块」。你问这个问题，它可能分别检索到：一些提到「欧洲供应商」的文本块、一些提到「安全审计」的文本块、一些提到「PII 处理」的文本块。</p>
 <p><strong>但它没有任何机制把这三个集合做「交集」</strong>。它只能把这些文本块一股脑扔给大模型，然后大模型自己也懵：我该怎么把这几份互相独立的资料关联起来？</p>
 <p>这种需要「A 关联到 B，B 关联到 C，然后从 A 推到 C」的问题，就叫<strong>多跳推理</strong>（Multi-hop Reasoning）。传统 RAG 在这种场景下经常翻车，给出的答案要么不完整，要么干脆瞎编。</p>
-<p><img alt="img" src="assets/2ee4b9235b-6752b1ae53a95b7f65c61b2a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/2ee4b9235b-6752b1ae53a95b7f65c61b2a.png" /></p>
 <p><em>img</em></p>
 <p>还有一个经典的例子，问「爱因斯坦的导师的导师是谁？」。这个问题得先找到「爱因斯坦的导师是谁」，然后再找到「那个导师的导师是谁」。<strong>信息是分散在多个文档里的，传统 RAG 一次性检索根本搞不定这种链式推理</strong>。</p>
 <h4>痛点二：全局性问题，它根本答不上</h4>
@@ -54,7 +54,7 @@
 <p>但传统 RAG 的本质是「检索」，它只会找 Top-K 个最像你问题的文本块。可你想问的是「主题思想」，哪个文本块会写「本书主题思想是 XXX」？几乎没有。所以它检索出来的 Top-K 个文本块，大概率只是一些零散的片段，大模型拿到这些片段根本没法总结出整体主题。</p>
 <p>这个问题在微软 GraphRAG 的论文里，被叫做 <strong>Query-Focused Summarization</strong>（查询聚焦的摘要）问题，<strong>本质上不是一个「检索」任务，而是一个「全局归纳」任务</strong>。传统 RAG 的 Top-K 检索机制，天生就处理不了这种需求。</p>
 <p>你想想，如果你在医院里问医生「过去一年咱们科室主要治疗的是哪几类病？」，医生要给出答案，得在脑子里把过去一年所有病例都过一遍、归归类。他不能只翻最上面的几份病例就告诉你答案吧？传统 RAG 干的就是这种「只翻最上面几份」的事情。</p>
-<p><img alt="img" src="assets/769a7d6d46-99474ddb9e03864b3e919188.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/769a7d6d46-99474ddb9e03864b3e919188.png" /></p>
 <p><em>img</em></p>
 <h4>痛点三：切块带来的「语义断裂」</h4>
 <p>传统 RAG 的第三个痛点，藏在我们经常忽略的细节里：<strong>文档切块（Chunking）本身就在毁坏语义</strong>。</p>
@@ -69,7 +69,7 @@
 <p>因为切块之后每个块都是独立的，语义相似的块不一定就是你真正想要的块。比如你问「苹果的营收」，可能会检索到一堆讨论「苹果」（水果）的文本块，因为它们在语义上都很接近「苹果」这个词。这种噪声进来之后，大模型就容易被误导。</p>
 <h4>一张表总结传统 RAG 的三大痛点</h4>
 <p>把上面讲的三大痛点汇总一下：</p>
-<p><img alt="img" src="assets/8e6c61543b-af0f7b823470c31cb665f97b.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/8e6c61543b-af0f7b823470c31cb665f97b.png" /></p>
 <p><em>img</em></p>
 <h4>痛点背后的根本原因：它不「理解关系」</h4>
 <p>你如果仔细琢磨上面这三个痛点，会发现它们背后其实是<strong>同一个根本问题</strong>：</p>
@@ -79,7 +79,7 @@
 <p>那问题来了，<strong>怎么让 RAG 真正「理解关系」呢？</strong></p>
 <p>答案就是：<strong>引入知识图谱</strong>。这也正是 GraphRAG 的核心思路。</p>
 <p>我们下一节就来聊聊，GraphRAG 到底是怎么把「找相似文本」升级成「理解关系」的。</p>
-<p><img alt="img" src="assets/dcca50380e-03b9e57c893677d7d828e131.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/dcca50380e-03b9e57c893677d7d828e131.png" /></p>
 <p><em>img</em></p>
 <hr />
 <h3>2、什么是 GraphRAG？为什么会有 GraphRAG？</h3>
@@ -90,7 +90,7 @@
 <p>咱们这篇文章<strong>主要讲的是微软这套 GraphRAG</strong>，因为它目前影响力最大，开源社区也最活跃，几乎是所有 GraphRAG 方案的参照对象。后面如果没特别说明，我说的 GraphRAG 都指微软这一套。</p>
 <p>好，定义说清楚了，那 GraphRAG 到底在干嘛？</p>
 <p><strong>一句话概括：GraphRAG 就是用 LLM 把文档「读成一张知识图谱」，然后基于这张图谱来做检索和回答</strong>。</p>
-<p><img alt="img" src="assets/808de2abb4-06bf2eb209b9d913cc84d6b5.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/808de2abb4-06bf2eb209b9d913cc84d6b5.png" /></p>
 <p><em>img</em></p>
 <h4>传统 RAG 和 GraphRAG 的核心差异是什么？</h4>
 <p>你如果把传统 RAG 和 GraphRAG 放一起对比，会发现它们的<strong>关键分歧就在于：知识是以什么形式存储的</strong>。</p>
@@ -100,15 +100,15 @@
 <p>假如你有一段文本：「张三在 2025 年创立了 A 公司，李四是 A 公司的 CTO，A 公司主要做自动驾驶业务。」</p>
 <p>传统 RAG 会把这段话整体变成一个文本块，存到向量数据库里。你下次问「A 公司的 CTO 是谁？」，它靠语义相似度检索回这段话，然后让大模型去阅读理解，答出「李四」。</p>
 <p>GraphRAG 则会从这段话里<strong>抽取出实体和关系</strong>，变成这样的结构化数据：</p>
-<p><img alt="img" src="assets/3911c08c44-9c1db464dd527ef18bb99dbe.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/3911c08c44-9c1db464dd527ef18bb99dbe.png" /></p>
 <p><em>img</em></p>
 <p>你看出差别了吗？<strong>GraphRAG 里的知识不是「一段话」，而是一张「关系网」</strong>。这张关系网里，每个节点是谁、每条边是什么关系，都是明确的、可追溯的。</p>
-<p><img alt="img" src="assets/7e518e9b0e-e6f09d232ac78f993e3f3e8e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/7e518e9b0e-e6f09d232ac78f993e3f3e8e.png" /></p>
 <p><em>img</em></p>
 <h4>为什么要搞成图？这么做到底好在哪？</h4>
 <p>你可能会问：费这么大劲把文档变成图，这么做到底有什么好处？</p>
 <p>其实就是<strong>为了解决咱们在第 1 章讲的那三个痛点</strong>。咱们一个一个来看。</p>
-<p><img alt="img" src="assets/90560720fa-8e98f9f2849ffbf35814b074.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/90560720fa-8e98f9f2849ffbf35814b074.png" /></p>
 <p><em>img</em></p>
 <p><strong>第一，多跳推理变得天然可行</strong>。</p>
 <p>上一节咱们提到那个「欧洲供应商 + 审计没过 + 处理 PII 数据」的查询，传统 RAG 干不了，是因为它没法做「交集」。但在图上，这件事就变成了图遍历（Graph Traversal）：从「欧洲」这个节点出发，找它连着的所有「供应商」节点，再筛选出那些连着「审计未通过」的，再筛选出那些连着「PII 数据处理」的。</p>
@@ -122,7 +122,7 @@
 <p>因为 GraphRAG 已经提前把文档里的实体和关系抽出来了，哪怕原文里「卡托普利属于 ACEI」和「严重肾功能不全者禁用」分散在两个地方，它们在图上也能通过「卡托普利」这个节点连起来。检索时不会丢掉因果关系，大模型也就不容易混淆了。</p>
 <h4>一个更形象的类比：从「图书馆找书」到「带导游游书店」</h4>
 <p>讲到这儿，你可能已经有感觉了，但咱们再用一个生活化的类比来强化一下理解。</p>
-<p><img alt="img" src="assets/07ad87a984-de2ed258c014a92b7f2ad831.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/07ad87a984-de2ed258c014a92b7f2ad831.png" /></p>
 <p><em>img</em></p>
 <p><strong>传统 RAG 像什么？像你去一个没有任何分类的图书馆找书</strong>。所有书都按出版日期顺序摆在一起，你想找「和气候变化有关的书」，只能靠关键字搜索，一本一本翻，找到几本就交给你。你想问「这个图书馆最近这几年主要收藏的是哪几个方向的书？」对不起，没人能回答你。</p>
 <p><strong>GraphRAG 像什么？像你进了一个带导游的主题书店</strong>。导游在你进门前已经把所有书按主题分好类了，每个主题区还贴了一张「这个主题区主要讨论什么」的概览海报。你要查具体的细节，导游带你精准定位；你要问宏观的主题，导游就把所有主题概览海报念给你听。</p>
@@ -139,7 +139,7 @@
 <h3>3、GraphRAG 的工作流程是怎样的？</h3>
 <p>搞清楚了 GraphRAG 是什么，咱们这一节就来拆解它<strong>到底是怎么工作的</strong>。</p>
 <p>和传统 RAG 一样，GraphRAG 也分成两个大阶段：<strong>索引阶段（Indexing，离线）</strong> 和 <strong>查询阶段（Query，在线）</strong>。</p>
-<p><img alt="img" src="assets/df929e47b3-6bfba5015a206024e253dad6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/df929e47b3-6bfba5015a206024e253dad6.png" /></p>
 <p><em>img</em></p>
 <p><strong>索引阶段做的事情</strong>：把原始文档变成一张带有社区摘要的知识图谱。这个阶段很重，需要 LLM 大量调用，通常离线跑一次就行。</p>
 <p><strong>查询阶段做的事情</strong>：用户提问时，基于这张图谱快速检索出相关信息，喂给 LLM 生成答案。</p>
@@ -181,7 +181,7 @@
 </code></pre></div>
 <p><strong>这一步跑完，所有文本块都会产出一堆实体节点和关系边</strong>。</p>
 <p>但注意，这里会有一个麻烦：<strong>重复和歧义</strong>。比如刘备可能在文本里被叫做「玄德」「先主」「刘皇叔」，LLM 抽取的时候可能把它们抽成了三个不同的实体。这个问题 GraphRAG 后面会通过「实体合并」和「社区检测」来一定程度上缓解，但不能完全解决。这也是我们第 4 章要讲的难点之一。</p>
-<p><img alt="img" src="assets/91737cfab5-60a0503e5f5a4873af08f581.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/91737cfab5-60a0503e5f5a4873af08f581.png" /></p>
 <p><em>img</em></p>
 <p><strong>第 3 步：生成实体/关系摘要（Summarization）</strong></p>
 <p>这一步容易被忽略，但其实很关键。</p>
@@ -192,7 +192,7 @@
 <p>到这一步，你手里已经有了一张完整的知识图谱，里面的节点是实体，边是关系。但这张图可能有成千上万个节点，怎么组织？</p>
 <p>GraphRAG 用的是<strong>Leiden 算法</strong>（读作「莱顿」），这是一种<strong>层次化社区检测算法</strong>，比常见的 Louvain 算法更稳定一些。</p>
 <p>Leiden 算法会把图谱划分成<strong>多个层级的社区</strong>，这是它最有意思的地方。</p>
-<p><img alt="img" src="assets/85d4a4e9c8-954477cc346dffa260244524.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/85d4a4e9c8-954477cc346dffa260244524.png" /></p>
 <p><em>img</em></p>
 <p>咱们还是拿《三国演义》来说。</p>
 <ul>
@@ -203,7 +203,7 @@
 <p><strong>这种层次化的划分，就是 GraphRAG 后面能处理「不同粒度全局问题」的基础</strong>。用户问得越宏观，就用越高层的社区；问得越具体，就用越低层的社区。</p>
 <p><strong>第 5 步：生成社区摘要（Community Reports）</strong></p>
 <p>社区划分完之后，GraphRAG 会<strong>为每一个社区单独生成一份摘要报告</strong>（叫 Community Report）。</p>
-<p><img alt="img" src="assets/f8fe375097-a769a3f2cb993bc3dd7fc760.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/f8fe375097-a769a3f2cb993bc3dd7fc760.png" /></p>
 <p><em>img</em></p>
 <p>这一步也是靠 LLM 来做。GraphRAG 会把一个社区内部的所有实体、关系、还有可选的 claim 一股脑儿都喂给 LLM，让它写一份总结报告。这份报告里一般会写清楚这个社区讨论的主题是什么、里面最重要的实体和关系有哪些、有哪些关键发现，以及这个社区在整个数据集里的影响力评分。</p>
 <p>这些社区报告<strong>就是 GraphRAG 回答全局性问题的核心资产</strong>。你可以把它们理解成图书馆里每个主题区前面贴的那张「本主题概览海报」。</p>
@@ -221,11 +221,11 @@
 <li><strong>交给 LLM 生成答案</strong></li>
 </ol>
 <p>你看，<strong>Local Search 的核心是「从一个点扩散到它的邻居」</strong>，很适合回答那些「围绕某个具体对象」的问题。</p>
-<p><img alt="img" src="assets/e8b76bb822-5a446abbb161c2ca1cc94cef.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/e8b76bb822-5a446abbb161c2ca1cc94cef.png" /></p>
 <p><em>img</em></p>
 <p><strong>模式二：Global Search（全局搜索）</strong></p>
 <p><strong>适用场景</strong>：用户问的是<strong>全局性、宏观性</strong>的问题。比如「整本书讲了哪几派势力的斗争？」「这份报告的主要结论是什么？」。</p>
-<p><strong>工作流程</strong>：GraphRAG 这里用的是一个<strong>Map-Reduce</strong>的策略：<img alt="img" src="assets/d48208b7b0-0b2a482c652213e2127f3920.png" /></p>
+<p><strong>工作流程</strong>：GraphRAG 这里用的是一个<strong>Map-Reduce</strong>的策略：<img loading="lazy" decoding="async" alt="img" src="assets/d48208b7b0-0b2a482c652213e2127f3920.png" /></p>
 <ul>
 <li><strong>Map 阶段</strong>：把某个层级（比如 Level 1）的所有社区报告都拿出来，分成好多批，对每一批都让 LLM 生成一个「中间答案」，并给每个观点打一个「重要性评分」</li>
 <li><strong>Reduce 阶段</strong>：把所有中间答案里的观点汇总，按评分排序，保留最重要的那些，最后让 LLM 合并成一个完整的最终答案</li>
@@ -237,13 +237,13 @@
 <p>这也是微软后来推出「动态社区选择」（Dynamic Community Selection）优化的原因：从根节点开始，只深入那些和问题相关的社区，跳过无关的子树，能大幅减少 LLM 调用次数。根据微软官方数据，这种优化能把平均参与计算的社区数从 1500 个降到 470 个左右。</p>
 <h4>一张图总结 GraphRAG 的完整工作流程</h4>
 <p>最后咱们把整个流程串起来：</p>
-<p><img alt="img" src="assets/071160cffd-919b5ce946f6ddbd3ae26809.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/071160cffd-919b5ce946f6ddbd3ae26809.png" /></p>
 <p><em>img</em></p>
 <p><strong>索引阶段（离线，一次性跑完）</strong>：</p>
-<p><img alt="img" src="assets/1e7b7ef4d5-bd6fa4e6dcb5f5e645ea18b3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/1e7b7ef4d5-bd6fa4e6dcb5f5e645ea18b3.png" /></p>
 <p><em>img</em></p>
 <p><strong>查询阶段（在线，每次查询都跑）</strong>：</p>
-<p><img alt="img" src="assets/6fb1cb6241-bb553129b411b894390b79e3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/6fb1cb6241-bb553129b411b894390b79e3.png" /></p>
 <p><em>img</em></p>
 <p>到这儿你应该已经把 GraphRAG 的整个流程搞清楚了。但你可能也注意到一个问题：<strong>这套方案虽然强大，但步骤多、调用贵、流程复杂</strong>。</p>
 <p>GraphRAG 在实际落地的时候，到底会撞上哪些坑？下一节咱们来盘一盘。</p>
@@ -257,7 +257,7 @@
 <p><strong>GraphRAG 第一个也是最让人肉疼的难点，就是构建成本</strong>。</p>
 <p>传统 RAG 的索引过程其实挺便宜的：切片 → 过一下 Embedding 模型 → 存进向量库。Embedding 模型的定价很低，每百万 token 也就几毛钱，整个过程几乎可以忽略成本。</p>
 <p>但 GraphRAG 的索引过程，<strong>简直就是一台 Token 焚烧炉</strong>。</p>
-<p><img alt="img" src="assets/704e23a086-c88d14f01535af87769ddb7d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/704e23a086-c88d14f01535af87769ddb7d.png" /></p>
 <p><em>img</em></p>
 <p>你想想，它每一步几乎都在调 LLM。每个文本块要调 LLM 来抽实体和关系，抽完之后每个实体和关系还要再调 LLM 合成一段综合描述，然后每个社区又要调 LLM 生成一份社区报告，要是你还开了 claim 抽取，那又是一轮 LLM 调用来提取各种断言。</p>
 <p><strong>你把这些加起来就会发现，整个过程等于把所有原文通过 LLM 反复读了好几遍</strong>，token 消耗轻轻松松就是原文的十倍甚至几十倍。</p>
@@ -305,7 +305,7 @@
 <p><strong>这个问题有多难？难到业界没有标准解法</strong>。</p>
 <p>生产环境通常会叠加好几层策略：字符串编辑距离（处理拼写差异）、向量相似度（处理语义相似）、LLM 判别合并（处理复杂情况）、甚至还要人工兜底。但每一层都会<strong>增加索引成本和延迟</strong>。</p>
 <p>有位资深工程师说过一句话我觉得特别扎心：<strong>「实体碎片化的知识图谱，比没有知识图谱更糟糕，因为它制造了一种虚假的完整感」</strong>。你以为图已经建好了，实际上里面全是断裂的关系，但你从外面根本看不出来。</p>
-<p><img alt="img" src="assets/d3a1bf289e-af33e38121c64b1fad6c0dd6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/d3a1bf289e-af33e38121c64b1fad6c0dd6.png" /></p>
 <p><em>img</em></p>
 <h4>难点三：查询延迟，尤其是 Global Search</h4>
 <p>GraphRAG 的第三个难点，是<strong>查询延迟</strong>。</p>
@@ -324,7 +324,7 @@
 <p>增量更新的具体难在哪、业界有哪些应对方案，咱们下一章专门聊。</p>
 <h4>小结：GraphRAG 是「昂贵的妥协」</h4>
 <p>咱们把 GraphRAG 的四大难点汇总一下：</p>
-<p><img alt="img" src="assets/87fa51a4b7-cd1e991cf60c184f0a9c28a9.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/87fa51a4b7-cd1e991cf60c184f0a9c28a9.png" /></p>
 <p><em>img</em></p>
 <table>
 <thead>
@@ -377,7 +377,7 @@
 <p><strong>第四步的麻烦，向量索引也要同步更新</strong>。</p>
 <p>新的实体、关系、社区摘要都要重新向量化，存进向量库。</p>
 <p><strong>你看，传统 RAG 里一步就能搞定的事情，在 GraphRAG 里变成了一连串「牵一发而动全身」的级联操作</strong>。</p>
-<p><img alt="img" src="assets/3d2d356c6d-82bae054a5539f6d85a7c8fa.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/3d2d356c6d-82bae054a5539f6d85a7c8fa.png" /></p>
 <p><em>img</em></p>
 <p>有研究数据可以佐证这个难点：一项 2025 年的研究显示，在需要<strong>时间敏感</strong>的查询上（也就是需要最新数据的场景），GraphRAG 的准确率比传统 RAG <strong>低了 16.6%</strong>。根本原因就是因为 GraphRAG 更新成本太高，很多团队的图谱都是「过期的」。</p>
 <h4>业界应对增量问题的几种思路</h4>
@@ -389,7 +389,7 @@
 <p>适合什么场景？<strong>文档更新频率低 + 数据量不大 + 对实时性不敏感</strong>的场景，比如公司年度法规库、历史档案库。</p>
 <p><strong>思路二：增量索引（Incremental Indexing）</strong></p>
 <p>微软 GraphRAG 的后续版本（以及 Fast GraphRAG 这类改良方案）都支持了<strong>增量索引</strong>，只处理新增的文档，把新抽出的实体和关系追加到已有图上。</p>
-<p><img alt="img" src="assets/65cce1ef5f-4ae7cf9add2dc2ae94b894c3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/65cce1ef5f-4ae7cf9add2dc2ae94b894c3.png" /></p>
 <p><em>img</em></p>
 <p><strong>核心流程是这样的</strong>：先对新文档做一次实体和关系抽取（注意，只处理新的，老文档完全不碰），然后把抽出来的新实体和图里的老实体做消歧合并（这一步也叫 upsert，实现上一般会用字符串编辑距离加上向量相似度组合判断），合并完之后把新关系追加到图上。这时候关键的一步来了：<strong>系统要判断哪些社区受到了这次更新的影响</strong>（通常是通过图算法识别受影响的子图），然后<strong>只对这些受影响的社区重新做一次检测和摘要</strong>，没受影响的部分保持原样不动。</p>
 <p><strong>优点</strong>：不用全量重建，成本低很多。Fast GraphRAG 这种方案跑 430 个文档的增量，用本地 14B 模型大概 8.5 小时就能搞定。</p>
@@ -414,7 +414,7 @@
 <p>LightRAG 的核心设计思想之一，就是「去社区化」，它根本不做 Leiden 社区检测和社区摘要，而是用另一套轻量级的「双层检索」机制来同时实现局部和全局查询。</p>
 <p>这么做下来的结果是什么呢？索引成本直接大幅降低，Token 消耗减少了 99%；增量更新也变得天然友好，新文档进来只需要追加节点和边就行，不用重新聚类；查询延迟也跟着降下来了。</p>
 <p>当然，这么做也是有代价的，代价是什么？下一章我们就来揭晓。</p>
-<p><img alt="img" src="assets/5c62794159-1b85ada32a86c6557ca17939.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/5c62794159-1b85ada32a86c6557ca17939.png" /></p>
 <p><em>img</em></p>
 <hr />
 <h3>6、什么是 LightRAG？为什么会有 LightRAG？</h3>
@@ -426,7 +426,7 @@
 <p>你可以这么理解 LightRAG 的定位：</p>
 <p><strong>LightRAG 就是一款为了解决 GraphRAG 痛点而生的「轻量化 + 工程友好型」的 GraphRAG 替代方案</strong>。</p>
 <p>它不追求「大而全」的复杂架构，而是在保留「图结构带来的关系理解能力」的前提下，把成本、速度、增量这三件事做到了极致。</p>
-<p><img alt="img" src="assets/f8974056b3-7f26edc51d77c2464d2b68ea.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/f8974056b3-7f26edc51d77c2464d2b68ea.png" /></p>
 <p><em>img</em></p>
 <h4>为什么会有 LightRAG？直接原因就是 GraphRAG 的痛</h4>
 <p>这个问题其实我们前面几章已经铺垫得差不多了。LightRAG 作者在论文里也很直白地点出了他们做这个工作的动机，<strong>就是冲着 GraphRAG 的几个关键问题去的</strong>。</p>
@@ -479,7 +479,7 @@
 <p>LightRAG 的做法是：<strong>不用提前做全局聚合，而是在查询时把查询本身拆成两层关键词，分别做检索</strong>。</p>
 <p>举个例子你就明白了。如果你问「卡托普利的禁忌症是什么？」，低层关键词就是「卡托普利」「禁忌症」这种具体的实体和术语，它关注的是细节。而如果你问「国际贸易如何影响全球经济稳定？」，高层关键词则是「国际贸易」「全球经济稳定」「经济影响」这种抽象的主题和概念，它关注的是更宏观的东西。</p>
 <p>拿到这两组关键词之后，LightRAG 就兵分两路。</p>
-<p><img alt="img" src="assets/65f66a9899-c283ab500cb2b7a7b0201c97.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/65f66a9899-c283ab500cb2b7a7b0201c97.png" /></p>
 <p><em>img</em></p>
 <p>一路<strong>用低层关键词去向量库里找相关的实体</strong>，另一路<strong>用高层关键词去向量库里找相关的关系</strong>（也就是边的描述）。一个找「点」，一个找「线」，<strong>两种信息合起来组装成上下文</strong>，最后让 LLM 生成答案。</p>
 <p><strong>这种双层检索的好处是</strong>：不用预先生成一大堆社区摘要，每次查询只调用一次 LLM 做关键词抽取，然后几次向量检索就能搞定。相比 GraphRAG 的 Map-Reduce 式全局查询，<strong>LightRAG 的查询成本和延迟都降了一个数量级</strong>。</p>
@@ -489,7 +489,7 @@
 <p><strong>因为它根本没有「社区」这一层，自然也就没有「社区失效」这种问题</strong>。增量索引的流程变得跟传统 RAG 一样轻。</p>
 <h4>成本对比：LightRAG 有多便宜？</h4>
 <p>我们用几组真实数据看一下 LightRAG 到底便宜多少：</p>
-<p><img alt="img" src="assets/ea5972d785-12583b577480bde7bbd94273.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/ea5972d785-12583b577480bde7bbd94273.png" /></p>
 <p><em>img</em></p>
 <p><strong>99% 的 Token 消耗降低、数量级的成本下降</strong>，这就是 LightRAG 最大的吸引力。</p>
 <h4>LightRAG 的代价是什么？</h4>
@@ -517,14 +517,14 @@
 <p><strong>这种「键值对」的设计其实挺聪明的</strong>。你想想查询的时候会发生什么？系统用查询关键词快速匹配 Key，一旦命中了，直接把对应的 Value 拿出来用作上下文，<strong>完全省掉了复杂的嵌入匹配和 chunk 遍历</strong>。</p>
 <p>去重也发生在这一步。<strong>同名的实体会被合并成一个节点，重复的关系会被合并成一条边</strong>。比如「刘备」在 82 个文本块里被抽取了 82 次，就会被合并成一个节点，所有 82 次的描述会被聚合成一个更完整的实体描述。</p>
 <p><strong>注意，LightRAG 的去重比较「朴素」</strong>，主要基于名称匹配。它不会处理「张三」和「Zhang San」这种同人不同名的情况。论文作者在设计时也承认：这种轻量化的去重虽然会导致语义相似的实体被保留为多个节点（比如「AI」和「Artificial Intelligence」），但这不是大问题，因为<strong>查询时所有相似实体都会被一起检索出来，再通过多路召回合并</strong>。</p>
-<p><img alt="img" src="assets/f8630f7365-30032f8abf13db99034bb2cf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/f8630f7365-30032f8abf13db99034bb2cf.png" /></p>
 <p><em>img</em></p>
 <p><strong>最终的存储结构</strong>：</p>
 <p>索引跑完之后，LightRAG 的知识会以两种形式存下来。一份是<strong>知识图谱</strong>，节点是实体、边是关系，默认用 NetworkX 作为存储后端（生产环境建议替换成 Neo4j 之类的图数据库）；另一份是<strong>向量数据库</strong>，里面存着实体描述的向量、关系描述的向量，还有关系关键词的向量。</p>
 <p><strong>你跟 GraphRAG 对比一下就能看出它的轻量化</strong>：GraphRAG 要存原文文本块 + 实体 + 关系 + 社区 + 社区摘要，整整五套东西；而 LightRAG 只存实体 + 关系两套，就这么简单。</p>
 <h4>查询阶段：双层检索的精髓</h4>
 <p>索引搞定之后，查询阶段才是 LightRAG 真正的亮点。咱们一步步看。</p>
-<p><img alt="img" src="assets/cf51616f90-f7c80dfdb50ef1202a748037.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/cf51616f90-f7c80dfdb50ef1202a748037.png" /></p>
 <p><em>img</em></p>
 <p><strong>第 1 步：关键词抽取（Keyword Extraction）</strong></p>
 <p>用户的问题进来，LightRAG <strong>先用一次 LLM 调用</strong>，从问题里抽出两种关键词。一种叫「低层关键词」（Low-level Keywords），它盯着的是具体的实体、细节和术语；另一种叫「高层关键词」（High-level Keywords），它关注的是更抽象的主题、总体概念。</p>
@@ -538,7 +538,7 @@ LLM 输出：
 }
 </code></pre></div>
 <p>你看，<strong>高层关键词是抽象主题，低层关键词是具体对象</strong>。这个分层是整个双层检索的基础。</p>
-<p><img alt="img" src="assets/fec1bdb10a-3feaea42addbcbbbb0a89d1e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/fec1bdb10a-3feaea42addbcbbbb0a89d1e.png" /></p>
 <p><em>img</em></p>
 <p><strong>第 2 步：双层检索（Dual-Level Retrieval）</strong></p>
 <p>拿到两组关键词之后，LightRAG 会分别做两路检索：</p>
@@ -586,7 +586,7 @@ LLM 输出：
 <p><strong>多数场景用 Hybrid 就够了，它是 LightRAG 推荐的默认模式</strong>。</p>
 <h4>增量更新：真正的「轻量友好」</h4>
 <p>前面我们反复提到 LightRAG 的增量更新很好，具体好在哪？咱们看看它的增量算法做了什么：</p>
-<p><img alt="img" src="assets/2c5050cc73-527f8f9ef70168e2343eb1bc.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/2c5050cc73-527f8f9ef70168e2343eb1bc.png" /></p>
 <p><em>img</em></p>
 <p>它的流程其实非常简单。</p>
 <ul>
@@ -598,16 +598,16 @@ LLM 输出：
 <p>这就是为什么 LightRAG 在增量场景下能做到「几乎零额外成本」。它的架构从设计之初就是为了增量友好来服务的。</p>
 <p><strong>一个细节值得提一下</strong>：LightRAG 目前的增量处理对「语义冲突」并不敏感。比如 Day 1 抽到了「GPT-5.1 是 OpenAI 最新模型」，Day 2 又抽到「GPT-5.2 是 OpenAI 最新模型」，LightRAG 会把两条关系<strong>同时保留</strong>，不会自动判定哪条更新。如果你的业务需要处理这种时效性冲突，得自己在上层加逻辑。</p>
 <h4>一张图总结 LightRAG 的完整工作原理</h4>
-<p><img alt="img" src="assets/5b0afc1e5b-4fdfa478b5ab90de907aad27.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/5b0afc1e5b-4fdfa478b5ab90de907aad27.png" /></p>
 <p><em>img</em></p>
 <p><strong>索引阶段</strong>：</p>
-<p><img alt="img" src="assets/bc107c2786-0439c228134bd11744061983.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/bc107c2786-0439c228134bd11744061983.png" /></p>
 <p><em>img</em></p>
 <p><strong>查询阶段（Hybrid 模式）</strong>：</p>
-<p><img alt="img" src="assets/925896a2fd-e675fd4637a1f5de6bce5bee.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/925896a2fd-e675fd4637a1f5de6bce5bee.png" /></p>
 <p><em>img</em></p>
 <p><strong>增量阶段</strong>：</p>
-<p><img alt="img" src="assets/b860757019-51e32d69093491ea1fc554ad.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/b860757019-51e32d69093491ea1fc554ad.png" /></p>
 <p><em>img</em></p>
 <p>到这儿你应该已经把 LightRAG 的工作原理搞清楚了。它整体比 GraphRAG 简洁得多，<strong>核心就是用「双层检索」替代了 GraphRAG 昂贵的「社区摘要」</strong>，用「名称去重」替代了复杂的实体消歧。</p>
 <p>讲到这儿，两个技术的原理都讲完了，接下来咱们就该做一次完整的对比，看看这两者到底有哪些差异。</p>
@@ -620,7 +620,7 @@ LLM 输出：
 <p><strong>LightRAG 的哲学是「按需检索，延迟聚合」</strong>，索引阶段只做最核心的实体关系抽取，不做全局预计算。查询时通过双层关键词临时拼凑出局部和全局视角。</p>
 <p><strong>打个比方</strong>：GraphRAG 像一个很勤快的图书管理员，在你进图书馆之前已经把每个主题区都写好了概览海报。LightRAG 像一个聪明的助手，你告诉他你想了解什么，他<strong>现场</strong>帮你把相关的书和书之间的关系梳理出来。</p>
 <p><strong>各有优劣</strong>：前者查得快但维护贵，后者查得灵活但深度略浅。</p>
-<p><img alt="img" src="assets/749f5c993c-e0e98fa7f92530a038770755.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/749f5c993c-e0e98fa7f92530a038770755.png" /></p>
 <p><em>img</em></p>
 <h4>维度二：索引阶段的差异</h4>
 <table>
@@ -669,7 +669,7 @@ LLM 输出：
 <p>先看 GraphRAG 的查询。如果你用的是 Local Search，它会先用向量找到入口实体，然后沿着图遍历扩展，最后组装上下文；如果是 Global Search，则是 Map-Reduce 式地遍历<strong>所有</strong>相关社区的摘要，每个社区生成中间答案，再汇总。</p>
 <p>再看 LightRAG 的查询（Hybrid 模式）。一上来先用一次 LLM 把问题拆成双层关键词；低层关键词拿去检索实体，扩展到一跳邻居；高层关键词拿去检索关系，聚合涉及的实体；两路最后合并，交给 LLM 生成答案。</p>
 <p><strong>最大的差别在哪呢？</strong> GraphRAG 的 Global Search 要<strong>遍历几百上千个社区</strong>，而 LightRAG 的 Hybrid 只做<strong>两路并行的向量检索</strong>。这就是为什么 LightRAG 的查询延迟能低一个数量级。</p>
-<p><img alt="img" src="assets/ccc2d7e019-a8ace706ef0c12bba171f7b3.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/ccc2d7e019-a8ace706ef0c12bba171f7b3.png" /></p>
 <p><em>img</em></p>
 <h4>维度四：增量更新能力</h4>
 <table>
@@ -831,7 +831,7 @@ LLM 输出：
 </tr>
 </tbody>
 </table>
-<p><img alt="img" src="assets/8f034c4b97-8d9386c4d54df96bce816b52.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/8f034c4b97-8d9386c4d54df96bce816b52.png" /></p>
 <p><em>img</em></p>
 <p>看完这张对比表，你应该已经对两者的差异心里有数了。但光知道差异还不够，<strong>真正关键的是：什么时候该选哪个？</strong></p>
 <p>接下来两节，咱们就专门聊 GraphRAG 和 LightRAG 各自的适用场景。</p>
@@ -847,7 +847,7 @@ LLM 输出：
 <li><strong>多篇研究报告的综述</strong>。咨询公司经常要做这种事：「过去十年这个行业的主要发展脉络是什么？」「这 50 份白皮书里主流观点的演进趋势是什么？」传统 RAG 会给你一堆零散文本片段，GraphRAG 则能通过社区报告给你提炼出主题层面的宏观答案。</li>
 <li><strong>大规模专利 / 学术论文分析</strong>。比如医药公司想知道「过去五年某个疾病领域的研究热点是怎么演进的」，这需要在数万篇论文上做主题发现和演进追踪，GraphRAG 的层次化社区结构能很好地支持。</li>
 </ul>
-<p><img alt="img" src="assets/fc4d73b206-b901607b95c98f8709447b0f.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/fc4d73b206-b901607b95c98f8709447b0f.png" /></p>
 <p><em>img</em></p>
 <h4>场景二：跨文档多跳推理的高价值场景</h4>
 <p>这类场景的共同点是：<strong>回答一个问题需要跨多个文档做关系推理，而且答错了代价很大</strong>。</p>
@@ -883,7 +883,7 @@ LLM 输出：
 <li><strong>客户支持系统</strong>。CRM 系统每天都有新的工单、投诉、解决方案记录。LightRAG 的增量友好特性可以让这类动态知识库长期保持新鲜。</li>
 <li><strong>持续更新的技术文档</strong>。比如 GitHub 开源项目的文档、API 文档、内部技术 wiki，这些东西几乎每天都在变。LightRAG 的「追加式增量」设计就是为这种场景量身定制的。</li>
 </ul>
-<p><img alt="img" src="assets/c281d8dd7c-e3b4afcf4b7623c865d83503.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/c281d8dd7c-e3b4afcf4b7623c865d83503.png" /></p>
 <p><em>img</em></p>
 <h4>场景二：成本敏感的中小团队和初创公司</h4>
 <p><strong>一句话：预算紧张、但又想做出效果好的 RAG 应用，选 LightRAG</strong>。</p>
@@ -940,7 +940,7 @@ LLM 输出：
 <p>还有一种越来越常见的做法，那就是<strong>混合架构</strong>。具体怎么搭呢？</p>
 <p>对于那些稳定的、历史性的核心知识（比如公司规章、法规库），用 GraphRAG 建一次索引，做深度分析；对于动态的、日常变化的增量数据（比如工单、新闻、产品更新），就用 LightRAG 来做实时响应。然后在查询时再搭一个<strong>路由器（Query Router）</strong>，根据查询的类型，把它分流到对应的系统里去。</p>
 <p>这种混合架构的好处是能同时享受两者的优势，代价嘛，就是工程复杂度会上升。</p>
-<p><img alt="img" src="assets/4c18d5307d-3db946309eb369fdc4d5b670.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/4c18d5307d-3db946309eb369fdc4d5b670.png" /></p>
 <p><em>img</em></p>
 <h4>一句话总结</h4>
 <p><strong>GraphRAG 是深度分析的重型武器，LightRAG 是日常使用的轻巧刀具</strong>。</p>
@@ -949,10 +949,10 @@ LLM 输出：
 <h3>总结</h3>
 <p>咱们花了很长的篇幅，把 GraphRAG 和 LightRAG 这两个技术从痛点、原理、难点到场景都讲了一遍。最后用一张图把整个脉络串起来：</p>
 <p><strong>RAG 技术的演进线</strong>：</p>
-<p><img alt="img" src="assets/69cff36e14-fa4ab97400cd42fbc1786a1a.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/69cff36e14-fa4ab97400cd42fbc1786a1a.png" /></p>
 <p><em>img</em></p>
 <p><strong>一张决策树帮你选型</strong>：</p>
-<p><img alt="img" src="assets/f272dd816a-c697c0a438aa3c7bf426360c.png" /></p>
+<p><img loading="lazy" decoding="async" alt="img" src="assets/f272dd816a-c697c0a438aa3c7bf426360c.png" /></p>
 <p><em>img</em></p>
 <p><strong>最后给一个务实的建议</strong>：</p>
 <p>不要一上来就选 GraphRAG 这种「重型方案」。<strong>先用传统 RAG 搭个 MVP，跑一段时间看看用户到底在问什么类型的问题</strong>。如果发现大量问题涉及跨文档关系、全局主题，再考虑升级到 LightRAG。如果 LightRAG 也搞不定你那部分高精度、深度分析的需求，才需要上 GraphRAG。</p>

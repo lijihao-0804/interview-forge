@@ -41,7 +41,7 @@
 70B 模型 INT4: 70 × 10⁹ × 0.5 字节 = 35 GB
 </code></pre></div>
 <p>7B 模型一张消费级 GPU（4090 24GB）就能跑得很轻松，70B 模型一张 A100 80GB 也够用了。这就是为什么大模型时代量化几乎是部署的标配。</p>
-<p><img alt="" src="assets/23df88a345-bb4b0ea8c8a870d6b94d27ab.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/23df88a345-bb4b0ea8c8a870d6b94d27ab.png" /></p>
 <p>显存只是一方面，量化还有第二个收益：<strong>推理速度</strong>。INT4 计算的硬件吞吐通常比 FP16 高 2-4 倍（取决于 GPU 是否有专门的 INT4 计算单元），而且访存量也是 1/4，对「access-bound」的推理过程是极大的加速。</p>
 <p>但量化不是免费午餐。把 16 位的连续浮点数压到 4 位的 16 个离散整数级，必然会损失精度。整个量化算法的核心，就是回答一个问题：<strong>如何在最小的精度损失下，把高精度数压到低精度数？</strong></p>
 <h4>量化的核心：映射连续到离散</h4>
@@ -55,11 +55,11 @@
 </code></pre></div>
 <p>对于权重值 0.7，量化结果是 round(0.7 / 0.333) ≈ 2，反量化回来是 2 × 0.333 ≈ 0.666，精度损失 0.034。</p>
 <p>这就是量化的基本套路。不同算法的差别，在于<strong>怎么算 scale 和 zero_point</strong>、<strong>怎么处理 outlier（异常大的权重值）</strong>、<strong>怎么补偿量化误差</strong>。</p>
-<p><img alt="" src="assets/a057c4d2fa-ba73b380303a6dcb3433426d.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a057c4d2fa-ba73b380303a6dcb3433426d.png" /></p>
 <p>实际工程里，量化还分两种风格：</p>
 <p><strong>对称量化（Symmetric）</strong>：假设数值对称分布在 0 周围（min = -max），不需要 zero_point，公式更简单。适合权重这种通常对称分布的数。</p>
 <p><strong>非对称量化（Asymmetric）</strong>：数值不对称（比如 ReLU 之后的激活值都是正数），需要 zero_point 把范围对齐。适合激活值这种偏分布的数。</p>
-<p><img alt="" src="assets/596eeaccb9-fe1e0924f6e3b5f1ff5135e2.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/596eeaccb9-fe1e0924f6e3b5f1ff5135e2.png" /></p>
 <p>理解了基础映射机制，下面看不同位数下精度的实际表现。</p>
 <h4>INT8 / INT4 各自的精度边界</h4>
 <p>不同位数的量化，精度损失差别很大。来看实测数据：</p>
@@ -108,7 +108,7 @@
 <p>INT8 量化经常被叫做「<strong>接近免费的午餐</strong>」。FP16 -&gt; INT8 在很多模型和任务上的损失很小，肉眼几乎看不出差别。但这里不要说成绝对无损，涉及数学、代码、长上下文、工具调用时，还是要在自己的业务集上评测。</p>
 <p>INT4 是当前很流行的甜蜜点。损失 1-3% 这个说法只能当粗略经验，在大多数通用任务里可接受，体积压到 FP16 的 1/4，推理还能加速。vLLM、SGLang、llama.cpp 等推理框架都支持多种 INT4 / GGUF / GPTQ / AWQ / FP8 方案，但默认通常还是不量化，是否量化要由用户显式选择。</p>
 <p>INT3、INT2 开始严重退化。损失曲线不是线性的，是「先平后陡」的曲线：从 INT8 到 INT4 损失增加不大，但从 INT4 到 INT3 突然增加很多，再到 INT2 模型基本就不能用了。</p>
-<p><img alt="" src="assets/3a488f758e-d984e5077cb72d1554ac5a0e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3a488f758e-d984e5077cb72d1554ac5a0e.png" /></p>
 <p>但「平均精度损失 1-3%」这个数字背后藏着一个魔鬼：<strong>精度损失不是均匀分布的</strong>。某些类型的任务（特别是数学推理、长链路逻辑）对量化误差特别敏感，可能损失 10%+；另一些任务（简单分类、文本生成）几乎无损。这是为什么后来出现了 GPTQ 和 AWQ 这种更精细的量化算法。</p>
 <h4>GPTQ：基于误差补偿的逐层量化</h4>
 <p>GPTQ（GPT Quantization）是 2022 年 IST Austria 提出的算法，核心思路是「<strong>逐层量化 + 误差补偿</strong>」。</p>
@@ -123,7 +123,7 @@
   - 量化产生的误差，反向修正后面还没量化的权重</li>
 <li>一层量化完，进入下一层，重复</li>
 </ol>
-<p><img alt="" src="assets/2c22b0f205-3ecedaaee1e30318a3f7fbee.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2c22b0f205-3ecedaaee1e30318a3f7fbee.png" /></p>
 <p>GPTQ 的优点：</p>
 <ul>
 <li><strong>数学严谨</strong>：基于 Optimal Brain Surgeon 的二阶优化理论</li>
@@ -142,7 +142,7 @@
 <p>研究者们观察到一个现象：<strong>模型里大约 1% 的权重承担了 99% 的输出贡献</strong>，他们把这些权重叫 <strong>Salient Weights（显著权重）</strong>。如果把这 1% 的权重保护好（保持高精度），其他 99% 激进量化到 INT4，模型效果几乎不掉。</p>
 <p>但问题是，怎么找到这 1% 的关键权重？AWQ 的方法是看「<strong>激活值的大小</strong>」。</p>
 <p>直觉是这样的：权重 W 的输出贡献 = W × 激活值 X。如果某些输入位置的 X 特别大（比如 attention 中某些 token 的激活值是其他位置的 100 倍），那么对应的权重列就是「重要权重」，量化时要小心保护。</p>
-<p><img alt="" src="assets/218dbcede4-025c33f8b013bfac4a9aa106.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/218dbcede4-025c33f8b013bfac4a9aa106.png" /></p>
 <p>具体技术上，AWQ 通过一个<strong>逐通道缩放</strong>操作，把重要权重通道的数值扩大（这样量化时它们占据更宽的整数范围，损失更小），不重要的不动。这个缩放是数学等价变换，不改变模型输出，只是让量化更友好。</p>
 <p>AWQ 的优点：</p>
 <ul>
@@ -160,13 +160,13 @@
 <p>GPTQ 和 AWQ 主要解决「<strong>部署时</strong>」的量化问题。但还有一个更激进的需求：<strong>能不能让 4-bit 量化的模型还能继续微调？</strong></p>
 <p>这就是 QLoRA（Quantized LoRA）要回答的问题。2023 年华盛顿大学的研究者发表论文，提出 NF4（NormalFloat 4-bit）量化方案，配合 LoRA 微调，实现了「24GB 消费级 GPU 微调 7B 模型」这一惊人成就。</p>
 <p>NF4 是一种<strong>非均匀量化</strong>。普通 INT4 是均匀分隔（16 个值平均分布），NF4 利用了一个事实：<strong>模型权重的分布近似于均值为 0 的正态分布</strong>。</p>
-<p><img alt="" src="assets/303711ae82-1a8d4c352ca68caddd7c1baf.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/303711ae82-1a8d4c352ca68caddd7c1baf.png" /></p>
 <p>NF4 把 16 个量化值的分布也设计成正态分布形状，让密集区域（0 附近）有更多刻度、稀疏区域（远离 0）刻度少。这样量化误差更小。</p>
 <p>QLoRA 在 NF4 基础上还加了两个优化：</p>
 <p><strong>1. 双重量化（Double Quantization）</strong>：连量化用的 scale 常数也再量化一次，进一步省显存
 <strong>2. 分页优化器（Paged Optimizer）</strong>：用 NVIDIA 统一内存，把优化器状态溢出到 CPU 内存，避免显存峰值溢出</p>
 <p>最终的效果：在一张 24GB 4090 上，可以微调 7B 模型，甚至能微调 13B、33B（用 48GB 卡）。这一下让大模型微调民主化了，无数个人开发者用 QLoRA 训出了自己的领域模型。</p>
-<p><img alt="" src="assets/784e7e5f44-dce3833d24f20bb4cf96fe56.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/784e7e5f44-dce3833d24f20bb4cf96fe56.png" /></p>
 <p>QLoRA 是量化与微调结合的典型案例，也证明了「INT4 量化的模型不是死模型，还能继续学习」。</p>
 <h4>怎么选量化方案</h4>
 <p>讲到这里，五种方案（FP16、INT8、AWQ、GPTQ、QLoRA NF4）都梳理完了。实际选型怎么看？</p>
@@ -210,13 +210,13 @@
 <p><strong>1. AWQ vs GPTQ 怎么选？</strong> 大多数线上部署可以先试 AWQ 或框架推荐的 INT4 路线，因为推理 kernel 和量化耗时通常更友好。GPTQ 在追求精度、已有 GPTQ 权重、或者特定校准数据更匹配时也很常见。不要脱离框架支持谈算法好坏，最后跑得快不快，取决于量化格式和推理 kernel 是否匹配。</p>
 <p><strong>2. INT4 vs INT8 怎么选？</strong> 显存够、质量要求高，就优先试 INT8 / FP8 或直接 FP16；显存不够、吞吐敏感，再上 INT4。如果是 70B 这种大模型，INT4 经常是性价比最高的选择，但不是唯一选择，具体还要看硬件、并发和上下文长度。</p>
 <p><strong>3. GGUF 是什么？</strong> 它不是量化算法，是 llama.cpp 用的<strong>文件格式</strong>。GGUF 内部可以存各种量化方案的权重（Q4_K_M、Q5_K_M、Q8_0 等），是一个容器。这跟 AWQ/GPTQ 是「<strong>算法</strong>」不是一个层级。</p>
-<p><img alt="" src="assets/b3f059fd7e-301c31f36dc00fbb5aec3bd1.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b3f059fd7e-301c31f36dc00fbb5aec3bd1.png" /></p>
 <h4>量化的副作用与陷阱</h4>
 <p>量化看起来很美，但有几个常见的陷阱要警惕，否则上线后会被用户骂。</p>
 <p><strong>1. Outlier（异常值）问题</strong></p>
 <p>模型权重里偶尔会出现一些「极端大」的值（绝对值是其他权重的几十倍），这些 outlier 会把量化范围拉得很宽，导致大部分普通权重的量化精度被严重稀释。</p>
 <p>应对：AWQ 的「逐通道缩放」是专门处理这个的。GPTQ 的 Hessian-based 也能识别出 outlier 优先保护。但极端情况下还是会出错。</p>
-<p><img alt="" src="assets/c694d8eee8-edb3c38efd0f7fc9f22c5d24.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c694d8eee8-edb3c38efd0f7fc9f22c5d24.png" /></p>
 <p><strong>2. KV Cache 量化的挑战</strong></p>
 <p>权重量化（FP16 -&gt; INT4）现在很成熟了，但 <strong>KV Cache 量化</strong>（FP16 -&gt; INT8/INT4）才刚起步。KV Cache 在长上下文下的占用比权重还大，量化它能省更多显存，但精度损失对长链路推理特别敏感（比如数学推理、代码生成）。这是 2024-2026 年量化方向的研究热点。</p>
 <p><strong>3. 不同任务的精度敏感度差异巨大</strong></p>
@@ -228,7 +228,7 @@
 <li>长链路代码生成：损失 10%+</li>
 </ul>
 <p>所以<strong>部署量化模型前必须在自己的业务场景下做评测</strong>，不能直接看论文里的平均数。</p>
-<p><img alt="" src="assets/8a761c723d-2f15627a5288f05d6ebe763e.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8a761c723d-2f15627a5288f05d6ebe763e.png" /></p>
 <p><strong>4. 和其他优化的兼容性</strong></p>
 <p>量化要和 Flash Attention、KV Cache、Speculative Decoding 等其他推理优化同时使用，不同框架的支持度不一样。AWQ、GPTQ、FP8、GGUF 在不同框架里的成熟度和性能差异很大。选量化方案前先看你的部署框架支持哪些，再用自己的业务集压测质量和吞吐。</p>
 <h3>🎯 面试总结</h3>
