@@ -345,8 +345,8 @@ def create_user(username: str, password: str, role: str = "user",
     """创建用户：校验用户名/密码长度，scrypt 存哈希；可传入外部连接参与注册事务。"""
     if not USERNAME_RE.match(username):
         raise ValueError("用户名限 2~32 位字母数字下划线连字符")
-    if len(password) < 6:
-        raise ValueError("密码至少 6 位")
+    if len(password) < 8:
+        raise ValueError("密码至少 8 位")
     if role not in ("admin", "user"):
         raise ValueError("非法角色")
     own_connection = conn is None
@@ -377,10 +377,14 @@ def ensure_admin(username: str, password: str) -> dict[str, object]:
 
 
 def auth_login(username: str, password: str) -> sqlite3.Row:
-    """登录校验：用户存在、已启用、密码正确三者缺一不可；成功则刷新 last_login。"""
+    """登录校验：用户存在、已启用、密码正确三者缺一不可；成功则刷新 last_login。
+    查无此用户时对假哈希跑一次等价校验，保证与"密码错误"耗时一致（防用户名枚举）。"""
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        if row is None or int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
+        if row is None:
+            verify_password(password, _DUMMY_HASH)
+            raise ValueError("用户名或密码错误")
+        if int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
             raise ValueError("用户名或密码错误")
         connection.execute("UPDATE users SET last_login = ? WHERE id = ?", (now_iso(), row["id"]))
         return row
@@ -405,9 +409,10 @@ def destroy_session(token: str) -> None:
 
 
 def session_user(token: str) -> sqlite3.Row | None:
-    """由会话令牌解析当前用户：过期或被停用一律视为未登录。"""
+    """由会话令牌解析当前用户：过期或被停用一律视为未登录；顺带触发每日过期清理。"""
     if not token:
         return None
+    _maybe_purge_sessions()
     with closing(connect_auth()) as connection:
         return connection.execute(
             """SELECT u.id, u.username, u.role, u.is_active
@@ -531,8 +536,8 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
 
 def reset_user_password(username: str, new_password: str) -> dict[str, object]:
     """管理员重置用户密码：更新哈希并清除该用户全部会话（强制重新登录）。"""
-    if len(new_password) < 6:
-        raise ValueError("密码至少 6 位")
+    if len(new_password) < 8:
+        raise ValueError("密码至少 8 位")
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
@@ -545,11 +550,37 @@ def reset_user_password(username: str, new_password: str) -> dict[str, object]:
     return {"username": username, "reset": True}
 
 
+def change_own_password(user_id: int, old_password: str, new_password: str,
+                        keep_token: str = "") -> dict[str, object]:
+    """登录用户修改自己的密码：需验证原密码；成功后吊销本人其余会话（当前会话保留）。"""
+    if len(new_password) < 8:
+        raise ValueError("密码至少 8 位")
+    with closing(connect_auth()) as connection:
+        row = connection.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row is None or not verify_password(old_password, str(row["password_hash"])):
+            raise ValueError("原密码错误")
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                           (hash_password(new_password), user_id))
+        connection.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?",
+                           (user_id, keep_token))
+        connection.execute("COMMIT")
+    return {"changed": True}
+
+
 # ---- 登录防爆破：进程内滑动窗口（IP → [失败次数, 解禁时间戳]），重启即清零 ----
 _LOGIN_FAILS: dict[str, list[float]] = {}
 _LOGIN_LOCK = threading.Lock()
 _LOGIN_MAX_FAILS = 5
 _LOGIN_LOCKOUT_SECONDS = 600.0
+
+# ---- 注册频控：每 IP 每小时 10 次 + 全局每小时 100 次（防高速穷举注册码）----
+_REGISTER_ATTEMPTS: dict[str, list[float]] = {}
+_REGISTER_GLOBAL: list[float] = []
+_REGISTER_LOCK = threading.Lock()
+_REGISTER_WINDOW = 3600.0
+_REGISTER_MAX_PER_IP = 10
+_REGISTER_MAX_GLOBAL = 100
 
 
 def login_rate_limit_ok(ip: str) -> bool:
@@ -577,6 +608,50 @@ def login_rate_limit_clear(ip: str) -> None:
     """登录成功后清零该 IP 的失败计数。"""
     with _LOGIN_LOCK:
         _LOGIN_FAILS.pop(ip, None)
+
+
+def register_rate_limit_ok(ip: str) -> bool:
+    """注册接口频控：滑动 1 小时窗口内该 IP ≤10 次、全站 ≤100 次。"""
+    now = time.time()
+    with _REGISTER_LOCK:
+        stamps = [t for t in _REGISTER_ATTEMPTS.get(ip, []) if now - t < _REGISTER_WINDOW]
+        global_stamps = [t for t in _REGISTER_GLOBAL if now - t < _REGISTER_WINDOW]
+        _REGISTER_ATTEMPTS[ip] = stamps
+        _REGISTER_GLOBAL[:] = global_stamps
+        return len(stamps) < _REGISTER_MAX_PER_IP and len(global_stamps) < _REGISTER_MAX_GLOBAL
+
+
+def register_rate_limit_record(ip: str) -> None:
+    """记录一次注册尝试（无论成败都计数）。"""
+    now = time.time()
+    with _REGISTER_LOCK:
+        _REGISTER_ATTEMPTS.setdefault(ip, []).append(now)
+        _REGISTER_GLOBAL.append(now)
+
+
+# 时序侧信道防御：用户名不存在时也跑一次等价 scrypt 校验，抹平"查无此用户"与
+# "密码错误"的响应时间差（假哈希与真实校验计算量完全一致）。
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+
+# 过期会话每日清理：session_user 每个请求都会调用 _maybe_purge_sessions，
+# 但只有距上次清理超过 24 小时才真正执行 DELETE。
+_LAST_SESSION_PURGE = 0.0
+
+
+def _maybe_purge_sessions() -> None:
+    """每天清理一次过期会话行，避免 auth.db 无限增长。
+    注意：这里不能持有 _AUTH_LOCK（connect_auth 初始化时要拿同一把锁，会自锁）；
+    DELETE 幂等，并发重复清理无害，因此无需加锁。"""
+    global _LAST_SESSION_PURGE
+    now = time.time()
+    if now - _LAST_SESSION_PURGE < 86400.0:
+        return
+    try:
+        with closing(connect_auth()) as connection:
+            connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
+        _LAST_SESSION_PURGE = now
+    except sqlite3.Error:
+        pass  # 清理失败不影响主流程，下个请求再试
 
 
 def now_parts() -> tuple[str, str]:
@@ -2031,6 +2106,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
         path = getattr(self, "path", "") or ""
         if path.split("?", 1)[0].lower().endswith((".html", ".js", ".css", ".webmanifest", ".json")):
             self.send_header("Cache-Control", "no-store")
+        # 通用安全响应头：禁止 MIME 嗅探；页面只允许同源 iframe（05-可视化 内嵌即为同源）。
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
         super().end_headers()
 
     def send_json(self, payload: object, status: HTTPStatus = HTTPStatus.OK,
@@ -2122,9 +2200,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/dashboard":
             self.send_json(dashboard_data(db))
             return
-        # /api/health：健康检查 —— 返回 ok 与库文件名，供前端探测服务是否存活。
+        # /api/health：健康检查 —— 只回存活状态，不暴露库文件名等内部信息。
         if parsed.path == "/api/health":
-            self.send_json({"ok": True, "database": db.name})
+            self.send_json({"ok": True})
             return
         # /api/library：书架进度 —— 各模块 total/completed 进度条 + 每章节轮次与最近活动。
         if parsed.path == "/api/library":
@@ -2330,8 +2408,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/reset-password"}
         known_post = public_post | admin_post | {
-            "/api/logout", "/api/complete", "/api/content/complete", "/api/mark", "/api/settings",
-            "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
+            "/api/logout", "/api/password", "/api/complete", "/api/content/complete", "/api/mark",
+            "/api/settings", "/api/submit", "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
         }
         if path not in known_post:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -2355,7 +2433,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             # /api/login：账号密码登录 —— 防爆破锁定期 → 校验 scrypt 哈希 → 签发会话 Cookie。
             if path == "/api/login":
-                ip = self.client_address[0] if self.client_address else ""
+                ip = self.client_ip()
                 if not login_rate_limit_ok(ip):
                     raise ValueError("尝试次数过多，请 10 分钟后再试")
                 username = str(payload.get("username", "")).strip()
@@ -2368,8 +2446,12 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
-            # /api/register：注册码注册 —— 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
+            # /api/register：注册码注册 —— 频控 → 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
             elif path == "/api/register":
+                reg_ip = self.client_ip()
+                if not register_rate_limit_ok(reg_ip):
+                    raise ValueError("注册尝试过于频繁，请稍后再试")
+                register_rate_limit_record(reg_ip)
                 row_user = register_with_code(
                     str(payload.get("username", "")),
                     str(payload.get("password", "")),
@@ -2378,6 +2460,14 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/password：登录用户修改自己的密码（验证原密码；成功后其余会话失效）。
+            elif path == "/api/password":
+                result = change_own_password(
+                    int(user["id"]),
+                    str(payload.get("old_password", "")),
+                    str(payload.get("new_password", "")),
+                    keep_token=self.current_token(),
+                )
             # /api/logout：删除服务端会话并清 Cookie。
             elif path == "/api/logout":
                 token = self.current_token()
@@ -2456,9 +2546,31 @@ class StudyHandler(SimpleHTTPRequestHandler):
         self.send_json(result, HTTPStatus.CREATED, extra_headers=cookie_headers)
 
     def session_cookie(self, token: str, expire: bool = False) -> str:
-        """会话 Cookie：HttpOnly + SameSite=Lax（Lax 阻断跨站 POST 携带 Cookie，天然防 CSRF）。"""
+        """会话 Cookie：HttpOnly + SameSite=Lax（Lax 阻断跨站 POST 携带 Cookie，天然防 CSRF）。
+        Secure 按访问源动态附加：公网域名（HTTPS）携带，局域网/本机 HTTP 访问不加，
+        否则浏览器会拒存 Cookie 导致局域网入口无法登录。"""
+        host = (self.headers.get("Host") or "").split(":")[0].strip("[]").lower()
+        is_local = (
+            "." not in host  # localhost / 主机名 / IPv6 字面量
+            or host == "::1"
+            or host.startswith(("127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.",
+                                "172.19.", "172.2", "172.30.", "172.31."))
+            or host.endswith(".local")
+        )
+        secure = "" if is_local else "; Secure"
         max_age = 0 if expire else int(SESSION_TTL.total_seconds())
-        return f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
+        return f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax{secure}; Max-Age={max_age}"
+
+    def client_ip(self) -> str:
+        """客户端真实 IP：经 Cloudflare Tunnel（cloudflared 走本机回环）时，socket 对端
+        恒为 127.0.0.1，此时改取 CF-Connecting-IP（Cloudflare 边缘强制写入、不可伪造）；
+        其余情况用 socket 对端地址，防止伪造请求头绕过限流。"""
+        peer = self.client_address[0] if self.client_address else ""
+        if peer in ("127.0.0.1", "::1"):
+            cf_ip = (self.headers.get("CF-Connecting-IP") or "").strip()
+            if cf_ip:
+                return cf_ip
+        return peer
 
     def current_token(self) -> str:
         """从 Cookie 头提取会话令牌（登出时用于删除服务端会话行）。"""
