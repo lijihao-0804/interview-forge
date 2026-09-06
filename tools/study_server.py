@@ -452,12 +452,14 @@ def destroy_session(token: str) -> None:
 
 
 def session_user(token: str) -> sqlite3.Row | None:
-    """由会话令牌解析当前用户：过期或被停用一律视为未登录；顺带触发每日过期清理。"""
+    """由会话令牌解析当前用户：过期或被停用一律视为未登录；顺带触发每日过期清理。
+    命中会话时以节流方式刷新 users.last_seen（管理后台"最近活跃"的数据来源）。"""
     if not token:
         return None
     _maybe_purge_sessions()
+    row: sqlite3.Row | None = None
     with closing(connect_auth()) as connection:
-        return connection.execute(
+        row = connection.execute(
             """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
                FROM sessions s JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
@@ -473,6 +475,7 @@ def session_user(token: str) -> sqlite3.Row | None:
                                            (now_iso(), row["id"]))
                     except sqlite3.Error:
                         pass
+    return row
 
 
 def generate_invite_codes(count: int, days: int, note: str, created_by: int) -> list[str]:
@@ -1760,19 +1763,18 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
             "reason": reason,
         }
 
-    # 已排期（用户显式"纳入明天计划"，到期自动进入；展示后消费掉）
+    # 已排期（用户显式"纳入明天计划"，到期自动进入）。
+    # 只清理"已过期"（for_date < today）的 pin；当天的 pin 保留可重复读取，
+    # 避免中控台/面板多次拉取互相吞掉排期（GET 无副作用原则）。
     pinned: list[int] = []
     with closing(connect(db_path)) as connection:
+        connection.execute("DELETE FROM plan_pins WHERE for_date < ?", (today,))
         for row in connection.execute(
             "SELECT problem_id FROM plan_pins WHERE for_date <= ? ORDER BY for_date", (today,)
         ):
             pid = int(row["problem_id"])
             if pid in PROBLEM_BY_ID:
                 pinned.append(pid)
-        if pinned:
-            connection.execute(
-                "DELETE FROM plan_pins WHERE for_date <= ? AND problem_id IN (%s)"
-                % ",".join("?" * len(pinned)), pinned)
 
     # 候选池：学习路径顺序，排除待复习（≤60 天逾期）与已排期
     pool = []
@@ -2436,14 +2438,16 @@ def leetcode_sync(
     return results
 
 
-def start_leetcode_sync_task(credentials: dict[str, str], full: bool) -> str:
-    """后台执行力扣同步，返回 task_id；前端轮询状态接口打印进度日志。"""
+def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str = "") -> str:
+    """后台执行力扣同步，返回 task_id；前端轮询状态接口打印进度日志。
+    owner 记录发起用户名：状态轮询接口校验归属，防止跨用户窥探进度。"""
     task_id = uuid.uuid4().hex[:12]
     task: dict[str, object] = {
         "logs": [],
         "running": True,
         "result": None,
         "error": None,
+        "owner": owner,
     }
 
     def progress(text: str) -> None:
@@ -2472,10 +2476,13 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool) -> str:
     return task_id
 
 
-def sync_task_status(task_id: str) -> dict[str, object] | None:
+def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
+    """查询同步任务进度；owner 非空时校验任务归属，非本人任务视为不存在。"""
     with SYNC_TASKS_LOCK:
         task = SYNC_TASKS.get(task_id)
         if task is None:
+            return None
+        if owner and str(task.get("owner", "")) != owner:
             return None
         return {
             "task_id": task_id,
@@ -2587,20 +2594,30 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         self.send_error(HTTPStatus.METHOD_NOT_ALLOWED)
 
-    def do_GET(self) -> None:
-        # GET 路由总览：安全过滤 → 认证门禁 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
-        parsed = urlparse(self.path)
-        decoded_path = unquote(parsed.path)
+    def _sensitive_path(self, decoded_path: str) -> bool:
+        """敏感/开发者内容判定：先规范化再匹配（防 /x/../data/auth.db 绕过），
+        且拒绝任何含 `..` 段的路径 —— SimpleHTTPRequestHandler.translate_path
+        会在落盘前再做一次 normpath，前缀黑名单必须以规范化后的路径为准。"""
+        import posixpath
+        normalized = posixpath.normpath(decoded_path)
+        if ".." in normalized.split("/"):
+            return True
+        return normalized.startswith(("/data", "/tools", "/.git", "/.", "/docs", "/MAINTENANCE",
+                                      "/QA-REPORT", "/README"))                 or normalized in ("/maintenance.html", "/guide.html.md")                 or normalized.lower().endswith(".md")
+
+    def _access_gate(self, decoded_path: str) -> bool:
+        """GET/HEAD 共用的安全门禁：敏感路径 404 + 登录门禁。
+        返回 False 表示已直接发送错误/跳转响应，调用方应立即 return。"""
         # 敏感/开发者内容不对外：403 = 存在但禁止；404 = 不暴露存在性。
         # data/：数据库与凭证；tools/：服务端脚本；.git 与点文件：版本库与缓存；
         # .md 与 docs/：开发者文档（含部署信息）；maintenance/QA-REPORT：维护与校验报告。
-        if decoded_path.startswith(("/data", "/tools", "/.git", "/.", "/docs", "/MAINTENANCE",
-                                    "/QA-REPORT", "/README"))                 or decoded_path in ("/maintenance.html", "/guide.html.md")                 or decoded_path.lower().endswith(".md"):
+        if self._sensitive_path(decoded_path):
             self.send_error(HTTPStatus.NOT_FOUND)
-            return
+            return False
         # ---- 认证门禁：未登录页面跳登录页、API 回 401；管理页/管理 API 仅限管理员 ----
         # 公开白名单：登录页、注册页、图标与健康检查。
         user = self.current_user()
+        self._gate_user = user  # 复用给 do_GET，避免同请求二次查会话库
         public_get = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
         # 字体非敏感且登录页也需要，放行（前缀判断）
         public_prefixes = ("/assets/fonts",)
@@ -2613,7 +2630,25 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", "0")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
+            return False
+        return True
+
+    def do_HEAD(self) -> None:
+        """HEAD 与 GET 同门禁：未认证/敏感路径一律拒绝，不允许借 HEAD 探测
+        敏感文件的存在与大小；通过门禁后走基类静态头服务（无 body）。"""
+        parsed = urlparse(self.path)
+        decoded_path = unquote(parsed.path)
+        if not self._access_gate(decoded_path):
             return
+        super().do_HEAD()
+
+    def do_GET(self) -> None:
+        # GET 路由总览：安全过滤 → 认证门禁 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
+        parsed = urlparse(self.path)
+        decoded_path = unquote(parsed.path)
+        if not self._access_gate(decoded_path):
+            return
+        user = getattr(self, "_gate_user", None)
         if decoded_path == "/pages/admin.html" or decoded_path.startswith("/api/admin/"):
             if user is None or str(user["role"]) != "admin":
                 if decoded_path.startswith("/api/"):
@@ -2783,7 +2818,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             if not task_id:
                 self.send_json({"error": "缺少 task_id"}, HTTPStatus.BAD_REQUEST)
                 return
-            status = sync_task_status(task_id)
+            status = sync_task_status(task_id, owner=str(user["username"]) if user is not None else "")
             if status is None:
                 self.send_json({"error": "任务不存在或已过期"}, HTTPStatus.NOT_FOUND)
                 return
@@ -2796,8 +2831,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
             status = lc_status_cached(db, credentials, force=params.get("refresh") == "1")
             self.send_json({
                 "credentials_saved": bool(credentials.get("leetcode_session")),
-                "session": credentials.get("leetcode_session", ""),
-                "csrf": credentials.get("leetcode_csrf", ""),
+                # 安全：会话密钥/CSRF 不回显前端（避免被日志/代理/扩展捕获），
+                # 连接页只需要"已保存"布尔与连接状态。
                 **status,
             })
             return
@@ -2907,12 +2942,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # （不会误入静态文件服务）。
         parsed = urlparse(self.path)
         path = parsed.path
-        public_post = {"/api/login", "/api/register", "/api/feedback", "/api/plan/pin"}
+        public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/reset-password", "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
             "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
+            "/api/plan/pin",
             "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
         }
         if path not in known_post:
@@ -2930,9 +2966,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
         db = user_db_path(str(user["username"])) if user is not None else DB_PATH
         cookie_headers: list[tuple[str, str]] = []
         try:
-            # 请求体约束：必须是 JSON 且 1~4096 字节，空体/超大直接拒绝（防滥用与内存占用）。
+            # 请求体约束：必须是 JSON 且 1~4096 字节（/api/profile 例外：头像 base64
+            # 膨胀 1.33 倍后仍需容纳 150KB 图片，上限放宽到 220KB），空体/超大直接拒绝。
             length = int(self.headers.get("Content-Length", "0"))
-            if length < 1 or length > 4096:
+            max_len = 262144 if path == "/api/profile" else 4096
+            if length < 1 or length > max_len:
                 raise ValueError("请求大小不正确")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             # /api/login：账号密码登录 —— 防爆破锁定期 → 校验 scrypt 哈希 → 签发会话 Cookie。
@@ -3081,7 +3119,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             elif path == "/api/leetcode/sync":
                 full = str(payload.get("full", "0")) in ("1", "true", "True")
                 if payload.get("async") in (1, True, "1", "true", "True"):
-                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(db), full)}
+                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(db), full, owner=str(user["username"]))}
                 else:
                     result = {"ok": True, **leetcode_sync(get_credentials(db), full=full)}
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。

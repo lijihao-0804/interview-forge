@@ -1356,6 +1356,10 @@ VISUAL_A11Y_SCRIPT = r"""
     });
     window.addEventListener('load', reportHeight, { once: true });
     document.fonts?.ready.then(reportHeight);
+    // 首帧布局后内容可能收缩（如画布定高、面板折叠），定时重报两次收敛高度，
+    // 避免 iframe 底部长期留白（虚高）。
+    setTimeout(reportHeight, 400);
+    setTimeout(reportHeight, 1200);
     reportHeight();
   }
 })();
