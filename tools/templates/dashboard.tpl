@@ -16,8 +16,8 @@
   color-scheme:light dark;
   --font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;
-  --bg:#f3f5fa;--panel:#fff;--panel-soft:#f7f8fc;--text:#172033;--muted:#647188;
-  --line:#dce2ec;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
+  --bg:#edf0f8;--panel:#fff;--panel-soft:#f2f4fb;--text:#172033;--muted:#647188;
+  --line:#d6dded;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
   --success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;
   --hot-hm-1:#9be9a8;--hot-hm-2:#40c463;--hot-hm-3:#30a14e;--hot-hm-4:#216e39;
   --shadow:0 14px 38px rgba(31,42,68,.075)
