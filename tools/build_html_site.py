@@ -818,6 +818,34 @@ readerVisualFrames.forEach((frame) => {
 # 分工说明：bootstrap 只做静态类标记；运行时的参数驱动（点击对应页签、设置
 # mode 下拉）交给 VISUAL_A11Y_SCRIPT（body 末尾的脚本）。
 
+# VISUAL_THEME_SYNC_JS：手动主题同步（polish_visual 注入可视化页 <head>）。
+# 演示页此前只认 prefers-color-scheme，用户在父页/站点手动切深色时 iframe
+# 仍为浅色。同源 iframe 与父页共享 localStorage：加载时读取 forge-theme 并打
+# data-theme（配合 VISUAL_THEME_CSS 新增的 html[data-theme] 令牌档）；监听
+# storage 事件响应父页的实时切换；postMessage 作为跨文档兜底通道。
+VISUAL_THEME_SYNC_JS = r"""
+<script id="hot100-theme-sync">
+(() => {
+  const root = document.documentElement;
+  const apply = (v) => {
+    if (v === "light" || v === "dark") root.setAttribute("data-theme", v);
+    else root.removeAttribute("data-theme");
+  };
+  try { apply(localStorage.getItem("forge-theme")); } catch (e) { }
+  window.addEventListener("storage", (e) => {
+    if (!e || e.key === null || e.key === "forge-theme") {
+      let v = null;
+      try { v = localStorage.getItem("forge-theme"); } catch (err) { }
+      apply(v);
+    }
+  });
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
+  });
+})();
+</script>
+"""
+
 VISUAL_EMBED_BOOTSTRAP = r"""
 <script id="hot100-embed-bootstrap">
 (() => {
@@ -2050,7 +2078,13 @@ VISUAL_THEME_CSS = '''<style id="hot100-visual-theme">
 --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace}
 @media(prefers-color-scheme:dark){:root{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
---dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}}
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
+html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
+--dk-line:#dfe4ee;--dk-brand:#5654d4;--dk-brand-strong:#4543bd;--dk-brand-soft:#eeedff;
+--dk-ok:#157a52;--dk-warn:#a85b00;--dk-err:#b3372f}}
+html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
+--dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
 @font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -2078,6 +2112,9 @@ def polish_visual(path: Path) -> None:
     # 统一主题层：设计令牌 + 字体 + 元素归一化（与 demo-kit 同源视觉）
     if "hot100-visual-theme" not in text:
         text = re.sub(r"(?is)(<head[^>]*>)", lambda mm: mm.group(1) + "\n" + VISUAL_THEME_CSS, text, count=1)
+    else:
+        # 已有旧版主题层时整体替换，保证令牌/字体的最新版本能随构建更新。
+        text = re.sub(r"(?is)<style id=\"hot100-visual-theme\">.*?</style>", VISUAL_THEME_CSS.strip(), text, count=1)
     title_match = re.search(r"(?is)<title>\s*(.*?)\s*</title>", text)
     title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else path.stem
     nav = f'<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>{html.escape(title)}</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>'
@@ -2089,6 +2126,11 @@ def polish_visual(path: Path) -> None:
         text = re.sub(r"(?is)<script id=\"hot100-embed-bootstrap\">.*?</script>", VISUAL_EMBED_BOOTSTRAP.strip(), text, count=1)
     else:
         text = re.sub(r"(?is)(<head[^>]*>)", r"\1\n" + VISUAL_EMBED_BOOTSTRAP.strip(), text, count=1)
+    # 手动主题同步：放在 embed-bootstrap 之后、样式生效前，避免深色首帧闪烁。
+    if 'id="hot100-theme-sync"' in text:
+        text = re.sub(r"(?is)<script id=\"hot100-theme-sync\">.*?</script>", VISUAL_THEME_SYNC_JS.strip(), text, count=1)
+    else:
+        text = re.sub(r"(?is)(</head>)", VISUAL_THEME_SYNC_JS.strip() + r"\1", text, count=1)
     # 旧柱状演示使用含 padding 的 clientWidth/clientHeight 计算柱高，
     # 指针与数值标签会因此超出内容区。改为使用真实内容盒尺寸。
     text = re.sub(

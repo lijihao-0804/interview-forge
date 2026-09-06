@@ -9,7 +9,13 @@
 --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace}
 @media(prefers-color-scheme:dark){:root{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
---dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}}
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
+html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
+--dk-line:#dfe4ee;--dk-brand:#5654d4;--dk-brand-strong:#4543bd;--dk-brand-soft:#eeedff;
+--dk-ok:#157a52;--dk-warn:#a85b00;--dk-err:#b3372f}}
+html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
+--dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
 @font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -439,7 +445,26 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 </style>
 
-</head>
+<script id="hot100-theme-sync">
+(() => {
+  const root = document.documentElement;
+  const apply = (v) => {
+    if (v === "light" || v === "dark") root.setAttribute("data-theme", v);
+    else root.removeAttribute("data-theme");
+  };
+  try { apply(localStorage.getItem("forge-theme")); } catch (e) { }
+  window.addEventListener("storage", (e) => {
+    if (!e || e.key === null || e.key === "forge-theme") {
+      let v = null;
+      try { v = localStorage.getItem("forge-theme"); } catch (err) { }
+      apply(v);
+    }
+  });
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
+  });
+})();
+</script></head>
 <body>
 <nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>单调栈实验室</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav><main class="shell"><a href="index.html">← 可视化中心</a><h1>739. 每日温度：单调栈实验室</h1><div class="muted">栈里保存“还没等到更高温度”的下标，且温度从栈底到栈顶递减。</div><div class="toolbar"><button class="primary" id="step">处理下一天</button><button id="reset">重置</button><button id="auto">自动播放</button></div><section class="panel"><div id="bars" class="bars"></div><h2>未结算下标栈</h2><div id="stack" class="stack"></div><div id="log" class="log" aria-live="polite"></div></section></main>
 <script>const temps=[73,74,75,71,69,72,76,73],$=id=>document.getElementById(id);let s,timer;function init(){clearInterval(timer);timer=null;$('auto').textContent='自动播放';s={i:-1,stack:[],ans:Array(temps.length).fill(0),msg:'栈为空，准备从第 0 天开始。'};render()}function step(){if(s.i>=temps.length-1){s.msg='完成。栈中剩余下标右侧没有更高温度，答案保持 0。';render();return}s.i++;const resolved=[];while(s.stack.length&&temps[s.i]>temps[s.stack.at(-1)]){const j=s.stack.pop();s.ans[j]=s.i-j;resolved.push(`${j} → 等 ${s.ans[j]} 天`)}s.stack.push(s.i);s.msg=`第 ${s.i} 天温度 ${temps[s.i]}。${resolved.length?'弹栈并结算：'+resolved.join('；'):'没有比栈顶更高，直接入栈。'}`;render()}function render(){const min=68;$('bars').innerHTML=temps.map((t,i)=>`<div class="col ${i===s.i?'current':''}"><div class="answer">${i<s.i||s.ans[i]?s.ans[i]:''}</div><div class="bar" style="height:${40+(t-min)*17}px">${t}°</div><div class="idx">${i}</div></div>`).join('');$('stack').innerHTML=s.stack.map(i=>`<span class="token">下标 ${i} / ${temps[i]}°</span>`).join('')||'<span class="muted">空</span>';$('log').textContent=s.msg}$('step').onclick=step;$('reset').onclick=init;$('auto').onclick=()=>{if(timer){clearInterval(timer);timer=null;$('auto').textContent='自动播放'}else{timer=setInterval(step,800);$('auto').textContent='暂停'}};init();</script>
