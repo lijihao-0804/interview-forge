@@ -1782,8 +1782,10 @@ def wrap_language_sections(body, soup):
         section = soup.new_tag("div")
         section["class"] = "lang-section"
         section["data-lang"] = _LANG_HEADINGS[m.group(1)]
+        # 收集到下一个 h2/h3 或 section 为止：文末注入的「交互演示」是
+        # <section>，其 h2 在 section 内部而非兄弟节点，不排除会整段吞进语言区块。
         node = h3.next_sibling
-        while node is not None and getattr(node, "name", None) not in ("h2", "h3"):
+        while node is not None and getattr(node, "name", None) not in ("h2", "h3", "section"):
             nxt = node.next_sibling
             section.append(node.extract())
             node = nxt
