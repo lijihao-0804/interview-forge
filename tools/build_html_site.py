@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260906-p3c"
+ASSET_VERSION = "20260906-toc-m"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -590,7 +590,7 @@ font-size:12.5px;overflow-wrap:anywhere}
 .sol-rail-right .toc a:hover{background:var(--surface-soft);color:var(--text);text-decoration:none}
 @media(max-width:1440px){.site-shell-cols{grid-template-columns:minmax(0,1fr) 232px}.sol-rail-left{display:none}}
 @media(max-width:1150px){.site-shell-cols{grid-template-columns:1fr}.sol-rail{position:static;max-height:none}
-.sol-rail-right{order:-1;margin-bottom:18px}}
+.sol-rail-right{display:none}}
 
 /* 三栏修正：顶栏与页脚跨满整行，内容三列并排 */
 .site-shell-cols>.site-topbar,.site-shell-cols>footer{grid-column:1/-1}
