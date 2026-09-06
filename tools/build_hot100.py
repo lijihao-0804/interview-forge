@@ -907,10 +907,15 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
                 item = lang_entry.get(lang)
                 if not item:
                     continue
+                steps_html = ""
+                if item.get("steps"):
+                    lis = "".join("<li>" + s + "</li>" for s in item["steps"])
+                    steps_html = '<ol class="lang-steps">' + lis + '</ol>'
                 lang_sections.append(
                     '<div class="lang-section" data-lang="' + lang + '" markdown="1">' + '\n\n'
                     + '### ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
                     + '> 实现来源：' + item["source"] + '\n\n'
+                    + steps_html + '\n\n'
                     + '```' + lang + '\n' + item["code"] + '\n' + '```' + '\n\n'
                     + '</div>'
                 )

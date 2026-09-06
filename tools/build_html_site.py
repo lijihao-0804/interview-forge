@@ -747,7 +747,7 @@ readerVisualFrames.forEach((frame) => {
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
     document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
-      sec.style.display = (lang !== 'java' && sec.dataset.lang === lang) ? '' : 'none';
+      sec.style.display = (sec.dataset.lang === lang) ? '' : 'none';
     });
     document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
       div.style.display = (div.dataset.lang === lang) ? '' : 'none';
@@ -1751,6 +1751,24 @@ def render_visual_embed(source: Path, output: Path, title: str) -> str:
 # 拼装，保持单文件自包含、便于整体离线分发。
 # =============================================================================
 
+def wrap_java_sections(body, soup):
+    """把正文中 'Java 实现*' 小节（标题+后续内容直到下一个同级标题）
+    包进 .lang-section[data-lang=java]，选择其他语言时整段隐藏。"""
+    for h3 in list(body.find_all("h3")):
+        if not h3.get_text(strip=True).startswith("Java"):
+            continue
+        section = soup.new_tag("div")
+        section["class"] = "lang-section"
+        section["data-lang"] = "java"
+        node = h3.next_sibling
+        while node is not None and getattr(node, "name", None) not in ("h2", "h3"):
+            nxt = node.next_sibling
+            section.append(node.extract())
+            node = nxt
+        h3.insert_before(section)
+        section.insert(0, h3.extract())
+    return body
+
 def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
     """题解页专属构建期后处理（bs4）：aside 提示框、题目信息徽标行、三栏结构。
 
@@ -1763,6 +1781,8 @@ def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
     body = soup.find("article", class_="markdown-body")
     if body is None:
         return page
+
+    body = wrap_java_sections(body, soup)
 
     # ---- 1. aside 提示框：面试追问 → note；易错点 → warn ----
     def wrap_aside(heading, kind):
