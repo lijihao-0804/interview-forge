@@ -79,3 +79,102 @@ readerVisualFrames.forEach((frame) => {
     frame.contentWindow?.postMessage({ type: 'hot100:measure' }, '*');
   });
 });
+
+/* ===== 阅读进度条 + 表格溢出遮罩 ===== */
+(function () {
+  const main = document.querySelector('.markdown-body');
+  if (!main) return;
+  const bar = document.createElement('div');
+  bar.className = 'read-progress';
+  document.body.appendChild(bar);
+  const update = () => {
+    const rect = main.getBoundingClientRect();
+    const total = Math.max(rect.height - window.innerHeight, 1);
+    const passed = Math.min(Math.max(-rect.top, 0), total);
+    bar.style.width = Math.round((passed / total) * 100) + '%';
+  };
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  document.querySelectorAll('.table-wrap').forEach((wrap) => {
+    const check = () => wrap.classList.toggle('has-overflow', wrap.scrollWidth > wrap.clientWidth + 4);
+    check();
+    wrap.addEventListener('scroll', () => {
+      wrap.classList.toggle('has-overflow', wrap.scrollWidth - wrap.scrollLeft > wrap.clientWidth + 4);
+    }, { passive: true });
+  });
+})();
+
+/* ===== 多语言题解：语言偏好应用 + 切换条 ===== */
+(function () {
+  const LANG_NAMES = { java: 'Java', cpp: 'C++', python: 'Python', go: 'Go', c: 'C' };
+  function getLang() {
+    try { return localStorage.getItem('forge-lang') || 'java'; } catch (e) { return 'java'; }
+  }
+  function setLang(lang, syncServer) {
+    try { localStorage.setItem('forge-lang', lang); } catch (e) { }
+    applyLang(lang);
+    if (syncServer) {
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang })
+      });
+    }
+    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+  }
+  function applyLang(lang) {
+    const main = document.querySelector('.markdown-body');
+    if (!main) return;
+    if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
+    document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
+      sec.style.display = (lang !== 'java' && sec.dataset.lang === lang) ? '' : 'none';
+    });
+    document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
+      div.style.display = (div.dataset.lang === lang) ? '' : 'none';
+    });
+    const bar = buildBar();
+    bar.dataset.lang = lang;
+    const available = new Set([...document.querySelectorAll('.codehilite[data-lang]')].map((d) => d.dataset.lang));
+    bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
+      const l = chip.dataset.lang;
+      chip.classList.toggle('active', l === lang);
+      chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
+    });
+  }
+  function buildBar() {
+    let bar = document.getElementById('forge-lang-bar');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'forge-lang-bar';
+    bar.className = 'forge-lang-bar';
+    const label = document.createElement('span');
+    label.className = 'flb-label';
+    label.textContent = '题解语言';
+    bar.appendChild(label);
+    Object.keys(LANG_NAMES).forEach((l) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'forge-lang-chip';
+      chip.dataset.lang = l;
+      chip.textContent = LANG_NAMES[l];
+      chip.onclick = () => setLang(l, true);
+      bar.appendChild(chip);
+    });
+    const main = document.querySelector('.markdown-body');
+    if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
+    return bar;
+  }
+  document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
+  fetch('/api/me', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((me) => {
+      let lang = getLang();
+      if (me && me.lang) {
+        lang = me.lang;
+        try { localStorage.setItem('forge-lang', me.lang); } catch (e) { }
+      }
+      applyLang(lang);
+    })
+    .catch(() => applyLang(getLang()));
+})();

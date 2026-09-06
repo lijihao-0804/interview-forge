@@ -87,7 +87,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 HOT100_ROOT = Path(__file__).resolve().parents[1]
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
-ASSET_VERSION = "20260906-p12"
+ASSET_VERSION = "20260906-lang"
 
 
 # 书架全局样式常量，构建时写入 library/assets/library.css(见 build() 第 0 步)。

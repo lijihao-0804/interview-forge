@@ -192,7 +192,11 @@
           '<span id="fpr-ava-box"></span>' +
           '<input type="file" id="fpr-file" accept="image/png,image/jpeg,image/webp" style="font-size:12px;max-width:160px">' +
           '</div>' +
-          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">' +
+      '<span style="font-size:12px;color:#66748a;flex:none">题解语言</span>' +
+      '<span id="fpr-lang" style="display:flex;gap:5px;flex-wrap:wrap"></span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
           '<input type="text" id="fpr-nick" maxlength="16" placeholder="昵称（1~16 字，留空显示用户名）" style="flex:1;min-width:0;padding:7px 10px;border:1px solid #dfe4ee;border-radius:8px;font:inherit;background:#fbfcff">' +
           '<button id="fpr-save" style="border:0;border-radius:8px;padding:7px 13px;font:inherit;font-weight:600;cursor:pointer;background:#5654d4;color:#fff">保存</button>' +
           '</div>' +
@@ -229,6 +233,36 @@
         fetch("/api/profile", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (p) {
           if (profilePanel) panel.querySelector("#fpr-nick").value = p.nickname || "";
         });
+
+    var LANGS = [["java", "Java"], ["cpp", "C++"], ["python", "Python"], ["go", "Go"], ["c", "C"]];
+    var langBox = panel.querySelector("#fpr-lang");
+    function currentLang() {
+      try { return localStorage.getItem("forge-lang") || (me.lang || "java"); } catch (e) { return (me.lang || "java"); }
+    }
+    function renderLangPills() {
+      langBox.textContent = "";
+      LANGS.forEach(function (pair) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = pair[1];
+        var on = currentLang() === pair[0];
+        b.style.cssText = "border:1px solid #dfe4ee;border-radius:999px;padding:4px 12px;font:inherit;font-size:12px;" +
+          "cursor:pointer;background:" + (on ? "#5654d4" : "transparent") + ";" +
+          "color:" + (on ? "#fff" : "#66748a") + ";" +
+          "font-weight:" + (on ? "700" : "500");
+        b.onclick = function () {
+          try { localStorage.setItem("forge-lang", pair[0]); } catch (e) { }
+          me.lang = pair[0];
+          fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lang: pair[0] }) });
+          document.dispatchEvent(new CustomEvent("forge-lang-change", { detail: { lang: pair[0] } }));
+          renderLangPills();
+          hint.textContent = "题解语言已设为 " + pair[1]; hint.style.color = "#157a52";
+        };
+        langBox.appendChild(b);
+      });
+    }
+    renderLangPills();
 
         function callProfile(body) {
           return fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })

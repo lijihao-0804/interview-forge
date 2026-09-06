@@ -329,6 +329,10 @@ def connect_auth() -> sqlite3.Connection:
                     connection.execute("ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
                     pass  # 已存在
+                try:
+                    connection.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'java'")
+                except sqlite3.OperationalError:
+                    pass  # 已存在
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
                 _AUTH_READY = True
@@ -444,7 +448,7 @@ def session_user(token: str) -> sqlite3.Row | None:
     _maybe_purge_sessions()
     with closing(connect_auth()) as connection:
         return connection.execute(
-            """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname
+            """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
                FROM sessions s JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
             (token, now_iso()),
@@ -733,6 +737,8 @@ CHAT_MAX_LEN = 500
 _CHAT_SEND_LOG: dict[int, list[float]] = {}   # user_id → 发送时间戳（10 条/分钟）
 _CHAT_SEND_LOCK = threading.Lock()
 _NICKNAME_MAX = 16
+# 题解语言偏好（用户资料项；题解页据此切换代码实现显示）
+SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
 _AVATAR_MAX_BYTES = 150 * 1024
 
 
@@ -834,16 +840,17 @@ def get_profile(username: str) -> dict[str, object]:
     """读取自己的昵称与头像状态。"""
     with closing(connect_auth()) as connection:
         row = connection.execute(
-            "SELECT username, COALESCE(nickname, '') AS nickname FROM users WHERE username = ?", (username,)).fetchone()
+            "SELECT username, COALESCE(nickname, '') AS nickname, COALESCE(lang, 'java') AS lang FROM users WHERE username = ?", (username,)).fetchone()
         av = connection.execute("SELECT mime FROM avatars WHERE user_id = (SELECT id FROM users WHERE username = ?)",
                                 (username,)).fetchone()
     if row is None:
         raise ValueError("用户不存在")
-    return {"username": row["username"], "nickname": row["nickname"], "has_avatar": av is not None}
+    return {"username": row["username"], "nickname": row["nickname"], "lang": row["lang"], "has_avatar": av is not None}
 
 
-def set_profile(username: str, nickname: str = None, avatar_data_url: str = None) -> dict[str, object]:
-    """更新昵称和/或头像。头像为 data URL（客户端已压至 64×64），传空串清除。"""
+def set_profile(username: str, nickname: str = None, avatar_data_url: str = None,
+                lang: str = None) -> dict[str, object]:
+    """更新昵称/头像/题解语言。头像为 data URL（客户端已压至 64×64），传空串清除。"""
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
@@ -853,6 +860,10 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
             if not (1 <= len(nickname) <= _NICKNAME_MAX):
                 raise ValueError(f"昵称需为 1~{_NICKNAME_MAX} 个字符")
             connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (nickname, row["id"]))
+        if lang is not None:
+            if lang not in SOLUTION_LANGS:
+                raise ValueError("不支持的语言")
+            connection.execute("UPDATE users SET lang = ? WHERE id = ?", (lang, row["id"]))
         if avatar_data_url is not None:
             if avatar_data_url == "":
                 connection.execute("DELETE FROM avatars WHERE user_id = ?", (row["id"],))
@@ -2494,7 +2505,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/me：当前登录用户信息（登录页/管理页/页面右上角展示用）。
         if parsed.path == "/api/me":
             self.send_json({"username": str(user["username"]), "nickname": str(user["nickname"]),
-                            "role": str(user["role"])})
+                            "lang": str(user["lang"]), "role": str(user["role"])})
             return
         # /api/avatar/<用户名>：读取用户头像（登录可见）。
         if decoded_path.startswith("/api/avatar/"):
@@ -2837,6 +2848,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     str(user["username"]),
                     payload.get("nickname") if "nickname" in payload else None,
                     payload.get("avatar") if "avatar" in payload else None,
+                    payload.get("lang") if "lang" in payload else None,
                 )
             # /api/password：登录用户修改自己的密码（验证原密码；成功后其余会话失效）。
             elif path == "/api/password":
