@@ -133,7 +133,7 @@ flowchart TD
     NEW[NEW<br/>创建未启动] -->|start| RUNNABLE[RUNNABLE<br/>可运行/运行中]
     RUNNABLE -->|获取 synchronized 锁失败| BLOCKED[BLOCKED<br/>阻塞等锁]
     RUNNABLE -->|wait / join / park| WAITING[WAITING<br/>无限期等待]
-    RUNNABLE -->|sleep / wait(timeout) / parkNanos| TIMED[TIMED_WAITING<br/>限期等待]
+    RUNNABLE -->|"sleep / wait(带超时) / parkNanos"| TIMED[TIMED_WAITING<br/>限期等待]
     BLOCKED -->|拿到锁| RUNNABLE
     WAITING -->|notify / unpark / 线程结束| RUNNABLE
     TIMED -->|超时或唤醒| RUNNABLE

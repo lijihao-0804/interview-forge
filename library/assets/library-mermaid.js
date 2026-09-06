@@ -39,7 +39,9 @@
       await window.mermaid.run({ nodes: [node], suppressErrors: false });
       if (!node.querySelector('svg')) throw new Error('Mermaid did not create SVG');
       figure?.classList.add('is-rendered');
-    } catch (_) {
+    } catch (e) {
+      console.error('[mermaid] render failed:', e);
+      window.__mermaidErr = String(e && (e.message || e));
       markFailed(node);
     }
   }
