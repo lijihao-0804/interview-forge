@@ -2002,13 +2002,25 @@ def record_submission(
     source: str = "manual",
     db_path: Path = DB_PATH,
 ) -> dict[str, object]:
-    """记录一次力扣提交结果（ac/wa）。problem_id/status/source 白名单校验。"""
+    """记录一次力扣提交结果（ac/wa）。problem_id/status/source 白名单校验；
+    runtime_ms/memory_kb 严格转整数（脏类型报 400 而非落库时 500）。"""
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
     if status not in ("ac", "wa"):
         raise ValueError("未知提交状态")
     if source not in VALID_SUBMIT_SOURCES:
         source = "manual"
+
+    def optional_int(value: object, name: str) -> int | None:
+        if value is None or value == "":
+            return None
+        try:
+            return int(value)  # type: ignore[arg-type] - 脏类型（字符串数字/bool）在此收敛
+        except (TypeError, ValueError):
+            raise ValueError(f"{name} 必须是整数")
+
+    runtime_ms = optional_int(runtime_ms, "runtime_ms")
+    memory_kb = optional_int(memory_kb, "memory_kb")
     studied_at, study_date = now_parts()
     with closing(connect(db_path)) as connection:
         # 直接 INSERT 不查重：同题多次 ac/wa 都是合法历史记录流；
@@ -2778,7 +2790,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
             try:
                 count = max(1, min(int(params.get("count", "10") or "10"), 50))
             except ValueError:
-                count = 10
+                self.send_json({"error": "count 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                return
             try:
                 self.send_json(mock_exam(
                     count=count,
@@ -2794,7 +2807,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
             try:
                 count = max(1, min(int(params.get("count", "3") or "3"), 20))
             except ValueError:
-                count = 3
+                self.send_json({"error": "count 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                return
             self.send_json(today_plan(db, count=count, randomize=params.get("random", "") == "1"))
             return
         # /api/weaklist：薄弱题清单 —— 带轮次/首次浏览/标记时间，按标记时间排序。
