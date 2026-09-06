@@ -617,11 +617,21 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
       modeSelect.value = mode;
       modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    const reportHeight = () => requestAnimationFrame(() => {
+    // 高度计算：可见子元素最大 bottom（子元素盒子即使被 iframe 裁切，
+    // 其 rect 仍反映真实布局高度；不要用 body.scrollHeight —— 它不会小于
+    // iframe 视口高度，会把"虚高"锁死导致收缩永远上报不出去）。
+    const computeHeight = () => {
       const bottoms = [...document.body.children]
         .filter((item) => getComputedStyle(item).display !== 'none')
         .map((item) => item.getBoundingClientRect().bottom);
-      const height = Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+      return Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
+    };
+    // 上报收敛：高度与上次一致就不发消息（防抖 + 防增长循环重复灌消息）。
+    let lastReported = -1;
+    const reportHeight = () => requestAnimationFrame(() => {
+      const height = computeHeight();
+      if (Math.abs(height - lastReported) <= 2) return;
+      lastReported = height;
       parent.postMessage({ type: 'hot100:visual-height', height }, '*');
     });
     new ResizeObserver(reportHeight).observe(document.body);
@@ -631,8 +641,10 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     });
     window.addEventListener('load', reportHeight, { once: true });
     document.fonts?.ready.then(reportHeight);
-    // 首帧布局后内容可能收缩（如画布定高、面板折叠），定时重报两次收敛高度，
-    // 避免 iframe 底部长期留白（虚高）。
+    // 常驻巡检（300ms 节流由高度收敛判断兜底）：事件观察覆盖不到的时序 ——
+    // canvas 内部绘制引起的晚到尺寸变化、超过延迟重报窗口的收缩、宿主侧
+    // resize 引发的重排 —— 都会在下一拍被上报。事件观察保留以获得即时性。
+    setInterval(reportHeight, 300);
     setTimeout(reportHeight, 400);
     setTimeout(reportHeight, 1200);
     reportHeight();
