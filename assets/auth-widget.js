@@ -21,7 +21,7 @@
         "#forge-auth-pill button{border:0;background:#eeedff;color:#4543bd;font:inherit;font-size:12px;font-weight:600;" +
         "padding:4px 12px;border-radius:999px;cursor:pointer}" +
         "#forge-auth-pill button:hover{background:#dedcfb}" +
-        ".forge-panel{position:fixed;right:16px;bottom:58px;z-index:9999;width:min(360px,calc(100vw - 32px));" +
+        "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:58px;z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
         "background:#fff;border:1px solid #dfe4ee;border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
         "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235;display:flex;flex-direction:column}" +
         ".forge-panel .fp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #dfe4ee}" +

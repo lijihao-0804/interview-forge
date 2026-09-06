@@ -99,7 +99,7 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 @font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");font-weight:100 800;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
 :root{color-scheme:light dark;--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;--bg:#edf0f8;--panel:#fff;--soft:#f2f4fb;--text:#172033;--muted:#647188;--line:#d6dded;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075)/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1: 4px;--space-2: 8px;--space-3: 12px; --space-4: 16px;--space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;--fs-0: .8rem; --fs-1: .9rem; --fs-2: 1rem; --fs-3: 1.1rem;--fs-4: 1.25rem; --fs-5: 1.5rem; --fs-6: 1.8rem; --fs-7: 2.2rem;--radius-1: 6px; --radius-2: 10px; --radius-3: 14px; --radius-4: 20px;--ease-out: cubic-bezier(.22, 1, .36, 1);--ease-in-out: cubic-bezier(.65, 0, .35, 1);
-}@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22)}}
+}@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22)}}
 *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -322,7 +322,7 @@ a{overflow-wrap:anywhere}
 }
 
 /* ===== 手动主题切换（theme-toggle.js 设置 data-theme） ===== */
-html[data-theme="dark"]{color-scheme:dark;--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22);--diagram-surface:#1b2230;--diagram-glow:#262c4a;--diagram-node:#263042;--diagram-node-border:#8b88f0;--diagram-decision:#3a2f1e;--diagram-decision-border:#dfa34c;--diagram-cluster:#1f2735;--diagram-cluster-border:#3d4a5e;--diagram-line:#5d6b80;--diagram-label-bg:#1b2230;--diagram-node-text:#dce4f2}
+html[data-theme="dark"]{color-scheme:dark;--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22);--diagram-surface:#1b2230;--diagram-glow:#262c4a;--diagram-node:#263042;--diagram-node-border:#8b88f0;--diagram-decision:#3a2f1e;--diagram-decision-border:#dfa34c;--diagram-cluster:#1f2735;--diagram-cluster-border:#3d4a5e;--diagram-line:#5d6b80;--diagram-label-bg:#1b2230;--diagram-node-text:#dce4f2}
 html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075);--diagram-glow:#f1f2ff}
 
 /* ===== On This Page 粘性目录 + 复制按钮（P0） ===== */
@@ -386,6 +386,11 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .reader tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--soft) 55%,transparent)}
 .reader tbody tr:hover td{background:color-mix(in srgb,var(--brand) 8%,var(--panel))}
 .reader table{display:table;width:100%;max-width:100%;margin:20px 0;overflow:hidden}
+
+.module-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent)}
+::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
+@view-transition{navigation:auto}
+html,body,.module-card,.chapter-list,.reader,.chapter-side{transition:background-color .25s ease,border-color .25s ease,color .25s ease}
 
 """
 
