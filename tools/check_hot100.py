@@ -430,7 +430,7 @@ for element_id in ("dayList", "eventList"):
 # 是反向断言：data-submit/recordSubmit/submit-ac 这类“手动已 AC/WA 按钮”
 # 已废弃（提交状态必须以力扣同步数据为准，不允许手动改）。
 dashboard_source = (ROOT / "index.html").read_text(encoding="utf-8-sig")
-if "/api/dashboard" not in dashboard_source or "/api/daily" not in dashboard_source or "/api/mark" not in dashboard_source or "/api/export" not in dashboard_source or "/api/settings" not in dashboard_source or "/api/mock" not in dashboard_source or "/api/plan" not in dashboard_source or 'data-export="weekly"' not in dashboard_source or "05-错题本.html" not in dashboard_source:
+if "/api/bootstrap" not in dashboard_source or "/api/mark" not in dashboard_source or "/api/export" not in dashboard_source or "/api/mock" not in dashboard_source or "/api/plan" not in dashboard_source or 'data-export="weekly"' not in dashboard_source or "05-错题本.html" not in dashboard_source:
     errors.append("学习站没有连接本地学习记录 API")
 if "serviceWorker.register" not in dashboard_source or "manifest.webmanifest" not in dashboard_source:
     errors.append("学习面板缺少 PWA 注册或 manifest 链接")
