@@ -1404,9 +1404,14 @@ function initPanel(idx) {
   let _dpr = window.devicePixelRatio || 1;
   function resizeCanvas() {
     const wrap = canvas.parentElement;
-    const r = wrap.getBoundingClientRect();
+    // 只取内容盒尺寸（clientWidth/Height 扣除 padding）：父容器由 canvas 撑起，
+    // 若把含 padding 的包围盒写回 canvas 高度，父容器会随之再涨一个 padding，
+    // 配合 ResizeObserver 形成"每次 render 长一截"的自激循环。
+    const _cs = getComputedStyle(wrap);
+    const _padX = (parseFloat(_cs.paddingLeft) || 0) + (parseFloat(_cs.paddingRight) || 0);
+    const _padY = (parseFloat(_cs.paddingTop) || 0) + (parseFloat(_cs.paddingBottom) || 0);
     _dpr = window.devicePixelRatio || 1;
-    const w = r.width || 500, h = r.height || 340;
+    const w = Math.max(240, wrap.clientWidth - _padX) || 500, h = Math.max(180, wrap.clientHeight - _padY) || 340;
     if (canvas.width !== Math.floor(w * _dpr) || canvas.height !== Math.floor(h * _dpr)) {
       canvas.width = Math.floor(w * _dpr);
       canvas.height = Math.floor(h * _dpr);
@@ -2119,6 +2124,10 @@ document.querySelectorAll('.ds-tab').forEach(tab => {
     });
     window.addEventListener('load', reportHeight, { once: true });
     document.fonts?.ready.then(reportHeight);
+    // 首帧布局后内容可能收缩（如画布定高、面板折叠），定时重报两次收敛高度，
+    // 避免 iframe 底部长期留白（虚高）。
+    setTimeout(reportHeight, 400);
+    setTimeout(reportHeight, 1200);
     reportHeight();
   }
 })();

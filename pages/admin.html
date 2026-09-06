@@ -121,7 +121,14 @@ function fmtBytes(n) {
   if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
   return (n / 1048576).toFixed(1) + " MB";
 }
-function fmtTime(s) { return (s || "—").replace("T", " "); }
+function fmtTime(s) {
+  // 数据里混有 +08:00 与 +00:00 两种偏移（多端写入），统一解析后按浏览器本地时区展示
+  if (!s) return "—";
+  const d = new Date(String(s).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(s).replace("T", " ");
+  const pad = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+}
 function el(tag, cls, text) { var node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; }
 
 function api(path, options) {
