@@ -128,7 +128,7 @@ readerVisualFrames.forEach((frame) => {
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
     document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
-      sec.style.display = (lang !== 'java' && sec.dataset.lang === lang) ? '' : 'none';
+      sec.style.display = (sec.dataset.lang === lang) ? '' : 'none';
     });
     document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
       div.style.display = (div.dataset.lang === lang) ? '' : 'none';
