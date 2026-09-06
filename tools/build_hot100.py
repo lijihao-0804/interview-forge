@@ -898,8 +898,9 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
             + "\n</div>\n<!--/bottom-nav-->"
         )
         content = "\n\n".join(body_parts)
-        # —— 多语言实现区块（lang_solutions.json）：每语言一个 data-lang 包裹段，
-        # 前端按用户语言偏好显隐对应实现。——
+        # —— 多语言实现（lang_solutions.json）：各语言以「### X 实现」小节追加在文末。
+        # 不在 md 里包 HTML 容器：语言包裹与原位替换全部交给 build_html_site 的
+        # DOM 后处理（wrap_language_sections），避免原始 HTML 混入 markdown 破坏解析。——
         lang_entry = _LANG_SOLUTIONS.get(str(problem["id"]))
         lang_sections = []
         if lang_entry:
@@ -912,15 +913,13 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
                     lis = "".join("<li>" + s + "</li>" for s in item["steps"])
                     steps_html = '<ol class="lang-steps">' + lis + '</ol>'
                 lang_sections.append(
-                    '<div class="lang-section" data-lang="' + lang + '" markdown="1">' + '\n\n'
-                    + '### ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
+                    '### ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
                     + '> 实现来源：' + item["source"] + '\n\n'
                     + steps_html + '\n\n'
-                    + '```' + lang + '\n' + item["code"] + '\n' + '```' + '\n\n'
-                    + '</div>'
+                    + '```' + lang + '\n' + item["code"] + '\n' + '```'
                 )
             if lang_sections:
-                content += "\n\n## 其他语言实现\n\n" + "\n\n".join(lang_sections)
+                content += "\n\n" + "\n\n".join(lang_sections)
         content += "\n\n" + footer
         # 输出到 03-题解/<专题目录>/，目录与文件名都绑定 problem_filename 命名规则。
         path = ROOT / "books" / "hot100" / "03-题解" / category_folder / problem_filename(problem)

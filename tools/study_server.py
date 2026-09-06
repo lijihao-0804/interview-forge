@@ -338,6 +338,10 @@ def connect_auth() -> sqlite3.Connection:
                     connection.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT 'java'")
                 except sqlite3.OperationalError:
                     pass  # 已存在
+                try:
+                    connection.execute("ALTER TABLE users ADD COLUMN last_seen TEXT")
+                except sqlite3.OperationalError:
+                    pass  # 已存在
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
                 _AUTH_READY = True
@@ -425,6 +429,7 @@ def auth_login(username: str, password: str) -> sqlite3.Row:
         if int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
             raise ValueError("用户名或密码错误")
         connection.execute("UPDATE users SET last_login = ? WHERE id = ?", (now_iso(), row["id"]))
+        connection.execute("UPDATE users SET last_seen = ? WHERE id = ?", (now_iso(), row["id"]))
         return row
 
 
@@ -458,6 +463,16 @@ def session_user(token: str) -> sqlite3.Row | None:
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
             (token, now_iso()),
         ).fetchone()
+        if row is not None:
+            seen_now = time.time()
+            with _LAST_SEEN_LOCK:
+                if seen_now - _LAST_SEEN_TS.get(row["id"], 0) >= _LAST_SEEN_INTERVAL:
+                    _LAST_SEEN_TS[row["id"]] = seen_now
+                    try:
+                        connection.execute("UPDATE users SET last_seen = ? WHERE id = ?",
+                                           (now_iso(), row["id"]))
+                    except sqlite3.Error:
+                        pass
 
 
 def generate_invite_codes(count: int, days: int, note: str, created_by: int) -> list[str]:
@@ -547,7 +562,7 @@ def list_users() -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     with closing(connect_auth()) as connection:
         for row in connection.execute(
-            "SELECT id, username, role, is_active, created_at, last_login FROM users ORDER BY id"
+            "SELECT id, username, role, is_active, created_at, last_login, COALESCE(last_seen, last_login) AS last_active FROM users ORDER BY id"
         ):
             item = dict(row)
             db_file = user_db_path(str(item["username"]))
@@ -907,6 +922,11 @@ _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 # 过期会话每日清理：session_user 每个请求都会调用 _maybe_purge_sessions，
 # 但只有距上次清理超过 24 小时才真正执行 DELETE。
 _LAST_SESSION_PURGE = 0.0
+
+# 最近活跃（last_seen）写库节流：每个用户最多 60 秒落盘一次，避免每请求写库
+_LAST_SEEN_TS: dict[int, float] = {}
+_LAST_SEEN_LOCK = threading.Lock()
+_LAST_SEEN_INTERVAL = 60.0
 
 
 def _maybe_purge_sessions() -> None:
@@ -2124,6 +2144,32 @@ def _leetcode_headers(credentials: dict[str, str]) -> dict[str, str]:
     return headers
 
 
+def _lc_http_get(url: str, headers: dict[str, str], timeout: int = 25) -> bytes:
+    """力扣 GET：优先 curl_cffi（模拟 Chrome TLS 指纹）。海外机房 IP 用标准库
+    urllib 访问 leetcode.cn 会被 Cloudflare"Just a moment"挑战页 403 拦截
+    （与会话是否有效无关），curl_cffi 的浏览器指纹可正常通过；未安装时回退
+    标准库 urllib。非 2xx 一律合成 urllib.error.HTTPError 抛出，调用方逻辑不变。"""
+    import io
+    import urllib.error
+    try:
+        from curl_cffi import requests as _curl_requests
+    except ImportError:
+        import urllib.request
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError:
+            raise
+    resp = _curl_requests.get(url, headers=headers, timeout=timeout, impersonate="chrome")
+    if resp.status_code >= 400:
+        # 合成 HTTPError 让调用方沿用同一套状态码分支；响应体挂到 fp 供 exc.read() 识别挑战页。
+        raise urllib.error.HTTPError(
+            url, resp.status_code, "HTTP Error", resp.headers, io.BytesIO(resp.content)
+        )
+    return resp.content
+
+
 def _fetch_json_with_retry(
     url: str,
     headers: dict[str, str],
@@ -2133,14 +2179,11 @@ def _fetch_json_with_retry(
 ) -> dict:
     """带退避重试的力扣 JSON 请求，缓解翻页过快触发的 403/429/5xx 风控。"""
     import urllib.error
-    import urllib.request
 
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            return json.loads(_lc_http_get(url, headers, timeout).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc
             if exc.code not in (403, 429, 500, 502, 503, 504):
@@ -2186,18 +2229,28 @@ def lc_status_invalidate(db_path: Path) -> None:
 
 def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str, object]:
     """测试力扣连接：调公开题目列表接口，校验登录态字段。"""
-    import urllib.request
     import urllib.error
 
     if not credentials.get("leetcode_session"):
         return {"connected": False, "reason": "no-session", "message": "尚未保存 LEETCODE_SESSION"}
     # 探测原理：公开题目列表接口在登录态下会带 user_name —— 用户名非空即视为会话生效
-    # （num_solved 仅作附加展示）；401/403 → 会话过期，其余 HTTP/网络/匿名数据分别归类提示。
-    req = urllib.request.Request("https://leetcode.cn/api/problems/all/", headers=_leetcode_headers(credentials))
+    # （num_solved 仅作附加展示）；401/403 → 会话过期或 IP 被风控，其余 HTTP/网络错误分别归类。
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        data = json.loads(_lc_http_get(
+            "https://leetcode.cn/api/problems/all/", _leetcode_headers(credentials), timeout
+        ).decode("utf-8"))
     except urllib.error.HTTPError as exc:
+        body_head = b""
+        try:
+            body_head = exc.read(500)
+        except Exception:  # noqa: BLE001 - 读不到响应体不影响分类
+            pass
+        if b"Just a moment" in body_head:
+            return {
+                "connected": False,
+                "reason": "cloudflare",
+                "message": "出口 IP 被力扣 Cloudflare 拦截（非会话问题）；在服务器执行 pip3 install curl_cffi 后重启服务即可",
+            }
         if exc.code in (401, 403):
             return {"connected": False, "reason": "expired", "message": "会话无效或已过期（HTTP %s）" % exc.code}
         return {"connected": False, "reason": "http", "message": "力扣返回 HTTP %s" % exc.code}

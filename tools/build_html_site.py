@@ -291,7 +291,8 @@ a:hover { text-decoration: underline; }
 }
 .skip-link:focus { top: 12px; }
 
-.site-shell { width: calc(100% - 100px); margin: 0 auto; padding: 20px 0 56px; }
+.site-shell { width: calc(100% - 400px); margin: 0 auto; padding: 20px 0 56px; }
+@media (max-width: 1400px) { .site-shell { width: calc(100% - 100px); } }
 .site-topbar {
   display: flex;
   align-items: center;
@@ -1759,15 +1760,28 @@ def render_visual_embed(source: Path, output: Path, title: str) -> str:
 # 拼装，保持单文件自包含、便于整体离线分发。
 # =============================================================================
 
-def wrap_java_sections(body, soup):
-    """把正文中 'Java 实现*' 小节（标题+后续内容直到下一个同级标题）
-    包进 .lang-section[data-lang=java]，选择其他语言时整段隐藏。"""
+# 「### X 实现」小节标题 → 前端语言标识（与 site.js 的 LANG_NAMES 对齐）。
+# 注意 C++ 必须排在 C 之前，否则 "C++ 实现" 会先被 "C" 命中。
+_LANG_HEADINGS = {
+    "Java": "java", "C++": "cpp", "Python": "python", "Go": "go",
+    "C": "c", "JavaScript": "js", "JS": "js", "TypeScript": "ts", "Rust": "rust",
+}
+_LANG_HEADING_RE = re.compile(
+    "(" + "|".join(re.escape(k) for k in sorted(_LANG_HEADINGS, key=len, reverse=True)) + r")\s*实现"
+)
+
+def wrap_language_sections(body, soup):
+    """把正文中所有「X 实现」小节（标题+后续内容直到下一个同级标题）包进
+    .lang-section[data-lang=X]。Java 小节来自源笔记，其余语言小节由
+    build_hot100 追加在文末；包裹后的原位替换（非 Java 移到 Java 之后）
+    由 transform_solution_page 完成，前端按 data-lang 整段显隐。"""
     for h3 in list(body.find_all("h3")):
-        if not h3.get_text(strip=True).startswith("Java"):
+        m = _LANG_HEADING_RE.match(h3.get_text(strip=True))
+        if not m:
             continue
         section = soup.new_tag("div")
         section["class"] = "lang-section"
-        section["data-lang"] = "java"
+        section["data-lang"] = _LANG_HEADINGS[m.group(1)]
         node = h3.next_sibling
         while node is not None and getattr(node, "name", None) not in ("h2", "h3"):
             nxt = node.next_sibling
@@ -1790,7 +1804,18 @@ def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
     if body is None:
         return page
 
-    body = wrap_java_sections(body, soup)
+    body = wrap_language_sections(body, soup)
+
+    # ---- 语言实现原位替换：非 Java 的 lang-section 移到 Java 容器之后，
+    # 选择其他语言时实现在原 Java 位置显示（而非文末）----  # lang Move
+    java_box = body.find("div", class_="lang-section", attrs={"data-lang": "java"})
+    if java_box is not None:
+        moving = [sec for sec in body.find_all("div", class_="lang-section")
+                  if sec.get("data-lang") not in (None, "java")]
+        for sec in moving:
+            sec.extract()
+        for sec in reversed(moving):
+            java_box.insert_after(sec)
 
     # ---- 1. aside 提示框：面试追问 → note；易错点 → warn ----
     def wrap_aside(heading, kind):
