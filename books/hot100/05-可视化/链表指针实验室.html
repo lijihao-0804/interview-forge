@@ -9,7 +9,13 @@
 --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace}
 @media(prefers-color-scheme:dark){:root{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
 --dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
---dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}}
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
+html[data-theme="light"]{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
+--dk-line:#dfe4ee;--dk-brand:#5654d4;--dk-brand-strong:#4543bd;--dk-brand-soft:#eeedff;
+--dk-ok:#157a52;--dk-warn:#a85b00;--dk-err:#b3372f}}
+html[data-theme="dark"]{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
+--dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}
 @font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
 font-weight:100 900;font-style:normal;font-display:swap;
 unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -439,7 +445,26 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 </style>
 
-</head>
+<script id="hot100-theme-sync">
+(() => {
+  const root = document.documentElement;
+  const apply = (v) => {
+    if (v === "light" || v === "dark") root.setAttribute("data-theme", v);
+    else root.removeAttribute("data-theme");
+  };
+  try { apply(localStorage.getItem("forge-theme")); } catch (e) { }
+  window.addEventListener("storage", (e) => {
+    if (!e || e.key === null || e.key === "forge-theme") {
+      let v = null;
+      try { v = localStorage.getItem("forge-theme"); } catch (err) { }
+      apply(v);
+    }
+  });
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
+  });
+})();
+</script></head>
 <body>
 <nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>链表指针实验室</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav><main class="shell"><a href="index.html">← 可视化中心</a><h1>链表反转：三指针实验室</h1><div>修改 <code>current.next</code> 前，为什么必须先保存 <code>next</code>？逐步观察链表如何断开并重新连接。</div><div class="toolbar"><button class="primary" id="step">下一步</button><button id="reset">重置</button></div><section class="panel"><div class="lane" id="lane"></div><div class="legend"><span style="color:var(--brand)">current：待处理节点</span><span style="color:var(--prev)">prev：已反转链表头</span><span style="color:var(--next)">橙色轮廓：已保存的 next</span></div><div class="status"><div id="code" class="code"></div><p id="message" aria-live="polite"></p></div></section></main>
 <script>const values=[1,2,3,4],$=id=>document.getElementById(id);let state;function init(){state={prev:-1,current:0,next:null,phase:0,links:[1,2,3,null],done:false};render()}function step(){if(state.done)return;if(state.current===null){state.done=true;render();return}if(state.phase===0){state.next=state.links[state.current];state.phase=1}else if(state.phase===1){state.links[state.current]=state.prev===-1?null:state.prev;state.phase=2}else{state.prev=state.current;state.current=state.next;state.next=null;state.phase=0;if(state.current===null)state.done=true}render()}function render(){const labels=i=>`${state.current===i?'<span class="label top">current</span>':''}${state.prev===i?'<span class="label bottom">prev</span>':''}`;let order=[],seen=new Set(),x=state.prev;if(x!==-1)while(x!==null&&!seen.has(x)){order.push(x);seen.add(x);x=state.links[x]}x=state.current;while(x!==null&&!seen.has(x)){order.push(x);seen.add(x);x=state.links[x]}$('lane').innerHTML=order.map((i,k)=>`<div class="node ${state.next===i?'saved':''}">${labels(i)}${values[i]}</div>${k<order.length-1?'<span class="arrow">→</span>':''}`).join('')+(order.length?'<span class="arrow">→ null</span>':'');const lines=['next = current.next;','current.next = prev;','prev = current; current = next;'];$('code').innerHTML=lines.map((l,i)=>`<span class="${!state.done&&state.phase===i?'active':''}">${l}</span>`).join('\n');const msgs=['先保存后继，否则改 next 后将失去剩余链表。','安全地把 current.next 指向已反转部分。','整体向前移动，准备处理下一个节点。'];$('message').textContent=state.done?`完成：新头节点是 ${values[state.prev]}，反转结果为 4 → 3 → 2 → 1。`:msgs[state.phase]}$('step').onclick=step;$('reset').onclick=init;init();</script>
