@@ -486,6 +486,34 @@ function grid(g, st) {
   return tbl;
 }
 
+function row(name, vals, extra) {
+  var r = { name: name, vals: vals.slice() };
+  if (extra) for (var k in extra) r[k] = extra[k];
+  return r;
+}
+function st1(i, s) { var m = {}; m[i] = s; return m; }
+function mergeSt(a, b) { var m = {}; for (var k in a) m[k] = a[k]; for (var k in b) m[k] = b[k]; return m; }
+function renderRows(view, stage) {
+  stage.textContent = "";
+  (view.rows || []).forEach(function (row) {
+    var line = document.createElement("div");
+    line.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:10px 0;position:relative;padding-top:40px";
+    line.appendChild(el("span", "dk-var", row.name));
+    (row.vals || []).forEach(function (v, i) {
+      var st = (row.st && row.st[i]) || "";
+      var cell = el("div", "dk-cell" + (st ? " " + st : ""), String(v));
+      if (row.ptrs) row.ptrs.forEach(function (p) {
+        if (p.i === i) cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+      });
+      line.appendChild(cell);
+      if (i < row.vals.length - 1) line.appendChild(el("span", "dk-arrow", "→"));
+    });
+    if (row.tail) line.appendChild(el("span", "dk-note", row.tail));
+    stage.appendChild(line);
+  });
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
+}
+
 var DEMOS = {
 
   "0020": { no: "20", title: "有效的括号", tag: "栈 · 匹配消除",
