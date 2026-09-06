@@ -48,6 +48,29 @@ def extract_ec(text):
 LANG_HEADER = re.compile(r"^#{2,4}\s*(?:\d+[.、)]?\s*)?(C\+\+|Java|Python3?|Golang|Go|C语言|C)\s*[:：]?\s*$", re.I)
 NUM_LINE = re.compile(r"^\s*(?:\d+\s*)+$")
 
+def looks_like_code(code: str, lang: str) -> bool:
+    """代码随想录「思路」区的缩进块常是伪代码、示例输出或图形示意，
+    不是可运行代码 —— 用结构性标记过滤：真代码必有语句结尾符/块符号；
+    纯数字表（全排列枚举、矩阵示意）直接排除。"""
+    code = code.replace("\xa0", " ")
+    if len(code) < 40:
+        return False
+    stripped_lines = [l for l in code.split("\n") if l.strip()]
+    if len(stripped_lines) < 2:
+        return False
+    # 纯数字/逗号行占比过半 → 示例输出（如 31 的全排列枚举、74 的矩阵示意）
+    numish = sum(1 for l in stripped_lines if re.match(r"^[\s\d,.\[\]]+$", l))
+    if numish > len(stripped_lines) / 2:
+        return False
+    if lang in ("cpp", "c", "java"):
+        # 伪代码（a = nums[i]、for i 从 0 到 n-1）没有分号或花括号
+        return ";" in code or "{" in code
+    if lang == "go":
+        return "func " in code or ":=" in code or "package " in code
+    if lang == "python":
+        return "def " in code or "class " in code or "return " in code or "print(" in code
+    return True
+
 def extract_carl(text):
     """返回 {lang: code}。跟踪语言小节标题，收集其后连续 4 空格缩进行为代码块。"""
     out = {}
@@ -58,11 +81,12 @@ def extract_carl(text):
     def flush():
         nonlocal buf
         code = "\n".join(l[4:] if l.startswith("    ") else l for l in buf).strip("\n").strip()
+        code = code.replace("\xa0", " ")
         _lines = code.split("\n")
         while _lines and re.match(r"^[（(【]?[^\x00-\x7F]", _lines[0]):
             _lines.pop(0)
         code = "\n".join(_lines).strip()
-        if code and cur_lang and cur_lang not in out and len(code) > 40:
+        if code and cur_lang and cur_lang not in out and looks_like_code(code, cur_lang):
             out[cur_lang] = code
         buf = []
     for line in lines:
