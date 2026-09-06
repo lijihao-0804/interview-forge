@@ -304,7 +304,17 @@ function updateSummary(){
   document.getElementById('todayViewed').textContent=summary.today_viewed;
   document.getElementById('todayRounds').textContent=summary.today_rounds;
   document.getElementById('completedCount').textContent=summary.completed_problems;
-  document.getElementById('totalRounds').textContent=summary.total_rounds;
+  // 数字 count-up：300ms 从 0 滚到目标值（尊重 reduced-motion）
+  const countUp=(id,target)=>{const el=document.getElementById(id);if(!el)return;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=target;return}
+    const start=performance.now(),from=0,dur=300;
+    const tick=now=>{const p=Math.min((now-start)/dur,1);const eased=1-Math.pow(1-p,3);
+      el.textContent=Math.round(from+(target-from)*eased);if(p<1)requestAnimationFrame(tick)};
+    requestAnimationFrame(tick)};
+  countUp('todayViewed',summary.today_viewed);
+  countUp('todayRounds',summary.today_rounds);
+  countUp('completedCount',summary.completed_problems);
+  countUp('totalRounds',summary.total_rounds);
   const subs=(state.data.submissions||{}).summary||{};
   document.getElementById('acTodayText').textContent=`${subs.today_ac||0} / ${subs.today_submits||0}`;
   document.getElementById('acTotalText').textContent=`${subs.total_ac||0} / ${subs.solved_ac||0}`;
