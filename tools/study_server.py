@@ -2544,7 +2544,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # 根路径 302 重定向到书架首页 library/index.html："打开学习站"直达内容而非目录列表。
         if parsed.path == "/":
             self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
-            self.send_header("Location", "/library/index.html")
+            self.send_header("Location", "/cockpit.html")
             self.send_header("Content-Length", "0")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
