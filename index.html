@@ -42,8 +42,7 @@ button,input,select{font:inherit}button{color:inherit}
 :focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 48%,transparent);outline-offset:3px}
 .skip-link{position:absolute;left:12px;top:-60px;z-index:10;padding:8px 12px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--panel)}
 .skip-link:focus{top:12px}
-.shell{width:calc(100% - 400px);margin:auto;padding:30px 0 56px}
-@media(max-width:1400px){.shell{width:calc(100% - 100px)}}
+.shell{width:calc(100% - 100px);margin:auto;padding:30px 0 56px}
 .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex-wrap:wrap}
 h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025em}
 .sub{margin-top:8px;color:var(--muted);font-size:16px}
@@ -109,7 +108,6 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .due-pill{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
 .due-pill.overdue{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .ac-pill{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;color:var(--success);background:var(--success-soft)}
-.relearn-pill{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px;color:var(--brand);background:var(--brand-soft)}
 .mark-pill{flex:0 0 auto;padding:2px 7px;border-radius:999px;font-size:12px}
 .mark-pill.weak{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .mark-pill.reviewing{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
@@ -439,9 +437,8 @@ function renderTrend(){
 }
 function renderCards(){
   const query=search.value.trim().toLowerCase();
-    const dueIds=new Set(state.daily.problems.map(item=>String(item.id)));
-    const dueOverdue=new Set(state.daily.problems.filter(item=>item.due_date<state.daily.today).map(item=>String(item.id)));
-    const relearnIds=new Set((state.daily.relearn||[]).map(item=>String(item.id)));
+  const dueIds=new Set(state.daily.problems.map(item=>String(item.id)));
+  const dueOverdue=new Set(state.daily.problems.filter(item=>item.due_date<state.daily.today).map(item=>String(item.id)));
   const marks=state.data.marks||{};
   const autoWeak=(state.data.submissions||{}).auto_weak||{};
   const list=problems.filter(problem=>{
@@ -462,12 +459,11 @@ function renderCards(){
     const mark=manualMark||(autoWeakFlag?'weak':'');
     const everAc=((state.data.submissions||{}).ever_ac||{})[String(problem.id)];
     const badge=isDue?`<span class="due-pill ${overdue?'overdue':''}">待复习</span>`:'';
-    const relearnBadge=relearnIds.has(String(problem.id))?`<span class="relearn-pill">需重学</span>`:'';
     const acBadge=everAc?`<span class="ac-pill">已 AC</span>`:'';
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${relearnBadge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='pin-tomorrow'){pinPlan(Number(select.dataset.mark));select.value='';}else setMark(Number(select.dataset.mark),select.value)}));
