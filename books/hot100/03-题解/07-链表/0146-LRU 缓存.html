@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>146. LRU 缓存 · Hot 100</title>
-  <link rel="stylesheet" href="../../../../assets/site.css?v=20260906-p12">
+  <link rel="stylesheet" href="../../../../assets/site.css?v=20260906-lang">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到正文</a>
@@ -38,6 +38,12 @@
 </ul>
 </li>
 <li><a href="#_7">力扣原题</a></li>
+<li><a href="#_8">其他语言实现</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+<li><a href="#go">Go 实现</a></li>
+</ul>
+</li>
 </ul>
 </div>
 
@@ -112,7 +118,7 @@
 </li>
 </ol>
 <h3 id="java">Java 实现（手撕底层实现）</h3>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
 
 <span class="kd">class</span> <span class="nc">LRUCache</span><span class="w"> </span><span class="p">{</span>
@@ -225,6 +231,221 @@
 </ol>
 <h2 id="_7">力扣原题</h2>
 <p><a href="https://leetcode.cn/problems/lru-cache/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
+<h2 id="_8">其他语言实现</h2>
+<div class="lang-section" data-lang="cpp">
+<h3 id="c">C++ 实现</h3>
+<blockquote>
+<p>实现来源：灵茶山艾府题解（MIT License）</p>
+</blockquote>
+<div class="codehilite" data-lang="cpp"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">Node</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">prev</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">Node</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">key</span><span class="p">(</span><span class="n">k</span><span class="p">),</span><span class="w"> </span><span class="n">value</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+<span class="p">};</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">LRUCache</span><span class="w"> </span><span class="p">{</span>
+<span class="k">private</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span><span class="w"> </span><span class="c1">// 哨兵节点</span>
+<span class="w">    </span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">key_to_node</span><span class="p">;</span>
+
+<span class="w">    </span><span class="c1">// 删除一个节点（抽出一本书）</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">next</span><span class="o">-&gt;</span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">prev</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 在链表头添加一个节点（把一本书放到最上面）</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">push_front</span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">        </span><span class="n">x</span><span class="o">-&gt;</span><span class="n">next</span><span class="o">-&gt;</span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 获取 key 对应的节点，同时把该节点移到链表头部</span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="nf">get_node</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">key_to_node</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">key</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">key_to_node</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 没有这本书</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">;</span><span class="w"> </span><span class="c1">// 有这本书</span>
+<span class="w">        </span><span class="n">remove</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"> </span><span class="c1">// 把这本书抽出来</span>
+<span class="w">        </span><span class="n">push_front</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"> </span><span class="c1">// 放到最上面</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">LRUCache</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">capacity</span><span class="p">(</span><span class="n">capacity</span><span class="p">),</span><span class="w"> </span><span class="n">dummy</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">dummy</span><span class="o">-&gt;</span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="n">dummy</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">get</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get_node</span><span class="p">(</span><span class="n">key</span><span class="p">);</span><span class="w"> </span><span class="c1">// get_node 会把对应节点移到链表头部</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">value</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="n">put</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get_node</span><span class="p">(</span><span class="n">key</span><span class="p">);</span><span class="w"> </span><span class="c1">// get_node 会把对应节点移到链表头部</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 有这本书</span>
+<span class="w">            </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span><span class="w"> </span><span class="c1">// 更新 value</span>
+<span class="w">            </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">key_to_node</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">);</span><span class="w"> </span><span class="c1">// 新书</span>
+<span class="w">        </span><span class="n">push_front</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"> </span><span class="c1">// 放到最上面</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">key_to_node</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 书太多了</span>
+<span class="w">            </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">back_node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="o">-&gt;</span><span class="n">prev</span><span class="p">;</span>
+<span class="w">            </span><span class="n">key_to_node</span><span class="p">.</span><span class="n">erase</span><span class="p">(</span><span class="n">back_node</span><span class="o">-&gt;</span><span class="n">key</span><span class="p">);</span>
+<span class="w">            </span><span class="n">remove</span><span class="p">(</span><span class="n">back_node</span><span class="p">);</span><span class="w"> </span><span class="c1">// 去掉最后一本书</span>
+<span class="w">            </span><span class="k">delete</span><span class="w"> </span><span class="n">back_node</span><span class="p">;</span><span class="w"> </span><span class="c1">// 释放内存</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+</div>
+<div class="lang-section" data-lang="python">
+<h3 id="python">Python 实现</h3>
+<blockquote>
+<p>实现来源：灵茶山艾府题解（MIT License）</p>
+</blockquote>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">class</span> <span class="nc">Node</span><span class="p">:</span>
+    <span class="c1"># 提高访问属性的速度，并节省内存</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="s1">&#39;prev&#39;</span><span class="p">,</span> <span class="s1">&#39;next&#39;</span><span class="p">,</span> <span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;value&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+<span class="k">class</span> <span class="nc">LRUCache</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">capacity</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">capacity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span> <span class="o">=</span> <span class="n">Node</span><span class="p">()</span>  <span class="c1"># 哨兵节点</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># 获取 key 对应的节点，同时把该节点移到链表头部</span>
+    <span class="k">def</span> <span class="nf">get_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span><span class="p">:</span>  <span class="c1"># 没有这本书</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>  <span class="c1"># 有这本书</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># 把这本书抽出来</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">push_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># 放到最上面</span>
+        <span class="k">return</span> <span class="n">node</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_node</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>  <span class="c1"># get_node 会把对应节点移到链表头部</span>
+        <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">value</span> <span class="k">if</span> <span class="n">node</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_node</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>  <span class="c1"># get_node 会把对应节点移到链表头部</span>
+        <span class="k">if</span> <span class="n">node</span><span class="p">:</span>  <span class="c1"># 有这本书</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>  <span class="c1"># 更新 value</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span> <span class="o">=</span> <span class="n">Node</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>  <span class="c1"># 新书</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">push_front</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># 放到最上面</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span><span class="p">:</span>  <span class="c1"># 书太多了</span>
+            <span class="n">back_node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="o">.</span><span class="n">prev</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_to_node</span><span class="p">[</span><span class="n">back_node</span><span class="o">.</span><span class="n">key</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">back_node</span><span class="p">)</span>  <span class="c1"># 去掉最后一本书</span>
+
+    <span class="c1"># 删除一个节点（抽出一本书）</span>
+    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">prev</span>
+
+    <span class="c1"># 在链表头添加一个节点（把一本书放到最上面）</span>
+    <span class="k">def</span> <span class="nf">push_front</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">prev</span> <span class="o">=</span> <span class="n">x</span>
+</code></pre></div>
+
+</div>
+<div class="lang-section" data-lang="go">
+<h3 id="go">Go 实现</h3>
+<blockquote>
+<p>实现来源：灵茶山艾府题解（MIT License）</p>
+</blockquote>
+<div class="codehilite" data-lang="go"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">Node</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="kt">int</span>
+<span class="w">    </span><span class="nx">prev</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="w"> </span><span class="o">*</span><span class="nx">Node</span>
+<span class="p">}</span>
+
+<span class="kd">type</span><span class="w"> </span><span class="nx">LRUCache</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">capacity</span><span class="w">  </span><span class="kt">int</span>
+<span class="w">    </span><span class="nx">dummy</span><span class="w">     </span><span class="o">*</span><span class="nx">Node</span><span class="w"> </span><span class="c1">// 哨兵节点</span>
+<span class="w">    </span><span class="nx">keyToNode</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="o">*</span><span class="nx">Node</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="nx">Constructor</span><span class="p">(</span><span class="nx">capacity</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="nx">LRUCache</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">dummy</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Node</span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">dummy</span><span class="p">.</span><span class="nx">prev</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">dummy</span>
+<span class="w">    </span><span class="nx">dummy</span><span class="p">.</span><span class="nx">next</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">dummy</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">LRUCache</span><span class="p">{</span>
+<span class="w">        </span><span class="nx">capacity</span><span class="p">:</span><span class="w">  </span><span class="nx">capacity</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">dummy</span><span class="p">:</span><span class="w">     </span><span class="nx">dummy</span><span class="p">,</span>
+<span class="w">        </span><span class="nx">keyToNode</span><span class="p">:</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">int</span><span class="p">]</span><span class="o">*</span><span class="nx">Node</span><span class="p">{},</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 删除一个节点（抽出一本书）</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">LRUCache</span><span class="p">)</span><span class="w"> </span><span class="nx">remove</span><span class="p">(</span><span class="nx">x</span><span class="w"> </span><span class="o">*</span><span class="nx">Node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">prev</span><span class="p">.</span><span class="nx">next</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">x</span><span class="p">.</span><span class="nx">next</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">next</span><span class="p">.</span><span class="nx">prev</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">x</span><span class="p">.</span><span class="nx">prev</span>
+<span class="p">}</span>
+
+<span class="c1">// 在链表头添加一个节点（把一本书放到最上面）</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">LRUCache</span><span class="p">)</span><span class="w"> </span><span class="nx">pushFront</span><span class="p">(</span><span class="nx">x</span><span class="w"> </span><span class="o">*</span><span class="nx">Node</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">prev</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">dummy</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">next</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">dummy</span><span class="p">.</span><span class="nx">next</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">prev</span><span class="p">.</span><span class="nx">next</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">x</span>
+<span class="w">    </span><span class="nx">x</span><span class="p">.</span><span class="nx">next</span><span class="p">.</span><span class="nx">prev</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">x</span>
+<span class="p">}</span>
+
+<span class="c1">// 获取 key 对应的节点，同时把该节点移到链表头部</span>
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">LRUCache</span><span class="p">)</span><span class="w"> </span><span class="nx">getNode</span><span class="p">(</span><span class="nx">key</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="nx">Node</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">node</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">keyToNode</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 没有这本书</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">remove</span><span class="p">(</span><span class="nx">node</span><span class="p">)</span><span class="w">    </span><span class="c1">// 把这本书抽出来</span>
+<span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">pushFront</span><span class="p">(</span><span class="nx">node</span><span class="p">)</span><span class="w"> </span><span class="c1">// 放到最上面</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">node</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">LRUCache</span><span class="p">)</span><span class="w"> </span><span class="nx">Get</span><span class="p">(</span><span class="nx">key</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">node</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">getNode</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="c1">// getNode 会把对应节点移到链表头部</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">node</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">node</span><span class="p">.</span><span class="nx">value</span>
+<span class="p">}</span>
+
+<span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">LRUCache</span><span class="p">)</span><span class="w"> </span><span class="nx">Put</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">node</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">getNode</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="c1">// getNode 会把对应节点移到链表头部</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">node</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w">       </span><span class="c1">// 有这本书</span>
+<span class="w">        </span><span class="nx">node</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="c1">// 更新 value</span>
+<span class="w">        </span><span class="k">return</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">node</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">Node</span><span class="p">{</span><span class="nx">key</span><span class="p">:</span><span class="w"> </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="p">:</span><span class="w"> </span><span class="nx">value</span><span class="p">}</span><span class="w"> </span><span class="c1">// 新书</span>
+<span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">keyToNode</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nx">node</span>
+<span class="w">    </span><span class="nx">c</span><span class="p">.</span><span class="nx">pushFront</span><span class="p">(</span><span class="nx">node</span><span class="p">)</span><span class="w"> </span><span class="c1">// 放到最上面</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">keyToNode</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">capacity</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 书太多了</span>
+<span class="w">        </span><span class="nx">backNode</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">dummy</span><span class="p">.</span><span class="nx">prev</span>
+<span class="w">        </span><span class="nb">delete</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">keyToNode</span><span class="p">,</span><span class="w"> </span><span class="nx">backNode</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span>
+<span class="w">        </span><span class="nx">c</span><span class="p">.</span><span class="nx">remove</span><span class="p">(</span><span class="nx">backNode</span><span class="p">)</span><span class="w"> </span><span class="c1">// 去掉最后一本书</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+</div>
 
         
         <section class="reader-visual" aria-labelledby="interactive-demo-title">
@@ -241,6 +462,6 @@
     </main>
     <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
   </div>
-  <script src="../../../../assets/site.js?v=20260906-p12" defer></script>
+  <script src="../../../../assets/site.js?v=20260906-lang" defer></script>
 </body>
 </html>

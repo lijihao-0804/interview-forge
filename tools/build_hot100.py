@@ -271,6 +271,14 @@ def _problems_source_hash() -> str:
 PROBLEM_BY_ID = {int(p["id"]): p for p in PROBLEMS}
 
 # === 力扣原题链接数据 ===
+# 多语言题解实现（extract_lang_solutions.py 的产物，构建期并入题解页）：
+# {题号字符串: {语言: {code, source}}}；语言集合 cpp/python/go/c（java 为主正文）。
+try:
+    _LANG_SOLUTIONS = json.loads((ROOT / "tools" / "lang_solutions.json").read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    _LANG_SOLUTIONS = {}
+_LANG_TITLES = {"cpp": "C++", "python": "Python", "go": "Go", "c": "C"}
+
 # LEETCODE_BASE 是带 {slug} 占位符的 URL 模板，由 render_problem_pages 用
 # format() 填充；LEETCODE_SLUGS 以题号为键保存每题 slug（题号与 PROBLEM_TSV
 # 一一对应）。有 slug 的题页才会拼出“前往力扣原题验证 →”链接。
@@ -889,7 +897,26 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
             + "\n".join(nav_buttons)
             + "\n</div>\n<!--/bottom-nav-->"
         )
-        content = "\n\n".join(body_parts) + "\n\n" + footer
+        content = "\n\n".join(body_parts)
+        # —— 多语言实现区块（lang_solutions.json）：每语言一个 data-lang 包裹段，
+        # 前端按用户语言偏好显隐对应实现。——
+        lang_entry = _LANG_SOLUTIONS.get(str(problem["id"]))
+        lang_sections = []
+        if lang_entry:
+            for lang in ("cpp", "python", "go", "c"):
+                item = lang_entry.get(lang)
+                if not item:
+                    continue
+                lang_sections.append(
+                    '<div class="lang-section" data-lang="' + lang + '" markdown="1">' + '\n\n'
+                    + '### ' + _LANG_TITLES[lang] + ' 实现' + '\n\n'
+                    + '> 实现来源：' + item["source"] + '\n\n'
+                    + '```' + lang + '\n' + item["code"] + '\n' + '```' + '\n\n'
+                    + '</div>'
+                )
+            if lang_sections:
+                content += "\n\n## 其他语言实现\n\n" + "\n\n".join(lang_sections)
+        content += "\n\n" + footer
         # 输出到 03-题解/<专题目录>/，目录与文件名都绑定 problem_filename 命名规则。
         path = ROOT / "books" / "hot100" / "03-题解" / category_folder / problem_filename(problem)
         write(path, content)

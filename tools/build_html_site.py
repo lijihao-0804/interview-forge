@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260906-p12"
+ASSET_VERSION = "20260906-lang"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -521,6 +521,18 @@ opacity:0;transition:opacity .2s}
 .table-scroll-hint.has-overflow::after{opacity:1}
 /* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1: 4px;--space-2: 8px;--space-3: 12px; --space-4: 16px;--space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;--fs-0: .8rem; --fs-1: .9rem; --fs-2: 1rem; --fs-3: 1.1rem;--fs-4: 1.25rem; --fs-5: 1.5rem; --fs-6: 1.8rem; --fs-7: 2.2rem;--radius-1: 6px; --radius-2: 10px; --radius-3: 14px; --radius-4: 20px;--ease-out: cubic-bezier(.22, 1, .36, 1);--ease-in-out: cubic-bezier(.65, 0, .35, 1);
 
+/* ===== 题解语言切换条（P 多语言） ===== */
+.forge-lang-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 22px;
+padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--surface-soft)}
+.forge-lang-bar .flb-label{font-size:13px;color:var(--muted);font-weight:600}
+.forge-lang-chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;
+padding:4px 14px;font:600 13px var(--font-sans);cursor:pointer;color:var(--muted);
+transition:all .15s var(--ease-out)}
+.forge-lang-chip:hover{border-color:var(--brand);color:var(--brand)}
+.forge-lang-chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.forge-lang-chip.unavailable{opacity:.38;cursor:not-allowed}
+.lang-section{border-top:1px dashed var(--line);padding-top:14px;margin-top:26px}
+
 """
 
 # =============================================================================
@@ -623,6 +635,106 @@ readerVisualFrames.forEach((frame) => {
     frame.contentWindow?.postMessage({ type: 'hot100:measure' }, '*');
   });
 });
+
+/* ===== 阅读进度条 + 表格溢出遮罩 ===== */
+(function () {
+  const main = document.querySelector('.markdown-body');
+  if (!main) return;
+  const bar = document.createElement('div');
+  bar.className = 'read-progress';
+  document.body.appendChild(bar);
+  const update = () => {
+    const rect = main.getBoundingClientRect();
+    const total = Math.max(rect.height - window.innerHeight, 1);
+    const passed = Math.min(Math.max(-rect.top, 0), total);
+    bar.style.width = Math.round((passed / total) * 100) + '%';
+  };
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  document.querySelectorAll('.table-wrap').forEach((wrap) => {
+    const check = () => wrap.classList.toggle('has-overflow', wrap.scrollWidth > wrap.clientWidth + 4);
+    check();
+    wrap.addEventListener('scroll', () => {
+      wrap.classList.toggle('has-overflow', wrap.scrollWidth - wrap.scrollLeft > wrap.clientWidth + 4);
+    }, { passive: true });
+  });
+})();
+
+/* ===== 多语言题解：语言偏好应用 + 切换条 ===== */
+(function () {
+  const LANG_NAMES = { java: 'Java', cpp: 'C++', python: 'Python', go: 'Go', c: 'C' };
+  function getLang() {
+    try { return localStorage.getItem('forge-lang') || 'java'; } catch (e) { return 'java'; }
+  }
+  function setLang(lang, syncServer) {
+    try { localStorage.setItem('forge-lang', lang); } catch (e) { }
+    applyLang(lang);
+    if (syncServer) {
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang })
+      });
+    }
+    document.dispatchEvent(new CustomEvent('forge-lang-change', { detail: { lang } }));
+  }
+  function applyLang(lang) {
+    const main = document.querySelector('.markdown-body');
+    if (!main) return;
+    if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
+    document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
+      sec.style.display = (lang !== 'java' && sec.dataset.lang === lang) ? '' : 'none';
+    });
+    document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
+      div.style.display = (div.dataset.lang === lang) ? '' : 'none';
+    });
+    const bar = buildBar();
+    bar.dataset.lang = lang;
+    const available = new Set([...document.querySelectorAll('.codehilite[data-lang]')].map((d) => d.dataset.lang));
+    bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
+      const l = chip.dataset.lang;
+      chip.classList.toggle('active', l === lang);
+      chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
+    });
+  }
+  function buildBar() {
+    let bar = document.getElementById('forge-lang-bar');
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.id = 'forge-lang-bar';
+    bar.className = 'forge-lang-bar';
+    const label = document.createElement('span');
+    label.className = 'flb-label';
+    label.textContent = '题解语言';
+    bar.appendChild(label);
+    Object.keys(LANG_NAMES).forEach((l) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'forge-lang-chip';
+      chip.dataset.lang = l;
+      chip.textContent = LANG_NAMES[l];
+      chip.onclick = () => setLang(l, true);
+      bar.appendChild(chip);
+    });
+    const main = document.querySelector('.markdown-body');
+    if (main && main.parentNode) main.parentNode.insertBefore(bar, main);
+    return bar;
+  }
+  document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
+  fetch('/api/me', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((me) => {
+      let lang = getLang();
+      if (me && me.lang) {
+        lang = me.lang;
+        try { localStorage.setItem('forge-lang', me.lang); } catch (e) { }
+      }
+      applyLang(lang);
+    })
+    .catch(() => applyLang(getLang()));
+})();
+
 """
 
 # VISUAL_EMBED_BOOTSTRAP：内嵌启动脚本（由 polish_visual 放在可视化页 <head>
@@ -1665,6 +1777,18 @@ def render_markdown(source: Path) -> None:
 """
     # 图片懒加载：阅读页配图统一滚动到视口再加载
     page = page.replace("<img ", '<img loading="lazy" decoding="async" ')
+    # —— 代码块语言标记（多语言题解）：按源 md 中 ```lang 围栏的出现顺序为
+    # codehilite 容器打 data-lang 标签；数量不匹配（存在无语言围栏等边缘情况）
+    # 时整体跳过标记，前端退化为仅按 lang-section 显隐。——
+    fence_langs = [{"py": "python", "python3": "python", "c++": "cpp", "golang": "go"}.get(x.lower(), x.lower()) for x in re.findall(r"(?m)^```([A-Za-z+#]+)", raw)]
+    code_div_count = page.count('<div class="codehilite"')
+    if code_div_count == len(fence_langs) and fence_langs:
+        parts = page.split('<div class="codehilite"')
+        rebuilt = parts[0]
+        for _i, _lang in enumerate(fence_langs):
+            rebuilt += '<div class="codehilite" data-lang="' + _lang + '"' + parts[_i + 1]
+        page = rebuilt
+
     output.write_text(page, encoding="utf-8")
 
 
