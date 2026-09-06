@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>学习中控台 · InterviewForge</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#edf0f8;--panel:#fff;--soft:#f2f4fb;--text:#172033;--muted:#647188;
+  --line:#d6dded;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
+  --success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;
+  --radius-2:10px;--radius-3:14px;--radius-4:20px;
+  --ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.65,0,.35,1);
+  --shadow:0 14px 38px rgba(31,42,68,.075)
+}
+@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;
+--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-strong:#cbc9ff;--brand-soft:#292955;
+--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--danger:#ff969d;
+--shadow:0 18px 46px rgba(0,0,0,.22)}}
+html[data-theme="light"]{color-scheme:light;--bg:#edf0f8;--panel:#fff;--soft:#f2f4fb;--text:#172033;
+--muted:#647188;--line:#d6dded;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
+--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;
+--shadow:0 14px 38px rgba(31,42,68,.075)}
+html[data-theme="dark"]{color-scheme:dark;--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;
+--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-strong:#cbc9ff;--brand-soft:#292955;
+--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--danger:#ff969d;
+--shadow:0 18px 46px rgba(0,0,0,.22)}
+*{box-sizing:border-box;margin:0}
+html{background:var(--bg)}
+body{font:15px/1.7 var(--font-sans);color:var(--text);background:var(--bg);min-height:100vh;
+transition:background-color .25s var(--ease-in-out),color .25s var(--ease-in-out)}
+.shell{width:calc(100% - 100px);max-width:1560px;margin:0 auto;padding:26px 0 56px}
+@media(max-width:900px){.shell{width:calc(100% - 24px)}}
+
+/* ===== Hero：极光 + 点阵 + 时钟 ===== */
+.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius-4);
+padding:clamp(28px,4.5vw,56px) clamp(24px,4vw,52px);margin-bottom:20px;
+background:
+ radial-gradient(620px 320px at 14% -6%,color-mix(in srgb,var(--brand) 13%,transparent),transparent),
+ radial-gradient(520px 280px at 86% 24%,color-mix(in srgb,#14b8a6 9%,transparent),transparent),
+ var(--panel);
+box-shadow:var(--shadow)}
+.hero::before{content:"";position:absolute;inset:0;
+background-image:radial-gradient(circle,color-mix(in srgb,var(--muted) 20%,transparent) 1px,transparent 1px);
+background-size:24px 24px;
+mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent 85%);
+-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent 85%);pointer-events:none}
+.clock-row{position:relative;display:flex;align-items:baseline;gap:22px;flex-wrap:wrap}
+.clock{font-size:clamp(56px,8.5vw,108px);font-weight:250;line-height:1;letter-spacing:-.02em;
+font-variant-numeric:tabular-nums;color:var(--text)}
+.clock .sec{font-size:.32em;font-weight:400;color:var(--muted)}
+html[data-theme="dark"] .clock{text-shadow:0 0 44px color-mix(in srgb,var(--brand) 32%,transparent)}
+.greet{position:relative}
+.greet .g-day{font-size:15px;color:var(--muted)}
+.greet .g-hello{font-size:clamp(18px,2vw,24px);font-weight:750;margin-top:2px}
+.tagline{position:relative;margin-top:14px;color:var(--muted);font-size:14px}
+.tagline b{color:var(--brand);font-weight:650}
+
+/* ===== Bento ===== */
+.bento{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.15fr);gap:18px;
+align-items:start;margin-bottom:18px}
+.card{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
+box-shadow:var(--shadow);padding:20px}
+.card h2{margin:0 0 13px;font-size:15px;font-weight:750}
+.card .more{float:right;font-size:12.5px;color:var(--brand);text-decoration:none;font-weight:600}
+.card .more:hover{text-decoration:underline}
+/* 概览 */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);padding:10px 13px}
+.stat span{display:block;font-size:12px;color:var(--muted)}
+.stat strong{font-size:22px;font-weight:750;font-variant-numeric:tabular-nums}
+.stat-bar{margin-top:12px}
+.stat-bar .lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px}
+.stat-bar .bar{height:7px;border-radius:999px;background:var(--line);overflow:hidden}
+.stat-bar .bar span{display:block;height:100%;border-radius:999px;
+background:linear-gradient(90deg,var(--brand),var(--success));transition:width .4s var(--ease-out)}
+/* 列表 */
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);
+border-radius:var(--radius-2);background:var(--soft);min-width:0}
+.item a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+color:var(--text);text-decoration:none;font-weight:600;font-size:13.5px}
+.item a:hover{color:var(--brand)}
+.item .due{flex:none;font-size:11.5px;padding:2px 8px;border-radius:999px;
+color:var(--success);background:var(--success-soft)}
+.item .due.overdue{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
+.item .reason{flex:none;font-size:11.5px;color:var(--muted)}
+.empty{color:var(--muted);font-size:13px;padding:10px 4px}
+/* 入口 */
+.entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px;
+border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
+box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
+.entry{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--line);
+border-radius:var(--radius-2);background:var(--soft);color:var(--text);text-decoration:none;
+transition:border-color .15s var(--ease-out),box-shadow .25s var(--ease-out),transform .2s var(--ease-out)}
+.entry:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));
+box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent);
+transform:translateY(-1px);color:var(--brand)}
+.entry .e-ico{font-size:19px;flex:none}
+.entry .e-name{font-weight:700;font-size:13.5px}
+/* 简介 */
+.intro{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
+box-shadow:var(--shadow);padding:16px 20px;color:var(--muted);font-size:13px}
+.intro b{color:var(--text)}
+@media(prefers-reduced-motion:no-preference){
+.bento,.entries{animation:rise .35s var(--ease-out)}}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(max-width:1100px){.bento{grid-template-columns:1fr 1fr}.bento .card:first-child{grid-column:1/-1}}
+@media(max-width:720px){.bento{grid-template-columns:1fr}.clock{font-size:56px}
+.shell{width:calc(100% - 24px)}.hero{padding:22px 20px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="hero">
+    <div class="clock-row">
+      <div class="clock" id="clock" aria-label="当前时间">--:--</div>
+      <div class="greet">
+        <div class="g-day" id="gday">—</div>
+        <div class="g-hello" id="ghello">你好</div>
+      </div>
+    </div>
+    <div class="tagline"><b>识别模式 · 独立实现 · 间隔重复 · 学习全程可追踪</b>——今天该复习什么，已经替你排好</div>
+  </div>
+
+  <div class="bento">
+    <div class="card">
+      <h2>今日概览</h2>
+      <div class="stats">
+        <div class="stat"><span>今日看题</span><strong id="st-viewed">—</strong></div>
+        <div class="stat"><span>今日完成</span><strong id="st-done">—</strong></div>
+        <div class="stat"><span>已刷题目</span><strong id="st-total">—</strong></div>
+        <div class="stat"><span>完整轮次</span><strong id="st-rounds">—</strong></div>
+      </div>
+      <div class="stat-bar">
+        <div class="lbl"><span>至少完成一轮</span><span id="bar-pct">—</span></div>
+        <div class="bar"><span id="bar-fill" style="width:0%"></span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>今日待复习<a class="more" href="/pages/history.html" hidden id="due-more">查看全部</a></h2>
+      <div class="list" id="due-list"><div class="empty">加载中…</div></div>
+    </div>
+    <div class="card">
+      <h2>今日计划<a class="more" href="/index.html">在面板中查看</a></h2>
+      <div class="list" id="plan-list"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <nav class="entries" aria-label="快速入口">
+    <a class="entry" href="/library/index.html"><span class="e-ico">📚</span><span class="e-name">学习书架</span></a>
+    <a class="entry" href="/index.html"><span class="e-ico">🧩</span><span class="e-name">题解面板</span></a>
+    <a class="entry" href="/library/search.html"><span class="e-ico">🔍</span><span class="e-name">全文搜索</span></a>
+    <a class="entry" href="/pages/chat.html" onclick="return false" id="entry-chat"><span class="e-ico">💬</span><span class="e-name">聊天室</span></a>
+    <a class="entry" href="/pages/history.html"><span class="e-ico">📈</span><span class="e-name">学习记录</span></a>
+    <a class="entry" href="/pages/leetcode-connect.html"><span class="e-ico">🔗</span><span class="e-name">力扣连接</span></a>
+    <a class="entry" href="/pages/admin.html" id="entry-admin" hidden><span class="e-ico">🛡️</span><span class="e-name">管理后台</span></a>
+  </nav>
+
+  <div class="intro">
+    <b>InterviewForge</b> · 校招算法训练台：识别模式 → 独立实现 → 间隔重复，学习数据按账号隔离存储，复习日程自动排期。
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ---- 时钟：rAF 对齐秒边界 ---- */
+  var clockEl = document.getElementById("clock");
+  var DAY_CN = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function tick() {
+    var d = new Date();
+    clockEl.innerHTML = pad(d.getHours()) + '<span class="sec">:</span>' + pad(d.getMinutes())
+      + '<span class="sec">:' + pad(d.getSeconds()) + '</span>';
+    document.getElementById("gday").textContent =
+      (d.getMonth() + 1) + "月" + d.getDate() + "日 · " + DAY_CN[d.getDay()];
+    setTimeout(tick, 1000 - (Date.now() % 1000) + 20);
+  }
+  function greet(d) {
+    var h = d.getHours(), w;
+    if (h >= 5 && h < 9) w = "清晨好";
+    else if (h < 12) w = "上午好";
+    else if (h < 14) w = "中午好";
+    else if (h < 18) w = "下午好";
+    else if (h < 23) w = "晚上好";
+    else w = "夜深了";
+    return w;
+  }
+
+  function api(path, options) {
+    return fetch(path, Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {}))
+      .then(function (r) {
+        if (r.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
+        return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+      });
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+
+  function renderDue(daily) {
+    var box = document.getElementById("due-list");
+    box.textContent = "";
+    var items = (daily.problems || []).slice(0, 3);
+    if (!items.length) { box.appendChild(el("div", "empty", "今天没有到期的题目，自由学或预习新题")); return; }
+    items.forEach(function (p) {
+      var it = el("div", "item");
+      var a = el("a", null, p.id + ". " + p.title);
+      a.href = p.note;
+      it.appendChild(a);
+      var due = el("span", "due" + (p.due_date < daily.today ? " overdue" : ""), p.due_date < daily.today ? "逾期" : "今日");
+      it.appendChild(due);
+      box.appendChild(it);
+    });
+    var more = document.getElementById("due-more");
+    if (daily.summary && daily.summary.problems > 3) {
+      more.hidden = false;
+      more.textContent = "查看全部 " + daily.summary.problems + " 项 →";
+      more.href = "/index.html";
+    }
+  }
+
+  function renderPlan(plan) {
+    var box = document.getElementById("plan-list");
+    box.textContent = "";
+    var items = (plan.items || []).slice(0, 3);
+    if (!items.length) { box.appendChild(el("div", "empty", "今日计划为空")); return; }
+    items.forEach(function (p) {
+      var it = el("div", "item");
+      var a = el("a", null, p.id + ". " + p.title);
+      a.href = p.note;
+      it.appendChild(a);
+      it.appendChild(el("span", "reason", p.reason || ""));
+      box.appendChild(it);
+    });
+  }
+
+  function renderDash(d) {
+    var s = d.summary || {};
+    var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    [["st-viewed", s.today_viewed], ["st-done", s.today_rounds],
+     ["st-total", s.completed_problems], ["st-rounds", s.total_rounds]].forEach(function (pair) {
+      var elx = document.getElementById(pair[0]);
+      var target = pair[1] || 0;
+      if (reduced) { elx.textContent = target; return; }
+      var start = performance.now();
+      (function tickFrame(now) {
+        var p = Math.min((now - start) / 300, 1);
+        elx.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(tickFrame);
+      })(start);
+    });
+    var done = s.completed_problems || 0;
+    var pct = Math.round(done);
+    document.getElementById("bar-pct").textContent = done + " / 100";
+    document.getElementById("bar-fill").style.width = pct + "%";
+  }
+
+  api("/api/me").then(function (res) {
+    if (!res || !res.ok) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
+    document.getElementById("ghello").textContent = greet(new Date()) + "，" + (res.data.nickname || res.data.username);
+    if (res.data.role === "admin") document.getElementById("entry-admin").hidden = false;
+    return api("/api/bootstrap");
+  }).then(function (res) {
+    if (!res || !res.ok) return;
+    renderDue(res.data.daily);
+    renderDash(res.data.dashboard);
+    return api("/api/plan?count=3");
+  }).then(function (res) {
+    if (res && res.ok) renderPlan(res.data);
+  }).catch(function () { });
+
+  tick();
+
+  /* 聊天室入口：触发悬浮面板（auth-widget 已注入时） */
+  document.getElementById("entry-chat").addEventListener("click", function (e) {
+    e.preventDefault();
+    var chatBtn = document.querySelector(".fap-chat");
+    if (chatBtn) chatBtn.click();
+    else location.href = "/index.html";
+  });
+})();
+</script>
+</body>
+</html>
