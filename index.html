@@ -214,7 +214,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="stat"><span>今天看题</span><strong id="todayViewed">0</strong></div>
       <div class="stat"><span>今天完成</span><strong id="todayRounds">0</strong></div>
       <div class="stat"><span>已刷题目</span><strong id="completedCount">0</strong></div>
-      <div class="stat"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
+      <div class="stat" title="完成 90 题以上算完整一轮；大部分题刷到第几轮，这里就是几"><span>完整轮次</span><strong id="totalRounds">0</strong></div>
       <div class="stat"><span>日 AC / 提交</span><strong id="acTodayText">0 / 0</strong></div>
   <div class="stat"><span>累计 AC / 已解决</span><strong id="acTotalText">0 / 0</strong></div>
   <div class="stat"><span>连续学习</span><strong id="streakCount">0</strong></div>

@@ -739,6 +739,8 @@ _CHAT_SEND_LOCK = threading.Lock()
 _NICKNAME_MAX = 16
 # 题解语言偏好（用户资料项；题解页据此切换代码实现显示）
 SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
+# 单轮完成标准：累计 AC 过 ≥90 道题（Hot 100 的 90%）才算完整一轮
+ROUND_COMPLETE_THRESHOLD = 90
 _AVATAR_MAX_BYTES = 150 * 1024
 
 
@@ -1031,14 +1033,21 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         ac_summary = connection.execute(
             """SELECT
                  COUNT(DISTINCT CASE WHEN substr(submitted_at, 1, 10) = ? THEN problem_id END) AS today_rounds,
-                 COUNT(DISTINCT problem_id) AS completed_problems,
-                 (SELECT COUNT(*) FROM (
-                    SELECT problem_id, substr(submitted_at, 1, 10) AS d
-                    FROM submissions WHERE status = 'ac' GROUP BY problem_id, d
-                 )) AS total_rounds
+                 COUNT(DISTINCT problem_id) AS completed_problems
                FROM submissions WHERE status = 'ac'""",
             (today,),
         ).fetchone()
+        # 累计轮次 = 完整刷题遍数：每题按"AC 过的不同天数"计轮，
+        # 轮次 k 达成 = 有 ≥ ROUND_COMPLETE_THRESHOLD 道题的轮数 ≥ k
+        per_problem_rounds = [int(r["rd"]) for r in connection.execute(
+            """SELECT problem_id, COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rd
+               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
+        ).fetchall()]
+        total_rounds = 0
+        k = 1
+        while sum(1 for rd in per_problem_rounds if rd >= k) >= ROUND_COMPLETE_THRESHOLD:
+            total_rounds = k
+            k += 1
         view_events = connection.execute(
             """SELECT problem_id, studied_at FROM study_events
                WHERE action = 'view' ORDER BY studied_at DESC, id DESC LIMIT 200"""
@@ -1135,7 +1144,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         "today_viewed": int(study_summary["today_viewed"] or 0),
         "today_rounds": int(ac_summary["today_rounds"] or 0),
         "completed_problems": int(ac_summary["completed_problems"] or 0),
-        "total_rounds": int(ac_summary["total_rounds"] or 0),
+        "total_rounds": total_rounds,
         "active_days": len(active_dates),
     }
     summary["streak"] = streak
