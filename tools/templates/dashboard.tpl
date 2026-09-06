@@ -227,7 +227,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle">
     <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
-    <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div></div>
+    <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div>
   </section>
   <section class="review-section" aria-labelledby="pickTitle">
     <div class="review-head"><h2 id="pickTitle">今日计划</h2><button id="pickAgain" class="round-button" type="button">换一组</button></div>
