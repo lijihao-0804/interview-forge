@@ -581,15 +581,12 @@ async function updateLcStatus(){
 }
 async function refresh(){
   try{
-    const [dashboardResponse,dailyResponse,settingsResponse]=await Promise.all([
-      fetch('/api/dashboard',{cache:'no-store'}),
-      fetch('/api/daily',{cache:'no-store'}),
-      fetch('/api/settings',{cache:'no-store'})
-    ]);
-    if(!dashboardResponse.ok||!dailyResponse.ok||!settingsResponse.ok)throw new Error('database unavailable');
-    state.data=await dashboardResponse.json();
-    state.daily=await dailyResponse.json();
-    state.settings=await settingsResponse.json();
+    const bootstrapResponse=await fetch('/api/bootstrap',{cache:'no-store'});
+    if(!bootstrapResponse.ok)throw new Error('database unavailable');
+    const boot=await bootstrapResponse.json();
+    state.data=boot.dashboard;
+    state.daily=boot.daily;
+    state.settings=boot.settings;
     state.online=true;
     document.getElementById('connection').classList.add('online');
     document.getElementById('connection').textContent='SQLite 数据库已连接';

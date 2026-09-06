@@ -2125,6 +2125,36 @@ def _fetch_json_with_retry(
     raise last_error
 
 
+# ---- 力扣状态缓存：/api/leetcode/status 的服务端校验需要实时访问
+# leetcode.cn（海外服务器延迟波动大），结果按 会话串 缓存 10 分钟；
+# connect/clear 等改变凭证的操作主动失效。----
+LC_STATUS_TTL = 600.0
+_LC_STATUS_CACHE: dict[tuple, tuple[float, dict]] = {}
+_LC_STATUS_LOCK = threading.Lock()
+
+
+def lc_status_cached(db_path: Path, credentials: dict[str, str], force: bool = False) -> dict:
+    """带 TTL 缓存的力扣连接状态查询；force=True 跳过缓存（连接测试用）。"""
+    key = (str(db_path), credentials.get("leetcode_session", ""))
+    now = time.time()
+    if not force:
+        with _LC_STATUS_LOCK:
+            hit = _LC_STATUS_CACHE.get(key)
+            if hit and now - hit[0] < LC_STATUS_TTL:
+                return hit[1]
+    result = leetcode_status(credentials)
+    with _LC_STATUS_LOCK:
+        _LC_STATUS_CACHE[key] = (now, result)
+    return result
+
+
+def lc_status_invalidate(db_path: Path) -> None:
+    """凭证变化后清空该库的力扣状态缓存。"""
+    with _LC_STATUS_LOCK:
+        for key in [k for k in _LC_STATUS_CACHE if k[0] == str(db_path)]:
+            _LC_STATUS_CACHE.pop(key, None)
+
+
 def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str, object]:
     """测试力扣连接：调公开题目列表接口，校验登录态字段。"""
     import urllib.request
@@ -2569,6 +2599,15 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/profile":
             self.send_json(get_profile(str(user["username"])))
             return
+        # /api/bootstrap：面板打开的一次性拉取（dashboard + daily + settings 合并，
+        # 省两个 RTT；dashboard 自带 60 秒缓存）。
+        if parsed.path == "/api/bootstrap":
+            self.send_json({
+                "dashboard": dashboard_cached(db),
+                "daily": daily_data(db),
+                "settings": get_settings(db),
+            })
+            return
         # /api/dashboard：仪表盘聚合 —— 今日概览/每题进度/近 14 天/最近活动/365 天热力图/标记与提交统计。
         if parsed.path == "/api/dashboard":
             self.send_json(dashboard_cached(db))
@@ -2670,12 +2709,14 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/leetcode/status：力扣连接状态 —— 凭证是否已保存 + 实测登录态是否生效，合并成一个响应。
         if parsed.path == "/api/leetcode/status":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             credentials = get_credentials(db)
+            status = lc_status_cached(db, credentials, force=params.get("refresh") == "1")
             self.send_json({
                 "credentials_saved": bool(credentials.get("leetcode_session")),
                 "session": credentials.get("leetcode_session", ""),
                 "csrf": credentials.get("leetcode_csrf", ""),
-                **leetcode_status(credentials),
+                **status,
             })
             return
         # /api/export：数据导出 —— kind=anki/weak/records/weekly 走 export_data；kind=db 走整库快照。
@@ -2939,6 +2980,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     "leetcode_session": str(payload.get("leetcode_session", "")),
                     "leetcode_csrf": str(payload.get("leetcode_csrf", "")),
                 }, db)
+                lc_status_invalidate(db)
                 result = {"saved": True, **leetcode_status(get_credentials(db))}
             # /api/leetcode/sync：拉取力扣提交历史入库 —— full=1 全量翻页，否则增量最近 100 条。
             elif path == "/api/leetcode/sync":
@@ -2950,6 +2992,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
                 clear_credentials(db)
+                lc_status_invalidate(db)
                 result = {"cleared": True}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             # 参数缺失/类型错/校验失败/JSON 非法 → 400（请求本身有问题，业务层抛 ValueError）。
