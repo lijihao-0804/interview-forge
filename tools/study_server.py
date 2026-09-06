@@ -1044,8 +1044,16 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()]
         total_rounds = 0
+        completed = len(per_problem_rounds)
         k = 1
-        while sum(1 for rd in per_problem_rounds if rd >= k) >= ROUND_COMPLETE_THRESHOLD:
+        while True:
+            reached = sum(1 for rd in per_problem_rounds if rd >= k)
+            if k == 1:
+                ok = reached >= ROUND_COMPLETE_THRESHOLD          # 首轮：完成 90 题以上
+            else:
+                ok = completed > 0 and reached * 2 > completed    # 之后：大部分题完成即达成
+            if not ok:
+                break
             total_rounds = k
             k += 1
         view_events = connection.execute(
