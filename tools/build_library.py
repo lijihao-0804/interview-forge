@@ -1238,6 +1238,9 @@ input.addEventListener('input',()=>{
   if(!q){renderHint('输入关键词开始搜索。');return}
   if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败，请稍后重试。'))}
 });
+// URL 携带 ?q= 时（如从书架/搜索入口跳转）自动执行一次搜索
+const initialQ=new URLSearchParams(location.search).get('q')||'';
+if(initialQ.trim()){input.value=initialQ;input.dispatchEvent(new Event('input'))}
 </script>'''
     body = body.replace("__TOPBAR__", topbar(".")).replace("__CHAPTER_COUNT__", str(chapter_count))
     return document("全文搜索", body, "assets/library.css")
