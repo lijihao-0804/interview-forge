@@ -245,7 +245,7 @@ SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff
     --text: #eaf0fa;
     --text-strong: #f6f8ff;
     --muted: #a3afc2;
-    --line: #313b4c;
+    --line: rgba(148, 163, 190, .22);
     --brand: #b1afff;
     --brand-strong: #c4c2ff;
     --brand-soft: #292955;
@@ -474,7 +474,7 @@ html[data-theme="dark"]{color-scheme:dark;
     --text: #eaf0fa;
     --text-strong: #f6f8ff;
     --muted: #a3afc2;
-    --line: #313b4c;
+    --line: rgba(148, 163, 190, .22);
     --brand: #b1afff;
     --brand-strong: #c4c2ff;
     --brand-soft: #292955;
@@ -595,6 +595,14 @@ font-size:12.5px;overflow-wrap:anywhere}
 /* 三栏修正：顶栏与页脚跨满整行，内容三列并排 */
 .site-shell-cols>.site-topbar,.site-shell-cols>footer{grid-column:1/-1}
 .site-shell-cols>*{min-width:0}
+
+/* ===== 阶段 2 动效：主题切换渐变 / 悬浮辉光 / selection / View Transitions ===== */
+html,body,.module-card,.review-section,.reader-card,.chapter-card,.topbar,.site-topbar{
+transition:background-color .25s var(--ease-in-out),border-color .25s var(--ease-in-out),color .25s var(--ease-in-out)}
+.module-card:hover,.chapter-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));
+box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent)}
+::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
+@view-transition{navigation:auto}
 
 """
 
