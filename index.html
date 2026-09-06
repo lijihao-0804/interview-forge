@@ -344,7 +344,7 @@ async function loadPick(randomize){
     const response=await fetch(`/api/plan${randomize?'?count=3&random=1':''}`,{cache:'no-store'});
     if(!response.ok)throw new Error('pick failed');
     const plan=await response.json();
-    const reasonLabels={due:'待复习',weak:'薄弱',new:'新题'};
+    const reasonLabels={due:'待复习',weak:'薄弱',new:'新题',fresh:'未学习',low:'轮数较少',pinned:'已排期',relearn:'需重学'};
     pickCard.innerHTML=plan.items.length?plan.items.map(item=>`<div class="plan-item"><a href="${esc(item.note)}" title="${esc(item.title)}">${item.id}. ${esc(item.title)}</a><span class="pick-meta"><span class="pill">${esc(item.category)}</span><span class="difficulty-${item.difficulty}">${item.difficulty}</span></span><span class="plan-reason ${item.reason}">${reasonLabels[item.reason]||item.reason}</span></div>`).join(''):'<div class="review-empty">暂无计划项，先完成几轮复习吧。</div>';
   }catch(_){
     pickCard.innerHTML='<div class="review-empty">计划加载失败，请稍后刷新重试</div>';
@@ -463,10 +463,18 @@ function renderCards(){
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option></select></div></div></article>`;
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${problem.note}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱"><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
-  grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>setMark(Number(select.dataset.mark),select.value)));
+  grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='pin-tomorrow'){pinPlan(Number(select.dataset.mark));select.value='';}else setMark(Number(select.dataset.mark),select.value)}));
+}
+async function pinPlan(problemId){
+  try{
+    const response=await fetch('/api/plan/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'排期失败');
+    toast.textContent=`已纳入明天计划（${result.for_date}），明天见`;
+    setTimeout(()=>{toast.textContent=''},2500);
+  }catch(error){toast.textContent=error.message||'排期失败'}
 }
 async function setMark(problemId,mark){
   try{
