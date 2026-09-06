@@ -802,7 +802,7 @@ def _render_chapter_body_worker(job: tuple[str, str]) -> tuple[str, str]:
 # 公共顶栏(书架首页/搜索页/模块页/章节页共用)：prefix 是相对路径深度——
 # 首页传 "."、二级页面传 ".."，据此拼出到书架首页/搜索页/Hot 100 站/维护指南的链接。
 def topbar(prefix: str = "..") -> str:
-    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html">学习书架</a><nav aria-label="主导航"><a href="{prefix}/search.html">全文搜索</a><a href="{prefix}/../index.html">Hot 100</a></nav></header>'
+    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html">学习书架</a><nav aria-label="主导航"><a href="{prefix}/../cockpit.html">🎛️ 中控台</a><a href="{prefix}/search.html">全文搜索</a><a href="{prefix}/../index.html">Hot 100</a></nav></header>'
 
 
 # 页面 HTML 外壳：统一 lang/字符集/响应式 viewport/明暗色声明，标题做 HTML 转义，
