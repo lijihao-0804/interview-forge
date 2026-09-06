@@ -191,6 +191,11 @@ CREATE TABLE IF NOT EXISTS submissions (
     lc_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS ix_submissions_problem ON submissions(problem_id, submitted_at DESC);
+CREATE TABLE IF NOT EXISTS plan_pins (
+    problem_id INTEGER PRIMARY KEY,
+    for_date TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS credentials (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -1434,6 +1439,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
 
     # 组装题目待复习列表：到期日还没到（> 今天）的跳过，其余带上题名/分类/难度/题解链接。
     problems: list[dict[str, object]] = []
+    relearn: list[dict[str, object]] = []   # 逾期 >60 天，需重新学习的题
     if not module_id:
         for pid, progress in ac_progress.items():
             problem = PROBLEM_BY_ID.get(int(pid))
@@ -1442,6 +1448,24 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
                 continue
             due = due_after(str(progress["last_completed_at"]), rounds)
             if due > today:
+                continue
+            overdue_days = (datetime.fromisoformat(today).date()
+                            - datetime.fromisoformat(due).date()).days
+            if overdue_days > 60:
+                # 逾期超过 60 天：记忆已衰退，复习转为"重新学习"，进今日计划池
+                relearn.append({
+                    "id": int(pid),
+                    "title": problem["title"] if problem else f"题号 {pid}",
+                    "category": problem["category"] if problem else "",
+                    "difficulty": problem["difficulty"] if problem else "",
+                    "rounds": rounds,
+                    "due_date": due,
+                    "note": (
+                        f"books/hot100/03-题解/{problem['folder']}/"
+                        f"{Path(problem_filename(problem)).with_suffix('.html').name}"
+                        if problem else ""
+                    ),
+                })
                 continue
             problems.append({
                 "id": int(pid),
@@ -1506,11 +1530,12 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         "overdue": problem_overdue + content_overdue,
         "problems": len(problems),
         "overdue_problems": problem_overdue,
+        "relearn": len(relearn),
         "contents": len(contents),
         "overdue_contents": content_overdue,
         "modules": modules,
     }
-    return {"today": today, "summary": summary, "problems": problems, "contents": contents}
+    return {"today": today, "summary": summary, "problems": problems, "relearn": relearn, "contents": contents}
 
 
 def problem_marks(db_path: Path = DB_PATH) -> dict[str, str]:
@@ -1694,57 +1719,61 @@ def mock_exam(
 
 
 def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False) -> dict[str, object]:
-    """今日计划：待复习 + 薄弱全部纳入，新题补足到 count 道。
-
-    randomize=True 时新题部分随机抽取（“换一组”用）；默认按“最久未看”排序。
-    """
+    """今日计划（与今日待复习互补）：已排期 → 未学习 → 需重学（逾期 >60 天）
+    → 轮数较少；每类内部按学习路径顺序；排除今日待复习中的题。"""
     today = datetime.now().astimezone().date().isoformat()
-    # 数据源一：今日待复习（到期日 <= 今天）的题目，无条件全部纳入计划。
-    due_by_id = {int(item["id"]): item for item in daily_data(db_path)["problems"]}
-    marks = problem_marks(db_path)
-    # 数据源二：被标记为 weak 的题，即使还没到期也强制放进今日计划（查漏补缺）。
-    weak_ids = {int(k) for k, value in marks.items() if value == "weak" and int(k) in PROBLEM_BY_ID}
-    for pid_text in submission_summary(db_path)["auto_weak"]:
-        pid = int(pid_text)
-        if pid in PROBLEM_BY_ID and marks.get(pid_text) not in ("mastered", "reviewing"):
-            weak_ids.add(pid)
+    daily = daily_data(db_path)
+    due_ids = {int(item["id"]) for item in daily["problems"]}
+    relearn_ids = {int(item["id"]) for item in daily.get("relearn", [])}
     info = problem_review_state(db_path)
+    count = max(1, min(count, 100))
 
     def entry(pid: int, reason: str) -> dict[str, object]:
-        p = PROBLEM_BY_ID[pid]
+        p2 = PROBLEM_BY_ID[pid]
         return {
             "id": pid,
-            "title": p["title"],
-            "category": p["category"],
-            "difficulty": p["difficulty"],
-            "method": p["method"],
-            "note": problem_note(p),
+            "title": p2["title"],
+            "category": p2["category"],
+            "difficulty": p2["difficulty"],
+            "method": p2["method"],
+            "note": problem_note(p2),
             "reason": reason,
         }
 
-    # 组装优先级：待复习 → 薄弱 → 新题；seen 集合保证同一题不会重复出现。
-    items: list[dict[str, object]] = []
-    seen: set[int] = set()
-    for pid in due_by_id:
-        items.append(entry(pid, "待复习"))
-        seen.add(pid)
-    for pid in sorted(weak_ids - seen):
-        items.append(entry(pid, "薄弱"))
-        seen.add(pid)
-    count = max(1, min(count, 100))
-    # 新题候选：从未完成过（rounds==0）且不在上面集合里的题。
-    new_candidates = [
-        pid for pid in PROBLEM_BY_ID
-        if pid not in seen and int(info.get(pid, {}).get("rounds") or 0) == 0
-    ]
-    # randomize：洗牌（"换一组"）；默认按最近活动时间升序，最久未学的优先补齐。
+    # 已排期（用户显式"纳入明天计划"，到期自动进入；展示后消费掉）
+    pinned: list[int] = []
+    with closing(connect(db_path)) as connection:
+        for row in connection.execute(
+            "SELECT problem_id FROM plan_pins WHERE for_date <= ? ORDER BY for_date", (today,)
+        ):
+            pid = int(row["problem_id"])
+            if pid in PROBLEM_BY_ID:
+                pinned.append(pid)
+        if pinned:
+            connection.execute(
+                "DELETE FROM plan_pins WHERE for_date <= ? AND problem_id IN (%s)"
+                % ",".join("?" * len(pinned)), pinned)
+
+    # 候选池：学习路径顺序，排除待复习（≤60 天逾期）与已排期
+    pool = []
+    for pid in PROBLEM_BY_ID:
+        if pid in due_ids or pid in pinned:
+            continue
+        rounds = int(info.get(pid, {}).get("rounds") or 0)
+        reason = ("未学习" if rounds == 0
+                  else "需重学" if pid in relearn_ids
+                  else "轮数较少")
+        prio = 1 if rounds == 0 else (2 if pid in relearn_ids else 3)
+        pool.append((prio, pid, rounds, reason))
+    pool.sort(key=lambda t2: (t2[0], t2[1]))
+
     if randomize:
-        random.shuffle(new_candidates)
+        picked = random.sample(pool, min(count, len(pool)))
+        picked.sort(key=lambda t2: (t2[0], t2[1]))
+        items = [entry(pid, reason) for _, pid, _, reason in picked]
     else:
-        new_candidates.sort(key=lambda pid: str(info.get(pid, {}).get("last_activity_at") or ""))
-    for pid in new_candidates[: max(0, count - len(items))]:
-        items.append(entry(pid, "新题"))
-        seen.add(pid)
+        items = [entry(pid, reason) for _, pid, _, reason in pool[:count]]
+    items = [entry(pid, "已排期") for pid in pinned] + items
     return {"today": today, "count": len(items), "items": items}
 
 
@@ -2825,7 +2854,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # （不会误入静态文件服务）。
         parsed = urlparse(self.path)
         path = parsed.path
-        public_post = {"/api/login", "/api/register", "/api/feedback"}
+        public_post = {"/api/login", "/api/register", "/api/feedback", "/api/plan/pin"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/reset-password", "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
@@ -2894,6 +2923,19 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 token = create_session(int(row_user["id"]))
                 cookie_headers.append(("Set-Cookie", self.session_cookie(token)))
                 result = {"ok": True, "username": str(row_user["username"]), "role": str(row_user["role"])}
+            # /api/plan/pin：把题目排入明天的今日计划（用户显式排期，展示后消费）。
+            elif path == "/api/plan/pin":
+                pid = int(payload.get("problem_id", 0))
+                if pid not in PROBLEM_BY_ID:
+                    raise ValueError("未知题号")
+                for_date = (datetime.now().astimezone().date() + timedelta(days=1)).isoformat()
+                with closing(connect(db)) as connection:
+                    connection.execute(
+                        "INSERT INTO plan_pins(problem_id, for_date, created_at) VALUES (?, ?, ?) "
+                        "ON CONFLICT(problem_id) DO UPDATE SET for_date = excluded.for_date",
+                        (pid, for_date, now_iso()))
+                    connection.commit()
+                result = {"pinned": True, "problem_id": pid, "for_date": for_date}
             # /api/chat/send：公屏聊天发送（登录用户，10 条/分钟，500 字内）。
             elif path == "/api/chat/send":
                 if not chat_rate_limit_ok(int(user["id"])):
