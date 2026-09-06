@@ -73,7 +73,7 @@ def _render_markdown_worker(job: tuple[str, str]) -> str:
 # 离线站升级后可强制刷新。改值后必须重跑 build() 重建全部阅读页才会生效。
 # 阅读页公共资源版本号：引用带 ?v= 防止浏览器缓存旧 site.css/site.js
 # （新交互依赖最新脚本；升级实现后应递增此值并重建）。
-ASSET_VERSION = "20260906-lang"
+ASSET_VERSION = "20260906-p3c"
 
 # VISUAL_EMBEDS：题解 → 可视化面板的绑定表（“可视化绑定 03-题解”的实现载体）。
 # 键：题解 Markdown 相对 ROOT 的正斜杠路径；值：(05-可视化 下的 HTML 文件名,
@@ -532,6 +532,69 @@ transition:all .15s var(--ease-out)}
 .forge-lang-chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
 .forge-lang-chip.unavailable{opacity:.38;cursor:not-allowed}
 .lang-section{border-top:1px dashed var(--line);padding-top:14px;margin-top:26px}
+
+/* ===== 表格统一样式（GitHub/VitePress 风格：横线为主 + hover 高亮） ===== */
+.markdown-body table{width:100%;max-width:100%;margin:var(--space-5) 0;border-collapse:separate;
+border-spacing:0;font-size:.93em;border:1px solid var(--line);border-radius:var(--radius-2);overflow:hidden}
+.markdown-body th{background:var(--surface-soft);font-weight:700;color:var(--text-strong)}
+.markdown-body th,.markdown-body td{padding:9px 14px;border:0;border-bottom:1px solid var(--line);
+text-align:left;vertical-align:top}
+.markdown-body tbody tr:last-child td{border-bottom:0}
+.markdown-body tbody tr{transition:background .12s var(--ease-out)}
+.markdown-body tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-soft) 55%,transparent)}
+.markdown-body tbody tr:hover td{background:color-mix(in srgb,var(--brand) 8%,var(--panel))}
+
+/* ===== Hero 品牌区（Starlight 式渐变横幅） ===== */
+.hero{position:relative;padding:var(--space-6) var(--space-6) var(--space-5);margin:0 0 var(--space-5);
+border:1px solid color-mix(in srgb,var(--brand) 18%,var(--line));border-radius:var(--radius-4);
+background:
+ radial-gradient(circle at 88% 12%,color-mix(in srgb,var(--brand) 14%,transparent),transparent 42%),
+ radial-gradient(circle at 8% 90%,color-mix(in srgb,var(--success) 8%,transparent),transparent 38%),
+ var(--panel);
+box-shadow:var(--shadow);overflow:hidden}
+.hero h1{position:relative}
+.hero p{position:relative}
+
+/* ===== 中文标题字重与字距 ===== */
+h1,h2{letter-spacing:-.01em}
+.markdown-body h1,.module-card h2,.hero h1{font-weight:800}
+
+/* ===== 题目信息徽标行 ===== */
+.meta-badges{display:flex;gap:9px;flex-wrap:wrap;margin:var(--space-4) 0}
+.meta-badges .mb{display:inline-flex;align-items:center;gap:5px;padding:4px 13px;border-radius:999px;
+font-size:13px;font-weight:650;border:1px solid var(--line);background:var(--surface-soft);color:var(--muted)}
+.meta-badges .mb b{font-weight:700;color:var(--text)}
+.meta-badges .mb.diff-简单{border-color:color-mix(in srgb,var(--success) 45%,var(--line));
+background:color-mix(in srgb,var(--success) 9%,var(--panel));color:var(--success)}
+.meta-badges .mb.diff-中等{border-color:color-mix(in srgb,var(--warning) 50%,var(--line));
+background:color-mix(in srgb,var(--warning) 10%,var(--panel));color:var(--warning)}
+.meta-badges .mb.diff-困难{border-color:color-mix(in srgb,#c1363e 45%,var(--line));
+background:color-mix(in srgb,#c1363e 9%,var(--panel));color:#c1363e}
+
+/* ===== 题解页三栏（P0-2b：左题目导航 / 中正文 / 右 On This Page） ===== */
+.site-shell-cols{display:grid;grid-template-columns:216px minmax(0,1fr) 232px;gap:20px;align-items:start}
+.sol-rail{position:sticky;top:14px;max-height:calc(100vh - 32px);overflow:auto;
+padding:14px 12px;border:1px solid var(--line);border-radius:var(--radius-3);
+background:var(--panel);box-shadow:var(--shadow)}
+.sol-rail-title{margin:0 0 9px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em}
+.sol-nav-item{display:block;padding:5px 9px;border-radius:7px;color:var(--muted);
+font-size:12.5px;overflow-wrap:anywhere}
+.sol-nav-item:hover{color:var(--text);background:var(--surface-soft);text-decoration:none}
+.sol-nav-item.current{color:var(--brand);background:var(--brand-soft);font-weight:700}
+.sol-rail-right .toc ul{list-style:none;margin:0;padding:0}
+.sol-rail-right .toc a{color:var(--muted)}
+.sol-rail-right .toc > ul > li > a{color:var(--text);font-weight:650}
+.sol-rail-right .toc ul ul{padding-left:12px}
+.sol-rail-right .toc li{margin:3px 0}
+.sol-rail-right .toc a{display:block;padding:3px 8px;border-radius:6px;font-size:12.5px}
+.sol-rail-right .toc a:hover{background:var(--surface-soft);color:var(--text);text-decoration:none}
+@media(max-width:1440px){.site-shell-cols{grid-template-columns:minmax(0,1fr) 232px}.sol-rail-left{display:none}}
+@media(max-width:1150px){.site-shell-cols{grid-template-columns:1fr}.sol-rail{position:static;max-height:none}
+.sol-rail-right{order:-1;margin-bottom:18px}}
+
+/* 三栏修正：顶栏与页脚跨满整行，内容三列并排 */
+.site-shell-cols>.site-topbar,.site-shell-cols>footer{grid-column:1/-1}
+.site-shell-cols>*{min-width:0}
 
 """
 
@@ -1687,6 +1750,110 @@ def render_visual_embed(source: Path, output: Path, title: str) -> str:
 # 有断言）；h2-h4 进 TOC，h5+ 不进。骨架与样式/脚本常量强耦合，故直接在此
 # 拼装，保持单文件自包含、便于整体离线分发。
 # =============================================================================
+
+def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
+    """题解页专属构建期后处理（bs4）：aside 提示框、题目信息徽标行、三栏结构。
+
+    三栏：.site-shell 变 grid —— 左栏同专题题目导航（当前题高亮）+ 中间正文 +
+    右栏 On This Page（toc）；窄屏断点退化为单列（见 SITE_CSS）。"""
+    from bs4 import BeautifulSoup
+
+    is_solution = "03-题解" in source.parts
+    soup = BeautifulSoup(page, "html.parser")
+    body = soup.find("article", class_="markdown-body")
+    if body is None:
+        return page
+
+    # ---- 1. aside 提示框：面试追问 → note；易错点 → warn ----
+    def wrap_aside(heading, kind):
+        aside = soup.new_tag("div")
+        aside["class"] = "aside aside-" + kind
+        title = soup.new_tag("span")
+        title["class"] = "aside-title"
+        title.string = heading.get_text(strip=True)
+        aside.append(title)
+        node = heading.next_sibling
+        while node is not None and getattr(node, "name", None) not in ("h2", "h3", "h4"):
+            nxt = node.next_sibling
+            aside.append(node.extract())
+            node = nxt
+        heading.insert_before(aside)
+        heading.decompose()
+
+    for h3 in list(body.find_all("h3")):
+        text = h3.get_text(strip=True)
+        if text == "面试追问":
+            wrap_aside(h3, "note")
+        elif text.startswith("易错点"):
+            wrap_aside(h3, "warn")
+
+    # ---- 2. 题目信息表 → 徽标行 ----
+    first_table = body.find("table")
+    if first_table is not None:
+        head_row = first_table.find("tr")
+        cells = head_row.find_all(["th", "td"]) if head_row else []
+        if cells and cells[0].get_text(strip=True) == "题目信息":
+            badges = soup.new_tag("div")
+            badges["class"] = "meta-badges"
+            for tr in first_table.find_all("tr")[1:]:
+                tds = tr.find_all("td")
+                if len(tds) != 2:
+                    continue
+                key, value = tds[0].get_text(strip=True), tds[1].get_text(strip=True)
+                mb = soup.new_tag("span")
+                cls = "mb"
+                if key == "难度":
+                    cls += " diff-" + value
+                mb["class"] = cls
+                kb = soup.new_tag("span")
+                kb["class"] = "mb-k"
+                kb.string = key
+                vb = soup.new_tag("b")
+                vb.string = value
+                mb.append(kb)
+                mb.append(vb)
+                badges.append(mb)
+            first_table.insert_before(badges)
+            first_table.decompose()
+
+    page = str(soup)
+
+    # ---- 3. 三栏结构（仅题解页）----
+    if is_solution:
+        # 左栏：同专题题目（同目录文件名即题目清单）
+        siblings = []
+        for f in sorted(source.parent.glob("*.md")):
+            fm = re.match(r"(\d{4})-(.+)\.md", f.name)
+            if fm:
+                href = f.name.replace(".md", ".html")
+                label = fm.group(1) + " " + fm.group(2)
+                current = f == source
+                siblings.append((href, label, current))
+        nav_items = "".join(
+            '<a class="sol-nav-item' + (" current" if cur else "") + '" href="' + href + '"' + (' aria-current="page"' if cur else "") + ">" + label + "</a>"
+            for href, label, cur in siblings
+        )
+        left_rail = (
+            '<aside class="sol-rail sol-rail-left" aria-label="本专题题目"><div class="sol-rail-title">本专题题目</div>'
+            + nav_items + "</aside>"
+        )
+        right_rail = '<aside class="sol-rail sol-rail-right" aria-label="本页目录"><div class="sol-rail-title">本页目录</div>' + toc_html + "</aside>"
+
+        soup2 = BeautifulSoup(page, "html.parser")
+        shell = soup2.find(class_="site-shell")
+        main_card = soup2.find("main", class_="reader-card") or soup2.find("div", class_="reader-card") or soup2.find("article", class_="markdown-body")
+        if shell is not None and main_card is not None:
+            shell["class"] = (shell.get("class") or []) + ["site-shell-cols"]
+            # rails 挂到 shell 级（main.reader-card 的兄弟节点），grid 三列各自独立
+            main_card.insert_before(BeautifulSoup(left_rail, "html.parser"))
+            main_card.insert_after(BeautifulSoup(right_rail, "html.parser"))
+            # 右栏已有目录 → 移除正文内重复的 toc-box
+            for tb in soup2.find_all("details", class_="toc-box"):
+                tb.decompose()
+            page = str(soup2)
+    return page
+
+
 def render_markdown(source: Path) -> None:
     output = output_for_markdown(source)
     raw = source.read_text(encoding="utf-8-sig")
@@ -1789,6 +1956,12 @@ def render_markdown(source: Path) -> None:
             rebuilt += '<div class="codehilite" data-lang="' + _lang + '"' + parts[_i + 1]
         page = rebuilt
 
+    # —— 题解页专属后处理：aside 提示框 + 徽标行 + 三栏 ——
+    if "03-题解" in source.parts:
+        try:
+            page = transform_solution_page(page, source, toc)
+        except Exception:
+            pass  # 转换失败不阻断构建，页面保持原样
     output.write_text(page, encoding="utf-8")
 
 
@@ -1813,8 +1986,43 @@ def render_markdown(source: Path) -> None:
 # #hot100-a11y / #hot100-embed-bootstrap 必须存在，并检查内嵌隐藏区块、
 # canvas 安全区等指定片段——本函数是可视化页通过校验的唯一途径。
 # =============================================================================
+VISUAL_THEME_CSS = '''<style id="hot100-visual-theme">
+/* ===== 演示页统一主题层（demo-kit 同源令牌，元素级归一化，不改各页逻辑） ===== */
+:root{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
+--dk-line:#dfe4ee;--dk-brand:#5654d4;--dk-brand-strong:#4543bd;--dk-brand-soft:#eeedff;
+--dk-ok:#157a52;--dk-warn:#a85b00;--dk-err:#b3372f;--dk-radius:14px;
+--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace}
+@media(prefers-color-scheme:dark){:root{--dk-bg:#0f131b;--dk-panel:#181e29;--dk-soft:#141a24;--dk-text:#eaf0fa;
+--dk-muted:#9aa6ba;--dk-line:#313b4c;--dk-brand:#b1afff;--dk-brand-strong:#c4c2ff;--dk-brand-soft:#292955;
+--dk-ok:#79d8a8;--dk-warn:#ffc174;--dk-err:#ff969d}}
+@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");
+font-weight:100 900;font-style:normal;font-display:swap;
+unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+font-weight:100 800;font-style:normal;font-display:swap;
+unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+body{font-family:var(--font-sans)!important;background:var(--dk-bg)!important;color:var(--dk-text)!important}
+button,input,select,textarea{font-family:var(--font-sans)!important;border-radius:9px!important}
+button{border:1px solid var(--dk-line)!important;background:var(--dk-panel)!important;color:var(--dk-text)!important;
+cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+button:hover{border-color:var(--dk-brand)!important;color:var(--dk-brand)!important}
+select,input[type=text],input[type=number]{border:1px solid var(--dk-line)!important;
+background:var(--dk-panel)!important;color:var(--dk-text)!important;padding:5px 9px}
+table{border-collapse:collapse}
+th{background:var(--dk-soft)}
+th,td{border-color:var(--dk-line)}
+h1,h2,h3{letter-spacing:-.01em}
+a{color:var(--dk-brand)}
+code,pre{font-family:var(--font-mono)!important}
+</style>
+'''
+
 def polish_visual(path: Path) -> None:
     text = path.read_text(encoding="utf-8-sig")
+    # 统一主题层：设计令牌 + 字体 + 元素归一化（与 demo-kit 同源视觉）
+    if "hot100-visual-theme" not in text:
+        text = re.sub(r"(?is)(<head[^>]*>)", lambda mm: mm.group(1) + "\n" + VISUAL_THEME_CSS, text, count=1)
     title_match = re.search(r"(?is)<title>\s*(.*?)\s*</title>", text)
     title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else path.stem
     nav = f'<nav class="hot100-topnav" data-hot100-nav aria-label="学习导航"><strong>{html.escape(title)}</strong><span class="hot100-links"><a href="../../../index.html">学习面板</a><a href="index.html">可视化中心</a></span></nav>'
