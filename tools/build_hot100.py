@@ -862,7 +862,15 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
         # 源笔记里的图片占位统一替换为题页可用的相对路径（问题页位于 03-题解/专题/ 下，深度为 4）。
         statement = statement.replace("https://__LC_IMG_ROOT__/", "../../../../assets/leetcode/")
         slug = LEETCODE_SLUGS.get(pid, "")
+        # 只拼接一次经过统一 slug 表与固定基址生成的 URL，两处入口复用同一
+        # Markdown 链接；后续 HTML 外链处理会统一补 target/rel 安全属性。
+        leetcode_link = (
+            f"[🔗 前往力扣原题验证 →]({LEETCODE_BASE.format(slug=slug)})"
+            if slug else ""
+        )
         statement_section = f"## 题目与约束\n\n{statement}"
+        if leetcode_link:
+            statement_section += f"\n\n{leetcode_link}"
         # 页体组装：标题/元信息表 + 题面 + 核心不变量 + 各解法小节。
         body_parts = [
             header,
@@ -870,9 +878,9 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
             f"## 核心不变量\n\n> {problem['invariant']}。",
         ]
         body_parts.extend(f"{title}\n\n{rest}" for title, rest in sections)
-        if slug:
-            # 力扣原题链接放在正文末尾（易错点与扩展之后），保持题面干净。
-            body_parts.append(f"## 力扣原题\n\n[🔗 前往力扣原题验证 →]({LEETCODE_BASE.format(slug=slug)})")
+        if leetcode_link:
+            # 原有文末入口继续保留，便于完成题解阅读后直接验证。
+            body_parts.append(f"## 力扣原题\n\n{leetcode_link}")
 
         # 底部按钮导航：上一题 / 回到 Hot 100 目录 / 下一题，整体挪到交互动画之后。
         nav_buttons = []

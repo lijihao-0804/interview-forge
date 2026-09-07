@@ -59,7 +59,65 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
+try:
+    from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
+except ModuleNotFoundError:  # package import (for example, ``tools.study_server``)
+    import sys
+    _TOOLS_IMPORT_DIR = str(Path(__file__).resolve().parent)
+    if _TOOLS_IMPORT_DIR not in sys.path:
+        sys.path.insert(0, _TOOLS_IMPORT_DIR)
+    from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
+
+try:
+    from .learning_analytics import (
+        AnalyticsUnavailableError,
+        RULE_VERSION as ANALYTICS_RULE_VERSION,
+        SCHEMA_VERSION as ANALYTICS_SCHEMA_VERSION,
+        build_learning_analytics,
+    )
+except (ImportError, ModuleNotFoundError):  # direct script execution
+    from learning_analytics import (
+        AnalyticsUnavailableError,
+        RULE_VERSION as ANALYTICS_RULE_VERSION,
+        SCHEMA_VERSION as ANALYTICS_SCHEMA_VERSION,
+        build_learning_analytics,
+    )
+
+try:
+    from .context_compiler import compile_learning_context
+except (ImportError, ModuleNotFoundError):  # direct script execution
+    from context_compiler import compile_learning_context
+
+try:
+    from .ai_coach import (
+        AI_DB_SCHEMA,
+        AIServiceError,
+        cancel_ai_task,
+        create_ai_task,
+        get_ai_task,
+        get_recent_ai_tasks,
+        get_ai_quota,
+        reset_ai_quota,
+        ai_capability,
+        ensure_ai_schema,
+        debug_ai_event,
+        submit_ai_feedback,
+    )
+except (ImportError, ModuleNotFoundError):  # direct script execution
+    from ai_coach import (
+        AI_DB_SCHEMA,
+        AIServiceError,
+        cancel_ai_task,
+        create_ai_task,
+        get_ai_task,
+        get_recent_ai_tasks,
+        get_ai_quota,
+        reset_ai_quota,
+        ai_capability,
+        ensure_ai_schema,
+        debug_ai_event,
+        submit_ai_feedback,
+    )
 
 
 # ---- 路径常量：锁定"项目根 / 数据目录 / 数据库文件"三个位置 ----
@@ -202,7 +260,7 @@ CREATE TABLE IF NOT EXISTS credentials (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
-"""
+""" + AI_DB_SCHEMA
 
 
 # ---- 模块级进程内状态 ----
@@ -215,6 +273,31 @@ _SCHEMA_DONE: set[str] = set()
 QUIET = False
 _SCHEMA_LOCK = threading.Lock()
 _MANIFEST_CACHE: tuple[float, dict[str, object]] | None = None
+
+# /api/coach/analytics 的进程内只读快照缓存：缓存键不保存原始路径，而是使用
+# resolved 用户库路径的 SHA-256 作用域，并带 schema/rule/generation 版本。
+# 分析本身永远在锁外执行，避免慢读阻塞其它请求。
+_ANALYTICS_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
+_ANALYTICS_CACHE_LOCK = threading.Lock()
+_ANALYTICS_CACHE_GENERATIONS: dict[str, int] = {}
+_ANALYTICS_GENERATION_TOUCHED: dict[str, float] = {}
+# Number of lock-free analytics builds currently in flight for each resolved
+# user database.  This must be a reference count rather than a set: two
+# concurrent builds for one user can finish at different times, and the
+# generation bookkeeping must stay pinned until the last one finishes.
+_ANALYTICS_CACHE_ACTIVE: dict[str, int] = {}
+_ANALYTICS_TTL = 60.0
+_ANALYTICS_CACHE_MAX_ENTRIES = 256
+_ANALYTICS_GENERATION_MAX_ENTRIES = 256
+_ANALYTICS_WRITE_PATHS = frozenset({
+    "/api/complete",
+    "/api/content/complete",
+    "/api/mark",
+    "/api/settings",
+    "/api/submit",
+    "/api/plan/pin",
+    "/api/leetcode/sync",
+})
 
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
@@ -233,6 +316,7 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
         with _SCHEMA_LOCK:
             if schema_key not in _SCHEMA_DONE:
                 connection.executescript(SCHEMA)
+                ensure_ai_schema(connection)
                 # 老库迁移：为 submissions 补充力扣提交 ID 列（幂等）。
                 try:
                     connection.execute("ALTER TABLE submissions ADD COLUMN lc_id INTEGER")
@@ -245,6 +329,176 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
                 )
                 _SCHEMA_DONE.add(schema_key)
     return connection
+
+
+def _analytics_resolved_path(db_path: Path) -> str:
+    """Return the only path identity used by analytics cache/generation state."""
+    return str(Path(db_path).resolve())
+
+
+def _analytics_cache_prefix(resolved_path: str) -> str:
+    """Build a non-reversible, versioned cache-key prefix for one user DB."""
+    return (
+        f"analytics:{ANALYTICS_SCHEMA_VERSION}:{ANALYTICS_RULE_VERSION}:"
+        f"{_analytics_cache_scope(resolved_path)}"
+    )
+
+
+def _analytics_cache_scope(resolved_path: str) -> str:
+    return hashlib.sha256(resolved_path.encode("utf-8")).hexdigest()
+
+
+def _analytics_cache_key(db_path: Path, generation: int | None = None) -> str:
+    """Return a versioned cache key with a hashed resolved-user scope."""
+    if generation is None:
+        resolved_path = _analytics_resolved_path(db_path)
+        with _ANALYTICS_CACHE_LOCK:
+            generation = _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0)
+    else:
+        resolved_path = _analytics_resolved_path(db_path)
+    return f"{_analytics_cache_prefix(resolved_path)}:g{int(generation)}"
+
+
+def _analytics_cache_has_path_locked(resolved_path: str) -> bool:
+    marker = f":{_analytics_cache_scope(resolved_path)}:g"
+    return any(key.startswith("analytics:") and marker in key for key in _ANALYTICS_CACHE)
+
+
+def _prune_analytics_cache_locked(now: float) -> None:
+    """Remove expired snapshots and enforce the bounded snapshot capacity.
+
+    The caller must hold ``_ANALYTICS_CACHE_LOCK``.  Eviction is deliberately
+    generation-agnostic: a future read will rebuild under the current key, and
+    an in-flight old build can still not reinsert after its generation changed.
+    """
+    expired = [
+        key for key, (created_at, _result) in _ANALYTICS_CACHE.items()
+        if now - float(created_at) >= _ANALYTICS_TTL
+    ]
+    for key in expired:
+        _ANALYTICS_CACHE.pop(key, None)
+
+    max_entries = max(0, int(_ANALYTICS_CACHE_MAX_ENTRIES))
+    while len(_ANALYTICS_CACHE) > max_entries:
+        oldest_key = min(
+            _ANALYTICS_CACHE,
+            key=lambda item: (float(_ANALYTICS_CACHE[item][0]), item),
+        )
+        _ANALYTICS_CACHE.pop(oldest_key, None)
+
+
+def _prune_analytics_generations_locked() -> None:
+    """Bound generation bookkeeping without dropping active read generations."""
+    max_entries = max(0, int(_ANALYTICS_GENERATION_MAX_ENTRIES))
+    if len(_ANALYTICS_CACHE_GENERATIONS) <= max_entries:
+        return
+    candidates = sorted(
+        (
+            _ANALYTICS_GENERATION_TOUCHED.get(path, 0.0),
+            path,
+        )
+        for path in _ANALYTICS_CACHE_GENERATIONS
+        if _ANALYTICS_CACHE_ACTIVE.get(path, 0) == 0
+    )
+    for _touched, path in candidates:
+        if len(_ANALYTICS_CACHE_GENERATIONS) <= max_entries:
+            break
+        _ANALYTICS_CACHE_GENERATIONS.pop(path, None)
+        _ANALYTICS_GENERATION_TOUCHED.pop(path, None)
+
+
+def _invalidate_analytics_cache(db_path: Path) -> None:
+    """Invalidate exactly one resolved user's analytics snapshots."""
+    resolved_path = _analytics_resolved_path(db_path)
+    with _ANALYTICS_CACHE_LOCK:
+        now = time.time()
+        _prune_analytics_cache_locked(now)
+        # Invalidation is path-exact even if an old schema/rule-version entry
+        # is still resident after a hot reload.
+        marker = f":{_analytics_cache_scope(resolved_path)}:g"
+        for key in list(_ANALYTICS_CACHE):
+            if key.startswith("analytics:") and marker in key:
+                _ANALYTICS_CACHE.pop(key, None)
+        _ANALYTICS_CACHE_GENERATIONS[resolved_path] = (
+            _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0) + 1
+        )
+        _ANALYTICS_GENERATION_TOUCHED[resolved_path] = now
+        _prune_analytics_generations_locked()
+
+
+def _analytics_build_started_locked(resolved_path: str) -> None:
+    """Pin a user's generation while one lock-free analytics build runs."""
+    _ANALYTICS_CACHE_ACTIVE[resolved_path] = (
+        _ANALYTICS_CACHE_ACTIVE.get(resolved_path, 0) + 1
+    )
+
+
+def _analytics_build_finished_locked(resolved_path: str) -> None:
+    """Release one analytics build reference without underflowing the count."""
+    active = _ANALYTICS_CACHE_ACTIVE.get(resolved_path, 0)
+    if active <= 1:
+        _ANALYTICS_CACHE_ACTIVE.pop(resolved_path, None)
+    else:
+        _ANALYTICS_CACHE_ACTIVE[resolved_path] = active - 1
+
+
+def _invalidate_learning_caches(db_path: Path) -> None:
+    """Invalidate all read models affected by a learning-db write."""
+    _invalidate_analytics_cache(db_path)
+    _invalidate_dashboard_cache(db_path)
+
+
+def analytics_cached(db_path: Path) -> dict[str, object]:
+    """Return a cached analytics snapshot, analyzing outside the cache lock."""
+    resolved_path = _analytics_resolved_path(db_path)
+    with _ANALYTICS_CACHE_LOCK:
+        now = time.time()
+        _prune_analytics_cache_locked(now)
+        generation = _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0)
+        _ANALYTICS_GENERATION_TOUCHED[resolved_path] = now
+        key = _analytics_cache_key(db_path, generation)
+        hit = _ANALYTICS_CACHE.get(key)
+        if hit and now - hit[0] < _ANALYTICS_TTL:
+            return hit[1]
+        if hit:
+            # The general prune above normally removes this; keep the local
+            # removal explicit for a patched/zero TTL and exactness.
+            _ANALYTICS_CACHE.pop(key, None)
+        _analytics_build_started_locked(resolved_path)
+
+    # The core deliberately requires an existing root for its path guard.  A
+    # fresh installation may have no user database yet; create only the empty
+    # root directory so that the current user's missing DB still yields the
+    # core's normal data_insufficient result, never the legacy DB_PATH.
+    try:
+        if not USERS_DIR.is_dir():
+            USERS_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Do not hold _ANALYTICS_CACHE_LOCK while reading/analyzing SQLite.
+        result = build_learning_analytics(
+            db_path,
+            PROBLEM_BY_ID,
+            load_library_manifest(),
+            allowed_db_root=USERS_DIR,
+        )
+    except BaseException:
+        with _ANALYTICS_CACHE_LOCK:
+            _analytics_build_finished_locked(resolved_path)
+            _prune_analytics_generations_locked()
+        raise
+
+    with _ANALYTICS_CACHE_LOCK:
+        _analytics_build_finished_locked(resolved_path)
+        # A write may have invalidated the key while the lock-free analysis ran.
+        # In that case return this snapshot to the in-flight caller but do not
+        # reinsert a stale result for the next request.
+        if _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0) == generation:
+            created_at = time.time()
+            _prune_analytics_cache_locked(created_at)
+            _ANALYTICS_CACHE[key] = (created_at, result)
+            _prune_analytics_cache_locked(created_at)
+        _prune_analytics_generations_locked()
+    return result
 
 
 # =============================================================================
@@ -441,6 +695,13 @@ CREATE TABLE IF NOT EXISTS avatars (
     data BLOB NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ai_quota_reset_audit (
+    id INTEGER PRIMARY KEY,
+    actor_admin_id INTEGER NOT NULL REFERENCES users(id),
+    target_user_id INTEGER NOT NULL REFERENCES users(id),
+    reset_at TEXT NOT NULL,
+    before_used INTEGER NOT NULL
+);
 """
 
 _AUTH_READY = False
@@ -516,9 +777,37 @@ def user_db_path(username: str) -> Path:
     return USERS_DIR / username / "hot100-study.db"
 
 
+def _username_case_collision(
+    connection: sqlite3.Connection,
+    username: str,
+    *,
+    exclude_user_id: int | None = None,
+) -> bool:
+    """Return whether another account occupies the same Windows name.
+
+    The auth schema intentionally remains backward-compatible and therefore
+    keeps its historical case-sensitive UNIQUE constraint.  This explicit
+    NOCASE lookup is the application-level invariant that also protects the
+    case-insensitive ``data/users`` directory on Windows.
+    """
+    if exclude_user_id is None:
+        row = connection.execute(
+            "SELECT id FROM users WHERE username = ? COLLATE NOCASE LIMIT 1",
+            (username,),
+        ).fetchone()
+    else:
+        row = connection.execute(
+            """SELECT id FROM users
+               WHERE username = ? COLLATE NOCASE AND id <> ?
+               LIMIT 1""",
+            (username, exclude_user_id),
+        ).fetchone()
+    return row is not None
+
+
 def create_user(username: str, password: str, role: str = "user",
                 conn: sqlite3.Connection | None = None) -> dict[str, object]:
-    """创建用户：校验用户名/密码长度，scrypt 存哈希；可传入外部连接参与注册事务。"""
+    """创建用户并在同一写事务内执行 NOCASE 冲突检查与插入。"""
     if not USERNAME_RE.match(username):
         raise ValueError("用户名限 2~32 位字母数字下划线连字符")
     if len(password) < 8:
@@ -527,15 +816,39 @@ def create_user(username: str, password: str, role: str = "user",
         raise ValueError("非法角色")
     own_connection = conn is None
     connection = conn or connect_auth()
+    started_transaction = False
     try:
+        # ``connect_auth`` is autocommit.  Standalone creation therefore needs
+        # the same BEGIN IMMEDIATE boundary as registration; a caller that has
+        # already started the registration transaction owns that boundary.
+        if not connection.in_transaction:
+            connection.execute("BEGIN IMMEDIATE")
+            started_transaction = True
+        if _username_case_collision(connection, username):
+            raise ValueError("用户名已被占用")
         connection.execute(
             "INSERT INTO users(username, password_hash, role, is_active, created_at) VALUES (?, ?, ?, 1, ?)",
             (username, hash_password(password), role, now_iso()),
         )
         row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if started_transaction:
+            connection.execute("COMMIT")
         return dict(row)
+    except ValueError:
+        if started_transaction:
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
+        raise
     except sqlite3.IntegrityError as exc:
+        if started_transaction:
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
         raise ValueError("用户名已被占用") from exc
+    except BaseException:
+        if started_transaction:
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
+        raise
     finally:
         if own_connection:
             connection.close()
@@ -558,6 +871,16 @@ def auth_login(username: str, password: str) -> sqlite3.Row:
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
+            verify_password(password, _DUMMY_HASH)
+            raise ValueError("用户名或密码错误")
+        # A legacy auth.db may already contain Alice and alice because the old
+        # UNIQUE constraint was case-sensitive.  Refuse both accounts rather
+        # than guessing which physical Windows user directory is intended.
+        if _username_case_collision(
+            connection,
+            str(row["username"]),
+            exclude_user_id=int(row["id"]),
+        ):
             verify_password(password, _DUMMY_HASH)
             raise ValueError("用户名或密码错误")
         if int(row["is_active"]) != 1 or not verify_password(password, str(row["password_hash"])):
@@ -596,7 +919,12 @@ def session_user(token: str) -> sqlite3.Row | None:
         row = connection.execute(
             """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
                FROM sessions s JOIN users u ON u.id = s.user_id
-               WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1""",
+               WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1
+                 AND NOT EXISTS (
+                     SELECT 1 FROM users collision
+                     WHERE collision.username COLLATE NOCASE = u.username COLLATE NOCASE
+                       AND collision.id <> u.id
+                 )""",
             (token, now_iso()),
         ).fetchone()
         if row is not None:
@@ -671,7 +999,7 @@ def register_with_code(username: str, password: str, code: str) -> dict[str, obj
             raise ValueError("注册码已被吊销")
         if row["expires_at"] and str(row["expires_at"]) < today:
             raise ValueError("注册码已过期")
-        if connection.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+        if _username_case_collision(connection, username):
             raise ValueError("用户名已被占用")
         # 条件更新抢占注册码：并发场景只有一个请求能把 status 从 unused 改掉。
         cursor = connection.execute(
@@ -704,8 +1032,41 @@ def list_users() -> list[dict[str, object]]:
             item = dict(row)
             db_file = user_db_path(str(item["username"]))
             item["db_bytes"] = db_file.stat().st_size if db_file.is_file() else 0
+            item["ai_quota"] = get_ai_quota(db_file, str(item["role"]))
             items.append(item)
     return items
+
+
+def admin_reset_user_ai_quota(
+    username: str, actor_user_id: int
+) -> dict[str, object]:
+    """Reset a normal user's Shanghai-day quota and write the required audit row."""
+    username = username.strip()
+    if not username:
+        raise ValueError("用户名不能为空")
+    with closing(connect_auth()) as connection:
+        actor = connection.execute(
+            "SELECT id, role FROM users WHERE id = ?", (actor_user_id,)
+        ).fetchone()
+        target = connection.execute(
+            "SELECT id, username, role FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if actor is None or str(actor["role"]) != "admin":
+            raise PermissionError("需要管理员权限")
+        if target is None:
+            raise ValueError("用户不存在")
+        if str(target["role"]) == "admin":
+            raise ValueError("不能重置管理员的分析次数")
+        reset = reset_ai_quota(user_db_path(str(target["username"])))
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            """INSERT INTO ai_quota_reset_audit(
+               actor_admin_id, target_user_id, reset_at, before_used
+            ) VALUES (?, ?, ?, ?)""",
+            (int(actor["id"]), int(target["id"]), now_iso(), int(reset["before_used"])),
+        )
+        connection.execute("COMMIT")
+    return {"username": username, "reset": True, "quota": reset["quota"]}
 
 
 def set_user_active(username: str, active: bool) -> dict[str, object]:
@@ -1139,11 +1500,11 @@ def now_parts() -> tuple[str, str]:
     return now.isoformat(timespec="seconds"), now.date().isoformat()
 
 
-def record_view(problem_id: int, db_path: Path = DB_PATH) -> None:
+def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     """记录一次题目浏览（view 事件）：60 秒内对同一题去重，防止翻页/刷接口产生垃圾记录。"""
     if problem_id not in PROBLEM_BY_ID:
         # 未知题号直接忽略 —— 浏览埋点属"尽力而为"，不因脏请求而报错。
-        return
+        return False
     studied_at, study_date = now_parts()
     with closing(connect(db_path)) as connection:
         # 取该题最近一条 view 的时间戳，用于 60 秒窗口的去重判断。
@@ -1156,13 +1517,15 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> None:
         if recent:
             last = datetime.fromisoformat(recent["studied_at"])
             if (datetime.fromisoformat(studied_at) - last).total_seconds() < 60:
-                return
+                return False
         # 通过 60 秒窗口：落一条 view 记录（studied_at / study_date 由 now_parts 统一生成）。
         connection.execute(
             "INSERT INTO study_events(problem_id, action, studied_at, study_date) VALUES (?, 'view', ?, ?)",
             (problem_id, studied_at, study_date),
         )
         connection.commit()
+    _invalidate_learning_caches(db_path)
+    return True
 
 
 def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
@@ -1185,6 +1548,10 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
             (problem_id, studied_at, study_date, round_no),
         )
         connection.commit()
+    # Invalidate immediately after the first committed write.  If the legacy
+    # mirrored content write below fails, the study event cannot leave an old
+    # analytics/dashboard snapshot visible.
+    _invalidate_learning_caches(db_path)
     # 同步到书架：Hot 100 题目的完成轮次同时写入 content_events，
     # 让书架“算法刷题”模块的进度与题解面板保持一致。
     try:
@@ -1204,21 +1571,40 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
 # 按"数据库路径"缓存 60 秒；任何写操作（完成/标记/提交）后立即失效。
 _DASH_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
 _DASH_CACHE_LOCK = threading.Lock()
+_DASH_CACHE_GENERATIONS: dict[str, int] = {}
 _DASH_TTL = 60.0
 
 
 def dashboard_cached(db_path: Path) -> dict[str, object]:
     """带 60 秒缓存的仪表盘聚合；写操作后由调用方清缓存。"""
-    key = str(db_path)
+    key = str(Path(db_path).resolve())
     now = time.time()
     with _DASH_CACHE_LOCK:
+        generation = _DASH_CACHE_GENERATIONS.get(key, 0)
         hit = _DASH_CACHE.get(key)
         if hit and now - hit[0] < _DASH_TTL:
             return hit[1]
+        if hit:
+            _DASH_CACHE.pop(key, None)
     data = dashboard_data(db_path)
     with _DASH_CACHE_LOCK:
-        _DASH_CACHE[key] = (now, data)
+        # A write/invalidation may have happened while the dashboard was
+        # calculated outside the lock.  Returning this caller's result remains
+        # valid, but an old snapshot must never repopulate the shared cache.
+        if _DASH_CACHE_GENERATIONS.get(key, 0) == generation:
+            _DASH_CACHE[key] = (time.time(), data)
     return data
+
+
+def _invalidate_dashboard_cache(db_path: Path) -> None:
+    """Invalidate the existing dashboard snapshot for one database path."""
+    key = str(Path(db_path).resolve())
+    with _DASH_CACHE_LOCK:
+        # Remove both the canonical key and the historical/raw spelling so a
+        # cache entry created by an older process cannot survive a write.
+        _DASH_CACHE.pop(key, None)
+        _DASH_CACHE.pop(str(db_path), None)
+        _DASH_CACHE_GENERATIONS[key] = _DASH_CACHE_GENERATIONS.get(key, 0) + 1
 
 
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
@@ -1468,10 +1854,10 @@ def valid_content(module_id: str, content_id: str) -> bool:
     )
 
 
-def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH) -> None:
+def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH) -> bool:
     """书架章节浏览事件：与题目 record_view 完全同构（含 60 秒去重），写进 content_events。"""
     if not valid_content(module_id, content_id):
-        return
+        return False
     studied_at, study_date = now_parts()
     with closing(connect(db_path)) as connection:
         # 同样的 60 秒去重窗口（这里按 content_id 查最近一条 view）。
@@ -1483,13 +1869,15 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
         if recent:
             last = datetime.fromisoformat(recent["studied_at"])
             if (datetime.fromisoformat(studied_at) - last).total_seconds() < 60:
-                return
+                return False
         connection.execute(
             """INSERT INTO content_events(module_id, content_id, action, studied_at, study_date)
                VALUES (?, ?, 'view', ?, ?)""",
             (module_id, content_id, studied_at, study_date),
         )
         connection.commit()
+    _invalidate_learning_caches(db_path)
+    return True
 
 
 def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -> dict[str, object]:
@@ -1513,6 +1901,7 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
             (module_id, content_id, studied_at, study_date, round_no),
         )
         connection.commit()
+    _invalidate_learning_caches(db_path)
     # next_due：按章节专用间隔表（REVIEW_INTERVALS_CONTENT）推算的到期日，前端展示"下次复习"。
     return {
         "module_id": module_id,
@@ -1779,6 +2168,7 @@ def set_setting(key: str, value: str, db_path: Path = DB_PATH) -> dict[str, str]
             (key, value),
         )
         connection.commit()
+    _invalidate_learning_caches(db_path)
     return {"key": key, "value": value}
 
 
@@ -1825,6 +2215,7 @@ def set_mark(target_type: str, target_id: str, mark: str, db_path: Path = DB_PAT
                 (target_type, target_id, mark, studied_at),
             )
         connection.commit()
+    _invalidate_learning_caches(db_path)
     return {"target_type": target_type, "target_id": target_id, "mark": mark}
 
 
@@ -2216,6 +2607,7 @@ def record_submission(
             (problem_id, status, lang[:40], runtime_ms, memory_kb, studied_at, source),
         )
         connection.commit()
+    _invalidate_learning_caches(db_path)
     return {"problem_id": problem_id, "status": status, "submitted_at": studied_at}
 
 
@@ -2632,10 +3024,16 @@ def leetcode_sync(
                 results["solved_added"] = int(results["solved_added"]) + 1
         connection.commit()
     results["sync_errors"] = fetch_errors
+    _invalidate_learning_caches(db_path)
     return results
 
 
-def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str = "") -> str:
+def start_leetcode_sync_task(
+    credentials: dict[str, str],
+    full: bool,
+    owner: str = "",
+    db_path: Path = DB_PATH,
+) -> str:
     """后台执行力扣同步，返回 task_id；前端轮询状态接口打印进度日志。
     owner 记录发起用户名：状态轮询接口校验归属，防止跨用户窥探进度。"""
     task_id = uuid.uuid4().hex[:12]
@@ -2655,11 +3053,24 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
 
     def worker() -> None:
         try:
-            task["result"] = leetcode_sync(credentials, full=full, progress=progress)
+            task["result"] = leetcode_sync(
+                credentials,
+                db_path=db_path,
+                full=full,
+                progress=progress,
+            )
         except Exception as exc:  # noqa: BLE001 - 错误交给前端展示
             task["error"] = str(exc)
         finally:
-            task["running"] = False
+            # The worker may have committed rows before a later network or
+            # parsing error.  Invalidate on both success and failure, and do it
+            # before publishing running=False so the completed task never
+            # races a GET that can still observe the old snapshot.
+            try:
+                _invalidate_learning_caches(db_path)
+            finally:
+                with SYNC_TASKS_LOCK:
+                    task["running"] = False
 
     with SYNC_TASKS_LOCK:
         SYNC_TASKS[task_id] = task
@@ -2679,7 +3090,7 @@ def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
         task = SYNC_TASKS.get(task_id)
         if task is None:
             return None
-        if owner and str(task.get("owner", "")) != owner:
+        if str(task.get("owner", "")) != owner:
             return None
         return {
             "task_id": task_id,
@@ -2916,15 +3327,56 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/bootstrap：面板打开的一次性拉取（dashboard + daily + settings 合并，
         # 省两个 RTT；dashboard 自带 60 秒缓存）。
         if parsed.path == "/api/bootstrap":
+            ai_state = ai_capability(str(user["username"]), str(user["role"]))
+            ai_state["quota"] = get_ai_quota(db, str(user["role"]))
             self.send_json({
                 "dashboard": dashboard_cached(db),
                 "daily": daily_data(db),
                 "settings": get_settings(db),
+                "capabilities": {
+                    "ai_coach": ai_state
+                },
             })
             return
         # /api/dashboard：仪表盘聚合 —— 今日概览/每题进度/近 14 天/最近活动/365 天热力图/标记与提交统计。
         if parsed.path == "/api/dashboard":
             self.send_json(dashboard_cached(db))
+            return
+        # /api/coach/analytics：隐藏的只读教练分析快照；数据库路径只来自当前会话用户。
+        if parsed.path == "/api/coach/analytics":
+            try:
+                self.send_json(analytics_cached(db))
+            except AnalyticsUnavailableError:
+                self.send_json(
+                    {"error": "学习分析暂时不可用，请稍后重试", "retryable": True},
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    extra_headers=[("Retry-After", "1")],
+                )
+            except Exception:
+                # 包括 ValueError/配置错误：不把路径、SQLite 细节或其它内部信息回显给客户端。
+                self.send_json({"error": "学习分析服务暂时不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        # /api/coach/capability：只返回当前账号的服务端能力状态；不暴露密钥、端点或原始模型名。
+        if parsed.path == "/api/coach/capability":
+            capability = ai_capability(str(user["username"]), str(user["role"]))
+            capability["quota"] = get_ai_quota(db, str(user["role"]))
+            self.send_json({"ai_coach": capability})
+            return
+        # /api/coach/insights/recent：页面刷新时恢复最近任务，不触发模型调用。
+        if parsed.path == "/api/coach/insights/recent":
+            try:
+                self.send_json(get_recent_ai_tasks(db, str(user["username"]), str(user["role"])))
+            except sqlite3.Error:
+                self.send_json({"error": "分析记录暂时不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        # /api/coach/tasks/<id>：查询当前用户自己的任务状态和脱敏上下文预览。
+        task_match = re.fullmatch(r"/api/coach/tasks/([0-9a-f]{32})", parsed.path)
+        if task_match:
+            task = get_ai_task(db, task_match.group(1), str(user["role"]))
+            if task is None:
+                self.send_json({"error": "任务不存在或已过期"}, HTTPStatus.NOT_FOUND)
+            else:
+                self.send_json(task)
             return
         # /api/health：健康检查 —— 只回存活状态，不暴露库文件名等内部信息。
         if parsed.path == "/api/health":
@@ -3093,16 +3545,20 @@ class StudyHandler(SimpleHTTPRequestHandler):
             try:
                 target = (ROOT / decoded_path.lstrip("/")).resolve()
                 if target.is_file() and str(target).startswith(str(ROOT.resolve())):
-                    record_view(int(filename[:4]), db)
-            except (ValueError, OSError, sqlite3.Error):
+                    if record_view(int(filename[:4]), db):
+                        _invalidate_learning_caches(db)
+            except Exception:
+                _invalidate_learning_caches(db)
                 pass
         # 书架章节埋点：manifest routes 表映射 library/* 路径 → content_id 记章节浏览；
         # 其余路径落到 super().do_GET() 走静态文件服务。
         route = load_library_manifest().get("routes", {}).get(decoded_path)
         if route:
             try:
-                record_content_view(str(route["module_id"]), str(route["content_id"]), db)
-            except (ValueError, OSError, sqlite3.Error):
+                if record_content_view(str(route["module_id"]), str(route["content_id"]), db):
+                    _invalidate_learning_caches(db)
+            except Exception:
+                _invalidate_learning_caches(db)
                 pass
         # ---- 前端小部件注入：阅读页/面板 HTML 在发送前插入认证胶囊与反馈按钮 ----
         # 05-可视化 页面会被 iframe 内嵌，均跳过；注入发生在服务层，不改任何生成产物。
@@ -3144,27 +3600,45 @@ class StudyHandler(SimpleHTTPRequestHandler):
         public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/role", "/api/admin/users/nickname/reset",
+                      "/api/admin/users/ai-quota/reset",
                       "/api/admin/users/reset-password",
                       "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
             "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
             "/api/plan/pin",
+            "/api/coach/context",
+            "/api/coach/analyze",
             "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
         }
-        if path not in known_post:
+        cancel_match = re.fullmatch(r"/api/coach/tasks/([0-9a-f]{32})/cancel", path)
+        feedback_match = re.fullmatch(r"/api/coach/insights/([0-9a-f]{32})/feedback", path)
+        if path not in known_post and cancel_match is None and feedback_match is None:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         # ---- 认证门禁：公开端点放行；其余需登录；admin_post 需管理员 ----
         user = self.current_user()
         if path not in public_post:
             if user is None:
+                # A hidden POST endpoint can be probed with a body.  Consume
+                # its small bounded body before returning 401 so an HTTP/1.1
+                # client does not see a reset while the request is still in
+                # flight; never read an unbounded unauthenticated body.
+                if path == "/api/coach/context":
+                    self.close_connection = True
+                    try:
+                        unauthenticated_length = int(self.headers.get("Content-Length", "0"))
+                    except (TypeError, ValueError):
+                        unauthenticated_length = 0
+                    if 0 < unauthenticated_length <= 4096:
+                        self.rfile.read(unauthenticated_length)
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
                 return
             if path in admin_post and str(user["role"]) != "admin":
                 self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
                 return
         db = user_db_path(str(user["username"])) if user is not None else DB_PATH
+        learning_write_path = path in _ANALYTICS_WRITE_PATHS
         cookie_headers: list[tuple[str, str]] = []
         try:
             # 请求体约束：必须是 JSON 且 1~4096 字节（/api/profile 例外：头像 base64
@@ -3174,8 +3648,68 @@ class StudyHandler(SimpleHTTPRequestHandler):
             if length < 1 or length > max_len:
                 raise ValueError("请求大小不正确")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            # /api/coach/context：隐藏的只读上下文编译接口。输入字段是严格
+            # 白名单，数据库仍只来自当前会话；context_compiler 本身不写库、不
+            # 调模型，也不会把请求中的命令当作规则。
+            if path == "/api/coach/context":
+                if not isinstance(payload, dict):
+                    raise ValueError("请求参数不正确")
+                allowed_context_keys = {
+                    "task",
+                    "user_request",
+                    "target_problem_id",
+                    "profile",
+                    "budget_tier",
+                }
+                if any(key not in allowed_context_keys for key in payload):
+                    raise ValueError("请求参数不正确")
+                result = compile_learning_context(
+                    analytics_cached(db),
+                    task=payload.get("task"),
+                    user_request=payload.get("user_request", ""),
+                    target_problem_id=payload.get("target_problem_id"),
+                    profile=payload.get("profile"),
+                    budget_tier=payload.get("budget_tier"),
+                )
+            # /api/coach/analyze：一键学习情况分析。上下文先由确定性编译器生成，
+            # 创建任务后立即返回；客户端不能指定模型、用户、数据库或快照。
+            elif path == "/api/coach/analyze":
+                if not isinstance(payload, dict) or payload:
+                    raise ValueError("请求参数不正确")
+                analytics_started = time.perf_counter()
+                analytics = analytics_cached(db)
+                analytics_ms = round((time.perf_counter() - analytics_started) * 1000, 2)
+                compile_started = time.perf_counter()
+                context = compile_learning_context(
+                    analytics,
+                    task="learning_diagnosis",
+                    budget_tier="small",
+                )
+                compile_ms = round((time.perf_counter() - compile_started) * 1000, 2)
+                create_started = time.perf_counter()
+                result = create_ai_task(db, context, str(user["username"]), str(user["role"]))
+                debug_ai_event(
+                    "request_prepared",
+                    task_id=str(result.get("task_id", "")),
+                    analytics_ms=analytics_ms,
+                    context_compile_ms=compile_ms,
+                    task_create_ms=round((time.perf_counter() - create_started) * 1000, 2),
+                    context=context,
+                )
+            # /api/coach/tasks/<id>/cancel：只允许取消仍在队列中的任务。
+            elif cancel_match is not None:
+                if not isinstance(payload, dict) or payload:
+                    raise ValueError("请求参数不正确")
+                result = cancel_ai_task(db, cancel_match.group(1))
+            # /api/coach/insights/<id>/feedback：反馈只写当前用户学习库中的 insight。
+            elif feedback_match is not None:
+                if not isinstance(payload, dict) or set(payload) != {"helpful"}:
+                    raise ValueError("反馈参数不正确")
+                if not isinstance(payload.get("helpful"), bool):
+                    raise ValueError("反馈参数不正确")
+                result = submit_ai_feedback(db, feedback_match.group(1), payload["helpful"])
             # /api/login：账号密码登录 —— 防爆破锁定期 → 校验 scrypt 哈希 → 签发会话 Cookie。
-            if path == "/api/login":
+            elif path == "/api/login":
                 ip = self.client_ip()
                 if not login_rate_limit_ok(ip):
                     raise ValueError("尝试次数过多，请 10 分钟后再试")
@@ -3286,6 +3820,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     str(payload.get("username", "")),
                     str(user["username"]),
                 )
+            # 仅重置普通用户今日 AI 次数；操作者和重置前次数写入最小审计。
+            elif path == "/api/admin/users/ai-quota/reset":
+                if not isinstance(payload, dict) or set(payload) != {"username"}:
+                    raise ValueError("请求参数不正确")
+                result = admin_reset_user_ai_quota(
+                    str(payload.get("username", "")), int(user["id"])
+                )
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
             elif path == "/api/admin/users/reset-password":
                 result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")))
@@ -3334,26 +3875,68 @@ class StudyHandler(SimpleHTTPRequestHandler):
             elif path == "/api/leetcode/sync":
                 full = str(payload.get("full", "0")) in ("1", "true", "True")
                 if payload.get("async") in (1, True, "1", "true", "True"):
-                    result = {"ok": True, "task_id": start_leetcode_sync_task(get_credentials(db), full, owner=str(user["username"]))}
+                    result = {
+                        "ok": True,
+                        "task_id": start_leetcode_sync_task(
+                            get_credentials(db),
+                            full,
+                            owner=str(user["username"]),
+                            db_path=db,
+                        ),
+                    }
                 else:
-                    result = {"ok": True, **leetcode_sync(get_credentials(db), full=full)}
+                    result = {"ok": True, **leetcode_sync(get_credentials(db), db_path=db, full=full)}
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
                 clear_credentials(db)
                 lc_status_invalidate(db)
                 result = {"cleared": True}
+        except AnalyticsUnavailableError:
+            self.send_json(
+                {"error": "学习分析暂时不可用，请稍后重试", "retryable": True},
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                extra_headers=[("Retry-After", "1")],
+            )
+            return
+        except AIServiceError as exc:
+            response: dict[str, object] = {
+                "error": exc.user_message,
+                "error_category": exc.category,
+            }
+            if exc.fallback is not None:
+                response["fallback"] = exc.fallback
+            if exc.details:
+                response.update(exc.details)
+            self.send_json(response, exc.status)
+            return
+        except PermissionError as exc:
+            self.send_json({"error": str(exc)}, HTTPStatus.FORBIDDEN)
+            return
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             # 参数缺失/类型错/校验失败/JSON 非法 → 400（请求本身有问题，业务层抛 ValueError）。
+            if learning_write_path:
+                _invalidate_learning_caches(db)
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         except sqlite3.Error:
             # 数据库层故障 → 500（请求没问题但写入失败）。
+            if learning_write_path:
+                _invalidate_learning_caches(db)
             self.send_json({"error": "数据库写入失败"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
+        except Exception:
+            # A learning operation can commit one table and fail while writing
+            # a mirrored/secondary table.  Always discard both read models
+            # before returning the controlled error response.
+            if learning_write_path:
+                _invalidate_learning_caches(db)
+            self.send_json({"error": "学习记录写入失败"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
         # 写操作成功后使面板聚合缓存失效，保证下一次 /api/dashboard 拿到最新状态。
-        if path not in public_post:
-            with _DASH_CACHE_LOCK:
-                _DASH_CACHE.pop(str(db), None)
+        if learning_write_path:
+            _invalidate_learning_caches(db)
+        elif path not in public_post and path != "/api/coach/context":
+            _invalidate_dashboard_cache(db)
         # POST 创建/更新资源成功统一回 201 Created；send_json 内部附加 CORS 与 Set-Cookie 头。
         self.send_json(result, HTTPStatus.CREATED, extra_headers=cookie_headers)
 

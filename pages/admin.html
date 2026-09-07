@@ -103,7 +103,7 @@
     <section>
       <h2>用户管理</h2>
       <table id="users-table">
-        <thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
+        <thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>今日 AI 次数</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -222,6 +222,8 @@ function loadUsers() {
       var status = el("td");
       status.appendChild(el("span", "tag " + (user.is_active ? "unused" : "off"), user.is_active ? "正常" : "已停用"));
       tr.appendChild(status);
+      var quota = user.ai_quota || {};
+      tr.appendChild(el("td", "muted", user.role === "admin" ? "不限" : ((quota.used || 0) + " 已用 · " + (quota.remaining || 0) + " 剩余")));
       tr.appendChild(el("td", "muted", fmtTime(user.created_at)));
       tr.appendChild(el("td", "muted", fmtTime(user.last_login)));
       tr.appendChild(el("td", "muted", fmtBytes(user.db_bytes)));
@@ -247,6 +249,22 @@ function loadUsers() {
       }
       action.appendChild(repairBtn);
       if (user.role !== "admin") {
+        action.appendChild(document.createTextNode(" "));
+        var quotaBtn = el("button", "mini ghost", "重置今日分析次数");
+        quotaBtn.onclick = function () {
+          if (!confirm("重置“" + user.username + "”今天的一键分析次数？当前已用 " + ((user.ai_quota && user.ai_quota.used) || 0) + " 次。")) return;
+          quotaBtn.disabled = true;
+          api("/api/admin/users/ai-quota/reset", { method: "POST",
+            body: JSON.stringify({ username: user.username }) })
+            .then(function (quotaRes) {
+              if (!quotaRes.ok) { alert(quotaRes.data.error || "分析次数重置失败"); return; }
+              alert("已重置“" + user.username + "”今天的一键分析次数");
+              loadUsers();
+            })
+            .catch(function () { alert("网络错误，分析次数重置失败"); })
+            .finally(function () { quotaBtn.disabled = false; });
+        };
+        action.appendChild(quotaBtn);
         action.appendChild(document.createTextNode(" "));
         var btn = el("button", "mini ghost", user.is_active ? "停用" : "启用");
         btn.onclick = function () {
