@@ -127,18 +127,15 @@ readerVisualFrames.forEach((frame) => {
     const main = document.querySelector('.markdown-body');
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
-      sec.style.display = (sec.dataset.lang === lang) ? '' : 'none';
-    });
-    document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
-      div.style.display = (div.dataset.lang === lang) ? '' : 'none';
-    });
+    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')];
+    const available = new Set(blocks.map((block) => block.dataset.lang));
+    const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
+    blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
     const bar = buildBar();
-    bar.dataset.lang = lang;
-    const available = new Set([...document.querySelectorAll('.codehilite[data-lang]')].map((d) => d.dataset.lang));
+    bar.dataset.lang = effectiveLang;
     bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
       const l = chip.dataset.lang;
-      chip.classList.toggle('active', l === lang);
+      chip.classList.toggle('active', l === effectiveLang);
       chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
     });
   }

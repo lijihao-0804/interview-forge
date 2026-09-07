@@ -73,6 +73,8 @@ curl -s https://hot100.xyz/api/health        # 期望 {"ok": true}
 
 ## 4. 回滚
 
+> `git reset --hard` 会丢弃目标提交之后的代码和工作区修改。执行前先确认 `git status`，备份 `data/`，并记录当前提交；不要用它处理含运行时数据的路径。
+
 ```bash
 ssh hstgr-cloud
 cd /opt/interview-forge
@@ -106,7 +108,7 @@ ssh hstgr-cloud "rm /tmp/forge-data.tgz"
 | 502 Bad Gateway | study_server 没起来：看 `journalctl -u interview-forge -n 50`；常见为代码语法错（pull 前本机务必先跑通） |
 | 证书过期告警 | `certbot renew --dry-run` 检查自动续期；正常情况无需干预 |
 | 更新后还是旧页面 | 浏览器 `Ctrl+Shift+R` 强刷；PWA 用户重开一次页面（缓存版本号在 `service-worker.js` 的 VERSION） |
-| git pull 冲突 | VPS 上只应有 git 内容：`git status` 查看改动，`git checkout -- .` 丢弃本地改动后重拉 |
+| git pull 冲突 | 先用 `git status` 精确确认冲突文件并备份；运行时 `data/` 不得删除或覆盖。只对确认可丢弃的代码文件做定点恢复后再拉取，禁止无差别清空工作区。 |
 | 登录报"尝试次数过多" | 登录防爆破（5 次锁 10 分钟）；VPS 重启服务可清零：`systemctl restart interview-forge` |
 
 ---
@@ -127,12 +129,12 @@ ssh hstgr-cloud "rm /tmp/forge-data.tgz"
 
 ## 8. 附录 B：备用方案——旧局域网对端（ljh@192.168.5.234，Cloudflare Tunnel）
 
-状态：**仍在运行但已非正式后端**，域名已不指向它。完整指南见本文档的 git 历史
+状态：**历史备用方案，当前存活状态未纳入生产保障**，域名不指向它。完整指南见本文档的 git 历史
 （`git log --diff-filter=M -- "*SSH*"` 找旧版），要点备份如下：
 
-- 免密 SSH：`ssh ljh@192.168.5.234`（对端 IP 可能漂移，按计算机名 `DESKTOP-RDRAIIJ` 解析；该机双网卡，有线 .234 / WiFi .32）；
+- 旧环境连接参数属于私有基础设施信息，不作为当前部署步骤；如需灾备启用，从受控运维记录核验地址和凭据，不依赖本公开存档中的历史值；
 - 更新代码**不能直接 `git pull`**（对端到 GitHub 传输常被重置），用 bundle：本机
   `git bundle create t.bundle <对端HEAD>..main` → `scp` → 对端 `git pull t.bundle main`；
 - 服务启停：杀 8765 端口进程 + `Start-Process python tools\study_server.py --host 0.0.0.0 --port 8765 --quiet`（PowerShell，base64 传命令见 git 历史详版）；
-- 若要重新启用该后端：在 Cloudflare DNS 把两条记录改回 CNAME（隧道仍在 Zero Trust 里存活）；
+- 若要重新启用该后端：先核验隧道、DNS、补丁和数据版本，再按变更流程切换；
   **注意两边的 `data/` 各自独立，切换后学习记录不互通**，切换前先备份合并。

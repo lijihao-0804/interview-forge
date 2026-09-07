@@ -96,7 +96,7 @@ border:1px solid var(--line);border-radius:var(--radius-4);background:var(--pane
 box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
 .entry{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--line);
 border-radius:var(--radius-2);background:var(--soft);color:var(--text);text-decoration:none;
-transition:border-color .15s var(--ease-out),box-shadow .25s var(--ease-out),transform .2s var(--ease-out)}
+transition:border-color .15s var(--ease-out),box-shadow .25s var(--ease-out),transform .2s var(--ease-out);font:inherit;text-align:left;cursor:pointer}
 .entry[hidden]{display:none}
 .entry:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));
 box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent);
@@ -260,7 +260,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     <a class="entry" href="library/index.html"><span class="e-ico">📚</span><span class="e-name">学习书架</span></a>
     <a class="entry" href="index.html"><span class="e-ico">🧩</span><span class="e-name">题解面板</span></a>
     <a class="entry" href="library/search.html"><span class="e-ico">🔍</span><span class="e-name">全文搜索</span></a>
-    <a class="entry" href="javascript:void(0)" id="entry-chat"><span class="e-ico">💬</span><span class="e-name">聊天室</span></a>
+    <button class="entry" type="button" id="entry-chat"><span class="e-ico">💬</span><span class="e-name">聊天室</span></button>
     <a class="entry" href="pages/history.html"><span class="e-ico">📈</span><span class="e-name">学习记录</span></a>
     <a class="entry" href="pages/leetcode-connect.html"><span class="e-ico">🔗</span><span class="e-name">力扣连接</span></a>
     <a class="entry" href="pages/admin.html" id="entry-admin" hidden><span class="e-ico">🛡️</span><span class="e-name">管理后台</span></a>
@@ -299,7 +299,10 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   function api(path, options) {
     var request = Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {});
     if (request.body && typeof request.body !== "string") request.body = JSON.stringify(request.body);
-    return fetch(path, request)
+    var controller = new AbortController();
+    request.signal = controller.signal;
+    var timer = setTimeout(function () { controller.abort(); }, 12000);
+    return fetch(path, request).finally(function () { clearTimeout(timer); })
       .then(function (r) {
         if (r.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
         return r.json().then(function (d) { return { ok: r.ok, data: d }; });
@@ -651,7 +654,10 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     return api("/api/plan?count=3");
   }).then(function (res) {
     if (res && res.ok) renderPlan(res.data);
-  }).catch(function () { });
+  }).catch(function () {
+    document.getElementById("due-list").innerHTML = '<div class="empty">学习服务暂时不可用，请检查网络后重试。</div>';
+    document.getElementById("plan-list").innerHTML = '<div class="empty">学习服务暂时不可用，请检查网络后重试。</div>';
+  });
 
   tick();
 
@@ -690,15 +696,30 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   try { seen = localStorage.getItem(KEY); } catch (e) {}
   if (seen === VERSION) return;
   var mask = document.getElementById("annMask");
+  var returnFocus = document.activeElement;
+  var ok = document.getElementById("annOk");
   mask.classList.add("open");
-  document.getElementById("annOk").addEventListener("click", function () {
+  ok.focus();
+  function closeAnnouncement() {
     try { localStorage.setItem(KEY, VERSION); } catch (e) {}
     mask.classList.remove("open");
+    var analyze = document.getElementById("ai-analyze-button");
+    if (analyze && !analyze.disabled && !analyze.closest("[hidden]")) analyze.focus();
+    else if (returnFocus && returnFocus.focus) returnFocus.focus();
+  }
+  ok.addEventListener("click", closeAnnouncement);
+  mask.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { e.preventDefault(); closeAnnouncement(); return; }
+    if (e.key !== "Tab") return;
+    var focusables = mask.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+    if (!focusables.length) return;
+    var first = focusables[0], last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   mask.addEventListener("click", function (e) {
     if (e.target === mask) {
-      try { localStorage.setItem(KEY, VERSION); } catch (err) {}
-      mask.classList.remove("open");
+      closeAnnouncement();
     }
   });
 })();

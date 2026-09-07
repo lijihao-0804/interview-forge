@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -217,6 +218,8 @@ reader_pages = 0
 math_formulas = 0
 for path in html_files:
     text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if path.suffix.lower() == ".html" and "__LC_IMG_ROOT__" in text and "99-原稿归档" not in path.parts:
+        errors.append(f"公开 HTML 残留力扣图片占位符：{path.relative_to(ROOT)}")
     soup = BeautifulSoup(text, "html.parser")
     rel = path.relative_to(ROOT)
 
@@ -741,16 +744,29 @@ if longest_page.exists():
 #   BeautifulSoup 只验证 HTML 结构，页面里的 <script> 内联脚本与生成的 *.js
 #   资产有没有语法错误，只能交给 JS 引擎兜底。
 #   实现要点（临时目录机制）：在站点根目录下建临时目录（前缀 hot100-js-，
-#   随 with 语句自动清理），把每个内联脚本按“页面名-序号.js”落盘，再逐文件
-#   执行 `node --check`（只做语法解析、不执行代码），返回码非 0 即语法错误并
-#   登记 error。用临时文件而不是管道传 stdin，是为了拿到 Node 带文件名/行列号
-#   的报错文本，便于定位到具体页面；落盘前 mkdir(parents=True) 是为了防止并行
-#   清理进程抢先删除目录导致写文件失败（见下面 temp.mkdir 行上的原注释）。
+#   随 with 语句自动清理），把每个内联脚本按稳定序号落盘，再由有界线程池并行
+#   执行 `node --check`（只做语法解析、不执行代码）。结果按收集顺序回写 errors，
+#   并且每条错误带相对页面路径与 inline 序号。用临时文件而不是管道传 stdin，
+#   是为了拿到 Node 带文件名/行列号的报错文本，便于定位到具体页面。
 #   无法使用 node 的环境（未安装/不在 PATH）不阻断发布：降级为一条 WARN，
 #   提示“本环境跳过了 JS 语法检查”这一层。
 # ============================================================================
 node = shutil.which("node")
 if node:
+    def _node_check(job: tuple[str, Path, str | None, Path | None]) -> str | None:
+        """Run one syntax check; return a deterministic user-facing error or None."""
+        label, target, script, temp_path = job
+        check_path = target
+        if script is not None:
+            assert temp_path is not None
+            temp_path.write_text(script, encoding="utf-8")
+            check_path = temp_path
+        result = subprocess.run([node, "--check", str(check_path)], capture_output=True, text=True)
+        if result.returncode:
+            detail = result.stderr.strip() or result.stdout.strip() or f"退出码 {result.returncode}"
+            return f"JavaScript 语法错误：{label}：{detail}"
+        return None
+
     with tempfile.TemporaryDirectory(prefix="hot100-js-", dir=ROOT) as temp_dir:
         temp = Path(temp_dir)
         temp.mkdir(parents=True, exist_ok=True)  # 防止并行清理进程删掉目录后写文件失败
@@ -759,22 +775,33 @@ if node:
         # 负向前瞻，排除带 src（外部文件引用）的 <script>——外部文件不进这里，
         # 单独当作一个 JS 文件整体 --check（见下面 generated_scripts）。
         script_pages = sorted((ROOT / "books" / "hot100" / "05-可视化").glob("*.html")) + sorted((ROOT / "library").rglob("*.html")) + [ROOT / "index.html"]
+        jobs: list[tuple[str, Path, str | None, Path | None]] = []
+        inline_number = 0
         for html_path in script_pages:
             source = html_path.read_text(encoding="utf-8-sig")
             scripts = re.findall(r"(?is)<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", source)
             for index, script in enumerate(scripts):
-                js_path = temp / f"{html_path.stem}-{index}.js"
-                js_path.write_text(script, encoding="utf-8")
-                result = subprocess.run([node, "--check", str(js_path)], capture_output=True, text=True)
-                if result.returncode:
-                    errors.append(f"JavaScript 语法错误：{html_path.name}：{result.stderr.strip()}")
+                # 页面 stem 可能重复；全局序号确保并行 worker 不碰同一临时文件。
+                js_path = temp / f"inline-{inline_number:05d}.js"
+                jobs.append((
+                    f"{html_path.relative_to(ROOT)} inline script #{index + 1}",
+                    js_path,
+                    script,
+                    js_path,
+                ))
+                inline_number += 1
         # 生成脚本资产：assets/*.js 与 library/assets/*.js 是构建产物（独立文件，
         # 不是从 HTML 提取的），直接整体 --check；报错信息带相对路径便于定位。
         generated_scripts = list((ROOT / "assets").glob("*.js")) + list((ROOT / "library" / "assets").glob("*.js"))
         for js_path in sorted(generated_scripts):
-            result = subprocess.run([node, "--check", str(js_path)], capture_output=True, text=True)
-            if result.returncode:
-                errors.append(f"JavaScript 语法错误：{js_path.relative_to(ROOT)}：{result.stderr.strip()}")
+            jobs.append((js_path.relative_to(ROOT).as_posix(), js_path, None, None))
+        if jobs:
+            max_workers = min(8, len(jobs))
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="hot100-js") as pool:
+                # executor.map 保持输入顺序，保证错误输出在不同机器/运行次序下稳定。
+                for message in pool.map(_node_check, jobs):
+                    if message:
+                        errors.append(message)
 else:
     warnings.append("未找到 Node.js，跳过 JavaScript 语法检查")
 

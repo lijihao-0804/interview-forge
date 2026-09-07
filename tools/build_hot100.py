@@ -62,6 +62,31 @@ SOURCE = next((p for p in _SOURCE_CANDIDATES if p.is_dir()), _SOURCE_CANDIDATES[
 # EXTENSION_SOURCE：学习站内的新增题目正文目录（见文件头总述），与源笔记互为补充。
 EXTENSION_SOURCE = ROOT / "books" / "hot100" / "06-扩展题源"
 
+# 题解页是本脚本明确生成的数字题号文件；清理只允许触及 03-题解 下的
+# 一级专题目录与匹配该命名模式的 md/html，不会碰源稿、assets 或未知文件。
+_GENERATED_PROBLEM_PAGE = re.compile(r"^\d{4}-.+\.(?:md|html)$")
+
+
+def _cleanup_stale_problem_pages(expected_paths: list[Path]) -> int:
+    """Remove stale generated Hot100 pages without traversing arbitrary files."""
+    generated_root = (ROOT / "books" / "hot100" / "03-题解").resolve()
+    if not generated_root.is_dir():
+        return 0
+    expected = {path.resolve() for path in expected_paths}
+    removed = 0
+    for topic_dir in sorted(generated_root.iterdir()):
+        if not topic_dir.is_dir() or topic_dir.resolve().parent != generated_root:
+            continue
+        for candidate in sorted(topic_dir.iterdir()):
+            if not candidate.is_file() or not _GENERATED_PROBLEM_PAGE.fullmatch(candidate.name):
+                continue
+            resolved = candidate.resolve()
+            if resolved.parent != topic_dir.resolve() or resolved in expected:
+                continue
+            candidate.unlink()
+            removed += 1
+    return removed
+
 
 # 17 个专题的元数据表，每个元素是四元组：
 #   (专题目录名, 专题显示名, 识别信号, 核心不变量)
@@ -860,7 +885,15 @@ def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> Non
         # 题面取第一段非空候选；全部为空则回落到 MISSING_STATEMENTS 登记值（仍可能为空串）。
         statement = next((item for item in statements if item.strip()), MISSING_STATEMENTS.get(pid, ""))
         # 源笔记里的图片占位统一替换为题页可用的相对路径（问题页位于 03-题解/专题/ 下，深度为 4）。
-        statement = statement.replace("https://__LC_IMG_ROOT__/", "../../../../assets/leetcode/")
+        # 题面与解法正文都可能含图片；只替换 statement 会把 clean_rest 中的
+        # 图片占位遗留到发布 HTML，因此这里对整页正文做同一转换。
+        lc_image_root = "https://__LC_IMG_ROOT__/"
+        local_image_root = "../../../../assets/leetcode/"
+        statement = statement.replace(lc_image_root, local_image_root)
+        sections = [
+            (title, rest.replace(lc_image_root, local_image_root))
+            for title, rest in sections
+        ]
         slug = LEETCODE_SLUGS.get(pid, "")
         # 只拼接一次经过统一 slug 表与固定基址生成的 URL，两处入口复用同一
         # Markdown 链接；后续 HTML 外链处理会统一补 target/rel 安全属性。
@@ -1034,18 +1067,18 @@ def render_readme() -> None:
         rows.append(f"| [{category}](books/hot100/02-专题/{folder}.md) | {grouped[category]} | {signal} |")
     content = f"""# InterviewForge · LeetCode Hot 100 深度整理版（Java）
 
-面向大厂校招的**本地离线学习项目**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（37 模块 / 709 章）**。
+面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（37 模块 / 709 章）**。
 
-项目内置**学习记录、间隔重复复习、学习轨迹、限时模拟、力扣提交同步**等能力，形成“学 → 练 → 复盘 → 复习”的完整闭环；所有数据只保存在本机 SQLite，完全离线可用。
+项目内置**学习记录、间隔重复复习、学习轨迹、限时模拟、力扣提交同步**等能力，形成“学 → 练 → 复盘 → 复习”的完整闭环；学习数据按账号隔离保存在服务端数据库。
 
 ## 立即开始
 
-1. 双击根目录的 `启动学习站.cmd`（自动检测端口并打开浏览器）；
-2. 访问 [项目首页](index.html)（http://127.0.0.1:8765/）；
+1. 访问线上学习站 [hot100.xyz](https://hot100.xyz/) 并登录；
+2. 进入 [项目首页](index.html) 或 [学习中控台](cockpit.html)；
 3. 首次使用建议按 [四阶段学习路线](books/hot100/00-总览/01-学习路线.md) 开始；
 4. 打开任意题解页或章节会自动记录浏览，点“完成一轮”推进复习。
 
-依赖：仅需本机 Python 3.10+；Mermaid、uPlot 等前端资源全部本地内置，**零网络依赖**。
+线上使用只需要支持现代 JavaScript 的浏览器和稳定网络；Mermaid、uPlot 等前端资源由站点提供，网络异常时仅部分静态内容可由缓存兜底。
 
 ## 主要功能详解
 
@@ -1053,22 +1086,22 @@ def render_readme() -> None:
 
 - 100 道高频题独立题页：题目与约束、核心不变量、完整推导、Java 实现、复杂度、易错点与扩展、高频追问；
 - [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[Java 刷题速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
-- 18 个交互可视化演示内嵌到对应题解/章节（哈希表、双指针、链表、锁升级、TCP 握手挥手、ReadView 版本链等），只展示关键状态变化，一键播放/分步。
+- 24 个交互可视化演示与 1 个集中导航页覆盖算法和工程专题（哈希表、双指针、链表、锁升级、TCP 握手挥手、ReadView 版本链等），只展示关键状态变化，支持一键播放/分步。
 
 ### 2. 学习书架（37 模块 / 709 章）
 
 - 校招主线全覆盖：语言根基、并发、JVM、MySQL、网络、Spring 家族、设计模式、消息队列、分布式、微服务、部署运维、RAG/Agent 等；
 - 新增《小林面试笔记》系列 7 本与《Agent 面经》，覆盖大厂 Agent、RAG、工具调用、大模型工程、LangChain 面试题与图解专栏；
-- Mermaid 流程图离线渲染（浅色主题、品牌配色）、Pygments 代码高亮（Java/Python 等）、章节内嵌交互演示；
+- Mermaid 流程图渲染（浅色主题、品牌配色）、Pygments 代码高亮（Java/Python 等）、章节内嵌交互演示；
 - 模块页“本模块待复习”区块、章节卡到期徽标、章节页“下次复习”日期、章节级多轮学习记录；
-- [全文搜索](library/search.html)：709 章离线索引，标题 / 模块名 / 正文命中排序。
+- [全文搜索](library/search.html)：709 章索引，标题 / 模块名 / 正文命中排序；服务异常时回退到浏览器缓存索引。
 
-### 3. 学习记录（本机 SQLite）
+### 3. 学习记录（服务端账号数据库）
 
 - 打开题解/章节自动记录浏览（同内容 60 秒内去重）；点“完成一轮”写入复习轮次；
 - 面板统计：今天看题、今天完成、已刷题目、累计轮次、连续学习、每日目标；
 - 365 天活跃热力图（点击格子看当日明细）+ 近 28 天趋势折线（看题 / 完成轮次双线）+ 周报导出；
-- 所有历史保存在 `data/hot100-study.db`，可随时备份。
+- 所有历史按账号隔离保存在服务器端数据库，管理员可按部署策略执行备份。
 
 ### 4. 间隔重复复习
 
@@ -1096,11 +1129,11 @@ def render_readme() -> None:
 
 ### 8. 力扣导入学习记录（详细）
 
-把你在力扣的提交结果同步进本地数据库：**已解答（AC）回填 + 最近 50 条提交记录（含语言、耗时）**，并联动复习调度。
+把你在力扣的提交结果同步进当前账号的服务器端数据库：**已解答（AC）回填 + 最近 50 条提交记录（含语言、耗时）**，并联动复习调度。
 
 #### 为什么需要导入登录会话
 
-力扣没有第三方授权（无 OAuth），无法“一键授权”。项目采用**导入你的登录 Cookie** 方式：会话只保存在本机 SQLite，仅用于读取你的提交记录；提交代码仍在力扣官网进行，项目不会自动提交。
+力扣没有第三方授权（无 OAuth），无法“一键授权”。项目采用**导入你的登录 Cookie** 方式：会话通过 HTTPS 提交并保存在当前账号的服务器端数据库，仅用于读取你的提交记录；提交代码仍在力扣官网进行，项目不会自动提交。
 
 #### 四步接入（[力扣连接页](pages/leetcode-connect.html)）
 
@@ -1109,7 +1142,7 @@ def render_readme() -> None:
    - 方式 A（推荐）：安装 [CookieMate](https://chromewebstore.google.com/detail/cookiemate-%E2%80%94-cookie-edito/jdmdgfbbjjdnflajkclafekpcgkaegdi) 扩展，在 leetcode.cn 一键复制 `LEETCODE_SESSION`；
    - 方式 B：按 F12 → Application → Cookies → `https://leetcode.cn`，找到 `LEETCODE_SESSION` 复制其值（`csrftoken` 可选，只读同步一般可省略）；
 3. 粘贴到力扣连接页并点“保存并测试连接”，显示“连接成功：用户名（已解决 N 题）”即成功；
-4. 点“同步”：拉取“已解答”回填到本地数据库 + 最近 50 条提交记录。
+4. 点“同步”：拉取“已解答”回填到服务器端账号数据库 + 最近 50 条提交记录。
 
 #### 同步后的效果
 
@@ -1120,11 +1153,11 @@ def render_readme() -> None:
 
 #### 不连接力扣的手动方式
 
-每张题卡自带“已 AC / WA”按钮：在力扣通过后点“已 AC”，未通过点“WA”——同样写入提交记录并联动薄弱标记，无需导入 Cookie。
+不连接力扣时，仍可直接在题解或章节页点击“完成一轮”记录学习进度；力扣 AC/WA 状态需要通过同步获取。
 
 #### 安全说明
 
-- 凭证只存在本机 `data/hot100-study.db` 的 `credentials` 表，可随时在力扣连接页“清除凭证”；
+- 凭证通过 HTTPS 保存到当前账号的服务器端数据库，不在页面回显，可随时在力扣连接页“清除凭证”；
 - 同步只读取力扣页面接口，不修改你的力扣账号数据；工作目录外请勿粘贴凭证。
 
 ### 9. 导出与备份
@@ -1133,11 +1166,18 @@ def render_readme() -> None:
 - 薄弱清单、记录 JSON、周报（近 7 天看题/轮次/AC）、数据库备份；
 - 书架章节“导出本章 HTML”（内联样式，可离线保存分享）。
 
-### 10. PWA 与本地服务
+### 10. PWA 与在线服务
 
-- PWA 可安装，离线缓存采用**网络优先**策略（离线时回退缓存）；
-- 复习到期通知（需授权）；服务对静态资源统一 `Cache-Control: no-store`，保证每次打开都是最新内容；
-- 本地服务监听 `0.0.0.0:8765`，局域网内其他设备也可访问（本机地址 http://127.0.0.1:8765/）。
+- PWA 可安装，静态资源采用**网络优先**策略（网络异常时回退部分缓存）；动态学习记录仍需要网络连接；
+- 复习到期通知（需授权）；HTML 与动态接口使用 `no-store`，CSS/JavaScript 使用协商缓存，图片等版本化媒体允许短期缓存；
+- 当前正式入口为 [https://hot100.xyz/](https://hot100.xyz/)；本地服务仅用于开发或线上故障时的应急维护，不是日常访问方式。
+
+## 运行状态与审查报告
+
+- 当前生产环境：VPS + nginx + systemd，正式入口为 [https://hot100.xyz/](https://hot100.xyz/)；
+- 发布质量与回归结果见 [QA 报告](docs/QA-REPORT.md)；
+- 本轮缺陷、性能、文案与 UI 深度审查见 [深度审查与修复报告](docs/深度审查与修复报告-2026-09-08.md)；
+- 学情分析 AI 的数据流、权限、隐私与未测试边界见 [AI 专项审查报告](docs/学情分析AI专项审查报告.md)。
 
 ## 每道题怎么学
 
@@ -1162,7 +1202,7 @@ interview-forge/
 ├─ index.html                学习面板（由模板生成）
 ├─ guide.html                完整使用指南（由 README 生成）
 ├─ maintenance.html          维护指南（由 MAINTENANCE 生成）
-├─ 启动学习站.cmd            自动杀旧进程并启动本地服务
+├─ 启动学习站.cmd            本地开发/应急维护时启动服务
 ├─ manifest.webmanifest       PWA 清单
 ├─ service-worker.js          PWA 离线缓存
 ├─ pages/                    独立功能页
@@ -1183,7 +1223,7 @@ interview-forge/
 │  ├─ build_library.py       学习书架生成器
 │  ├─ build_html_site.py     阅读页渲染与公共资源生成
 │  ├─ check_hot100.py        发布前全站校验
-│  ├─ study_server.py        本地 HTTP 服务 + SQLite 学习记录
+│  ├─ study_server.py        HTTP 服务 + SQLite 学习记录
 │  ├─ library_catalog.py     书架模块登记表
 │  ├─ scrape_xiaolinnote.py  小林面试笔记抓取脚本
 │  ├─ update_leetcode_statements.py  力扣题面批量更新脚本
@@ -1787,6 +1827,11 @@ def build() -> None:
         f"books/hot100/03-题解/{problem['folder']}/{problem_filename(problem)}"
         for problem in PROBLEMS
     ]
+    expected_problem_pages = [ROOT / output for output in problems_outputs]
+    expected_problem_pages.extend(path.with_suffix(".html") for path in list(expected_problem_pages))
+    removed_problem_pages = _cleanup_stale_problem_pages(expected_problem_pages)
+    if removed_problem_pages:
+        print(f"Removed stale Hot100 pages: {removed_problem_pages}")
     if build_cache.needs_rebuild(cache, "problems:", problems_sha, problems_outputs, ROOT):
         render_problem_pages(original)
         build_cache.mark_built(cache, "problems:", problems_sha, problems_outputs)

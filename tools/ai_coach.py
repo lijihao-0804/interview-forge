@@ -50,17 +50,36 @@ _AI_DEBUG_LOCK = threading.Lock()
 AI_DAILY_LIMIT = 3
 AI_QUOTA_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
+# Debug events are operational telemetry, not a second copy of the learning
+# record.  Keep this deny-list in the writer as a last line of defence so a
+# future call site cannot accidentally persist user-provided learning text.
+_AI_DEBUG_CONTENT_FIELDS = frozenset({
+    "context", "context_preview", "raw_output", "result", "user_request", "profile",
+    "prompt", "messages", "content", "summary", "strengths", "weaknesses", "actions",
+    "data_gaps", "facts", "signals", "evidence", "trace_map", "title", "label",
+    "labels", "support_labels", "topic_details",
+})
+
 
 def debug_ai_event(event: str, *, task_id: str = "", **fields: Any) -> None:
-    """Write opt-in local JSONL diagnostics without credentials or user identity."""
+    """Write opt-in metadata-only JSONL diagnostics.
+
+    Content-bearing fields are discarded here as a defence in depth.  Call
+    sites should pass hashes/counts/lengths when they need to correlate a
+    payload without retaining its learning text.
+    """
     target = os.environ.get("AI_DEBUG_LOG_PATH", "").strip()
     if not target:
         return
+    safe_fields = {
+        key: value for key, value in fields.items()
+        if key not in _AI_DEBUG_CONTENT_FIELDS
+    }
     record = {
         "at": datetime.now().astimezone().isoformat(timespec="milliseconds"),
         "event": event,
         "task_id": task_id,
-        **fields,
+        **safe_fields,
     }
     try:
         line = json.dumps(record, ensure_ascii=False, separators=(",", ":"), default=str)
@@ -1322,6 +1341,25 @@ def _safe_raw_log(value: Any) -> Any:
     return value
 
 
+def _debug_content_metadata(value: Any) -> dict[str, Any]:
+    """Return correlation metadata without retaining the supplied content."""
+    if not os.environ.get("AI_DEBUG_LOG_PATH", "").strip():
+        return {"chars": 0, "sha256": ""}
+    try:
+        serialized = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
+    except (TypeError, ValueError):
+        serialized = str(value)
+    return {
+        "chars": len(serialized),
+        "sha256": hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
+    }
+
+
 def generate_ai_insight(
     context: Mapping[str, Any],
     config: AIConfig | None = None,
@@ -1426,6 +1464,7 @@ def generate_ai_insight(
                     chunk_count=timing["chunk_count"],
                 )
                 raw_plain = raw.content if isinstance(raw, _StreamEnvelope) else _plain_model_value(raw)
+                raw_metadata = _debug_content_metadata(raw_plain)
                 debug_ai_event(
                     "model_response",
                     task_id=debug_id,
@@ -1457,7 +1496,8 @@ def generate_ai_insight(
                     content_tokens_per_sec=timing.get("content_tokens_per_sec"),
                     output_tokens_definition=timing.get("output_tokens_definition"),
                     request_config_hash=request_config_hash,
-                    raw_output=_safe_raw_log(raw_plain),
+                    raw_output_chars=raw_metadata["chars"],
+                    raw_output_sha256=raw_metadata["sha256"],
                 )
                 parse_started = time.perf_counter()
                 payload = _extract_json_payload(raw)
@@ -1470,6 +1510,7 @@ def generate_ai_insight(
                 )
                 validation_started = time.perf_counter()
                 result = validate_insight_payload(payload, context)
+                result_metadata = _debug_content_metadata(result)
                 debug_ai_event(
                     "validation_succeeded",
                     task_id=debug_id,
@@ -1478,7 +1519,8 @@ def generate_ai_insight(
                     repair=repair,
                     call=calls,
                     elapsed_ms=round((time.perf_counter() - validation_started) * 1000, 2),
-                    result=_public_insight(result, context),
+                    result_chars=result_metadata["chars"],
+                    result_sha256=result_metadata["sha256"],
                 )
                 return result
             except _InvalidAIOutput as exc:

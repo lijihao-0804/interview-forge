@@ -570,7 +570,7 @@ class LearningAnalyticsAPITests(unittest.TestCase):
         with server._DASH_CACHE_LOCK:
             self.assertEqual(server._DASH_CACHE[cache_key][1], {"snapshot": "fresh"})
 
-    def test_complete_partial_write_failure_invalidates_both_read_models(self):
+    def test_complete_does_not_depend_on_redundant_content_mirror(self):
         db_path = self.user_db("alice")
         create_learning_db(db_path)
         server.analytics_cached(db_path)
@@ -589,17 +589,24 @@ class LearningAnalyticsAPITests(unittest.TestCase):
                 connection.close()
             raise RuntimeError("content write failed after commit")
 
-        with patch.object(server, "complete_content", side_effect=failing_content):
+        with patch.object(server, "complete_content", side_effect=failing_content) as mirror:
             status, body, _headers = self.request("/api/complete", payload={"problem_id": 1})
-        self.assertEqual(status, 500)
-        self.assertEqual(body, {"error": "学习记录写入失败"})
+        self.assertEqual(status, 201)
+        self.assertEqual(body["problem_id"], 1)
+        self.assertEqual(body["round_no"], 1)
+        mirror.assert_not_called()
 
         status, analytics, _headers = self.request("/api/coach/analytics")
         self.assertEqual(status, 200)
         self.assertEqual(analytics["data_quality"]["table_row_counts"]["study_events"], 1)
-        self.assertEqual(analytics["data_quality"]["table_row_counts"]["content_events"], 1)
+        self.assertEqual(analytics["data_quality"]["table_row_counts"]["submissions"], 1)
+        self.assertEqual(analytics["data_quality"]["table_row_counts"]["content_events"], 0)
         with server._DASH_CACHE_LOCK:
             self.assertNotIn(str(db_path.resolve()), server._DASH_CACHE)
+        status, dashboard, _headers = self.request("/api/dashboard")
+        self.assertEqual(status, 200)
+        self.assertEqual(dashboard["summary"]["today_rounds"], 1)
+        self.assertEqual(dashboard["problems"]["1"]["rounds"], 1)
         self.assertFalse(self.default_db.exists())
 
     def test_async_sync_http_route_waits_for_worker_and_invalidates_after_success(self):
