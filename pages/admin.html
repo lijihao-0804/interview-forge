@@ -27,6 +27,7 @@
   button.mini { padding:3px 10px; font-size:12px; font-weight:500; }
   select.role-select { padding:4px 8px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--surface); font:inherit; font-size:13px; }
   select.role-select:disabled { opacity:.65; cursor:wait; }
+  button.mini:disabled { opacity:.55; cursor:not-allowed; }
   table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
   /* 移动端：窄屏时表格横向滚动，不撑破页面 */
   table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -171,6 +172,7 @@ function loadCodes() {
   });
 }
 
+var currentAdminUsername = "";
 function loadUsers() {
   api("/api/admin/users").then(function (res) {
     if (!res.ok) return;
@@ -220,7 +222,28 @@ function loadUsers() {
       tr.appendChild(el("td", "muted", fmtTime(user.last_login)));
       tr.appendChild(el("td", "muted", fmtBytes(user.db_bytes)));
       var action = el("td");
+      var repairBtn = el("button", "mini ghost", "修复昵称");
+      var canRepairNickname = user.role !== "admin" || user.username === currentAdminUsername;
+      repairBtn.disabled = !canRepairNickname;
+      if (!canRepairNickname) {
+        repairBtn.title = "不能修改其他管理员的昵称";
+      } else {
+        repairBtn.onclick = function () {
+          if (!confirm("将“" + user.username + "”的昵称恢复为用户名？")) return;
+          repairBtn.disabled = true;
+          api("/api/admin/users/nickname/reset", { method: "POST",
+            body: JSON.stringify({ username: user.username }) })
+            .then(function (repairRes) {
+              if (!repairRes.ok) { alert(repairRes.data.error || "昵称修复失败"); return; }
+              loadUsers();
+            })
+            .catch(function () { alert("网络错误，昵称修复失败"); })
+            .finally(function () { repairBtn.disabled = false; });
+        };
+      }
+      action.appendChild(repairBtn);
       if (user.role !== "admin") {
+        action.appendChild(document.createTextNode(" "));
         var btn = el("button", "mini ghost", user.is_active ? "停用" : "启用");
         btn.onclick = function () {
           api("/api/admin/users/toggle", { method: "POST",
@@ -232,7 +255,7 @@ function loadUsers() {
         var resetBtn = el("button", "mini ghost", "重置密码");
         resetBtn.onclick = function () { openResetDialog(user.username); };
         action.appendChild(resetBtn);
-      } else { action.textContent = "—"; }
+      }
       tr.appendChild(action);
       tbody.appendChild(tr);
     });
@@ -352,6 +375,7 @@ document.getElementById("gen").onclick = function () {
 api("/api/me").then(function (res) {
   if (!res.ok) { location.replace("/login.html?next=/admin.html"); return; }
   var who = document.getElementById("who");
+  currentAdminUsername = res.data.username;
   who.appendChild(el("span", null, "当前：" + res.data.username + (res.data.role === "admin" ? "（管理员）" : "")));
   var out = el("a", null, "退出登录");
   out.href = "#";

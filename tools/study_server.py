@@ -49,6 +49,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import unicodedata
 import uuid
 import webbrowser
 from contextlib import closing, suppress
@@ -261,6 +262,51 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
 #   * 每个注册用户在 data/users/<用户名>/hot100-study.db 拥有独立学习库，
 #     数据函数全部接受 db_path 参数，由路由层传入当前用户路径即完成隔离。
 # =============================================================================
+_NICKNAME_MAX = 16
+_NICKNAME_BANNED_KEYS = (
+    "傻逼", "傻比", "傻币", "煞笔", "沙比", "脑残", "弱智", "垃圾", "废物",
+    "狗东西", "畜生", "妈的", "他妈", "操你妈", "草泥马", "日你妈",
+    "shabi", "sabi", "nima", "nmsl", "cnm", "caonima", "fuck", "shit", "bitch",
+)
+_NICKNAME_TARGETED_RE = re.compile(r"(?:的|是|叫|当|做|为|你|我|他|她)?(?:爹|爸|爸爸|妈|妈妈|爷|爷爷|儿子|孙子)$")
+_NICKNAME_PHONETIC_RE = re.compile(r"(?:^|的|de|ni)(?:die|diedie|baba|mama)$")
+
+
+def _nickname_key(value: str) -> str:
+    """压平全角、大小写、空格和标点，供昵称审查识别拆字/谐音变体。"""
+    value = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", value)).casefold()
+    value = value.translate(str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}))
+    return "".join(ch for ch in value if unicodedata.category(ch) != "Mn" and (ch.isalnum() or "\u4e00" <= ch <= "\u9fff"))
+
+
+def validate_nickname(nickname: str) -> str:
+    """校验昵称并返回清理后的文本；规则在服务端统一执行，不能靠前端绕过。"""
+    nickname = nickname.strip()
+    if not (1 <= len(nickname) <= _NICKNAME_MAX):
+        raise ValueError(f"昵称需为 1~{_NICKNAME_MAX} 个字符")
+    key = _nickname_key(nickname)
+    if any(term in key for term in _NICKNAME_BANNED_KEYS):
+        raise ValueError("昵称包含不当或攻击性内容，请换一个昵称")
+    if _NICKNAME_TARGETED_RE.search(nickname) or _NICKNAME_PHONETIC_RE.search(key):
+        raise ValueError("昵称包含针对他人的侮辱或疑似谐音变体，请换一个昵称")
+    return nickname
+
+
+def reset_invalid_nicknames(connection: sqlite3.Connection) -> int:
+    """启动迁移：把历史违规昵称恢复为对应用户名，避免旧数据继续外显。"""
+    changed = 0
+    rows = connection.execute(
+        "SELECT id, username, nickname FROM users WHERE COALESCE(nickname, '') <> ''"
+    ).fetchall()
+    for row in rows:
+        try:
+            validate_nickname(str(row["nickname"]))
+        except ValueError:
+            connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (row["username"], row["id"]))
+            changed += 1
+    return changed
+
+
 AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
@@ -347,6 +393,7 @@ def connect_auth() -> sqlite3.Connection:
                     connection.execute("ALTER TABLE feedback ADD COLUMN username TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
                     pass  # 已存在
+                reset_invalid_nicknames(connection)
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
                 _AUTH_READY = True
@@ -627,6 +674,25 @@ def set_user_role(username: str, role: str, actor_username: str = "") -> dict[st
     return {"username": username, "role": role}
 
 
+def reset_user_nickname(username: str, actor_username: str = "") -> dict[str, object]:
+    """管理员修复昵称；不能修改其他管理员，恢复值为该用户自己的用户名。"""
+    username = username.strip()
+    if not username:
+        raise ValueError("用户名不能为空")
+    with closing(connect_auth()) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT id, username, role FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("用户不存在")
+        if str(row["role"]) == "admin" and username != actor_username:
+            raise ValueError("不能修改其他管理员的昵称")
+        connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (username, row["id"]))
+        connection.execute("COMMIT")
+    return {"username": username, "nickname": username}
+
+
 def reset_user_password(username: str, new_password: str) -> dict[str, object]:
     """管理员重置用户密码：更新哈希并清除该用户全部会话（强制重新登录）。"""
     if len(new_password) < 8:
@@ -797,7 +863,6 @@ CHAT_KEEP = 2000
 CHAT_MAX_LEN = 500
 _CHAT_SEND_LOG: dict[int, list[float]] = {}   # user_id → 发送时间戳（10 条/分钟）
 _CHAT_SEND_LOCK = threading.Lock()
-_NICKNAME_MAX = 16
 # 题解语言偏好（用户资料项；题解页据此切换代码实现显示）
 SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
 # 单轮完成标准：累计 AC 过 ≥90 道题（Hot 100 的 90%）才算完整一轮
@@ -920,8 +985,8 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
             raise ValueError("用户不存在")
         if nickname is not None:
             nickname = nickname.strip()
-            if not (1 <= len(nickname) <= _NICKNAME_MAX):
-                raise ValueError(f"昵称需为 1~{_NICKNAME_MAX} 个字符")
+            if nickname:
+                nickname = validate_nickname(nickname)
             connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (nickname, row["id"]))
         if lang is not None:
             if lang not in SOLUTION_LANGS:
@@ -2996,7 +3061,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
-                      "/api/admin/users/role", "/api/admin/users/reset-password",
+                      "/api/admin/users/role", "/api/admin/users/nickname/reset",
+                      "/api/admin/users/reset-password",
                       "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
             "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
@@ -3130,6 +3196,12 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 result = set_user_role(
                     str(payload.get("username", "")),
                     str(payload.get("role", "")),
+                    str(user["username"]),
+                )
+            # /api/admin/users/nickname/reset：将用户昵称恢复为用户名；其他管理员不可修改。
+            elif path == "/api/admin/users/nickname/reset":
+                result = reset_user_nickname(
+                    str(payload.get("username", "")),
                     str(user["username"]),
                 )
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
