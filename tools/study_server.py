@@ -291,6 +291,7 @@ CREATE INDEX IF NOT EXISTS ix_invite_status ON invite_codes(status);
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY,
     content TEXT NOT NULL,
+    username TEXT NOT NULL DEFAULT '',
     contact TEXT NOT NULL DEFAULT '',
     page TEXT NOT NULL DEFAULT '',
     user_agent TEXT NOT NULL DEFAULT '',
@@ -340,6 +341,10 @@ def connect_auth() -> sqlite3.Connection:
                     pass  # 已存在
                 try:
                     connection.execute("ALTER TABLE users ADD COLUMN last_seen TEXT")
+                except sqlite3.OperationalError:
+                    pass  # 已存在
+                try:
+                    connection.execute("ALTER TABLE feedback ADD COLUMN username TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
                     pass  # 已存在
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
@@ -565,7 +570,7 @@ def list_users() -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     with closing(connect_auth()) as connection:
         for row in connection.execute(
-            "SELECT id, username, role, is_active, created_at, last_login, COALESCE(last_seen, last_login) AS last_active FROM users ORDER BY id"
+            "SELECT id, username, COALESCE(nickname, '') AS nickname, role, is_active, created_at, last_login, COALESCE(last_seen, last_login) AS last_active FROM users ORDER BY id"
         ):
             item = dict(row)
             db_file = user_db_path(str(item["username"]))
@@ -588,6 +593,38 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
             connection.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
         connection.execute("COMMIT")
     return {"username": username, "is_active": 1 if active else 0}
+
+
+def set_user_role(username: str, role: str, actor_username: str = "") -> dict[str, object]:
+    """管理员调整用户角色；避免自降权或误删最后一个管理员。"""
+    username = username.strip()
+    role = role.strip().lower()
+    if role not in ("admin", "user"):
+        raise ValueError("角色只能是 admin 或 user")
+    if not username:
+        raise ValueError("用户名不能为空")
+    with closing(connect_auth()) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT id, username, role FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("用户不存在")
+        current_role = str(row["role"])
+        if current_role == role:
+            connection.execute("COMMIT")
+            return {"username": username, "role": role}
+        if username == actor_username and role != "admin":
+            raise ValueError("不能把当前管理员降为普通用户")
+        if current_role == "admin" and role == "user":
+            admin_count = connection.execute(
+                "SELECT COUNT(*) FROM users WHERE role = 'admin'"
+            ).fetchone()[0]
+            if int(admin_count) <= 1:
+                raise ValueError("不能降级最后一个管理员")
+        connection.execute("UPDATE users SET role = ? WHERE id = ?", (role, row["id"]))
+        connection.execute("COMMIT")
+    return {"username": username, "role": role}
 
 
 def reset_user_password(username: str, new_password: str) -> dict[str, object]:
@@ -707,7 +744,8 @@ def feedback_rate_limit_record(ip: str) -> None:
         _FEEDBACK_ATTEMPTS.setdefault(ip, []).append(time.time())
 
 
-def submit_feedback(content: str, contact: str, page: str, user_agent: str) -> dict[str, object]:
+def submit_feedback(content: str, contact: str, page: str, user_agent: str,
+                    username: str = "") -> dict[str, object]:
     """保存一条 Bug/问题反馈（公开接口，频控由调用方执行）。"""
     content = content.strip()
     if not (1 <= len(content) <= 2000):
@@ -716,9 +754,9 @@ def submit_feedback(content: str, contact: str, page: str, user_agent: str) -> d
         raise ValueError("联系方式或页面地址过长")
     with closing(connect_auth()) as connection:
         cursor = connection.execute(
-            "INSERT INTO feedback(content, contact, page, user_agent, status, created_at) "
-            "VALUES (?, ?, ?, ?, 'open', ?)",
-            (content, contact[:120], page[:500], user_agent[:300], now_iso()),
+            "INSERT INTO feedback(content, username, contact, page, user_agent, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 'open', ?)",
+            (content, username[:64], contact[:120], page[:500], user_agent[:300], now_iso()),
         )
     return {"id": cursor.lastrowid, "submitted": True}
 
@@ -2535,7 +2573,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
     AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
     # 悬浮组件注入的脚本清单（v 参数用于更新缓存）：认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=1", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2958,7 +2996,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
-                      "/api/admin/users/reset-password", "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
+                      "/api/admin/users/role", "/api/admin/users/reset-password",
+                      "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
             "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
@@ -3013,6 +3052,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     str(payload.get("contact", "")),
                     str(payload.get("page", "")),
                     self.headers.get("User-Agent", ""),
+                    str(user["username"]) if user is not None else "",
                 )
             # /api/register：注册码注册 —— 频控 → 原子兑换码 + 建用户 + 初始化独立学习库，成功即自动登录。
             elif path == "/api/register":
@@ -3085,6 +3125,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/admin/users/toggle：停用/启用用户（停用即踢下线；管理员账号不可停用）。
             elif path == "/api/admin/users/toggle":
                 result = set_user_active(str(payload.get("username", "")), bool(payload.get("active")))
+            # /api/admin/users/role：调整用户角色；不能自降权或清空最后一个管理员。
+            elif path == "/api/admin/users/role":
+                result = set_user_role(
+                    str(payload.get("username", "")),
+                    str(payload.get("role", "")),
+                    str(user["username"]),
+                )
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
             elif path == "/api/admin/users/reset-password":
                 result = reset_user_password(str(payload.get("username", "")), str(payload.get("new_password", "")))

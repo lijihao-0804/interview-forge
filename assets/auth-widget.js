@@ -12,38 +12,52 @@
       var style = document.createElement("style");
       style.textContent =
         "#forge-auth-pill{position:fixed;right:16px;bottom:16px;z-index:9998;display:flex;align-items:center;gap:10px;" +
-        "padding:6px 8px 6px 14px;border:1px solid #dfe4ee;border-radius:999px;background:rgba(255,255,255,.92);" +
-        "box-shadow:0 8px 24px rgba(33,45,73,.16);font:13px/1.4 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235}" +
-        "#forge-auth-pill .fap-name{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#66748a}" +
-        "#forge-auth-pill a{color:#5654d4;text-decoration:none;font-weight:600}" +
-        "#forge-auth-pill a:hover{color:#4543bd;text-decoration:underline}" +
+        "padding:6px 8px 6px 14px;border:1px solid var(--line,#dfe4ee);border-radius:999px;background:color-mix(in srgb,var(--surface,var(--panel,#fff)) 92%,transparent);" +
+        "box-shadow:0 8px 24px rgba(33,45,73,.16);font:13px/1.4 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:var(--text,#182235)}" +
+        "#forge-auth-pill .fap-name{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#66748a)}" +
+        "#forge-auth-pill a{color:var(--brand,#5654d4);text-decoration:none;font-weight:600}" +
+        "#forge-auth-pill a:hover{color:var(--brand-strong,#4543bd);text-decoration:underline}" +
         "#forge-auth-pill .fap-chat,#forge-auth-pill .fap-name{cursor:pointer}" +
-        "#forge-auth-pill button{border:0;background:#eeedff;color:#4543bd;font:inherit;font-size:12px;font-weight:600;" +
+        "#forge-auth-pill button{border:0;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);font:inherit;font-size:12px;font-weight:600;" +
         "padding:4px 12px;border-radius:999px;cursor:pointer}" +
-        "#forge-auth-pill button:hover{background:#dedcfb}" +
+        "#forge-auth-pill button:hover{background:color-mix(in srgb,var(--brand-soft,#eeedff) 82%,var(--brand,#5654d4))}" +
         "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:58px;z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
-        "background:#fff;border:1px solid #dfe4ee;border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
-        "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235;display:flex;flex-direction:column}" +
-        ".forge-panel .fp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #dfe4ee}" +
+        "background:var(--surface,var(--panel,#fff));border:1px solid var(--line,#dfe4ee);border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
+        "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:var(--text,#182235);display:flex;flex-direction:column}" +
+        ".forge-panel .fp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line,#dfe4ee)}" +
         ".forge-panel .fp-head h3{margin:0;font-size:14px}" +
-        ".forge-panel .fp-head .fp-sub{font-size:11px;color:#66748a;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-        ".forge-panel .fp-head .fp-close{margin-left:auto;border:0;background:transparent;color:#66748a;cursor:pointer;font-size:14px;padding:2px 6px}" +
+        ".forge-panel .fp-head .fp-sub{font-size:11px;color:var(--muted,#66748a);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+        ".forge-panel .fp-head .fp-close{margin-left:auto;border:0;background:transparent;color:var(--muted,#66748a);cursor:pointer;font-size:14px;padding:2px 6px}" +
+        ".forge-panel .fcp-status{min-height:18px;padding:0 12px 5px;color:var(--muted,#66748a);font-size:12px}" +
         "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:10px;padding:4px 6px 4px 10px}" +
         ".forge-panel{right:10px;bottom:58px}}";
       document.head.appendChild(style);
 
       function closePanels(except) {
         ["forge-chat-panel", "forge-profile"].forEach(function (id) {
-          if (id !== except) { var p = document.getElementById(id); if (p) p.remove(); }
+          if (id !== except) {
+            var p = document.getElementById(id);
+            if (p) {
+              p.remove();
+              if (id === "forge-chat-panel") {
+                chatState.generation += 1;
+                chatState.pollAgain = false;
+              }
+            }
+          }
         });
         if (except !== "forge-chat-panel" && chatTimer) { clearInterval(chatTimer); chatTimer = null; }
       }
 
       /* ===================== 悬浮聊天室（公屏） ===================== */
       var chatTimer = null;
-      var chatState = { lastId: -1, lastTime: null, myName: "", myRole: "user" };
+      var chatState = {
+        lastId: -1, lastTime: null, myName: "", myRole: "user",
+        pollInFlight: false, pollAgain: false, sendInFlight: false,
+        renderedIds: Object.create(null), renderedOrder: [], generation: 0
+      };
       var CHAT_COLORS = ["#5654d4", "#157a52", "#a85b00", "#b3372f", "#4543bd", "#0f766e"];
-      var unread = 0, seenId = -1, unreadTimer = null, baseTitle = document.title;
+      var unread = 0, seenId = -1, unreadTimer = null, unreadInFlight = false, baseTitle = document.title;
       function setUnread(n) {
         unread = n;
         var b = document.getElementById("fap-unread");
@@ -59,13 +73,22 @@
         if (exist) {
           exist.remove();
           if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+          chatState.generation += 1;
+          chatState.pollAgain = false;
           return;
         }
         closePanels("forge-chat-panel");
+        chatState.generation += 1;
+        var panelGeneration = chatState.generation;
         chatState.myName = me.username;
         chatState.myRole = me.role;
         chatState.lastId = -1;      // 重置增量游标：重新加载最近 50 条，否则旧游标导致面板卡在加载中
         chatState.lastTime = null;
+        chatState.pollInFlight = false;
+        chatState.pollAgain = false;
+        chatState.sendInFlight = false;
+        chatState.renderedIds = Object.create(null);
+        chatState.renderedOrder = [];
         setUnread(0);               // 打开面板即视为全部已读
         var panel = document.createElement("div");
         panel.id = "forge-chat-panel";
@@ -74,11 +97,12 @@
         panel.innerHTML =
           '<div class="fp-head"><h3>聊天室</h3><span class="fp-sub">公屏 · 所有人可见 · 请文明发言</span>' +
           '<button class="fp-close" type="button">✕</button></div>' +
-          '<div id="fcp-msgs" style="flex:1;overflow-y:auto;padding:12px 12px 4px;display:flex;flex-direction:column;gap:9px">' +
-          '<div style="color:#66748a;font-size:13px;padding:8px">加载中…</div></div>' +
-          '<div style="display:flex;gap:8px;padding:10px 12px 12px">' +
-          '<input id="fcp-input" maxlength="500" placeholder="说点什么…（Enter 发送）" autocomplete="off" style="flex:1;min-width:0;padding:8px 11px;border:1px solid #dfe4ee;border-radius:9px;font:inherit;background:#fbfcff">' +
-          '<button id="fcp-send" style="border:0;border-radius:9px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;background:#5654d4;color:#fff">发送</button></div>';
+          '<div id="fcp-msgs" style="flex:1;overflow-y:auto;padding:12px 12px 4px;display:flex;flex-direction:column;gap:9px;background:var(--surface,var(--panel,#fff))">' +
+          '<div style="color:var(--muted,#66748a);font-size:13px;padding:8px">加载中…</div></div>' +
+          '<div class="fcp-status" id="fcp-status" aria-live="polite"></div>' +
+          '<div style="display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--line,#dfe4ee)">' +
+          '<input id="fcp-input" maxlength="500" placeholder="说点什么…（Enter 发送）" autocomplete="off" style="flex:1;min-width:0;padding:8px 11px;border:1px solid var(--line,#dfe4ee);border-radius:9px;font:inherit;color:var(--text,#182235);background:var(--surface-softer,var(--soft,#fbfcff))">' +
+          '<button id="fcp-send" style="border:0;border-radius:9px;padding:8px 15px;font:inherit;font-weight:600;cursor:pointer;background:var(--brand,#5654d4);color:#fff">发送</button></div>';
         document.body.appendChild(panel);
         panel.querySelector(".fp-close").onclick = function () { toggleChat(); };
 
@@ -103,14 +127,26 @@
           if (d.toDateString() === new Date().toDateString()) return hm;
           return (d.getMonth() + 1) + "-" + d.getDate() + " " + hm;
         }
+        function setChatStatus(message, isError) {
+          var status = panel.querySelector("#fcp-status");
+          if (!status) return;
+          status.textContent = message || "";
+          status.style.color = isError ? "var(--danger,#c1363e)" : "var(--muted,#66748a)";
+        }
         function addMessage(m, isInit) {
+          if (m == null || m.id == null || chatState.renderedIds[m.id]) return false;
+          chatState.renderedIds[m.id] = true;
+          chatState.renderedOrder.push(m.id);
+          if (chatState.renderedOrder.length > 1000) {
+            delete chatState.renderedIds[chatState.renderedOrder.shift()];
+          }
           var nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 90;
           var isSelf = m.username === chatState.myName;
           // QQ 式时间分隔：距上一条消息超过 5 分钟（或本批首条）时居中显示一次时间
           var ts = new Date(m.created_at).getTime();
           if (!chatState.lastTime || ts - chatState.lastTime > 5 * 60 * 1000) {
             var divider = el("div", null, fmtDivider(m.created_at));
-            divider.style.cssText = "text-align:center;font-size:11px;color:#8a97ab;margin:4px 0";
+            divider.style.cssText = "text-align:center;font-size:11px;color:var(--muted,#8a97ab);margin:4px 0";
             msgs.appendChild(divider);
           }
           chatState.lastTime = ts;
@@ -119,12 +155,12 @@
             (isSelf ? "flex-direction:row-reverse;" : "");
           row.appendChild(avaNode(m.username, m.nickname));
           var body = el("div");
-          body.style.cssText = "min-width:0;background:" + (isSelf ? "#eeedff" : "#f8f9fd") +
-            ";border:1px solid #dfe4ee;border-radius:10px;padding:6px 10px;width:fit-content;" +
+          body.style.cssText = "min-width:0;background:" + (isSelf ? "var(--brand-soft,#eeedff)" : "var(--surface-soft,var(--soft,#f8f9fd))") +
+            ";border:1px solid var(--line,#dfe4ee);border-radius:10px;padding:6px 10px;width:fit-content;" +
             "max-width:82%;align-self:" + (isSelf ? "flex-end" : "flex-start") + ";" +
             (isSelf ? "text-align:left;" : "");
           var meta = el("div");
-          meta.style.cssText = "font-size:11px;color:#66748a;display:flex;gap:6px;align-items:center;";
+          meta.style.cssText = "font-size:11px;color:var(--muted,#66748a);display:flex;gap:6px;align-items:center;";
           if (!isSelf) meta.appendChild(el("span", null, m.nickname || m.username));
           if (meta.children.length) { meta.style.marginBottom = "2px"; body.appendChild(meta); }
           var txt = el("div", null, m.content);
@@ -134,38 +170,81 @@
           msgs.appendChild(row);
           while (msgs.children.length > 300) msgs.removeChild(msgs.firstChild);
           if (isInit || nearBottom) msgs.scrollTop = msgs.scrollHeight;
+          return true;
         }
         function poll() {
-          fetch("/api/chat/messages?after=" + chatState.lastId, { cache: "no-store" })
-            .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json(); })
+          if (chatState.pollInFlight) { chatState.pollAgain = true; return; }
+          chatState.pollInFlight = true;
+          var generation = panelGeneration;
+          var cursor = chatState.lastId;
+          var isInit = cursor < 0;
+          setChatStatus("", false);
+          fetch("/api/chat/messages?after=" + cursor, { cache: "no-store" })
+            .then(function (r) {
+              if (r.status === 401) { authGone(); return null; }
+              if (!r.ok) throw new Error("chat messages request failed");
+              return r.json();
+            })
             .then(function (d) {
+              if (generation !== chatState.generation || !document.body.contains(panel)) return;
               if (!d) return;
-              if (chatState.lastId < 0) {
+              if (isInit) {
                 msgs.textContent = "";
                 if (!d.items.length) {
                   var hint = el("div", null, "还没有人发言，来抢沙发！");
-                  hint.style.cssText = "color:#66748a;font-size:13px;padding:8px";
+                  hint.style.cssText = "color:var(--muted,#66748a);font-size:13px;padding:8px";
                   msgs.appendChild(hint);
                 }
               }
-              d.items.forEach(function (m) { addMessage(m, chatState.lastId < 0); });
-              if (d.items.length) chatState.lastId = d.items[d.items.length - 1].id;
-            }).catch(function () {});
+              var maxId = chatState.lastId;
+              d.items.forEach(function (m) {
+                addMessage(m, isInit);
+                if (m.id > maxId) maxId = m.id;
+              });
+              if (maxId > chatState.lastId) chatState.lastId = maxId;
+            })
+            .catch(function () {
+              if (generation === chatState.generation && document.body.contains(panel)) {
+                setChatStatus("聊天室连接暂时不可用，请稍后重试", true);
+              }
+            })
+            .finally(function () {
+              if (generation !== chatState.generation) return;
+              chatState.pollInFlight = false;
+              if (chatState.pollAgain) { chatState.pollAgain = false; poll(); }
+            });
         }
         function send() {
           var input = panel.querySelector("#fcp-input");
           var btn = panel.querySelector("#fcp-send");
           var content = input.value.trim();
-          if (!content) return;
+          if (!content || chatState.sendInFlight) return;
+          chatState.sendInFlight = true;
+          var sendGeneration = panelGeneration;
           btn.disabled = true;
+          setChatStatus("发送中…", false);
           fetch("/api/chat/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: content }) })
-            .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (r) {
+              if (r.status === 401) { authGone(); return null; }
+              return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+            })
             .then(function (res) {
+              if (sendGeneration !== chatState.generation || !document.body.contains(panel)) return;
               if (!res) return;
-              btn.disabled = false;
-              if (!res.ok) { alert(res.data.error || "发送失败"); return; }
+              if (!res.ok) { setChatStatus(res.data.error || "发送失败，请稍后重试", true); return; }
               input.value = "";
+              setChatStatus("", false);
               poll();
+            })
+            .catch(function () {
+              if (sendGeneration === chatState.generation && document.body.contains(panel)) {
+                setChatStatus("发送失败，请检查网络后重试", true);
+              }
+            })
+            .finally(function () {
+              if (sendGeneration !== chatState.generation) return;
+              chatState.sendInFlight = false;
+              btn.disabled = false;
             });
         }
         panel.querySelector("#fcp-send").onclick = send;
@@ -368,6 +447,8 @@
         .catch(function () {});
       unreadTimer = setInterval(function () {
         if (document.getElementById("forge-chat-panel")) return;   // 面板自身在轮询
+        if (unreadInFlight) return;
+        unreadInFlight = true;
         fetch("/api/chat/messages?after=" + seenId + "&limit=50", { cache: "no-store" })
           .then(function (r) {
             if (r.status === 401) { authGone(); return null; }
@@ -378,7 +459,7 @@
             var fromOthers = res.data.items.filter(function (m) { return m.username !== me.username; });
             if (fromOthers.length) setUnread(unread + fromOthers.length);
             if (res.data.items.length) seenId = res.data.items[res.data.items.length - 1].id;
-          }).catch(function () {});
+          }).catch(function () {}).finally(function () { unreadInFlight = false; });
       }, 15000);
     });
 })();
