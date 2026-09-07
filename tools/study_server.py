@@ -263,20 +263,101 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
 #     数据函数全部接受 db_path 参数，由路由层传入当前用户路径即完成隔离。
 # =============================================================================
 _NICKNAME_MAX = 16
-_NICKNAME_BANNED_KEYS = (
-    "傻逼", "傻比", "傻币", "煞笔", "沙比", "脑残", "弱智", "垃圾", "废物",
-    "狗东西", "畜生", "妈的", "他妈", "操你妈", "草泥马", "日你妈",
-    "shabi", "sabi", "nima", "nmsl", "cnm", "caonima", "fuck", "shit", "bitch",
+
+# 昵称审核分四层：
+# 1) 统一归一化（全半角、大小写、常见繁体、零宽字符、标点/空格、数字变体）；
+# 2) 项目自己的恶意昵称词库 + Trie，匹配文本任意位置而不是只看尾部；
+# 3) 关系型侮辱表达与词库里的拼音/谐音变体；
+# 4) 高置信度直接拒绝，历史数据启动时按同一规则恢复为用户名。
+_NICKNAME_WORDLIST_PATH = DATA_DIR / "nickname_banned_words.txt"
+_NICKNAME_LEET_MAP = str.maketrans({
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "6": "g", "7": "t", "8": "b", "9": "g",
+    "@": "a", "$": "s",
+})
+_NICKNAME_TRADITIONAL_MAP = str.maketrans({
+    "爺": "爷", "媽": "妈", "妳": "你", "兒": "儿", "孫": "孙", "腦": "脑", "殘": "残",
+    "廢": "废", "東": "东", "畜": "畜",
+})
+_NICKNAME_REPEAT_RE = re.compile(r"(.)\1+")
+_NICKNAME_TARGETED_RE = re.compile(
+    r"(?:[\u4e00-\u9fffA-Za-z0-9]{1,12}(?:的|是|叫|当|做|为)|"
+    r"(?:我|你|他|她)(?:是|叫|当|做|为)?(?:你|我|他|她)?)"
+    r"(?:爹地|爸比|爸爸|爹爹|爹|妈咪|妈妈|妈|爷爷|爷|儿子|孙子|祖宗)"
 )
-_NICKNAME_TARGETED_RE = re.compile(r"(?:的|是|叫|当|做|为|你|我|他|她)?(?:爹|爸|爸爸|妈|妈妈|爷|爷爷|儿子|孙子)$")
-_NICKNAME_PHONETIC_RE = re.compile(r"(?:^|的|de|ni)(?:die|diedie|baba|mama)$")
+
+# 词库读取失败时仍保留这组内置兜底词；正式词条放在 data/nickname_banned_words.txt，便于维护。
+_NICKNAME_FALLBACK_WORDS = (
+    "傻逼", "傻比", "傻币", "煞笔", "沙比", "脑残", "弱智", "智障", "垃圾", "废物",
+    "狗东西", "狗日", "畜生", "杂种", "贱人", "婊子", "臭婊", "妈的", "他妈", "他妈的",
+    "操你妈", "草泥马", "日你妈", "去你妈", "干你娘",
+    "shabi", "sabi", "shaibi", "naocan", "ruozhi", "zhizhang", "feiwu", "laji", "goutongxi",
+    "zazhong", "jianren", "biaozi", "nima", "nmsl", "cnm", "caonima", "qunima", "ganniang",
+    "fuck", "shit", "bitch",
+    # 常见的亲属化侮辱/谐音写法，专门覆盖“爹地”及其拼音变体。
+    "爹地", "爸比", "die", "diedi", "diedie", "baba", "babi", "mami", "yeye", "erzi", "sunzi", "zuzong", "laozi",
+)
 
 
 def _nickname_key(value: str) -> str:
-    """压平全角、大小写、空格和标点，供昵称审查识别拆字/谐音变体。"""
+    """压平全角、大小写、常见繁体、空格/标点和数字变体。"""
     value = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", value)).casefold()
-    value = value.translate(str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}))
-    return "".join(ch for ch in value if unicodedata.category(ch) != "Mn" and (ch.isalnum() or "\u4e00" <= ch <= "\u9fff"))
+    value = value.translate(_NICKNAME_TRADITIONAL_MAP).translate(_NICKNAME_LEET_MAP)
+    return "".join(
+        ch for ch in value
+        if unicodedata.category(ch) != "Mn" and (ch.isalnum() or "\u4e00" <= ch <= "\u9fff")
+    )
+
+
+def _nickname_compact_key(value: str) -> str:
+    """额外压缩连续重复字符，用于识别“傻——逼”“爹爹爹地”等规避写法。"""
+    return _NICKNAME_REPEAT_RE.sub(r"\1", _nickname_key(value))
+
+
+class _NicknameTrie:
+    """昵称词库的轻量 Trie；昵称很短，逐起点扫描即可覆盖任意位置命中。"""
+
+    _END = "\0"
+
+    def __init__(self, words: tuple[str, ...]):
+        self.root: dict[str, object] = {}
+        for word in words:
+            node = self.root
+            for char in word:
+                node = node.setdefault(char, {})  # type: ignore[assignment]
+            node[self._END] = word
+
+    def find(self, value: str) -> str:
+        for start in range(len(value)):
+            node: dict[str, object] = self.root
+            for char in value[start:]:
+                child = node.get(char)
+                if not isinstance(child, dict):
+                    break
+                node = child
+                matched = node.get(self._END)
+                if isinstance(matched, str):
+                    return matched
+        return ""
+
+
+def _load_nickname_words() -> tuple[str, ...]:
+    words = list(_NICKNAME_FALLBACK_WORDS)
+    try:
+        lines = _NICKNAME_WORDLIST_PATH.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        word = line.split("#", 1)[0].strip()
+        if word:
+            words.append(word)
+    normalized = {_nickname_compact_key(word) for word in words}
+    normalized.discard("")
+    return tuple(sorted(normalized, key=lambda word: (-len(word), word)))
+
+
+_NICKNAME_BANNED_KEYS = _load_nickname_words()
+_NICKNAME_MATCHER = _NicknameTrie(_NICKNAME_BANNED_KEYS)
+_NICKNAME_COMPACT_MATCHER = _NicknameTrie(_NICKNAME_BANNED_KEYS)
 
 
 def validate_nickname(nickname: str) -> str:
@@ -285,9 +366,10 @@ def validate_nickname(nickname: str) -> str:
     if not (1 <= len(nickname) <= _NICKNAME_MAX):
         raise ValueError(f"昵称需为 1~{_NICKNAME_MAX} 个字符")
     key = _nickname_key(nickname)
-    if any(term in key for term in _NICKNAME_BANNED_KEYS):
+    compact_key = _nickname_compact_key(nickname)
+    if _NICKNAME_MATCHER.find(key) or _NICKNAME_COMPACT_MATCHER.find(compact_key):
         raise ValueError("昵称包含不当或攻击性内容，请换一个昵称")
-    if _NICKNAME_TARGETED_RE.search(nickname) or _NICKNAME_PHONETIC_RE.search(key):
+    if _NICKNAME_TARGETED_RE.search(key):
         raise ValueError("昵称包含针对他人的侮辱或疑似谐音变体，请换一个昵称")
     return nickname
 
