@@ -25,6 +25,8 @@
   button:hover { background:var(--brand-strong); }
   button.ghost { background:transparent; color:var(--brand); border:1px solid var(--line); font-weight:500; }
   button.mini { padding:3px 10px; font-size:12px; font-weight:500; }
+  select.role-select { padding:4px 8px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--surface); font:inherit; font-size:13px; }
+  select.role-select:disabled { opacity:.65; cursor:wait; }
   table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
   /* 移动端：窄屏时表格横向滚动，不撑破页面 */
   table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -88,7 +90,7 @@
         </span>
       </h2>
       <table id="feedback-table">
-        <thead><tr><th style="width:130px">时间</th><th>问题内容</th><th style="width:110px">联系方式</th><th style="width:200px">页面</th><th style="width:70px">状态</th><th style="width:130px">操作</th></tr></thead>
+        <thead><tr><th style="width:130px">时间</th><th style="width:120px">用户名</th><th>问题内容</th><th style="width:110px">联系方式</th><th style="width:200px">页面</th><th style="width:70px">状态</th><th style="width:130px">操作</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -96,7 +98,7 @@
     <section>
       <h2>用户管理</h2>
       <table id="users-table">
-        <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
+        <thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>注册时间</th><th>最近登录</th><th>学习库大小</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -177,7 +179,40 @@ function loadUsers() {
     res.data.items.forEach(function (user) {
       var tr = el("tr");
       tr.appendChild(el("td")).appendChild(document.createTextNode(user.username));
-      tr.appendChild(el("td", null, user.role === "admin" ? "管理员" : "用户"));
+      tr.appendChild(el("td", null, user.nickname || "—"));
+      var roleCell = el("td");
+      var roleSelect = document.createElement("select");
+      roleSelect.className = "role-select";
+      [{ value: "user", label: "用户" }, { value: "admin", label: "管理员" }].forEach(function (option) {
+        var optionNode = document.createElement("option");
+        optionNode.value = option.value;
+        optionNode.textContent = option.label;
+        roleSelect.appendChild(optionNode);
+      });
+      roleSelect.value = user.role;
+      roleSelect.onchange = function () {
+        var previousRole = user.role;
+        var nextRole = roleSelect.value;
+        roleSelect.disabled = true;
+        api("/api/admin/users/role", { method: "POST",
+          body: JSON.stringify({ username: user.username, role: nextRole }) })
+          .then(function (roleRes) {
+            if (!roleRes.ok) {
+              roleSelect.value = previousRole;
+              alert(roleRes.data.error || "角色修改失败");
+              return;
+            }
+            user.role = nextRole;
+            loadUsers();
+          })
+          .catch(function () {
+            roleSelect.value = previousRole;
+            alert("网络错误，角色修改失败");
+          })
+          .finally(function () { roleSelect.disabled = false; });
+      };
+      roleCell.appendChild(roleSelect);
+      tr.appendChild(roleCell);
       var status = el("td");
       status.appendChild(el("span", "tag " + (user.is_active ? "unused" : "off"), user.is_active ? "正常" : "已停用"));
       tr.appendChild(status);
@@ -213,11 +248,12 @@ function loadFeedback() {
     tbody.textContent = "";
     if (!res.data.items.length) {
       var tr0 = el("tr"); var td0 = el("td", "muted", fbFilter === "open" ? "没有待处理的反馈 🎉" : "暂无反馈");
-      td0.colSpan = 6; tr0.appendChild(td0); tbody.appendChild(tr0); return;
+      td0.colSpan = 7; tr0.appendChild(td0); tbody.appendChild(tr0); return;
     }
     res.data.items.forEach(function (fb) {
       var tr = el("tr");
       tr.appendChild(el("td", "muted", fmtTime(fb.created_at)));
+      tr.appendChild(el("td", null, fb.username || "匿名"));
       var content = el("td");
       content.style.whiteSpace = "normal";
       var main = el("div", null, fb.content.length > 120 ? fb.content.slice(0, 120) + "…" : fb.content);
