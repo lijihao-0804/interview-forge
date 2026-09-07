@@ -28,14 +28,14 @@
           <summary>本页目录</summary>
           <div class="toc">
 <ul>
-<li><a href="#0">0. 日常启动方式</a></li>
+<li><a href="#0">0. 本地开发与线上入口</a></li>
 <li><a href="#1">1. 先理解三个层次</a></li>
 <li><a href="#2">2. 目录职责</a></li>
 <li><a href="#3">3. 三个脚本分别做什么</a><ul>
 <li><a href="#build_hot100py">build_hot100.py：全量重建</a></li>
 <li><a href="#build_html_sitepy">build_html_site.py：刷新网页</a></li>
 <li><a href="#check_hot100py">check_hot100.py：发布前检查</a></li>
-<li><a href="#study_serverpy">study_server.py：本地数据库服务</a></li>
+<li><a href="#study_serverpy">study_server.py：学习记录服务</a></li>
 </ul>
 </li>
 <li><a href="#4">4. 日常修改的标准流程</a></li>
@@ -77,10 +77,10 @@
 
         </details>
         <p><a href="index.html">返回学习面板</a> · <a href="books/hot100/04-模板/04-新增题目页面模板.html">新增题目模板</a> · <a href="docs/QA-REPORT.html">校验报告</a> · 过程文档见 <code>报告/</code>（增强实现记录为 <code>报告\增强实现记录.md</code>）</p>
-<p>本文档是本目录的维护标准。目标是让维护者不需要阅读全部 Python 代码，也能安全修改内容、增加题目、增加可视化，并维护带 SQLite 学习记录的本地学习站。</p>
-<h2 id="0">0. 日常启动方式</h2>
-<p>不要直接双击 <code>index.html</code> 进入长期学习模式。应双击根目录的 <code>启动学习站.cmd</code>，它会启动仅监听本机的服务并自动打开学习站。命令窗口需要保持开启；学习结束后在窗口中按 <code>Ctrl+C</code> 停止。</p>
-<p>学习记录保存在 <code>data/hot100-study.db</code>。备份时复制这一份数据库即可；全量重建题解不会覆盖它。</p>
+<p>本文档是本目录的维护标准。目标是让维护者不需要阅读全部 Python 代码，也能安全修改内容、增加题目、增加可视化，并维护线上按账号隔离保存学习记录的学习站。</p>
+<h2 id="0">0. 本地开发与线上入口</h2>
+<p>正式使用请访问 <a href="https://hot100.xyz/">https://hot100.xyz/</a>；不要把本地启动脚本当作线上入口。本地开发或线上故障应急维护时，才使用根目录的 <code>启动学习站.cmd</code> 启动本地服务，命令窗口需要保持开启；结束后按 <code>Ctrl+C</code> 停止。</p>
+<p>线上学习记录按账号保存在服务器端 SQLite 数据库；本地开发生成的 <code>data/hot100-study.db</code> 仅用于本地调试和备份演练，全量重建题解不会覆盖它。</p>
 <h2 id="1">1. 先理解三个层次</h2>
 <table>
 <thead>
@@ -124,7 +124,7 @@
 ├─ README.md                 学习入口的 Markdown 源，生成 guide.html
 ├─ MAINTENANCE.md            本维护规范，生成 maintenance.html
 ├─ index.html                学习面板，由 build_hot100.py 生成
-├─ 启动学习站.cmd            启动本地 SQLite 学习站
+├─ 启动学习站.cmd            本地开发/应急维护时启动服务
 ├─ data/                     学习历史数据库，首次启动时创建
 ├─ assets/                   公共 CSS/JavaScript，由 build_html_site.py 生成
 ├─ 00-总览/                  学习路线、模式地图、清单、复盘模板
@@ -157,8 +157,8 @@
 </ul>
 <h3 id="check_hot100py"><code>check_hot100.py</code>：发布前检查</h3>
 <p>它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 <code>ERROR</code>。</p>
-<h3 id="study_serverpy"><code>study_server.py</code>：本地数据库服务</h3>
-<p>它只监听 <code>127.0.0.1</code>，使用 Python 标准库提供静态页面和 JSON API，并把记录写入 SQLite：</p>
+<h3 id="study_serverpy"><code>study_server.py</code>：学习记录服务</h3>
+<p>它使用 Python 标准库提供静态页面和 JSON API，并把当前账号记录写入服务器端 SQLite；本地开发时才按启动脚本的监听配置运行：</p>
 <ul>
 <li>打开题解页时写入一条 <code>view</code>；同题 60 秒内重复刷新不会反复记账。</li>
 <li>Hot 100 面板不再落手动 <code>complete</code>：题目轮次由 <code>submissions.status='ac'</code> 按自然日去重推导；书架章节仍可点“完成一轮”写入 <code>complete</code>。</li>
@@ -187,7 +187,7 @@
 </code></pre></div>
 
 <ol start="6">
-<li>双击 <code>启动学习站.cmd</code> 进入网站，确认新增入口、题名、专题、轮次记录和可视化链接正确。</li>
+<li>在开发环境启动服务后进行本地验证；发布后再通过 <code>https://hot100.xyz/</code> 确认新增入口、题名、专题、轮次记录和可视化链接正确。</li>
 </ol>
 <p>以上命令应在 <code>学习站</code> 目录执行。</p>
 <h2 id="5">5. 新增一道题的完整流程</h2>
@@ -387,7 +387,7 @@
 <li>[ ] 学习面板只需点击题名进入，不再重复显示“阅读题解”按钮。</li>
 <li>[ ] 所有困难题都有与实际方法一致的内嵌演示。</li>
 <li>[ ] 学习面板能搜索到新题，专题筛选正确。</li>
-<li>[ ] 双击启动脚本后显示“SQLite 数据库已连接”，打开题解会增加当天看题记录。</li>
+<li>[ ] 开发环境服务启动后健康检查正常；线上发布后登录 <code>https://hot100.xyz/</code>，打开题解会增加当天看题记录。</li>
 <li>[ ] 同一题同日多次 AC 只计一轮，隔天再次 AC 轮次才增加。</li>
 <li>[ ] 页面不横向撑开，控件不遮挡，公式与正文基线协调。</li>
 <li>[ ] <code>check_hot100.py</code> 输出 <code>errors: 0</code>。</li>
@@ -434,7 +434,7 @@ Markdown、专题、清单、学习面板
         
       </article>
     </main>
-    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
   </div>
   <script src="assets/site.js?v=20260906-boot" defer></script>
 </body>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>InterviewForge 深度审查与修复报告 · Hot 100</title>
+  <link rel="stylesheet" href="../assets/site.css?v=20260906-boot">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../index.html">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../library/index.html">学习书架</a>
+        <a href="../books/hot100/00-总览/01-学习路线.html">学习路线</a>
+        <a href="../books/hot100/00-总览/02-算法模式地图.html">模式地图</a>
+        <a href="../books/hot100/00-总览/03-复习清单.html">复习清单</a>
+        <a class="lc-button" href="../pages/leetcode-connect.html">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">docs</div>
+        <h1 id="interviewforge">InterviewForge 深度审查与修复报告</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">结论</a></li>
+<li><a href="#1">1. 已修复的后端缺陷</a><ul>
+<li><a href="#11">1.1 完成轮次的双读模型不一致</a></li>
+<li><a href="#12">1.2 日期与时区漂移</a></li>
+<li><a href="#13">1.3 并发写入与缓存一致性</a></li>
+<li><a href="#14-http">1.4 HTTP 输入与代理边界</a></li>
+</ul>
+</li>
+<li><a href="#2">2. 性能与构建稳定性</a></li>
+<li><a href="#3">3. 前端、排版与失败体验</a></li>
+<li><a href="#4">4. 过期本地/离线表述</a></li>
+<li><a href="#5">5. 验证证据</a></li>
+<li><a href="#6">6. 部署与回滚要求</a></li>
+<li><a href="#7">7. 非阻断后续项</a></li>
+</ul>
+</div>
+
+        </details>
+        <p>审查日期：2026-09-08</p>
+<p>审查范围：后端/API、SQLite 数据一致性、认证与请求边界、构建与全站链接、前端容错与排版、PWA、线上文案、README/运维文档，以及学情分析 AI 的非模型边界。</p>
+<p>明确不做：真实大模型调用、模型效果评测、Prompt/模型选择优化、课程路线和现有交互流程重构。</p>
+<h2 id="_1">结论</h2>
+<p>项目的核心产品逻辑保持不变。本轮修复集中在四类问题：会造成数据读写不一致的后端缺陷、线上请求的安全和失败边界、批量生成页面的响应速度与稳定性，以及仍把本地/离线环境当成当前入口的过期表述。</p>
+<p>经过多轮“实现 → 反向复审 → 全量生成 → 回归”，发布候选可以进入带备份的 VPS 部署流程。最终部署结果、提交号和线上健康状态将在部署完成后补记。</p>
+<h2 id="1">1. 已修复的后端缺陷</h2>
+<h3 id="11">1.1 完成轮次的双读模型不一致</h3>
+<p>旧实现同时维护 <code>study_events</code> 与 <code>submissions</code>，但部分历史“完成一轮”只存在旧事件表，当前 AC 统计会少算。现在初始化用户库时会将历史 <code>action/event_type='complete'</code> 幂等回填为手动 AC submission，并按 Asia/Shanghai 业务日去重；重复启动不会重复插入。</p>
+<p><code>/api/complete</code> 也不再调用冗余的章节镜像写入。一次请求只提交权威题目完成/AC 状态，避免主事务已经成功、次要镜像失败后仍返回 500。</p>
+<h3 id="12">1.2 日期与时区漂移</h3>
+<p>写入时间、到期日和提交聚合统一使用 Asia/Shanghai 业务时区。dashboard、daily、weekly、summary、AC 轮次等查询不再直接截取 UTC 时间字符串，而是统一转换为上海自然日。新增跨 UTC 午夜的边界回归。</p>
+<h3 id="13">1.3 并发写入与缓存一致性</h3>
+<p>浏览/完成写操作使用显式即时事务，计划固定项清理正常提交；写入后统一失效 dashboard/analytics 缓存。认证库 WAL 初始化由每次连接移到一次性初始化，减少无意义的锁竞争。</p>
+<h3 id="14-http">1.4 HTTP 输入与代理边界</h3>
+<ul>
+<li>拒绝缺失、负数、非数字或超限 Content-Length，以及不支持的 Transfer-Encoding；</li>
+<li>JSON 请求必须是对象，布尔字段不接受数字冒充；</li>
+<li>avatar data URL 使用严格 base64 校验；</li>
+<li>敏感路径检查覆盖大小写和双重编码；</li>
+<li>只在直连对端为 loopback 反向代理时信任代理头，并校验 IP；优先使用 nginx 的 X-Real-IP；</li>
+<li>在读取请求体前提前拒绝的 POST 会关闭连接，避免 keep-alive 上残留请求体污染下一次请求。</li>
+</ul>
+<h2 id="2">2. 性能与构建稳定性</h2>
+<ul>
+<li><code>check_hot100.py</code> 的 Node JavaScript 语法检查改为有上限的并行执行，完整检查由约 96 秒缩短到约 50 秒，并保留逐文件错误定位；</li>
+<li>搜索输入增加防抖、取消旧请求和结果顺序保护；主要页面请求统一增加超时，避免服务异常时永久等待；</li>
+<li>生成器进程池在 Windows 权限受限时自动回退串行模式；</li>
+<li>生成器会清理已知目录中的过期题页/章节页，避免删除源后旧 HTML 仍可访问；</li>
+<li>书架总索引采用同目录临时文件原子替换，避免 Windows 短暂占用导致直接写入失败或留下半页。</li>
+</ul>
+<p>未继续优化 analytics 对超大历史库的全量读取和同用户 cache miss single-flight；当前数据规模下不是发布阻断项，后续应以线上 P95、数据库规模和内存曲线决定是否实施。</p>
+<h2 id="3">3. 前端、排版与失败体验</h2>
+<ul>
+<li>修复 CSS token 语法和表格横向溢出；完善移动端安全区、深色登录/注册/管理页、对话框焦点、语义按钮和趋势图 resize；</li>
+<li>章节页、错题本、首页、书架、历史页、中控台、力扣连接页的 API 请求增加超时与可见错误提示；写操作失败会恢复按钮且保留已有内容；</li>
+<li>Service Worker 仅对导航请求回退页面，脚本/样式/API 失败不会再收到错误类型的首页 HTML；</li>
+<li>清除登录页指向受保护内容的无效入口；修复构建后力扣图片占位符残留。</li>
+</ul>
+<p>这些调整不改变“看题、完成一轮、复习、薄弱标记、模拟、力扣同步、学情分析”的交互顺序和业务规则。</p>
+<h2 id="4">4. 过期本地/离线表述</h2>
+<p>用户可见入口已统一为线上站点 <code>https://hot100.xyz/</code>。维护脚本只被描述为开发或线上故障时的应急工具；“静态浏览模式”“请双击启动脚本”“数据仅存本机”等不再作为当前用户提示。</p>
+<p>仍保留的“离线”有三种合理语境：PWA 网络异常缓存、可导出的单章 HTML、算法或模型课程正文中的技术概念。它们不表示生产站点部署在本机。</p>
+<p><code>plan.md</code> 与 Cloudflare Tunnel 文档保留历史决策原文，但顶部已明确标为阶段快照/归档；当前部署以 VPS SSH 指南为准。回滚文档增加了 <code>git reset --hard</code> 的破坏性警告，禁止用 Git 覆盖运行时 <code>data/</code>。</p>
+<h2 id="5">5. 验证证据</h2>
+<ul>
+<li>完整构建：100 题、37 模块、709 章、133 个普通阅读页、25 个可视化页面；</li>
+<li>全站检查：355 Markdown、816 HTML、744 阅读页、228 个 MathML；失效链接、错误和警告均为 0；</li>
+<li>Python 语法：<code>python -m compileall -q tools</code> 通过；</li>
+<li>单元测试：124 项通过，最终命令与覆盖边界见同日 <a href="QA-REPORT.html">QA 报告</a>；</li>
+<li>安全扫描未发现仓库中的真实私钥或真实供应商密钥；课程正文和测试中存在明确的示例/占位凭证，不属于线上秘密。</li>
+</ul>
+<p>本轮没有调用真实大模型。AI fake/mock 测试只能证明本地编排、权限、持久化和降级契约，不能证明供应商可用性、模型质量、费用或真实延迟。</p>
+<h2 id="6">6. 部署与回滚要求</h2>
+<p>部署前记录生产 HEAD，并在服务停止期间备份 <code>/opt/interview-forge/data</code>；Git 更新不得删除或覆盖服务器已有的运行时数据库与 AI debug 日志。部署后验证 systemd、内网健康接口、公网 HTTPS 健康接口、登录门禁和关键静态页面。</p>
+<p>若应用健康检查失败，回滚到部署前提交并恢复服务；只有数据库迁移产生不可逆异常时才使用部署前数据备份。本次历史完成记录回填为幂等追加，不删除旧事件。</p>
+<h2 id="7">7. 非阻断后续项</h2>
+<ul>
+<li>为 AI debug 日志配置权限、大小上限、轮转和保留期，并单独处置历史内容型日志；</li>
+<li>以匿名指标观测 API P95/P99、SQLite 锁等待、analytics 内存和缓存命中率；</li>
+<li>在独立授权与隔离额度下再做真实模型兼容性/效果评测；</li>
+<li>定期进行数据备份恢复演练，而不只验证备份文件存在。</li>
+</ul>
+<p>学情分析 AI 的详细证据链、隐私边界和未测试项见 <a href="学情分析AI专项审查报告.html">学情分析 AI 专项审查报告</a>。</p>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../assets/site.js?v=20260906-boot" defer></script>
+</body>
+</html>

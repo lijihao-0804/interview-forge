@@ -1127,7 +1127,7 @@ class AICoachHTTPTests(unittest.TestCase):
             ai_coach, "_make_chat_model", return_value=fake
         ):
             status, body = self.request("/api/coach/analyze", token="token-a", payload={})
-            self.assertEqual(status, 201)
+            self.assertEqual(status, 201, body)
             self.assertRegex(body["task_id"], r"^[0-9a-f]{32}$")
             task_id = body["task_id"]
             deadline = time.time() + 8

@@ -41,7 +41,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import hmac
+import ipaddress
 import json
+import os
 import random
 import re
 import secrets
@@ -53,11 +55,24 @@ import unicodedata
 import uuid
 import webbrowser
 from contextlib import closing, suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+except ImportError:  # pragma: no cover - Python versions without zoneinfo
+    ZoneInfo = None  # type: ignore[assignment,misc]
+    ZoneInfoNotFoundError = LookupError  # type: ignore[assignment,misc]
+
+if ZoneInfo is not None:
+    try:
+        BUSINESS_TZ = ZoneInfo("Asia/Shanghai")
+    except ZoneInfoNotFoundError:  # minimal Windows/Python installs without tzdata
+        BUSINESS_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
+else:  # pragma: no cover - retained for Python < 3.9 compatibility
+    BUSINESS_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
 
 try:
     from build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
@@ -165,8 +180,8 @@ def review_interval(round_no: int) -> int:
 
 def due_after(completed_at: str, round_no: int) -> str:
     """由完成时间与轮次推导下次复习到期日（YYYY-MM-DD）。"""
-    # 时间解析链路：ISO 字符串 → 带时区 datetime → 纯日期（astimezone 保证与当前时区一致）。
-    completed = datetime.fromisoformat(completed_at).astimezone().date()
+    # 时间解析链路：ISO 字符串 → 带时区 datetime → 业务时区日期。
+    completed = datetime.fromisoformat(completed_at).astimezone(BUSINESS_TZ).date()
     return (completed + timedelta(days=review_interval(round_no))).isoformat()
 
 
@@ -179,7 +194,7 @@ def review_interval_content(round_no: int) -> int:
 def due_after_content(completed_at: str, round_no: int) -> str:
     """由完成时间与轮次推导书架章节下次复习到期日（YYYY-MM-DD）。"""
     # 与 due_after 同构：唯一差别是把题目间隔表换成章节专用间隔表。
-    completed = datetime.fromisoformat(completed_at).astimezone().date()
+    completed = datetime.fromisoformat(completed_at).astimezone(BUSINESS_TZ).date()
     return (completed + timedelta(days=review_interval_content(round_no))).isoformat()
 
 
@@ -300,6 +315,97 @@ _ANALYTICS_WRITE_PATHS = frozenset({
 })
 
 
+def _prepare_legacy_study_events_schema(connection: sqlite3.Connection) -> None:
+    """Add the current ``action`` column to the pre-AC event schema.
+
+    A few early databases used ``event_type`` for the same dimension.  Do this
+    before the main DDL creates indexes that reference ``action``.
+    """
+    table = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'study_events'"
+    ).fetchone()
+    if table is None:
+        return
+    columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(study_events)")}
+    if "action" in columns or "event_type" not in columns:
+        return
+    connection.execute("ALTER TABLE study_events ADD COLUMN action TEXT NOT NULL DEFAULT 'view'")
+    connection.execute(
+        "UPDATE study_events SET action = CASE WHEN event_type = 'complete' THEN 'complete' ELSE 'view' END"
+    )
+
+
+def _legacy_business_date(timestamp: object, fallback: object = "") -> str:
+    """Normalize a historical event timestamp to the Asia/Shanghai date."""
+    try:
+        parsed = datetime.fromisoformat(str(timestamp))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            parsed = parsed.replace(tzinfo=BUSINESS_TZ)
+        return parsed.astimezone(BUSINESS_TZ).date().isoformat()
+    except (TypeError, ValueError, OverflowError):
+        return str(fallback or "")[:10]
+
+
+def _legacy_submission_timestamp(timestamp: object, study_date: str) -> str:
+    """Return a valid aware timestamp for a migrated AC submission."""
+    try:
+        parsed = datetime.fromisoformat(str(timestamp))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            parsed = parsed.replace(tzinfo=BUSINESS_TZ)
+        return parsed.astimezone(BUSINESS_TZ).isoformat(timespec="seconds")
+    except (TypeError, ValueError, OverflowError):
+        return f"{study_date}T00:00:00+08:00"
+
+
+def _backfill_legacy_completes(connection: sqlite3.Connection) -> None:
+    """Idempotently mirror historical complete events into AC submissions.
+
+    AC rounds are defined by one completion per problem per Shanghai business
+    day, so duplicate legacy events from one day intentionally become one AC
+    submission.  Existing AC submissions on that day suppress the insert.
+    """
+    columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(study_events)")}
+    if not {"problem_id", "studied_at"}.issubset(columns):
+        return
+    if "action" in columns:
+        kind_sql = "action"
+    elif "event_type" in columns:
+        kind_sql = "event_type"
+    else:
+        return
+    date_sql = "study_date" if "study_date" in columns else "NULL"
+    events = connection.execute(
+        f"SELECT problem_id, studied_at, {date_sql} AS study_date, {kind_sql} AS event_kind "
+        "FROM study_events WHERE " + kind_sql + " = 'complete' ORDER BY rowid"
+    ).fetchall()
+    if not events:
+        return
+    existing_dates = {
+        (int(row["problem_id"]), _legacy_business_date(row["submitted_at"]))
+        for row in connection.execute(
+            "SELECT problem_id, submitted_at FROM submissions WHERE status = 'ac'"
+        )
+    }
+    migrated: set[tuple[int, str]] = set()
+    for row in events:
+        problem_id = int(row["problem_id"])
+        study_date = _legacy_business_date(row["studied_at"], row["study_date"])
+        if not study_date:
+            continue
+        key = (problem_id, study_date)
+        if key in existing_dates or key in migrated:
+            continue
+        connection.execute(
+            """INSERT INTO submissions(
+                   problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source
+               ) VALUES (?, 'ac', '', NULL, NULL, ?, 'manual')""",
+            (problem_id, _legacy_submission_timestamp(row["studied_at"], study_date)),
+        )
+        migrated.add(key)
+    if migrated:
+        connection.commit()
+
+
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     """打开数据库连接：确保目录存在、设置行工厂、开启外键；该库文件首次连接时加锁执行建库 DDL。"""
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -308,13 +414,16 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     # 开启外键约束（当前表结构暂无级联，保持规范）；timeout=10 秒缓解多线程并发写锁等待。
     connection.execute("PRAGMA foreign_keys = ON")
-    # WAL 日志模式：多用户并发下读不阻塞写（持久属性，写一次即可）。
-    connection.execute("PRAGMA journal_mode = WAL")
     # 按库文件路径记录建表状态：新用户库首次连接执行幂等 DDL，之后同一库直接跳过。
     schema_key = str(db_path)
     if schema_key not in _SCHEMA_DONE:
         with _SCHEMA_LOCK:
             if schema_key not in _SCHEMA_DONE:
+                # WAL is a persistent database setting.  Configure it only
+                # during one-time initialization; changing journal mode on
+                # every request can itself contend with concurrent writers.
+                connection.execute("PRAGMA journal_mode = WAL")
+                _prepare_legacy_study_events_schema(connection)
                 connection.executescript(SCHEMA)
                 ensure_ai_schema(connection)
                 # 老库迁移：为 submissions 补充力扣提交 ID 列（幂等）。
@@ -327,6 +436,7 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_submissions_lc ON submissions(lc_id) WHERE lc_id IS NOT NULL"
                 )
+                _backfill_legacy_completes(connection)
                 _SCHEMA_DONE.add(schema_key)
     return connection
 
@@ -714,10 +824,13 @@ def connect_auth() -> sqlite3.Connection:
     connection = sqlite3.connect(AUTH_DB_PATH, timeout=10, isolation_level=None)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA journal_mode = WAL")
     if not _AUTH_READY:
         with _AUTH_LOCK:
             if not _AUTH_READY:
+                # WAL is persistent; setting it only during one-time auth
+                # schema initialization avoids lock contention on every
+                # session lookup/login request.
+                connection.execute("PRAGMA journal_mode = WAL")
                 connection.executescript(AUTH_SCHEMA)
                 # 老库迁移：users 补充聊天昵称列（幂等）。
                 try:
@@ -743,9 +856,14 @@ def connect_auth() -> sqlite3.Connection:
     return connection
 
 
+def business_now() -> datetime:
+    """Return current time in the single timezone used by business dates."""
+    return datetime.now(BUSINESS_TZ)
+
+
 def now_iso() -> str:
     """当前时间 ISO 字符串（会话过期判断与审计字段统一入口）。"""
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    return business_now().isoformat(timespec="seconds")
 
 
 def hash_password(password: str) -> str:
@@ -893,7 +1011,7 @@ def auth_login(username: str, password: str) -> sqlite3.Row:
 def create_session(user_id: int) -> str:
     """签发会话：32 字节随机令牌入库，30 天有效；令牌只存一份、删除即吊销。"""
     token = secrets.token_urlsafe(32)
-    expires = (datetime.now().astimezone() + SESSION_TTL).isoformat(timespec="seconds")
+    expires = (business_now() + SESSION_TTL).isoformat(timespec="seconds")
     with closing(connect_auth()) as connection:
         connection.execute(
             "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
@@ -944,7 +1062,7 @@ def generate_invite_codes(count: int, days: int, note: str, created_by: int) -> 
     """批量签发一次性注册码：days>0 时从当天起算过期日，note 记录用途便于审计。"""
     count = max(1, min(count, 50))
     days = max(0, min(days, 365))
-    expires = (datetime.now().astimezone().date() + timedelta(days=days)).isoformat() if days else None
+    expires = (business_now().date() + timedelta(days=days)).isoformat() if days else None
     codes: list[str] = []
     with closing(connect_auth()) as connection:
         while len(codes) < count:
@@ -986,7 +1104,7 @@ def revoke_invite_code(code: str) -> dict[str, object]:
 def register_with_code(username: str, password: str, code: str) -> dict[str, object]:
     """注册码兑换注册（原子）：占用码 + 建用户在同一事务，任一步失败整体回滚。"""
     username = username.strip()
-    today = datetime.now().astimezone().date().isoformat()
+    today = business_now().date().isoformat()
     connection = connect_auth()
     try:
         connection.execute("BEGIN IMMEDIATE")  # 写锁从校验那一刻就持有，杜绝并发抢码窗口
@@ -1439,11 +1557,16 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
             if avatar_data_url == "":
                 connection.execute("DELETE FROM avatars WHERE user_id = ?", (row["id"],))
             else:
-                import base64, re as _re
+                import base64, binascii, re as _re
                 m = _re.match(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$", avatar_data_url)
                 if not m:
                     raise ValueError("头像格式不支持（仅 png/jpeg/webp）")
-                blob = base64.b64decode(m.group(2))
+                try:
+                    # validate=True rejects malformed padding and non-Base64
+                    # characters instead of silently discarding them.
+                    blob = base64.b64decode(m.group(2), validate=True)
+                except (binascii.Error, ValueError) as exc:
+                    raise ValueError("头像数据不是合法的 Base64") from exc
                 if len(blob) > _AVATAR_MAX_BYTES:
                     raise ValueError("头像过大（压缩后需小于 150KB）")
                 connection.execute(
@@ -1496,7 +1619,7 @@ def _maybe_purge_sessions() -> None:
 
 def now_parts() -> tuple[str, str]:
     """返回 (当前时间 ISO 字符串, 今天日期 YYYY-MM-DD)，是所有写记录统一的时间入口。"""
-    now = datetime.now().astimezone()
+    now = business_now()
     return now.isoformat(timespec="seconds"), now.date().isoformat()
 
 
@@ -1507,6 +1630,9 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
         return False
     studied_at, study_date = now_parts()
     with closing(connect(db_path)) as connection:
+        # Serialize the read-check-write sequence so concurrent page loads
+        # cannot both pass the 60-second de-duplication window.
+        connection.execute("BEGIN IMMEDIATE")
         # 取该题最近一条 view 的时间戳，用于 60 秒窗口的去重判断。
         recent = connection.execute(
             """SELECT studied_at FROM study_events
@@ -1529,7 +1655,13 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
 
 
 def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
-    """兼容旧面板的手动完成接口：Hot100 轮次已改由 AC 记录自动推导，页面不再调用。"""
+    """兼容旧面板的手动完成接口，并写入 AC 语义的 submissions 读模型。
+
+    The legacy study event is retained for old exports, while the submission
+    row makes dashboard/daily/analytics (which use AC submissions) observe the
+    same completion.  Multiple completions on one business day share one
+    round, matching the canonical AC round definition.
+    """
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
     studied_at, study_date = now_parts()
@@ -1537,27 +1669,59 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
         # BEGIN IMMEDIATE：立刻拿写锁，"取下一轮次 + 插入"在同一事务内原子完成，
         # 并发双击也不会开出重复轮次（配合唯一索引 uq_problem_round 双保险）。
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute(
-            "SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round FROM study_events WHERE problem_id = ? AND action = 'complete'",
+        event_rows = connection.execute(
+            "SELECT round_no, date(studied_at, '+8 hours') AS study_date "
+            "FROM study_events WHERE problem_id = ? AND action = 'complete'",
             (problem_id,),
-        ).fetchone()
-        round_no = int(row["next_round"])
+        ).fetchall()
+        submission_rows = connection.execute(
+            "SELECT submitted_at FROM submissions WHERE problem_id = ? AND status = 'ac'",
+            (problem_id,),
+        ).fetchall()
+        completed_dates = {str(row["study_date"]) for row in event_rows}
+        for row in submission_rows:
+            try:
+                completed_dates.add(
+                    datetime.fromisoformat(str(row["submitted_at"]))
+                    .astimezone(BUSINESS_TZ).date().isoformat()
+                )
+            except (TypeError, ValueError, OverflowError):
+                # Invalid historical timestamps are excluded by analytics and
+                # must not make the compatibility endpoint fail.
+                continue
+        existing_today = [
+            int(row["round_no"]) for row in event_rows
+            if str(row["study_date"]) == study_date and row["round_no"] is not None
+        ]
+        date_already_completed = study_date in completed_dates
+        if existing_today:
+            round_no = max(existing_today)
+        elif date_already_completed:
+            round_no = sorted(completed_dates).index(study_date) + 1
+        else:
+            max_event_round = max((int(row["round_no"] or 0) for row in event_rows), default=0)
+            # Preserve any historical duplicate-day round numbering while
+            # still accounting for AC dates that have no legacy event row.
+            round_no = max(max_event_round, len(completed_dates)) + 1
+        if not date_already_completed:
+            connection.execute(
+                """INSERT INTO study_events(problem_id, action, studied_at, study_date, round_no)
+                   VALUES (?, 'complete', ?, ?, ?)""",
+                (problem_id, studied_at, study_date, round_no),
+            )
+        # AC is the canonical Hot100 completion read model.  Keep each call as
+        # a submission history row; analytics deduplicates same-day ACs into a
+        # single round while preserving the attempt count.
         connection.execute(
-            """INSERT INTO study_events(problem_id, action, studied_at, study_date, round_no)
-               VALUES (?, 'complete', ?, ?, ?)""",
-            (problem_id, studied_at, study_date, round_no),
+            """INSERT INTO submissions(
+                   problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source
+               ) VALUES (?, 'ac', '', NULL, NULL, ?, 'manual')""",
+            (problem_id, studied_at),
         )
         connection.commit()
-    # Invalidate immediately after the first committed write.  If the legacy
-    # mirrored content write below fails, the study event cannot leave an old
-    # analytics/dashboard snapshot visible.
+    # Hot100 library progress is derived from AC submissions; no separate
+    # content-event mirror is needed and avoiding it keeps this endpoint atomic.
     _invalidate_learning_caches(db_path)
-    # 同步到书架：Hot 100 题目的完成轮次同时写入 content_events，
-    # 让书架“算法刷题”模块的进度与题解面板保持一致。
-    try:
-        complete_content("hot100", f"hot100:{problem_id:04d}", db_path)
-    except ValueError:
-        pass
     # next_due：前端用它展示"下次复习时间"（= 完成时间 + 轮次对应间隔）。
     return {
         "problem_id": problem_id,
@@ -1609,7 +1773,7 @@ def _invalidate_dashboard_cache(db_path: Path) -> None:
 
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
-    today = datetime.now().astimezone().date().isoformat()
+    today = business_now().date().isoformat()
     with closing(connect(db_path)) as connection:
         view_rows = connection.execute(
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
@@ -1618,20 +1782,20 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         # 题目完成轮次 = 出现过 AC 的自然日数量；同日多提交只计一轮。
         ac_rows = connection.execute(
             """SELECT problem_id,
-                      COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rounds,
+                      COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
                       MAX(submitted_at) AS last_completed_at,
-                      MAX(substr(submitted_at, 1, 10)) AS last_ac_date
+                      MAX(date(submitted_at, '+8 hours')) AS last_ac_date
                FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()
         study_summary = connection.execute(
             """SELECT
-                 COUNT(DISTINCT CASE WHEN study_date = ? AND action = 'view' THEN problem_id END) AS today_viewed
+                 COUNT(DISTINCT CASE WHEN date(studied_at, '+8 hours') = ? AND action = 'view' THEN problem_id END) AS today_viewed
                FROM study_events WHERE action = 'view'""",
             (today,),
         ).fetchone()
         ac_summary = connection.execute(
             """SELECT
-                 COUNT(DISTINCT CASE WHEN substr(submitted_at, 1, 10) = ? THEN problem_id END) AS today_rounds,
+                 COUNT(DISTINCT CASE WHEN date(submitted_at, '+8 hours') = ? THEN problem_id END) AS today_rounds,
                  COUNT(DISTINCT problem_id) AS completed_problems
                FROM submissions WHERE status = 'ac'""",
             (today,),
@@ -1639,7 +1803,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         # 累计轮次 = 完整刷题遍数：每题按"AC 过的不同天数"计轮，
         # 轮次 k 达成 = 有 ≥ ROUND_COMPLETE_THRESHOLD 道题的轮数 ≥ k
         per_problem_rounds = [int(r["rd"]) for r in connection.execute(
-            """SELECT problem_id, COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rd
+            """SELECT problem_id, COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rd
                FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()]
         total_rounds = 0
@@ -1661,7 +1825,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         ).fetchall()
         ac_date_rows = connection.execute(
             """SELECT problem_id,
-                      substr(submitted_at, 1, 10) AS study_date,
+                      date(submitted_at, '+8 hours') AS study_date,
                       MAX(submitted_at) AS studied_at
                FROM submissions WHERE status = 'ac'
                GROUP BY problem_id, study_date"""
@@ -1681,23 +1845,23 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                     "round_no": index,
                 })
         view_days = connection.execute(
-            """SELECT study_date,
-                      COUNT(DISTINCT problem_id) AS viewed
+            """SELECT date(studied_at, '+8 hours') AS study_date,
+                       COUNT(DISTINCT problem_id) AS viewed
                FROM study_events WHERE action = 'view' GROUP BY study_date"""
         ).fetchall()
         ac_days = connection.execute(
-            """SELECT substr(submitted_at, 1, 10) AS study_date,
+            """SELECT date(submitted_at, '+8 hours') AS study_date,
                       COUNT(DISTINCT problem_id) AS rounds
                FROM submissions WHERE status = 'ac' GROUP BY study_date"""
         ).fetchall()
         content_days = connection.execute(
-            """SELECT study_date,
-                      COUNT(DISTINCT CASE WHEN action = 'view' THEN content_id END) AS viewed,
-                      SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds
+            """SELECT date(studied_at, '+8 hours') AS study_date,
+                       COUNT(DISTINCT CASE WHEN action = 'view' THEN content_id END) AS viewed,
+                       SUM(CASE WHEN action = 'complete' THEN 1 ELSE 0 END) AS rounds
                FROM content_events WHERE module_id <> 'hot100' GROUP BY study_date"""
         ).fetchall()
         submission_days = connection.execute(
-            """SELECT substr(submitted_at, 1, 10) AS study_date, COUNT(1) AS submits
+            """SELECT date(submitted_at, '+8 hours') AS study_date, COUNT(1) AS submits
                FROM submissions GROUP BY study_date"""
         ).fetchall()
         active_dates = {
@@ -1725,7 +1889,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
         day_stats[str(row["study_date"])]["submits"] += int(row["submits"] or 0)
     # 热力图数据：生成过去 365 天逐日计数（缺数据的补 0），前端按格子渲染 GitHub 风格日历。
-    base = datetime.now().astimezone().date() - timedelta(days=364)
+    base = business_now().date() - timedelta(days=364)
     activity = [
         {
             "date": (base + timedelta(days=offset)).isoformat(),
@@ -1737,7 +1901,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     ]
     # 连续学习天数：从今天（今天无记录则从昨天）往回数连续有活动的天数。
     streak = 0
-    cursor = datetime.now().astimezone().date()
+    cursor = business_now().date()
     if cursor.isoformat() not in active_dates:
         cursor -= timedelta(days=1)
     while cursor.isoformat() in active_dates:
@@ -1860,6 +2024,9 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
         return False
     studied_at, study_date = now_parts()
     with closing(connect(db_path)) as connection:
+        # Serialize the read-check-write sequence for the same 60-second
+        # de-duplication guarantee as record_view().
+        connection.execute("BEGIN IMMEDIATE")
         # 同样的 60 秒去重窗口（这里按 content_id 查最近一条 view）。
         recent = connection.execute(
             """SELECT studied_at FROM content_events
@@ -1908,7 +2075,7 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
         "content_id": content_id,
         "round_no": round_no,
         "studied_at": studied_at,
-        "next_due": due_after(studied_at, round_no),
+        "next_due": due_after_content(studied_at, round_no),
     }
 
 
@@ -1917,7 +2084,7 @@ def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]
     with closing(connect(db_path)) as connection:
         rows = connection.execute(
             """SELECT problem_id,
-                      COUNT(DISTINCT substr(submitted_at, 1, 10)) AS rounds,
+                      COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
                       MAX(submitted_at) AS last_completed_at
                FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()
@@ -1994,7 +2161,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
 
     传 module_id 时只返回该模块的 contents（problems 置空），供书架模块页使用。
     """
-    today = datetime.now().astimezone().date().isoformat()
+    today = business_now().date().isoformat()
     ac_progress = ac_problem_progress(db_path)
     with closing(connect(db_path)) as connection:
         # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
@@ -2320,7 +2487,7 @@ def mock_exam(
 def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False) -> dict[str, object]:
     """今日计划（与今日待复习互补）：已排期 → 未学习 → 需重学（逾期 >60 天）
     → 轮数较少；每类内部按学习路径顺序；排除今日待复习中的题。"""
-    today = datetime.now().astimezone().date().isoformat()
+    today = business_now().date().isoformat()
     daily = daily_data(db_path)
     due_ids = {int(item["id"]) for item in daily["problems"]}
     relearn_ids = {int(item["id"]) for item in daily.get("relearn", [])}
@@ -2345,6 +2512,9 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
     pinned: list[int] = []
     with closing(connect(db_path)) as connection:
         connection.execute("DELETE FROM plan_pins WHERE for_date < ?", (today,))
+        # The default sqlite isolation level starts a transaction for DELETE;
+        # commit explicitly so stale pins are actually removed on close.
+        connection.commit()
         for row in connection.execute(
             "SELECT problem_id FROM plan_pins WHERE for_date <= ? ORDER BY for_date", (today,)
         ):
@@ -2489,38 +2659,45 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         return "application/json; charset=utf-8", "hot100-records.json", json.dumps(payload, ensure_ascii=False, indent=2)
     # weekly：本周（本周一 00:00 起）统计生成 Markdown 周报：轮次/活跃天数/连击/薄弱清单。
     if kind == "weekly":
-        now = datetime.now().astimezone()
+        now = business_now()
         monday = (now - timedelta(days=now.weekday())).date()
         monday_iso = monday.isoformat()
         today_iso = now.date().isoformat()
         with closing(connect(db_path)) as connection:
             problem_rounds = int(connection.execute(
                 """SELECT COUNT(*) AS n FROM (
-                    SELECT problem_id, substr(submitted_at, 1, 10) AS d
-                    FROM submissions WHERE status = 'ac' AND substr(submitted_at, 1, 10) >= ?
+                    SELECT problem_id, date(submitted_at, '+8 hours') AS d
+                    FROM submissions WHERE status = 'ac' AND date(submitted_at, '+8 hours') >= ?
                     GROUP BY problem_id, d
                 )""",
                 (monday_iso,),
             ).fetchone()["n"] or 0)
             content_rounds = int(connection.execute(
-                "SELECT COUNT(*) AS n FROM content_events WHERE action='complete' AND module_id <> 'hot100' AND study_date >= ?",
+                "SELECT COUNT(*) AS n FROM content_events "
+                "WHERE action='complete' AND module_id <> 'hot100' "
+                "AND date(studied_at, '+8 hours') >= ?",
                 (monday_iso,),
             ).fetchone()["n"] or 0)
             active_days = int(connection.execute(
                 """SELECT COUNT(DISTINCT study_date) AS n FROM (
-                    SELECT study_date FROM study_events WHERE action = 'view' AND study_date >= ?
+                    SELECT date(studied_at, '+8 hours') AS study_date
+                    FROM study_events
+                    WHERE action = 'view' AND date(studied_at, '+8 hours') >= ?
                     UNION
-                    SELECT substr(submitted_at, 1, 10) FROM submissions WHERE substr(submitted_at, 1, 10) >= ?
+                    SELECT date(submitted_at, '+8 hours') FROM submissions WHERE date(submitted_at, '+8 hours') >= ?
                     UNION
-                    SELECT study_date FROM content_events
-                    WHERE module_id <> 'hot100' AND study_date >= ?
+                    SELECT date(studied_at, '+8 hours') AS study_date
+                    FROM content_events
+                    WHERE module_id <> 'hot100' AND date(studied_at, '+8 hours') >= ?
                 )""",
                 (monday_iso, monday_iso, monday_iso),
             ).fetchone()["n"] or 0)
             active_dates_all = {str(r["study_date"]) for r in connection.execute(
-                """SELECT study_date FROM study_events WHERE action = 'view'
-                   UNION SELECT substr(submitted_at, 1, 10) AS study_date FROM submissions
-                   UNION SELECT study_date FROM content_events WHERE module_id <> 'hot100'"""
+                """SELECT date(studied_at, '+8 hours') AS study_date
+                   FROM study_events WHERE action = 'view'
+                   UNION SELECT date(submitted_at, '+8 hours') AS study_date FROM submissions
+                   UNION SELECT date(studied_at, '+8 hours') AS study_date
+                   FROM content_events WHERE module_id <> 'hot100'"""
             )}
         streak = 0
         cursor = now.date()
@@ -2626,13 +2803,13 @@ def submissions_for_problem(problem_id: int, limit: int = 50, db_path: Path = DB
 
 def submission_summary(db_path: Path = DB_PATH) -> dict[str, object]:
     """全站提交统计：今日 AC/提交、累计 AC 次数、已解决题数、通过率、每题是否 AC 过。"""
-    today = datetime.now().astimezone().date().isoformat()
+    today = business_now().date().isoformat()
     with closing(connect(db_path)) as connection:
         # 累计 AC 次数按每次 AC 提交累计；已解决题数按题目去重。
         row = connection.execute(
             """SELECT
-                 COALESCE(SUM(CASE WHEN status = 'ac' AND substr(submitted_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS today_ac,
-                 COALESCE(SUM(CASE WHEN substr(submitted_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS today_submits,
+                 COALESCE(SUM(CASE WHEN status = 'ac' AND date(submitted_at, '+8 hours') = ? THEN 1 ELSE 0 END), 0) AS today_ac,
+                 COALESCE(SUM(CASE WHEN date(submitted_at, '+8 hours') = ? THEN 1 ELSE 0 END), 0) AS today_submits,
                  COALESCE(SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END), 0) AS total_ac,
                  COALESCE(COUNT(DISTINCT CASE WHEN status = 'ac' THEN problem_id END), 0) AS solved_ac,
                  COALESCE(SUM(1), 0) AS total_submits
@@ -2943,7 +3120,7 @@ def leetcode_sync(
             status = "ac" if str(item.get("status_display")) == "Accepted" else "wa"
             ts = str(item.get("timestamp") or "")
             submitted_at = (
-                datetime.fromtimestamp(int(ts)).astimezone().isoformat(timespec="seconds")
+                datetime.fromtimestamp(int(ts), tz=BUSINESS_TZ).isoformat(timespec="seconds")
                 if ts.isdigit()
                 else now_parts()[0]
             )
@@ -3207,11 +3384,41 @@ class StudyHandler(SimpleHTTPRequestHandler):
         且拒绝任何含 `..` 段的路径 —— SimpleHTTPRequestHandler.translate_path
         会在落盘前再做一次 normpath，前缀黑名单必须以规范化后的路径为准。"""
         import posixpath
-        normalized = posixpath.normpath(decoded_path)
-        if ".." in normalized.split("/"):
+        # do_GET normally unquotes once before this check.  Unquote once more
+        # here to cover double-encoded traversal/case variants before the
+        # filesystem handler normalizes the path on Windows.
+        normalized = decoded_path or "/"
+        for _ in range(2):
+            unquoted = unquote(normalized)
+            if unquoted == normalized:
+                break
+            normalized = unquoted
+        # ``posixpath.normpath`` deliberately preserves exactly two leading
+        # slashes (POSIX implementation-defined network-path semantics).  The
+        # Windows static handler does not preserve that distinction and would
+        # still map ``//data/...`` to ROOT/data/..., so canonicalize the URL
+        # root before applying the sensitive-path allow/deny rules.
+        normalized = "/" + normalized.replace("\\", "/").lstrip("/")
+        normalized = posixpath.normpath(normalized)
+        lowered = normalized.lower()
+        if ".." in lowered.split("/"):
             return True
-        return normalized.startswith(("/data", "/tools", "/.git", "/.", "/docs", "/MAINTENANCE",
-                                      "/QA-REPORT", "/README"))                 or normalized in ("/maintenance.html", "/guide.html.md")                 or normalized.lower().endswith(".md")
+        # These reports are intentionally public release artifacts referenced
+        # by README/guide.  Markdown and every other docs file remain private.
+        public_docs = {
+            "/docs/qa-report.html",
+            "/docs/深度审查与修复报告-2026-09-08.html",
+            "/docs/学情分析ai专项审查报告.html",
+        }
+        if lowered in public_docs:
+            return False
+        sensitive_prefixes = ("/data/", "/tools/", "/.git/", "/docs/", "/qa-report/")
+        return (
+            lowered.startswith(sensitive_prefixes)
+            or lowered in ("/data", "/tools", "/.git", "/docs", "/maintenance.html", "/guide.html.md")
+            or lowered.startswith(("/.", "/maintenance", "/readme"))
+            or lowered.endswith(".md")
+        )
 
     def _access_gate(self, decoded_path: str) -> bool:
         """GET/HEAD 共用的安全门禁：敏感路径 404 + 登录门禁。
@@ -3244,7 +3451,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
     def do_HEAD(self) -> None:
         """HEAD 与 GET 同门禁：未认证/敏感路径一律拒绝，不允许借 HEAD 探测
         敏感文件的存在与大小；通过门禁后走基类静态头服务（无 body）。"""
-        parsed = urlparse(self.path)
+        request_target = self.path
+        if request_target.startswith("//"):
+            request_target = "/" + request_target.lstrip("/")
+        parsed = urlparse(request_target)
         decoded_path = unquote(parsed.path)
         if not self._access_gate(decoded_path):
             return
@@ -3252,7 +3462,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         # GET 路由总览：安全过滤 → 认证门禁 → 根路径/API 特判 → 浏览埋点 → 兜底静态文件服务。
-        parsed = urlparse(self.path)
+        request_target = self.path
+        if request_target.startswith("//"):
+            request_target = "/" + request_target.lstrip("/")
+        parsed = urlparse(request_target)
         decoded_path = unquote(parsed.path)
         if not self._access_gate(decoded_path):
             return
@@ -3492,6 +3705,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             if params.get("kind") == "db":
                 # db 备份：sqlite3 backup API 在线快照到 data/ 下临时文件（对正在写的库也安全），发送后即删。
+                tmp_path: Path | None = None
                 try:
                     with tempfile.NamedTemporaryFile(suffix=".db", delete=False, dir=str(DATA_DIR)) as tmp:
                         tmp_path = Path(tmp.name)
@@ -3503,10 +3717,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
                         dest.close()
                         source.close()
                     body = tmp_path.read_bytes()
-                    tmp_path.unlink(missing_ok=True)
                 except Exception as exc:
                     self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                     return
+                finally:
+                    if tmp_path is not None:
+                        with suppress(OSError):
+                            tmp_path.unlink(missing_ok=True)
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Content-Disposition", 'attachment; filename="hot100-study.db"')
@@ -3614,12 +3831,17 @@ class StudyHandler(SimpleHTTPRequestHandler):
         cancel_match = re.fullmatch(r"/api/coach/tasks/([0-9a-f]{32})/cancel", path)
         feedback_match = re.fullmatch(r"/api/coach/insights/([0-9a-f]{32})/feedback", path)
         if path not in known_post and cancel_match is None and feedback_match is None:
+            # The request body is intentionally not parsed for unknown
+            # routes; close keep-alive connections so any body cannot poison
+            # the next HTTP request on the same socket.
+            self.close_connection = True
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         # ---- 认证门禁：公开端点放行；其余需登录；admin_post 需管理员 ----
         user = self.current_user()
         if path not in public_post:
             if user is None:
+                self.close_connection = True
                 # A hidden POST endpoint can be probed with a body.  Consume
                 # its small bounded body before returning 401 so an HTTP/1.1
                 # client does not see a reset while the request is still in
@@ -3635,6 +3857,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
                 return
             if path in admin_post and str(user["role"]) != "admin":
+                self.close_connection = True
                 self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
                 return
         db = user_db_path(str(user["username"])) if user is not None else DB_PATH
@@ -3643,11 +3866,27 @@ class StudyHandler(SimpleHTTPRequestHandler):
         try:
             # 请求体约束：必须是 JSON 且 1~4096 字节（/api/profile 例外：头像 base64
             # 膨胀 1.33 倍后仍需容纳 150KB 图片，上限放宽到 220KB），空体/超大直接拒绝。
-            length = int(self.headers.get("Content-Length", "0"))
+            raw_length = self.headers.get("Content-Length", "0")
+            try:
+                length = int(raw_length)
+            except (TypeError, ValueError) as exc:
+                self.close_connection = True
+                raise ValueError("请求大小不正确") from exc
             max_len = 262144 if path == "/api/profile" else 4096
             if length < 1 or length > max_len:
+                # The request body has not been consumed.  Close the
+                # persistent connection so leftover bytes cannot be parsed as
+                # a subsequent HTTP request.
+                self.close_connection = True
                 raise ValueError("请求大小不正确")
+            if self.headers.get("Transfer-Encoding"):
+                # Chunked and other transfer codings are unsupported because
+                # this handler only reads a bounded Content-Length body.
+                self.close_connection = True
+                raise ValueError("不支持的 Transfer-Encoding")
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("请求参数不正确")
             # /api/coach/context：隐藏的只读上下文编译接口。输入字段是严格
             # 白名单，数据库仍只来自当前会话；context_compiler 本身不写库、不
             # 调模型，也不会把请求中的命令当作规则。
@@ -3688,13 +3927,31 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 compile_ms = round((time.perf_counter() - compile_started) * 1000, 2)
                 create_started = time.perf_counter()
                 result = create_ai_task(db, context, str(user["username"]), str(user["role"]))
+                debug_context_metadata: dict[str, object] = {}
+                if os.environ.get("AI_DEBUG_LOG_PATH", "").strip():
+                    context_serialized = json.dumps(
+                        context,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    debug_context_metadata = {
+                        "context_sha256": hashlib.sha256(
+                            context_serialized.encode("utf-8")
+                        ).hexdigest(),
+                        "context_chars": len(context_serialized),
+                    }
                 debug_ai_event(
                     "request_prepared",
                     task_id=str(result.get("task_id", "")),
                     analytics_ms=analytics_ms,
                     context_compile_ms=compile_ms,
                     task_create_ms=round((time.perf_counter() - create_started) * 1000, 2),
-                    context=context,
+                    snapshot_hash=str(context.get("snapshot_hash", "")),
+                    **debug_context_metadata,
+                    fact_count=len(context.get("facts", [])) if isinstance(context.get("facts"), list) else 0,
+                    signal_count=len(context.get("signals", [])) if isinstance(context.get("signals"), list) else 0,
+                    evidence_count=len(context.get("evidence", [])) if isinstance(context.get("evidence"), list) else 0,
                 )
             # /api/coach/tasks/<id>/cancel：只允许取消仍在队列中的任务。
             elif cancel_match is not None:
@@ -3755,7 +4012,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 pid = int(payload.get("problem_id", 0))
                 if pid not in PROBLEM_BY_ID:
                     raise ValueError("未知题号")
-                for_date = (datetime.now().astimezone().date() + timedelta(days=1)).isoformat()
+                for_date = (business_now().date() + timedelta(days=1)).isoformat()
                 with closing(connect(db)) as connection:
                     connection.execute(
                         "INSERT INTO plan_pins(problem_id, for_date, created_at) VALUES (?, ?, ?) "
@@ -3806,7 +4063,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 result = revoke_invite_code(str(payload.get("code", "")))
             # /api/admin/users/toggle：停用/启用用户（停用即踢下线；管理员账号不可停用）。
             elif path == "/api/admin/users/toggle":
-                result = set_user_active(str(payload.get("username", "")), bool(payload.get("active")))
+                if not isinstance(payload.get("active"), bool):
+                    raise ValueError("active 必须是布尔值")
+                result = set_user_active(str(payload.get("username", "")), payload["active"])
             # /api/admin/users/role：调整用户角色；不能自降权或清空最后一个管理员。
             elif path == "/api/admin/users/role":
                 result = set_user_role(
@@ -3835,9 +4094,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 result = chat_delete(int(payload.get("id", 0)))
             # /api/admin/feedback/resolve：标记反馈已解决（可附说明）或重新打开。
             elif path == "/api/admin/feedback/resolve":
+                if not isinstance(payload.get("resolved"), bool):
+                    raise ValueError("resolved 必须是布尔值")
                 result = resolve_feedback(
                     int(payload.get("id", 0)),
-                    bool(payload.get("resolved")),
+                    payload["resolved"],
                     str(payload.get("note", "")),
                 )
             # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
@@ -3958,13 +4219,27 @@ class StudyHandler(SimpleHTTPRequestHandler):
 
     def client_ip(self) -> str:
         """客户端真实 IP：经 Cloudflare Tunnel（cloudflared 走本机回环）时，socket 对端
-        恒为 127.0.0.1，此时改取 CF-Connecting-IP（Cloudflare 边缘强制写入、不可伪造）；
-        其余情况用 socket 对端地址，防止伪造请求头绕过限流。"""
+        恒为 127.0.0.1，此时改取可信反代明确覆盖的 X-Real-IP，兼容 CF-Connecting-IP；
+        若仅有 X-Forwarded-For 则取最右侧合法地址（nginx $proxy_add_x_forwarded_for
+        会把客户端可伪造链放在左侧）；其余情况用 socket 对端地址。"""
         peer = self.client_address[0] if self.client_address else ""
         if peer in ("127.0.0.1", "::1"):
-            cf_ip = (self.headers.get("CF-Connecting-IP") or "").strip()
-            if cf_ip:
-                return cf_ip
+            # Only trust forwarding headers from the loopback proxy.  Prefer
+            # headers explicitly overwritten by the proxy.  With nginx
+            # $proxy_add_x_forwarded_for, the left side is client-controlled,
+            # so use the rightmost valid address from the chain instead.
+            for header_name in ("X-Real-IP", "CF-Connecting-IP"):
+                candidate = (self.headers.get(header_name) or "").strip()
+                try:
+                    return str(ipaddress.ip_address(candidate))
+                except ValueError:
+                    continue
+            forwarded = self.headers.get("X-Forwarded-For") or ""
+            for candidate in reversed(forwarded.split(",")):
+                try:
+                    return str(ipaddress.ip_address(candidate.strip()))
+                except ValueError:
+                    continue
         return peer
 
     def current_token(self) -> str:

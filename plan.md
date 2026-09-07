@@ -1,5 +1,7 @@
 # InterviewForge AI 学习教练分阶段实施计划
 
+> 历史计划说明（2026-09-08）：本文按阶段保留当时的“未部署”等状态快照，不能代表当前生产状态。项目现已运行于 VPS，正式入口为 <https://hot100.xyz/>；当前运维与发布结论以 `README.md`、`MAINTENANCE.md` 和 `docs/InterviewForge-SSH部署与版本更新指南.md` 为准。
+
 > 版本：v2.1
 >
 > 制定时间：2026-09-07

@@ -5,6 +5,7 @@
 </div>
 <script>
 let entries=[],ready=false,serverMode=true;
+let searchTimer=null,queryVersion=0,searchController=null;
 const input=document.getElementById('searchInput');
 const results=document.getElementById('results');
 function escHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -35,21 +36,27 @@ function renderLocal(){
 function cardHl(e,q){
   return '<article class="chapter-card"><div class="card-head"><h2><a href="'+escHtml(e.url)+'">'+hl(e.title,q)+'</a></h2></div><div class="meta"><span class="pill">'+escHtml(e.module_title)+'</span></div></article>';
 }
-async function searchServer(q){
+async function searchServer(q,version){
   renderHint('搜索中…');
+  if(searchController)searchController.abort();
+  const controller=new AbortController();
+  searchController=controller;
+  const timeout=setTimeout(()=>controller.abort(),12000);
   try{
-    const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store'});
+    const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store',signal:controller.signal});
     if(!r.ok)throw new Error('server');
     const d=await r.json();
+    if(version!==queryVersion)return;
     const groups={};
     d.items.forEach(e=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
     results.innerHTML=Object.keys(groups).map(m=>
       '<div class="search-group"><div class="search-group-title">'+escHtml(m)+' · '+groups[m].length+'</div>'+
       groups[m].map(e=>cardHl(e,q)).join('')+'</div>').join('');
   }catch(e){
+    if(e.name==='AbortError'||version!==queryVersion)return;
     serverMode=false;                       // 服务端不可用 → 回退静态索引模式
-    try{await loadIndex();renderLocal()}catch(err){renderHint('索引加载失败，请稍后重试。')}
-  }
+    try{await loadIndex();if(version===queryVersion)renderLocal()}catch(err){if(version===queryVersion)renderHint('索引加载失败，请稍后重试。')}
+  }finally{clearTimeout(timeout)}
 }
 async function loadIndex(){
   if(ready)return;
@@ -60,8 +67,12 @@ async function loadIndex(){
 }
 input.addEventListener('input',()=>{
   const q=input.value.trim();
+  queryVersion+=1;
+  const version=queryVersion;
+  if(searchTimer)clearTimeout(searchTimer);
+  if(searchController)searchController.abort();
   if(!q){renderHint('输入关键词开始搜索。');return}
-  if(serverMode){searchServer(q)}else{loadIndex().then(renderLocal).catch(()=>renderHint('索引加载失败，请稍后重试。'))}
+  if(serverMode){searchTimer=setTimeout(()=>searchServer(q,version),200)}else{searchTimer=setTimeout(()=>loadIndex().then(()=>{if(version===queryVersion)renderLocal()}).catch(()=>{if(version===queryVersion)renderHint('索引加载失败，请稍后重试。')}),200)}
 });
 // URL 携带 ?q= 时（如从书架/搜索入口跳转）自动执行一次搜索
 const initialQ=new URLSearchParams(location.search).get('q')||'';

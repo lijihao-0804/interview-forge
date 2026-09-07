@@ -4,7 +4,7 @@
     <h1>机器学习快速入门</h1>
     <div class="module-sub">模型与训练 · 28 章 · 支持多轮学习记录</div>
     <div class="module-about">从问题定义、样本与标签讲起，走通回归、分类、无监督、模型评估与调参，并以鸢尾花案例收尾，附最小数学基础与工程陷阱附录。</div>
-    <div id="connection" class="connection">正在连接本地数据库</div>
+    <div id="connection" class="connection">正在连接学习服务</div>
   </div>
   <div class="module-stats">
     <div class="stat"><span>章数</span><strong>28</strong></div>
@@ -12,7 +12,7 @@
     <div class="stat"><span>累计轮次</span><strong id="totalRounds">0</strong></div>
   </div>
 </header>
-<div id="serverNotice" class="notice" hidden>数据库没有启动。请通过根目录中的“启动学习站.cmd”进入，记录才会写入 SQLite。</div>
+<div id="serverNotice" class="notice" hidden>暂时无法连接学习服务，当前仅可浏览内容；恢复连接后才能记录学习进度。<button id="serverRetry" type="button">重试</button></div>
 <section class="module-progress" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的章</span><strong id="progressText">0 / 28</strong></div><div id="progressBar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="28" aria-valuenow="0"><div id="progress"></div></div></section>
 <section id="moduleDue" class="module-due" aria-labelledby="moduleDueTitle"><div class="due-head"><h2 id="moduleDueTitle">本模块待复习</h2><span id="moduleDueSummary" class="due-summary">正在读取…</span></div><div id="moduleDueList" class="due-list"></div></section>
 <section class="module-controls" aria-label="筛选章节">
@@ -37,9 +37,16 @@ const toast=document.getElementById('toast');
 const topicWrap=document.getElementById('topicWrap');
 const connection=document.getElementById('connection');
 const serverNotice=document.getElementById('serverNotice');
+const serverRetry=document.getElementById('serverRetry');
 const moduleDue=document.getElementById('moduleDue');
 const moduleDueList=document.getElementById('moduleDueList');
 const state={online:false,data:{modules:{},contents:{}},due:{today:'',items:{}}};
+function fetchWithTimeout(input,options,timeout=12000){
+  const controller=new AbortController();
+  const request=Object.assign({},options||{},{signal:controller.signal});
+  const timer=setTimeout(()=>controller.abort(),timeout);
+  return fetch(input,request).finally(()=>clearTimeout(timer));
+}
 if(!hasTopics){topicWrap.hidden=true;topicWrap.style.display='none'}
 topics.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;topic.appendChild(option)});
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
@@ -85,7 +92,7 @@ function renderCards(){
     if(c.category)meta.push(`<span class="pill">${esc(c.category)}</span>`);
     if(c.difficulty)meta.push(`<span class="difficulty-${c.difficulty}">${esc(c.difficulty)}</span>`);
     const dueBadge=due?`<span class="due-pill ${overdue?'overdue':''}">${overdue?'逾期':'待复习'}</span>`:'';
-    return `<article class="chapter-card ${rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}">${esc(c.title)}</a></h2><span class="round-count">${rounds} 轮</span>${dueBadge}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}">完成一轮</button></div></article>`;
+    return `<article class="chapter-card ${rounds?'studied':''}"><div class="card-head"><h2><a href="${esc(c.href)}">${esc(c.title)}</a></h2><span class="round-count">${rounds} 轮</span>${dueBadge}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}<div class="card-actions"><span class="last-study">最近：${localTime(info.last_activity_at)}</span><button class="round-button" type="button" data-chapter="${esc(c.id)}" ${state.online?'':'disabled'}>完成一轮</button></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-chapter]').forEach(button=>button.addEventListener('click',()=>completeChapter(button)));
@@ -97,7 +104,7 @@ async function completeChapter(button){
   try{
     const isProblem=Boolean(chapter.problem_id);
     const payload=isProblem?{problem_id:Number(chapter.problem_id)}:{module_id:moduleId,content_id:chapter.id};
-    const response=await fetch(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const response=await fetchWithTimeout(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'记录失败');
     toast.textContent=`已记录「${chapter.title}」的第 ${result.round_no} 轮`;
@@ -107,8 +114,8 @@ async function completeChapter(button){
 async function refresh(){
   try{
     const [libraryResponse,dailyResponse]=await Promise.all([
-      fetch('/api/library',{cache:'no-store'}),
-      fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})
+      fetchWithTimeout('/api/library',{cache:'no-store'}),
+      fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})
     ]);
     if(!libraryResponse.ok||!dailyResponse.ok)throw new Error('database unavailable');
     state.data=await libraryResponse.json();
@@ -117,15 +124,16 @@ async function refresh(){
     state.due.items={};
     daily.contents.forEach(item=>{state.due.items[item.content_id]=item.due_date});
     state.online=true;
-    connection.classList.add('online');connection.textContent='SQLite 数据库已连接';serverNotice.hidden=true;
+    connection.classList.add('online');connection.textContent='学习服务已连接';serverNotice.hidden=true;
   }catch(error){
     state.online=false;
     state.due.today='';state.due.items={};
-    connection.classList.remove('online');connection.textContent='当前是静态浏览模式';serverNotice.hidden=false;
+    connection.classList.remove('online');connection.textContent='暂时无法连接学习服务';serverNotice.hidden=false;
   }
   updateStats();renderDue();renderCards();
 }
 search.addEventListener('input',renderCards);
 [topic,status].forEach(control=>control.addEventListener('change',renderCards));
 refresh();
+if(serverRetry)serverRetry.addEventListener('click',refresh);
 </script></body></html>

@@ -515,12 +515,12 @@ background:color-mix(in srgb,var(--success) 7%,var(--panel))}
 background:color-mix(in srgb,#c1363e 7%,var(--panel))}
 .aside-err .aside-title{color:#c1363e}
 .table-wrap,.reader table{position:relative}
-.table-scroll-hint{position:relative}
-.table-scroll-hint::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;
+.table-wrap::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;
 pointer-events:none;background:linear-gradient(to left,var(--bg,rgba(0,0,0,.04)),transparent);
 opacity:0;transition:opacity .2s}
-.table-scroll-hint.has-overflow::after{opacity:1}
-/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1: 4px;--space-2: 8px;--space-3: 12px; --space-4: 16px;--space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;--fs-0: .8rem; --fs-1: .9rem; --fs-2: 1rem; --fs-3: 1.1rem;--fs-4: 1.25rem; --fs-5: 1.5rem; --fs-6: 1.8rem; --fs-7: 2.2rem;--radius-1: 6px; --radius-2: 10px; --radius-3: 14px; --radius-4: 20px;--ease-out: cubic-bezier(.22, 1, .36, 1);--ease-in-out: cubic-bezier(.65, 0, .35, 1);
+.table-wrap.has-overflow::after{opacity:1}
+/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */
+:root{--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--fs-0:.8rem;--fs-1:.9rem;--fs-2:1rem;--fs-3:1.1rem;--fs-4:1.25rem;--fs-5:1.5rem;--fs-6:1.8rem;--fs-7:2.2rem;--radius-1:6px;--radius-2:10px;--radius-3:14px;--radius-4:20px;--ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.65,0,.35,1)}
 
 /* ===== 题解语言切换条（P 多语言） ===== */
 .forge-lang-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 22px;
@@ -755,18 +755,15 @@ readerVisualFrames.forEach((frame) => {
     const main = document.querySelector('.markdown-body');
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    document.querySelectorAll('.lang-section[data-lang]').forEach((sec) => {
-      sec.style.display = (sec.dataset.lang === lang) ? '' : 'none';
-    });
-    document.querySelectorAll('.markdown-body .codehilite[data-lang]').forEach((div) => {
-      div.style.display = (div.dataset.lang === lang) ? '' : 'none';
-    });
+    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')];
+    const available = new Set(blocks.map((block) => block.dataset.lang));
+    const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
+    blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
     const bar = buildBar();
-    bar.dataset.lang = lang;
-    const available = new Set([...document.querySelectorAll('.codehilite[data-lang]')].map((d) => d.dataset.lang));
+    bar.dataset.lang = effectiveLang;
     bar.querySelectorAll('.forge-lang-chip').forEach((chip) => {
       const l = chip.dataset.lang;
-      chip.classList.toggle('active', l === lang);
+      chip.classList.toggle('active', l === effectiveLang);
       chip.classList.toggle('unavailable', l !== 'java' && !available.has(l));
     });
   }
@@ -2035,7 +2032,7 @@ def render_markdown(source: Path) -> None:
         {bottom_nav}
       </article>
     </main>
-    <footer class="site-footer">Interview Forge · 本地离线阅读</footer>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
   </div>
   <script src="{html.escape(js_href)}" defer></script>
 </body>
@@ -2260,7 +2257,7 @@ td a{color:var(--brand)}
   <div class="top"><a href="../../../index.html">← 学习面板</a><a href="../../../library/index.html">学习书架</a><a href="03-复习清单.html">复习清单</a></div>
   <h1>错题本</h1>
   <div class="sub">在面板题卡上标记“薄弱”后自动汇总到这里；可一键打印或导出薄弱清单。</div>
-  <div id="notice" class="notice">正在读取学习记录…（请通过“启动学习站.cmd”访问）</div>
+<div id="notice" class="notice"><span id="noticeText">正在从学习服务读取记录…</span> <button id="retryNotebook" type="button">重试</button></div>
   <section class="card" aria-labelledby="distTitle"><h2 id="distTitle">薄弱题专题分布</h2><div id="bars" class="bars"></div></section>
   <section class="card" aria-labelledby="listTitle"><h2 id="listTitle">薄弱清单</h2>
     <table><thead><tr><th>题号</th><th>题名</th><th>核心方法</th><th>轮次</th><th>最近复习</th><th>标记时间</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table>
@@ -2269,12 +2266,21 @@ td a{color:var(--brand)}
 <script>
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(v){if(!v)return '—';return String(v).slice(0,10)}
+function fetchWithTimeout(input,options,timeout=12000){
+  const controller=new AbortController();
+  const request=Object.assign({},options||{},{signal:controller.signal});
+  const timer=setTimeout(()=>controller.abort(),timeout);
+  return fetch(input,request).finally(()=>clearTimeout(timer));
+}
+function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback}
 async function load(){
+  const notice=document.getElementById('notice');
+  const noticeText=document.getElementById('noticeText');
   try{
-    const r=await fetch('/api/weaklist',{cache:'no-store'});
-    if(!r.ok)throw new Error();
+    const r=await fetchWithTimeout('/api/weaklist',{cache:'no-store'});
+    if(!r.ok)throw new Error('学习服务暂时不可用');
     const data=await r.json();
-    document.getElementById('notice').hidden=true;
+    notice.hidden=true;
     const bars=document.getElementById('bars');
     const counts={};
     data.items.forEach(item=>{counts[item.category]=(counts[item.category]||0)+1});
@@ -2283,14 +2289,23 @@ async function load(){
     document.getElementById('rows').innerHTML=data.items.map(item=>`<tr><td>${item.id}</td><td><a href="${esc(item.note)}">${esc(item.title)}</a></td><td>${esc(item.method)}</td><td>${item.rounds}</td><td>${fmt(item.last_completed_at)}</td><td>${fmt(item.marked_at)}</td><td><button class="remove" type="button" data-remove="${item.id}">移除薄弱</button></td></tr>`).join('');
     document.querySelectorAll('[data-remove]').forEach(btn=>btn.addEventListener('click',async()=>{
       try{
-        await fetch('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:btn.dataset.remove,mark:''})});
+        btn.disabled=true;
+        const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:btn.dataset.remove,mark:''})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||'移除失败，请检查网络后重试');
         load();
-      }catch(_){}
+      }catch(error){
+        btn.disabled=false;
+        notice.hidden=false;
+        noticeText.textContent='移除失败：'+readableError(error,'请检查网络后重试');
+      }
     }));
-  }catch(_){
-    document.getElementById('notice').textContent='无法读取学习记录，请通过“启动学习站.cmd”访问。';
+  }catch(error){
+    notice.hidden=false;
+    noticeText.textContent='暂时无法读取学习记录：'+readableError(error,'请检查网络并稍后重试');
   }
 }
+document.getElementById('retryNotebook').addEventListener('click',load);
 load();
 </script>
 </body>
@@ -2307,7 +2322,7 @@ load();
 #      “assets 与生成器常量一致”就建立在这条写入路径上，所以常量区一个字符
 #      都不能动；另从 tools/vendor 复制 uPlot 离线图表库到 assets（与书架
 #      mermaid 的 vendor→dist 模式相同；源缺失直接抛错，避免生成半成品站）。
-#   2. 阅读页：收集 sources = 根级 README/MAINTENANCE/QA-REPORT
+#   2. 阅读页：收集 sources = 根级 README/MAINTENANCE/发布审查报告
 #      + CONTENT_DIRS 各目录递归 .md（排序保证输出稳定、可重复构建），
 #      逐篇 render_markdown。
 #   3. 面板与错题本：update_dashboard（note 字段转向 .html + 快捷导航 +
@@ -2332,7 +2347,13 @@ def build() -> None:
             raise FileNotFoundError(f"缺少 uPlot 源文件：{source}")
         shutil.copy2(source, assets / name)
 
-    sources = [ROOT / "README.md", ROOT / "MAINTENANCE.md", ROOT / "docs" / "QA-REPORT.md"]
+    sources = [
+        ROOT / "README.md",
+        ROOT / "MAINTENANCE.md",
+        ROOT / "docs" / "QA-REPORT.md",
+        ROOT / "docs" / "深度审查与修复报告-2026-09-08.md",
+        ROOT / "docs" / "学情分析AI专项审查报告.md",
+    ]
     for folder in CONTENT_DIRS:
         sources.extend(sorted((ROOT / folder).rglob("*.md")))
     # 增量 + 并行渲染阅读页：源内容哈希未变且输出存在 → 跳过；需要重建的
@@ -2349,8 +2370,14 @@ def build() -> None:
             continue
         pending.append((source, output, rel, sha))
     if pending:
-        with ProcessPoolExecutor(max_workers=PARALLEL_WORKERS) as pool:
-            list(pool.map(_render_markdown_worker, [(str(src), str(out)) for src, out, _, _ in pending]))
+        jobs = [(str(src), str(out)) for src, out, _, _ in pending]
+        try:
+            with ProcessPoolExecutor(max_workers=PARALLEL_WORKERS) as pool:
+                list(pool.map(_render_markdown_worker, jobs))
+        except PermissionError:
+            # Restricted Windows runners may deny multiprocessing pipes; fall back
+            # to sequential rendering so a valid build is still possible.
+            list(map(_render_markdown_worker, jobs))
         for source, output, rel, sha in pending:
             build_cache.mark_built(cache, "html_page:" + rel, sha, [output.relative_to(ROOT).as_posix()])
     build_cache.save_cache(ROOT, cache)

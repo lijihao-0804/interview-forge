@@ -1,5 +1,7 @@
 # InterviewForge：Cloudflare Tunnel 公网部署进度与后续计划
 
+> **归档说明（2026-09-08）**：本文记录早期 Cloudflare Tunnel 方案及迁移过程，不是当前部署手册。生产站点现运行在 VPS（nginx + systemd），请以 [InterviewForge SSH 部署与版本更新指南](InterviewForge-SSH部署与版本更新指南.md) 为准；除故障回溯外，不应照本文重新启用旧局域网入口。
+
 > 状态更新（2026-09-05 下午）：**公网已上线并完成安全增强部署**。
 > https://hot100.xyz 已验证：登录门禁 307、API 401、HTTP→HTTPS 301、www 可用、
 > Cookie 带 Secure、安全响应头生效、学习数据完好（98 题 / 365 天）。

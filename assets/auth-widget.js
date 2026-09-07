@@ -18,8 +18,10 @@
         "#forge-auth-pill a{color:var(--brand,#5654d4);text-decoration:none;font-weight:600}" +
         "#forge-auth-pill a:hover{color:var(--brand-strong,#4543bd);text-decoration:underline}" +
         "#forge-auth-pill .fap-chat,#forge-auth-pill .fap-name{cursor:pointer}" +
+        "#forge-auth-pill .fap-name{border:0;padding:0;background:transparent;font:inherit}" +
         "#forge-auth-pill button{border:0;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);font:inherit;font-size:12px;font-weight:600;" +
         "padding:4px 12px;border-radius:999px;cursor:pointer}" +
+        "#forge-auth-pill .fap-name{padding:0;background:transparent;color:var(--muted,#66748a);font-size:13px;font-weight:400}" +
         "#forge-auth-pill button:hover{background:color-mix(in srgb,var(--brand-soft,#eeedff) 82%,var(--brand,#5654d4))}" +
         "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:58px;z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
         "background:var(--surface,var(--panel,#fff));border:1px solid var(--line,#dfe4ee);border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
@@ -29,8 +31,8 @@
         ".forge-panel .fp-head .fp-sub{font-size:11px;color:var(--muted,#66748a);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
         ".forge-panel .fp-head .fp-close{margin-left:auto;border:0;background:transparent;color:var(--muted,#66748a);cursor:pointer;font-size:14px;padding:2px 6px}" +
         ".forge-panel .fcp-status{min-height:18px;padding:0 12px 5px;color:var(--muted,#66748a);font-size:12px}" +
-        "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:10px;padding:4px 6px 4px 10px}" +
-        ".forge-panel{right:10px;bottom:58px}}";
+        "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));padding:4px 6px 4px 10px}" +
+        ".forge-panel{right:10px;bottom:calc(58px + env(safe-area-inset-bottom))}}";
       document.head.appendChild(style);
 
       function closePanels(except) {
@@ -39,6 +41,7 @@
             var p = document.getElementById(id);
             if (p) {
               p.remove();
+              if (id === "forge-profile") profilePanel = null;
               if (id === "forge-chat-panel") {
                 chatState.generation += 1;
                 chatState.pollAgain = false;
@@ -257,12 +260,13 @@
       var profilePanel = null;
       function toggleProfile() {
         var exist = document.getElementById("forge-profile");
-        if (exist) { exist.remove(); return; }
+        if (exist) { exist.remove(); profilePanel = null; return; }
         closePanels("forge-profile");
         var panel = document.createElement("div");
         panel.id = "forge-profile";
         panel.className = "forge-panel";
         panel.style.display = "block";
+        profilePanel = panel;
         panel.innerHTML =
           '<div class="fp-head"><h3>昵称与头像</h3><span class="fp-sub">' + me.username + '</span>' +
           '<button class="fp-close" type="button">✕</button></div>' +
@@ -393,10 +397,12 @@
       var pill = document.createElement("div");
       pill.id = "forge-auth-pill";
 
-      var chatLink = document.createElement("a");
+      var chatLink = document.createElement("button");
+      chatLink.type = "button";
+      chatLink.setAttribute("aria-label", "打开聊天室");
       chatLink.className = "fap-chat";
       chatLink.textContent = "聊天室";
-      chatLink.onclick = function (e) { e.preventDefault(); toggleChat(); };
+      chatLink.onclick = function () { toggleChat(); };
       var unreadBadge = document.createElement("span");
       unreadBadge.id = "fap-unread";
       unreadBadge.style.cssText = "display:none;background:#b3372f;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px";
@@ -418,7 +424,9 @@
         pill.appendChild(sep);
       }
 
-      var name = document.createElement("span");
+      var name = document.createElement("button");
+      name.type = "button";
+      name.setAttribute("aria-label", "设置昵称与头像");
       name.className = "fap-name";
       name.title = "点击设置昵称与头像";
       name.textContent = me.nickname || me.username;

@@ -39,7 +39,7 @@ td a{color:var(--brand)}
   <div class="top"><a href="../../../index.html">← 学习面板</a><a href="../../../library/index.html">学习书架</a><a href="03-复习清单.html">复习清单</a></div>
   <h1>错题本</h1>
   <div class="sub">在面板题卡上标记“薄弱”后自动汇总到这里；可一键打印或导出薄弱清单。</div>
-  <div id="notice" class="notice">正在读取学习记录…（请通过“启动学习站.cmd”访问）</div>
+<div id="notice" class="notice"><span id="noticeText">正在从学习服务读取记录…</span> <button id="retryNotebook" type="button">重试</button></div>
   <section class="card" aria-labelledby="distTitle"><h2 id="distTitle">薄弱题专题分布</h2><div id="bars" class="bars"></div></section>
   <section class="card" aria-labelledby="listTitle"><h2 id="listTitle">薄弱清单</h2>
     <table><thead><tr><th>题号</th><th>题名</th><th>核心方法</th><th>轮次</th><th>最近复习</th><th>标记时间</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table>
@@ -48,12 +48,21 @@ td a{color:var(--brand)}
 <script>
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(v){if(!v)return '—';return String(v).slice(0,10)}
+function fetchWithTimeout(input,options,timeout=12000){
+  const controller=new AbortController();
+  const request=Object.assign({},options||{},{signal:controller.signal});
+  const timer=setTimeout(()=>controller.abort(),timeout);
+  return fetch(input,request).finally(()=>clearTimeout(timer));
+}
+function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback}
 async function load(){
+  const notice=document.getElementById('notice');
+  const noticeText=document.getElementById('noticeText');
   try{
-    const r=await fetch('/api/weaklist',{cache:'no-store'});
-    if(!r.ok)throw new Error();
+    const r=await fetchWithTimeout('/api/weaklist',{cache:'no-store'});
+    if(!r.ok)throw new Error('学习服务暂时不可用');
     const data=await r.json();
-    document.getElementById('notice').hidden=true;
+    notice.hidden=true;
     const bars=document.getElementById('bars');
     const counts={};
     data.items.forEach(item=>{counts[item.category]=(counts[item.category]||0)+1});
@@ -62,14 +71,23 @@ async function load(){
     document.getElementById('rows').innerHTML=data.items.map(item=>`<tr><td>${item.id}</td><td><a href="${esc(item.note)}">${esc(item.title)}</a></td><td>${esc(item.method)}</td><td>${item.rounds}</td><td>${fmt(item.last_completed_at)}</td><td>${fmt(item.marked_at)}</td><td><button class="remove" type="button" data-remove="${item.id}">移除薄弱</button></td></tr>`).join('');
     document.querySelectorAll('[data-remove]').forEach(btn=>btn.addEventListener('click',async()=>{
       try{
-        await fetch('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:btn.dataset.remove,mark:''})});
+        btn.disabled=true;
+        const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:btn.dataset.remove,mark:''})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||'移除失败，请检查网络后重试');
         load();
-      }catch(_){}
+      }catch(error){
+        btn.disabled=false;
+        notice.hidden=false;
+        noticeText.textContent='移除失败：'+readableError(error,'请检查网络后重试');
+      }
     }));
-  }catch(_){
-    document.getElementById('notice').textContent='无法读取学习记录，请通过“启动学习站.cmd”访问。';
+  }catch(error){
+    notice.hidden=false;
+    noticeText.textContent='暂时无法读取学习记录：'+readableError(error,'请检查网络并稍后重试');
   }
 }
+document.getElementById('retryNotebook').addEventListener('click',load);
 load();
 </script>
 </body>
