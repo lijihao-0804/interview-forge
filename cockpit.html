@@ -114,6 +114,52 @@ box-shadow:var(--shadow);padding:16px 20px;color:var(--muted);font-size:13px}
 @media(max-width:720px){.bento{grid-template-columns:1fr}.clock{font-size:56px}
 .shell{width:calc(100% - 24px)}.hero{padding:22px 20px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+/* ===== AI 学习情况分析：后端 capability 决定是否显示 ===== */
+.ai-card{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
+box-shadow:var(--shadow);padding:20px;margin-bottom:18px;min-width:0}
+.ai-card[hidden]{display:none}
+.ai-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ai-head h2{font-size:17px;font-weight:800}
+.ai-status{font-size:12px;color:var(--muted);padding:3px 9px;border-radius:999px;background:var(--soft)}
+.ai-status[data-state="succeeded"]{color:var(--success);background:var(--success-soft)}
+.ai-status[data-state="failed"],.ai-status[data-state="cancelled"]{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
+.ai-hint{margin:6px 0 14px;color:var(--muted);font-size:13px}
+.ai-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ai-quota{font-size:12px;color:var(--muted)}
+.ai-wait{margin-top:12px;width:min(420px,100%);border:1px solid var(--line);
+  border-radius:var(--radius-2);background:var(--soft);padding:11px 13px}
+.ai-wait[hidden]{display:none}
+.ai-wait-line{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.ai-wait-stage{color:var(--brand);font-size:13px;font-weight:700;min-width:0;overflow-wrap:anywhere}
+.ai-wait-percent{font-size:14px;font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap}
+.ai-progress{height:7px;overflow:hidden;border-radius:999px;background:color-mix(in srgb,var(--brand) 13%,var(--panel))}
+.ai-progress-fill{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--brand),#817ff2);transition:width .22s ease}
+@media(prefers-reduced-motion:reduce){.ai-progress-fill{transition:none!important}}
+.ai-button{border:1px solid var(--brand);border-radius:var(--radius-2);background:var(--brand);color:#fff;
+padding:8px 15px;font:inherit;font-weight:700;cursor:pointer}
+.ai-button:hover{background:var(--brand-strong)}
+.ai-button:disabled{opacity:.55;cursor:wait}
+.ai-result{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}
+.ai-result[hidden]{display:none}
+.ai-summary{font-size:15px;font-weight:650;line-height:1.75;margin-bottom:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ai-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ai-section{border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);padding:12px;min-width:0}
+.ai-section h3{font-size:13px;font-weight:800;margin-bottom:7px;color:var(--brand)}
+.ai-section ul{margin:0;padding-left:1.2em}
+.ai-section li{margin:5px 0;font-size:13px;overflow-wrap:anywhere}
+.ai-section p{font-size:13px;overflow-wrap:anywhere}
+.ai-item-title{font-weight:750}
+.ai-item-detail{display:block;color:var(--muted);margin-top:2px;white-space:pre-wrap}
+.ai-evidence{display:block;color:var(--muted);font-size:11px;margin-top:4px;overflow-wrap:anywhere}
+.ai-context{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.ai-context summary{cursor:pointer;color:var(--brand);font-size:12.5px;font-weight:650}
+.ai-context pre{margin-top:9px;max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+padding:10px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+.ai-feedback{margin-top:12px;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.ai-feedback[hidden]{display:none}
+.ai-feedback button{border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--text);padding:4px 10px;cursor:pointer}
+.ai-feedback button:hover{border-color:var(--brand);color:var(--brand)}
+@media(max-width:720px){.ai-columns{grid-template-columns:1fr}.ai-card{padding:16px}}
 /* ===== 更新公告弹层（首次打开显示，关闭后不再出现） ===== */
 .ann-mask{position:fixed;inset:0;z-index:9990;background:rgba(10,14,22,.55);backdrop-filter:blur(3px);
 display:none;align-items:center;justify-content:center;padding:20px}
@@ -170,6 +216,46 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     </div>
   </div>
 
+  <section class="ai-card" id="ai-coach-card" hidden aria-labelledby="ai-coach-title">
+    <div class="ai-head">
+      <h2 id="ai-coach-title">一键学习情况分析</h2>
+      <span class="ai-status" id="ai-status" data-state="idle" aria-live="polite">尚未分析</span>
+    </div>
+    <p class="ai-hint" id="ai-hint">正在读取 AI 能力状态…</p>
+    <div class="ai-actions">
+      <button class="ai-button" id="ai-analyze-button" type="button">开始分析</button>
+      <span class="ai-quota" id="ai-quota" aria-live="polite"></span>
+    </div>
+    <div class="ai-wait" id="ai-wait" hidden aria-label="分析等待状态">
+      <div class="ai-wait-line">
+        <span class="ai-wait-stage" id="ai-wait-stage" aria-live="polite"></span>
+        <strong class="ai-wait-percent" id="ai-wait-percent" aria-hidden="true">0%</strong>
+      </div>
+      <div class="ai-progress" id="ai-progress" role="progressbar" aria-label="学习分析进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span class="ai-progress-fill" id="ai-progress-fill"></span>
+      </div>
+    </div>
+    <div class="ai-result" id="ai-result" hidden>
+      <p class="ai-summary" id="ai-summary"></p>
+      <div class="ai-columns">
+        <section class="ai-section"><h3>做得好的地方</h3><ul id="ai-strengths"></ul></section>
+        <section class="ai-section"><h3>需要关注的问题</h3><ul id="ai-weaknesses"></ul></section>
+        <section class="ai-section"><h3>下一步行动</h3><ul id="ai-actions"></ul></section>
+        <section class="ai-section"><h3>数据缺口</h3><ul id="ai-gaps"></ul></section>
+      </div>
+      <p class="ai-hint" id="ai-confidence"></p>
+      <details class="ai-context" id="ai-context-details" hidden>
+        <summary>查看本次使用了哪些数据</summary>
+        <pre id="ai-context-preview"></pre>
+      </details>
+      <div class="ai-feedback" id="ai-feedback" hidden>
+        <span>这次分析有帮助吗？</span>
+        <button type="button" data-ai-feedback="1">有帮助</button>
+        <button type="button" data-ai-feedback="0">没帮助</button>
+      </div>
+    </div>
+  </section>
+
   <nav class="entries" aria-label="快速入口">
     <a class="entry" href="library/index.html"><span class="e-ico">📚</span><span class="e-name">学习书架</span></a>
     <a class="entry" href="index.html"><span class="e-ico">🧩</span><span class="e-name">题解面板</span></a>
@@ -211,7 +297,9 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   }
 
   function api(path, options) {
-    return fetch(path, Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {}))
+    var request = Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {});
+    if (request.body && typeof request.body !== "string") request.body = JSON.stringify(request.body);
+    return fetch(path, request)
       .then(function (r) {
         if (r.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
         return r.json().then(function (d) { return { ok: r.ok, data: d }; });
@@ -277,6 +365,279 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     document.getElementById("bar-fill").style.width = pct + "%";
   }
 
+  /* ---- 一键学习情况分析：只通过后端 capability 和任务状态驱动 ---- */
+  var aiCapability = null;
+  var aiCurrentTaskId = "";
+  var aiPollTimer = null;
+  var aiBusy = false;
+  var aiHasTask = false;
+  var aiWaitTimer = null;
+  var aiWaitIndex = 0;
+  var aiWaitProgress = 0;
+  var aiWaitStartedAt = 0;
+  var aiWaitFinishing = false;
+  var aiWaitComplete = null;
+  var AI_WAIT_MIN_MS = 2800;
+  var AI_WAIT_CAP = 97;
+  var AI_WAIT_STEPS = ["正在读取学习数据", "正在比对学习进度", "正在拼接上下文", "正在调用大模型", "正在定制学习方案"];
+  var AI_WAIT_THRESHOLDS = [0, 16, 34, 58, 82];
+  var AI_STATUS_TEXT = {
+    idle: "尚未分析", queued: "排队中", running: "分析中", succeeded: "分析完成",
+    failed: "分析失败，已降级", cancelled: "已取消"
+  };
+
+  function aiText(value, fallback) {
+    return value == null || value === "" ? (fallback || "") : String(value);
+  }
+
+  function applyAiQuota(quota) {
+    if (!quota || quota.limit == null) {
+      document.getElementById("ai-quota").textContent = quota ? "管理员账号不受每日额度限制" : "";
+      return;
+    }
+    document.getElementById("ai-quota").textContent = "今日剩余 " + Math.max(0, Number(quota.remaining) || 0) + "/" + quota.limit + " 次";
+  }
+
+  function renderAiWaitProgress() {
+    var rounded = Math.floor(aiWaitProgress);
+    document.getElementById("ai-wait-percent").textContent = rounded + "%";
+    document.getElementById("ai-progress-fill").style.width = aiWaitProgress.toFixed(2) + "%";
+    document.getElementById("ai-progress").setAttribute("aria-valuenow", String(rounded));
+    var nextIndex = 0;
+    AI_WAIT_THRESHOLDS.forEach(function (threshold, index) {
+      if (aiWaitProgress >= threshold) nextIndex = index;
+    });
+    if (nextIndex !== aiWaitIndex || !document.getElementById("ai-wait-stage").textContent) {
+      aiWaitIndex = nextIndex;
+      document.getElementById("ai-wait-stage").textContent = AI_WAIT_STEPS[aiWaitIndex];
+    }
+  }
+
+  function scheduleAiWaitTick() {
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    aiWaitTimer = setTimeout(function () {
+      var elapsed = performance.now() - aiWaitStartedAt;
+      if (aiWaitFinishing && elapsed >= AI_WAIT_MIN_MS) {
+        aiWaitProgress = Math.min(100, aiWaitProgress + Math.max(reduced ? 8 : 1.2, (100 - aiWaitProgress) * (reduced ? 0.5 : 0.28)));
+      } else if (!aiWaitFinishing) {
+        var pace = aiWaitProgress < 35 ? 0.42 : aiWaitProgress < 70 ? 0.24 : aiWaitProgress < 90 ? 0.11 : 0.025;
+        var variation = reduced ? 1 : 0.72 + Math.random() * 0.56;
+        aiWaitProgress = Math.min(AI_WAIT_CAP, aiWaitProgress + pace * variation);
+      }
+      if (aiWaitFinishing && aiWaitProgress >= 99.7) aiWaitProgress = 100;
+      renderAiWaitProgress();
+      if (aiWaitProgress >= 100) {
+        aiWaitTimer = setTimeout(function () {
+          var complete = aiWaitComplete;
+          stopAiWaiting();
+          if (complete) complete();
+        }, reduced ? 0 : 220);
+        return;
+      }
+      scheduleAiWaitTick();
+    }, reduced ? 420 : 90 + Math.round(Math.random() * 70));
+  }
+
+  function startAiWaiting() {
+    stopAiWaiting();
+    aiWaitIndex = 0;
+    aiWaitProgress = 1;
+    aiWaitStartedAt = performance.now();
+    aiWaitFinishing = false;
+    document.getElementById("ai-wait").hidden = false;
+    renderAiWaitProgress();
+    scheduleAiWaitTick();
+  }
+
+  function finishAiWaiting(complete) {
+    if (!aiWaitTimer || aiWaitFinishing) return;
+    aiWaitFinishing = true;
+    aiWaitComplete = complete;
+  }
+
+  function stopAiWaiting() {
+    if (aiWaitTimer) clearTimeout(aiWaitTimer);
+    aiWaitTimer = null;
+    aiWaitFinishing = false;
+    aiWaitComplete = null;
+    var wait = document.getElementById("ai-wait");
+    if (wait) wait.hidden = true;
+  }
+
+  function renderAiList(id, values, emptyText) {
+    var box = document.getElementById(id);
+    box.textContent = "";
+    var items = Array.isArray(values) ? values : [];
+    if (!items.length) { box.appendChild(el("li", null, emptyText)); return; }
+    items.forEach(function (item) {
+      var li = el("li", null, typeof item === "string" ? item : aiText(item.title, ""));
+      if (item && typeof item === "object" && item.explanation) li.appendChild(el("span", "ai-item-detail", item.explanation));
+      if (item && typeof item === "object" && item.description) li.appendChild(el("span", "ai-item-detail", item.description));
+      if (id === "ai-actions" && item && typeof item === "object") {
+        var basis = item.basis === "data" ? "数据依据" : item.basis === "heuristic" ? "通用建议" : "旧结果未标注";
+        var actionConfidence = item.confidence ? String(item.confidence) : "未标注";
+        li.appendChild(el("span", "ai-item-detail", "依据类型：" + basis + " · 置信度：" + actionConfidence));
+      }
+      if (item && typeof item === "object" && Array.isArray(item.support_labels) && item.support_labels.length) {
+        li.appendChild(el("span", "ai-evidence", "代表案例：" + item.support_labels.join("、")));
+      }
+      box.appendChild(li);
+    });
+  }
+
+  function renderAiResult(result, task) {
+    if (!result || typeof result !== "object") return;
+    document.getElementById("ai-result").hidden = false;
+    document.getElementById("ai-summary").textContent = aiText(result.summary, "暂无摘要");
+    renderAiList("ai-strengths", result.strengths, "暂无单独列出的优势");
+    renderAiList("ai-weaknesses", result.weaknesses, "当前没有需要立即处理的规则信号");
+    renderAiList("ai-actions", result.actions, "暂无行动建议");
+    renderAiList("ai-gaps", result.data_gaps, "本次没有额外数据缺口");
+    var asOf = task && task.context_preview && task.context_preview.data_as_of;
+    document.getElementById("ai-confidence").textContent =
+      "置信度：" + aiText(result.confidence, "low") + (asOf ? " · 数据截至：" + asOf : "");
+  }
+
+  function renderAiError(payload) {
+    stopAiWaiting();
+    if (payload && payload.quota) applyAiQuota(payload.quota);
+    var status = document.getElementById("ai-status");
+    status.dataset.state = "failed";
+    status.textContent = "规则降级";
+    var hint = document.getElementById("ai-hint");
+    hint.textContent = aiText(payload && payload.error, "AI 暂时不可用，仍可使用确定性规则分析。");
+    if (payload && payload.fallback && payload.fallback.result) {
+      renderAiResult(payload.fallback.result, null);
+    }
+    aiBusy = false;
+    updateAiButton();
+  }
+
+  function renderAiTask(task, progressFinished) {
+    if (!task) return;
+    aiHasTask = true;
+    aiCurrentTaskId = task.task_id || aiCurrentTaskId;
+    var state = task.status || "failed";
+    if (task.quota) applyAiQuota(task.quota);
+    if (state === "succeeded" && aiWaitTimer && !progressFinished) {
+      if (!aiWaitFinishing) {
+        finishAiWaiting(function () { renderAiTask(task, true); });
+      }
+      return;
+    }
+    var status = document.getElementById("ai-status");
+    status.dataset.state = state;
+    status.textContent = AI_STATUS_TEXT[state] || state;
+    var hint = document.getElementById("ai-hint");
+    if (task.error) hint.textContent = task.error;
+    else if (state === "queued" || state === "running") hint.textContent = "任务已保存，页面刷新后可以继续查看状态。";
+    else if (state === "succeeded") hint.textContent = "分析结果已保存；相同学习快照会复用本次结果。";
+    else hint.textContent = (aiCapability && aiCapability.message) || "AI 暂时不可用，仍可使用规则分析。";
+    if (task.result) renderAiResult(task.result, task);
+    else if (task.fallback && task.fallback.result) renderAiResult(task.fallback.result, task);
+    var details = document.getElementById("ai-context-details");
+    if (task.context_preview) {
+      details.hidden = false;
+      document.getElementById("ai-context-preview").textContent = JSON.stringify(task.context_preview, null, 2);
+    }
+    var feedback = document.getElementById("ai-feedback");
+    feedback.hidden = !(state === "succeeded" && task.insight_id);
+    feedback.dataset.insightId = task.insight_id || "";
+    aiBusy = state === "queued" || state === "running";
+    if (aiBusy && !aiWaitTimer) startAiWaiting();
+    if (!aiBusy) stopAiWaiting();
+    updateAiButton();
+  }
+
+  function updateAiButton() {
+    var button = document.getElementById("ai-analyze-button");
+    if (!button) return;
+    button.disabled = aiBusy;
+    if (aiBusy) button.textContent = "分析中…";
+    else if (aiHasTask) button.textContent = (aiCapability && aiCapability.can_analyze) ? "重新分析" : "查看规则分析";
+    else button.textContent = (aiCapability && aiCapability.can_analyze) ? "开始分析" : "查看规则分析";
+  }
+
+  function pollAiTask(taskId) {
+    if (!taskId) return;
+    if (aiPollTimer) clearTimeout(aiPollTimer);
+    api("/api/coach/tasks/" + encodeURIComponent(taskId)).then(function (res) {
+      if (!res) return;
+      if (!res.ok) { renderAiError(res.data); return; }
+      renderAiTask(res.data);
+      if (res.data.status === "queued" || res.data.status === "running") {
+        aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1200);
+      }
+    }).catch(function () {
+      document.getElementById("ai-hint").textContent = "状态读取暂时失败，稍后自动重试。";
+      aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1800);
+    });
+  }
+
+  function loadAiRecent() {
+    api("/api/coach/insights/recent").then(function (res) {
+      if (!res || !res.ok || !res.data || !Array.isArray(res.data.items)) return;
+      if (res.data.capability) {
+        aiCapability = res.data.capability;
+        if (aiCapability.quota) applyAiQuota(aiCapability.quota);
+        updateAiButton();
+      }
+      if (res.data.quota) applyAiQuota(res.data.quota);
+      if (!res.data.items.length) return;
+      var latest = res.data.items[0];
+      renderAiTask(latest);
+      if (latest.status === "queued" || latest.status === "running") pollAiTask(latest.task_id);
+    }).catch(function () { });
+  }
+
+  function startAiAnalysis() {
+    if (aiBusy) return;
+    aiBusy = true;
+    aiHasTask = true;
+    startAiWaiting();
+    updateAiButton();
+    document.getElementById("ai-status").dataset.state = "queued";
+    document.getElementById("ai-status").textContent = "排队中";
+    document.getElementById("ai-hint").textContent = "正在保存本次分析任务…";
+    api("/api/coach/analyze", { method: "POST", body: {} }).then(function (res) {
+      if (!res) return;
+      if (!res.ok) { renderAiError(res.data); return; }
+      renderAiTask(res.data);
+      if (res.data.status === "queued" || res.data.status === "running") pollAiTask(res.data.task_id);
+    }).catch(function () {
+      renderAiError({ error: "任务提交失败，仍可使用确定性规则分析。" });
+    });
+  }
+
+  function applyAiCapability(capability) {
+    aiCapability = capability || { visible: true, can_analyze: false, message: "AI 暂未配置，仍可使用规则分析。" };
+    var card = document.getElementById("ai-coach-card");
+    card.hidden = aiCapability.visible === false;
+    if (card.hidden) return;
+    applyAiQuota(aiCapability.quota);
+    document.getElementById("ai-hint").textContent = aiText(aiCapability.message, "AI 暂未配置，仍可使用规则分析。");
+    updateAiButton();
+    loadAiRecent();
+  }
+
+  document.getElementById("ai-analyze-button").addEventListener("click", startAiAnalysis);
+  window.addEventListener("pagehide", stopAiWaiting);
+  document.querySelectorAll("[data-ai-feedback]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var feedback = document.getElementById("ai-feedback");
+      var insightId = feedback.dataset.insightId;
+      if (!insightId) return;
+      api("/api/coach/insights/" + encodeURIComponent(insightId) + "/feedback", {
+        method: "POST", body: { helpful: button.dataset.aiFeedback === "1" }
+      }).then(function (res) {
+        if (res && res.ok) {
+          feedback.textContent = "感谢反馈";
+          feedback.hidden = false;
+        }
+      }).catch(function () { });
+    });
+  });
+
   api("/api/me").then(function (res) {
     if (!res || !res.ok) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
     document.getElementById("ghello").textContent = greet(new Date()) + "，" + (res.data.nickname || res.data.username);
@@ -286,6 +647,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     if (!res || !res.ok) return;
     renderDue(res.data.daily);
     renderDash(res.data.dashboard);
+    applyAiCapability(res.data.capabilities && res.data.capabilities.ai_coach);
     return api("/api/plan?count=3");
   }).then(function (res) {
     if (res && res.ok) renderPlan(res.data);
@@ -305,21 +667,25 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 
 <div class="ann-mask" id="annMask" role="dialog" aria-modal="true" aria-label="更新公告">
   <div class="ann-card">
-    <h2>🎉 本次更新</h2>
-    <p class="ann-date">2026-09-07 · 聊天体验优化</p>
-    <h3>聊天体验优化</h3>
+    <h2>🎉 全新 AI 学习分析上线</h2>
+    <p class="ann-date">2026-09-08 · 从刷题记录到个性化学习建议</p>
+    <h3>一键读懂你的学习情况</h3>
     <ul>
-      <li><b>发送更稳定</b>：避免一次发送出现多条重复消息，网络波动后也可以继续重试</li>
-      <li><b>深色模式适配</b>：聊天面板、输入框和消息气泡跟随全站主题切换</li>
-      <li><b>交互更顺畅</b>：打开、收起和重新进入聊天室时状态更可靠，并增加连接异常提示</li>
+      <li><b>AI 个性化分析</b>：点击“一键学习情况分析”，即可结合你的刷题进度、提交表现与复习情况，生成专属总结和下一步学习建议</li>
+      <li><b>动态分析进度</b>：等待期间会显示分析百分比与当前处理阶段，整个过程更加直观</li>
+      <li><b>每日 3 次机会</b>：页面会实时显示今日剩余次数；如确有需要，可联系管理员重置</li>
     </ul>
-    <button class="ann-ok" id="annOk" type="button">知道了，开始学习</button>
+    <h3>刷题衔接更顺手</h3>
+    <ul>
+      <li>“题目与约束”后新增力扣原题入口，读完题目即可前往验证；文末入口继续保留</li>
+    </ul>
+    <button class="ann-ok" id="annOk" type="button">立即体验 AI 学习分析</button>
   </div>
 </div>
 <script>
 (function () {
   var KEY = "forge-ann-seen";
-  var VERSION = "2026-09-07";
+  var VERSION = "2026-09-08-ai-learning-analysis-launch";
   var seen = null;
   try { seen = localStorage.getItem(KEY); } catch (e) {}
   if (seen === VERSION) return;
