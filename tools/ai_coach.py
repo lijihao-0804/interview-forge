@@ -1780,6 +1780,21 @@ def _public_task(row: sqlite3.Row, *, include_context: bool = True) -> dict[str,
     return payload
 
 
+def _public_history_task(row: sqlite3.Row, *, is_latest: bool) -> dict[str, Any]:
+    """Small history projection: display data only, without context or tracing metadata."""
+    task = _public_task(row, include_context=False)
+    context = _parse_json_column(row, "context_preview", {})
+    return {
+        key: task.get(key) for key in (
+            "task_id", "status", "created_at", "started_at", "finished_at",
+            "error_category", "error", "result", "fallback", "insight_id",
+        )
+    } | {
+        "data_as_of": context.get("data_as_of") if isinstance(context, Mapping) else None,
+        "is_latest": is_latest,
+    }
+
+
 def _finish_task_failure(db_path: Path, task_id: str, error: AIServiceError) -> None:
     fallback_json: str | None = None
     with closing(_open_ai_db(db_path)) as connection:
@@ -2038,7 +2053,7 @@ def get_recent_ai_tasks(db_path: Path, username: str, role: str) -> dict[str, An
         ).fetchall()
     return {
         "items": [
-            _public_task(row, include_context=(index == 0))
+            _public_history_task(row, is_latest=(index == 0))
             for index, row in enumerate(rows)
         ],
         "capability": ai_capability(username, role),
