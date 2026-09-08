@@ -1492,6 +1492,31 @@ def chat_messages_after(after_id: int, limit: int = 50) -> list[dict[str, object
         return [dict(r) for r in rows]
 
 
+def chat_messages_before(before_id: int, limit: int = 50) -> tuple[list[dict[str, object]], bool]:
+    """拉取 id < before_id 的最近一页消息，按 id 升序返回，并标明是否还有更早记录。"""
+    limit = max(1, min(limit, 100))
+    with closing(connect_auth()) as connection:
+        rows = connection.execute(
+            "SELECT m.id, m.user_id, u.username AS username, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, "
+            "m.content, m.created_at, u.role FROM chat_messages m JOIN users u ON u.id = m.user_id "
+            "WHERE m.id < ? ORDER BY m.id DESC LIMIT ?", (before_id, limit + 1))
+        items = [dict(r) for r in rows]
+    has_older = len(items) > limit
+    items = items[:limit]
+    items.reverse()
+    return items, has_older
+
+
+def chat_has_older(oldest_id: int | None) -> bool:
+    """判断给定已加载最早消息之前是否仍有聊天记录。"""
+    if oldest_id is None:
+        return False
+    with closing(connect_auth()) as connection:
+        return connection.execute(
+            "SELECT 1 FROM chat_messages WHERE id < ? LIMIT 1", (oldest_id,)
+        ).fetchone() is not None
+
+
 def chat_delete(feedback_id_alias: int) -> dict[str, object]:
     """管理员删除一条消息（公屏治理）。"""
     with closing(connect_auth()) as connection:
@@ -3877,18 +3902,37 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except (OSError, ValueError, json.JSONDecodeError):
                 self.send_json({"error": "搜索索引不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
-        # /api/chat/messages：公屏聊天增量拉取（?after=<id>，-1 取最近 50 条）。
+        # /api/chat/messages：after 拉增量；before 向前分页；两种游标互斥。
         if parsed.path == "/api/chat/messages":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
-            try:
-                after = int(params.get("after", "-1"))
-            except ValueError:
-                after = -1
+            if "after" in params and "before" in params:
+                self.send_json({"error": "after 与 before 不能同时使用"}, HTTPStatus.BAD_REQUEST)
+                return
             try:
                 limit = max(1, min(int(params.get("limit", "50")), 100))
             except ValueError:
-                limit = 50
-            self.send_json({"items": chat_messages_after(after, limit)})
+                self.send_json({"error": "limit 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                return
+            if "before" in params:
+                try:
+                    before = int(params["before"])
+                except ValueError:
+                    self.send_json({"error": "before 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                    return
+                if before <= 0:
+                    self.send_json({"error": "before 必须大于 0"}, HTTPStatus.BAD_REQUEST)
+                    return
+                items, has_older = chat_messages_before(before, limit)
+                self.send_json({"items": items, "has_older": has_older})
+                return
+            try:
+                after = int(params.get("after", "-1"))
+            except ValueError:
+                self.send_json({"error": "after 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                return
+            items = chat_messages_after(after, limit)
+            oldest_id = int(items[0]["id"]) if items else None
+            self.send_json({"items": items, "has_older": chat_has_older(oldest_id) if after < 0 else None})
             return
         # /api/profile：自己的昵称与头像状态。
         if parsed.path == "/api/profile":
