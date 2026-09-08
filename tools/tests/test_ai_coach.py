@@ -917,7 +917,7 @@ class AIDailyQuotaTests(unittest.TestCase):
         self.assertEqual(ai_coach.get_ai_quota(self.db, now=before)["remaining"], 0)
         self.assertEqual(ai_coach.get_ai_quota(self.db, now=after)["remaining"], 3)
 
-    def test_admin_reset_clears_consumed_but_keeps_pending_reservations(self):
+    def test_admin_reset_preserves_used_fact_and_restores_allowance(self):
         day_key, _ = ai_coach._quota_window()
         with ai_coach.closing(ai_coach._open_ai_db(self.db)) as connection:
             connection.execute(
@@ -928,8 +928,14 @@ class AIDailyQuotaTests(unittest.TestCase):
         result = ai_coach.reset_ai_quota(self.db)
         self.assertEqual(result["before_used"], 2)
         self.assertEqual(result["quota"], {
-            "limit": 3, "used": 0, "remaining": 2, "reset_at": result["quota"]["reset_at"]
+            "limit": 3, "used": 2, "remaining": 2, "reset_at": result["quota"]["reset_at"]
         })
+        with ai_coach.closing(ai_coach._open_ai_db(self.db)) as connection:
+            row = connection.execute(
+                "SELECT used, reserved, reset_offset FROM ai_daily_quota WHERE day_key = ?",
+                (day_key,),
+            ).fetchone()
+        self.assertEqual((row["used"], row["reserved"], row["reset_offset"]), (2, 1, 2))
 
     def test_recent_history_is_bounded_safe_and_read_only(self):
         context = context_for("history")
