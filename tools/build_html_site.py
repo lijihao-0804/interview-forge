@@ -33,6 +33,7 @@ import os
 import re
 import shutil
 from concurrent.futures import ProcessPoolExecutor
+from html.parser import HTMLParser
 from pathlib import Path
 
 import markdown
@@ -1292,6 +1293,16 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 VISUAL_A11Y_SCRIPT = r"""
 <script id="hot100-a11y">
 (() => {
+  // 可视化中心的演示卡片由页面脚本动态生成；只处理卡片容器，不拦截全站点击。
+  const ensureVisualCardLinks = () => document.querySelectorAll('#grid a.card').forEach((link) => {
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+  });
+  const visualCardGrid = document.getElementById('grid');
+  if (visualCardGrid) {
+    ensureVisualCardLinks();
+    new MutationObserver(ensureVisualCardLinks).observe(visualCardGrid, { childList: true, subtree: true });
+  }
   const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
   const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
   tabLike.forEach((item) => {
@@ -1400,6 +1411,49 @@ def output_for_markdown(source: Path) -> Path:
 # 不依赖站点根路径；check_hot100.py 判定“失效本地链接”时也按同一换算基准解析。
 def web_rel(from_path: Path, to_path: Path) -> str:
     return os.path.relpath(to_path, from_path.parent).replace(os.sep, "/")
+
+
+def mark_cross_page_links(page: str) -> str:
+    """让普通跨页面链接在新标签页打开，并保留锚点/下载等原生语义。
+
+    这是构建期 DOM 后处理，不拦截 click，也不改认证跳转、同页目录和下载
+    链接。外链和站内跨页链接统一使用 noopener noreferrer，避免 target=_blank
+    带来的反向 tabnabbing。
+    """
+    line_starts = [0]
+    for match in re.finditer("\\n", page):
+        line_starts.append(match.end())
+    replacements: list[tuple[int, int, str]] = []
+
+    class _LinkParser(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() != "a":
+                return
+            raw = self.get_starttag_text() or ""
+            attrs_map = {name.lower(): (value or "") for name, value in attrs}
+            href = attrs_map.get("href", "").strip()
+            lowered = href.lower()
+            if (
+                not href
+                or href.startswith("#")
+                or lowered.startswith(("javascript:", "mailto:", "tel:"))
+                or "download" in attrs_map
+            ):
+                return
+            # 规范化而非追加：可视化页会在已有 HTML 上再次润色，必须清掉
+            # 历史轮次可能留下的重复 target/rel，保证构建幂等。
+            updated = re.sub(r"\s+target\s*=\s*(['\"]).*?\1", "", raw, flags=re.I)
+            updated = re.sub(r"\s+rel\s*=\s*(['\"]).*?\1", "", updated, flags=re.I)
+            updated = updated[:-1] + ' target="_blank" rel="noopener noreferrer">'
+            line, column = self.getpos()
+            start = line_starts[line - 1] + column
+            replacements.append((start, start + len(raw), updated))
+
+    parser = _LinkParser(convert_charrefs=False)
+    parser.feed(page)
+    for start, end, replacement in reversed(replacements):
+        page = page[:start] + replacement + page[end:]
+    return page
 
 
 # 公式转 MathML 的两张白名单表（MathMLParser.command 查表用）：
@@ -2058,6 +2112,7 @@ def render_markdown(source: Path) -> None:
             page = transform_solution_page(page, source, toc)
         except Exception:
             pass  # 转换失败不阻断构建，页面保持原样
+    page = mark_cross_page_links(page)
     output.write_text(page, encoding="utf-8")
 
 
@@ -2169,6 +2224,7 @@ def polish_visual(path: Path) -> None:
     else:
         text = re.sub(r"(?is)</body>", VISUAL_A11Y_SCRIPT + "\n</body>", text, count=1)
     text = text.replace('href="../README.md"', 'href="../guide.html"')
+    text = mark_cross_page_links(text)
     path.write_text(text, encoding="utf-8")
 
 
@@ -2191,7 +2247,7 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>'
+    quick = '<nav class="dashboard-nav"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
         text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)
@@ -2204,6 +2260,7 @@ def update_dashboard() -> None:
                 1,
             )
     text = text.replace(' · <a href="books/hot100/05-可视化/index.html">可视化中心</a>', '')
+    text = mark_cross_page_links(text)
     path.write_text(text, encoding="utf-8")
 
 
@@ -2286,7 +2343,7 @@ async function load(){
     data.items.forEach(item=>{counts[item.category]=(counts[item.category]||0)+1});
     const max=Math.max(1,...Object.values(counts));
     bars.innerHTML=Object.entries(counts).map(([name,n])=>`<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/max*100)}%"></div></div><span class="bar-num">${n}</span></div>`).join('')||'<div class="empty">还没有薄弱题。</div>';
-    document.getElementById('rows').innerHTML=data.items.map(item=>`<tr><td>${item.id}</td><td><a href="${esc(item.note)}">${esc(item.title)}</a></td><td>${esc(item.method)}</td><td>${item.rounds}</td><td>${fmt(item.last_completed_at)}</td><td>${fmt(item.marked_at)}</td><td><button class="remove" type="button" data-remove="${item.id}">移除薄弱</button></td></tr>`).join('');
+    document.getElementById('rows').innerHTML=data.items.map(item=>`<tr><td>${item.id}</td><td><a href="${esc(item.note)}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a></td><td>${esc(item.method)}</td><td>${item.rounds}</td><td>${fmt(item.last_completed_at)}</td><td>${fmt(item.marked_at)}</td><td><button class="remove" type="button" data-remove="${item.id}">移除薄弱</button></td></tr>`).join('');
     document.querySelectorAll('[data-remove]').forEach(btn=>btn.addEventListener('click',async()=>{
       try{
         btn.disabled=true;
@@ -2312,7 +2369,7 @@ load();
 </html>
 '''
     target = ROOT / "books" / "hot100" / "00-总览" / "05-错题本.html"
-    target.write_text(page, encoding="utf-8")
+    target.write_text(mark_cross_page_links(page), encoding="utf-8")
 
 
 # =============================================================================

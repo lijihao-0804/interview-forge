@@ -416,6 +416,8 @@
       if (me.role === "admin") {
         var adminLink = document.createElement("a");
         adminLink.href = "/pages/admin.html";
+        adminLink.target = "_blank";
+        adminLink.rel = "noopener noreferrer";
         adminLink.textContent = "管理后台";
         pill.appendChild(adminLink);
         var sep = document.createElement("span");
