@@ -1104,7 +1104,7 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
             "/api/admin/users/ai-quota/reset", token=admin_token, payload={"username": "Alice"}
         )
         self.assertEqual(status, 201)
-        self.assertEqual(body["quota"]["used"], 0)
+        self.assertEqual(body["quota"]["used"], 2)
         self.assertEqual(body["quota"]["remaining"], 3)
         with server.closing(server.connect_auth()) as connection:
             audit = connection.execute(
@@ -1157,13 +1157,13 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
             "/api/admin/users/ai-quota/reset", token=admin_token,
             payload={"username": "QuotaAlice"},
         )
-        self.assertEqual((reset_body["quota"]["limit"], reset_body["quota"]["used"]), (5, 0))
+        self.assertEqual((reset_body["quota"]["limit"], reset_body["quota"]["used"]), (5, 2))
         status, body, _ = self.request(
             "/api/admin/users/ai-quota/limit", token=admin_token,
             payload={"username": "QuotaAlice", "limit": None},
         )
         self.assertFalse(body["ai_daily_limit_custom"])
-        self.assertEqual((body["quota"]["limit"], body["quota"]["used"]), (3, 0))
+        self.assertEqual((body["quota"]["limit"], body["quota"]["used"]), (3, 2))
         for invalid in (-1, 101, True, "5"):
             status, _body, _ = self.request(
                 "/api/admin/users/ai-quota/limit", token=admin_token,

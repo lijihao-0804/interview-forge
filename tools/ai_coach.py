@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS ai_daily_quota (
     day_key TEXT PRIMARY KEY,
     used INTEGER NOT NULL DEFAULT 0 CHECK (used >= 0),
     reserved INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0),
+    reset_offset INTEGER NOT NULL DEFAULT 0 CHECK (reset_offset >= 0),
     updated_at TEXT NOT NULL
 );
 """
@@ -377,6 +378,14 @@ def ensure_ai_schema(connection: sqlite3.Connection) -> None:
     for name, declaration in required.items():
         if name not in columns:
             connection.execute(f"ALTER TABLE ai_tasks ADD COLUMN {name} {declaration}")
+    quota_columns = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(ai_daily_quota)").fetchall()
+    }
+    if "reset_offset" not in quota_columns:
+        connection.execute(
+            "ALTER TABLE ai_daily_quota ADD COLUMN reset_offset INTEGER NOT NULL DEFAULT 0"
+        )
     connection.execute("CREATE INDEX IF NOT EXISTS ix_ai_tasks_created ON ai_tasks(created_at DESC)")
     connection.execute(
         """CREATE INDEX IF NOT EXISTS ix_ai_tasks_dedupe
@@ -417,14 +426,16 @@ def _quota_from_connection(
         return {"limit": None, "used": 0, "remaining": None, "reset_at": reset_at}
     limit = _validated_daily_limit(daily_limit)
     row = connection.execute(
-        "SELECT used, reserved FROM ai_daily_quota WHERE day_key = ?", (day_key,)
+        "SELECT used, reserved, reset_offset FROM ai_daily_quota WHERE day_key = ?", (day_key,)
     ).fetchone()
     used = int(row["used"]) if row is not None else 0
     reserved = int(row["reserved"]) if row is not None else 0
+    reset_offset = int(row["reset_offset"]) if row is not None else 0
+    chargeable_used = max(0, used - reset_offset)
     return {
         "limit": limit,
         "used": used,
-        "remaining": max(0, limit - used - reserved),
+        "remaining": max(0, limit - chargeable_used - reserved),
         "reset_at": reset_at,
     }
 
@@ -449,7 +460,7 @@ def _reserve_ai_quota(
     )
     cursor = connection.execute(
         """UPDATE ai_daily_quota SET reserved = reserved + 1, updated_at = ?
-           WHERE day_key = ? AND used + reserved < ?""",
+           WHERE day_key = ? AND MAX(0, used - reset_offset) + reserved < ?""",
         (_now_iso(), day_key, limit),
     )
     if cursor.rowcount != 1:
@@ -500,7 +511,8 @@ def _consume_ai_quota(connection: sqlite3.Connection, task_id: str) -> dict[str,
         (current_day, _now_iso()),
     )
     cursor = connection.execute(
-        "UPDATE ai_daily_quota SET used = used + 1, updated_at = ? WHERE day_key = ? AND used < ?",
+        "UPDATE ai_daily_quota SET used = used + 1, updated_at = ? "
+        "WHERE day_key = ? AND MAX(0, used - reset_offset) < ?",
         (_now_iso(), current_day, limit),
     )
     if cursor.rowcount != 1:
@@ -523,15 +535,17 @@ def _consume_ai_quota(connection: sqlite3.Connection, task_id: str) -> dict[str,
 def reset_ai_quota(
     db_path: Path, *, daily_limit: int | None = None, now: datetime | None = None
 ) -> dict[str, Any]:
-    """Reset one ordinary user's current Shanghai-day quota and return the prior usage."""
+    """Restore today's allowance without rewriting the factual used counter."""
     day_key, _ = _quota_window(now)
     with closing(_open_ai_db(db_path)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         before = _quota_from_connection(connection, daily_limit=daily_limit, now=now)
         connection.execute(
-            """INSERT INTO ai_daily_quota(day_key, used, reserved, updated_at)
-               VALUES (?, 0, 0, ?)
-               ON CONFLICT(day_key) DO UPDATE SET used = 0, updated_at = excluded.updated_at""",
+            """INSERT INTO ai_daily_quota(day_key, used, reserved, reset_offset, updated_at)
+               VALUES (?, 0, 0, 0, ?)
+               ON CONFLICT(day_key) DO UPDATE SET
+                   reset_offset = ai_daily_quota.used,
+                   updated_at = excluded.updated_at""",
             (day_key, _now_iso()),
         )
         connection.execute("COMMIT")
