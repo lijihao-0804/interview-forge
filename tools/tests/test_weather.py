@@ -161,8 +161,11 @@ class WeatherTests(unittest.TestCase):
 
     def test_ui_contract(self):
         html = (server.ROOT / "cockpit.html").read_text(encoding="utf-8")
-        self.assertIn("Weather data by Open-Meteo", html)
-        self.assertIn('target="_blank" rel="noopener noreferrer"', html)
+        self.assertNotIn("Weather data by Open-Meteo", html)
+        self.assertNotIn("定位仅在点击后申请", html)
+        self.assertIn(".weather-card{min-width:0", html)
+        self.assertIn("background:transparent", html)
+        self.assertNotIn(".weather-card{border:1px", html)
         self.assertIn('navigator.geolocation.getCurrentPosition', html)
         self.assertEqual(html.count("navigator.geolocation.getCurrentPosition"), 1)
         self.assertIn('navigator.permissions.query({ name: "geolocation" })', html)
@@ -178,6 +181,15 @@ class WeatherTests(unittest.TestCase):
         self.assertIn("系统暂时无法获取位置", html)
         self.assertIn("获取位置超时", html)
         self.assertIn('document.getElementById("weather-geo").addEventListener("click", checkWeatherPermission)', html)
+        self.assertIn('document.getElementById("weather-permission-retry").addEventListener("click", checkWeatherPermission)', html)
+        self.assertEqual(html.count("addEventListener(\"click\", checkWeatherPermission)"), 2)
+        self.assertEqual(html.count("checkWeatherPermission"), 3)  # 定义 + 两个明确点击入口
+        permission_start = html.index("function checkWeatherPermission")
+        permission_end = html.index('document.getElementById("weather-geo")', permission_start)
+        self.assertIn("navigator.permissions.query", html[permission_start:permission_end])
+        position_start = html.index("function requestCurrentWeatherPosition")
+        position_end = html.index("function checkWeatherPermission", position_start)
+        self.assertIn("navigator.geolocation.getCurrentPosition", html[position_start:position_end])
         startup = html[html.index('api("/api/me")'):html.index("/* 聊天室入口")]
         self.assertNotIn("getCurrentPosition", startup)
         self.assertNotIn("permissions.query", startup)
