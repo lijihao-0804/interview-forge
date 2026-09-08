@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sqlite3
 import tempfile
 import threading
@@ -863,6 +864,32 @@ class AIDailyQuotaTests(unittest.TestCase):
             "limit": 3, "used": 0, "remaining": 2, "reset_at": result["quota"]["reset_at"]
         })
 
+    def test_recent_history_is_bounded_safe_and_read_only(self):
+        context = context_for("history")
+        result = {"summary": "历史摘要", "strengths": [], "weaknesses": [], "actions": [],
+                  "confidence": "low", "data_gaps": []}
+        fallback = {"source": "rules-v2", "result": result}
+        with ai_coach.closing(ai_coach._open_ai_db(self.db)) as connection:
+            for index in range(11):
+                connection.execute(
+                    """INSERT INTO ai_tasks(task_id, task, status, snapshot_hash, prompt_version,
+                       model_key, created_at, context_preview, result_json, fallback_json, insight_id)
+                       VALUES (?, 'learning_diagnosis', ?, ?, 'p', 'm', ?, ?, ?, ?, ?)""",
+                    (f"{index:032x}", "succeeded" if index % 3 else "failed", f"{index:064x}",
+                     f"2026-09-08T{index:02d}:00:00+08:00", json.dumps(context, ensure_ascii=False),
+                     json.dumps(result, ensure_ascii=False) if index % 3 else None,
+                     json.dumps(fallback, ensure_ascii=False), f"{index + 20:032x}"))
+            connection.commit()
+        quota_before = ai_coach.get_ai_quota(self.db)
+        history = ai_coach.get_recent_ai_tasks(self.db, "alice", "user")
+        self.assertEqual(len(history["items"]), 10)
+        self.assertTrue(history["items"][0]["is_latest"])
+        self.assertFalse(any(item["is_latest"] for item in history["items"][1:]))
+        encoded = json.dumps(history["items"], ensure_ascii=False)
+        for forbidden in ("context_preview", "trace_map", "raw_output", "snapshot_hash", "model_key", "prompt_version"):
+            self.assertNotIn(forbidden, encoded)
+        self.assertEqual(ai_coach.get_ai_quota(self.db), quota_before)
+
     def test_provider_failure_consumes_but_local_preflight_failure_releases(self):
         env = patch.dict(os.environ, {
             "AI_ENABLED": "1", "AI_PROVIDER": "openai-compatible", "AI_MODEL": "test-model",
@@ -942,6 +969,27 @@ class AICoachPageContractTests(unittest.TestCase):
         self.assertNotIn("setInterval", wait_logic)
         self.assertIn('matchMedia("(prefers-reduced-motion: reduce)")', wait_logic)
         self.assertIn('aria-valuenow', page)
+
+    def test_collapsible_history_mode_contract(self):
+        page = (Path(__file__).resolve().parents[2] / "cockpit.html").read_text(encoding="utf-8")
+        ids = re.findall(r'\bid="([^"]+)"', page)
+        self.assertEqual(len(ids), len(set(ids)))
+        for text in ('id="ai-collapse"', 'aria-controls="ai-body"', 'aria-expanded="true"',
+                     "forge-ai-card-collapsed", "setAiCollapsed", "restoreAiCollapsed",
+                     "最近 10 次分析", "正在查看 ", "返回最新分析"):
+            self.assertIn(text, page)
+        collapse_start = page.index("function setAiCollapsed")
+        poll_start = page.index("function pollAiTask")
+        poll_end = page.index("function loadAiRecent", poll_start)
+        self.assertNotIn("clearTimeout(aiPollTimer)", page[collapse_start:poll_start])
+        self.assertIn("pollAiTask", page[poll_start:poll_end])
+        history_start = page.index("function showAiHistory")
+        history_end = page.index("function returnToLatestAi", history_start)
+        self.assertNotIn("/api/coach/analyze", page[history_start:history_end])
+        start_start = page.index("function startAiAnalysis")
+        start_end = page.index("function applyAiCapability", start_start)
+        self.assertLess(page.index("returnToLatestAi", start_start, start_end),
+                        page.index('/api/coach/analyze', start_start, start_end))
 
 
 class AICoachHTTPTests(unittest.TestCase):
