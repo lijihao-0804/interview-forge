@@ -1605,6 +1605,7 @@ _WEATHER_FRESH_DEFAULT = 30 * 60
 _WEATHER_FRESH_CUSTOM = 15 * 60
 _WEATHER_STALE_MAX = 6 * 60 * 60
 _WEATHER_SEARCH_TTL = 7 * 24 * 60 * 60
+_WEATHER_SEARCH_VERSION = "cn-rank-v2"
 _WEATHER_CACHE: dict[tuple[object, ...], tuple[float, dict[str, object]]] = {}
 _WEATHER_SEARCH_CACHE: dict[str, tuple[float, list[dict[str, object]]]] = {}
 _WEATHER_CACHE_LOCK = threading.Lock()
@@ -1781,11 +1782,47 @@ def weather_for_user(username: str) -> dict[str, object]:
         lock.release()
 
 
+def _normalize_place(value: object) -> str:
+    return re.sub(r"[\s·•,，._-]+", "", unicodedata.normalize("NFKC", str(value)).casefold())
+
+
+def _administrative_name(value: object) -> str:
+    normalized = _normalize_place(value)
+    return normalized[:-1] if normalized.endswith("市") else normalized
+
+
+_CN_MAJOR_CITIES = {
+    "北京", "上海", "天津", "重庆", "南京", "广州", "深圳", "杭州", "成都", "武汉",
+    "西安", "长沙", "郑州", "济南", "沈阳", "长春", "哈尔滨", "合肥", "福州", "南昌",
+    "昆明", "贵阳", "海口", "石家庄", "太原", "兰州", "西宁", "南宁", "呼和浩特",
+    "银川", "乌鲁木齐", "拉萨",
+}
+_PLACE_FEATURE_RANK = {"PPLC": 0, "PPLA": 1, "PPLA2": 2, "PPLA3": 3, "PPL": 4}
+
+
+def _rank_weather_location(item: dict[str, object], query: str) -> tuple[object, ...]:
+    name = _normalize_place(item.get("name"))
+    wanted = _normalize_place(query)
+    name_admin = _administrative_name(item.get("name"))
+    admin1 = _administrative_name(item.get("admin1"))
+    feature = str(item.get("feature_code", "")).upper()
+    population = int(item.get("population") or 0) if str(item.get("population") or "").isdigit() else 0
+    return (
+        0 if name == wanted or name_admin == _administrative_name(query) else 1 if name.startswith(wanted) else 2,
+        0 if name_admin in _CN_MAJOR_CITIES else 1,
+        _PLACE_FEATURE_RANK.get(feature, 8),
+        0 if name_admin and name_admin == admin1 else 1,
+        -population,
+        name, admin1, _normalize_place(item.get("admin2")),
+        round(float(item.get("latitude", 0)), 4), round(float(item.get("longitude", 0)), 4),
+    )
+
+
 def search_weather_locations(query: str) -> list[dict[str, object]]:
     query = query.strip()
     if not (2 <= len(query) <= 50):
         raise ValueError("城市名称需为 2 至 50 个字符")
-    cache_key = query.casefold()
+    cache_key = _WEATHER_SEARCH_VERSION + ":" + _normalize_place(query)
     now = time.monotonic()
     with _WEATHER_CACHE_LOCK:
         cached = _WEATHER_SEARCH_CACHE.get(cache_key)
@@ -1798,20 +1835,39 @@ def search_weather_locations(query: str) -> list[dict[str, object]]:
         if cached and time.monotonic() - cached[0] <= _WEATHER_SEARCH_TTL:
             return [dict(item) for item in cached[1]]
         payload = _weather_http_json("https://geocoding-api.open-meteo.com/v1/search", {
-            "name": query, "count": 8, "language": "zh", "format": "json",
+            "name": query, "count": 20, "language": "zh", "countryCode": "CN", "format": "json",
         })
-        results = []
-        for item in payload.get("results", [])[:8] if isinstance(payload.get("results"), list) else []:
+        candidates: list[dict[str, object]] = []
+        seen: set[tuple[object, ...]] = set()
+        for item in payload.get("results", []) if isinstance(payload.get("results"), list) else []:
             if not isinstance(item, dict):
                 continue
             try:
-                results.append({"city": str(item["name"])[:50], "admin1": str(item.get("admin1", ""))[:50],
-                                "country": str(item.get("country", ""))[:50],
-                                "latitude": round(float(item["latitude"]), 4),
-                                "longitude": round(float(item["longitude"]), 4),
-                                "timezone": str(item.get("timezone") or "auto")[:64]})
+                dedupe_key = (_normalize_place(item["name"]), _normalize_place(item.get("admin1")),
+                              _normalize_place(item.get("admin2")), round(float(item["latitude"]), 2),
+                              round(float(item["longitude"]), 2))
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                candidate = dict(item)
+                candidate["latitude"], candidate["longitude"] = float(item["latitude"]), float(item["longitude"])
+                candidates.append(candidate)
             except (KeyError, TypeError, ValueError):
                 continue
+        candidates.sort(key=lambda item: _rank_weather_location(item, query))
+        results = []
+        seen_region: set[tuple[str, str]] = set()
+        for item in candidates:
+            region_key = (_normalize_place(item.get("name")), _normalize_place(item.get("admin1")))
+            if region_key in seen_region:
+                continue  # 同名同省村镇只保留排序最高的一项
+            seen_region.add(region_key)
+            results.append({"city": str(item["name"])[:50], "admin1": str(item.get("admin1", ""))[:50],
+                            "admin2": str(item.get("admin2", ""))[:50], "country": str(item.get("country", ""))[:50],
+                            "latitude": round(float(item["latitude"]), 4), "longitude": round(float(item["longitude"]), 4),
+                            "timezone": str(item.get("timezone") or "auto")[:64]})
+            if len(results) >= 5:
+                break
         with _WEATHER_CACHE_LOCK:
             if len(_WEATHER_SEARCH_CACHE) >= 256 and cache_key not in _WEATHER_SEARCH_CACHE:
                 oldest = min(_WEATHER_SEARCH_CACHE, key=lambda item: _WEATHER_SEARCH_CACHE[item][0])
