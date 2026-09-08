@@ -111,7 +111,8 @@ CREATE TABLE IF NOT EXISTS ai_tasks (
     context_preview TEXT NOT NULL,
     result_json TEXT,
     fallback_json TEXT NOT NULL,
-    insight_id TEXT
+    insight_id TEXT,
+    quota_limit INTEGER
 );
 CREATE TABLE IF NOT EXISTS ai_insights (
     insight_id TEXT PRIMARY KEY,
@@ -309,14 +310,24 @@ def model_key(config: AIConfig | None = None) -> str:
     return f"{provider}:model-{model_digest}:endpoint-{endpoint_digest}"
 
 
-def ai_capability(username: str, role: str) -> dict[str, Any]:
+def _validated_daily_limit(daily_limit: int | None) -> int:
+    value = AI_DAILY_LIMIT if daily_limit is None else daily_limit
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
+        raise ValueError("每日 AI 分析上限必须是 0~100 的整数")
+    return value
+
+
+def ai_capability(username: str, role: str, daily_limit: int | None = None) -> dict[str, Any]:
     """Return capability state without exposing key, endpoint or raw model name."""
     config = load_ai_config()
     enabled = config.enabled
     configured = config.configured
     allowed = role == "admin" or _beta_allows(config.beta_users, username)
     dependencies = _dependencies_available() if enabled and configured else False
-    if not enabled:
+    effective_limit = None if role == "admin" else _validated_daily_limit(daily_limit)
+    if role != "admin" and effective_limit == 0:
+        status, message = "quota_disabled", "管理员已暂停当前账号的一键 AI 分析。"
+    elif not enabled:
         status, message = "disabled", "AI 分析暂未启用，当前仍可使用规则分析。"
     elif not configured or not dependencies:
         status, message = "not_configured", "AI 分析尚未完成配置，当前仍可使用规则分析。"
@@ -337,7 +348,7 @@ def ai_capability(username: str, role: str) -> dict[str, Any]:
         "status": status,
         "message": message,
         "fallback_available": True,
-        "daily_limit": config.daily_limit_per_user,
+        "daily_limit": effective_limit,
     }
 
 
@@ -357,6 +368,7 @@ def ensure_ai_schema(connection: sqlite3.Connection) -> None:
         "insight_id": "TEXT",
         "quota_day": "TEXT",
         "quota_state": "TEXT NOT NULL DEFAULT 'none'",
+        "quota_limit": "INTEGER",
     }
     columns = {
         str(row[1])
@@ -397,34 +409,39 @@ def _quota_from_connection(
     connection: sqlite3.Connection,
     *,
     role: str = "user",
+    daily_limit: int | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     day_key, reset_at = _quota_window(now)
     if role == "admin":
         return {"limit": None, "used": 0, "remaining": None, "reset_at": reset_at}
+    limit = _validated_daily_limit(daily_limit)
     row = connection.execute(
         "SELECT used, reserved FROM ai_daily_quota WHERE day_key = ?", (day_key,)
     ).fetchone()
     used = int(row["used"]) if row is not None else 0
     reserved = int(row["reserved"]) if row is not None else 0
     return {
-        "limit": AI_DAILY_LIMIT,
+        "limit": limit,
         "used": used,
-        "remaining": max(0, AI_DAILY_LIMIT - used - reserved),
+        "remaining": max(0, limit - used - reserved),
         "reset_at": reset_at,
     }
 
 
 def get_ai_quota(
-    db_path: Path, role: str = "user", *, now: datetime | None = None
+    db_path: Path, role: str = "user", *, daily_limit: int | None = None,
+    now: datetime | None = None
 ) -> dict[str, Any]:
     with closing(_open_ai_db(db_path)) as connection:
-        return _quota_from_connection(connection, role=role, now=now)
+        return _quota_from_connection(connection, role=role, daily_limit=daily_limit, now=now)
 
 
 def _reserve_ai_quota(
-    connection: sqlite3.Connection, task_id: str, *, now: datetime | None = None
+    connection: sqlite3.Connection, task_id: str, *, daily_limit: int | None = None,
+    now: datetime | None = None
 ) -> dict[str, Any]:
+    limit = _validated_daily_limit(daily_limit)
     day_key, _ = _quota_window(now)
     connection.execute(
         "INSERT OR IGNORE INTO ai_daily_quota(day_key, used, reserved, updated_at) VALUES (?, 0, 0, ?)",
@@ -433,19 +450,19 @@ def _reserve_ai_quota(
     cursor = connection.execute(
         """UPDATE ai_daily_quota SET reserved = reserved + 1, updated_at = ?
            WHERE day_key = ? AND used + reserved < ?""",
-        (_now_iso(), day_key, AI_DAILY_LIMIT),
+        (_now_iso(), day_key, limit),
     )
     if cursor.rowcount != 1:
-        quota = _quota_from_connection(connection, now=now)
+        quota = _quota_from_connection(connection, daily_limit=limit, now=now)
         raise AIServiceError(
             "quota", "今天的一键分析次数已用完，请明天再试。",
             status=HTTPStatus.TOO_MANY_REQUESTS, details={"quota": quota},
         )
     connection.execute(
-        "UPDATE ai_tasks SET quota_day = ?, quota_state = 'reserved' WHERE task_id = ?",
-        (day_key, task_id),
+        "UPDATE ai_tasks SET quota_day = ?, quota_state = 'reserved', quota_limit = ? WHERE task_id = ?",
+        (day_key, limit, task_id),
     )
-    return _quota_from_connection(connection, now=now)
+    return _quota_from_connection(connection, daily_limit=limit, now=now)
 
 
 def _release_ai_quota_reservation(connection: sqlite3.Connection, task_id: str) -> None:
@@ -466,10 +483,11 @@ def _release_ai_quota_reservation(connection: sqlite3.Connection, task_id: str) 
 
 def _consume_ai_quota(connection: sqlite3.Connection, task_id: str) -> dict[str, Any]:
     row = connection.execute(
-        "SELECT quota_day, quota_state FROM ai_tasks WHERE task_id = ?", (task_id,)
+        "SELECT quota_day, quota_state, quota_limit FROM ai_tasks WHERE task_id = ?", (task_id,)
     ).fetchone()
     if row is None or str(row["quota_state"]) != "reserved":
         return _quota_from_connection(connection)
+    limit = _validated_daily_limit(row["quota_limit"])
     current_day, _ = _quota_window()
     reserved_day = str(row["quota_day"] or "")
     if reserved_day:
@@ -483,7 +501,7 @@ def _consume_ai_quota(connection: sqlite3.Connection, task_id: str) -> dict[str,
     )
     cursor = connection.execute(
         "UPDATE ai_daily_quota SET used = used + 1, updated_at = ? WHERE day_key = ? AND used < ?",
-        (_now_iso(), current_day, AI_DAILY_LIMIT),
+        (_now_iso(), current_day, limit),
     )
     if cursor.rowcount != 1:
         connection.execute(
@@ -493,21 +511,23 @@ def _consume_ai_quota(connection: sqlite3.Connection, task_id: str) -> dict[str,
         raise AIServiceError(
             "quota", "今天的一键分析次数已用完，请明天再试。",
             status=HTTPStatus.TOO_MANY_REQUESTS,
-            details={"quota": _quota_from_connection(connection)},
+            details={"quota": _quota_from_connection(connection, daily_limit=limit)},
         )
     connection.execute(
         "UPDATE ai_tasks SET quota_state = 'consumed', quota_day = ? WHERE task_id = ?",
         (current_day, task_id),
     )
-    return _quota_from_connection(connection)
+    return _quota_from_connection(connection, daily_limit=limit)
 
 
-def reset_ai_quota(db_path: Path, *, now: datetime | None = None) -> dict[str, Any]:
+def reset_ai_quota(
+    db_path: Path, *, daily_limit: int | None = None, now: datetime | None = None
+) -> dict[str, Any]:
     """Reset one ordinary user's current Shanghai-day quota and return the prior usage."""
     day_key, _ = _quota_window(now)
     with closing(_open_ai_db(db_path)) as connection:
         connection.execute("BEGIN IMMEDIATE")
-        before = _quota_from_connection(connection, now=now)
+        before = _quota_from_connection(connection, daily_limit=daily_limit, now=now)
         connection.execute(
             """INSERT INTO ai_daily_quota(day_key, used, reserved, updated_at)
                VALUES (?, 0, 0, ?)
@@ -515,7 +535,7 @@ def reset_ai_quota(db_path: Path, *, now: datetime | None = None) -> dict[str, A
             (day_key, _now_iso()),
         )
         connection.execute("COMMIT")
-    return {"before_used": before["used"], "quota": get_ai_quota(db_path, now=now)}
+    return {"before_used": before["used"], "quota": get_ai_quota(db_path, daily_limit=daily_limit, now=now)}
 
 
 def _open_ai_db(db_path: Path) -> sqlite3.Connection:
@@ -1932,10 +1952,13 @@ def _prune_tasks(connection: sqlite3.Connection) -> None:
         connection.execute("DELETE FROM ai_tasks WHERE task_id = ?", (task_id,))
 
 
-def create_ai_task(db_path: Path, context: Mapping[str, Any], username: str, role: str) -> dict[str, Any]:
+def create_ai_task(
+    db_path: Path, context: Mapping[str, Any], username: str, role: str,
+    daily_limit: int | None = None,
+) -> dict[str, Any]:
     """Create or reuse one diagnosis task and enqueue it without blocking HTTP."""
     config = load_ai_config()
-    capability = ai_capability(username, role)
+    capability = ai_capability(username, role, daily_limit)
     fallback = build_rule_fallback(context)
     public_fallback = {**fallback, "result": _public_insight(fallback.get("result"), context)}
     if not capability["can_analyze"]:
@@ -1943,6 +1966,7 @@ def create_ai_task(db_path: Path, context: Mapping[str, Any], username: str, rol
             "disabled": HTTPStatus.SERVICE_UNAVAILABLE,
             "not_configured": HTTPStatus.SERVICE_UNAVAILABLE,
             "not_allowed": HTTPStatus.FORBIDDEN,
+            "quota_disabled": HTTPStatus.TOO_MANY_REQUESTS,
         }
         raise AIServiceError(
             str(capability["status"]),
@@ -1974,7 +1998,7 @@ def create_ai_task(db_path: Path, context: Mapping[str, Any], username: str, rol
             connection.execute("COMMIT")
             return {
                 **_public_task(existing, include_context=True), "reused": True,
-                "quota": get_ai_quota(db_path, role),
+                "quota": get_ai_quota(db_path, role, daily_limit=daily_limit),
             }
         task_id = uuid.uuid4().hex
         now = _now_iso()
@@ -2001,7 +2025,7 @@ def create_ai_task(db_path: Path, context: Mapping[str, Any], username: str, rol
             )
             if role != "admin":
                 try:
-                    _reserve_ai_quota(connection, task_id)
+                    _reserve_ai_quota(connection, task_id, daily_limit=daily_limit)
                 except AIServiceError as exc:
                     exc.fallback = public_fallback
                     raise
@@ -2031,21 +2055,26 @@ def create_ai_task(db_path: Path, context: Mapping[str, Any], username: str, rol
     return {
         **_public_task(row, include_context=True),
         "reused": False,
-        "quota": get_ai_quota(db_path, role),
+        "quota": get_ai_quota(db_path, role, daily_limit=daily_limit),
     }
 
 
-def get_ai_task(db_path: Path, task_id: str, role: str = "user") -> dict[str, Any] | None:
+def get_ai_task(
+    db_path: Path, task_id: str, role: str = "user", daily_limit: int | None = None
+) -> dict[str, Any] | None:
     if not AI_TASK_ID_RE.fullmatch(task_id):
         return None
     recover_ai_tasks(db_path)
     with closing(_open_ai_db(db_path)) as connection:
         row = connection.execute("SELECT * FROM ai_tasks WHERE task_id = ?", (task_id,)).fetchone()
-    return ({**_public_task(row, include_context=True), "quota": get_ai_quota(db_path, role)}
+    return ({**_public_task(row, include_context=True),
+             "quota": get_ai_quota(db_path, role, daily_limit=daily_limit)}
             if row is not None else None)
 
 
-def get_recent_ai_tasks(db_path: Path, username: str, role: str) -> dict[str, Any]:
+def get_recent_ai_tasks(
+    db_path: Path, username: str, role: str, daily_limit: int | None = None
+) -> dict[str, Any]:
     recover_ai_tasks(db_path)
     with closing(_open_ai_db(db_path)) as connection:
         rows = connection.execute(
@@ -2056,12 +2085,14 @@ def get_recent_ai_tasks(db_path: Path, username: str, role: str) -> dict[str, An
             _public_history_task(row, is_latest=(index == 0))
             for index, row in enumerate(rows)
         ],
-        "capability": ai_capability(username, role),
-        "quota": get_ai_quota(db_path, role),
+        "capability": ai_capability(username, role, daily_limit),
+        "quota": get_ai_quota(db_path, role, daily_limit=daily_limit),
     }
 
 
-def cancel_ai_task(db_path: Path, task_id: str) -> dict[str, Any]:
+def cancel_ai_task(
+    db_path: Path, task_id: str, role: str = "user", daily_limit: int | None = None
+) -> dict[str, Any]:
     if not AI_TASK_ID_RE.fullmatch(task_id):
         raise AIServiceError("cancelled", "任务不存在或已结束。", status=HTTPStatus.NOT_FOUND)
     recover_ai_tasks(db_path)
@@ -2089,7 +2120,7 @@ def cancel_ai_task(db_path: Path, task_id: str) -> dict[str, Any]:
         else:
             connection.execute("COMMIT")
             raise AIServiceError("cancelled", "任务已结束，不能取消。", status=HTTPStatus.CONFLICT)
-    result = get_ai_task(db_path, task_id)
+    result = get_ai_task(db_path, task_id, role, daily_limit)
     return result or {"task_id": task_id, "status": "cancelled"}
 
 

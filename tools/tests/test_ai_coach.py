@@ -833,6 +833,73 @@ class AIDailyQuotaTests(unittest.TestCase):
         self.assertEqual(quota["remaining"], 0)
         self.assertEqual(quota["used"], 0)
 
+    def test_custom_limits_drive_display_reservation_and_consumption(self):
+        with ai_coach.closing(ai_coach._open_ai_db(self.db)) as connection:
+            for index in range(2):
+                task_id = f"{index + 20:032x}"
+                connection.execute(
+                    """INSERT INTO ai_tasks(task_id, task, status, snapshot_hash, prompt_version,
+                       model_key, created_at, context_preview, fallback_json)
+                       VALUES (?, 'learning_diagnosis', 'queued', ?, 'p', 'm', ?, '{}', '{}')""",
+                    (task_id, chr(97 + index) * 64, ai_coach._now_iso()),
+                )
+                if index == 0:
+                    ai_coach._reserve_ai_quota(connection, task_id, daily_limit=1)
+                    ai_coach._consume_ai_quota(connection, task_id)
+                else:
+                    with self.assertRaises(ai_coach.AIServiceError):
+                        ai_coach._reserve_ai_quota(connection, task_id, daily_limit=1)
+            connection.commit()
+        self.assertEqual(ai_coach.get_ai_quota(self.db, daily_limit=0)["remaining"], 0)
+        self.assertEqual(ai_coach.get_ai_quota(self.db, daily_limit=1)["remaining"], 0)
+        self.assertEqual(ai_coach.get_ai_quota(self.db, daily_limit=5)["remaining"], 4)
+        self.assertEqual(ai_coach.get_ai_quota(self.db)["remaining"], 2)
+        self.assertEqual(ai_coach.get_ai_quota(self.db, "admin"), {
+            "limit": None, "used": 0, "remaining": None,
+            "reset_at": ai_coach.get_ai_quota(self.db, "admin")["reset_at"],
+        })
+
+    def test_custom_limit_validation_and_zero_capability(self):
+        for value in (-1, 101, True, "5"):
+            with self.assertRaises(ValueError):
+                ai_coach.get_ai_quota(self.db, daily_limit=value)
+        capability = ai_coach.ai_capability("alice", "user", 0)
+        self.assertFalse(capability["can_analyze"])
+        self.assertEqual((capability["status"], capability["daily_limit"]), ("quota_disabled", 0))
+
+    def test_custom_limit_one_is_atomic_under_concurrency(self):
+        with ai_coach.closing(ai_coach._open_ai_db(self.db)):
+            pass
+        barrier = threading.Barrier(2)
+        outcomes = []
+        lock = threading.Lock()
+
+        def reserve(index):
+            try:
+                barrier.wait(timeout=2)
+                with ai_coach.closing(ai_coach._open_ai_db(self.db)) as connection:
+                    connection.execute("BEGIN IMMEDIATE")
+                    task_id = f"{index + 40:032x}"
+                    connection.execute(
+                        """INSERT INTO ai_tasks(task_id, task, status, snapshot_hash, prompt_version,
+                           model_key, created_at, context_preview, fallback_json)
+                           VALUES (?, 'learning_diagnosis', 'queued', ?, 'p', 'm', ?, '{}', '{}')""",
+                        (task_id, chr(99 + index) * 64, ai_coach._now_iso()),
+                    )
+                    ai_coach._reserve_ai_quota(connection, task_id, daily_limit=1)
+                    connection.commit()
+                outcome = "allowed"
+            except ai_coach.AIServiceError:
+                outcome = "quota"
+            with lock:
+                outcomes.append(outcome)
+
+        threads = [threading.Thread(target=reserve, args=(index,)) for index in range(2)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(timeout=10)
+        self.assertEqual(sorted(outcomes), ["allowed", "quota"])
+        self.assertEqual(ai_coach.get_ai_quota(self.db, daily_limit=1)["remaining"], 0)
+
     def test_shanghai_midnight_starts_a_new_window(self):
         before = datetime(2026, 9, 8, 15, 59, tzinfo=timezone.utc)
         after = before + timedelta(minutes=2)

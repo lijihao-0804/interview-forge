@@ -28,6 +28,9 @@
   button:hover { background:var(--brand-strong); }
   button.ghost { background:transparent; color:var(--brand); border:1px solid var(--line); font-weight:500; }
   button.mini { padding:3px 10px; font-size:12px; font-weight:500; }
+  .quota-control { display:flex; align-items:center; gap:5px; margin-top:5px; }
+  input.quota-input { width:58px; padding:3px 6px; font-size:12px; }
+  .permanent-badge { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:99px; background:var(--brand-soft); color:var(--brand-strong); font-size:11px; font-weight:600; }
   select.role-select { padding:4px 8px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--surface); font:inherit; font-size:13px; }
   select.role-select:disabled { opacity:.65; cursor:wait; }
   button.mini:disabled { opacity:.55; cursor:not-allowed; }
@@ -192,7 +195,10 @@ function loadUsers() {
     tbody.textContent = "";
     res.data.items.forEach(function (user) {
       var tr = el("tr");
-      tr.appendChild(el("td")).appendChild(document.createTextNode(user.username));
+      var usernameCell = el("td");
+      usernameCell.appendChild(document.createTextNode(user.username));
+      if (user.permanent_admin) usernameCell.appendChild(el("span", "permanent-badge", "永久管理员"));
+      tr.appendChild(usernameCell);
       tr.appendChild(el("td", null, user.nickname || "—"));
       var roleCell = el("td");
       var roleSelect = document.createElement("select");
@@ -204,6 +210,10 @@ function loadUsers() {
         roleSelect.appendChild(optionNode);
       });
       roleSelect.value = user.role;
+      if (user.permanent_admin) {
+        roleSelect.disabled = true;
+        roleSelect.title = "永久管理员账号不能降级";
+      }
       roleSelect.onchange = function () {
         var previousRole = user.role;
         var nextRole = roleSelect.value;
@@ -231,7 +241,57 @@ function loadUsers() {
       status.appendChild(el("span", "tag " + (user.is_active ? "unused" : "off"), user.is_active ? "正常" : "已停用"));
       tr.appendChild(status);
       var quota = user.ai_quota || {};
-      tr.appendChild(el("td", "muted", user.role === "admin" ? "不限" : ((quota.used || 0) + " 已用 · " + (quota.remaining || 0) + " 剩余")));
+      var quotaCell = el("td", "muted");
+      if (user.role === "admin") {
+        quotaCell.textContent = "不限";
+      } else {
+        quotaCell.appendChild(el("div", null,
+          (quota.used || 0) + " 已用 · " + (quota.remaining || 0) + " 剩余 / " + quota.limit));
+        var quotaControl = el("div", "quota-control");
+        var quotaInput = document.createElement("input");
+        quotaInput.className = "quota-input";
+        quotaInput.type = "number";
+        quotaInput.min = "0";
+        quotaInput.max = "100";
+        quotaInput.step = "1";
+        quotaInput.value = String(user.ai_daily_limit_effective == null ? 3 : user.ai_daily_limit_effective);
+        quotaInput.setAttribute("aria-label", user.username + " 每日 AI 分析上限");
+        var quotaSave = el("button", "mini ghost", "保存上限");
+        quotaSave.onclick = function () {
+          var value = Number(quotaInput.value);
+          if (!Number.isInteger(value) || value < 0 || value > 100) {
+            alert("每日 AI 分析上限必须是 0~100 的整数");
+            return;
+          }
+          quotaSave.disabled = true;
+          api("/api/admin/users/ai-quota/limit", { method: "POST",
+            body: JSON.stringify({ username: user.username, limit: value }) })
+            .then(function (limitRes) {
+              if (!limitRes.ok) { alert(limitRes.data.error || "每日上限保存失败"); return; }
+              loadUsers();
+            })
+            .catch(function () { alert("网络错误，每日上限保存失败"); })
+            .finally(function () { quotaSave.disabled = false; });
+        };
+        var quotaDefault = el("button", "mini ghost", "恢复默认(3次)");
+        quotaDefault.disabled = !user.ai_daily_limit_custom;
+        quotaDefault.onclick = function () {
+          quotaDefault.disabled = true;
+          api("/api/admin/users/ai-quota/limit", { method: "POST",
+            body: JSON.stringify({ username: user.username, limit: null }) })
+            .then(function (limitRes) {
+              if (!limitRes.ok) { alert(limitRes.data.error || "恢复默认失败"); return; }
+              loadUsers();
+            })
+            .catch(function () { alert("网络错误，恢复默认失败"); })
+            .finally(function () { quotaDefault.disabled = false; });
+        };
+        quotaControl.appendChild(quotaInput);
+        quotaControl.appendChild(quotaSave);
+        quotaControl.appendChild(quotaDefault);
+        quotaCell.appendChild(quotaControl);
+      }
+      tr.appendChild(quotaCell);
       tr.appendChild(el("td", "muted", fmtTime(user.created_at)));
       tr.appendChild(el("td", "muted", fmtTime(user.last_login)));
       tr.appendChild(el("td", "muted", fmtBytes(user.db_bytes)));
