@@ -108,6 +108,7 @@ except (ImportError, ModuleNotFoundError):  # direct script execution
 try:
     from .ai_coach import (
         AI_DB_SCHEMA,
+        AI_DAILY_LIMIT,
         AIServiceError,
         cancel_ai_task,
         create_ai_task,
@@ -123,6 +124,7 @@ try:
 except (ImportError, ModuleNotFoundError):  # direct script execution
     from ai_coach import (
         AI_DB_SCHEMA,
+        AI_DAILY_LIMIT,
         AIServiceError,
         cancel_ai_task,
         create_ai_task,
@@ -151,6 +153,9 @@ AUTH_DB_PATH = DATA_DIR / "auth.db"
 USERS_DIR = DATA_DIR / "users"
 SESSION_COOKIE = "forge_session"
 SESSION_TTL = timedelta(days=30)
+PERMANENT_ADMIN_USERNAME = "2030309470"
+AI_DAILY_LIMIT_DEFAULT = AI_DAILY_LIMIT
+AI_DAILY_LIMIT_MAX = 100
 # 用户名同时用作 data/users/ 下的目录名：只允许字母数字下划线连字符（2~32 位），
 # 从源头排除路径穿越与特殊字符。
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{2,32}$")
@@ -763,7 +768,8 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
-    last_login TEXT
+    last_login TEXT,
+    ai_daily_limit INTEGER CHECK (ai_daily_limit IS NULL OR (ai_daily_limit >= 0 AND ai_daily_limit <= 100))
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -857,10 +863,22 @@ def connect_auth() -> sqlite3.Connection:
                 except sqlite3.OperationalError:
                     pass  # 已存在
                 try:
+                    connection.execute(
+                        "ALTER TABLE users ADD COLUMN ai_daily_limit INTEGER "
+                        "CHECK (ai_daily_limit IS NULL OR (ai_daily_limit >= 0 AND ai_daily_limit <= 100))"
+                    )
+                except sqlite3.OperationalError:
+                    pass  # 已存在
+                try:
                     connection.execute("ALTER TABLE feedback ADD COLUMN username TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
                     pass  # 已存在
                 reset_invalid_nicknames(connection)
+                # 永久管理员只在账号已存在时纠正角色，绝不创建无密码账号。
+                connection.execute(
+                    "UPDATE users SET role = 'admin' WHERE username = ? AND role <> 'admin'",
+                    (PERMANENT_ADMIN_USERNAME,),
+                )
                 # 启动期顺手清掉过期会话（幂等，不影响运行中新会话）。
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
                 _AUTH_READY = True
@@ -1046,7 +1064,8 @@ def session_user(token: str) -> sqlite3.Row | None:
     row: sqlite3.Row | None = None
     with closing(connect_auth()) as connection:
         row = connection.execute(
-            """SELECT u.id, u.username, u.role, u.is_active, COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
+            """SELECT u.id, u.username, u.role, u.is_active, u.ai_daily_limit,
+                      COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
                FROM sessions s JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1
                  AND NOT EXISTS (
@@ -1156,14 +1175,66 @@ def list_users() -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     with closing(connect_auth()) as connection:
         for row in connection.execute(
-            "SELECT id, username, COALESCE(nickname, '') AS nickname, role, is_active, created_at, last_login, COALESCE(last_seen, last_login) AS last_active FROM users ORDER BY id"
+            "SELECT id, username, COALESCE(nickname, '') AS nickname, role, is_active, "
+            "created_at, last_login, COALESCE(last_seen, last_login) AS last_active, ai_daily_limit "
+            "FROM users ORDER BY id"
         ):
             item = dict(row)
+            item["permanent_admin"] = str(item["username"]) == PERMANENT_ADMIN_USERNAME
+            custom_limit = item.get("ai_daily_limit")
+            effective_limit = AI_DAILY_LIMIT_DEFAULT if custom_limit is None else int(custom_limit)
+            item["ai_daily_limit_custom"] = custom_limit is not None
+            item["ai_daily_limit_effective"] = None if item["role"] == "admin" else effective_limit
             db_file = user_db_path(str(item["username"]))
             item["db_bytes"] = db_file.stat().st_size if db_file.is_file() else 0
-            item["ai_quota"] = get_ai_quota(db_file, str(item["role"]))
+            item["ai_quota"] = get_ai_quota(
+                db_file, str(item["role"]), daily_limit=effective_limit
+            )
             items.append(item)
     return items
+
+
+def effective_ai_daily_limit(user: Mapping[str, object] | sqlite3.Row) -> int:
+    """Return one ordinary user's validated override, falling back to the system default."""
+    value = user["ai_daily_limit"] if "ai_daily_limit" in user.keys() else None
+    return AI_DAILY_LIMIT_DEFAULT if value is None else int(value)
+
+
+def admin_set_user_ai_daily_limit(
+    username: str, daily_limit: int | None, actor_user_id: int
+) -> dict[str, object]:
+    """Set or clear one ordinary user's daily AI limit; changing it never resets usage."""
+    username = username.strip()
+    if not username:
+        raise ValueError("用户名不能为空")
+    if daily_limit is not None and (
+        isinstance(daily_limit, bool) or not isinstance(daily_limit, int)
+        or not 0 <= daily_limit <= AI_DAILY_LIMIT_MAX
+    ):
+        raise ValueError(f"每日 AI 分析上限必须是 0~{AI_DAILY_LIMIT_MAX} 的整数或 null")
+    with closing(connect_auth()) as connection:
+        actor = connection.execute("SELECT id, role FROM users WHERE id = ?", (actor_user_id,)).fetchone()
+        target = connection.execute(
+            "SELECT id, username, role, ai_daily_limit FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if actor is None or str(actor["role"]) != "admin":
+            raise PermissionError("需要管理员权限")
+        if target is None:
+            raise ValueError("用户不存在")
+        if str(target["role"]) == "admin":
+            raise ValueError("管理员账号不设有限 AI 分析额度")
+        connection.execute(
+            "UPDATE users SET ai_daily_limit = ? WHERE id = ?", (daily_limit, int(target["id"]))
+        )
+    effective = AI_DAILY_LIMIT_DEFAULT if daily_limit is None else daily_limit
+    quota = get_ai_quota(
+        user_db_path(str(target["username"])), "user", daily_limit=effective
+    )
+    return {
+        "username": str(target["username"]), "ai_daily_limit": daily_limit,
+        "ai_daily_limit_custom": daily_limit is not None,
+        "ai_daily_limit_effective": effective, "quota": quota,
+    }
 
 
 def admin_reset_user_ai_quota(
@@ -1178,7 +1249,7 @@ def admin_reset_user_ai_quota(
             "SELECT id, role FROM users WHERE id = ?", (actor_user_id,)
         ).fetchone()
         target = connection.execute(
-            "SELECT id, username, role FROM users WHERE username = ?", (username,)
+            "SELECT id, username, role, ai_daily_limit FROM users WHERE username = ?", (username,)
         ).fetchone()
         if actor is None or str(actor["role"]) != "admin":
             raise PermissionError("需要管理员权限")
@@ -1186,7 +1257,10 @@ def admin_reset_user_ai_quota(
             raise ValueError("用户不存在")
         if str(target["role"]) == "admin":
             raise ValueError("不能重置管理员的分析次数")
-        reset = reset_ai_quota(user_db_path(str(target["username"])))
+        reset = reset_ai_quota(
+            user_db_path(str(target["username"])),
+            daily_limit=effective_ai_daily_limit(target),
+        )
         connection.execute("BEGIN IMMEDIATE")
         connection.execute(
             """INSERT INTO ai_quota_reset_audit(
@@ -1230,6 +1304,8 @@ def set_user_role(username: str, role: str, actor_username: str = "") -> dict[st
         if row is None:
             raise ValueError("用户不存在")
         current_role = str(row["role"])
+        if username == PERMANENT_ADMIN_USERNAME and role != "admin":
+            raise ValueError("永久管理员账号不能降级为普通用户")
         if current_role == role:
             connection.execute("COMMIT")
             return {"username": username, "role": role}
@@ -3958,8 +4034,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/bootstrap：面板打开的一次性拉取（dashboard + daily + settings 合并，
         # 省两个 RTT；dashboard 自带 60 秒缓存）。
         if parsed.path == "/api/bootstrap":
-            ai_state = ai_capability(str(user["username"]), str(user["role"]))
-            ai_state["quota"] = get_ai_quota(db, str(user["role"]))
+            user_limit = effective_ai_daily_limit(user)
+            ai_state = ai_capability(str(user["username"]), str(user["role"]), user_limit)
+            ai_state["quota"] = get_ai_quota(
+                db, str(user["role"]), daily_limit=user_limit
+            )
             self.send_json({
                 "dashboard": dashboard_cached(db),
                 "daily": daily_data(db),
@@ -3989,21 +4068,29 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return
         # /api/coach/capability：只返回当前账号的服务端能力状态；不暴露密钥、端点或原始模型名。
         if parsed.path == "/api/coach/capability":
-            capability = ai_capability(str(user["username"]), str(user["role"]))
-            capability["quota"] = get_ai_quota(db, str(user["role"]))
+            user_limit = effective_ai_daily_limit(user)
+            capability = ai_capability(str(user["username"]), str(user["role"]), user_limit)
+            capability["quota"] = get_ai_quota(
+                db, str(user["role"]), daily_limit=user_limit
+            )
             self.send_json({"ai_coach": capability})
             return
         # /api/coach/insights/recent：页面刷新时恢复最近任务，不触发模型调用。
         if parsed.path == "/api/coach/insights/recent":
             try:
-                self.send_json(get_recent_ai_tasks(db, str(user["username"]), str(user["role"])))
+                self.send_json(get_recent_ai_tasks(
+                    db, str(user["username"]), str(user["role"]),
+                    effective_ai_daily_limit(user),
+                ))
             except sqlite3.Error:
                 self.send_json({"error": "分析记录暂时不可用"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
         # /api/coach/tasks/<id>：查询当前用户自己的任务状态和脱敏上下文预览。
         task_match = re.fullmatch(r"/api/coach/tasks/([0-9a-f]{32})", parsed.path)
         if task_match:
-            task = get_ai_task(db, task_match.group(1), str(user["role"]))
+            task = get_ai_task(
+                db, task_match.group(1), str(user["role"]), effective_ai_daily_limit(user)
+            )
             if task is None:
                 self.send_json({"error": "任务不存在或已过期"}, HTTPStatus.NOT_FOUND)
             else:
@@ -4235,7 +4322,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         public_post = {"/api/login", "/api/register", "/api/feedback"}
         admin_post = {"/api/admin/codes", "/api/admin/codes/revoke", "/api/admin/users/toggle",
                       "/api/admin/users/role", "/api/admin/users/nickname/reset",
-                      "/api/admin/users/ai-quota/reset",
+                      "/api/admin/users/ai-quota/reset", "/api/admin/users/ai-quota/limit",
                       "/api/admin/users/reset-password",
                       "/api/admin/feedback/resolve", "/api/admin/chat/delete"}
         known_post = public_post | admin_post | {
@@ -4345,7 +4432,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 )
                 compile_ms = round((time.perf_counter() - compile_started) * 1000, 2)
                 create_started = time.perf_counter()
-                result = create_ai_task(db, context, str(user["username"]), str(user["role"]))
+                result = create_ai_task(
+                    db, context, str(user["username"]), str(user["role"]),
+                    effective_ai_daily_limit(user),
+                )
                 debug_context_metadata: dict[str, object] = {}
                 if os.environ.get("AI_DEBUG_LOG_PATH", "").strip():
                     context_serialized = json.dumps(
@@ -4376,7 +4466,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
             elif cancel_match is not None:
                 if not isinstance(payload, dict) or payload:
                     raise ValueError("请求参数不正确")
-                result = cancel_ai_task(db, cancel_match.group(1))
+                result = cancel_ai_task(
+                    db, cancel_match.group(1), str(user["role"]), effective_ai_daily_limit(user)
+                )
             # /api/coach/insights/<id>/feedback：反馈只写当前用户学习库中的 insight。
             elif feedback_match is not None:
                 if not isinstance(payload, dict) or set(payload) != {"helpful"}:
@@ -4510,6 +4602,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     raise ValueError("请求参数不正确")
                 result = admin_reset_user_ai_quota(
                     str(payload.get("username", "")), int(user["id"])
+                )
+            # 修改每日上限不重置已用次数；null 恢复系统默认值。
+            elif path == "/api/admin/users/ai-quota/limit":
+                if not isinstance(payload, dict) or set(payload) != {"username", "limit"}:
+                    raise ValueError("请求参数不正确")
+                result = admin_set_user_ai_daily_limit(
+                    str(payload.get("username", "")), payload.get("limit"), int(user["id"])
                 )
             # /api/admin/users/reset-password：管理员重置用户密码（重置后该用户全部会话失效）。
             elif path == "/api/admin/users/reset-password":

@@ -1119,6 +1119,98 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("不能重置管理员", body["error"])
 
+    def test_admin_ai_limit_api_updates_effective_quota_without_resetting_usage(self):
+        admin = server.create_user("QuotaAdmin", "admin-pass-1", role="admin")
+        alice = server.create_user("QuotaAlice", "alice-pass-1")
+        admin_token = server.create_session(int(admin["id"]))
+        alice_token = server.create_session(int(alice["id"]))
+        alice_db = server.user_db_path("QuotaAlice")
+        with server.closing(ai_coach._open_ai_db(alice_db)) as connection:
+            day_key, _ = ai_coach._quota_window()
+            connection.execute(
+                "INSERT OR REPLACE INTO ai_daily_quota(day_key, used, reserved, updated_at) VALUES (?, 2, 0, ?)",
+                (day_key, server.now_iso()),
+            )
+            connection.commit()
+
+        status, _body, _ = self.request(
+            "/api/admin/users/ai-quota/limit", token=alice_token,
+            payload={"username": "QuotaAlice", "limit": 5},
+        )
+        self.assertEqual(status, 403)
+        status, body, _ = self.request(
+            "/api/admin/users/ai-quota/limit", token=admin_token,
+            payload={"username": "QuotaAlice", "limit": 1},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual((body["quota"]["used"], body["quota"]["remaining"]), (2, 0))
+        status, body, _ = self.request(
+            "/api/admin/users/ai-quota/limit", token=admin_token,
+            payload={"username": "QuotaAlice", "limit": 5},
+        )
+        self.assertEqual((body["quota"]["limit"], body["quota"]["remaining"]), (5, 3))
+        status, users_body, _ = self.request("/api/admin/users", token=admin_token)
+        listed = next(item for item in users_body["items"] if item["username"] == "QuotaAlice")
+        self.assertEqual(listed["ai_daily_limit_effective"], 5)
+        self.assertTrue(listed["ai_daily_limit_custom"])
+        status, reset_body, _ = self.request(
+            "/api/admin/users/ai-quota/reset", token=admin_token,
+            payload={"username": "QuotaAlice"},
+        )
+        self.assertEqual((reset_body["quota"]["limit"], reset_body["quota"]["used"]), (5, 0))
+        status, body, _ = self.request(
+            "/api/admin/users/ai-quota/limit", token=admin_token,
+            payload={"username": "QuotaAlice", "limit": None},
+        )
+        self.assertFalse(body["ai_daily_limit_custom"])
+        self.assertEqual((body["quota"]["limit"], body["quota"]["used"]), (3, 0))
+        for invalid in (-1, 101, True, "5"):
+            status, _body, _ = self.request(
+                "/api/admin/users/ai-quota/limit", token=admin_token,
+                payload={"username": "QuotaAlice", "limit": invalid},
+            )
+            self.assertEqual(status, 400)
+        status, body, _ = self.request(
+            "/api/admin/users/ai-quota/limit", token=admin_token,
+            payload={"username": "QuotaAdmin", "limit": 5},
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("管理员账号", body["error"])
+
+    def test_permanent_admin_is_repaired_marked_and_cannot_be_demoted(self):
+        server._AUTH_READY = False
+        with server.closing(server.connect_auth()) as connection:
+            self.assertIsNone(connection.execute(
+                "SELECT id FROM users WHERE username = ?", (server.PERMANENT_ADMIN_USERNAME,)
+            ).fetchone())
+        permanent = server.create_user(server.PERMANENT_ADMIN_USERNAME, "permanent-pass-1", role="user")
+        with server.closing(server.connect_auth()) as connection:
+            connection.execute("UPDATE users SET role = 'user' WHERE id = ?", (permanent["id"],))
+        server._AUTH_READY = False
+        with server.closing(server.connect_auth()) as connection:
+            role = connection.execute(
+                "SELECT role FROM users WHERE id = ?", (permanent["id"],)
+            ).fetchone()["role"]
+        self.assertEqual(role, "admin")
+        items = {item["username"]: item for item in server.list_users()}
+        self.assertTrue(items[server.PERMANENT_ADMIN_USERNAME]["permanent_admin"])
+        with self.assertRaisesRegex(ValueError, "永久管理员"):
+            server.set_user_role(server.PERMANENT_ADMIN_USERNAME, "user", "AnotherAdmin")
+
+        other = server.create_user("OtherRoleUser", "other-pass-1")
+        self.assertEqual(server.set_user_role("OtherRoleUser", "admin", server.PERMANENT_ADMIN_USERNAME)["role"], "admin")
+        self.assertEqual(server.set_user_role("OtherRoleUser", "user", server.PERMANENT_ADMIN_USERNAME)["role"], "user")
+
+    def test_admin_page_quota_and_permanent_admin_contract(self):
+        page = (Path(__file__).parents[2] / "pages" / "admin.html").read_text(encoding="utf-8")
+        for marker in (
+            "ai_daily_limit_effective", "ai_daily_limit_custom", "每日 AI 分析上限",
+            "/api/admin/users/ai-quota/limit", "保存上限", "恢复默认(3次)",
+            "永久管理员", "user.permanent_admin", 'roleSelect.disabled = true',
+            "/api/admin/users/ai-quota/reset", "重置今日分析次数",
+        ):
+            self.assertIn(marker, page)
+
 
 if __name__ == "__main__":
     unittest.main()
