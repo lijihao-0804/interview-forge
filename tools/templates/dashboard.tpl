@@ -221,12 +221,12 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html">算法模板</a><a href="pages/history.html">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html">力扣连接</a></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a></nav>
   <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请检查网络后重试；若持续失败请联系管理员。<button id="serverRetry" class="round-button" type="button">重试</button></div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle">
-    <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
+    <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" target="_blank" rel="noopener noreferrer" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
     <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div>
   </section>
   <section class="review-section" aria-labelledby="pickTitle">
@@ -246,7 +246,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   </div>
   <div class="more-section">
   <section class="review-section" aria-labelledby="weakTitle">
-    <div class="review-head"><h2 id="weakTitle">薄弱清单</h2><a class="review-summary" href="books/hot100/00-总览/05-错题本.html">错题本页 →</a>
+    <div class="review-head"><h2 id="weakTitle">薄弱清单</h2><a class="review-summary" href="books/hot100/00-总览/05-错题本.html" target="_blank" rel="noopener noreferrer">错题本页 →</a>
       <div class="export-buttons">
         <button class="round-button" data-online-action type="button" data-export="weak">导出薄弱清单</button>
         <button class="round-button" data-online-action type="button" data-export="anki">导出 Anki CSV</button>
@@ -345,9 +345,9 @@ function renderReview(){
   if(shelfLink) shelfLink.textContent=`书架待复习 ${daily.summary.contents||0} 项 →`;
   let contentsBlock='';
   if(state.settings&&state.settings.review_include_contents==='1'&&daily.contents.length){
-    contentsBlock=`<details class="shelf-due-fold" open><summary>书架章节 ${daily.contents.length} 项（逾期 ${daily.summary.overdue_contents||0}）</summary><div class="shelf-due-list">${daily.contents.map(item=>`<div class="review-item ${item.due_date<daily.today?'due-overdue':''}"><a href="${esc(item.url)}" title="${esc(item.title)}">${esc(item.module_title)} · ${esc(item.title)}</a><span class="due-badge">${item.due_date<daily.today?`逾期 ${esc(item.due_date)}`:`今日 ${esc(item.due_date)}`}</span></div>`).join('')}</div></details>`;
+    contentsBlock=`<details class="shelf-due-fold" open><summary>书架章节 ${daily.contents.length} 项（逾期 ${daily.summary.overdue_contents||0}）</summary><div class="shelf-due-list">${daily.contents.map(item=>`<div class="review-item ${item.due_date<daily.today?'due-overdue':''}"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.module_title)} · ${esc(item.title)}</a><span class="due-badge">${item.due_date<daily.today?`逾期 ${esc(item.due_date)}`:`今日 ${esc(item.due_date)}`}</span></div>`).join('')}</div></details>`;
   }
-  reviewList.innerHTML=(items.length?items.map(item=>`<div class="review-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-badge">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="review-empty">今日没有到期的题目，可以学新题或复习其他内容。</div>')+contentsBlock;
+  reviewList.innerHTML=(items.length?items.map(item=>`<div class="review-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-badge">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="review-empty">今日没有到期的题目，可以学新题或复习其他内容。</div>')+contentsBlock;
 }
 async function loadPick(randomize){
   try{
@@ -355,7 +355,7 @@ async function loadPick(randomize){
     if(!response.ok)throw new Error('pick failed');
     const plan=await response.json();
     const reasonLabels={due:'待复习',weak:'薄弱',new:'新题',fresh:'未学习',low:'轮数较少',pinned:'已排期',relearn:'需重学'};
-    pickCard.innerHTML=plan.items.length?plan.items.map(item=>`<div class="plan-item"><a href="${esc(item.note)}" title="${esc(item.title)}">${item.id}. ${esc(item.title)}</a><span class="pick-meta"><span class="pill">${esc(item.category)}</span><span class="difficulty-${item.difficulty}">${item.difficulty}</span></span><span class="plan-reason ${item.reason}">${reasonLabels[item.reason]||item.reason}</span></div>`).join(''):'<div class="review-empty">暂无计划项，先完成几轮复习吧。</div>';
+    pickCard.innerHTML=plan.items.length?plan.items.map(item=>`<div class="plan-item"><a href="${esc(item.note)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${item.id}. ${esc(item.title)}</a><span class="pick-meta"><span class="pill">${esc(item.category)}</span><span class="difficulty-${item.difficulty}">${item.difficulty}</span></span><span class="plan-reason ${item.reason}">${reasonLabels[item.reason]||item.reason}</span></div>`).join(''):'<div class="review-empty">暂无计划项，先完成几轮复习吧。</div>';
   }catch(_){
     pickCard.innerHTML='<div class="review-empty">计划加载失败，请稍后刷新重试</div>';
   }
@@ -368,7 +368,7 @@ function renderWeak(){
   weakList.innerHTML=items.length?items.map(p=>{
     const manual=marks[String(p.id)]==='weak';
     const auto=!!autoWeak[String(p.id)];
-    return `<li><a href="${esc(p.note)}">${p.id}. ${esc(p.title)}</a><span class="muted">${manual?'手动标记':auto?'AC 通过率低于 50%':''}</span>${manual?`<button class="weak-clear" type="button" data-clear="${p.id}">清除标记</button>`:''}</li>`;
+    return `<li><a href="${esc(p.note)}" target="_blank" rel="noopener noreferrer">${p.id}. ${esc(p.title)}</a><span class="muted">${manual?'手动标记':auto?'AC 通过率低于 50%':''}</span>${manual?`<button class="weak-clear" type="button" data-clear="${p.id}">清除标记</button>`:''}</li>`;
   }).join(''):'<li class="history-empty">还没有薄弱题：提交多次后 AC 通过率低于 50% 会自动进入。</li>';
   weakList.querySelectorAll('[data-clear]').forEach(button=>button.addEventListener('click',()=>setMark(Number(button.dataset.clear),'')));
 }
@@ -477,7 +477,7 @@ function renderCards(){
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱" ${state.online?'':'disabled'}><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱" ${state.online?'':'disabled'}><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='pin-tomorrow'){pinPlan(Number(select.dataset.mark));select.value='';}else setMark(Number(select.dataset.mark),select.value)}));
@@ -564,7 +564,7 @@ function mockRender(){
   if(!mockState)return;
   const list=document.getElementById('mockList');
   const current=mockState.problems[mockState.index];
-  list.innerHTML=`<div class="mock-item"><a href="${esc(current.note)}" target="_blank" rel="noopener">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
+    list.innerHTML=`<div class="mock-item"><a href="${esc(current.note)}" target="_blank" rel="noopener noreferrer">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
   list.querySelector('[data-mock="done"]').addEventListener('click',()=>{mockState.done.push(current.id);mockNext()});
   list.querySelector('[data-mock="skip"]').addEventListener('click',()=>{mockState.skip.push(current.id);mockNext()});
 }
@@ -602,11 +602,11 @@ async function updateLcStatus(){
     const response=await fetchWithTimeout('/api/leetcode/status',{cache:'no-store'});
     const data=await response.json();
     if(!response.ok)throw new Error();
-    if(data.credentials_saved){
+      if(data.credentials_saved){
       if(data.connected){el.textContent=`力扣：已连接 ${data.user_name}`;}
-      else{el.innerHTML='力扣：<a href="pages/leetcode-connect.html" style="color:var(--danger)">会话已失效，点击重新获取</a>';}
-    }else{
-      el.innerHTML='力扣：<a href="pages/leetcode-connect.html">未连接</a>';
+      else{el.innerHTML='力扣：<a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer" style="color:var(--danger)">会话已失效，点击重新获取</a>';}
+      }else{
+      el.innerHTML='力扣：<a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">未连接</a>';
     }
   }catch(error){
     el.textContent='力扣：检测失败';
