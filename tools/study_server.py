@@ -3033,6 +3033,53 @@ def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str,
     return {"connected": False, "reason": "anonymous", "message": "返回匿名数据，会话未生效"}
 
 
+class LeetCodeSyncError(RuntimeError):
+    """可安全返回前端的力扣同步错误；不携带凭证、响应头或内部路径。"""
+
+    def __init__(
+        self,
+        category: str,
+        user_message: str,
+        status: HTTPStatus = HTTPStatus.BAD_GATEWAY,
+    ) -> None:
+        super().__init__(user_message)
+        self.category = category
+        self.user_message = user_message
+        self.status = status
+
+
+def _leetcode_sync_http_error(exc) -> LeetCodeSyncError:
+    """把供应商 HTTP 失败收敛成有限错误类别，响应体仅用于识别挑战页。"""
+    body_head = b""
+    try:
+        body_head = exc.read(500)
+    except Exception:  # noqa: BLE001 - 无响应体时仍按状态码分类
+        pass
+    if b"Just a moment" in body_head:
+        return LeetCodeSyncError(
+            "provider_blocked",
+            "力扣暂时拒绝了服务器连接，请稍后重试",
+            HTTPStatus.BAD_GATEWAY,
+        )
+    if exc.code in (401, 403):
+        return LeetCodeSyncError(
+            "session_invalid",
+            "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+            HTTPStatus.UNAUTHORIZED,
+        )
+    if exc.code == 429:
+        return LeetCodeSyncError(
+            "provider_rate_limited",
+            "力扣请求较频繁，请稍后重试",
+            HTTPStatus.SERVICE_UNAVAILABLE,
+        )
+    return LeetCodeSyncError(
+        "provider_unavailable",
+        "力扣服务暂时不可用，请稍后重试",
+        HTTPStatus.BAD_GATEWAY,
+    )
+
+
 def leetcode_sync(
     credentials: dict[str, str],
     db_path: Path = DB_PATH,
@@ -3050,7 +3097,11 @@ def leetcode_sync(
     import urllib.error
 
     if not credentials.get("leetcode_session"):
-        raise ValueError("未保存力扣会话，请先在“力扣连接”页保存")
+        raise LeetCodeSyncError(
+            "not_configured",
+            "请先前往力扣连接页面填写 LEETCODE_SESSION",
+            HTTPStatus.CONFLICT,
+        )
     headers = _leetcode_headers(credentials)
     results: dict[str, object] = {
         "solved_added": 0, "solved_existing": 0,
@@ -3061,9 +3112,20 @@ def leetcode_sync(
     try:
         data = _fetch_json_with_retry("https://leetcode.cn/api/problems/all/", headers)
     except urllib.error.HTTPError as exc:
-        raise ValueError(f"同步失败：力扣返回 HTTP {exc.code}（会话可能过期或被风控）")
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"同步失败：{type(exc).__name__}: {exc}")
+        raise _leetcode_sync_http_error(exc) from None
+    except Exception:  # noqa: BLE001 - 不把网络异常详情或内部路径返回前端
+        raise LeetCodeSyncError(
+            "network_error",
+            "连接力扣失败，请检查网络后重试",
+            HTTPStatus.BAD_GATEWAY,
+        ) from None
+
+    if not str(data.get("user_name") or ""):
+        raise LeetCodeSyncError(
+            "session_invalid",
+            "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+            HTTPStatus.UNAUTHORIZED,
+        )
 
     if progress is not None:
         progress("已读取力扣题目列表")
@@ -3219,6 +3281,7 @@ def start_leetcode_sync_task(
         "running": True,
         "result": None,
         "error": None,
+        "error_category": None,
         "owner": owner,
     }
 
@@ -3236,8 +3299,12 @@ def start_leetcode_sync_task(
                 full=full,
                 progress=progress,
             )
-        except Exception as exc:  # noqa: BLE001 - 错误交给前端展示
-            task["error"] = str(exc)
+        except LeetCodeSyncError as exc:
+            task["error"] = exc.user_message
+            task["error_category"] = exc.category
+        except Exception:  # noqa: BLE001 - 未预期异常收敛为安全文案，避免泄露内部路径
+            task["error"] = "同步服务暂时不可用，请稍后重试"
+            task["error_category"] = "server_error"
         finally:
             # The worker may have committed rows before a later network or
             # parsing error.  Invalidate on both success and failure, and do it
@@ -3275,6 +3342,7 @@ def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
             "logs": list(task["logs"]),
             "result": task["result"],
             "error": task["error"],
+            "error_category": task.get("error_category"),
         }
 
 
@@ -4135,23 +4203,36 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/leetcode/sync：拉取力扣提交历史入库 —— full=1 全量翻页，否则增量最近 100 条。
             elif path == "/api/leetcode/sync":
                 full = str(payload.get("full", "0")) in ("1", "true", "True")
+                credentials = get_credentials(db)
+                if not credentials.get("leetcode_session"):
+                    raise LeetCodeSyncError(
+                        "not_configured",
+                        "请先前往力扣连接页面填写 LEETCODE_SESSION",
+                        HTTPStatus.CONFLICT,
+                    )
                 if payload.get("async") in (1, True, "1", "true", "True"):
                     result = {
                         "ok": True,
                         "task_id": start_leetcode_sync_task(
-                            get_credentials(db),
+                            credentials,
                             full,
                             owner=str(user["username"]),
                             db_path=db,
                         ),
                     }
                 else:
-                    result = {"ok": True, **leetcode_sync(get_credentials(db), db_path=db, full=full)}
+                    result = {"ok": True, **leetcode_sync(credentials, db_path=db, full=full)}
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
                 clear_credentials(db)
                 lc_status_invalidate(db)
                 result = {"cleared": True}
+        except LeetCodeSyncError as exc:
+            self.send_json(
+                {"error": exc.user_message, "error_category": exc.category},
+                exc.status,
+            )
+            return
         except AnalyticsUnavailableError:
             self.send_json(
                 {"error": "学习分析暂时不可用，请稍后重试", "retryable": True},

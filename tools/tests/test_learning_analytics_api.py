@@ -618,8 +618,9 @@ class LearningAnalyticsAPITests(unittest.TestCase):
         def fake_fetch(url, headers, *args, **kwargs):
             self.assertEqual(headers.get("Cookie"), "LEETCODE_SESSION=test-session")
             if "problems/all" in url:
-                return {"stat_status_pairs": []}
+                return {"user_name": "alice", "stat_status_pairs": []}
             if "submissions" in url:
+                self.assertIn("offset=0&limit=100", url)
                 finished.set()
                 return {
                     "submissions_dump": [{
@@ -640,7 +641,7 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             with patch.object(server, "_fetch_json_with_retry", side_effect=fake_fetch):
                 status, started, _headers = self.request(
                     "/api/leetcode/sync",
-                    payload={"async": True},
+                    payload={"full": False, "async": True},
                 )
                 self.assertEqual(status, 201)
                 task_id = started["task_id"]
@@ -664,9 +665,60 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             self.assertEqual(builder.call_count, 2)
         self.assertFalse(self.default_db.exists())
 
+    def test_async_sync_rejects_missing_session_with_structured_safe_error(self):
+        db_path = self.user_db("alice")
+        create_learning_db(db_path)
+
+        status, body, _headers = self.request(
+            "/api/leetcode/sync",
+            payload={"full": False, "async": True},
+        )
+
+        self.assertEqual(status, 409)
+        self.assertEqual(body["error_category"], "not_configured")
+        self.assertIn("LEETCODE_SESSION", body["error"])
+        self.assertNotIn("Cookie", json.dumps(body, ensure_ascii=False))
+        with server.SYNC_TASKS_LOCK:
+            self.assertFalse(server.SYNC_TASKS)
+
+    def test_async_sync_reports_invalid_session_without_exposing_credential(self):
+        db_path = self.user_db("alice")
+        create_learning_db(db_path)
+        secret = "private-leetcode-session"
+        server.set_credentials({"leetcode_session": secret}, db_path)
+
+        with patch.object(
+            server,
+            "_fetch_json_with_retry",
+            return_value={"user_name": "", "stat_status_pairs": []},
+        ):
+            status, started, _headers = self.request(
+                "/api/leetcode/sync",
+                payload={"full": False, "async": True},
+            )
+            self.assertEqual(status, 201)
+            task_id = started["task_id"]
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                status, task, _headers = self.request(
+                    f"/api/leetcode/sync/status?task_id={quote(task_id)}"
+                )
+                self.assertEqual(status, 200)
+                if not task["running"]:
+                    break
+                time.sleep(0.01)
+            else:
+                self.fail("失效会话同步任务未结束")
+
+        self.assertEqual(task["error_category"], "session_invalid")
+        serialized = json.dumps(task, ensure_ascii=False)
+        self.assertNotIn(secret, serialized)
+        self.assertNotIn("Cookie", serialized)
+
     def test_async_sync_failure_after_write_invalidates_and_wrong_owner_is_denied(self):
         db_path = self.user_db("alice")
         create_learning_db(db_path)
+        server.set_credentials({"leetcode_session": "test-session"}, db_path)
         server.analytics_cached(db_path)
         server.dashboard_cached(db_path)
         entered = threading.Event()
@@ -706,7 +758,8 @@ class LearningAnalyticsAPITests(unittest.TestCase):
                 )
                 self.assertEqual(status, 200)
                 if not task["running"]:
-                    self.assertEqual(task["error"], "sync failed after local write")
+                    self.assertEqual(task["error"], "同步服务暂时不可用，请稍后重试")
+                    self.assertEqual(task["error_category"], "server_error")
                     break
                 time.sleep(0.01)
             else:

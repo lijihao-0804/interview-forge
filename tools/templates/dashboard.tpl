@@ -56,10 +56,21 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .stat .goal-line input{width:52px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:var(--panel-soft);font-size:12px}
 .stat .goal-hint{font-size:11px;color:var(--muted)}
 .dashboard-nav{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 17px}
-.dashboard-nav a{padding:7px 11px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel)}
-.dashboard-nav a:hover{border-color:color-mix(in srgb,var(--brand) 28%,var(--line));color:var(--brand);background:var(--brand-soft);text-decoration:none}
-.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}
-.dashboard-nav a.lc-button:hover{background:var(--brand-strong);border-color:var(--brand-strong);color:#fff}
+.dashboard-nav a,.dashboard-nav button{padding:7px 11px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel)}
+.dashboard-nav button{cursor:pointer}
+.dashboard-nav a:hover,.dashboard-nav button:hover:not(:disabled){border-color:color-mix(in srgb,var(--brand) 28%,var(--line));color:var(--brand);background:var(--brand-soft);text-decoration:none}
+.dashboard-nav .lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}
+.dashboard-nav .lc-button:hover:not(:disabled){background:var(--brand-strong);border-color:var(--brand-strong);color:#fff}
+.dashboard-nav .lc-button:disabled{cursor:wait;opacity:.68}
+.lc-sync-mask{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(10,14,22,.55);backdrop-filter:blur(3px)}
+.lc-sync-mask[hidden]{display:none}
+.lc-sync-dialog{width:min(100%,470px);padding:21px;border:1px solid var(--line);border-radius:16px;color:var(--text);background:var(--panel);box-shadow:0 24px 70px rgba(10,14,22,.28)}
+.lc-sync-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.lc-sync-head h2{margin:0;font-size:20px}.lc-sync-close{width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:9px;color:var(--muted);background:var(--panel-soft);cursor:pointer;font-size:20px;line-height:1}
+.lc-sync-dialog.is-success{border-color:color-mix(in srgb,var(--success) 38%,var(--line))}.lc-sync-dialog.is-error{border-color:color-mix(in srgb,var(--danger) 38%,var(--line))}
+.lc-sync-dialog.is-success .lc-sync-title{color:var(--success)}.lc-sync-dialog.is-error .lc-sync-title{color:var(--danger)}
+.lc-sync-message{margin:13px 0 0;color:var(--muted);white-space:pre-line}.lc-sync-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:20px}
+.lc-sync-actions a,.lc-sync-actions button{padding:7px 12px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel-soft);cursor:pointer}.lc-sync-actions a:hover{color:var(--brand);text-decoration:none}.lc-sync-actions .primary{border-color:var(--brand);color:#fff;background:var(--brand)}
 .notice{margin:0 0 18px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--warning) 7%,var(--panel));color:var(--text)}
 .notice code{padding:.12em .34em;border-radius:4px;background:var(--panel-soft);color:var(--brand)}
 .progress-section{margin:0 0 22px}
@@ -185,7 +196,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:980px){.workspace{grid-template-columns:1fr}.history{order:-1}.history-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px}.history h3{margin-top:0}}
 @media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
-@media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a{padding:6px 8px}}
+@media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 /* 手动主题切换（theme-toggle.js 写入 data-theme） */
 html[data-theme="dark"]{color-scheme:dark;
@@ -221,7 +232,14 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a class="lc-button" href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>
+  <div class="lc-sync-mask" id="leetcodeSyncModal" hidden>
+    <section class="lc-sync-dialog" id="leetcodeSyncDialog" role="dialog" aria-modal="true" aria-labelledby="leetcodeSyncTitle" aria-describedby="leetcodeSyncMessage" tabindex="-1">
+      <div class="lc-sync-head"><h2 class="lc-sync-title" id="leetcodeSyncTitle">力扣同步</h2><button class="lc-sync-close" id="leetcodeSyncClose" type="button" aria-label="关闭同步提示">×</button></div>
+      <p class="lc-sync-message" id="leetcodeSyncMessage"></p>
+      <div class="lc-sync-actions"><a id="leetcodeSyncConnect" href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer" hidden>前往力扣连接</a><button class="primary" id="leetcodeSyncDone" type="button">知道了</button></div>
+    </section>
+  </div>
   <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请检查网络后重试；若持续失败请联系管理员。<button id="serverRetry" class="round-button" type="button">重试</button></div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
@@ -294,6 +312,16 @@ const reviewList=document.getElementById('reviewList');
 const reviewSummary=document.getElementById('reviewSummary');
 const pickCard=document.getElementById('pickCard');
 const weakList=document.getElementById('weakList');
+const leetcodeSyncBtn=document.getElementById('leetcodeSyncBtn');
+const leetcodeSyncModal=document.getElementById('leetcodeSyncModal');
+const leetcodeSyncDialog=document.getElementById('leetcodeSyncDialog');
+const leetcodeSyncTitle=document.getElementById('leetcodeSyncTitle');
+const leetcodeSyncMessage=document.getElementById('leetcodeSyncMessage');
+const leetcodeSyncConnect=document.getElementById('leetcodeSyncConnect');
+const leetcodeSyncClose=document.getElementById('leetcodeSyncClose');
+const leetcodeSyncDone=document.getElementById('leetcodeSyncDone');
+let leetcodeSyncInFlight=false;
+let leetcodeSyncReturnFocus=null;
 function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
   const request=Object.assign({},options||{},{signal:controller.signal});
@@ -304,6 +332,120 @@ function updateOnlineControls(){
   document.querySelectorAll('[data-online-action]').forEach(control=>{control.disabled=!state.online});
   document.querySelectorAll('[data-mark]').forEach(control=>{control.disabled=!state.online});
 }
+function setLeetcodeSyncBusy(busy){
+  leetcodeSyncInFlight=busy;
+  leetcodeSyncBtn.disabled=busy;
+  leetcodeSyncBtn.setAttribute('aria-busy',busy?'true':'false');
+  leetcodeSyncBtn.textContent=busy?'同步中…':'一键同步';
+}
+function openLeetcodeSyncModal(kind,title,message,showConnect=false){
+  leetcodeSyncReturnFocus=document.activeElement;
+  leetcodeSyncDialog.classList.toggle('is-success',kind==='success');
+  leetcodeSyncDialog.classList.toggle('is-error',kind==='error');
+  leetcodeSyncTitle.textContent=title;
+  leetcodeSyncMessage.textContent=message;
+  leetcodeSyncConnect.hidden=!showConnect;
+  leetcodeSyncModal.hidden=false;
+  requestAnimationFrame(()=>leetcodeSyncClose.focus());
+}
+function closeLeetcodeSyncModal(){
+  if(leetcodeSyncModal.hidden)return;
+  leetcodeSyncModal.hidden=true;
+  const target=leetcodeSyncReturnFocus;
+  leetcodeSyncReturnFocus=null;
+  if(target&&typeof target.focus==='function')target.focus();
+}
+async function leetcodeSyncRequest(path,options){
+  const response=await fetchWithTimeout(path,options||{});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const error=new Error(data.error||'请求未完成');
+    error.category=String(data.error_category||'');
+    error.status=response.status;
+    throw error;
+  }
+  return data;
+}
+function leetcodeSyncSummary(data){
+  const seen=Number(data.submissions_seen||0);
+  const added=Number(data.submissions_added||0);
+  const solvedAdded=Number(data.solved_added||0);
+  const warningCount=Array.isArray(data.sync_errors)?data.sync_errors.length:0;
+  let text=`同步成功。本次处理 ${seen} 条提交，新增 ${added} 条记录。`;
+  if(solvedAdded)text+=` 另补充 ${solvedAdded} 条已解决记录。`;
+  if(warningCount)text+=` 有 ${warningCount} 项暂未读取，可稍后再次同步。`;
+  return text;
+}
+function showLeetcodeSyncError(error){
+  const category=String(error&&error.category||'');
+  if(category==='not_configured'){
+    openLeetcodeSyncModal('error','尚未连接力扣','请先前往力扣连接页面填写 LEETCODE_SESSION。',true);
+    return;
+  }
+  if(category==='session_invalid'){
+    openLeetcodeSyncModal('error','力扣会话已失效','LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新 LEETCODE_SESSION。',true);
+    return;
+  }
+  if(Number(error&&error.status)===401){
+    openLeetcodeSyncModal('error','登录状态已失效','当前网站登录状态已失效，请刷新页面并重新登录。');
+    return;
+  }
+  const message=category==='provider_blocked'
+    ?'力扣暂时拒绝了本次连接，请稍后重试；如持续失败，请联系管理员。'
+    :'同步暂时失败，请检查网络后重试；如持续失败，请联系管理员。';
+  openLeetcodeSyncModal('error','同步失败',message);
+}
+async function runLeetcodeIncrementalSync(){
+  if(leetcodeSyncInFlight)return;
+  setLeetcodeSyncBusy(true);
+  try{
+    const connection=await leetcodeSyncRequest('/api/leetcode/status',{cache:'no-store'});
+    if(!connection.credentials_saved){
+      const error=new Error('not configured');error.category='not_configured';throw error;
+    }
+    if(!connection.connected){
+      const error=new Error('connection unavailable');
+      error.category=['expired','anonymous','no-session'].includes(String(connection.reason||''))?'session_invalid':String(connection.reason||'provider_unavailable');
+      throw error;
+    }
+    const start=await leetcodeSyncRequest('/api/leetcode/sync',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full:false,async:true})
+    });
+    if(!start.task_id)throw new Error('task unavailable');
+    while(true){
+      await new Promise(resolve=>setTimeout(resolve,1000));
+      const task=await leetcodeSyncRequest('/api/leetcode/sync/status?task_id='+encodeURIComponent(start.task_id),{cache:'no-store'});
+      if(task.running)continue;
+      if(task.error){
+        const error=new Error('sync failed');
+        error.category=String(task.error_category||'server_error');
+        throw error;
+      }
+      const result=task.result||{};
+      await refresh();
+      openLeetcodeSyncModal('success','同步完成',leetcodeSyncSummary(result));
+      return;
+    }
+  }catch(error){
+    showLeetcodeSyncError(error);
+  }finally{
+    setLeetcodeSyncBusy(false);
+  }
+}
+leetcodeSyncBtn.addEventListener('click',runLeetcodeIncrementalSync);
+leetcodeSyncClose.addEventListener('click',closeLeetcodeSyncModal);
+leetcodeSyncDone.addEventListener('click',closeLeetcodeSyncModal);
+leetcodeSyncModal.addEventListener('click',event=>{if(event.target===leetcodeSyncModal)closeLeetcodeSyncModal()});
+document.addEventListener('keydown',event=>{
+  if(leetcodeSyncModal.hidden)return;
+  if(event.key==='Escape'){event.preventDefault();closeLeetcodeSyncModal();return}
+  if(event.key!=='Tab')return;
+  const focusable=[...leetcodeSyncDialog.querySelectorAll('a:not([hidden]),button:not([disabled])')];
+  if(!focusable.length)return;
+  const first=focusable[0],last=focusable[focusable.length-1];
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+});
 
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;category.appendChild(option)});
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
