@@ -128,13 +128,59 @@ class WeatherTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertNotIn("population", first[0])
 
+    def test_shanghai_ranking_deduplicates_noise_and_versions_cache(self):
+        upstream = {"results": [
+            {"name": "上海", "admin1": "云南", "admin2": "曲靖", "country": "中国", "country_code": "CN",
+             "latitude": 25.1, "longitude": 103.8, "timezone": "Asia/Shanghai", "feature_code": "PPL", "population": 300},
+            {"name": "上海", "admin1": "浙江", "admin2": "台州", "country": "中国", "country_code": "CN",
+             "latitude": 28.7, "longitude": 121.3, "timezone": "Asia/Shanghai", "feature_code": "PPL", "population": 800},
+            {"name": "上海", "admin1": "上海市", "admin2": "", "country": "中国", "country_code": "CN",
+             "latitude": 31.2222, "longitude": 121.4581, "timezone": "Asia/Shanghai", "feature_code": "PPLA", "population": 24874500},
+            {"name": "上海", "admin1": "云南", "admin2": "曲靖", "country": "中国", "country_code": "CN",
+             "latitude": 25.1001, "longitude": 103.8001, "timezone": "Asia/Shanghai", "feature_code": "PPL", "population": 200},
+            {"name": "上海", "admin1": "四川", "admin2": "达州", "country": "中国", "country_code": "CN",
+             "latitude": 31.0, "longitude": 107.5, "timezone": "Asia/Shanghai", "feature_code": "PPL", "population": 100},
+        ]}
+        with patch.object(server, "_weather_http_json", return_value=upstream) as mocked:
+            results = server.search_weather_locations("上海")
+        self.assertEqual(results[0]["admin1"], "上海市")
+        self.assertLessEqual(len(results), 5)
+        self.assertEqual(sum(item["admin1"] == "云南" for item in results), 1)
+        params = mocked.call_args.args[1]
+        self.assertEqual((params["language"], params["countryCode"], params["count"]), ("zh", "CN", 20))
+        with server._WEATHER_CACHE_LOCK:
+            self.assertTrue(any(key.startswith(server._WEATHER_SEARCH_VERSION + ":")
+                                for key in server._WEATHER_SEARCH_CACHE))
+
+    def test_major_city_exact_result_beats_town(self):
+        beijing = {"name": "北京", "admin1": "北京市", "feature_code": "PPLA", "population": 21000000,
+                   "latitude": 39.9, "longitude": 116.4}
+        town = {"name": "北京村", "admin1": "云南省", "feature_code": "PPL", "population": 50,
+                "latitude": 25.0, "longitude": 102.0}
+        self.assertLess(server._rank_weather_location(beijing, "北京"), server._rank_weather_location(town, "北京"))
+
     def test_ui_contract(self):
         html = (server.ROOT / "cockpit.html").read_text(encoding="utf-8")
         self.assertIn("Weather data by Open-Meteo", html)
         self.assertIn('target="_blank" rel="noopener noreferrer"', html)
         self.assertIn('navigator.geolocation.getCurrentPosition', html)
-        self.assertLess(html.index('addEventListener("click", function ()', html.index('weather-geo')),
-                        html.index('navigator.geolocation.getCurrentPosition'))
+        self.assertEqual(html.count("navigator.geolocation.getCurrentPosition"), 1)
+        self.assertIn('navigator.permissions.query({ name: "geolocation" })', html)
+        self.assertIn('status.state === "denied"', html)
+        self.assertIn('status.state === "granted"', html)
+        self.assertIn('status.state === "prompt"', html)
+        self.assertIn('error.code === 1', html)
+        self.assertIn('!navigator.permissions || typeof navigator.permissions.query !== "function"', html)
+        self.assertIn("网页无法代为修改浏览器权限", html)
+        self.assertIn("地址栏左侧的网站信息或权限图标", html)
+        self.assertIn("重新检测权限", html)
+        self.assertIn("改为选择城市", html)
+        self.assertIn("系统暂时无法获取位置", html)
+        self.assertIn("获取位置超时", html)
+        self.assertIn('document.getElementById("weather-geo").addEventListener("click", checkWeatherPermission)', html)
+        startup = html[html.index('api("/api/me")'):html.index("/* 聊天室入口")]
+        self.assertNotIn("getCurrentPosition", startup)
+        self.assertNotIn("permissions.query", startup)
         self.assertIn("@media(max-width:720px)", html)
         self.assertIn("weather-modal-status", html)
 

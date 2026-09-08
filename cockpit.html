@@ -75,6 +75,7 @@ html[data-theme="dark"] .clock{text-shadow:0 0 44px color-mix(in srgb,var(--bran
 .weather-search{width:100%;margin-top:13px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);color:var(--text);padding:10px 12px;font:inherit}
 .weather-results{display:grid;gap:7px;margin-top:10px}.weather-result{width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);color:var(--text);padding:9px 11px;font:inherit;cursor:pointer}.weather-result:hover,.weather-result:focus{border-color:var(--brand)}
 .weather-modal-status{margin-top:9px;color:var(--muted);font-size:13px}
+.weather-permission{margin-top:13px}.weather-permission[hidden],.weather-city-panel[hidden]{display:none}.weather-permission p{margin-top:8px;color:var(--muted);font-size:13px}.weather-permission-steps{margin:10px 0 0;padding-left:1.35em;font-size:13px}.weather-permission-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.weather-permission-actions button{border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--text);padding:7px 11px;font:inherit;cursor:pointer}.weather-permission-actions .primary{border-color:var(--brand);background:var(--brand);color:#fff}
 
 /* ===== Bento ===== */
 .bento{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.15fr);gap:18px;
@@ -228,9 +229,17 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   <div class="weather-modal" id="weather-modal" hidden>
     <div class="weather-dialog" role="dialog" aria-modal="true" aria-labelledby="weather-modal-title">
       <div class="weather-dialog-head"><h2 id="weather-modal-title">选择城市</h2><button class="weather-close" id="weather-close" type="button" aria-label="关闭">×</button></div>
-      <input class="weather-search" id="weather-search" type="search" maxlength="50" autocomplete="off" placeholder="输入至少 2 个字符，如南京、上海">
-      <p class="weather-modal-status" id="weather-modal-status" aria-live="polite">输入城市名称开始搜索</p>
-      <div class="weather-results" id="weather-results"></div>
+      <div class="weather-city-panel" id="weather-city-panel">
+        <input class="weather-search" id="weather-search" type="search" maxlength="50" autocomplete="off" placeholder="输入至少 2 个字符，如南京、上海">
+        <p class="weather-modal-status" id="weather-modal-status" aria-live="polite">输入城市名称开始搜索</p>
+        <div class="weather-results" id="weather-results"></div>
+      </div>
+      <div class="weather-permission" id="weather-permission" hidden>
+        <strong>浏览器已禁止本站获取位置</strong>
+        <p>网页无法代为修改浏览器权限。请按下面步骤允许定位：</p>
+        <ol class="weather-permission-steps"><li>点击地址栏左侧的网站信息或权限图标</li><li>找到“位置”，选择“允许”</li><li>返回本页并点击“重新检测权限”</li></ol>
+        <div class="weather-permission-actions"><button class="primary" id="weather-permission-retry" type="button">重新检测权限</button><button id="weather-permission-city" type="button">改为选择城市</button></div>
+      </div>
     </div>
   </div>
 
@@ -361,7 +370,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 
   /* ---- 天气：独立加载，失败不影响中控台其它数据 ---- */
-  var weatherBusy = false, weatherSearchTimer = null, weatherReturnFocus = null;
+  var weatherBusy = false, weatherSearchTimer = null, weatherReturnFocus = null, weatherPermissionStatus = null;
   function weatherNumber(value) { return Math.round(Number(value)); }
   function setWeatherBusy(busy) {
     weatherBusy = busy;
@@ -401,14 +410,25 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
       document.getElementById("weather-state").textContent = "位置保存失败，请稍后重试";
     }).finally(function () { setWeatherBusy(false); });
   }
-  function openWeatherModal() {
+  function clearWeatherPermissionListener() {
+    if (weatherPermissionStatus) weatherPermissionStatus.onchange = null;
+    weatherPermissionStatus = null;
+  }
+  function showWeatherCityPanel() {
+    document.getElementById("weather-modal-title").textContent = "选择城市";
+    document.getElementById("weather-city-panel").hidden = false;
+    document.getElementById("weather-permission").hidden = true;
+    document.getElementById("weather-search").focus();
+  }
+  function openWeatherModal(mode) {
     weatherReturnFocus = document.activeElement;
     var modal = document.getElementById("weather-modal");
     modal.hidden = false; modal.classList.add("open");
-    document.getElementById("weather-search").focus();
+    if (mode === "permission") showWeatherPermissionGuide(); else showWeatherCityPanel();
   }
   function closeWeatherModal() {
     clearTimeout(weatherSearchTimer);
+    clearWeatherPermissionListener();
     var modal = document.getElementById("weather-modal");
     modal.classList.remove("open"); modal.hidden = true;
     if (weatherReturnFocus && weatherReturnFocus.focus) weatherReturnFocus.focus();
@@ -418,7 +438,10 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     if (!items.length) { document.getElementById("weather-modal-status").textContent = "没有找到匹配城市"; return; }
     document.getElementById("weather-modal-status").textContent = "请选择一个城市";
     items.forEach(function (item) {
-      var label = [item.city, item.admin1, item.country].filter(Boolean).join(" · ");
+      var cityBase = String(item.city || "").replace(/市$/, ""), adminBase = String(item.admin1 || "").replace(/市$/, "");
+      var label = cityBase && cityBase === adminBase
+        ? [String(item.admin1 || item.city), item.country].filter(Boolean).join(" · ")
+        : [item.city, item.admin1, item.admin2, item.country].filter(Boolean).join(" · ");
       var button = el("button", "weather-result", label); button.type = "button";
       button.addEventListener("click", function () {
         saveWeatherPreference({ mode: "city", display_name: item.city, latitude: item.latitude,
@@ -427,7 +450,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
       results.appendChild(button);
     });
   }
-  document.getElementById("weather-city").addEventListener("click", openWeatherModal);
+  document.getElementById("weather-city").addEventListener("click", function () { openWeatherModal("city"); });
   document.getElementById("weather-close").addEventListener("click", closeWeatherModal);
   document.getElementById("weather-modal").addEventListener("click", function (event) { if (event.target === this) closeWeatherModal(); });
   document.getElementById("weather-modal").addEventListener("keydown", function (event) {
@@ -454,22 +477,58 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   });
   document.getElementById("weather-refresh").addEventListener("click", function () { if (!weatherBusy) loadWeather(); });
   document.getElementById("weather-reset").addEventListener("click", function () { saveWeatherPreference({ mode: "default" }); });
-  document.getElementById("weather-geo").addEventListener("click", function () {
+  function showWeatherPermissionGuide(permissionStatus) {
+    var modal = document.getElementById("weather-modal");
+    if (!modal.classList.contains("open")) {
+      weatherReturnFocus = document.activeElement;
+      modal.hidden = false; modal.classList.add("open");
+    }
+    document.getElementById("weather-modal-title").textContent = "允许位置权限";
+    document.getElementById("weather-city-panel").hidden = true;
+    document.getElementById("weather-permission").hidden = false;
+    document.getElementById("weather-permission-retry").focus();
+    clearWeatherPermissionListener();
+    if (permissionStatus) {
+      weatherPermissionStatus = permissionStatus;
+      permissionStatus.onchange = function () {
+        if (permissionStatus.state === "granted") {
+          document.getElementById("weather-state").textContent = "位置权限已允许，请点击重新检测";
+        }
+      };
+    }
+  }
+  function requestCurrentWeatherPosition() {
+    setWeatherBusy(true); document.getElementById("weather-state").textContent = "正在获取大致位置…";
+    navigator.geolocation.getCurrentPosition(function (position) {
+      var lat = Math.round(position.coords.latitude * 100) / 100;
+      var lon = Math.round(position.coords.longitude * 100) / 100;
+      setWeatherBusy(false); closeWeatherModal();
+      saveWeatherPreference({ mode: "geolocation", latitude: lat, longitude: lon });
+    }, function (error) {
+      setWeatherBusy(false);
+      if (error.code === 1) { showWeatherPermissionGuide(); return; }
+      var messages = { 2: "系统暂时无法获取位置", 3: "获取位置超时，请稍后重试" };
+      document.getElementById("weather-state").textContent = messages[error.code] || "定位失败，请稍后重试";
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+  }
+  function checkWeatherPermission() {
     if (weatherBusy) return;
     if (!window.isSecureContext && location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
       document.getElementById("weather-state").textContent = "当前位置需要 HTTPS 安全连接"; return;
     }
     if (!navigator.geolocation) { document.getElementById("weather-state").textContent = "当前浏览器不支持定位"; return; }
-    setWeatherBusy(true); document.getElementById("weather-state").textContent = "正在获取大致位置…";
-    navigator.geolocation.getCurrentPosition(function (position) {
-      var lat = Math.round(position.coords.latitude * 100) / 100;
-      var lon = Math.round(position.coords.longitude * 100) / 100;
-      setWeatherBusy(false); saveWeatherPreference({ mode: "geolocation", latitude: lat, longitude: lon });
-    }, function (error) {
-      var messages = { 1: "未获得定位权限", 2: "暂时无法获取位置", 3: "获取位置超时" };
-      document.getElementById("weather-state").textContent = messages[error.code] || "定位失败，请稍后重试";
-      setWeatherBusy(false);
-    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+    if (!navigator.permissions || typeof navigator.permissions.query !== "function") { requestCurrentWeatherPosition(); return; }
+    navigator.permissions.query({ name: "geolocation" }).then(function (status) {
+      if (status.state === "denied") showWeatherPermissionGuide(status);
+      else if (status.state === "granted") requestCurrentWeatherPosition();
+      else if (status.state === "prompt") requestCurrentWeatherPosition(); // 触发浏览器原生询问
+      else requestCurrentWeatherPosition();
+    }).catch(function () { requestCurrentWeatherPosition(); });
+  }
+  document.getElementById("weather-geo").addEventListener("click", checkWeatherPermission);
+  document.getElementById("weather-permission-retry").addEventListener("click", checkWeatherPermission);
+  document.getElementById("weather-permission-city").addEventListener("click", function () {
+    clearWeatherPermissionListener(); showWeatherCityPanel();
   });
 
   function renderDue(daily) {
