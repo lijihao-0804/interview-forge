@@ -30,6 +30,9 @@
         ".forge-panel .fp-head h3{margin:0;font-size:14px}" +
         ".forge-panel .fp-head .fp-sub{font-size:11px;color:var(--muted,#66748a);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
         ".forge-panel .fp-head .fp-close{margin-left:auto;border:0;background:transparent;color:var(--muted,#66748a);cursor:pointer;font-size:14px;padding:2px 6px}" +
+        ".forge-panel .fcp-older{display:flex;align-items:center;justify-content:center;min-height:30px;padding:4px 12px;border-bottom:1px solid var(--line,#dfe4ee);font-size:12px;color:var(--muted,#66748a)}" +
+        ".forge-panel .fcp-older button{border:0;background:transparent;color:var(--brand,#5654d4);font:inherit;font-weight:600;cursor:pointer;padding:3px 8px;border-radius:7px}" +
+        ".forge-panel .fcp-older button:hover{background:var(--brand-soft,#eeedff)}.forge-panel .fcp-older button:disabled{cursor:default;opacity:.65}" +
         ".forge-panel .fcp-status{min-height:18px;padding:0 12px 5px;color:var(--muted,#66748a);font-size:12px}" +
         "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));padding:4px 6px 4px 10px}" +
         ".forge-panel{right:10px;bottom:calc(58px + env(safe-area-inset-bottom))}}";
@@ -55,9 +58,10 @@
       /* ===================== 悬浮聊天室（公屏） ===================== */
       var chatTimer = null;
       var chatState = {
-        lastId: -1, lastTime: null, myName: "", myRole: "user",
+        oldestId: null, latestId: -1, hasOlder: true, olderLoading: false,
+        myName: "", myRole: "user", messages: [], messageById: Object.create(null),
         pollInFlight: false, pollAgain: false, sendInFlight: false,
-        renderedIds: Object.create(null), renderedOrder: [], generation: 0
+        generation: 0
       };
       var CHAT_COLORS = ["#5654d4", "#157a52", "#a85b00", "#b3372f", "#4543bd", "#0f766e"];
       var unread = 0, seenId = -1, unreadTimer = null, unreadInFlight = false, baseTitle = document.title;
@@ -85,13 +89,15 @@
         var panelGeneration = chatState.generation;
         chatState.myName = me.username;
         chatState.myRole = me.role;
-        chatState.lastId = -1;      // 重置增量游标：重新加载最近 50 条，否则旧游标导致面板卡在加载中
-        chatState.lastTime = null;
+        chatState.oldestId = null;
+        chatState.latestId = -1;    // 重置增量游标：重新加载最近 50 条，否则旧游标导致面板卡在加载中
+        chatState.hasOlder = true;
+        chatState.olderLoading = false;
+        chatState.messages = [];
+        chatState.messageById = Object.create(null);
         chatState.pollInFlight = false;
         chatState.pollAgain = false;
         chatState.sendInFlight = false;
-        chatState.renderedIds = Object.create(null);
-        chatState.renderedOrder = [];
         setUnread(0);               // 打开面板即视为全部已读
         var panel = document.createElement("div");
         panel.id = "forge-chat-panel";
@@ -100,6 +106,7 @@
         panel.innerHTML =
           '<div class="fp-head"><h3>聊天室</h3><span class="fp-sub">公屏 · 所有人可见 · 请文明发言</span>' +
           '<button class="fp-close" type="button">✕</button></div>' +
+          '<div class="fcp-older"><button id="fcp-load-older" type="button">加载更早消息</button><span id="fcp-older-state" aria-live="polite" hidden></span></div>' +
           '<div id="fcp-msgs" style="flex:1;overflow-y:auto;padding:12px 12px 4px;display:flex;flex-direction:column;gap:9px;background:var(--surface,var(--panel,#fff))">' +
           '<div style="color:var(--muted,#66748a);font-size:13px;padding:8px">加载中…</div></div>' +
           '<div class="fcp-status" id="fcp-status" aria-live="polite"></div>' +
@@ -121,7 +128,7 @@
               "color:#fff;font-weight:700;font-size:14px;background:" + CHAT_COLORS[(username || "").length % CHAT_COLORS.length];
             img.replaceWith(d);
           };
-          img.src = "/api/avatar/" + encodeURIComponent(username) + "?t=" + Date.now();
+          img.src = "/api/avatar/" + encodeURIComponent(username);
           return img;
         }
         function fmtDivider(iso) {
@@ -136,23 +143,34 @@
           status.textContent = message || "";
           status.style.color = isError ? "var(--danger,#c1363e)" : "var(--muted,#66748a)";
         }
-        function addMessage(m, isInit) {
-          if (m == null || m.id == null || chatState.renderedIds[m.id]) return false;
-          chatState.renderedIds[m.id] = true;
-          chatState.renderedOrder.push(m.id);
-          if (chatState.renderedOrder.length > 1000) {
-            delete chatState.renderedIds[chatState.renderedOrder.shift()];
+        function mergeMessages(items) {
+          var changed = false;
+          (items || []).forEach(function (m) {
+            if (m == null || m.id == null || chatState.messageById[m.id]) return;
+            chatState.messageById[m.id] = m;
+            chatState.messages.push(m);
+            changed = true;
+          });
+          if (!changed) return false;
+          chatState.messages.sort(function (a, b) { return a.id - b.id; });
+          // 服务端只保留 2000 条；客户端保留完整同等窗口，支持连续向前浏览且不裁掉刚加载的旧消息。
+          if (chatState.messages.length > 2000) {
+            var removed = chatState.messages.splice(0, chatState.messages.length - 2000);
+            removed.forEach(function (m) { delete chatState.messageById[m.id]; });
           }
-          var nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 90;
+          chatState.oldestId = chatState.messages.length ? chatState.messages[0].id : null;
+          chatState.latestId = chatState.messages.length ? chatState.messages[chatState.messages.length - 1].id : -1;
+          return true;
+        }
+        function appendMessageNode(m, previousTime) {
           var isSelf = m.username === chatState.myName;
-          // QQ 式时间分隔：距上一条消息超过 5 分钟（或本批首条）时居中显示一次时间
           var ts = new Date(m.created_at).getTime();
-          if (!chatState.lastTime || ts - chatState.lastTime > 5 * 60 * 1000) {
+          // 时间分隔根据完整有序模型重算，跨分页批次仍保持正确。
+          if (previousTime == null || !Number.isFinite(previousTime) || !Number.isFinite(ts) || ts - previousTime > 5 * 60 * 1000) {
             var divider = el("div", null, fmtDivider(m.created_at));
             divider.style.cssText = "text-align:center;font-size:11px;color:var(--muted,#8a97ab);margin:4px 0";
             msgs.appendChild(divider);
           }
-          chatState.lastTime = ts;
           var row = el("div");
           row.style.cssText = "display:flex;gap:8px;max-width:100%;align-items:flex-start;" +
             (isSelf ? "flex-direction:row-reverse;" : "");
@@ -171,15 +189,75 @@
           body.appendChild(txt);
           row.appendChild(body);
           msgs.appendChild(row);
-          while (msgs.children.length > 300) msgs.removeChild(msgs.firstChild);
-          if (isInit || nearBottom) msgs.scrollTop = msgs.scrollHeight;
-          return true;
+          return ts;
+        }
+        function renderMessages(scrollMode, oldHeight, oldTop) {
+          msgs.textContent = "";
+          if (!chatState.messages.length) {
+            var hint = el("div", null, "还没有人发言，来抢沙发！");
+            hint.style.cssText = "color:var(--muted,#66748a);font-size:13px;padding:8px";
+            msgs.appendChild(hint);
+          } else {
+            var previousTime = null;
+            chatState.messages.forEach(function (m) { previousTime = appendMessageNode(m, previousTime); });
+          }
+          if (scrollMode === "bottom") msgs.scrollTop = msgs.scrollHeight;
+          else if (scrollMode === "prepend") msgs.scrollTop = Math.max(0, msgs.scrollHeight - oldHeight + oldTop);
+          else if (scrollMode === "preserve") msgs.scrollTop = oldTop;
+        }
+        function setOlderState(message, isError) {
+          var button = panel.querySelector("#fcp-load-older");
+          var state = panel.querySelector("#fcp-older-state");
+          if (!button || !state) return;
+          button.disabled = chatState.olderLoading || !chatState.hasOlder;
+          button.hidden = !chatState.hasOlder;
+          button.textContent = chatState.olderLoading ? "加载中…" : (isError ? "重新加载" : "加载更早消息");
+          state.hidden = !message;
+          state.textContent = message || "";
+          state.dataset.error = isError ? "1" : "0";
+          state.style.color = isError ? "var(--danger,#c1363e)" : "var(--muted,#66748a)";
+        }
+        function loadOlder() {
+          if (chatState.olderLoading || !chatState.hasOlder || chatState.oldestId == null) return;
+          chatState.olderLoading = true;
+          var generation = panelGeneration;
+          setOlderState("正在加载更早消息…", false);
+          fetch("/api/chat/messages?before=" + chatState.oldestId + "&limit=50", { cache: "no-store" })
+            .then(function (r) {
+              if (r.status === 401) { authGone(); return null; }
+              if (!r.ok) throw new Error("older messages request failed");
+              return r.json();
+            })
+            .then(function (d) {
+              if (!d || generation !== chatState.generation || !document.body.contains(panel)) return;
+              var oldHeight = msgs.scrollHeight;
+              var oldTop = msgs.scrollTop;
+              var changed = mergeMessages(d.items);
+              chatState.hasOlder = d.has_older === true;
+              if (changed) renderMessages("prepend", oldHeight, oldTop);
+              setOlderState(chatState.hasOlder ? "" : "没有更早消息了", false);
+            })
+            .catch(function () {
+              if (generation === chatState.generation && document.body.contains(panel)) {
+                setOlderState("加载失败，点击重试", true);
+              }
+            })
+            .finally(function () {
+              if (generation !== chatState.generation) return;
+              chatState.olderLoading = false;
+              var state = panel.querySelector("#fcp-older-state");
+              if (state && state.dataset.error === "1") {
+                setOlderState("加载失败，请重试", true);
+              } else {
+                setOlderState(chatState.hasOlder ? "" : "没有更早消息了", false);
+              }
+            });
         }
         function poll() {
           if (chatState.pollInFlight) { chatState.pollAgain = true; return; }
           chatState.pollInFlight = true;
           var generation = panelGeneration;
-          var cursor = chatState.lastId;
+          var cursor = chatState.latestId;
           var isInit = cursor < 0;
           setChatStatus("", false);
           fetch("/api/chat/messages?after=" + cursor, { cache: "no-store" })
@@ -191,20 +269,12 @@
             .then(function (d) {
               if (generation !== chatState.generation || !document.body.contains(panel)) return;
               if (!d) return;
-              if (isInit) {
-                msgs.textContent = "";
-                if (!d.items.length) {
-                  var hint = el("div", null, "还没有人发言，来抢沙发！");
-                  hint.style.cssText = "color:var(--muted,#66748a);font-size:13px;padding:8px";
-                  msgs.appendChild(hint);
-                }
-              }
-              var maxId = chatState.lastId;
-              d.items.forEach(function (m) {
-                addMessage(m, isInit);
-                if (m.id > maxId) maxId = m.id;
-              });
-              if (maxId > chatState.lastId) chatState.lastId = maxId;
+              var nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 90;
+              var oldTop = msgs.scrollTop;
+              var changed = mergeMessages(d.items);
+              if (isInit) chatState.hasOlder = d.has_older === true;
+              if (changed || isInit) renderMessages(isInit || nearBottom ? "bottom" : "preserve", 0, oldTop);
+              setOlderState(chatState.hasOlder ? "" : "没有更早消息了", false);
             })
             .catch(function () {
               if (generation === chatState.generation && document.body.contains(panel)) {
@@ -217,6 +287,12 @@
               if (chatState.pollAgain) { chatState.pollAgain = false; poll(); }
             });
         }
+        panel.querySelector("#fcp-load-older").onclick = function () {
+          loadOlder();
+        };
+        msgs.addEventListener("scroll", function () {
+          if (msgs.scrollTop < 64) loadOlder();
+        }, { passive: true });
         function send() {
           var input = panel.querySelector("#fcp-input");
           var btn = panel.querySelector("#fcp-send");
