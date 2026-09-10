@@ -14,7 +14,7 @@
 
 | 层次 | 主要位置 | 作用 | 是否直接维护 |
 |---|---|---|---|
-| 内容源 | `06-扩展题源/`、`build_hot100.py` 中的题目清单、原始资料目录 | 保存题目正文和结构化元数据 | 是 |
+| 内容源 | `06-扩展题源/`、`scripts/build/build_hot100.py` 中的题目清单、原始资料目录 | 保存题目正文和结构化元数据 | 是 |
 | Markdown 中间稿 | `00-总览/`～`04-模板/`、`README.md` | 便于审阅、比较和再次生成 | 视文件归属而定 |
 | HTML 成品 | `index.html`、各目录的 `.html`、`assets/` | 日常阅读入口 | 否，必须由脚本生成 |
 | 学习记录 | `data/hot100-study.db` | 保存看题日期、完成轮次和历史活动 | 只备份，不手工编辑 |
@@ -27,10 +27,10 @@
 学习站/
 ├─ README.md                 学习入口的 Markdown 源，生成 guide.html
 ├─ MAINTENANCE.md            本维护规范，生成 maintenance.html
-├─ index.html                学习面板，由 build_hot100.py 生成
+├─ index.html                学习面板，由 scripts/build/build_hot100.py 生成
 ├─ 启动学习站.cmd            本地开发/应急维护时启动服务
 ├─ data/                     学习历史数据库，首次启动时创建
-├─ assets/                   公共 CSS/JavaScript，由 build_html_site.py 生成
+├─ assets/                   公共 CSS/JavaScript，由 scripts/build/build_html_site.py 生成
 ├─ 00-总览/                  学习路线、模式地图、清单、复盘模板
 ├─ 01-基础/                  Java 与基础算法速查
 ├─ 02-专题/                  专题说明与题目导航
@@ -39,14 +39,22 @@
 ├─ 05-可视化/                题解页内嵌交互组件的实现源与资源
 ├─ 06-扩展题源/              后续新增题目的持久正文源
 ├─ 99-原稿归档/              原始资料副本，只用于核对
-└─ tools/                    生成器、页面模板、本地服务与质量检查脚本
+├─ interview_forge/          正式 Python 包（服务、分析、AI 与共享路径）
+├─ scripts/                  按用途组织的构建、检查、抓取与维护脚本
+└─ tools/                    兼容命令入口、页面模板、本地服务与质量检查入口
 ```
 
 `99-原稿归档/` 只用于追溯，不应在这里润色或继续写新内容。
 
+目录重组后，正式实现位于 `interview_forge/`，实际构建与检查脚本位于
+`scripts/build/`、`scripts/check/` 等目录；`tools/` 中保留同名薄包装，
+因此现有 `python .\tools\*.py` 启动与维护命令以及 `tools/templates/`、
+`tools/vendor/` 的公开路径继续有效。修改实现时优先编辑正式包或 `scripts/`
+中的源文件，不要把包装文件当作实现副本。
+
 ## 3. 三个脚本分别做什么
 
-### `build_hot100.py`：全量重建
+### `scripts/build/build_hot100.py`：全量重建
 
 它会重新生成题解、专题、学习清单、README 和学习面板，并调用 HTML 生成器。它适用于：
 
@@ -56,7 +64,7 @@
 
 注意：它会覆盖大量 Markdown 和 HTML 文件。普通的措辞小改不要习惯性运行此脚本，除非修改已经写回相应的持久内容源。
 
-### `build_html_site.py`：刷新网页
+### `scripts/build/build_html_site.py`：刷新网页
 
 它把现有 Markdown 转换成完整 HTML，将匹配的交互演示嵌入题解末尾，并更新公共样式与脚本。它适用于：
 
@@ -64,11 +72,11 @@
 - 修改公式渲染、阅读页样式或公共交互；
 - 更新本维护文档。
 
-### `check_hot100.py`：发布前检查
+### `scripts/check/check_hot100.py`：发布前检查
 
 它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 `ERROR`。
 
-### `study_server.py`：学习记录服务
+### `interview_forge/server/study_server.py`：学习记录服务
 
 它使用 Python 标准库提供静态页面和 JSON API，并把当前账号记录写入服务器端 SQLite；本地开发时才按启动脚本的监听配置运行：
 
@@ -108,7 +116,7 @@ python .\tools\check_hot100.py
 
 ### 第一步：登记题目元数据
 
-打开 `tools/build_hot100.py`，在 `PROBLEM_TSV` 中按期望学习顺序增加一行：
+打开 `scripts/build/build_hot100.py`，在 `PROBLEM_TSV` 中按期望学习顺序增加一行：
 
 ```text
 题号|题名|专题|核心方法|时间复杂度|空间复杂度|一句话不变量
@@ -165,7 +173,7 @@ python .\tools\check_hot100.py
 
 ### 第四步：需要时绑定可视化
 
-只有演示方法与题解方法真正一致时才绑定，不按专题批量套用。在 `tools/build_html_site.py` 的 `VISUAL_EMBEDS` 中增加题解源路径、组件文件和初始面板：
+只有演示方法与题解方法真正一致时才绑定，不按专题批量套用。在 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS` 中增加题解源路径、组件文件和初始面板：
 
 ```python
 "03-题解/11-二分查找/0704-二分查找.md": (
@@ -276,31 +284,31 @@ class Solution {
 - 不依赖在线字体、在线脚本或临时网络资源。
 - 动画速度、自动播放和重置操作不会让学习者失去当前状态。
 
-新增完成后，在 `VISUAL_EMBEDS` 显式绑定题解并运行 `build_html_site.py`。生成器会注入嵌入模式、响应式增强和自动高度同步。
+新增完成后，在 `VISUAL_EMBEDS` 显式绑定题解并运行 `scripts/build/build_html_site.py`。生成器会注入嵌入模式、响应式增强和自动高度同步。
 
 ## 10. 样式和前端代码的维护位置
 
 公共阅读页样式的真正来源是：
 
-- `tools/build_html_site.py` 中的 `SITE_CSS`
-- `tools/build_html_site.py` 中的 `SITE_JS`
+- `scripts/build/build_html_site.py` 中的 `SITE_CSS`
+- `scripts/build/build_html_site.py` 中的 `SITE_JS`
 
-`assets/site.css` 和 `assets/site.js` 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 `build_html_site.py`。只改 `assets/` 会在下次构建时被覆盖。
+`assets/site.css` 和 `assets/site.js` 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 `scripts/build/build_html_site.py`。只改 `assets/` 会在下次构建时被覆盖。
 
-学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `build_hot100.py` 的 `render_dashboard()` 注入。数据库和 API 位于 `tools/study_server.py`。题解与可视化的对应关系位于 `build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
+学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库和 API 位于 `interview_forge/server/study_server.py`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
 
 ### 学习书架与课程模块
 
-学习书架生成器是 `tools/build_library.py`，课程登记表是 `tools/library_catalog.py`。当前只收录明确登记的 Markdown，不会递归发布临时文件、demo README、数据库、密码文本或其他私人附件。
+学习书架生成器是 `scripts/build/build_library.py`，课程登记表是 `scripts/build/library_catalog.py`。当前只收录明确登记的 Markdown，不会递归发布临时文件、demo README、数据库、密码文本或其他私人附件。
 
-`Hot 100 算法刷题精讲` 是书架里的特殊模块：它不拆 Markdown，而是由 `build_hot100.py` 的题目目录生成，每道题指向 `03-题解/` 下已有的题解页。题目轮次由 AC 记录自动推导并反映到书架进度；不要在 `library_catalog.py` 里为它登记 `source`。
+`Hot 100 算法刷题精讲` 是书架里的特殊模块：它不拆 Markdown，而是由 `scripts/build/build_hot100.py` 的题目目录生成，每道题指向 `03-题解/` 下已有的题解页。题目轮次由 AC 记录自动推导并反映到书架进度；不要在 `scripts/build/library_catalog.py` 里为它登记 `source`。
 
 新增一本课程时：
 
 1. 把源 Markdown 保留在原资料目录，不要搬进 `学习站/library/`。
 2. 在 `LIBRARY_MODULES` 增加稳定的英文 `id`、标题、分类和相对源路径。
 3. 使用二级标题划分章节；每个二级标题会成为独立 HTML 和独立学习记录单元。
-4. 运行 `python .\tools\build_library.py`。全量运行 `build_hot100.py` 时也会自动调用它。
+4. 运行 `python .\tools\build_library.py`。全量运行 `scripts/build/build_hot100.py` 时也会自动调用它。
 5. 打开学习书架，确认章节顺序、图片、公式、流程图和跨课程链接。
 
 课程中的 Mermaid 图表使用标准围栏，不要把 `flowchart LR` 直接写在普通正文或普通代码块里：
@@ -314,7 +322,7 @@ flowchart LR
 ```
 ````
 
-生成器会把 `flowchart`、`sequenceDiagram`、`mindmap` 等 Mermaid 围栏转换为真正的 SVG 图表。浏览器运行库固定为 `tools/vendor/mermaid-11.16.1.min.js`，构建时复制到 `library/assets/`，因此课程断网也能显示。不要在 Markdown 中引用 Mermaid CDN，也不要直接修改 `library/assets/`。如需升级 Mermaid，应同时修改源运行库文件名、`build_library.py` 中的版本引用和 `check_hot100.py` 中的回归检查。
+生成器会把 `flowchart`、`sequenceDiagram`、`mindmap` 等 Mermaid 围栏转换为真正的 SVG 图表。浏览器运行库固定为 `tools/vendor/mermaid-11.16.1.min.js`，构建时复制到 `library/assets/`，因此课程断网也能显示。不要在 Markdown 中引用 Mermaid CDN，也不要直接修改 `library/assets/`。如需升级 Mermaid，应同时修改源运行库文件名、`scripts/build/build_library.py` 中的版本引用和 `scripts/check/check_hot100.py` 中的回归检查。
 
 图表维护规则：
 
@@ -395,6 +403,6 @@ Markdown、专题、清单、学习面板
 - 书架总页 `library/index.html`：顶部“全书架待复习 N 章（逾期 M）”汇总条，模块卡右上角有“待复习 n”角标（逾期红色），数据来自 `GET /api/daily`；
 - 模块页 `library/<module>/index.html`：进度条下方“本模块待复习”区块列出到期章节（逾期红色）；章节卡挂“待复习/逾期”徽标；筛选器有“待复习”选项；数据来自 `GET /api/daily?module=<module_id>`；
 - 章节页状态条：显示“下次复习：MM-DD”，到期当天或逾期会标红；
-- 书籍章节专用复习间隔：`REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)`（`study_server.py`），Hot 100 题目维持 `(1,3,7,15,30,60)`。
+- 书籍章节专用复习间隔：`REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)`（`interview_forge/server/study_server.py`），Hot 100 题目维持 `(1,3,7,15,30,60)`。
 
 回归断言：面板不混排书架、书架总页汇总条与模块角标、模块页 due 区块、章节页下次复习行、`/api/daily` 的 `module` 参数过滤，均在 `check_hot100.py` 覆盖。
