@@ -3765,8 +3765,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
     AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
-    # 悬浮组件注入的脚本清单（v 参数用于更新缓存）：认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
+    # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -4282,16 +4282,19 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except Exception:
                 _invalidate_learning_caches(db)
                 pass
-        # ---- 前端小部件注入：阅读页/面板 HTML 在发送前插入认证胶囊与反馈按钮 ----
-        # 05-可视化 页面会被 iframe 内嵌，均跳过；注入发生在服务层，不改任何生成产物。
-        if decoded_path.lower().endswith(".html") and not decoded_path.startswith("/books/hot100/05-可视化/"):
-            if self.serve_html_with_widget(decoded_path):
+        # ---- 前端小部件注入：阅读页/面板 HTML 在发送前插入统一导航策略与其他小部件 ----
+        # 05-可视化 页面可能被 iframe 内嵌，保持认证/反馈/主题脚本不注入，但仍需要统一导航策略。
+        if decoded_path.lower().endswith(".html"):
+            if self.serve_html_with_widget(
+                decoded_path,
+                navigation_only=decoded_path.startswith("/books/hot100/05-可视化/"),
+            ):
                 return
         super().do_GET()
 
-    def serve_html_with_widget(self, decoded_path: str) -> bool:
+    def serve_html_with_widget(self, decoded_path: str, navigation_only: bool = False) -> bool:
         """读取 HTML 文件、在 </body> 前注入小部件脚本后发送；文件不存在返回 False 交给默认 404。
-        认证胶囊在登录/注册/管理页跳过（它们自带登录界面），反馈按钮全站可见。"""
+        可视化页只注入导航策略；认证胶囊在登录/注册/管理页跳过（它们自带登录界面），反馈按钮全站可见。"""
         try:
             target = (ROOT / decoded_path.lstrip("/")).resolve()
             if not (target.is_file() and str(target).startswith(str(ROOT.resolve()))):
@@ -4299,10 +4302,13 @@ class StudyHandler(SimpleHTTPRequestHandler):
             body = target.read_bytes()
         except OSError:
             return False
-        scripts = [
-            s for s in self.WIDGET_SCRIPTS
-            if not (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
-        ]
+        if navigation_only:
+            scripts = ["/assets/navigation-policy.js?v=1"]
+        else:
+            scripts = [
+                s for s in self.WIDGET_SCRIPTS
+                if not (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
+            ]
         widget = "".join(f'<script src="{s}" defer></script>' for s in scripts).encode()
         idx = body.lower().rfind(b"</body>")
         body = body[:idx] + widget + body[idx:] if idx != -1 else body + widget
