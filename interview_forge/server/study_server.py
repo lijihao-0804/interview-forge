@@ -107,6 +107,13 @@ from interview_forge.services.review import (
     review_interval as _review_interval,
     review_interval_content as _review_interval_content,
 )
+from interview_forge.server.rate_limit import (
+    login_rate_limit_clear,
+    login_rate_limit_fail,
+    login_rate_limit_ok,
+    register_rate_limit_ok,
+    register_rate_limit_record,
+)
 
 
 # ---- 路径常量：锁定"项目根 / 数据目录 / 数据库文件"三个位置 ----
@@ -173,6 +180,15 @@ def due_after_content(completed_at: str, round_no: int) -> str:
 #   ix_study_date / ix_content_date 按日期倒序，支撑"今日/近 14 天/365 天"统计查询；
 #   CHECK 约束强制 complete 必须带 round_no、view 必须不带 —— 保证数据自洽。
 from interview_forge.db.schema import SCHEMA
+from interview_forge.db.connection import (
+    _SCHEMA_DONE,
+    _SCHEMA_LOCK,
+    _backfill_legacy_completes as _db_backfill_legacy_completes,
+    _legacy_business_date as _db_legacy_business_date,
+    _legacy_submission_timestamp as _db_legacy_submission_timestamp,
+    _prepare_legacy_study_events_schema as _db_prepare_legacy_study_events_schema,
+    connect as _db_connect,
+)
 
 
 # ---- 模块级进程内状态 ----
@@ -181,9 +197,7 @@ from interview_forge.db.schema import SCHEMA
 # QUIET            请求日志开关（--quiet 或脚本内置 True 后不再打印每条请求）；
 # _SCHEMA_LOCK     建表互斥锁：多线程并发首次连接时，保证只有一个线程执行建表；
 # _MANIFEST_CACHE  书架 manifest.json 的内存缓存 (mtime, 内容)：文件没改动就直接复用。
-_SCHEMA_DONE: set[str] = set()
 QUIET = False
-_SCHEMA_LOCK = threading.Lock()
 _MANIFEST_CACHE: tuple[float, dict[str, object]] | None = None
 
 # /api/coach/analytics 的进程内只读快照缓存：缓存键不保存原始路径，而是使用
@@ -213,129 +227,24 @@ _ANALYTICS_WRITE_PATHS = frozenset({
 
 
 def _prepare_legacy_study_events_schema(connection: sqlite3.Connection) -> None:
-    """Add the current ``action`` column to the pre-AC event schema.
-
-    A few early databases used ``event_type`` for the same dimension.  Do this
-    before the main DDL creates indexes that reference ``action``.
-    """
-    table = connection.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'study_events'"
-    ).fetchone()
-    if table is None:
-        return
-    columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(study_events)")}
-    if "action" in columns or "event_type" not in columns:
-        return
-    connection.execute("ALTER TABLE study_events ADD COLUMN action TEXT NOT NULL DEFAULT 'view'")
-    connection.execute(
-        "UPDATE study_events SET action = CASE WHEN event_type = 'complete' THEN 'complete' ELSE 'view' END"
-    )
+    return _db_prepare_legacy_study_events_schema(connection)
 
 
 def _legacy_business_date(timestamp: object, fallback: object = "") -> str:
-    """Normalize a historical event timestamp to the Asia/Shanghai date."""
-    try:
-        parsed = datetime.fromisoformat(str(timestamp))
-        if parsed.tzinfo is None or parsed.utcoffset() is None:
-            parsed = parsed.replace(tzinfo=BUSINESS_TZ)
-        return parsed.astimezone(BUSINESS_TZ).date().isoformat()
-    except (TypeError, ValueError, OverflowError):
-        return str(fallback or "")[:10]
+    return _db_legacy_business_date(timestamp, fallback, BUSINESS_TZ)
 
 
 def _legacy_submission_timestamp(timestamp: object, study_date: str) -> str:
-    """Return a valid aware timestamp for a migrated AC submission."""
-    try:
-        parsed = datetime.fromisoformat(str(timestamp))
-        if parsed.tzinfo is None or parsed.utcoffset() is None:
-            parsed = parsed.replace(tzinfo=BUSINESS_TZ)
-        return parsed.astimezone(BUSINESS_TZ).isoformat(timespec="seconds")
-    except (TypeError, ValueError, OverflowError):
-        return f"{study_date}T00:00:00+08:00"
+    return _db_legacy_submission_timestamp(timestamp, study_date, BUSINESS_TZ)
 
 
 def _backfill_legacy_completes(connection: sqlite3.Connection) -> None:
-    """Idempotently mirror historical complete events into AC submissions.
-
-    AC rounds are defined by one completion per problem per Shanghai business
-    day, so duplicate legacy events from one day intentionally become one AC
-    submission.  Existing AC submissions on that day suppress the insert.
-    """
-    columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(study_events)")}
-    if not {"problem_id", "studied_at"}.issubset(columns):
-        return
-    if "action" in columns:
-        kind_sql = "action"
-    elif "event_type" in columns:
-        kind_sql = "event_type"
-    else:
-        return
-    date_sql = "study_date" if "study_date" in columns else "NULL"
-    events = connection.execute(
-        f"SELECT problem_id, studied_at, {date_sql} AS study_date, {kind_sql} AS event_kind "
-        "FROM study_events WHERE " + kind_sql + " = 'complete' ORDER BY rowid"
-    ).fetchall()
-    if not events:
-        return
-    existing_dates = {
-        (int(row["problem_id"]), _legacy_business_date(row["submitted_at"]))
-        for row in connection.execute(
-            "SELECT problem_id, submitted_at FROM submissions WHERE status = 'ac'"
-        )
-    }
-    migrated: set[tuple[int, str]] = set()
-    for row in events:
-        problem_id = int(row["problem_id"])
-        study_date = _legacy_business_date(row["studied_at"], row["study_date"])
-        if not study_date:
-            continue
-        key = (problem_id, study_date)
-        if key in existing_dates or key in migrated:
-            continue
-        connection.execute(
-            """INSERT INTO submissions(
-                   problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source
-               ) VALUES (?, 'ac', '', NULL, NULL, ?, 'manual')""",
-            (problem_id, _legacy_submission_timestamp(row["studied_at"], study_date)),
-        )
-        migrated.add(key)
-    if migrated:
-        connection.commit()
+    return _db_backfill_legacy_completes(connection, BUSINESS_TZ)
 
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
-    """打开数据库连接：确保目录存在、设置行工厂、开启外键；该库文件首次连接时加锁执行建库 DDL。"""
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(db_path, timeout=10)
-    # Row 工厂：查询结果支持按列名取值（row["problem_id"]），后面代码大量依赖它。
-    connection.row_factory = sqlite3.Row
-    # 开启外键约束（当前表结构暂无级联，保持规范）；timeout=10 秒缓解多线程并发写锁等待。
-    connection.execute("PRAGMA foreign_keys = ON")
-    # 按库文件路径记录建表状态：新用户库首次连接执行幂等 DDL，之后同一库直接跳过。
-    schema_key = str(db_path)
-    if schema_key not in _SCHEMA_DONE:
-        with _SCHEMA_LOCK:
-            if schema_key not in _SCHEMA_DONE:
-                # WAL is a persistent database setting.  Configure it only
-                # during one-time initialization; changing journal mode on
-                # every request can itself contend with concurrent writers.
-                connection.execute("PRAGMA journal_mode = WAL")
-                _prepare_legacy_study_events_schema(connection)
-                connection.executescript(SCHEMA)
-                ensure_ai_schema(connection)
-                # 老库迁移：为 submissions 补充力扣提交 ID 列（幂等）。
-                try:
-                    connection.execute("ALTER TABLE submissions ADD COLUMN lc_id INTEGER")
-                except sqlite3.OperationalError:
-                    pass  # 已存在
-                # 部分唯一索引：仅 lc_id 非空的行参与唯一 —— 同步记录按力扣提交 ID 去重，
-                # 而手动/扩展提交（lc_id 为空）不受影响。
-                connection.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_submissions_lc ON submissions(lc_id) WHERE lc_id IS NOT NULL"
-                )
-                _backfill_legacy_completes(connection)
-                _SCHEMA_DONE.add(schema_key)
-    return connection
+    return _db_connect(db_path, business_tz=BUSINESS_TZ, ensure_ai_schema=ensure_ai_schema)
+
 
 
 def _analytics_resolved_path(db_path: Path) -> str:
@@ -1263,67 +1172,6 @@ def change_own_password(user_id: int, old_password: str, new_password: str,
                            (user_id, keep_token))
         connection.execute("COMMIT")
     return {"changed": True}
-
-
-# ---- 登录防爆破：进程内滑动窗口（IP → [失败次数, 解禁时间戳]），重启即清零 ----
-_LOGIN_FAILS: dict[str, list[float]] = {}
-_LOGIN_LOCK = threading.Lock()
-_LOGIN_MAX_FAILS = 5
-_LOGIN_LOCKOUT_SECONDS = 600.0
-
-# ---- 注册频控：每 IP 每小时 10 次 + 全局每小时 100 次（防高速穷举注册码）----
-_REGISTER_ATTEMPTS: dict[str, list[float]] = {}
-_REGISTER_GLOBAL: list[float] = []
-_REGISTER_LOCK = threading.Lock()
-_REGISTER_WINDOW = 3600.0
-_REGISTER_MAX_PER_IP = 10
-_REGISTER_MAX_GLOBAL = 100
-
-
-def login_rate_limit_ok(ip: str) -> bool:
-    """该 IP 当前是否允许尝试登录（失败 5 次锁 10 分钟）。"""
-    with _LOGIN_LOCK:
-        entry = _LOGIN_FAILS.get(ip)
-        if not entry:
-            return True
-        fails, unlock_at = entry
-        if fails < _LOGIN_MAX_FAILS or time.time() >= unlock_at:
-            return True
-        return False
-
-
-def login_rate_limit_fail(ip: str) -> None:
-    """记录一次登录失败，达到阈值时启动锁定期。"""
-    with _LOGIN_LOCK:
-        entry = _LOGIN_FAILS.setdefault(ip, [0, 0.0])
-        entry[0] += 1
-        if entry[0] >= _LOGIN_MAX_FAILS:
-            entry[1] = time.time() + _LOGIN_LOCKOUT_SECONDS
-
-
-def login_rate_limit_clear(ip: str) -> None:
-    """登录成功后清零该 IP 的失败计数。"""
-    with _LOGIN_LOCK:
-        _LOGIN_FAILS.pop(ip, None)
-
-
-def register_rate_limit_ok(ip: str) -> bool:
-    """注册接口频控：滑动 1 小时窗口内该 IP ≤10 次、全站 ≤100 次。"""
-    now = time.time()
-    with _REGISTER_LOCK:
-        stamps = [t for t in _REGISTER_ATTEMPTS.get(ip, []) if now - t < _REGISTER_WINDOW]
-        global_stamps = [t for t in _REGISTER_GLOBAL if now - t < _REGISTER_WINDOW]
-        _REGISTER_ATTEMPTS[ip] = stamps
-        _REGISTER_GLOBAL[:] = global_stamps
-        return len(stamps) < _REGISTER_MAX_PER_IP and len(global_stamps) < _REGISTER_MAX_GLOBAL
-
-
-def register_rate_limit_record(ip: str) -> None:
-    """记录一次注册尝试（无论成败都计数）。"""
-    now = time.time()
-    with _REGISTER_LOCK:
-        _REGISTER_ATTEMPTS.setdefault(ip, []).append(now)
-        _REGISTER_GLOBAL.append(now)
 
 
 # ---- 反馈提交频控：每 IP 每小时 5 次（反馈接口公开，防垃圾灌水）----

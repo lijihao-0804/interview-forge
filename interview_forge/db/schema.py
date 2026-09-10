@@ -4,7 +4,7 @@ The statements are unchanged from the original study server.  AI tables are
 appended by the existing AI schema fragment, preserving the current database
 initialization order and migration behavior.
 """
-from interview_forge.ai.ai_coach import AI_DB_SCHEMA
+from interview_forge.db.ai_schema import AI_DB_SCHEMA
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS study_events (

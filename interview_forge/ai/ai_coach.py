@@ -27,6 +27,18 @@ from typing import Any, Mapping
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
+from interview_forge.ai.config import (
+    AIConfig,
+    _beta_allows,
+    _dependencies_available,
+    _env_bool,
+    _env_float,
+    _env_int,
+    load_ai_config as _load_ai_config,
+    model_key as _config_model_key,
+)
+from interview_forge.db.ai_schema import AI_DB_SCHEMA
+
 
 PROMPT_VERSION = "coach-analysis-v2.2"
 CONTEXT_SCHEMA_VERSION = "context-v1"
@@ -91,51 +103,6 @@ def debug_ai_event(event: str, *, task_id: str = "", **fields: Any) -> None:
         pass
 
 
-# This is intentionally separate from the main learning schema.  It is
-# appended to the server schema and also exposed through ensure_ai_schema so
-# an old per-user database can be upgraded without touching auth.db.
-AI_DB_SCHEMA = """
-CREATE TABLE IF NOT EXISTS ai_tasks (
-    task_id TEXT PRIMARY KEY,
-    task TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
-    snapshot_hash TEXT NOT NULL,
-    prompt_version TEXT NOT NULL,
-    model_key TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    started_at TEXT,
-    finished_at TEXT,
-    worker_id TEXT,
-    error_category TEXT,
-    error_message TEXT,
-    context_preview TEXT NOT NULL,
-    result_json TEXT,
-    fallback_json TEXT NOT NULL,
-    insight_id TEXT,
-    quota_limit INTEGER
-);
-CREATE TABLE IF NOT EXISTS ai_insights (
-    insight_id TEXT PRIMARY KEY,
-    task_id TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL,
-    snapshot_hash TEXT NOT NULL,
-    prompt_version TEXT NOT NULL,
-    model_key TEXT NOT NULL,
-    data_as_of TEXT,
-    result_json TEXT NOT NULL,
-    helpful INTEGER,
-    feedback_at TEXT
-);
-CREATE TABLE IF NOT EXISTS ai_daily_quota (
-    day_key TEXT PRIMARY KEY,
-    used INTEGER NOT NULL DEFAULT 0 CHECK (used >= 0),
-    reserved INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0),
-    reset_offset INTEGER NOT NULL DEFAULT 0 CHECK (reset_offset >= 0),
-    updated_at TEXT NOT NULL
-);
-"""
-
-
 SYSTEM_PROMPT = f"""你是 InterviewForge 的学习情况分析助手。
 当前输入投影版本是 {LLM_CONTEXT_VERSION}，输出必须符合给定的结构化 schema。
 
@@ -177,31 +144,6 @@ support_ref；basis=heuristic 的 action 可以不引用案例，但必须明确
 不要添加其它字段。"""
 
 
-@dataclass(frozen=True)
-class AIConfig:
-    enabled: bool
-    provider: str
-    model: str
-    base_url: str
-    api_key: str
-    wire_api: str
-    actor_authorization: str
-    reasoning_effort: str
-    thinking_enabled: bool
-    request_timeout_seconds: float
-    max_concurrent_requests: int
-    daily_limit_per_user: int
-    beta_users: str
-
-    @property
-    def configured(self) -> bool:
-        return bool(
-            self.provider in {"openai", "openai-compatible"}
-            and self.model
-            and self.api_key
-        )
-
-
 @dataclass
 class _StreamEnvelope:
     content: str
@@ -232,83 +174,18 @@ class _InvalidAIOutput(ValueError):
     """Internal marker for the one permitted repair attempt."""
 
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_float(name: str, default: float, minimum: float, maximum: float) -> float:
-    try:
-        value = float(os.environ.get(name, str(default)))
-    except (TypeError, ValueError):
-        return default
-    return max(minimum, min(value, maximum))
-
-
-def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
-    try:
-        value = int(os.environ.get(name, str(default)))
-    except (TypeError, ValueError):
-        return default
-    return max(minimum, min(value, maximum))
-
-
 def load_ai_config() -> AIConfig:
     """Read AI configuration only from the current process environment."""
-    return AIConfig(
-        enabled=_env_bool("AI_ENABLED", False),
-        provider=os.environ.get("AI_PROVIDER", "").strip().lower(),
-        model=os.environ.get("AI_MODEL", "").strip(),
-        base_url=os.environ.get("AI_BASE_URL", "").strip(),
-        api_key=os.environ.get("AI_API_KEY", ""),
-        wire_api=os.environ.get("AI_WIRE_API", "chat_completions").strip().lower(),
-        actor_authorization=os.environ.get("AI_ACTOR_AUTHORIZATION", "").strip(),
-        reasoning_effort=os.environ.get("AI_REASONING_EFFORT", "").strip().lower(),
-        thinking_enabled=_env_bool("AI_THINKING_ENABLED", False),
-        request_timeout_seconds=_env_float(
-            "AI_REQUEST_TIMEOUT_SECONDS", 45.0, 1.0, 120.0
-        ),
-        max_concurrent_requests=_env_int(
-            "AI_MAX_CONCURRENT_REQUESTS", 2, 1, 8
-        ),
-        daily_limit_per_user=AI_DAILY_LIMIT,
-        beta_users=os.environ.get("AI_BETA_USERS", "").strip(),
-    )
-
-
-def _beta_allows(beta_users: str, username: str) -> bool:
-    values = {
-        item.strip().lower()
-        for item in re.split(r"[,;\s]+", beta_users)
-        if item.strip()
-    }
-    if values.intersection({"*", "all", "everyone", "__all__"}):
-        return True
-    return bool(username and username.strip().lower() in values)
-
-
-def _dependencies_available() -> bool:
-    """Check optional packages without importing them during normal startup."""
-    try:
-        import importlib.util
-
-        return all(
-            importlib.util.find_spec(name) is not None
-            for name in ("pydantic", "langchain_core", "langchain_openai")
-        )
-    except (ImportError, ModuleNotFoundError, ValueError):
-        return False
+    return _load_ai_config(AI_DAILY_LIMIT)
 
 
 def model_key(config: AIConfig | None = None) -> str:
     """Return a non-sensitive, stable model identifier for task deduplication."""
-    config = config or load_ai_config()
-    model_digest = hashlib.sha256(config.model.encode("utf-8")).hexdigest()[:16]
-    endpoint_digest = hashlib.sha256(config.base_url.encode("utf-8")).hexdigest()[:12] if config.base_url else "default"
-    provider = config.provider if config.provider in {"openai", "openai-compatible"} else "unknown"
-    return f"{provider}:model-{model_digest}:endpoint-{endpoint_digest}"
+    return _config_model_key(
+        config,
+        daily_limit=AI_DAILY_LIMIT,
+        loader=lambda _daily_limit: load_ai_config(),
+    )
 
 
 def _validated_daily_limit(daily_limit: int | None) -> int:
