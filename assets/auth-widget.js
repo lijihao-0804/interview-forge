@@ -355,6 +355,12 @@
       '<span style="font-size:12px;color:#66748a;flex:none">题解语言</span>' +
       '<span id="fpr-lang" style="display:flex;gap:5px;flex-wrap:wrap"></span>' +
       '</div>' +
+      '<div style="border-top:1px solid #eef1f7;padding-top:10px;margin-top:4px;margin-bottom:10px">' +
+      '<div style="font-size:12px;color:#66748a;margin-bottom:6px">独立学习内容打开方式</div>' +
+      '<label style="font-size:12px;color:#334155;margin-right:12px;cursor:pointer"><input type="radio" name="fpr-nav-mode" value="same-tab"> 当前标签页</label>' +
+      '<label style="font-size:12px;color:#334155;cursor:pointer"><input type="radio" name="fpr-nav-mode" value="new-tab"> 新标签页</label>' +
+      '<div style="font-size:11px;line-height:1.5;color:#8a96a8;margin-top:5px">仅影响从中控台、书架、搜索等入口打开的独立学习内容；下一题等连续学习操作仍在当前页。</div>' +
+      '</div>' +
       '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
           '<input type="text" id="fpr-nick" maxlength="16" placeholder="昵称（1~16 字，留空显示用户名）" style="flex:1;min-width:0;padding:7px 10px;border:1px solid #dfe4ee;border-radius:8px;font:inherit;background:#fbfcff">' +
           '<button id="fpr-save" style="border:0;border-radius:8px;padding:7px 13px;font:inherit;font-weight:600;cursor:pointer;background:#5654d4;color:#fff">保存</button>' +
@@ -365,6 +371,25 @@
         panel.querySelector(".fp-close").onclick = function () { toggleProfile(); };
         var hint = panel.querySelector("#fpr-hint");
         var avaBox = panel.querySelector("#fpr-ava-box");
+        var navModeInputs = panel.querySelectorAll('input[name="fpr-nav-mode"]');
+        function renderNavigationMode() {
+          var mode = window.ForgeNavigationPolicy ? window.ForgeNavigationPolicy.getPreference() : "new-tab";
+          navModeInputs.forEach(function (input) { input.checked = input.value === mode; });
+        }
+        navModeInputs.forEach(function (input) {
+          input.addEventListener("change", function () {
+            if (!input.checked) return;
+            var mode = window.ForgeNavigationPolicy
+              ? window.ForgeNavigationPolicy.setPreference(input.value)
+              : input.value;
+            if (!window.ForgeNavigationPolicy) {
+              try { localStorage.setItem("learningContentOpenMode", mode); } catch (error) { }
+            }
+            hint.textContent = mode === "same-tab" ? "已设为当前标签页" : "已设为新标签页";
+            hint.style.color = "#157a52";
+          });
+        });
+        renderNavigationMode();
 
         function renderAva(url) {
           avaBox.textContent = "";
@@ -492,6 +517,7 @@
       if (me.role === "admin") {
         var adminLink = document.createElement("a");
         adminLink.href = "/pages/admin.html";
+        adminLink.className = "fap-admin-link";
         adminLink.target = "_blank";
         adminLink.rel = "noopener noreferrer";
         adminLink.textContent = "管理后台";
