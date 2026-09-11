@@ -942,7 +942,7 @@ def mock_exam(
     }
 
 
-def pin_plan(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
+def pin_problem_for_tomorrow(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
     """Pin a known problem for tomorrow's plan without exposing SQL to HTTP."""
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
@@ -1084,7 +1084,7 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
     return {"count": len(items), "items": items}
 
 
-def export_database(db_path: Path = DB_PATH) -> bytes:
+def export_database_snapshot(db_path: Path = DB_PATH) -> bytes:
     """Return a consistent SQLite backup snapshot for the export endpoint."""
     temp_path: Path | None = None
     try:

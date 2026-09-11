@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
@@ -12,7 +13,8 @@ from interview_forge.services.auth import effective_ai_daily_limit
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.services.study import (
     complete_content, complete_round, daily_data, dashboard_cached, export_data,
-    export_database, get_settings, library_data, mock_exam, pin_plan, pick_problem,
+    export_database_snapshot, get_settings, library_data, mock_exam,
+    pin_problem_for_tomorrow, pick_problem,
     problem_marks, set_mark, set_setting, today_plan, weaklist,
 )
 from interview_forge.analytics.cache import analytics_cached
@@ -167,7 +169,7 @@ def export(request: Request):
     kind = request.query_params.get("kind", "")
     if kind == "db":
         try:
-            body = export_database(db)
+            body = export_database_snapshot(db)
             return Response(content=body, media_type="application/octet-stream",
                             headers={"Content-Disposition": 'attachment; filename="hot100-study.db"', "Cache-Control": "no-store"})
         except BaseException as exc:
@@ -214,7 +216,7 @@ async def submit(request: Request):
 async def plan_pin(request: Request):
     def operation(p, db):
         pid = int(p.get("problem_id", 0))
-        return pin_plan(pid, db)
+        return pin_problem_for_tomorrow(pid, db)
     return await _write_json(request, operation)
 
 
@@ -225,8 +227,9 @@ async def _write_json(request: Request, operation):
         return denied
     try:
         payload = await read_json(request)
-        result = operation(payload, user_db(user))
-        invalidate_learning(user_db(user))
+        db = user_db(user)
+        result = await run_in_threadpool(operation, payload, db)
+        invalidate_learning(db)
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)

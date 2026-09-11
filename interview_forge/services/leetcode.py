@@ -181,6 +181,11 @@ def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str,
     return {"connected": False, "reason": "anonymous", "message": "返回匿名数据，会话未生效"}
 
 
+async def leetcode_status_async(credentials: dict[str, str], timeout: int = 20) -> dict[str, object]:
+    """Run the existing status probe without blocking an async HTTP route."""
+    return await asyncio.to_thread(leetcode_status, credentials, timeout)
+
+
 class LeetCodeSyncError(RuntimeError):
     """可安全返回前端的力扣同步错误；不携带凭证、响应头或内部路径。"""
 
