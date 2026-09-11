@@ -466,6 +466,23 @@ def problem_filename(problem: dict[str, object]) -> str:
     return f"{int(problem['id']):04d}-{safe_name(str(problem['title']))}.md"
 
 
+# Keep the build output on the same canonical problem catalog used by the
+# production runtime.  The legacy declarations above remain in this build
+# module as source-compatible names, but the shared values below are the
+# single data source consumed by both sides.
+from interview_forge.core.problem_catalog import (  # noqa: E402
+    LEETCODE_SLUGS as _SHARED_LEETCODE_SLUGS,
+    PROBLEMS as _SHARED_PROBLEMS,
+    PROBLEM_BY_ID as _SHARED_PROBLEM_BY_ID,
+    problem_filename as _shared_problem_filename,
+)
+
+PROBLEMS = _SHARED_PROBLEMS
+PROBLEM_BY_ID = _SHARED_PROBLEM_BY_ID
+LEETCODE_SLUGS = _SHARED_LEETCODE_SLUGS
+problem_filename = _shared_problem_filename
+
+
 def write(path: Path, content: str) -> None:
     """统一写盘函数：UTF-8 编码、自动创建父目录、去掉末尾多余空白并保证以单个换行收尾。
 

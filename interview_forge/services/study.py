@@ -14,6 +14,7 @@ import re
 import sqlite3
 import threading
 import time
+import tempfile
 from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -941,6 +942,24 @@ def mock_exam(
     }
 
 
+def pin_plan(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
+    """Pin a known problem for tomorrow's plan without exposing SQL to HTTP."""
+    if problem_id not in PROBLEM_BY_ID:
+        raise ValueError("未知题号")
+    today = server_runtime.business_now().date()
+    for_date = (today + timedelta(days=1)).isoformat()
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute(
+            """INSERT INTO plan_pins(problem_id, for_date, created_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(problem_id) DO UPDATE SET
+                 for_date = excluded.for_date""",
+            (problem_id, for_date, server_runtime.now_iso()),
+        )
+        connection.commit()
+    return {"pinned": True, "problem_id": problem_id, "for_date": for_date}
+
+
 def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False) -> dict[str, object]:
     """今日计划（与今日待复习互补）：已排期 → 未学习 → 需重学（逾期 >60 天）
     → 轮数较少；每类内部按学习路径顺序；排除今日待复习中的题。"""
@@ -1063,6 +1082,28 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
             "reason": reason,
         })
     return {"count": len(items), "items": items}
+
+
+def export_database(db_path: Path = DB_PATH) -> bytes:
+    """Return a consistent SQLite backup snapshot for the export endpoint."""
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp:
+            temp_path = Path(temp.name)
+        source = sqlite3.connect(db_path)
+        destination = sqlite3.connect(temp_path)
+        try:
+            source.backup(destination)
+        finally:
+            destination.close()
+            source.close()
+        return temp_path.read_bytes()
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:

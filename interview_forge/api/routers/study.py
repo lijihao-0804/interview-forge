@@ -1,11 +1,6 @@
 """Learning, review, dashboard, export and submission routes."""
 from __future__ import annotations
 
-import json
-import sqlite3
-import tempfile
-from contextlib import closing
-from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -13,13 +8,12 @@ from fastapi.responses import Response
 
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
-from interview_forge.core.paths import DATA_DIR
-from interview_forge.services.auth import business_now, effective_ai_daily_limit, now_iso
+from interview_forge.services.auth import effective_ai_daily_limit
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.services.study import (
     complete_content, complete_round, daily_data, dashboard_cached, export_data,
-    get_settings, library_data, mock_exam, pick_problem, problem_marks, set_mark,
-    set_setting, today_plan, weaklist,
+    export_database, get_settings, library_data, mock_exam, pin_plan, pick_problem,
+    problem_marks, set_mark, set_setting, today_plan, weaklist,
 )
 from interview_forge.analytics.cache import analytics_cached
 
@@ -172,29 +166,12 @@ def export(request: Request):
     db = user_db(user)
     kind = request.query_params.get("kind", "")
     if kind == "db":
-        tmp_path: Path | None = None
         try:
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(suffix=".db", delete=False, dir=str(DATA_DIR)) as temp:
-                tmp_path = Path(temp.name)
-            source = sqlite3.connect(db)
-            dest = sqlite3.connect(tmp_path)
-            try:
-                source.backup(dest)
-            finally:
-                dest.close()
-                source.close()
-            body = tmp_path.read_bytes()
+            body = export_database(db)
             return Response(content=body, media_type="application/octet-stream",
                             headers={"Content-Disposition": 'attachment; filename="hot100-study.db"', "Cache-Control": "no-store"})
         except BaseException as exc:
             return _handled(exc, write=True)
-        finally:
-            if tmp_path is not None:
-                try:
-                    tmp_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
     try:
         content_type, filename, data = export_data(kind, db)
         ascii_name = {"anki": "hot100-anki.csv", "weak": "hot100-weak.md", "records": "hot100-records.json"}.get(kind, "export.txt")
@@ -236,16 +213,8 @@ async def submit(request: Request):
 @router.post("/api/plan/pin")
 async def plan_pin(request: Request):
     def operation(p, db):
-        from scripts.build.build_hot100 import PROBLEM_BY_ID
         pid = int(p.get("problem_id", 0))
-        if pid not in PROBLEM_BY_ID:
-            raise ValueError("未知题号")
-        for_date = (business_now().date()).fromordinal(business_now().date().toordinal() + 1).isoformat()
-        from interview_forge.core.runtime import server_runtime
-        with closing(server_runtime.connect(db)) as connection:
-            connection.execute("INSERT INTO plan_pins(problem_id, for_date, created_at) VALUES (?, ?, ?) ON CONFLICT(problem_id) DO UPDATE SET for_date = excluded.for_date", (pid, for_date, now_iso()))
-            connection.commit()
-        return {"pinned": True, "problem_id": pid, "for_date": for_date}
+        return pin_plan(pid, db)
     return await _write_json(request, operation)
 
 
