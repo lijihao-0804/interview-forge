@@ -35,7 +35,7 @@
 <li><a href="#scriptsbuildbuild_hot100py">scripts/build/build_hot100.py：全量重建</a></li>
 <li><a href="#scriptsbuildbuild_html_sitepy">scripts/build/build_html_site.py：刷新网页</a></li>
 <li><a href="#scriptscheckcheck_hot100py">scripts/check/check_hot100.py：发布前检查</a></li>
-<li><a href="#interview_forgeserverstudy_serverpy">interview_forge/server/study_server.py：学习记录服务</a></li>
+<li><a href="#interview_forgeserverstudy_serverpyhttp-facade">interview_forge/server/study_server.py：HTTP 服务与兼容 facade</a></li>
 </ul>
 </li>
 <li><a href="#4">4. 日常修改的标准流程</a></li>
@@ -135,7 +135,7 @@
 ├─ 05-可视化/                题解页内嵌交互组件的实现源与资源
 ├─ 06-扩展题源/              后续新增题目的持久正文源
 ├─ 99-原稿归档/              原始资料副本，只用于核对
-├─ interview_forge/          正式 Python 包（服务、分析、AI 与共享路径）
+├─ interview_forge/          正式 Python 包（server/services/db/analytics/ai）
 ├─ scripts/                  按用途组织的构建、检查、抓取与维护脚本
 └─ tools/                    兼容命令入口、页面模板、本地服务与质量检查入口
 </code></pre></div>
@@ -164,13 +164,24 @@
 </ul>
 <h3 id="scriptscheckcheck_hot100py"><code>scripts/check/check_hot100.py</code>：发布前检查</h3>
 <p>它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 <code>ERROR</code>。</p>
-<h3 id="interview_forgeserverstudy_serverpy"><code>interview_forge/server/study_server.py</code>：学习记录服务</h3>
-<p>它使用 Python 标准库提供静态页面和 JSON API，并把当前账号记录写入服务器端 SQLite；本地开发时才按启动脚本的监听配置运行：</p>
+<h3 id="interview_forgeserverstudy_serverpyhttp-facade"><code>interview_forge/server/study_server.py</code>：HTTP 服务与兼容 facade</h3>
+<p>它使用 Python 标准库提供静态页面和 JSON API，并按当前账号调用 <code>interview_forge/services/</code>、<code>interview_forge/db/</code> 与 <code>interview_forge/analytics/</code>；本地开发时才按启动脚本的监听配置运行：</p>
 <ul>
 <li>打开题解页时写入一条 <code>view</code>；同题 60 秒内重复刷新不会反复记账。</li>
 <li>Hot 100 面板不再落手动 <code>complete</code>：题目轮次由 <code>submissions.status='ac'</code> 按自然日去重推导；书架章节仍可点“完成一轮”写入 <code>complete</code>。</li>
 <li>同一天可以看多题，也可以把同一题完成多轮；历史记录不会被新状态覆盖。</li>
 </ul>
+<p>认证/会话/管理员在 <code>interview_forge/services/auth.py</code>，聊天室/反馈/资料在
+<code>services/community.py</code>，天气、力扣同步和提交分别在 <code>services/weather.py</code>、
+<code>services/leetcode.py</code>、<code>services/submissions.py</code>；题目、书架、复习、计划和导出在
+<code>services/study.py</code>；旧的 <code>study_server</code> import symbol
+仍由服务组装模块 re-export。</p>
+<p>分析与 AI 的正式职责也已按边界拆开：<code>analytics/models.py</code>、<code>queries.py</code>、
+<code>metrics.py</code> 负责 analytics 的规则/只读查询/指标证据，<code>analytics/diagnosis.py</code>、
+<code>context_models.py</code>、<code>selection.py</code> 负责诊断摘要与上下文预算选择；AI 的 prompt、
+校验、投影、生成和任务生命周期分别位于 <code>ai/prompts.py</code>、<code>validation.py</code>、
+<code>context_projection.py</code>、<code>generation.py</code>、<code>tasks.py</code>。<code>ai_coach.py</code> 仍是旧导入兼容
+facade，修改这些职责时不要复制 queue、cache 或 provider 单例。</p>
 <p>学习站首页模板位于 <code>tools/templates/dashboard.tpl</code>。修改首页结构、样式或交互时改模板，不要直接改 <code>index.html</code>。</p>
 <h2 id="4">4. 日常修改的标准流程</h2>
 <ol>
@@ -350,7 +361,7 @@
 <li><code>scripts/build/build_html_site.py</code> 中的 <code>SITE_JS</code></li>
 </ul>
 <p><code>assets/site.css</code> 和 <code>assets/site.js</code> 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 <code>scripts/build/build_html_site.py</code>。只改 <code>assets/</code> 会在下次构建时被覆盖。</p>
-<p>学习站首页的 HTML、CSS、JavaScript 位于 <code>tools/templates/dashboard.tpl</code>，题目数据由 <code>scripts/build/build_hot100.py</code> 的 <code>render_dashboard()</code> 注入。数据库和 API 位于 <code>interview_forge/server/study_server.py</code>。题解与可视化的对应关系位于 <code>scripts/build/build_html_site.py</code> 的 <code>VISUAL_EMBEDS</code>，统一修饰位于 <code>polish_visual()</code>。</p>
+<p>学习站首页的 HTML、CSS、JavaScript 位于 <code>tools/templates/dashboard.tpl</code>，题目数据由 <code>scripts/build/build_hot100.py</code> 的 <code>render_dashboard()</code> 注入。数据库连接/schema 位于 <code>interview_forge/db/</code>，API 组装位于 <code>interview_forge/server/study_server.py</code>，学习业务位于 <code>interview_forge/services/</code>。题解与可视化的对应关系位于 <code>scripts/build/build_html_site.py</code> 的 <code>VISUAL_EMBEDS</code>，统一修饰位于 <code>polish_visual()</code>。</p>
 <h3 id="_9">学习书架与课程模块</h3>
 <p>学习书架生成器是 <code>scripts/build/build_library.py</code>，课程登记表是 <code>scripts/build/library_catalog.py</code>。当前只收录明确登记的 Markdown，不会递归发布临时文件、demo README、数据库、密码文本或其他私人附件。</p>
 <p><code>Hot 100 算法刷题精讲</code> 是书架里的特殊模块：它不拆 Markdown，而是由 <code>scripts/build/build_hot100.py</code> 的题目目录生成，每道题指向 <code>03-题解/</code> 下已有的题解页。题目轮次由 AC 记录自动推导并反映到书架进度；不要在 <code>scripts/build/library_catalog.py</code> 里为它登记 <code>source</code>。</p>
@@ -434,7 +445,7 @@ Markdown、专题、清单、学习面板
 <li>书架总页 <code>library/index.html</code>：顶部“全书架待复习 N 章（逾期 M）”汇总条，模块卡右上角有“待复习 n”角标（逾期红色），数据来自 <code>GET /api/daily</code>；</li>
 <li>模块页 <code>library/&lt;module&gt;/index.html</code>：进度条下方“本模块待复习”区块列出到期章节（逾期红色）；章节卡挂“待复习/逾期”徽标；筛选器有“待复习”选项；数据来自 <code>GET /api/daily?module=&lt;module_id&gt;</code>；</li>
 <li>章节页状态条：显示“下次复习：MM-DD”，到期当天或逾期会标红；</li>
-<li>书籍章节专用复习间隔：<code>REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)</code>（<code>interview_forge/server/study_server.py</code>），Hot 100 题目维持 <code>(1,3,7,15,30,60)</code>。</li>
+<li>书籍章节专用复习间隔：<code>REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)</code>（<code>interview_forge/services/review.py</code>），Hot 100 题目维持 <code>(1,3,7,15,30,60)</code>。</li>
 </ul>
 <p>回归断言：面板不混排书架、书架总页汇总条与模块角标、模块页 due 区块、章节页下次复习行、<code>/api/daily</code> 的 <code>module</code> 参数过滤，均在 <code>check_hot100.py</code> 覆盖。</p>
         

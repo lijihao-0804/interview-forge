@@ -44,3 +44,44 @@ CREATE TABLE IF NOT EXISTS ai_daily_quota (
     updated_at TEXT NOT NULL
 );
 """
+
+
+def ensure_ai_schema(connection) -> None:
+    """Idempotently create/upgrade AI tables in one user's learning DB."""
+    connection.executescript(AI_DB_SCHEMA)
+    required = {
+        "started_at": "TEXT",
+        "finished_at": "TEXT",
+        "worker_id": "TEXT",
+        "error_category": "TEXT",
+        "error_message": "TEXT",
+        "context_preview": "TEXT NOT NULL DEFAULT '{}'",
+        "result_json": "TEXT",
+        "fallback_json": "TEXT NOT NULL DEFAULT '{}'",
+        "insight_id": "TEXT",
+        "quota_day": "TEXT",
+        "quota_state": "TEXT NOT NULL DEFAULT 'none'",
+        "quota_limit": "INTEGER",
+    }
+    columns = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(ai_tasks)").fetchall()
+    }
+    for name, declaration in required.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE ai_tasks ADD COLUMN {name} {declaration}")
+    quota_columns = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(ai_daily_quota)").fetchall()
+    }
+    if "reset_offset" not in quota_columns:
+        connection.execute(
+            "ALTER TABLE ai_daily_quota ADD COLUMN reset_offset INTEGER NOT NULL DEFAULT 0"
+        )
+    connection.execute("CREATE INDEX IF NOT EXISTS ix_ai_tasks_created ON ai_tasks(created_at DESC)")
+    connection.execute(
+        """CREATE INDEX IF NOT EXISTS ix_ai_tasks_dedupe
+           ON ai_tasks(task, snapshot_hash, prompt_version, model_key, status)"""
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS ix_ai_insights_created ON ai_insights(created_at DESC)")
+    connection.commit()

@@ -5,14 +5,14 @@
 ## 正式包
 
 - `interview_forge/core/paths.py`：项目根目录和既有数据路径常量。
-- `interview_forge/server/study_server.py`：HTTP 处理器、路由编排以及仍与动态认证上下文紧密耦合的站点业务。
+- `interview_forge/server/study_server.py`：HTTP 处理器、路由编排、启动组装与旧符号兼容 facade；业务实现通过服务层导入。
 - `interview_forge/server/rate_limit.py`：登录/注册码的进程内滑动窗口状态；`study_server` 继续 re-export 原函数名。
-- `interview_forge/db/schema.py`：学习库 DDL；`db/ai_schema.py` 保存原有 AI 表 DDL 片段。
+- `interview_forge/db/schema.py`：学习库 DDL；`db/ai_schema.py` 保存 AI 表 DDL 片段与幂等升级。
 - `interview_forge/db/connection.py`：学习库连接、一次性 schema 初始化、旧学习事件兼容回填；旧 `study_server` 连接函数仍是兼容包装。
-- `interview_forge/analytics/`：学习统计与确定性上下文编译。编译器输入输出、预算和规则版本保持原样。
-- `interview_forge/ai/config.py`：AI 进程环境配置、可选依赖探测和非敏感模型键；`ai/ai_coach.py` 保留旧导出及完整业务流程。
-- `interview_forge/ai/ai_coach.py`：AI schema、provider、quota、task、校验、反馈与遥测等尚未跨边界搬动的真实职责。
-- `interview_forge/services/review.py`：复习间隔计算；服务层保留旧函数名包装。
+- `interview_forge/analytics/`：学习统计、确定性上下文编译与进程内 analytics cache。`models.py` 保存协议/规则/目录时间模型，`queries.py` 只负责只读 SQLite 访问，`metrics.py` 负责指标/信号/证据 ID 构造，`context_models.py`、`diagnosis.py`、`selection.py` 分别承载上下文协议、诊断摘要与有界原子选择；编译器输入输出、预算和规则版本保持原样。
+- `interview_forge/ai/`：`prompts.py` 保存提示与输出契约，`validation.py` 负责 Pydantic/边界/引用闭包，`context_projection.py` 负责 LLMContext v2 投影，`generation.py` 负责 provider 调用与解析校验，`tasks.py` 负责任务队列/worker/持久化生命周期；`ai_coach.py` 作为 facade/re-export 保留旧符号、单例和补丁点。
+- `interview_forge/services/study.py`：题目/章节事件、仪表盘聚合、书架与复习、标记/设置、计划、薄弱清单和导出等学习业务。
+- `interview_forge/services/`：认证/会话/管理员、反馈/聊天室/搜索/资料、力扣、提交、天气、学习与复习等真实业务边界。
 
 ## 兼容入口
 
@@ -22,4 +22,4 @@
 
 ## 拆分原则
 
-每次职责移动都保留旧 import symbol，并在移动后立即执行相关单测、编译和启动导入检查。认证/会话、天气、聊天、业务路由和缓存仍保留在服务模块中，因为它们依赖可被测试替换的模块级路径、时区、数据库和单例状态；继续拆分前必须先设计等价的依赖注入边界，不能仅为目录整齐复制状态。
+每次职责移动都保留旧 import symbol，并在移动后立即执行相关单测、编译和启动导入检查。跨模块的可替换路径、时区、数据库和单例状态由服务通过惰性 assembly lookup 复用，避免复制状态。当前仍保留 `study_server.py` 的 HTTP assembly、`learning_analytics.py` 的主聚合循环和 `context_compiler.py` 的协议组装；它们需要共享大量可替换运行时符号，继续拆分前必须有明确边界与回归证据。

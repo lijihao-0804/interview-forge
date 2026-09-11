@@ -1202,7 +1202,7 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self.assertEqual(server.set_user_role("OtherRoleUser", "user", server.PERMANENT_ADMIN_USERNAME)["role"], "user")
 
     def test_admin_page_quota_and_permanent_admin_contract(self):
-        page = (Path(__file__).parents[2] / "pages" / "admin.html").read_text(encoding="utf-8")
+        page = (Path(__file__).parents[1] / "pages" / "admin.html").read_text(encoding="utf-8")
         for marker in (
             "ai_daily_limit_effective", "ai_daily_limit_custom", "每日 AI 分析上限",
             "/api/admin/users/ai-quota/limit", "保存上限", "恢复默认(3次)",

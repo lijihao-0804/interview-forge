@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "deepseek_reasoning_benchmark.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "benchmarks" / "deepseek_reasoning_benchmark.py"
 SPEC = importlib.util.spec_from_file_location("benchmark_deepseek_reasoning", SCRIPT)
 benchmark = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

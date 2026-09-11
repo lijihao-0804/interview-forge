@@ -44,6 +44,14 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
 
+# When the build chain invokes this file by path from a subprocess, Python's
+# import root is ``scripts/build`` rather than the repository root.  Keep the
+# moved package and scripts package importable without changing the CLI.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+import sys
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 # ---- 渲染依赖 ----
 # markdown：Python-Markdown，负责把章节 Markdown 转 HTML(extra/tables 等扩展)；
 # pygments：代码高亮着色，与高亮函数配合产出带 data-lang 的 codehilite 结构。

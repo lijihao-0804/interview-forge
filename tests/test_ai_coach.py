@@ -998,7 +998,7 @@ class AIDailyQuotaTests(unittest.TestCase):
 
 class AICoachPageContractTests(unittest.TestCase):
     def test_page_uses_server_capability_and_safe_text_rendering(self):
-        page = Path(__file__).resolve().parents[2] / "cockpit.html"
+        page = Path(__file__).resolve().parents[1] / "cockpit.html"
         text = page.read_text(encoding="utf-8")
         self.assertIn("/api/coach/analyze", text)
         self.assertIn("/api/coach/insights/recent", text)
@@ -1019,7 +1019,7 @@ class AICoachPageContractTests(unittest.TestCase):
         self.assertNotIn("innerHTML", text[ai_start:ai_end])
 
     def test_waiting_animation_and_quota_contract(self):
-        page = (Path(__file__).resolve().parents[2] / "cockpit.html").read_text(encoding="utf-8")
+        page = (Path(__file__).resolve().parents[1] / "cockpit.html").read_text(encoding="utf-8")
         for text in ("正在读取学习数据", "正在比对学习进度", "正在拼接上下文", "正在调用大模型", "正在定制学习方案"):
             self.assertIn(text, page)
         self.assertIn("prefers-reduced-motion:reduce", page)
@@ -1044,7 +1044,7 @@ class AICoachPageContractTests(unittest.TestCase):
         self.assertIn('aria-valuenow', page)
 
     def test_collapsible_history_mode_contract(self):
-        page = (Path(__file__).resolve().parents[2] / "cockpit.html").read_text(encoding="utf-8")
+        page = (Path(__file__).resolve().parents[1] / "cockpit.html").read_text(encoding="utf-8")
         ids = re.findall(r'\bid="([^"]+)"', page)
         self.assertEqual(len(ids), len(set(ids)))
         for text in ('id="ai-collapse"', 'aria-controls="ai-body"', 'aria-expanded="true"',
