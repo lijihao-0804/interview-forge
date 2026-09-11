@@ -1,14 +1,12 @@
 """LeetCode credentials, status and synchronization routes."""
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
 from interview_forge.services.leetcode import (
     LeetCodeSyncError, clear_credentials, get_credentials, lc_status_cached, lc_status_invalidate,
-    leetcode_status, leetcode_sync_async, set_credentials,
+    leetcode_status_async, leetcode_sync_async, set_credentials,
 )
 from interview_forge.runtime.task_manager import task_manager
 
@@ -62,7 +60,7 @@ async def connect(request: Request):
                          "leetcode_csrf": str(payload.get("leetcode_csrf", ""))}, db)
         lc_status_invalidate(db)
         invalidate_dashboard(db)
-        checked = await asyncio.to_thread(leetcode_status, get_credentials(db))
+        checked = await leetcode_status_async(get_credentials(db))
         return json_response({"saved": True, **checked}, 201)
     except BaseException as exc:
         return _handled(exc)
