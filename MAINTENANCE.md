@@ -39,7 +39,7 @@
 ├─ 05-可视化/                题解页内嵌交互组件的实现源与资源
 ├─ 06-扩展题源/              后续新增题目的持久正文源
 ├─ 99-原稿归档/              原始资料副本，只用于核对
-├─ interview_forge/          正式 Python 包（服务、分析、AI 与共享路径）
+├─ interview_forge/          正式 Python 包（server/services/db/analytics/ai）
 ├─ scripts/                  按用途组织的构建、检查、抓取与维护脚本
 └─ tools/                    兼容命令入口、页面模板、本地服务与质量检查入口
 ```
@@ -76,13 +76,26 @@
 
 它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 `ERROR`。
 
-### `interview_forge/server/study_server.py`：学习记录服务
+### `interview_forge/server/study_server.py`：HTTP 服务与兼容 facade
 
-它使用 Python 标准库提供静态页面和 JSON API，并把当前账号记录写入服务器端 SQLite；本地开发时才按启动脚本的监听配置运行：
+它使用 Python 标准库提供静态页面和 JSON API，并按当前账号调用 `interview_forge/services/`、`interview_forge/db/` 与 `interview_forge/analytics/`；本地开发时才按启动脚本的监听配置运行：
 
 - 打开题解页时写入一条 `view`；同题 60 秒内重复刷新不会反复记账。
 - Hot 100 面板不再落手动 `complete`：题目轮次由 `submissions.status='ac'` 按自然日去重推导；书架章节仍可点“完成一轮”写入 `complete`。
 - 同一天可以看多题，也可以把同一题完成多轮；历史记录不会被新状态覆盖。
+
+认证/会话/管理员在 `interview_forge/services/auth.py`，聊天室/反馈/资料在
+`services/community.py`，天气、力扣同步和提交分别在 `services/weather.py`、
+`services/leetcode.py`、`services/submissions.py`；题目、书架、复习、计划和导出在
+`services/study.py`；旧的 `study_server` import symbol
+仍由服务组装模块 re-export。
+
+分析与 AI 的正式职责也已按边界拆开：`analytics/models.py`、`queries.py`、
+`metrics.py` 负责 analytics 的规则/只读查询/指标证据，`analytics/diagnosis.py`、
+`context_models.py`、`selection.py` 负责诊断摘要与上下文预算选择；AI 的 prompt、
+校验、投影、生成和任务生命周期分别位于 `ai/prompts.py`、`validation.py`、
+`context_projection.py`、`generation.py`、`tasks.py`。`ai_coach.py` 仍是旧导入兼容
+facade，修改这些职责时不要复制 queue、cache 或 provider 单例。
 
 学习站首页模板位于 `tools/templates/dashboard.tpl`。修改首页结构、样式或交互时改模板，不要直接改 `index.html`。
 
@@ -295,7 +308,7 @@ class Solution {
 
 `assets/site.css` 和 `assets/site.js` 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 `scripts/build/build_html_site.py`。只改 `assets/` 会在下次构建时被覆盖。
 
-学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库和 API 位于 `interview_forge/server/study_server.py`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
+学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库连接/schema 位于 `interview_forge/db/`，API 组装位于 `interview_forge/server/study_server.py`，学习业务位于 `interview_forge/services/`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
 
 ### 学习书架与课程模块
 
@@ -403,6 +416,6 @@ Markdown、专题、清单、学习面板
 - 书架总页 `library/index.html`：顶部“全书架待复习 N 章（逾期 M）”汇总条，模块卡右上角有“待复习 n”角标（逾期红色），数据来自 `GET /api/daily`；
 - 模块页 `library/<module>/index.html`：进度条下方“本模块待复习”区块列出到期章节（逾期红色）；章节卡挂“待复习/逾期”徽标；筛选器有“待复习”选项；数据来自 `GET /api/daily?module=<module_id>`；
 - 章节页状态条：显示“下次复习：MM-DD”，到期当天或逾期会标红；
-- 书籍章节专用复习间隔：`REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)`（`interview_forge/server/study_server.py`），Hot 100 题目维持 `(1,3,7,15,30,60)`。
+- 书籍章节专用复习间隔：`REVIEW_INTERVALS_CONTENT=(3,7,15,30,60,90)`（`interview_forge/services/review.py`），Hot 100 题目维持 `(1,3,7,15,30,60)`。
 
 回归断言：面板不混排书架、书架总页汇总条与模块角标、模块页 due 区块、章节页下次复习行、`/api/daily` 的 `module` 参数过滤，均在 `check_hot100.py` 覆盖。

@@ -76,7 +76,7 @@ class ChatHistoryTests(unittest.TestCase):
             thread.join(timeout=2)
 
     def test_frontend_history_contract(self):
-        source = (Path(__file__).parents[2] / "assets" / "auth-widget.js").read_text(encoding="utf-8")
+        source = (Path(__file__).parents[1] / "assets" / "auth-widget.js").read_text(encoding="utf-8")
         for marker in (
             "oldestId", "latestId", "hasOlder", "olderLoading",
             'before=" + chatState.oldestId + "&limit=50',
