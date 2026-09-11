@@ -442,11 +442,16 @@ def now_parts() -> tuple[str, str]:
     return now.isoformat(timespec="seconds"), now.date().isoformat()
 
 
+# Legacy composition-root value consumed by services.study through
+# server_runtime.  Keep this concrete here so the runtime lookup does not
+# resolve back to the same proxy during compatibility-server requests.
+_DASH_TTL = 60.0
+
+
 from interview_forge.services.study import (
     _DASH_CACHE,
     _DASH_CACHE_LOCK,
     _DASH_CACHE_GENERATIONS,
-    _DASH_TTL,
     record_view,
     complete_round,
     dashboard_cached,

@@ -570,6 +570,18 @@ class LearningAnalyticsAPITests(unittest.TestCase):
         with server._DASH_CACHE_LOCK:
             self.assertEqual(server._DASH_CACHE[cache_key][1], {"snapshot": "fresh"})
 
+    def test_dashboard_cache_hit_resolves_legacy_dash_ttl_without_recursion(self):
+        db_path = self.user_db("alice")
+        create_learning_db(db_path)
+        cache_key = str(db_path.resolve())
+        cached = {"snapshot": "cached"}
+        with server._DASH_CACHE_LOCK:
+            server._DASH_CACHE[cache_key] = (time.time(), cached)
+
+        self.assertEqual(float(server._DASH_TTL), 60.0)
+        with patch.object(server, "dashboard_data", side_effect=AssertionError("cache hit should not rebuild dashboard")):
+            self.assertIs(server.dashboard_cached(db_path), cached)
+
     def test_complete_does_not_depend_on_redundant_content_mirror(self):
         db_path = self.user_db("alice")
         create_learning_db(db_path)
