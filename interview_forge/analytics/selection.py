@@ -5,6 +5,8 @@ helper lookups resolve through the facade at call time to preserve patch points.
 """
 from __future__ import annotations
 
+from interview_forge.analytics.runtime import compiler
+
 import hashlib
 import math
 from collections.abc import Mapping
@@ -13,33 +15,29 @@ from typing import Any
 from interview_forge.analytics.context_models import *
 
 
-def _runtime():
-    from interview_forge.analytics import context_compiler
-    return context_compiler
-
 
 def _serialize(value):
-    return _runtime()._serialize(value)
+    return compiler()._serialize(value)
 
 
 def _hash_value(value):
-    return _runtime()._hash_value(value)
+    return compiler()._hash_value(value)
 
 
 def _fact_id(value):
-    return _runtime()._fact_id(value)
+    return compiler()._fact_id(value)
 
 
 def _build_trace_map(*args, **kwargs):
-    return _runtime()._build_trace_map(*args, **kwargs)
+    return compiler()._build_trace_map(*args, **kwargs)
 
 
 def _diagnostic_representative_cases(*args, **kwargs):
-    return _runtime()._diagnostic_representative_cases(*args, **kwargs)
+    return compiler()._diagnostic_representative_cases(*args, **kwargs)
 
 
 def _diagnostic_anomalies(*args, **kwargs):
-    return _runtime()._diagnostic_anomalies(*args, **kwargs)
+    return compiler()._diagnostic_anomalies(*args, **kwargs)
 
 class _SelectionBuilder:
     """Build and budget-check atomic context groups."""
@@ -460,4 +458,3 @@ class _SelectionBuilder:
             self._signal_ids.clear()
             self._evidence_ids.clear()
         raise ContextCompilerError("context budget could not be satisfied")
-

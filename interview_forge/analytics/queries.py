@@ -5,15 +5,13 @@ facade's constants and exception type through lazy runtime lookup.
 """
 from __future__ import annotations
 
+from interview_forge.analytics.runtime import learning
+
 import sqlite3
 from pathlib import Path
 from typing import Any
 from collections.abc import Mapping
 
-
-def _runtime():
-    from interview_forge.analytics import learning_analytics
-    return learning_analytics
 
 def _is_lock_error(exc: BaseException) -> bool:
     message = str(exc).lower()
@@ -22,7 +20,7 @@ def _is_lock_error(exc: BaseException) -> bool:
 
 def _raise_if_lock_error(exc: sqlite3.OperationalError) -> None:
     if _is_lock_error(exc):
-        raise _runtime().AnalyticsUnavailableError(
+        raise learning().AnalyticsUnavailableError(
             "learning analytics database is locked; retry the read"
         ) from exc
 
@@ -60,7 +58,7 @@ def _open_read_only(db_path: Any) -> sqlite3.Connection | None:
         if isinstance(db_path, str) and db_path == ":memory:":
             connection = sqlite3.connect(
                 db_path,
-                timeout=_runtime().ANALYTICS_DB_TIMEOUT_SECONDS,
+                timeout=learning().ANALYTICS_DB_TIMEOUT_SECONDS,
             )
         else:
             path = Path(db_path)
@@ -75,10 +73,10 @@ def _open_read_only(db_path: Any) -> sqlite3.Connection | None:
             connection = sqlite3.connect(
                 path.resolve().as_uri() + "?mode=ro",
                 uri=True,
-                timeout=_runtime().ANALYTICS_DB_TIMEOUT_SECONDS,
+                timeout=learning().ANALYTICS_DB_TIMEOUT_SECONDS,
             )
         connection.row_factory = sqlite3.Row
-        connection.execute(f"PRAGMA busy_timeout = {_runtime().ANALYTICS_BUSY_TIMEOUT_MS}")
+        connection.execute(f"PRAGMA busy_timeout = {learning().ANALYTICS_BUSY_TIMEOUT_MS}")
         connection.execute("PRAGMA query_only = ON")
         return connection
     except sqlite3.OperationalError as exc:
@@ -125,7 +123,7 @@ def _read_compatible_rows(
     if connection is None:
         quality["missing_tables"].append(table)
         return []
-    schema = _runtime().READ_TABLE_SCHEMAS[table]
+    schema = learning().READ_TABLE_SCHEMAS[table]
     if not _table_exists(connection, table):
         quality["missing_tables"].append(table)
         return []

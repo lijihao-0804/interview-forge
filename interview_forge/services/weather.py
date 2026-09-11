@@ -1,14 +1,16 @@
 """Account weather preferences and Open-Meteo business operations.
 
-The service intentionally resolves the server assembly lazily.  The existing
+The service consumes late-bound composition-root dependencies.  The existing
 application and tests replace paths, auth connections, cache objects and
-upstream helpers on ``study_server``; resolving those dependencies at call
-time preserves that extension point while moving the weather rules out of the
-HTTP assembly module.
+upstream helpers on the assembly object; resolving those dependencies at call
+time preserves that extension point while keeping weather rules out of the
+HTTP module.
 """
 from __future__ import annotations
+from interview_forge.core.runtime import server_runtime
 
 import json
+import asyncio
 import re
 import threading
 import time
@@ -20,10 +22,19 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-def _runtime():
-    from interview_forge.server import study_server
+_WEATHER_DEFAULT = {"mode": "default", "display_name": "南京", "latitude": 32.06,
+                    "longitude": 118.80, "timezone": "Asia/Shanghai"}
+_WEATHER_FRESH_DEFAULT = 30 * 60
+_WEATHER_FRESH_CUSTOM = 15 * 60
+_WEATHER_STALE_MAX = 6 * 60 * 60
+_WEATHER_SEARCH_TTL = 7 * 24 * 60 * 60
+_WEATHER_SEARCH_VERSION = "cn-rank-v2"
+_WEATHER_CACHE: dict[tuple[object, ...], tuple[float, dict[str, object]]] = {}
+_WEATHER_SEARCH_CACHE: dict[str, tuple[float, list[dict[str, object]]]] = {}
+_WEATHER_CACHE_LOCK = threading.Lock()
+_WEATHER_KEY_LOCKS: dict[tuple[object, ...], threading.Lock] = {}
+_WEATHER_KEY_LOCKS_LOCK = threading.Lock()
 
-    return study_server
 
 
 class WeatherServiceError(RuntimeError):
@@ -31,9 +42,8 @@ class WeatherServiceError(RuntimeError):
 
 
 def _weather_key_lock(key: tuple[object, ...]):
-    runtime = _runtime()
-    with runtime._WEATHER_KEY_LOCKS_LOCK:
-        return runtime._WEATHER_KEY_LOCKS.setdefault(key, threading.Lock())
+    with _WEATHER_KEY_LOCKS_LOCK:
+        return _WEATHER_KEY_LOCKS.setdefault(key, threading.Lock())
 
 
 def _weather_http_json(base_url: str, params: dict[str, object]) -> dict[str, object]:
@@ -66,7 +76,7 @@ def _weather_code(code: int) -> dict[str, object]:
 
 
 def get_weather_preference(username: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect_auth()) as connection:
         row = connection.execute(
             """SELECT wp.mode, wp.display_name, wp.latitude, wp.longitude, wp.timezone
@@ -75,12 +85,12 @@ def get_weather_preference(username: str) -> dict[str, object]:
     if row is None:
         raise ValueError("用户不存在")
     if row["mode"] is None:
-        return dict(runtime._WEATHER_DEFAULT)
+        return dict(_WEATHER_DEFAULT)
     return {key: row[key] for key in ("mode", "display_name", "latitude", "longitude", "timezone")}
 
 
 def set_weather_preference(username: str, payload: dict[str, object]) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     mode = str(payload.get("mode", "")).strip()
     if mode not in {"default", "city", "geolocation"}:
         raise ValueError("天气位置模式不正确")
@@ -90,7 +100,7 @@ def set_weather_preference(username: str, payload: dict[str, object]) -> dict[st
             raise ValueError("用户不存在")
         if mode == "default":
             connection.execute("DELETE FROM weather_preferences WHERE user_id = ?", (row["id"],))
-            return dict(runtime._WEATHER_DEFAULT)
+            return dict(_WEATHER_DEFAULT)
         try:
             latitude = float(payload.get("latitude"))
             longitude = float(payload.get("longitude"))
@@ -121,7 +131,7 @@ def set_weather_preference(username: str, payload: dict[str, object]) -> dict[st
 
 
 def _fetch_weather(preference: dict[str, object]) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     payload = runtime._weather_http_json("https://api.open-meteo.com/v1/forecast", {
         "latitude": preference["latitude"], "longitude": preference["longitude"],
         "current": "temperature_2m,apparent_temperature,weather_code",
@@ -161,43 +171,48 @@ def _weather_response(cached: dict[str, object], preference: dict[str, object], 
 
 
 def weather_for_user(username: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     preference = runtime.get_weather_preference(username)
     default = preference["mode"] == "default"
     key = (("forecast", "default-nanjing") if default else
            ("forecast", round(float(preference["latitude"]), 2), round(float(preference["longitude"]), 2)))
-    ttl = runtime._WEATHER_FRESH_DEFAULT if default else runtime._WEATHER_FRESH_CUSTOM
+    ttl = _WEATHER_FRESH_DEFAULT if default else _WEATHER_FRESH_CUSTOM
     now = time.monotonic()
-    with runtime._WEATHER_CACHE_LOCK:
-        cached = runtime._WEATHER_CACHE.get(key)
+    with _WEATHER_CACHE_LOCK:
+        cached = _WEATHER_CACHE.get(key)
     if cached and now - cached[0] <= ttl:
         return _weather_response(cached[1], preference)
     lock = runtime._weather_key_lock(key)
     if not lock.acquire(blocking=False):
-        if cached and now - cached[0] <= runtime._WEATHER_STALE_MAX:
+        if cached and now - cached[0] <= _WEATHER_STALE_MAX:
             return _weather_response(cached[1], preference, stale=True)
         if not lock.acquire(timeout=10):
             raise WeatherServiceError("天气服务暂时不可用")
     try:
-        with runtime._WEATHER_CACHE_LOCK:
-            cached = runtime._WEATHER_CACHE.get(key)
+        with _WEATHER_CACHE_LOCK:
+            cached = _WEATHER_CACHE.get(key)
         now = time.monotonic()
         if cached and now - cached[0] <= ttl:
             return _weather_response(cached[1], preference)
         try:
             result = runtime._fetch_weather(preference)
         except WeatherServiceError:
-            if cached and now - cached[0] <= runtime._WEATHER_STALE_MAX:
+            if cached and now - cached[0] <= _WEATHER_STALE_MAX:
                 return _weather_response(cached[1], preference, stale=True)
             raise
-        with runtime._WEATHER_CACHE_LOCK:
-            if len(runtime._WEATHER_CACHE) >= 256 and key not in runtime._WEATHER_CACHE:
-                oldest = min(runtime._WEATHER_CACHE, key=lambda item: runtime._WEATHER_CACHE[item][0])
-                runtime._WEATHER_CACHE.pop(oldest, None)
-            runtime._WEATHER_CACHE[key] = (time.monotonic(), result)
+        with _WEATHER_CACHE_LOCK:
+            if len(_WEATHER_CACHE) >= 256 and key not in _WEATHER_CACHE:
+                oldest = min(_WEATHER_CACHE, key=lambda item: _WEATHER_CACHE[item][0])
+                _WEATHER_CACHE.pop(oldest, None)
+            _WEATHER_CACHE[key] = (time.monotonic(), result)
         return _weather_response(result, preference)
     finally:
         lock.release()
+
+
+async def weather_for_user_async(username: str) -> dict[str, object]:
+    """Event-loop-safe adapter; the established sync contract is unchanged."""
+    return await asyncio.to_thread(weather_for_user, username)
 
 
 def _normalize_place(value: object) -> str:
@@ -237,21 +252,21 @@ def _rank_weather_location(item: dict[str, object], query: str) -> tuple[object,
 
 
 def search_weather_locations(query: str) -> list[dict[str, object]]:
-    runtime = _runtime()
+    runtime = server_runtime
     query = query.strip()
     if not (2 <= len(query) <= 50):
         raise ValueError("城市名称需为 2 至 50 个字符")
-    cache_key = runtime._WEATHER_SEARCH_VERSION + ":" + _normalize_place(query)
+    cache_key = _WEATHER_SEARCH_VERSION + ":" + _normalize_place(query)
     now = time.monotonic()
-    with runtime._WEATHER_CACHE_LOCK:
-        cached = runtime._WEATHER_SEARCH_CACHE.get(cache_key)
-    if cached and now - cached[0] <= runtime._WEATHER_SEARCH_TTL:
+    with _WEATHER_CACHE_LOCK:
+        cached = _WEATHER_SEARCH_CACHE.get(cache_key)
+    if cached and now - cached[0] <= _WEATHER_SEARCH_TTL:
         return [dict(item) for item in cached[1]]
     lock = runtime._weather_key_lock(("search", cache_key))
     with lock:
-        with runtime._WEATHER_CACHE_LOCK:
-            cached = runtime._WEATHER_SEARCH_CACHE.get(cache_key)
-        if cached and time.monotonic() - cached[0] <= runtime._WEATHER_SEARCH_TTL:
+        with _WEATHER_CACHE_LOCK:
+            cached = _WEATHER_SEARCH_CACHE.get(cache_key)
+        if cached and time.monotonic() - cached[0] <= _WEATHER_SEARCH_TTL:
             return [dict(item) for item in cached[1]]
         payload = runtime._weather_http_json("https://geocoding-api.open-meteo.com/v1/search", {
             "name": query, "count": 20, "language": "zh", "countryCode": "CN", "format": "json",
@@ -287,9 +302,9 @@ def search_weather_locations(query: str) -> list[dict[str, object]]:
                             "timezone": str(item.get("timezone") or "auto")[:64]})
             if len(results) >= 5:
                 break
-        with runtime._WEATHER_CACHE_LOCK:
-            if len(runtime._WEATHER_SEARCH_CACHE) >= 256 and cache_key not in runtime._WEATHER_SEARCH_CACHE:
-                oldest = min(runtime._WEATHER_SEARCH_CACHE, key=lambda item: runtime._WEATHER_SEARCH_CACHE[item][0])
-                runtime._WEATHER_SEARCH_CACHE.pop(oldest, None)
-            runtime._WEATHER_SEARCH_CACHE[cache_key] = (time.monotonic(), results)
+        with _WEATHER_CACHE_LOCK:
+            if len(_WEATHER_SEARCH_CACHE) >= 256 and cache_key not in _WEATHER_SEARCH_CACHE:
+                oldest = min(_WEATHER_SEARCH_CACHE, key=lambda item: _WEATHER_SEARCH_CACHE[item][0])
+                _WEATHER_SEARCH_CACHE.pop(oldest, None)
+            _WEATHER_SEARCH_CACHE[cache_key] = (time.monotonic(), results)
         return [dict(item) for item in results]

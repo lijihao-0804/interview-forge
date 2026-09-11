@@ -8,6 +8,7 @@ before.  No credential is logged or included in errors.
 from __future__ import annotations
 
 import io
+import asyncio
 import json
 import re
 import threading
@@ -20,23 +21,26 @@ from http import HTTPStatus
 from pathlib import Path
 
 from interview_forge.core.paths import DB_PATH
+from interview_forge.core.runtime import server_runtime
 
 
-def _runtime():
-    from interview_forge.server import study_server
+LC_STATUS_TTL = 60.0
+_LC_STATUS_CACHE: dict[tuple[str, str], tuple[float, dict[str, object]]] = {}
+_LC_STATUS_LOCK = threading.Lock()
+SYNC_TASKS: dict[str, dict[str, object]] = {}
+SYNC_TASKS_LOCK = threading.Lock()
 
-    return study_server
 
 
 def get_credentials(db_path: Path = DB_PATH):
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect(db_path)) as connection:
         rows = connection.execute("SELECT key, value FROM credentials").fetchall()
     return {str(row["key"]): str(row["value"]) for row in rows}
 
 
 def set_credentials(pairs: dict[str, str], db_path: Path = DB_PATH) -> None:
-    runtime = _runtime()
+    runtime = server_runtime
     studied_at, _ = runtime.now_parts()
     with closing(runtime.connect(db_path)) as connection:
         for key, value in pairs.items():
@@ -53,7 +57,7 @@ def set_credentials(pairs: dict[str, str], db_path: Path = DB_PATH) -> None:
 
 
 def clear_credentials(db_path: Path = DB_PATH) -> None:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect(db_path)) as connection:
         connection.execute("DELETE FROM credentials")
         connection.commit()
@@ -110,7 +114,7 @@ def _fetch_json_with_retry(
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
-            return json.loads(_runtime()._lc_http_get(url, headers, timeout).decode("utf-8"))
+            return json.loads(server_runtime._lc_http_get(url, headers, timeout).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc
             if exc.code not in (403, 429, 500, 502, 503, 504):
@@ -125,32 +129,32 @@ def _fetch_json_with_retry(
 
 
 def lc_status_cached(db_path: Path, credentials: dict[str, str], force: bool = False) -> dict:
-    runtime = _runtime()
+    runtime = server_runtime
     key = (str(db_path), credentials.get("leetcode_session", ""))
     now = time.time()
     if not force:
-        with runtime._LC_STATUS_LOCK:
-            hit = runtime._LC_STATUS_CACHE.get(key)
-            if hit and now - hit[0] < runtime.LC_STATUS_TTL:
+        with _LC_STATUS_LOCK:
+            hit = _LC_STATUS_CACHE.get(key)
+            if hit and now - hit[0] < LC_STATUS_TTL:
                 return hit[1]
     result = runtime.leetcode_status(credentials)
-    with runtime._LC_STATUS_LOCK:
-        runtime._LC_STATUS_CACHE[key] = (now, result)
+    with _LC_STATUS_LOCK:
+        _LC_STATUS_CACHE[key] = (now, result)
     return result
 
 
 def lc_status_invalidate(db_path: Path) -> None:
-    runtime = _runtime()
-    with runtime._LC_STATUS_LOCK:
-        for key in [key for key in runtime._LC_STATUS_CACHE if key[0] == str(db_path)]:
-            runtime._LC_STATUS_CACHE.pop(key, None)
+    runtime = server_runtime
+    with _LC_STATUS_LOCK:
+        for key in [key for key in _LC_STATUS_CACHE if key[0] == str(db_path)]:
+            _LC_STATUS_CACHE.pop(key, None)
 
 
 def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str, object]:
     if not credentials.get("leetcode_session"):
         return {"connected": False, "reason": "no-session", "message": "尚未保存 LEETCODE_SESSION"}
     try:
-        data = json.loads(_runtime()._lc_http_get(
+        data = json.loads(server_runtime._lc_http_get(
             "https://leetcode.cn/api/problems/all/", _leetcode_headers(credentials), timeout
         ).decode("utf-8"))
     except urllib.error.HTTPError as exc:
@@ -214,7 +218,7 @@ def leetcode_sync(
     full: bool = False,
     progress=None,
 ) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     if not credentials.get("leetcode_session"):
         raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", HTTPStatus.CONFLICT)
     headers = _leetcode_headers(credentials)
@@ -351,8 +355,21 @@ def leetcode_sync(
     return results
 
 
+async def leetcode_sync_async(
+    credentials: dict[str, str],
+    db_path: Path = DB_PATH,
+    limit: int = 100,
+    full: bool = False,
+    progress=None,
+) -> dict[str, object]:
+    """Run the existing sync/SQLite workflow without blocking an async caller."""
+    return await asyncio.to_thread(
+        leetcode_sync, credentials, db_path, limit, full, progress
+    )
+
+
 def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str = "", db_path: Path = DB_PATH) -> str:
-    runtime = _runtime()
+    runtime = server_runtime
     task_id = uuid.uuid4().hex[:12]
     task: dict[str, object] = {
         "logs": [], "running": True, "result": None, "error": None,
@@ -360,7 +377,7 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
     }
 
     def progress(text: str) -> None:
-        with runtime.SYNC_TASKS_LOCK:
+        with SYNC_TASKS_LOCK:
             logs = task["logs"]
             if isinstance(logs, list):
                 logs.append({"text": text, "at": runtime.now_parts()[0]})
@@ -378,23 +395,23 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
             try:
                 runtime._invalidate_learning_caches(db_path)
             finally:
-                with runtime.SYNC_TASKS_LOCK:
+                with SYNC_TASKS_LOCK:
                     task["running"] = False
 
-    with runtime.SYNC_TASKS_LOCK:
-        runtime.SYNC_TASKS[task_id] = task
+    with SYNC_TASKS_LOCK:
+        SYNC_TASKS[task_id] = task
     threading.Thread(target=worker, daemon=True).start()
-    with runtime.SYNC_TASKS_LOCK:
-        completed = [tid for tid, item in runtime.SYNC_TASKS.items() if not item["running"]]
+    with SYNC_TASKS_LOCK:
+        completed = [tid for tid, item in SYNC_TASKS.items() if not item["running"]]
         for tid in completed[:-10]:
-            runtime.SYNC_TASKS.pop(tid, None)
+            SYNC_TASKS.pop(tid, None)
     return task_id
 
 
 def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
-    runtime = _runtime()
-    with runtime.SYNC_TASKS_LOCK:
-        task = runtime.SYNC_TASKS.get(task_id)
+    runtime = server_runtime
+    with SYNC_TASKS_LOCK:
+        task = SYNC_TASKS.get(task_id)
         if task is None or str(task.get("owner", "")) != owner:
             return None
         return {
@@ -402,6 +419,26 @@ def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
             "logs": list(task["logs"]), "result": task["result"],
             "error": task["error"], "error_category": task.get("error_category"),
         }
+
+
+from interview_forge.runtime.task_manager import TaskBackend, task_manager
+
+
+def _registered_submit(*args, **kwargs):
+    return server_runtime.start_leetcode_sync_task(*args, **kwargs)
+
+
+def _registered_query(*args, **kwargs):
+    return server_runtime.sync_task_status(*args, **kwargs)
+
+
+task_manager.register(
+    "leetcode",
+    TaskBackend(
+        submit=_registered_submit,
+        query=_registered_query,
+    ),
+)
 
 
 def _parse_ms(text: str) -> int | None:

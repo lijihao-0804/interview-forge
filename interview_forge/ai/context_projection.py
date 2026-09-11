@@ -5,6 +5,8 @@ legacy patch points such as _messages and model_key.
 """
 from __future__ import annotations
 
+from interview_forge.ai.runtime import facade
+
 import hashlib
 import json
 from collections.abc import Mapping
@@ -17,17 +19,13 @@ from interview_forge.ai.prompts import (
 )
 
 
-def _runtime():
-    from interview_forge.ai import ai_coach
-    return ai_coach
-
 
 def _messages(context_json: str, repair: bool = False):
-    return _runtime()._messages(context_json, repair=repair)
+    return facade()._messages(context_json, repair=repair)
 
 
 def model_key(config=None):
-    return _runtime().model_key(config)
+    return facade().model_key(config)
 
 def _prune_empty(value: Any) -> Any:
     """Recursively remove empty transport noise while preserving zero and false."""
@@ -172,4 +170,3 @@ def _model_projection_debug(context: Mapping[str, Any], context_json: str, confi
         "llm_context_version": LLM_CONTEXT_VERSION,
         "sections_not_sent": ["summary", "facts", "signals", "evidence", "selection_reasons", "trace_map", "omitted", "meta"],
     }
-

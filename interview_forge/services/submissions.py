@@ -5,12 +5,8 @@ from contextlib import closing
 from pathlib import Path
 
 from interview_forge.core.paths import DB_PATH
+from interview_forge.core.runtime import server_runtime
 
-
-def _runtime():
-    from interview_forge.server import study_server
-
-    return study_server
 
 
 VALID_SUBMIT_SOURCES = ("manual", "bookmarklet", "extension", "sync")
@@ -25,7 +21,7 @@ def record_submission(
     source: str = "manual",
     db_path: Path = DB_PATH,
 ) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     if problem_id not in runtime.PROBLEM_BY_ID:
         raise ValueError("未知题号")
     if status not in ("ac", "wa"):
@@ -56,7 +52,7 @@ def record_submission(
 
 
 def submissions_for_problem(problem_id: int, limit: int = 50, db_path: Path = DB_PATH) -> list[dict[str, object]]:
-    runtime = _runtime()
+    runtime = server_runtime
     rows = []
     with closing(runtime.connect(db_path)) as connection:
         for row in connection.execute(
@@ -69,7 +65,7 @@ def submissions_for_problem(problem_id: int, limit: int = 50, db_path: Path = DB
 
 
 def submission_summary(db_path: Path = DB_PATH) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     today = runtime.business_now().date().isoformat()
     with closing(runtime.connect(db_path)) as connection:
         row = connection.execute(

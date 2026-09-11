@@ -6,7 +6,10 @@ lives in this focused module.
 """
 from __future__ import annotations
 
+from interview_forge.ai.runtime import facade
+
 import hashlib
+import asyncio
 import json
 import os
 import re
@@ -33,29 +36,25 @@ from interview_forge.ai.validation import (
 from interview_forge.ai.context_projection import _context_json, _model_projection_debug
 
 
-def _runtime():
-    from interview_forge.ai import ai_coach
-    return ai_coach
-
 
 def _dependencies_available():
-    return _runtime()._dependencies_available()
+    return facade()._dependencies_available()
 
 
 def load_ai_config():
-    return _runtime().load_ai_config()
+    return facade().load_ai_config()
 
 
 def model_key(config=None):
-    return _runtime().model_key(config)
+    return facade().model_key(config)
 
 
 def debug_ai_event(event, **fields):
-    return _runtime().debug_ai_event(event, **fields)
+    return facade().debug_ai_event(event, **fields)
 
 
 def _make_chat_model(config: AIConfig, *, thinking_mode: str | None = None):
-    return _runtime()._make_chat_model(config, thinking_mode=thinking_mode)
+    return facade()._make_chat_model(config, thinking_mode=thinking_mode)
 
 
 _StreamEnvelope = StreamEnvelope
@@ -477,3 +476,16 @@ def generate_ai_insight(
         classified = _classify_provider_exception(exc)
         classified.fallback = fallback
         raise classified from exc
+
+
+async def generate_ai_insight_async(
+    context: Mapping[str, Any],
+    config: AIConfig | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Keep slow provider work off the FastAPI event loop.
+
+    The established worker and validation path remain the single source of
+    truth; this adapter does not create a second task or provider contract.
+    """
+    return await asyncio.to_thread(generate_ai_insight, context, config, **kwargs)

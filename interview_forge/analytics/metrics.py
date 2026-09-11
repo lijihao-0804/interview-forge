@@ -5,6 +5,8 @@ learning_analytics facade's constants and monkeypatch points authoritative.
 """
 from __future__ import annotations
 
+from interview_forge.analytics.runtime import learning
+
 from collections import defaultdict
 from collections.abc import Mapping
 from datetime import datetime
@@ -12,40 +14,36 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 
-def _runtime():
-    from interview_forge.analytics import learning_analytics
-    return learning_analytics
-
 
 def _short_hash(value, length=16):
-    return _runtime()._short_hash(value, length=length)
+    return learning()._short_hash(value, length=length)
 
 
 def _canonical_json(value):
-    return _runtime()._canonical_json(value)
+    return learning()._canonical_json(value)
 
 
 def _safe_int(value, default=None):
-    return _runtime()._safe_int(value, default)
+    return learning()._safe_int(value, default)
 
 
 def _safe_text(value, default=""):
-    return _runtime()._safe_text(value, default)
+    return learning()._safe_text(value, default)
 
 
 def _parse_record_time(value, business_tz):
-    return _runtime()._parse_record_time(value, business_tz)
+    return learning()._parse_record_time(value, business_tz)
 
 
 def _event_key(event):
-    return _runtime()._event_key(event)
+    return learning()._event_key(event)
 
 def _source_dict(values: Mapping[str, int]) -> dict[str, int]:
     """Return a bounded source histogram with one stable fallback bucket."""
     merged: defaultdict[str, int] = defaultdict(int)
     for key, value in values.items():
         source = str(key)
-        bucket = source if source in _runtime().ALLOWED_SUBMISSION_SOURCES else "other"
+        bucket = source if source in learning().ALLOWED_SUBMISSION_SOURCES else "other"
         merged[bucket] += int(value)
     return {key: merged[key] for key in sorted(merged)}
 
@@ -76,7 +74,7 @@ def _metric(
 
 
 def _metric_id(entity_type: str, entity_id: Any, metric_name: str, window: str) -> str:
-    return f"metric:{_runtime().SCHEMA_VERSION}:{entity_type}:{entity_id}:{metric_name}:{window}"
+    return f"metric:{learning().SCHEMA_VERSION}:{entity_type}:{entity_id}:{metric_name}:{window}"
 
 
 def _add_metric(
@@ -128,7 +126,7 @@ def _confidence(
 
 
 def _problem_skills(category: str) -> list[str]:
-    skill_id = _runtime().CATEGORY_SKILL_IDS.get(category)
+    skill_id = learning().CATEGORY_SKILL_IDS.get(category)
     return [skill_id] if skill_id is not None else []
 
 
@@ -199,7 +197,7 @@ def _build_snapshot_hash(
         {"id": pid, **dict(catalog[pid])} for pid in sorted(catalog)
     ]
     payload = {
-        "schema_version": _runtime().SCHEMA_VERSION,
+        "schema_version": learning().SCHEMA_VERSION,
         "rule_version": rules["rule_version"],
         "rules": dict(rules),
         "data_as_of": data_as_of,

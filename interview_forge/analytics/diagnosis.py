@@ -5,6 +5,8 @@ facade keeps the public compilation entrypoint and protocol assembly.
 """
 from __future__ import annotations
 
+from interview_forge.analytics.runtime import compiler
+
 import hashlib
 import re
 from collections.abc import Mapping
@@ -14,13 +16,9 @@ from typing import Any
 from interview_forge.analytics.context_models import *
 
 
-def _runtime():
-    from interview_forge.analytics import context_compiler
-    return context_compiler
-
 
 def _safe_count(value):
-    return _runtime()._safe_count(value)
+    return compiler()._safe_count(value)
 
 def _time_score(value: Any) -> float:
     if not isinstance(value, str) or not value:
@@ -573,4 +571,3 @@ def _build_diagnostic_digest(
         "data_quality_notes": quality_notes,
     }
     return digest
-
