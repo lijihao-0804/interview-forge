@@ -308,7 +308,9 @@ class Solution {
 
 `assets/site.css` 和 `assets/site.js` 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 `scripts/build/build_html_site.py`。只改 `assets/` 会在下次构建时被覆盖。
 
-学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库连接/schema 位于 `interview_forge/db/`，API 组装位于 `interview_forge/server/study_server.py`，学习业务位于 `interview_forge/services/`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
+学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库连接/schema 位于 `interview_forge/db/`，FastAPI/Uvicorn 组装位于 `interview_forge/api/`，旧 `interview_forge/server/study_server.py` 是兼容 handler/facade；学习业务位于 `interview_forge/services/`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
+
+服务端依赖安装使用固定清单：`python -m pip install -r requirements-server.txt`。`tools/study_server.py` 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 `study_server`，跨模块依赖通过 `interview_forge/core/runtime.py` 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 `AsyncHttpClient`，SQLite/analytics 保持同步。
 
 ### 学习书架与课程模块
 

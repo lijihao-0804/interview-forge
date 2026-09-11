@@ -1,5 +1,6 @@
 """Feedback, chat, search and account-profile application services."""
 from __future__ import annotations
+from interview_forge.core.runtime import server_runtime
 
 import base64
 import binascii
@@ -10,29 +11,36 @@ from contextlib import closing
 from pathlib import Path
 
 
-def _runtime():
-    from interview_forge.server import study_server
+_FEEDBACK_ATTEMPTS: dict[str, list[float]] = {}
+_FEEDBACK_LOCK = threading.Lock()
+_FEEDBACK_WINDOW = 3600.0
+_FEEDBACK_MAX_PER_IP = 5
+CHAT_KEEP = 2000
+CHAT_MAX_LEN = 500
+_CHAT_SEND_LOG: dict[int, list[float]] = {}
+_CHAT_SEND_LOCK = threading.Lock()
+SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
+_AVATAR_MAX_BYTES = 150 * 1024
+_SEARCH_INDEX: list[dict] | None = None
+_SEARCH_LOCK = threading.Lock()
 
-    return study_server
 
 
 def feedback_rate_limit_ok(ip: str) -> bool:
-    runtime = _runtime()
     now = time.time()
-    with runtime._FEEDBACK_LOCK:
-        stamps = [t for t in runtime._FEEDBACK_ATTEMPTS.get(ip, []) if now - t < runtime._FEEDBACK_WINDOW]
-        runtime._FEEDBACK_ATTEMPTS[ip] = stamps
-        return len(stamps) < runtime._FEEDBACK_MAX_PER_IP
+    with _FEEDBACK_LOCK:
+        stamps = [t for t in _FEEDBACK_ATTEMPTS.get(ip, []) if now - t < _FEEDBACK_WINDOW]
+        _FEEDBACK_ATTEMPTS[ip] = stamps
+        return len(stamps) < _FEEDBACK_MAX_PER_IP
 
 
 def feedback_rate_limit_record(ip: str) -> None:
-    runtime = _runtime()
-    with runtime._FEEDBACK_LOCK:
-        runtime._FEEDBACK_ATTEMPTS.setdefault(ip, []).append(time.time())
+    with _FEEDBACK_LOCK:
+        _FEEDBACK_ATTEMPTS.setdefault(ip, []).append(time.time())
 
 
 def submit_feedback(content: str, contact: str, page: str, user_agent: str, username: str = "") -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     content = content.strip()
     if not (1 <= len(content) <= 2000):
         raise ValueError("反馈内容需为 1~2000 字")
@@ -48,7 +56,7 @@ def submit_feedback(content: str, contact: str, page: str, user_agent: str, user
 
 
 def list_feedback(status: str = "") -> list[dict[str, object]]:
-    runtime = _runtime()
+    runtime = server_runtime
     sql = "SELECT * FROM feedback"
     params: list[object] = []
     if status in ("open", "resolved"):
@@ -60,7 +68,7 @@ def list_feedback(status: str = "") -> list[dict[str, object]]:
 
 
 def resolve_feedback(feedback_id: int, resolved: bool, note: str = "") -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     if resolved and not note.strip():
         note = ""
     with closing(runtime.connect_auth()) as connection:
@@ -74,25 +82,23 @@ def resolve_feedback(feedback_id: int, resolved: bool, note: str = "") -> dict[s
 
 
 def chat_rate_limit_ok(user_id: int) -> bool:
-    runtime = _runtime()
     now = time.time()
-    with runtime._CHAT_SEND_LOCK:
-        stamps = [t for t in runtime._CHAT_SEND_LOG.get(user_id, []) if now - t < 60.0]
-        runtime._CHAT_SEND_LOG[user_id] = stamps
+    with _CHAT_SEND_LOCK:
+        stamps = [t for t in _CHAT_SEND_LOG.get(user_id, []) if now - t < 60.0]
+        _CHAT_SEND_LOG[user_id] = stamps
         return len(stamps) < 10
 
 
 def chat_rate_limit_record(user_id: int) -> None:
-    runtime = _runtime()
-    with runtime._CHAT_SEND_LOCK:
-        runtime._CHAT_SEND_LOG.setdefault(user_id, []).append(time.time())
+    with _CHAT_SEND_LOCK:
+        _CHAT_SEND_LOG.setdefault(user_id, []).append(time.time())
 
 
 def chat_send(user_id: int, username: str, content: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     content = content.strip()
-    if not (1 <= len(content) <= runtime.CHAT_MAX_LEN):
-        raise ValueError(f"消息需为 1~{runtime.CHAT_MAX_LEN} 字")
+    if not (1 <= len(content) <= CHAT_MAX_LEN):
+        raise ValueError(f"消息需为 1~{CHAT_MAX_LEN} 字")
     with closing(runtime.connect_auth()) as connection:
         cursor = connection.execute(
             "INSERT INTO chat_messages(user_id, content, created_at) VALUES (?, ?, ?)",
@@ -100,13 +106,13 @@ def chat_send(user_id: int, username: str, content: str) -> dict[str, object]:
         )
         connection.execute(
             "DELETE FROM chat_messages WHERE id <= (SELECT MAX(id) FROM chat_messages) - ?",
-            (runtime.CHAT_KEEP,),
+            (CHAT_KEEP,),
         )
     return {"id": cursor.lastrowid, "created_at": runtime.now_iso(), "username": username}
 
 
 def chat_messages_after(after_id: int, limit: int = 50) -> list[dict[str, object]]:
-    runtime = _runtime()
+    runtime = server_runtime
     limit = max(1, min(limit, 100))
     with closing(runtime.connect_auth()) as connection:
         if after_id < 0:
@@ -125,7 +131,7 @@ def chat_messages_after(after_id: int, limit: int = 50) -> list[dict[str, object
 
 
 def chat_messages_before(before_id: int, limit: int = 50) -> tuple[list[dict[str, object]], bool]:
-    runtime = _runtime()
+    runtime = server_runtime
     limit = max(1, min(limit, 100))
     with closing(runtime.connect_auth()) as connection:
         rows = connection.execute(
@@ -140,7 +146,7 @@ def chat_messages_before(before_id: int, limit: int = 50) -> tuple[list[dict[str
 
 
 def chat_has_older(oldest_id: int | None) -> bool:
-    runtime = _runtime()
+    runtime = server_runtime
     if oldest_id is None:
         return False
     with closing(runtime.connect_auth()) as connection:
@@ -148,7 +154,7 @@ def chat_has_older(oldest_id: int | None) -> bool:
 
 
 def chat_delete(feedback_id_alias: int) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect_auth()) as connection:
         cursor = connection.execute("DELETE FROM chat_messages WHERE id = ?", (feedback_id_alias,))
         if cursor.rowcount != 1:
@@ -157,13 +163,14 @@ def chat_delete(feedback_id_alias: int) -> dict[str, object]:
 
 
 def _load_search_index() -> list[dict]:
-    runtime = _runtime()
-    if runtime._SEARCH_INDEX is None:
-        with runtime._SEARCH_LOCK:
-            if runtime._SEARCH_INDEX is None:
+    runtime = server_runtime
+    global _SEARCH_INDEX
+    if _SEARCH_INDEX is None:
+        with _SEARCH_LOCK:
+            if _SEARCH_INDEX is None:
                 path = runtime.ROOT / "library" / "search-index.json"
-                runtime._SEARCH_INDEX = json.loads(path.read_text(encoding="utf-8"))
-    return runtime._SEARCH_INDEX
+                _SEARCH_INDEX = json.loads(path.read_text(encoding="utf-8"))
+    return _SEARCH_INDEX
 
 
 def search_index_server(query: str) -> list[dict[str, object]]:
@@ -183,7 +190,7 @@ def search_index_server(query: str) -> list[dict[str, object]]:
 
 
 def get_profile(username: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect_auth()) as connection:
         row = connection.execute(
             "SELECT username, COALESCE(nickname, '') AS nickname, COALESCE(lang, 'java') AS lang FROM users WHERE username = ?", (username,)
@@ -197,7 +204,7 @@ def get_profile(username: str) -> dict[str, object]:
 
 
 def set_profile(username: str, nickname: str = None, avatar_data_url: str = None, lang: str = None) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect_auth()) as connection:
         row = connection.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
@@ -208,7 +215,7 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
                 nickname = runtime.validate_nickname(nickname)
             connection.execute("UPDATE users SET nickname = ? WHERE id = ?", (nickname, row["id"]))
         if lang is not None:
-            if lang not in runtime.SOLUTION_LANGS:
+            if lang not in SOLUTION_LANGS:
                 raise ValueError("不支持的语言")
             connection.execute("UPDATE users SET lang = ? WHERE id = ?", (lang, row["id"]))
         if avatar_data_url is not None:
@@ -223,7 +230,7 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
                     blob = base64.b64decode(match.group(2), validate=True)
                 except (binascii.Error, ValueError) as exc:
                     raise ValueError("头像数据不是合法的 Base64") from exc
-                if len(blob) > runtime._AVATAR_MAX_BYTES:
+                if len(blob) > _AVATAR_MAX_BYTES:
                     raise ValueError("头像过大（压缩后需小于 150KB）")
                 connection.execute(
                     "INSERT INTO avatars(user_id, mime, data, updated_at) VALUES (?, ?, ?, ?) "
@@ -234,7 +241,7 @@ def set_profile(username: str, nickname: str = None, avatar_data_url: str = None
 
 
 def get_avatar(username: str):
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(runtime.connect_auth()) as connection:
         row = connection.execute(
             "SELECT a.mime, a.data FROM avatars a JOIN users u ON u.id = a.user_id WHERE u.username = ?", (username,)

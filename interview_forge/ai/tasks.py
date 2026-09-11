@@ -5,6 +5,9 @@ so legacy ai_coach patch points and provider timing remain unchanged.
 """
 from __future__ import annotations
 
+from interview_forge.ai.runtime import facade
+from interview_forge.core.runtime import server_runtime
+
 import json
 import queue
 import re
@@ -34,29 +37,25 @@ from interview_forge.ai.validation import _json_load, build_rule_fallback
 AI_TASK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
-def _runtime():
-    from interview_forge.ai import ai_coach
-    return ai_coach
-
 
 def load_ai_config():
-    return _runtime().load_ai_config()
+    return facade().load_ai_config()
 
 
 def ai_capability(username: str, role: str, daily_limit: int | None = None):
-    return _runtime().ai_capability(username, role, daily_limit)
+    return facade().ai_capability(username, role, daily_limit)
 
 
 def model_key(config=None):
-    return _runtime().model_key(config)
+    return facade().model_key(config)
 
 
 def generate_ai_insight(context, config=None, **kwargs):
-    return _runtime().generate_ai_insight(context, config=config, **kwargs)
+    return facade().generate_ai_insight(context, config=config, **kwargs)
 
 
 def debug_ai_event(event, **fields):
-    return _runtime().debug_ai_event(event, **fields)
+    return facade().debug_ai_event(event, **fields)
 
 _AI_QUEUE: queue.Queue[tuple[Path, str]] = queue.Queue(maxsize=256)
 _AI_WORKERS: list[threading.Thread] = []
@@ -609,3 +608,27 @@ def reset_ai_runtime_for_tests() -> None:
         except queue.Empty:
             break
 
+
+from interview_forge.runtime.task_manager import TaskBackend, task_manager
+
+
+def _registered_submit(*args, **kwargs):
+    return server_runtime.create_ai_task(*args, **kwargs)
+
+
+def _registered_query(*args, **kwargs):
+    return server_runtime.get_ai_task(*args, **kwargs)
+
+
+def _registered_cancel(*args, **kwargs):
+    return server_runtime.cancel_ai_task(*args, **kwargs)
+
+
+task_manager.register(
+    "ai",
+    TaskBackend(
+        submit=_registered_submit,
+        query=_registered_query,
+        cancel=_registered_cancel,
+    ),
+)

@@ -20,11 +20,11 @@ from pathlib import Path
 from typing import Mapping
 
 from interview_forge.core.paths import DATA_DIR, DB_PATH, USERS_DIR
-def _runtime():
-    from interview_forge.server import study_server
+from interview_forge.core.runtime import server_runtime
 
-    return study_server
-
+_LAST_SEEN_TS: dict[int, float] = {}
+_LAST_SEEN_LOCK = threading.Lock()
+_LAST_SEEN_INTERVAL = 60.0
 
 _NICKNAME_MAX = 16
 _NICKNAME_WORDLIST_PATH = DATA_DIR / "nickname_banned_words.txt"
@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS weather_preferences (
 
 
 def connect_auth() -> sqlite3.Connection:
-    runtime = _runtime()
+    runtime = server_runtime
     connection = sqlite3.connect(runtime.AUTH_DB_PATH, timeout=10, isolation_level=None)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
@@ -241,7 +241,7 @@ def connect_auth() -> sqlite3.Connection:
 
 
 def business_now() -> datetime:
-    return datetime.now(_runtime().BUSINESS_TZ)
+    return datetime.now(server_runtime.BUSINESS_TZ)
 
 
 def now_iso() -> str:
@@ -267,7 +267,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 def user_db_path(username: str) -> Path:
-    runtime = _runtime()
+    runtime = server_runtime
     if not runtime.USERNAME_RE.match(username):
         raise ValueError("非法用户名")
     return runtime.USERS_DIR / username / "hot100-study.db"
@@ -285,7 +285,7 @@ def _username_case_collision(connection: sqlite3.Connection, username: str, *, e
 
 
 def create_user(username: str, password: str, role: str = "user", conn: sqlite3.Connection | None = None) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     if not runtime.USERNAME_RE.match(username):
         raise ValueError("用户名限 2~32 位字母数字下划线连字符")
     if len(password) < 8:
@@ -330,7 +330,7 @@ def create_user(username: str, password: str, role: str = "user", conn: sqlite3.
 
 
 def ensure_admin(username: str, password: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     if not runtime.USERNAME_RE.match(username):
         raise ValueError("用户名限 2~32 位字母数字下划线连字符")
     with closing(connect_auth()) as connection:
@@ -341,7 +341,7 @@ def ensure_admin(username: str, password: str) -> dict[str, object]:
 
 
 def auth_login(username: str, password: str) -> sqlite3.Row:
-    runtime = _runtime()
+    runtime = server_runtime
     with closing(connect_auth()) as connection:
         row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if row is None:
@@ -358,7 +358,7 @@ def auth_login(username: str, password: str) -> sqlite3.Row:
 
 
 def create_session(user_id: int) -> str:
-    runtime = _runtime()
+    runtime = server_runtime
     token = secrets.token_urlsafe(32)
     expires = (business_now() + runtime.SESSION_TTL).isoformat(timespec="seconds")
     with closing(connect_auth()) as connection:
@@ -375,7 +375,7 @@ def destroy_session(token: str) -> None:
 
 
 def session_user(token: str) -> sqlite3.Row | None:
-    runtime = _runtime()
+    runtime = server_runtime
     if not token:
         return None
     runtime._maybe_purge_sessions()
@@ -394,9 +394,9 @@ def session_user(token: str) -> sqlite3.Row | None:
         ).fetchone()
         if row is not None:
             seen_now = runtime.time.time()
-            with runtime._LAST_SEEN_LOCK:
-                if seen_now - runtime._LAST_SEEN_TS.get(row["id"], 0) >= runtime._LAST_SEEN_INTERVAL:
-                    runtime._LAST_SEEN_TS[row["id"]] = seen_now
+            with _LAST_SEEN_LOCK:
+                if seen_now - _LAST_SEEN_TS.get(row["id"], 0) >= _LAST_SEEN_INTERVAL:
+                    _LAST_SEEN_TS[row["id"]] = seen_now
                     try:
                         connection.execute("UPDATE users SET last_seen = ? WHERE id = ?", (runtime.now_iso(), row["id"]))
                     except sqlite3.Error:
@@ -405,7 +405,7 @@ def session_user(token: str) -> sqlite3.Row | None:
 
 
 def generate_invite_codes(count: int, days: int, note: str, created_by: int) -> list[str]:
-    runtime = _runtime()
+    runtime = server_runtime
     count = max(1, min(count, 50))
     days = max(0, min(days, 365))
     expires = (business_now().date() + timedelta(days=days)).isoformat() if days else None
@@ -439,7 +439,7 @@ def revoke_invite_code(code: str) -> dict[str, object]:
 
 
 def register_with_code(username: str, password: str, code: str) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     username = username.strip()
     today = business_now().date().isoformat()
     connection = connect_auth()
@@ -476,7 +476,7 @@ def register_with_code(username: str, password: str, code: str) -> dict[str, obj
 
 
 def list_users() -> list[dict[str, object]]:
-    runtime = _runtime()
+    runtime = server_runtime
     items: list[dict[str, object]] = []
     with closing(connect_auth()) as connection:
         for row in connection.execute(
@@ -497,13 +497,13 @@ def list_users() -> list[dict[str, object]]:
 
 
 def effective_ai_daily_limit(user: Mapping[str, object] | sqlite3.Row) -> int:
-    runtime = _runtime()
+    runtime = server_runtime
     value = user["ai_daily_limit"] if "ai_daily_limit" in user.keys() else None
     return runtime.AI_DAILY_LIMIT_DEFAULT if value is None else int(value)
 
 
 def admin_set_user_ai_daily_limit(username: str, daily_limit: int | None, actor_user_id: int) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     username = username.strip()
     if not username:
         raise ValueError("用户名不能为空")
@@ -526,7 +526,7 @@ def admin_set_user_ai_daily_limit(username: str, daily_limit: int | None, actor_
 
 
 def admin_reset_user_ai_quota(username: str, actor_user_id: int) -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     username = username.strip()
     if not username:
         raise ValueError("用户名不能为空")
@@ -567,7 +567,7 @@ def set_user_active(username: str, active: bool) -> dict[str, object]:
 
 
 def set_user_role(username: str, role: str, actor_username: str = "") -> dict[str, object]:
-    runtime = _runtime()
+    runtime = server_runtime
     username = username.strip()
     role = role.strip().lower()
     if role not in ("admin", "user"):

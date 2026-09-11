@@ -48,6 +48,7 @@ import random
 import re
 import secrets
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -97,6 +98,11 @@ from interview_forge.analytics.cache import (
     _prune_analytics_generations_locked,
     analytics_cached,
     invalidate_learning_caches as _invalidate_learning_caches,
+    _ANALYTICS_CACHE,
+    _ANALYTICS_CACHE_LOCK,
+    _ANALYTICS_CACHE_GENERATIONS,
+    _ANALYTICS_GENERATION_TOUCHED,
+    _ANALYTICS_CACHE_ACTIVE,
 )
 from interview_forge.ai.ai_coach import (
     AI_DB_SCHEMA,
@@ -130,6 +136,17 @@ from interview_forge.server.rate_limit import (
 )
 from interview_forge.services.weather import (
     WeatherServiceError,
+    _WEATHER_DEFAULT,
+    _WEATHER_FRESH_DEFAULT,
+    _WEATHER_FRESH_CUSTOM,
+    _WEATHER_STALE_MAX,
+    _WEATHER_SEARCH_TTL,
+    _WEATHER_SEARCH_VERSION,
+    _WEATHER_CACHE,
+    _WEATHER_SEARCH_CACHE,
+    _WEATHER_CACHE_LOCK,
+    _WEATHER_KEY_LOCKS,
+    _WEATHER_KEY_LOCKS_LOCK,
     _CN_MAJOR_CITIES,
     _PLACE_FEATURE_RANK,
     _administrative_name,
@@ -147,6 +164,11 @@ from interview_forge.services.weather import (
 )
 from interview_forge.services.leetcode import (
     LeetCodeSyncError,
+    LC_STATUS_TTL,
+    _LC_STATUS_CACHE,
+    _LC_STATUS_LOCK,
+    SYNC_TASKS,
+    SYNC_TASKS_LOCK,
     _fetch_json_with_retry,
     _lc_http_get,
     _leetcode_headers,
@@ -183,6 +205,9 @@ from interview_forge.services.auth import (
     _NICKNAME_TRADITIONAL_MAP,
     _NICKNAME_WORDLIST_PATH,
     _load_nickname_words,
+    _LAST_SEEN_TS,
+    _LAST_SEEN_LOCK,
+    _LAST_SEEN_INTERVAL,
     admin_reset_user_ai_quota,
     admin_set_user_ai_daily_limit,
     auth_login,
@@ -212,6 +237,18 @@ from interview_forge.services.auth import (
     verify_password,
 )
 from interview_forge.services.community import (
+    _FEEDBACK_ATTEMPTS,
+    _FEEDBACK_LOCK,
+    _FEEDBACK_WINDOW,
+    _FEEDBACK_MAX_PER_IP,
+    CHAT_KEEP,
+    CHAT_MAX_LEN,
+    _CHAT_SEND_LOG,
+    _CHAT_SEND_LOCK,
+    SOLUTION_LANGS,
+    _AVATAR_MAX_BYTES,
+    _SEARCH_INDEX,
+    _SEARCH_LOCK,
     chat_delete,
     chat_has_older,
     chat_messages_after,
@@ -236,6 +273,29 @@ from interview_forge.services.community import (
 # DATA_DIR  数据目录（data/），放置 SQLite 文件；
 # DB_PATH   全部学习记录的唯一落盘位置（data/hot100-study.db）。
 from interview_forge.core.paths import AUTH_DB_PATH, DATA_DIR, DB_PATH, ROOT, USERS_DIR
+from interview_forge.core.runtime import server_runtime
+from interview_forge.runtime.task_manager import task_manager
+
+# Composition root: domain services consume this registry instead of importing
+# the HTTP assembly.  Capture the real module when imported normally.  The
+# small globals proxy covers ``python tools/study_server.py`` where runpy
+# executes this file as ``__main__`` without replacing sys.modules['__main__'].
+class _ServerGlobals:
+    def __getattr__(self, name: str):
+        return globals()[name]
+
+    def __setattr__(self, name: str, value: object) -> None:
+        globals()[name] = value
+
+
+_candidate_owner = sys.modules.get(__name__)
+_RUNTIME_OWNER = (
+    _candidate_owner
+    if _candidate_owner is not None
+    and "interview_forge" in str(getattr(_candidate_owner, "__file__", "")).replace("\\", "/")
+    else _ServerGlobals()
+)
+server_runtime.bind_provider(lambda: _RUNTIME_OWNER)
 SESSION_COOKIE = "forge_session"
 SESSION_TTL = timedelta(days=30)
 PERMANENT_ADMIN_USERNAME = "2030309470"
@@ -248,11 +308,6 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{2,32}$")
 _CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 _AUTH_READY = False
 _AUTH_LOCK = threading.Lock()
-
-# 力扣同步后台任务：task_id -> 日志/状态/结果，供前端轮询打印进度。
-SYNC_TASKS: dict[str, dict[str, object]] = {}
-SYNC_TASKS_LOCK = threading.Lock()
-
 
 # ---- 间隔重复调度核心：轮次 → 间隔天数 → 到期日 ----
 # review_interval(round_no)：第 n 次完成后的下次复习间隔（天），查表 + 夹逼：
@@ -317,18 +372,6 @@ from interview_forge.db.connection import (
 QUIET = False
 _MANIFEST_CACHE: tuple[float, dict[str, object]] | None = None
 
-# /api/coach/analytics 的进程内只读快照缓存：缓存键不保存原始路径，而是使用
-# resolved 用户库路径的 SHA-256 作用域，并带 schema/rule/generation 版本。
-# 分析本身永远在锁外执行，避免慢读阻塞其它请求。
-_ANALYTICS_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
-_ANALYTICS_CACHE_LOCK = threading.Lock()
-_ANALYTICS_CACHE_GENERATIONS: dict[str, int] = {}
-_ANALYTICS_GENERATION_TOUCHED: dict[str, float] = {}
-# Number of lock-free analytics builds currently in flight for each resolved
-# user database.  This must be a reference count rather than a set: two
-# concurrent builds for one user can finish at different times, and the
-# generation bookkeeping must stay pinned until the last one finishes.
-_ANALYTICS_CACHE_ACTIVE: dict[str, int] = {}
 _ANALYTICS_TTL = 60.0
 _ANALYTICS_CACHE_MAX_ENTRIES = 256
 _ANALYTICS_GENERATION_MAX_ENTRIES = 256
@@ -364,49 +407,11 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
 
 
 
-# ---- 反馈提交频控：每 IP 每小时 5 次（反馈接口公开，防垃圾灌水）----
-_FEEDBACK_ATTEMPTS: dict[str, list[float]] = {}
-_FEEDBACK_LOCK = threading.Lock()
-_FEEDBACK_WINDOW = 3600.0
-_FEEDBACK_MAX_PER_IP = 5
-
-
 # =============================================================================
-# 聊天室（公屏）：自研轻量实现 —— 登录用户可发、所有人可见、轮询拉增量。
-# 消息保留最近 CHAT_KEEP 条（超出自动清理）；昵称/头像在 users/avatars 表。
+# 聊天室（公屏）兼容导出：实际状态与业务逻辑归属 community service。
 # =============================================================================
-CHAT_KEEP = 2000
-CHAT_MAX_LEN = 500
-_CHAT_SEND_LOG: dict[int, list[float]] = {}   # user_id → 发送时间戳（10 条/分钟）
-_CHAT_SEND_LOCK = threading.Lock()
-# 题解语言偏好（用户资料项；题解页据此切换代码实现显示）
-SOLUTION_LANGS = ("java", "cpp", "python", "go", "c")
 # 单轮完成标准：累计 AC 过 ≥90 道题（Hot 100 的 90%）才算完整一轮
 ROUND_COMPLETE_THRESHOLD = 90
-_AVATAR_MAX_BYTES = 150 * 1024
-
-
-# ---- 全文搜索（服务端执行）：索引常驻内存，公网搜索只传关键词与结果，
-#      免去浏览器拉取 1.5MB 的 search-index.json ----
-_SEARCH_INDEX: list[dict] | None = None
-_SEARCH_LOCK = threading.Lock()
-
-
-# ---- 账号级天气偏好与 Open-Meteo 缓存 ----
-_WEATHER_DEFAULT = {"mode": "default", "display_name": "南京", "latitude": 32.06,
-                    "longitude": 118.80, "timezone": "Asia/Shanghai"}
-_WEATHER_FRESH_DEFAULT = 30 * 60
-_WEATHER_FRESH_CUSTOM = 15 * 60
-_WEATHER_STALE_MAX = 6 * 60 * 60
-_WEATHER_SEARCH_TTL = 7 * 24 * 60 * 60
-_WEATHER_SEARCH_VERSION = "cn-rank-v2"
-_WEATHER_CACHE: dict[tuple[object, ...], tuple[float, dict[str, object]]] = {}
-_WEATHER_SEARCH_CACHE: dict[str, tuple[float, list[dict[str, object]]]] = {}
-_WEATHER_CACHE_LOCK = threading.Lock()
-_WEATHER_KEY_LOCKS: dict[tuple[object, ...], threading.Lock] = {}
-_WEATHER_KEY_LOCKS_LOCK = threading.Lock()
-
-
 # 时序侧信道防御：用户名不存在时也跑一次等价 scrypt 校验，抹平"查无此用户"与
 # "密码错误"的响应时间差（假哈希与真实校验计算量完全一致）。
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
@@ -414,12 +419,6 @@ _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 # 过期会话每日清理：session_user 每个请求都会调用 _maybe_purge_sessions，
 # 但只有距上次清理超过 24 小时才真正执行 DELETE。
 _LAST_SESSION_PURGE = 0.0
-
-# 最近活跃（last_seen）写库节流：每个用户最多 60 秒落盘一次，避免每请求写库
-_LAST_SEEN_TS: dict[int, float] = {}
-_LAST_SEEN_LOCK = threading.Lock()
-_LAST_SEEN_INTERVAL = 60.0
-
 
 def _maybe_purge_sessions() -> None:
     """每天清理一次过期会话行，避免 auth.db 无限增长。
@@ -443,15 +442,11 @@ def now_parts() -> tuple[str, str]:
     return now.isoformat(timespec="seconds"), now.date().isoformat()
 
 
-# 面板聚合缓存：/api/dashboard 每次全量计算较重（100 题状态 + 365 天活动 + 提交统计），
-# 按"数据库路径"缓存 60 秒；任何写操作（完成/标记/提交）后立即失效。
-_DASH_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
-_DASH_CACHE_LOCK = threading.Lock()
-_DASH_CACHE_GENERATIONS: dict[str, int] = {}
-_DASH_TTL = 60.0
-
-
 from interview_forge.services.study import (
+    _DASH_CACHE,
+    _DASH_CACHE_LOCK,
+    _DASH_CACHE_GENERATIONS,
+    _DASH_TTL,
     record_view,
     complete_round,
     dashboard_cached,
@@ -477,13 +472,12 @@ from interview_forge.services.study import (
     export_data,
 )
 def load_library_manifest() -> dict[str, object]:
-    """加载书架目录 manifest.json（构建工具生成的模块/章节/路由元数据），带 mtime 内存缓存。"""
+    """加载书架目录 manifest.json（兼容测试中的 ROOT/缓存 patch 点）。"""
     global _MANIFEST_CACHE
     path = ROOT / "library" / "manifest.json"
     if not path.exists():
         return {"modules": [], "routes": {}}
     mtime = path.stat().st_mtime
-    # 缓存命中条件：文件修改时间未变 → 直接复用内存里的 manifest，避免每次请求都读盘。
     if _MANIFEST_CACHE is not None and _MANIFEST_CACHE[0] == mtime:
         return _MANIFEST_CACHE[1]
     manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -494,8 +488,6 @@ def load_library_manifest() -> dict[str, object]:
 def valid_content(module_id: str, content_id: str) -> bool:
     """校验 (module_id, content_id) 是否真实存在于书架 manifest —— 防止不存在的内容写进学习记录。"""
     manifest = load_library_manifest()
-    # 双层命中检测：外层先找 module_id 匹配的模块，内层在该模块 chapters 里找 content_id，
-    # 两者都命中才返回 True（防止跨模块引用或不存在的章节混入学习记录）。
     return any(
         module.get("id") == module_id and any(chapter.get("id") == content_id for chapter in module.get("chapters", []))
         for module in manifest.get("modules", [])
@@ -932,7 +924,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
             if not task_id:
                 self.send_json({"error": "缺少 task_id"}, HTTPStatus.BAD_REQUEST)
                 return
-            status = sync_task_status(task_id, owner=str(user["username"]) if user is not None else "")
+            status = task_manager.query(
+                "leetcode", task_id, owner=str(user["username"]) if user is not None else ""
+            )
             if status is None:
                 self.send_json({"error": "任务不存在或已过期"}, HTTPStatus.NOT_FOUND)
                 return
@@ -1183,7 +1177,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 )
                 compile_ms = round((time.perf_counter() - compile_started) * 1000, 2)
                 create_started = time.perf_counter()
-                result = create_ai_task(
+                result = task_manager.submit(
+                    "ai",
                     db, context, str(user["username"]), str(user["role"]),
                     effective_ai_daily_limit(user),
                 )
@@ -1217,8 +1212,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
             elif cancel_match is not None:
                 if not isinstance(payload, dict) or payload:
                     raise ValueError("请求参数不正确")
-                result = cancel_ai_task(
-                    db, cancel_match.group(1), str(user["role"]), effective_ai_daily_limit(user)
+                result = task_manager.cancel(
+                    "ai", db, cancel_match.group(1), str(user["role"]), effective_ai_daily_limit(user)
                 )
             # /api/coach/insights/<id>/feedback：反馈只写当前用户学习库中的 insight。
             elif feedback_match is not None:
@@ -1420,7 +1415,8 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 if payload.get("async") in (1, True, "1", "true", "True"):
                     result = {
                         "ok": True,
-                        "task_id": start_leetcode_sync_task(
+                        "task_id": task_manager.submit(
+                            "leetcode",
                             credentials,
                             full,
                             owner=str(user["username"]),
@@ -1583,9 +1579,6 @@ def main() -> None:
     # 绑定 0.0.0.0 时浏览器仍应打开本机回环地址；0.0.0.0 不是浏览器可访问地址。
     browser_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
     address = f"http://{browser_host}:{args.port}/"
-    # ThreadingHTTPServer 每请求一线程；daemon_threads 保证 Ctrl+C 后线程随主进程一起退出。
-    server = ThreadingHTTPServer((args.host, args.port), StudyHandler)
-    server.daemon_threads = True
     if args.open:
         # 延迟 0.5 秒再开浏览器：等服务就绪，避免浏览器首请求落空。
         threading.Timer(0.5, lambda: webbrowser.open(address)).start()
@@ -1593,11 +1586,27 @@ def main() -> None:
     print("账户数据库：" + str(AUTH_DB_PATH))
     print("按 Ctrl+C 停止服务。")
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
+        # FastAPI/Uvicorn is now the default runtime.  StudyHandler remains a
+        # compatibility adapter for direct tests and the legacy router, so
+        # public URLs and cookie/static semantics stay unchanged.
+        import uvicorn
+        from interview_forge.api.app import app
+        uvicorn.run(app, host=args.host, port=args.port,
+                    log_level="warning" if args.quiet else "info")
+    except ImportError as exc:
+        # A source checkout that has not installed requirements-server can
+        # still use the historical command; packaged deployments use the
+        # pinned FastAPI/Uvicorn dependency and take the branch above.
+        if not QUIET:
+            print(f"FastAPI/Uvicorn 不可用，回退兼容 HTTP 服务：{exc}")
+        server = ThreadingHTTPServer((args.host, args.port), StudyHandler)
+        server.daemon_threads = True
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
 
 
 if __name__ == "__main__":

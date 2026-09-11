@@ -12,6 +12,7 @@ import operator
 import random
 import re
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from datetime import datetime, timedelta
@@ -19,11 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from interview_forge.core.paths import DB_PATH, ROOT
+from interview_forge.core.runtime import server_runtime
 
-
-def _runtime():
-    import interview_forge.server.study_server as server
-    return server
 
 
 class _RuntimeLookup:
@@ -31,7 +29,7 @@ class _RuntimeLookup:
         self.name = name
 
     def _value(self):
-        return getattr(_runtime(), self.name)
+        return getattr(server_runtime, self.name)
 
     def __call__(self, *args, **kwargs):
         return self._value()(*args, **kwargs)
@@ -111,9 +109,9 @@ LEETCODE_SLUGS = _RuntimeLookup("LEETCODE_SLUGS")
 problem_filename = _RuntimeLookup("problem_filename")
 ROUND_COMPLETE_THRESHOLD = _RuntimeLookup("ROUND_COMPLETE_THRESHOLD")
 BUSINESS_TZ = _RuntimeLookup("BUSINESS_TZ")
-_DASH_CACHE = _RuntimeLookup("_DASH_CACHE")
-_DASH_CACHE_LOCK = _RuntimeLookup("_DASH_CACHE_LOCK")
-_DASH_CACHE_GENERATIONS = _RuntimeLookup("_DASH_CACHE_GENERATIONS")
+_DASH_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
+_DASH_CACHE_LOCK = threading.Lock()
+_DASH_CACHE_GENERATIONS: dict[str, int] = {}
 _DASH_TTL = _RuntimeLookup("_DASH_TTL")
 
 def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
@@ -121,8 +119,8 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     if problem_id not in PROBLEM_BY_ID:
         # 未知题号直接忽略 —— 浏览埋点属"尽力而为"，不因脏请求而报错。
         return False
-    studied_at, study_date = _runtime().now_parts()
-    with closing(_runtime().connect(db_path)) as connection:
+    studied_at, study_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
         # Serialize the read-check-write sequence so concurrent page loads
         # cannot both pass the 60-second de-duplication window.
         connection.execute("BEGIN IMMEDIATE")
@@ -143,7 +141,7 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
             (problem_id, studied_at, study_date),
         )
         connection.commit()
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     return True
 
 
@@ -157,8 +155,8 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
     """
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
-    studied_at, study_date = _runtime().now_parts()
-    with closing(_runtime().connect(db_path)) as connection:
+    studied_at, study_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
         # BEGIN IMMEDIATE：立刻拿写锁，"取下一轮次 + 插入"在同一事务内原子完成，
         # 并发双击也不会开出重复轮次（配合唯一索引 uq_problem_round 双保险）。
         connection.execute("BEGIN IMMEDIATE")
@@ -214,13 +212,13 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
         connection.commit()
     # Hot100 library progress is derived from AC submissions; no separate
     # content-event mirror is needed and avoiding it keeps this endpoint atomic.
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     # next_due：前端用它展示"下次复习时间"（= 完成时间 + 轮次对应间隔）。
     return {
         "problem_id": problem_id,
         "round_no": round_no,
         "studied_at": studied_at,
-        "next_due": _runtime().due_after(studied_at, round_no),
+        "next_due": server_runtime.due_after(studied_at, round_no),
     }
 
 
@@ -235,7 +233,7 @@ def dashboard_cached(db_path: Path) -> dict[str, object]:
             return hit[1]
         if hit:
             _DASH_CACHE.pop(key, None)
-    data = _runtime().dashboard_data(db_path)
+    data = server_runtime.dashboard_data(db_path)
     with _DASH_CACHE_LOCK:
         # A write/invalidation may have happened while the dashboard was
         # calculated outside the lock.  Returning this caller's result remains
@@ -258,8 +256,8 @@ def _invalidate_dashboard_cache(db_path: Path) -> None:
 
 def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
-    today = _runtime().business_now().date().isoformat()
-    with closing(_runtime().connect(db_path)) as connection:
+    today = server_runtime.business_now().date().isoformat()
+    with closing(server_runtime.connect(db_path)) as connection:
         view_rows = connection.execute(
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
                FROM study_events WHERE action = 'view' GROUP BY problem_id"""
@@ -374,7 +372,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
         day_stats[str(row["study_date"])]["submits"] += int(row["submits"] or 0)
     # 热力图数据：生成过去 365 天逐日计数（缺数据的补 0），前端按格子渲染 GitHub 风格日历。
-    base = _runtime().business_now().date() - timedelta(days=364)
+    base = server_runtime.business_now().date() - timedelta(days=364)
     activity = [
         {
             "date": (base + timedelta(days=offset)).isoformat(),
@@ -386,14 +384,14 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     ]
     # 连续学习天数：从今天（今天无记录则从昨天）往回数连续有活动的天数。
     streak = 0
-    cursor = _runtime().business_now().date()
+    cursor = server_runtime.business_now().date()
     if cursor.isoformat() not in active_dates:
         cursor -= timedelta(days=1)
     while cursor.isoformat() in active_dates:
         streak += 1
         cursor -= timedelta(days=1)
     try:
-        daily_goal = max(1, min(50, int(_runtime().get_settings(db_path).get("daily_goal_rounds", "3") or "3")))
+        daily_goal = max(1, min(50, int(server_runtime.get_settings(db_path).get("daily_goal_rounds", "3") or "3")))
     except (TypeError, ValueError):
         daily_goal = 3
     summary = {
@@ -423,10 +421,10 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             ) or None,
         }
         if rounds > 0 and last_completed:
-            item["next_due"] = _runtime().due_after(last_completed, rounds)
+            item["next_due"] = server_runtime.due_after(last_completed, rounds)
         problems_payload[str(pid)] = item
-    submissions_payload = _runtime().submission_summary(db_path)
-    with closing(_runtime().connect(db_path)) as connection:
+    submissions_payload = server_runtime.submission_summary(db_path)
+    with closing(server_runtime.connect(db_path)) as connection:
         recent_submissions = [
             dict(row)
             for row in connection.execute(
@@ -472,17 +470,17 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         "recent": recent,
         "recent_submissions": recent_submissions,
         "activity": activity,
-        "marks": _runtime().problem_marks(db_path),
+        "marks": server_runtime.problem_marks(db_path),
         "submissions": submissions_payload,
     }
 
 
 def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH) -> bool:
     """书架章节浏览事件：与题目 record_view 完全同构（含 60 秒去重），写进 content_events。"""
-    if not _runtime().valid_content(module_id, content_id):
+    if not server_runtime.valid_content(module_id, content_id):
         return False
-    studied_at, study_date = _runtime().now_parts()
-    with closing(_runtime().connect(db_path)) as connection:
+    studied_at, study_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
         # Serialize the read-check-write sequence for the same 60-second
         # de-duplication guarantee as record_view().
         connection.execute("BEGIN IMMEDIATE")
@@ -502,16 +500,16 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
             (module_id, content_id, studied_at, study_date),
         )
         connection.commit()
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     return True
 
 
 def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -> dict[str, object]:
     """书架章节"完成一轮"：轮次自增 + 写库（事务内原子完成），返回下次到期日。"""
-    if not _runtime().valid_content(module_id, content_id):
+    if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
-    studied_at, study_date = _runtime().now_parts()
-    with closing(_runtime().connect(db_path)) as connection:
+    studied_at, study_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
         # BEGIN IMMEDIATE 立刻拿写锁："取下一轮次 + 插入"同一事务内原子完成，
         # 并发点击也不会开出重复轮次（配合部分唯一索引 uq_content_round 双保险）。
         connection.execute("BEGIN IMMEDIATE")
@@ -527,20 +525,20 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
             (module_id, content_id, studied_at, study_date, round_no),
         )
         connection.commit()
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     # next_due：按章节专用间隔表（REVIEW_INTERVALS_CONTENT）推算的到期日，前端展示"下次复习"。
     return {
         "module_id": module_id,
         "content_id": content_id,
         "round_no": round_no,
         "studied_at": studied_at,
-        "next_due": _runtime().due_after_content(studied_at, round_no),
+        "next_due": server_runtime.due_after_content(studied_at, round_no),
     }
 
 
 def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
     """按 AC 日期统计 Hot100 题目轮次：同一天多次 AC 只算一轮。"""
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         rows = connection.execute(
             """SELECT problem_id,
                       COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
@@ -558,8 +556,8 @@ def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]
 
 def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
     """每题推荐/计划用状态：AC 决定是否完成，浏览和 AC 共同决定最近活动。"""
-    ac = _runtime().ac_problem_progress(db_path)
-    with closing(_runtime().connect(db_path)) as connection:
+    ac = server_runtime.ac_problem_progress(db_path)
+    with closing(server_runtime.connect(db_path)) as connection:
         view_rows = connection.execute(
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
                FROM study_events WHERE action = 'view' GROUP BY problem_id"""
@@ -589,8 +587,8 @@ def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]
 
 def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """书架数据：每个模块的章节总数/已完成数（rounds>0 即算开始学习）+ 每章节的轮次与最近活动。"""
-    manifest = _runtime().load_library_manifest()
-    with closing(_runtime().connect(db_path)) as connection:
+    manifest = server_runtime.load_library_manifest()
+    with closing(server_runtime.connect(db_path)) as connection:
         # 非 Hot100 章节仍按手动“完成一轮”；Hot100 题目由 AC 日期自动推进。
         rows = connection.execute(
             """SELECT content_id,
@@ -599,7 +597,7 @@ def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
                FROM content_events WHERE module_id <> 'hot100' GROUP BY content_id"""
         ).fetchall()
     contents = {str(row["content_id"]): dict(row) for row in rows}
-    for pid, progress in _runtime().ac_problem_progress(db_path).items():
+    for pid, progress in server_runtime.ac_problem_progress(db_path).items():
         contents[f"hot100:{pid:04d}"] = {
             "rounds": int(progress["rounds"]),
             "last_activity_at": progress["last_completed_at"],
@@ -620,9 +618,9 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
 
     传 module_id 时只返回该模块的 contents（problems 置空），供书架模块页使用。
     """
-    today = _runtime().business_now().date().isoformat()
-    ac_progress = _runtime().ac_problem_progress(db_path)
-    with closing(_runtime().connect(db_path)) as connection:
+    today = server_runtime.business_now().date().isoformat()
+    ac_progress = server_runtime.ac_problem_progress(db_path)
+    with closing(server_runtime.connect(db_path)) as connection:
         # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
         if module_id == "hot100":
             content_rows = [
@@ -669,7 +667,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
             rounds = int(progress["rounds"])
             if rounds <= 0:
                 continue
-            due = _runtime().due_after(str(progress["last_completed_at"]), rounds)
+            due = server_runtime.due_after(str(progress["last_completed_at"]), rounds)
             if due > today:
                 continue
             overdue_days = (datetime.fromisoformat(today).date()
@@ -705,7 +703,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
                 ),
             })
 
-    manifest = _runtime().load_library_manifest()
+    manifest = server_runtime.load_library_manifest()
     # 建立 content_id → (模块/标题/URL) 的查表，给章节补全展示元数据。
     content_index: dict[str, dict[str, str]] = {}
     for module in manifest.get("modules", []):
@@ -723,7 +721,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         if meta is None:
             continue
         rounds = int(row["rounds"])
-        due = _runtime().due_after_content(row["last_completed_at"], rounds)
+        due = server_runtime.due_after_content(row["last_completed_at"], rounds)
         if due > today:
             continue
         contents.append({
@@ -763,7 +761,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
 
 def problem_marks(db_path: Path = DB_PATH) -> dict[str, str]:
     """读全部题目标记 → {题号: mastered|reviewing|weak}，仪表盘/今日计划用它筛薄弱题。"""
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         rows = connection.execute(
             "SELECT target_id, mark FROM marks WHERE target_type = 'problem'"
         ).fetchall()
@@ -772,7 +770,7 @@ def problem_marks(db_path: Path = DB_PATH) -> dict[str, str]:
 
 def get_settings(db_path: Path = DB_PATH) -> dict[str, str]:
     """读取 settings 表全部 KV → {key: value} 字典。"""
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         rows = connection.execute("SELECT key, value FROM settings").fetchall()
     return {str(row["key"]): str(row["value"]) for row in rows}
 
@@ -787,20 +785,20 @@ def set_setting(key: str, value: str, db_path: Path = DB_PATH) -> dict[str, str]
         raise ValueError("未知设置项")
     if key == "daily_goal_rounds" and not re.fullmatch(r"\d{1,3}", value):
         raise ValueError("每日目标轮次需为数字")
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         connection.execute(
             """INSERT INTO settings(key, value) VALUES (?, ?)
                ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
             (key, value),
         )
         connection.commit()
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     return {"key": key, "value": value}
 
 
 def valid_content_id(content_id: str) -> bool:
     """仅校验 content_id 是否存在于书架（不区分模块），set_mark 打章节标记时用。"""
-    manifest = _runtime().load_library_manifest()
+    manifest = server_runtime.load_library_manifest()
     return any(
         str(chapter.get("id")) == content_id
         for module in manifest.get("modules", [])
@@ -822,10 +820,10 @@ def set_mark(target_type: str, target_id: str, mark: str, db_path: Path = DB_PAT
                 raise ValueError("未知题号")
         except (TypeError, ValueError) as exc:
             raise ValueError("未知题号") from exc
-    elif not _runtime().valid_content_id(target_id):
+    elif not server_runtime.valid_content_id(target_id):
         raise ValueError("未知章节")
-    studied_at, _ = _runtime().now_parts()
-    with closing(_runtime().connect(db_path)) as connection:
+    studied_at, _ = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
         # mark 为空 → 删除该目标的标记；否则插入或更新（ON CONFLICT 主键 (target_type, target_id)）。
         if mark == "":
             connection.execute(
@@ -841,7 +839,7 @@ def set_mark(target_type: str, target_id: str, mark: str, db_path: Path = DB_PAT
                 (target_type, target_id, mark, studied_at),
             )
         connection.commit()
-    _runtime()._invalidate_learning_caches(db_path)
+    server_runtime._invalidate_learning_caches(db_path)
     return {"target_type": target_type, "target_id": target_id, "mark": mark}
 
 
@@ -880,7 +878,7 @@ def pick_problem(
     difficulty: str = "",
 ) -> dict[str, object]:
     """今日推荐：未完成优先、按最近活动最久排序；randomize 时随机抽一题。"""
-    info = _runtime().problem_review_state(db_path)
+    info = server_runtime.problem_review_state(db_path)
     # 候选集：按专题/难度过滤题目清单；条件为空表示不限制（pick_problem 与 mock_exam 共用过滤逻辑）。
     candidates = [
         p for p in PROBLEM_BY_ID.values()
@@ -946,11 +944,11 @@ def mock_exam(
 def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False) -> dict[str, object]:
     """今日计划（与今日待复习互补）：已排期 → 未学习 → 需重学（逾期 >60 天）
     → 轮数较少；每类内部按学习路径顺序；排除今日待复习中的题。"""
-    today = _runtime().business_now().date().isoformat()
-    daily = _runtime().daily_data(db_path)
+    today = server_runtime.business_now().date().isoformat()
+    daily = server_runtime.daily_data(db_path)
     due_ids = {int(item["id"]) for item in daily["problems"]}
     relearn_ids = {int(item["id"]) for item in daily.get("relearn", [])}
-    info = _runtime().problem_review_state(db_path)
+    info = server_runtime.problem_review_state(db_path)
     count = max(1, min(count, 100))
 
     def entry(pid: int, reason: str) -> dict[str, object]:
@@ -969,7 +967,7 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
     # 只清理"已过期"（for_date < today）的 pin；当天的 pin 保留可重复读取，
     # 避免中控台/面板多次拉取互相吞掉排期（GET 无副作用原则）。
     pinned: list[int] = []
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         connection.execute("DELETE FROM plan_pins WHERE for_date < ?", (today,))
         # The default sqlite isolation level starts a transaction for DELETE;
         # commit explicitly so stale pins are actually removed on close.
@@ -1006,7 +1004,7 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
 
 def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
     """薄弱题清单：含专题、轮次、最近复习、标记时间，按标记时间排序。"""
-    with closing(_runtime().connect(db_path)) as connection:
+    with closing(server_runtime.connect(db_path)) as connection:
         # 手动薄弱标记（按标记时间排序）。
         manual_marks = [dict(row) for row in connection.execute(
             "SELECT target_id, updated_at FROM marks WHERE target_type='problem' AND mark='weak' ORDER BY updated_at"
@@ -1017,11 +1015,11 @@ def weaklist(db_path: Path = DB_PATH) -> dict[str, object]:
         ).fetchall()
     info = {
         pid: {"rounds": int(progress["rounds"]), "last_completed_at": progress["last_completed_at"]}
-        for pid, progress in _runtime().ac_problem_progress(db_path).items()
+        for pid, progress in server_runtime.ac_problem_progress(db_path).items()
     }
     first_view = {int(row["problem_id"]): str(row["first_view"]) for row in view_rows}
-    submissions = _runtime().submission_summary(db_path)
-    all_marks = _runtime().problem_marks(db_path)
+    submissions = server_runtime.submission_summary(db_path)
+    all_marks = server_runtime.problem_marks(db_path)
     manual_by_id = {int(row["target_id"]): row for row in manual_marks}
     auto_by_id: dict[int, dict[str, object]] = {}
     for pid_text in submissions["auto_weak"]:
@@ -1085,7 +1083,7 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         return "text/csv; charset=utf-8", "hot100-anki.csv", "\ufeff" + "\n".join(rows)
     # weak：Markdown 表格清单，只列标记为 weak 的题（按题号升序，可贴进笔记/日报）。
     if kind == "weak":
-        marks = _runtime().problem_marks(db_path)
+        marks = server_runtime.problem_marks(db_path)
         lines = ["# Hot 100 薄弱题清单", "", "| 题号 | 题目 | 难度 | 最近学习 |", "|---|---|---|---|"]
         for pid_str, _mark in sorted(marks.items(), key=lambda item: int(item[0])):
             if _mark != "weak":
@@ -1097,7 +1095,7 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         return "text/markdown; charset=utf-8", "hot100-薄弱清单.md", "\n".join(lines)
     # records：四张业务表全量导出为 JSON（题目/章节/标记/设置），可作备份或数据迁移。
     if kind == "records":
-        with closing(_runtime().connect(db_path)) as connection:
+        with closing(server_runtime.connect(db_path)) as connection:
             problems = [dict(row) for row in connection.execute(
                 "SELECT problem_id, action, studied_at, study_date, round_no FROM study_events ORDER BY id")]
             contents = [dict(row) for row in connection.execute(
@@ -1118,11 +1116,11 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         return "application/json; charset=utf-8", "hot100-records.json", json.dumps(payload, ensure_ascii=False, indent=2)
     # weekly：本周（本周一 00:00 起）统计生成 Markdown 周报：轮次/活跃天数/连击/薄弱清单。
     if kind == "weekly":
-        now = _runtime().business_now()
+        now = server_runtime.business_now()
         monday = (now - timedelta(days=now.weekday())).date()
         monday_iso = monday.isoformat()
         today_iso = now.date().isoformat()
-        with closing(_runtime().connect(db_path)) as connection:
+        with closing(server_runtime.connect(db_path)) as connection:
             problem_rounds = int(connection.execute(
                 """SELECT COUNT(*) AS n FROM (
                     SELECT problem_id, date(submitted_at, '+8 hours') AS d
@@ -1165,7 +1163,7 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         while cursor.isoformat() in active_dates_all:
             streak += 1
             cursor -= timedelta(days=1)
-        marks = _runtime().problem_marks(db_path)
+        marks = server_runtime.problem_marks(db_path)
         weak_titles = [
             f"{PROBLEM_BY_ID[int(k)]['id']}. {PROBLEM_BY_ID[int(k)]['title']}"
             for k, v in marks.items() if v == "weak" and int(k) in PROBLEM_BY_ID
