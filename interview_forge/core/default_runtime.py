@@ -20,7 +20,7 @@ from interview_forge.core.paths import AUTH_DB_PATH, DATA_DIR, DB_PATH, ROOT, US
 from interview_forge.db.connection import connect as _db_connect
 from interview_forge.services.catalog import load_library_manifest
 from interview_forge.services.review import due_after as _due_after, due_after_content as _due_after_content
-from scripts.build.build_hot100 import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
+from interview_forge.core.problem_catalog import LEETCODE_SLUGS, PROBLEM_BY_ID, problem_filename
 from interview_forge.services.submissions import VALID_SUBMIT_SOURCES
 
 try:

@@ -1,12 +1,14 @@
 """LeetCode credentials, status and synchronization routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
 from interview_forge.services.leetcode import (
     LeetCodeSyncError, clear_credentials, get_credentials, lc_status_cached, lc_status_invalidate,
-    leetcode_status, leetcode_sync, set_credentials,
+    leetcode_status, leetcode_sync_async, set_credentials,
 )
 from interview_forge.runtime.task_manager import task_manager
 
@@ -60,7 +62,8 @@ async def connect(request: Request):
                          "leetcode_csrf": str(payload.get("leetcode_csrf", ""))}, db)
         lc_status_invalidate(db)
         invalidate_dashboard(db)
-        return json_response({"saved": True, **leetcode_status(get_credentials(db))}, 201)
+        checked = await asyncio.to_thread(leetcode_status, get_credentials(db))
+        return json_response({"saved": True, **checked}, 201)
     except BaseException as exc:
         return _handled(exc)
 
@@ -80,7 +83,7 @@ async def sync(request: Request):
         if payload.get("async") in (1, True, "1", "true", "True"):
             task_id = task_manager.submit("leetcode", credentials, full, owner=str(user["username"]), db_path=db)
             return json_response({"ok": True, "task_id": task_id}, 201)
-        result = {"ok": True, **leetcode_sync(credentials, db_path=db, full=full)}
+        result = {"ok": True, **await leetcode_sync_async(credentials, db_path=db, full=full)}
         invalidate_learning(db)
         return json_response(result, 201)
     except BaseException as exc:
@@ -99,4 +102,4 @@ async def clear(request: Request):
         invalidate_dashboard(db)
         return json_response({"cleared": True}, 201)
     except BaseException as exc:
-        return _handled(exc, write=True)
+        return _handled(exc)
