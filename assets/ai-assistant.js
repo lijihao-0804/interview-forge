@@ -10,7 +10,12 @@
   var input = document.getElementById("messageInput");
   var send = document.getElementById("send");
   var stop = document.getElementById("stop");
+  var memoryButton = document.getElementById("memoryButton");
+  var memoryDialog = document.getElementById("memoryDialog");
+  var memoryList = document.getElementById("memoryList");
+  var memoryClose = document.getElementById("memoryClose");
   var toolLabels = { get_weather: "天气信息", get_learning_context: "学习情况", get_problem: "题目信息" };
+  var memoryKinds = { preference: "偏好", goal: "目标", constraint: "约束", learning_context: "学习背景" };
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -53,6 +58,33 @@
   function setError(value) { error.textContent = value || ""; }
   function setBusy(value) { input.disabled = !state.current || value; send.disabled = !state.current || value; stop.hidden = !value; status.textContent = value ? "生成中…" : (state.current ? "已连接" : "未连接"); }
   function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
+
+  function renderMemories(items) {
+    if (!items.length) { memoryList.innerHTML = '<div class="memory-empty">暂时没有保存的长期记忆。</div>'; return; }
+    memoryList.textContent = "";
+    items.forEach(function (item) {
+      var row = document.createElement("div"); row.className = "memory-item";
+      var content = document.createElement("div"); content.className = "memory-item-content";
+      var text = document.createElement("div"); text.className = "memory-item-text";
+      text.textContent = (memoryKinds[item.kind] || "记忆") + "：" + String(item.display_text || "");
+      var meta = document.createElement("div"); meta.className = "memory-item-meta";
+      meta.textContent = (item.source_type === "explicit" ? "你明确告诉我的" : "根据对话推断") + " · " + String(item.updated_at || "");
+      content.appendChild(text); content.appendChild(meta);
+      var remove = document.createElement("button"); remove.className = "button"; remove.type = "button"; remove.textContent = "删除";
+      remove.addEventListener("click", function () {
+        remove.disabled = true;
+        api("/api/chat/memories/" + encodeURIComponent(item.id), { method: "DELETE" })
+          .then(function () { loadMemories(); })
+          .catch(function () { remove.disabled = false; });
+      });
+      row.appendChild(content); row.appendChild(remove); memoryList.appendChild(row);
+    });
+  }
+
+  async function loadMemories() {
+    var payload = await api("/api/chat/memories");
+    renderMemories(payload.items || []);
+  }
 
   function renderSessions() {
     if (!state.sessions.length) { list.innerHTML = '<div class="empty">还没有会话，点击“新建”。</div>'; return; }
@@ -178,6 +210,8 @@
   }
 
   document.getElementById("newSession").addEventListener("click", function () { newSession().catch(function (err) { setError(err.message); }); });
+  memoryButton.addEventListener("click", function () { memoryDialog.showModal(); loadMemories().catch(function (err) { memoryList.textContent = err.message || "读取失败"; }); });
+  memoryClose.addEventListener("click", function () { memoryDialog.close(); });
   document.getElementById("composer").addEventListener("submit", sendMessage);
   input.addEventListener("keydown", function (event) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); document.getElementById("composer").requestSubmit(); } });
   stop.addEventListener("click", function () { if (state.controller) state.controller.abort(); });

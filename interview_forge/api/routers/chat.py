@@ -57,6 +57,31 @@ def list_messages(request: Request, session_id: str):
         return _handled(exc)
 
 
+@router.get("/api/chat/memories")
+def list_memories(request: Request):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response({"items": chat_service.list_memories(user_db=user_db(user))})
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.delete("/api/chat/memories/{memory_id}")
+def delete_memory(request: Request, memory_id: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        deleted = chat_service.delete_memory(user_db=user_db(user), memory_id=memory_id)
+        if not deleted:
+            return error_response("记忆不存在", 404)
+        return json_response({"deleted": True})
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
 @router.post("/api/chat/sessions/{session_id}/stream")
 async def stream_session(request: Request, session_id: str):
     user, denied = require_user(request)
