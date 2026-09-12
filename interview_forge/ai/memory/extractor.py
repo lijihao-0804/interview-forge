@@ -29,25 +29,39 @@ class _ExtractionEnvelope(BaseModel):
     candidates: list[_ExtractedCandidate] = Field(default_factory=list, max_length=4)
 
 
+_EXPLICIT_MARKERS = ("记住", "不要忘", "忘记", "不要再记住", "别再记住")
+
+
+def is_explicit_memory_request(message: str) -> bool:
+    text = " ".join(str(message or "").strip().split())
+    return bool(text) and any(marker in text for marker in _EXPLICIT_MARKERS)
+
+
 def _deterministic_candidate(message: str) -> MemoryCandidate | None:
     text = " ".join(message.strip().split())
     if not memory_worthy(text):
         return None
     forget = any(marker in text for marker in ("忘记", "不要再记住", "别再记住"))
-    preference = any(marker in text for marker in ("喜欢", "偏好", "讲思路", "解释算法"))
-    goal = any(marker in text for marker in ("目标", "想学", "希望学", "准备") )
-    constraint = any(marker in text for marker in ("每天", "不喜欢", "不要") )
-    if preference:
-        kind, key, importance = "preference", "explanation_style", 4
-    elif goal:
-        kind, key, importance = "goal", "learning_goal", 4
-    elif constraint:
-        kind, key, importance = "constraint", "study_constraint", 3
+    language = re.search(r"\b(Python|JavaScript|TypeScript|Java|Go|Rust|C\+\+)\b", text, re.I)
+    if language and any(marker in text for marker in ("喜欢", "偏好", "使用", "用")):
+        kind, key, importance = "preference", "preference.programming_language", 4
+    elif any(marker in text for marker in ("先讲思路", "先讲直觉", "讲思路", "解释算法先")):
+        kind, key, importance = "preference", "preference.explanation_order", 4
+    elif re.search(r"(?:每天|每日).{0,10}\d+\s*(?:分钟|分|小时)", text):
+        kind, key, importance = "constraint", "constraint.daily_study_minutes", 3
+    elif re.search(r"(?:长期)?目标(?:是|为)?\s*(?:后端|前端|全栈|算法工程|数据工程)", text):
+        kind, key, importance = "goal", "goal.target_role", 4
+    elif forget and "偏好" in text:
+        # A generic legacy phrase has one intentionally narrow meaning.  More
+        # specific forget requests are handled by the structured extractor.
+        kind, key, importance = "preference", "preference.explanation_order", 4
     else:
-        kind, key, importance = "learning_context", "long_term_learning_context", 3
+        # Do not claim that every marker has a deterministic interpretation.
+        # Complex worthy messages must reach the structured extractor.
+        return None
     if forget:
         return MemoryCandidate("forget", kind, key, {}, "删除相关长期记忆", True, 1.0, importance)
-    prefix = re.sub(r"^(请)?(记住|以后|通常|长期目标是)[:：，,]?\s*", "", text)
+    prefix = re.sub(r"^(请)?(记住|以后请记住|以后|通常|长期目标是)[:：，,]?\s*", "", text)
     display = prefix[:240] or text[:240]
     return MemoryCandidate(
         "upsert", kind, key, {"text": display[:300]},
@@ -98,7 +112,8 @@ class MemoryExtractor:
             try:
                 result.append(MemoryCandidate(
                     item.operation, item.kind, item.canonical_key, item.value,
-                    item.display_text, item.explicit, item.confidence, item.importance,
+                    item.display_text, item.explicit or is_explicit_memory_request(message),
+                    item.confidence, item.importance,
                 ))
             except Exception:
                 continue
@@ -119,4 +134,4 @@ class MemoryExtractor:
         return accepted
 
 
-__all__ = ["MemoryExtractor"]
+__all__ = ["MemoryExtractor", "is_explicit_memory_request"]

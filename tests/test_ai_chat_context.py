@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.context_builder import ContextBuilder, SUMMARY_PREFIX
 from interview_forge.ai.chat.token_budget import (
     ChatTokenBudget,
@@ -68,6 +69,30 @@ class ChatContextBuilderTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in messages], ["system", "user", "assistant", "user"])
         self.assertEqual(sum(item["content"] == "当前问题" for item in messages), 1)
         self.assertIsNone(self.summary_row())
+
+    def test_context_block_priority_admits_learning_before_memory(self):
+        builder = ContextBuilder(
+            system_prompt="system",
+            budget=ChatTokenBudget(
+                summary_tokens=20,
+                recent_tokens=20,
+                system_tokens=42,
+                current_tokens=20,
+                output_tokens=20,
+            ),
+            context_blocks=(
+                ContextBlock("memory", "memory-low-priority " * 20, priority=80, max_tokens=80),
+                ContextBlock("learning", "learning-high-priority " * 20, priority=90, max_tokens=80),
+            ),
+        )
+        messages = builder.build(
+            session_id=self.session_id,
+            current_message="当前问题",
+            user_db=self.db,
+        )
+        self.assertIn("ContextBlock:learning", messages[0]["content"])
+        self.assertNotIn("ContextBlock:memory", messages[0]["content"])
+        self.assertEqual(builder.last_build["context_blocks"], ["learning"])
 
     def test_repeated_current_content_keeps_earlier_turns(self):
         self.add_messages([
