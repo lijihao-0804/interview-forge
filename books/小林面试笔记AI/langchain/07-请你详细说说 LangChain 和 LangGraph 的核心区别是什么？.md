@@ -25,13 +25,24 @@
 
 LangGraph 则是低层的 Agent 编排框架与运行时，让开发者直接设计状态、节点、路由、并行、中断和恢复。
 
-两者最关键的关系是，LangChain v1 的 `create_agent` 构建在 LangGraph 之上，返回一个编译后的图。也就是说，LangChain Agent 不是脱离 LangGraph 运行的另一套引擎，它已经继承了 LangGraph 的状态、持久化、流式输出、durable execution 和 human-in-the-loop 等运行能力。
+两者最关键的关系是：按 LangChain v1 当前文档，`create_agent` 使用 LangGraph 作为运行时基础并返回可执行图。可用的状态、持久化、流式输出、durable execution 和 human-in-the-loop 能力仍取决于具体配置、集成包和目标版本；不能把“底层使用 LangGraph”理解成所有能力都自动开启。
 
 真正的区别不在于「有没有图」或「能不能分支」，而在于开发者控制哪一层。若需求是常见的「模型判断 -> 调用工具 -> 返回模型」循环，我会优先用 LangChain，再借助 middleware 做提示词、重试、护栏和审批等定制。
 
 若业务需要显式控制多个阶段，让确定性步骤与 Agent 步骤混排，或者要处理复杂并行、长期暂停和多 Agent 协作，我会直接用 LangGraph。`create_agent` 生成的 Agent 仍然可以作为图中的节点或子图复用。
 
 所以一句话概括：LangChain 帮我快速得到一个好用的 Agent，LangGraph 帮我精确控制整个 Agent 系统怎么运行。
+
+```mermaid
+flowchart LR
+    A[LangChain 高层入口] --> B[模型、Tools、Middleware、Structured Output]
+    A --> C[create_agent]
+    C --> D[编译后的 LangGraph 运行时]
+    D --> E[State、路由、Checkpoint、Interrupt、恢复]
+    F[自定义 LangGraph] --> E
+```
+
+LangChain 与 LangGraph 可以在同一系统中组合；差别主要是预构建程度和控制粒度，不是某个功能“有/没有”的二元划分。
 
 ## 📝 详细解析
 
@@ -41,7 +52,7 @@ LangGraph 则是低层的 Agent 编排框架与运行时，让开发者直接设
 
 先用一句人话理解：LangChain 给我们一套装好的 Agent，LangGraph 让我们自己设计整条业务路线。
 
-截至 2026 年 7 月，官方也是按上下层来定位它们。LangChain 是高层 Agent 框架，提供模型、工具和常见的 Agent 循环；LangGraph 是更低层的编排框架与运行时，负责有状态流程如何执行、暂停和恢复。
+按当前官方定位，LangChain 是高层 Agent 框架，提供模型、工具和常见的 Agent 循环；LangGraph 是更低层的编排框架与运行时，负责有状态流程如何执行、暂停和恢复。具体 API 仍应以项目锁定版本为准。
 
 LangGraph 可以使用 LangChain 的模型和工具组件，但并不强制依赖 LangChain，也可以直接接其他模型 SDK 或普通 Python 函数。
 

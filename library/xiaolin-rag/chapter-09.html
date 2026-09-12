@@ -1,65 +1,61 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>讲讲你用的向量数据库？数据量级是多大？性能如何？遇到过性能瓶颈吗？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">讲讲你用的向量数据库？数据量级是多大？性能如何？遇到过性能瓶颈吗？</span></nav><div class="module-meta">大模型应用 · 第 9 / 20 章 · <span class="muted">更新于 2026-09-01</span></div><h1>讲讲你用的向量数据库？数据量级是多大？性能如何？遇到过性能瓶颈吗？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：你在项目里用的什么向量数据库？数据量级大概多少？</p>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">讲讲你用的向量数据库？数据量级是多大？性能如何？遇到过性能瓶颈吗？</span></nav><div class="module-meta">大模型应用 · 第 9 / 20 章 · <span class="muted">更新于 2026-09-12</span></div><h1>讲讲你用的向量数据库？数据量级是多大？性能如何？遇到过性能瓶颈吗？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：你在项目里用的什么向量数据库？数据量级大概多少？</p>
 <p>🙋‍♂️我：用的 Chroma，挺好用的，pip install 一下就能跑了。</p>
 <p>👔面试官：Chroma？本地嵌入式数据库你拿来做生产？你数据量多大知道吗？</p>
 <p>🙋‍♂️我：呃，好像存了几万条吧，具体没数过。性能嘛，感觉还挺快的，反正用户也没投诉，应该没什么问题。</p>
 <p>👔面试官：几万条都没数过？性能感觉「挺快的」？你是用体感在做性能测试吗？P50 延迟多少？P99 呢？QPS 能扛多少？一个指标都说不出来？</p>
 <p>🙋‍♂️我：那性能瓶颈的话……还真没遇到过，Chroma 一直跑得挺稳的，我也没怎么关注过这块。</p>
 <p>👔面试官：几万条数据用 Chroma 单机跑，当然碰不到瓶颈了。你有没有想过数据量到百万级会怎样？内存够不够？写入会不会影响查询？Segment 合并了解过吗？面试官问的是你实际的生产经验和性能优化能力，你连基本的数据量级和性能指标都答不上来，回去积累点真实项目经验再来吧。</p>
-<p>好吧，面试官问的是实战经验，我光会说「用了 Chroma，感觉挺快」，这不就是没做过吗。下面我以 Milvus 为例，讲讲生产环境里向量数据库的真实数据量级、性能表现和踩过的坑。</p>
+<p>好吧，面试官问的是实战经验，光会说“用了某个数据库，感觉挺快”是不够的。下面用一个<strong>示例压测场景</strong>说明如何回答；规模、硬件和延迟不是通用结论，不能冒充自己的生产经历。</p>
 <h3 id="_1">💡 简要回答</h3>
-<p>我们生产环境用的是 Milvus，数据量级在百万条向量左右，每条是 1024 维，用 HNSW 索引，单次查询的延迟在 20 到 50 毫秒。选 Milvus 主要是因为它支持分布式部署和读写分离，适合数据量大、并发高的场景。</p>
+<p>如果真实项目使用 Milvus，应说明版本、部署拓扑和选择约束；如果没有亲自运行过，应明确标注为 PoC 或压测。可报告固定规模、维度、索引和过滤条件下的 P50/P95/P99、吞吐、错误率与资源占用，而不是直接承诺 20～50 毫秒。</p>
 <p>我遇到过两个比较典型的瓶颈。</p>
-<p>第一个是内存压力，百万级的 1024 维向量光原始数据就要好几个 GB，后来我们开启了标量量化 SQ8，把 float32 压成 int8，内存直接降到原来的四分之一。</p>
-<p>第二个是大批量写入的时候会触发后台 Segment 合并，影响查询延迟，我们的解法是把批量写入改到业务低峰期，分批小批次写入。</p>
+<p>第一个可能是内存压力：百万级高维 float32 向量仅原始数据就可能占用数 GB，索引、metadata、缓存和副本还会增加开销。可以评估 SQ8、分片或 mmap，但量化会改变距离近似与召回，必须用业务数据重新测量。</p>
+<p>第二个可能是批量写入、索引构建或 compaction 与查询争用 CPU/磁盘，造成尾延迟抖动。可评估限流、错峰、资源隔离、版本化索引和回滚；参数要以监控和压测确定。</p>
 <h3 id="_2">📝 详细解析</h3>
 <h4 id="_3">先搞清楚：向量数据库是干什么的？</h4>
 <p>在讲 Milvus 之前，先理解一下向量数据库解决的是什么问题。很多人上来就问「哪个向量数据库好」，但连它要干什么都没搞清楚。</p>
 <p>普通数据库（比如 MySQL）存的是结构化数据，查询方式是精确匹配，「找名字等于张三的记录」。但在 RAG 里，我们存的是文本的「语义向量」，查询方式是相似度搜索，「找和这段描述语义最接近的文档」。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/cad6dab336-4b20277085e5c9dda1b0d93f.png" /></p>
 <p>这两件事的底层机制完全不同。语义向量是一个几百上千维的浮点数数组，你没办法用 <code>WHERE embedding = xxx</code> 来查，只能计算两个向量之间的距离（余弦相似度或欧氏距离），找出最近的 K 个。</p>
-<p>那问题来了：如果向量库里有 100 万条记录，每次查询都和 100 万条逐一算距离，时间复杂度是 O(N)，太慢了。向量数据库的核心价值就是：通过 <strong>索引</strong>（最常用的是 HNSW），把查询时间压缩到接近 O(log N)，用少量精度损失换来极大的速度提升。理解了这一点，后面 Milvus 的各种设计就都有根可循了。</p>
+<p>那问题来了：如果向量库里有 100 万条记录，每次查询都和 100 万条逐一算距离，计算量会随 N 增长。向量索引通过减少候选数来降低开销，但 ANN 的实际复杂度、召回损失和延迟取决于索引、参数、数据分布、过滤与硬件，不能把 HNSW 简化成普遍成立的 <code>O(log N)</code>。</p>
 <h4 id="milvus">为什么选 Milvus？</h4>
 <p>搞清楚了向量数据库的核心价值，下一个问题就是选哪个。市面上常见的向量数据库有好几个，选型时可以按规模和场景来判断。</p>
-<p><strong>Chroma</strong> 上手最简单，一行 pip 装好就能用，数据存本地文件，非常适合做实验和跑 Demo，但它没有分布式能力，不适合生产。</p>
-<p><strong>Qdrant</strong> 用 Rust 写的，单机性能很好，部署也简单（Docker 一条命令），适合中小规模、团队运维资源有限的场景。</p>
-<p><strong>Weaviate</strong> 功能较全，支持多种搜索模式，适合需要向量搜索与结构化查询结合的场景。</p>
-<p><strong>Milvus</strong> 是功能最全、扩展性最强的开源选项，支持分布式部署，读写节点分离，能横向扩容，适合数据量在百万到十亿级别、并发查询量大的生产场景。</p>
-<p>我们选 Milvus 主要是数据量级上去了，单机已经撑不住，需要分布式部署；同时知识库每天都有增量更新，读写分离能让写入不影响查询服务的稳定性。</p>
+<p><strong>Chroma</strong> 可作为快速验证候选；是否满足生产要看具体部署形态、版本、并发、持久化和恢复要求，不能只凭产品名称下结论。</p>
+<p><strong>Qdrant</strong> 可作为自托管或托管候选；适用规模和性能要用目标过滤、并发与更新负载实测，不能只由实现语言推断。</p>
+<p><strong>Weaviate</strong> 可作为需要向量与结构化检索组合的候选，仍需核对版本、部署方式、过滤语义和运维边界。</p>
+<p><strong>Milvus</strong> 提供面向向量检索的多种部署与索引选项；是否适合分布式、高并发或某个规模，要结合版本、拓扑、资源和运维能力验证，不能用固定规模作保证。</p>
+<p>如果选择 Milvus，应该把理由写成约束到能力的映射：索引类型、分片/副本、更新可见性、备份恢复和资源隔离是否满足目标；“读写分离”是否存在以及如何配置，以对应版本文档和压测为准。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/c7330be2c0-b86034f83589d2609165ea29.png" /></p>
 <h4 id="milvus_1">Milvus 的核心概念</h4>
 <p>选定了 Milvus，在聊具体性能数据之前，先得搞懂它的几个核心概念。这些概念直接关系到后面分析性能瓶颈时能不能听懂。</p>
 <p><strong>Collection（集合）</strong> 类似关系数据库里的「表」，存储一类向量数据。我们的知识库就是一个 Collection，每条记录包含：文本 chunk 的 ID、向量（embedding）、原文内容、来源文档等 metadata。</p>
-<p><strong>Segment（段）</strong> 是 Milvus 内部管理数据的基本单位，理解它对后面分析性能瓶颈很关键。新写入的数据先进「增量段」，像一个临时的接收缓冲区；积累到一定量后触发合并，变成「封存段」。封存段会建好索引，查询时走索引检索速度很快。但合并这个动作本身会消耗 CPU 和磁盘，就像磁盘碎片整理，把一堆小文件合并成大文件，期间会抢资源。记住这个 Segment 合并机制，后面讲性能瓶颈的时候会用到。</p>
+<p><strong>Segment（段）</strong> 是 Milvus 等系统内部管理数据的单位，具体状态和 compaction 语义随版本与部署变化。新写入数据可能先处于未封存/未完成索引状态，随后持久化、建索引或合并；后台任务会消耗 CPU、内存和磁盘 I/O，可能影响尾延迟。排查应看段状态、索引加载、任务队列和节点资源。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/a25d8f79b3-8220f58fc18a8fe7886b841f.png" /></p>
-<p><strong>Index（索引）</strong> 是向量检索的关键加速结构。最常用的是 <strong>HNSW</strong>（Hierarchical Navigable Small World，分层可导航小世界图），一种图结构索引。它的核心思想是：把向量组织成多层图，查询时从稀疏的顶层开始，快速定位到大致区域，再逐层细化找到最近邻，整体复杂度接近 O(log N)。</p>
+<p><strong>Index（索引）</strong> 是向量检索的关键加速结构。常见的 <strong>HNSW</strong> 把向量组织成多层图，查询时从上层导航到下层候选；它通过减少访问节点换取速度，但不保证固定复杂度或召回率。</p>
 <p>HNSW 有两个关键参数，用社交网络来类比很好理解：</p>
 <ul>
-<li><code>M</code> 是「每个节点最多认识几个邻居」，M 越大，图越密，找到最近邻的精度越高，但建索引的内存和时间都越多，通常设 16～32 就够了。<code>ef_construction</code> 是「建图时每个节点考察多少候选」，越大越精确，但建索引越慢，通常设 100～200。</li>
-<li>查询时还有一个参数 <code>ef</code>（也叫 <code>search_ef</code>）：查询时搜索的候选集大小，越大召回越准，延迟也越高，按实际需求在 50～200 之间调。可以理解为「查询时多看几个候选再决定最终答案」，ef 小查得快但可能漏掉真正最近的那个，ef 大查得慢但结果更准。</li>
+<li><code>M</code> 影响连接数以及内存/构建成本；<code>efConstruction</code> 影响建图候选；查询侧 <code>efSearch</code> 影响探索量。参数名称、默认值和范围由具体实现决定，不能把某项目的 16～32、100～200 或 50～200 当通用答案；要同时测 Recall@K、P95/P99、吞吐、构建时间和内存。</li>
 </ul>
 <h4 id="_4">数据规模和实测性能</h4>
-<p>搞懂了概念，现在来看实际的数据。我们知识库大概有 <strong>150 万条 chunk</strong>，每条用 BGE-large-zh 模型生成 1024 维的向量，索引用 HNSW（M=16，ef_construction=128）。</p>
-<p>先算一下原始数据的内存占用：150 万 × 1024 维 × 4 字节（float32）≈ <strong>6GB</strong>，这是纯向量部分。实际 Milvus 进程完整跑起来大概要 10～12GB 内存，多出来的 4～6GB 不是"索引翻倍"的神秘开销，而是 HNSW 图结构本身、metadata、Collection 管理开销、操作系统缓存这些合起来的占用。你可能会想，12GB 内存而已，现在随便一台服务器都有 32GB，有什么好担心的？但别忘了这只是向量数据本身，同一台机器上还跑着应用服务、Redis、日志收集等各种组件，内存是要抢着用的。</p>
-<p>开启 <strong>标量量化（SQ8）</strong> 之后，把每个 float32 压缩成 int8（用 1 字节代替 4 字节）。直觉上理解：就像把精确到小数点后 7 位的数字保留到小数点后 2 位，大部分语义信息其实在高位，截掉低位精度损失极小，但数据量直接缩到 1/4。内存从 10GB 降到约 3GB，召回率基本无损（通常只下降 1 个百分点以内），是最划算的一个优化，几乎没有代价。</p>
+<p>搞懂了概念，现在来看如何报告数据。下面的数字只是<strong>示例压测配置</strong>：约 150 万条 chunk、固定维度、HNSW 和明确记录的索引参数；用于面试时必须替换成自己确实测过的规模、模型、版本和拓扑。</p>
+<p>先算一下原始数据的下界：150 万 × 1024 维 × 4 字节（float32）≈ <strong>6GB</strong>，这只是裸向量，不包含索引图、metadata、缓存、副本和服务开销。实际占用应按同版本、同索引和同副本数测量，并为应用与故障余量留空间。</p>
+<p>开启 <strong>标量量化（SQ8）</strong> 后，存储表示可能降低，但量化范围、索引实现和额外结构会影响实际节省；也可能带来召回损失或额外计算。必须对业务 Recall@K、延迟、恢复和成本做对照，不能承诺固定四分之一或固定百分点。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/92980dfddb-d700b49bc847041d26e80bfd.png" /></p>
-<p>实测查询性能（单机 16 核 32G、本地千兆网、HNSW 在内存、ef=100）：单次 top-5 查询 P50 延迟约 20ms，P99 约 60ms，并发 100 QPS 时延迟基本稳定。这里报数字一定要带上硬件和参数背景，同样是 Milvus，跑在 8 核机上、跨机房调用、或者 ef 设到 200，数字能差一个量级。这些数字才是面试官想听到的，不是「感觉挺快的」。</p>
+<p>性能报告至少写清硬件、网络、连接池、维度、topK、过滤、索引参数、规模、读写比例、并发和预热，再给出 P50/P95/P99、吞吐、错误率与资源曲线。单个 P50 不能证明稳定；冷启动、跨机房、更新高峰都可能改变结果。</p>
 <h4 id="_5">遇到的性能瓶颈</h4>
-<p>前面算完内存占用就应该意识到了，150 万条 1024 维向量光原始数据就要好几 GB，这在实际生产中必然会遇到内存压力。我确实踩了两个典型的坑。</p>
+<p>前面的估算说明了一个排查方向：高维向量、索引和副本都可能造成内存压力，但是否成为瓶颈要看监控。下面是两个常见的排查案例模板，不应当当作作者亲身经历。</p>
 <p><strong>瓶颈一：内存不足，查询延迟飙升</strong></p>
-<p>最开始没有开量化，机器只有 8GB 内存，Milvus 把向量索引加载进内存之后，留给操作系统的空间已经很小了，稍微有点内存压力就开始频繁 swap（把内存数据换到磁盘），查询延迟直接从 20ms 飙到 2s+。很多人以为查询慢是索引算法的问题，其实根本不是，是内存不够被操作系统强行 swap 了。就像你开一个很大的 Excel 文件，内存不够就开始疯狂读硬盘，卡得怀疑人生。</p>
-<p>解法就是上面提到的 SQ8 量化，内存从 10GB 降到 3GB 左右，彻底解决了 swap 问题。还有一个辅助手段：Milvus 支持把原始向量存在磁盘上（<code>mmap</code>），只把索引放内存，进一步节省内存。原始向量只在需要精排时才读，对查询延迟影响不大。</p>
+<p>如果机器内存不足，索引加载、缓存争用或 swap 可能使尾延迟突然升高。先核对进程 RSS、容器限制、swap、索引状态、磁盘 I/O 和线程指标，再判断是资源问题还是索引/过滤问题。</p>
+<p>可选措施包括扩容、降低副本或并发、选择更节省内存的索引/量化、冷热分层，并在确认具体版本支持且符合 SLO 后评估 <code>mmap</code>。每项措施都要重新测召回、P99、重启恢复和成本，不能假设磁盘读取影响很小。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/897ec28664-6080943b62d4a7230c53af83.png" /></p>
 <p><strong>瓶颈二：批量写入触发 Segment 合并，查询抖动</strong></p>
-<p>内存问题解决了，又来了新问题。每天知识库有增量更新，一次性写入几十万条新数据时，Milvus 后台会触发 Segment 合并操作，把多个小的增量 Segment 合并成大的封存 Segment 并建好索引。还记得前面说的 Segment 合并机制吗？这个过程很耗 CPU 和磁盘 IO，期间查询的 P99 延迟会有明显抖动，从正常的 60ms 涨到 300ms+。</p>
-<p>解法有两个思路。一是时间上错峰，把批量写入改到业务低峰期（比如凌晨），避开查询高峰，让 Segment 合并在用户不活跃时静默完成。二是量上化整为零，把每批写入量控制在 500～1000 条以内，分成多批写，每批之间间隔几秒。这样 Segment 合并的冲击变成多次小冲击，而不是一次大冲击，每次合并规模小、耗时短，查询服务基本感知不到抖动。</p>
+<p>大批量写入可能触发后台持久化、compaction 或索引构建，与查询争用 CPU、内存和磁盘 I/O，使 P95/P99 抖动；是否发生以及名称如何称呼，取决于版本和部署，应从任务队列、段/索引状态与节点资源定位证据。</p>
+<p>可选措施包括写入限流、错峰、批量大小压测、读写资源隔离、异步索引构建和版本化切换。不要直接套用每批 500～1000 条等固定参数，应以写入吞吐、查询 P99、数据可见性和恢复时间共同确定。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/afb64ef941-f6e344df604d29b43bdc8db5.png" /></p>
 <h3 id="_6">🎯 面试总结</h3>
 <p>回到开头那段面试，面试官问「你用的什么向量数据库、数据量级多大」，你不能只说「Chroma，几万条，感觉挺快」。生产环境和玩具项目是完全不同的两个世界。</p>
-<p>正确回答应该是这样的：先说清楚技术选型，我们用 Milvus，原因是数据量到了百万级需要分布式部署和读写分离。</p>
-<p>然后给出具体的数据量级和性能指标，150 万条 1024 维向量，HNSW 索引，P50 延迟 20ms，P99 延迟 60ms，100 QPS 并发稳定。这些数字要有，不能说「感觉挺快的」。</p>
-<p>最后讲一个你真实遇到过的性能瓶颈以及解决思路，比如内存不够开了 SQ8 量化，或者批量写入导致查询抖动做了错峰和分批处理。</p>
-<p>这样面试官就知道你是真的在生产环境踩过坑，而不是跑了个 Demo 就来面试了。</p>
+<p>更可靠的回答顺序是：说明自己确实使用过的组件、版本和选择约束；给出可复现的规模、维度、索引、过滤、并发和分位数；最后讲有监控证据的瓶颈、排查和改动后指标。没有真实生产数据时应标注为 PoC/压测，不能用示例数字包装项目经历。</p>
 <hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_6">🎯 面试总结</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-08.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-10.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="xiaolin-rag:09",moduleId="xiaolin-rag";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';

@@ -23,7 +23,7 @@ MCP 由三层组成，可以从角色、能力、协议三个维度来理解。
 
 能力层定义了 Server 能暴露三类东西：Tools 是有副作用的操作（比如创建文件、调 API），Resources 是只读数据（比如读取文档内容），Prompts 是预定义的提示词模板。
 
-协议层是底层通信：消息格式统一用 JSON-RPC 2.0，传输方式支持 stdio（本地子进程通信）和 Streamable HTTP（远程 HTTP 连接）两种，早期的 HTTP+SSE 双端点方案在 2025 年 3 月的规范更新里被标记为 deprecated。
+协议层是底层通信：消息格式使用 JSON-RPC 2.0，当前规范定义 `stdio`（本地子进程通信）和 Streamable HTTP（HTTP POST/GET，可选 SSE 流）两种标准传输。旧版 HTTP+SSE 仍可能存在，兼容时要锁定协议版本。
 
 这三层合在一起，就是 MCP 的完整组成。
 
@@ -45,13 +45,13 @@ MCP 定义了三个角色，弄清楚每个角色负责什么是理解整个系�
 
 再说 Client。Client 是 Host 内部的连接模块，一个 Client 对应一个 Server 连接。它负责三件事：初始化和 Server 的连接、向 Server 查询「你有哪些工具/资源/模板」（能力发现）、把模型的调用请求转发给 Server 并把结果带回来。Client 是 Host 派出的「驻场联络员」，专门负责和某一个 Server 打交道，Host 本身不直接和 Server 说话。
 
-最后是 Server。Server 是工具提供方实现的独立进程，对外暴露自己的工具、资源和提示词模板。Server 完全不关心上面是哪个 Host 在用它，只需要按 MCP 协议响应 Client 的请求就行。这也是 MCP 的核心价值所在：Server 写一次，任何支持 MCP 的 Host 都能直接用，GitHub 的官方 MCP Server 不需要分别为 Claude Desktop 和 Cursor 各写一份。
+最后是 Server。Server 是提供能力的一方，可以是本地子进程，也可以是远程服务；它对外暴露工具、资源和提示模板。标准化能减少 Host 的定制代码，但 Host 仍需处理版本、认证、权限、模型侧 schema 映射和结果展示，所以不是「任何客户端无条件直连」。
 
 三者的关系用图来看是这样的：
 
 ![](../images/aa74ce36befb463be76b39bd.png)
 
-一个 Host 同时连多个 Server，模型就同时拥有了所有这些工具能力，而应用代码完全不需要为此多写一行。
+一个 Host 可以同时管理多个 Client/Server 会话，但是否把所有能力都暴露给模型要由宿主按任务、租户和权限筛选；工具列表越大也会增加选择噪声与上下文成本。
 
 ### 第二层：能力类型，Tools / Resources / Prompts
 
@@ -59,9 +59,9 @@ MCP 定义了三个角色，弄清楚每个角色负责什么是理解整个系�
 
 ![](../images/05925a8b20d2344ecec58328.png)
 
-第一类是 Tools（工具），这是最核心、使用最频繁的能力，对应的是有副作用的操作，执行之后会改变外部世界的状态。创建文件、提交代码、发送 Slack 消息、调用第三方 API，都属于 Tools。由模型主动触发，执行有不可逆性，所以通常需要用户授权确认。Tools 对应 Function Calling 里「函数」的概念，只是在 MCP 框架下被标准化打包了。
+第一类是 Tools（工具），是可调用的操作，既可以只读，也可以有副作用。创建文件、提交代码、发送 Slack 消息属于高风险例子；由模型触发不等于自动获准，宿主应结合用户确认、权限、幂等键、审计和回滚设计。
 
-第二类是 Resources（资源），这是只读数据，没有任何副作用，只是把数据提供给模型看。读取日志文件、查询数据库记录、获取文档内容，都是 Resources。和 Tools 最本质的区别是什么呢？Resources 不会改变任何东西，可以更宽松地暴露，不需要像 Tools 那样谨慎授权。你可以把 Resources 理解成「工具的资料室」，可以进去查资料，但不能修改里面的东西。
+第二类是 Resources（资源），是可读取的上下文数据；通常没有写副作用，但内容仍可能敏感、动态或包含不可信指令，不能因为「只读」就跳过访问控制、脱敏和来源标记。资源还可能支持订阅和变更通知，不能一概当作静态文件。
 
 第三类是 Prompts（提示模板），这是预定义的提示词模板，带参数占位符。它解决的是「每次都要手写重复 prompt」的问题。比如把团队固定的代码审查标准封装成模板，接受「编程语言」和「代码内容」两个参数，调用时只需传参，自动展开成完整提示词，不用每次从头写。这个能力特别适合团队内部的最佳实践共享，把积累的优质 prompt 模板化，所有人统一复用，标准也更一致。
 
@@ -75,7 +75,7 @@ Client 和 Server 之间的通信由两部分组成：消息格式和传输方�
 
 **消息格式**统一用 JSON-RPC 2.0。每条消息是一个 JSON 对象，格式固定：Client 发请求时说清楚「调哪个方法、参数是什么、这次请求的 ID 是多少」，Server 返回响应时带上执行结果或错误信息，通过 ID 匹配请求和响应。用 JSON 格式的好处是易读、易调试、任何编程语言都能实现，不管 Server 是 Python 写的还是 TypeScript 写的，消息格式是一样的。
 
-```json
+```jsonc
 // Client 向 Server 查询工具列表
 {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
@@ -88,15 +88,26 @@ Client 和 Server 之间的通信由两部分组成：消息格式和传输方�
 
 那消息格式定了，怎么传呢？MCP 支持两种传输方式，适合不同的部署场景。
 
-第一种是 stdio（标准输入输出），Server 作为本地子进程运行，Host 通过操作系统的管道和它通信，Server 从 stdin 读请求、把结果写到 stdout。这种方式适合本地工具，不需要网络，延迟极低，也没有端口占用和网络安全问题，Claude Desktop 接本地 MCP Server 走的就是这种方式。
+第一种是 stdio（标准输入输出），Server 作为本地子进程运行，Host 通过操作系统的管道和它通信，Server 从 stdin 读请求、把结果写到 stdout。这种方式适合本地工具，通常不需要额外端口，但仍有子进程权限、依赖、环境变量、恶意 Server 和本地文件访问风险，不能把「无网络」等同于「安全」。
 
-第二种是 **Streamable HTTP**，Server 作为 HTTP 服务独立部署，Client 通过 HTTP 连接和它通信。这种方式适合远程部署的场景，支持多个 Client 共享同一个 Server，比如团队共用一个部署在服务器上的数据库 MCP Server，所有人连同一个服务，不需要各自本地跑一份。
+第二种是 **Streamable HTTP**，Server 作为 HTTP 服务独立部署，Client 通过 HTTP 连接和它通信。一次 POST 可以得到普通 JSON 或 SSE 流，GET 是否提供服务端推送由能力决定；远程部署还必须处理认证、Origin 校验、会话、重连、代理超时和多租户隔离。
 
 ![](../images/2af751411724ff20d9056ff3.png)
 
-这里有个演进要说清楚：MCP 早期（2024-11-05 规范）的远程传输方案叫「HTTP + SSE」，是双端点结构，一个 GET 端点开 SSE 接收 Server 推送，一个 POST 端点用来发请求。这套方案在 2025 年 3 月的规范更新里被改成了单端点的 Streamable HTTP（老的 HTTP+SSE 被标记为 deprecated，但保留向后兼容）。
+这里有个演进要说清楚：较早版本的远程传输方案叫「HTTP + SSE」，是双端点结构；当前规范使用单一 MCP endpoint 的 Streamable HTTP，并保留兼容旧服务的路径。实现时要锁定协议版本，不要把某个版本的状态说成所有客户端的现状。
 
-Streamable HTTP 并不是抛弃 SSE，而是把双端点合并成一个 `/mcp`。Client 用 POST 发请求，Server 根据情况灵活返回：短请求直接回普通 JSON，长请求则把 HTTP 响应升级为 SSE 流持续推送中间结果。这样一个端点就能干完所有事，对负载均衡器和 serverless 环境都更友好。
+Streamable HTTP 不是「内部仍然就是 SSE」：Client 用 POST 发送 JSON-RPC 消息，Server 可以直接回 JSON，也可以返回 `text/event-stream`；断线不自动等于取消，服务端还可提供事件恢复。它减少端点数量，但不自动解决负载均衡、认证或代理缓冲问题。
+
+### 角色、能力与传输的边界
+
+| 层次 | 主要问题 | 典型对象 | 不应混淆 |
+| --- | --- | --- | --- |
+| 角色 | 谁负责调度和通信？ | Host / Client / Server | Host 不是 Client 的别名 |
+| 能力 | Server 暴露什么？ | Tools / Resources / Prompts | Resources 只读不等于无需授权 |
+| 消息 | 消息如何表达？ | JSON-RPC request/response/notification | JSON-RPC 不负责业务权限 |
+| 传输 | 消息如何到达？ | stdio / Streamable HTTP | SSE 是 HTTP 的一种事件表示，不是全部 MCP |
+
+正常会话可以抽象为：`initialize → capabilities → list/read/call → result/error/notification → close`。实现还应给请求设置超时，区分可重试错误与副作用错误，并记录调用者、工具名、参数摘要和结果状态。
 
 这里有一个很重要的设计点：消息格式（JSON-RPC 2.0）和传输方式（stdio / Streamable HTTP）是解耦的，同一套 JSON-RPC 消息可以跑在任意传输层上，切换传输方式不影响上层的工具调用逻辑。这个设计让 MCP Server 既可以轻量地作为本地进程运行，也可以作为正式的微服务部署，实现方式灵活但协议层始终一致。
 

@@ -31,6 +31,18 @@ LlamaIndex 的优势集中在数据接入、文档解析、索引和检索，适
 
 除此之外，我也了解 OpenAI Agents SDK 和 CrewAI。前者适合以 OpenAI 模型为主的轻量 Agent，后者擅长使用角色和任务表达多 Agent 协作。不过在通用 Python Agent 开发岗位中，我会优先掌握 LangChain、LangGraph 和 LlamaIndex，再根据公司的技术栈补充其他框架。
 
+```mermaid
+flowchart LR
+    A[先定义业务难点] --> B{主要难点}
+    B -->|模型/工具接入| C[LangChain]
+    B -->|复杂状态与恢复| D[LangGraph]
+    B -->|数据接入与检索| E[LlamaIndex]
+    C --> D
+    E -->|封装为受控 Tool| C
+```
+
+图中的箭头表示可组合关系，不是“功能越多越该选”的排名：先找主要瓶颈，再决定是否引入额外框架。
+
 ## 📝 详细解析
 
 ### Agent 框架解决了什么？
@@ -133,7 +145,7 @@ AutoGen、Semantic Kernel 和 Microsoft Agent Framework 更偏微软生态或存
 
 ## 📚 参考资料
 
-本文框架定位核对时间为 2026 年 8 月 2 日，优先参考官方文档，并结合 AI 应用开发岗位的招聘要求：
+本文框架定位按资料核对时的官方文档整理；框架能力、集成列表和招聘要求会变化，实际选型前应重新核对：
 
 - [LangChain 官方概览](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangGraph 官方概览](https://docs.langchain.com/oss/python/langgraph/overview)

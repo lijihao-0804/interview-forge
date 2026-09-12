@@ -1,79 +1,134 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>死锁、活锁与饥饿 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">死锁、活锁与饥饿</span></nav><div class="module-meta">Java 语言 · 第 14 / 17 章 · <span class="muted">更新于 2026-09-06</span></div><h1>死锁、活锁与饥饿</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>死锁是并发最经典的故障，面试必问“四个必要条件”和“怎么预防、怎么排查”。</p>
-<h3 id="131">13.1 死锁的四个必要条件</h3>
-<ol>
-<li><strong>互斥</strong>：资源同一时刻只能被一个线程占用；</li>
-<li><strong>持有并等待</strong>：线程持有资源 A 的同时等待资源 B；</li>
-<li><strong>不可剥夺</strong>：资源只能由持有者主动释放；</li>
-<li><strong>循环等待</strong>：线程 1 等线程 2 的资源，线程 2 等线程 1 的资源。</li>
-</ol>
-<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
-    T1[线程 1] --&gt;|持有| A[资源 A]
-    T1 --&gt;|等待| B[资源 B]
-    T2[线程 2] --&gt;|持有| B
-    T2 --&gt;|等待| A</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 经典死锁示例：两个线程按相反顺序加锁</span>
-<span class="n">Object</span><span class="w"> </span><span class="n">lockA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Object</span><span class="p">();</span>
-<span class="n">Object</span><span class="w"> </span><span class="n">lockB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Object</span><span class="p">();</span>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>CompletableFuture 与异步编程 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">CompletableFuture 与异步编程</span></nav><div class="module-meta">Java 语言 · 第 14 / 18 章 · <span class="muted">更新于 2026-09-12</span></div><h1>CompletableFuture 与异步编程</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>JDK 8 的 CompletableFuture 把异步回调编排成函数式流水线，是微服务、网关、并行 IO 的常用工具。</p>
+<h3 id="121">12.1 创建异步任务</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// runAsync：无返回值</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Void</span><span class="o">&gt;</span><span class="w"> </span><span class="n">f1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span><span class="p">.</span><span class="na">runAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;run&quot;</span><span class="p">));</span>
 
-<span class="k">new</span><span class="w"> </span><span class="n">Thread</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lockA</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">sleep</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span><span class="w">                       </span><span class="c1">// 制造交叉</span>
-<span class="w">        </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lockB</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">          </span><span class="c1">// 等 B</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}).</span><span class="na">start</span><span class="p">();</span>
+<span class="c1">// supplyAsync：有返回值</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">f2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span>
 
-<span class="k">new</span><span class="w"> </span><span class="n">Thread</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lockB</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">sleep</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span>
-<span class="w">        </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lockA</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span><span class="w">          </span><span class="c1">// 等 A，互相等 → 死锁</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}).</span><span class="na">start</span><span class="p">();</span>
+<span class="c1">// 默认用 ForkJoinPool.commonPool，可指定线程池</span>
+<span class="n">Executor</span><span class="w"> </span><span class="n">pool</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Executors</span><span class="p">.</span><span class="na">newFixedThreadPool</span><span class="p">(</span><span class="mi">4</span><span class="p">);</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">f3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">queryDb</span><span class="p">(),</span><span class="w"> </span><span class="n">pool</span><span class="p">);</span>
 </code></pre></div>
-<h3 id="132">13.2 预防与避免</h3>
-<ul>
-<li><strong>破坏循环等待</strong>：所有线程按同一全局顺序加锁（先 A 后 B），最常用；</li>
-<li><strong>破坏持有并等待</strong>：一次性申请所有资源；</li>
-<li><strong>破坏不可剥夺</strong>：用 <code>tryLock(timeout)</code> 拿不到就释放已有锁并重试；</li>
-<li><strong>破坏互斥</strong>：用无锁方案（原子类、不可变对象、ThreadLocal）替代。</li>
-</ul>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 用 tryLock 避免死锁</span>
-<span class="n">ReentrantLock</span><span class="w"> </span><span class="n">lockA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ReentrantLock</span><span class="p">();</span>
-<span class="n">ReentrantLock</span><span class="w"> </span><span class="n">lockB</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ReentrantLock</span><span class="p">();</span>
+<h3 id="122">12.2 链式编排</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">future</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span>
+<span class="w">        </span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">fetchUser</span><span class="p">())</span><span class="w">                    </span><span class="c1">// 异步取用户</span>
+<span class="w">        </span><span class="p">.</span><span class="na">thenApply</span><span class="p">(</span><span class="n">user</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">user</span><span class="p">.</span><span class="na">getName</span><span class="p">())</span><span class="w">                 </span><span class="c1">// 同步转换</span>
+<span class="w">        </span><span class="p">.</span><span class="na">thenApply</span><span class="p">(</span><span class="n">String</span><span class="p">::</span><span class="n">toUpperCase</span><span class="p">)</span><span class="w">                    </span><span class="c1">// 继续转换</span>
+<span class="w">        </span><span class="p">.</span><span class="na">thenAccept</span><span class="p">(</span><span class="n">name</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">name</span><span class="p">));</span><span class="w">     </span><span class="c1">// 消费</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>thenApply</td>
+<td>转换，返回新 CompletableFuture</td>
+</tr>
+<tr>
+<td>thenAccept</td>
+<td>消费，无返回值</td>
+</tr>
+<tr>
+<td>thenRun</td>
+<td>上一个完成后执行 Runnable</td>
+</tr>
+<tr>
+<td>thenCompose</td>
+<td>扁平化：上一个结果交给下一个异步任务（flatMap）</td>
+</tr>
+<tr>
+<td>thenCombine</td>
+<td>两个任务结果合并</td>
+</tr>
+<tr>
+<td>exceptionally</td>
+<td>异常时返回兜底值</td>
+</tr>
+<tr>
+<td>whenComplete / handle</td>
+<td>无论成败都执行，handle 可返回新值</td>
+</tr>
+<tr>
+<td>allOf</td>
+<td>等所有任务完成</td>
+</tr>
+<tr>
+<td>anyOf</td>
+<td>任意一个完成即返回</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 两个异步任务并行，然后合并</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">queryA</span><span class="p">());</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">queryB</span><span class="p">());</span>
 
-<span class="kt">boolean</span><span class="w"> </span><span class="n">gotA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lockA</span><span class="p">.</span><span class="na">tryLock</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">SECONDS</span><span class="p">);</span>
-<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">gotA</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lockB</span><span class="p">.</span><span class="na">tryLock</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">TimeUnit</span><span class="p">.</span><span class="na">SECONDS</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">try</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 临界区 */</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">lockB</span><span class="p">.</span><span class="na">unlock</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">thenCombine</span><span class="p">(</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+
+<span class="c1">// 等一批全部完成</span>
+<span class="n">CompletableFuture</span><span class="p">.</span><span class="na">allOf</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">).</span><span class="na">join</span><span class="p">();</span>
+</code></pre></div>
+<h3 id="123">12.3 异常处理</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">CompletableFuture</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">CompletableFuture</span>
+<span class="w">        </span><span class="p">.</span><span class="na">supplyAsync</span><span class="p">(()</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">riskyCall</span><span class="p">())</span>
+<span class="w">        </span><span class="p">.</span><span class="na">exceptionally</span><span class="p">(</span><span class="n">ex</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">log</span><span class="p">.</span><span class="na">error</span><span class="p">(</span><span class="s">&quot;调用失败&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">ex</span><span class="p">);</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 兜底值</span>
+<span class="w">        </span><span class="p">})</span>
+<span class="w">        </span><span class="p">.</span><span class="na">handle</span><span class="p">((</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">ex</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">ex</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+</code></pre></div>
+<p>注意：链上某个环节异常会沿链条传播，必须用 exceptionally/handle 处理，否则异常被“吞掉”，join/get 时才抛出。</p>
+<h3 id="124">12.4 使用注意</h3>
+<ol>
+<li>默认线程池是 commonPool，别在里面做阻塞 IO 或长计算，会拖垮其他并行流/异步任务；生产环境显式传 Executor；</li>
+<li>回调里不要再阻塞等待，否则退化成同步；</li>
+<li><code>get()</code>/<code>join()</code> 会阻塞当前线程，仅在真正需要结果时调用，并处理 InterruptedException/ExecutionException；</li>
+<li>别忘记处理异常：没有异常处理的链条失败时很隐蔽。</li>
+</ol>
+<h3 id="125-forkjoinpool">12.5 ForkJoinPool 与工作窃取</h3>
+<p><code>ForkJoinPool</code> 是并行计算的执行器，<code>parallelStream()</code> 底层用的就是它的 commonPool。</p>
+<p>原理：</p>
+<ul>
+<li><strong>分治</strong>：任务通过 <code>ForkJoinTask</code>（常用 <code>RecursiveTask</code>）拆分成子任务，子任务可继续拆分；</li>
+<li><strong>工作窃取</strong>：每个工作线程维护自己的双端任务队列，干完自己的任务就去“偷”其他线程队尾的任务，自动平衡负载；</li>
+<li>适合 CPU 密集的分治任务（大数组求和、归并排序、树遍历），不适合频繁阻塞 IO 的任务。</li>
+</ul>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">class</span> <span class="nc">SumTask</span><span class="w"> </span><span class="kd">extends</span><span class="w"> </span><span class="n">RecursiveTask</span><span class="o">&lt;</span><span class="n">Long</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">long</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">;</span><span class="w"> </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="p">;</span>
+<span class="w">    </span><span class="n">SumTask</span><span class="p">(</span><span class="kt">long</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lo</span><span class="p">;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="na">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hi</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="nd">@Override</span>
+<span class="w">    </span><span class="kd">protected</span><span class="w"> </span><span class="n">Long</span><span class="w"> </span><span class="nf">compute</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">hi</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">1000</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">                       </span><span class="c1">// 小任务直接算</span>
+<span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lo</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">hi</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">a</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
 <span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">lockA</span><span class="p">.</span><span class="na">unlock</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;&gt;&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">SumTask</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">SumTask</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="n">mid</span><span class="p">);</span>
+<span class="w">        </span><span class="n">SumTask</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">SumTask</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">mid</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="p">);</span>
+<span class="w">        </span><span class="n">left</span><span class="p">.</span><span class="na">fork</span><span class="p">();</span><span class="w">                                  </span><span class="c1">// 异步拆分</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">right</span><span class="p">.</span><span class="na">compute</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">left</span><span class="p">.</span><span class="na">join</span><span class="p">();</span><span class="w">         </span><span class="c1">// 汇总</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-<h3 id="133">13.3 死锁检测</h3>
+<p>注意：commonPool 的线程数默认等于 CPU 核数 - 1，在里面做阻塞操作会占住宝贵的工作线程；生产用自定义 ForkJoinPool 或避免阻塞。</p>
+<h3 id="126">12.6 面试追问</h3>
 <ul>
-<li><strong>jstack</strong>：<code>jstack &lt;pid&gt;</code>，输出末尾会直接标出 “Found one Java-level deadlock”，并列出循环等待的两个线程和锁；</li>
-<li><strong>ThreadMXBean</strong>：程序内调用 <code>findDeadlockedThreads()</code> 检测并告警；</li>
-<li>生产排查顺序：<code>jps</code> 找 pid → <code>jstack</code> 看线程状态与锁等待 → 定位互相等待的锁 → 检查加锁顺序。</li>
-</ul>
-<h3 id="134">13.4 活锁与饥饿</h3>
-<ul>
-<li><strong>活锁</strong>：线程没有阻塞，但互相谦让导致一直无法推进（如两个线程反复释放锁让对方先拿）；</li>
-<li><strong>饥饿</strong>：低优先级或非公平锁下，某些线程长期拿不到资源执行。</li>
-</ul>
-<h3 id="135">13.5 面试追问</h3>
-<ul>
-<li>问：死锁的四个必要条件？</li>
-<li>答：① 互斥——资源同一时刻只能被一个线程使用（锁天然满足）；② 持有并等待——线程拿着资源 A 不放，同时去等资源 B；③ 不可剥夺——资源只能由持有者主动释放，别人抢不走（synchronized 的锁就是这样）；④ 循环等待——形成“线程 1 等 2 的资源、线程 2 等 1 的资源”的环形等待链。<strong>缺任何一个死锁都不会发生</strong>，这四个条件也直接给出了四种预防思路：破坏循环等待（全局统一加锁顺序，最常用）、破坏持有并等待（一次性申请所有资源）、破坏不可剥夺（tryLock 超时拿不到就释放重来）、破坏互斥（无锁化/不可变对象）。面试时要能背出四条件并逐条给出破坏方案。</li>
-<li>问：如何避免死锁？</li>
-<li>答：按“四条件逐个破坏”展开，工程上最常用前两个：① <strong>统一加锁顺序</strong>（破坏循环等待）——所有需要多把锁的地方都约定“先锁账户 A 再锁账户 B”（比如按账户 ID 排序后加锁），环形等待从根上不可能形成，零性能损耗，是首选方案；② <strong>tryLock 超时</strong>（破坏不可剥夺）——拿不到就把自己已持有的锁全释放并稍后重试，用 ReentrantLock 的 tryLock(1, TimeUnit.SECONDS) 实现；③ <strong>一次性申请</strong>（破坏持有并等待）——要么全拿到要么都不拿；④ <strong>减小锁范围/无锁化</strong>（削弱互斥）——能用原子类、不可变对象、ThreadLocal 就不用锁。再补充检测手段兜底：线上定期 jstack 或程序内 ThreadMXBean 检测。</li>
-<li>问：怎么排查线上死锁？</li>
-<li>答：标准动作四步：① <code>jps -l</code> 找到目标 Java 进程的 pid；② <code>jstack &lt;pid&gt; &gt; dump.txt</code> 导出线程转储（JDK 自带，或用 arthas 的 thread 命令）；③ 在转储里找关键字 <strong>"Found one Java-level deadlock"</strong>——JVM 会自动检测并列出互相等待的线程对、各自持有的锁和等待的锁，顺着就能定位到代码位置；没有 deadlock 关键字时，找大量 BLOCKED 状态的线程，看它们 waiting to lock 的锁地址是否被某个线程 locked。④ 修复：按加锁顺序法改造。程序内兜底：定期调用 <code>ThreadMXBean.findDeadlockedThreads()</code>，发现死锁线程告警。预防性监控：线程池任务长时间不结束、接口 RT 突然飙升，往往是死锁/活锁的前兆信号。</li>
-<li>问：活锁和死锁的区别？</li>
-<li>答：死锁是“都停了”：双方互相等待对方释放资源，线程挂起，CPU 不干活——比如两人过独木桥互相等对方先退。活锁是“都在动但原地绕圈”：双方不断响应对方、不断改变自己的状态，却始终无法推进——比如走廊里两人互相让路，同时往同一侧让，又同时换边，永远错过。检测上活锁更隐蔽：线程状态是 RUNNABLE、CPU 也在消耗（或者消耗很低但一直在做无用功），jstack 看不出“卡住”，只能通过“任务迟迟不完成 + 日志在重复某些动作”来识别。解法都是引入<strong>随机性</strong>打破对称（活锁让路前随机等待一小段时间）或改变重试策略（如指数退避）——不响应对方的节奏，对称自然被打破。</li>
-</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#131">13.1 死锁的四个必要条件</a></li><li class="lv3"><a href="#132">13.2 预防与避免</a></li><li class="lv3"><a href="#133">13.3 死锁检测</a></li><li class="lv3"><a href="#134">13.4 活锁与饥饿</a></li><li class="lv3"><a href="#135">13.5 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-13.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-15.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<li>问：CompletableFuture 和 Future 的区别？</li>
+<li>答：Future（JDK 5）的问题在于“提交之后只能干等”：get() 阻塞拿结果、isDone() 轮询，没有回调能力——想做“任务 A 完成后自动执行 B”只能起一个线程轮询或阻塞等待，链路一长全是 get 阻塞点。CompletableFuture（JDK 8）实现了 CompletionStage 接口，支持函数式编排：thenApply 转换结果、thenCompose 串联下一个异步任务、thenCombine 合并两个任务的结果、allOf/anyOf 等待多个任务、exceptionally 兜底异常——整条异步链路声明式写完，不阻塞任何线程。简单说：Future 是“一张取餐凭证”，CompletableFuture 是“点了外卖之后自动接单、烹饪、配送的全流程调度”。</li>
+<li>问：thenApply 和 thenCompose 的区别？</li>
+<li>答：类比 Stream 的 map 和 flatMap。thenApply(fn)：fn 是同步函数，输入上一步结果返回普通值，整条链还是一个 CompletableFuture——适合“拿到结果后加工”。thenCompose(fn)：fn 返回的是一个新的 CompletableFuture（典型场景：fn 内部又发起了一次异步调用），compose 会<strong>扁平化</strong>，把两层嵌套的 CompletableFuture<CompletableFuture\<T>> 拍平成 CompletableFuture<T>。选型口诀：fn 返回值是“数据”用 thenApply；fn 返回值是“另一个异步任务”用 thenCompose——用错了会得到嵌套的未来对象，链条就没法继续编排了。同类规则也适用于 thenCombine（合并两个独立任务）和 whenComplete（观察结果与异常，不改变结果）。</li>
+<li>问：默认用什么线程池？</li>
+<li>答：不指定执行器时，CompletableFuture 的异步任务（supplyAsync/ runAsync）跑在 <strong>ForkJoinPool.commonPool()</strong> 上——JVM 全局共享的池，并行度 = CPU 核数 - 1（至少 1）。三个坑：① <strong>全局共享</strong>：代码里所有 parallelStream 和所有 CompletableFuture 共用这一个池，某个慢任务（比如在异步链里调了一次远程接口）会占住公共线程，把别处不相关的并行计算全部拖慢；② <strong>核数-1 的并行度对 IO 密集任务严重不足</strong>：commonPool 是为 CPU 密集的 fork/join 计算设计的，IO 等待会白白占住线程；③ <strong>daemon 线程</strong>：main 退出后异步任务直接被杀。生产做法：<code>supplyAsync(supplier, bizExecutor)</code> 显式传入按业务隔离、按 IO 密集度配置的独立线程池——这也是排查“异步任务莫名变慢”时的第一检查点。</li>
+<li>问：异常怎么处理？</li>
+<li>答：异步链里的异常不会立刻抛出，而是沿着链条向后传递，直到某个处理点。三个 API 的分工：exceptionally(fn)——链路上任何一环抛异常就进入这里，返回兜底值让链条继续走（类似 catch + 返回默认值）；handle(fn)——无论成功失败都会执行，参数是 (结果, 异常)，可以在一处统一加工；whenComplete(fn)——只观察不改结果（异常继续向后传），适合记录日志。最大的坑：<strong>如果整条链都没处理异常</strong>，异常不会打日志也不会崩——它静静藏在 Future 里，直到有人调 get()/join() 时才以 CompletionException 抛出；没人 get 就永远无感失败。所以规范：每条异步链的末端必须有 exceptionally/handle 兜底 + 日志，否则线上故障将无迹可寻。</li>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#121">12.1 创建异步任务</a></li><li class="lv3"><a href="#122">12.2 链式编排</a></li><li class="lv3"><a href="#123">12.3 异常处理</a></li><li class="lv3"><a href="#124">12.4 使用注意</a></li><li class="lv3"><a href="#125-forkjoinpool">12.5 ForkJoinPool 与工作窃取</a></li><li class="lv3"><a href="#126">12.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-13.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-15.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="java-concurrency:14",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -89,4 +144,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-boot"></script><script src="../assets/library-mermaid.js?v=20260906-boot"></script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

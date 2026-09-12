@@ -6,7 +6,7 @@
 > 配套课程：并发编程、JVM、MySQL、Redis、计算机网络等模块会分别展开，本课程只覆盖“语言根基”这一层。  
 > 示例代码以 JDK 17/21 为准；Java 8 差异与 JDK 21 专属语法会单独标注。“输出”是典型运行结果，可能因环境略有不同。
 
-### 怎么用这份笔记
+## 怎么用这份笔记
 
 - **系统入门**：从第 0 章建立全局认知，第 1~4 章打语法与对象基础，每章末尾的“面试追问”先自己答再对答案；
 - **应试突破**：第 5~7 章集合源码、第 8 章泛型、第 9 章反射是八股文高发区，需要能默写出 HashMap 的 put 流程；
@@ -109,7 +109,7 @@ flowchart TD
 - **JRE（Java Runtime Environment）**：面向运行时的环境，包含 JVM 和 Java 核心类库（`java.lang`、`java.util` 等），供已经编译好的程序运行。
 - **JVM（Java Virtual Machine）**：真正执行字节码的虚拟机。同一份字节码，在 Windows、Linux、macOS 上有各自的 JVM 实现，因此 Java 程序“一次编写，到处运行”。
 
-JDK 9 引入模块化后，JRE 不再是独立的目录结构，JDK 直接内置运行时模块，但这个“JDK 包含 JRE，JRE 包含 JVM”的包含关系在概念上仍然成立。
+JDK 9 引入模块化后，主流 JDK 通常不再把 JRE 作为独立安装包分发；JDK 仍包含可运行 Java 程序所需的运行时模块。生产环境可以直接使用 JDK，也可以用 `jlink` 按需构建运行时镜像。因此“只在服务器上跑程序就装 JRE”主要是 JDK 8 时代的安装口径，不能当作今天的普遍建议。
 
 ### 1.2 从源码到运行：编译与解释并存
 
@@ -170,7 +170,7 @@ JDK 21 预览、JDK 25 正式化的“隐式类与实例 main 方法”允许简
 ### 1.5 面试追问
 
 - 问：JVM vs JDK vs JRE？
-- 答：三者是包含关系：JDK ⊃ JRE ⊃ JVM。JVM 是虚拟机本体，负责加载字节码、执行指令、管理内存（垃圾回收也在这里）；JRE = JVM + Java 核心类库（如 java.lang、java.util），是“能运行 Java 程序”的最小环境；JDK = JRE + 开发工具（javac 编译器、jdb 调试器、jstack/jmap 等诊断工具），是“能开发 Java 程序”的完整套件。记忆方法：只在服务器上跑程序装 JRE 即可，要写代码就必须装 JDK。
+- 答：概念上可以记作 JDK ⊃ JRE ⊃ JVM：JVM 负责加载和执行字节码，JRE 还包括核心类库，JDK 再加编译、调试和诊断工具。但 JDK 9 以后通常没有单独的 JRE 安装包；部署时可使用 JDK 或用 `jlink` 生成运行时镜像。不要把“服务器装 JRE”当成当前所有 JDK 发行版都适用的结论。
 - 问：Java 是编译型还是解释型语言？
 - 答：两者并存，分三步看：第一步，`javac` 把 .java 源码编译成 .class 字节码（这一步只做语法检查与翻译，不针对具体平台）；第二步，JVM 的解释器逐条解释执行字节码（启动快，但慢）；第三步，JIT（即时编译器）发现某些代码被反复执行（称为“热点代码”，比如被调用上万次的循环），就把它整段编译成本地机器码并缓存，之后直接执行机器码。所以 Java 的启动性能不如纯编译语言，但长时间运行后热点代码能达到接近 C 的执行速度——这也是“Java 越跑越快”说法的由来。
 - 问：什么是字节码？为什么字节码能跨平台？
@@ -508,7 +508,7 @@ switch (level) {
 | `getClass()` | 返回运行时 Class | 泛型擦除后取真实类型 |
 | `clone()` | 浅拷贝 | protected native，需实现 Cloneable；深拷贝见下方说明 |
 | `wait()/notify()/notifyAll()` | 线程等待/唤醒 | 必须在 synchronized 块内，见并发课程 |
-| `finalize()` | 对象回收前回调 | JDK 9 起弃用，不要使用 |
+| `finalize()` | 对象回收前回调 | JDK 9 起弃用、JDK 18 起弃用并准备移除，不要使用 |
 
 `clone()` 默认是**浅拷贝**：引用字段只复制引用，不复制被引用对象。需要深拷贝时，要么在 `clone()` 里手动复制每个可变字段，要么用序列化拷贝（实现 `Serializable` 后写字节再读回），或用拷贝构造器/工厂方法。
 
@@ -728,7 +728,7 @@ for (int i = list.size() - 1; i >= 0; i--) {
 }
 ```
 
-**fail-fast vs fail-safe**：ArrayList/HashMap 的迭代器是 fail-fast（快速失败，结构变化立即抛异常）；`CopyOnWriteArrayList`、`ConcurrentHashMap` 等并发容器的迭代器基于快照或弱一致语义，迭代过程中修改不会抛异常（fail-safe），但也不保证看到最新数据。
+**fail-fast 与并发容器的迭代语义**：ArrayList/HashMap 的迭代器通常是 fail-fast（快速失败，检测到结构变化时尽快抛异常），但这只是并发修改的诊断机制，不是线程安全保证，也不是绝对可靠的竞态检测。`CopyOnWriteArrayList` 的迭代器基于快照，`ConcurrentHashMap` 的迭代器是弱一致的；它们在迭代过程中允许修改，但是否看到新数据、何时看到新数据各有语义。“fail-safe”不是 Java 集合 API 的统一正式分类，面试时应直接说快照或弱一致语义。
 
 ### 5.7 List 家族对比表
 
@@ -2152,7 +2152,7 @@ String safe = Optional.ofNullable(obj).map(Object::toString).orElse("");
 
 | 主题 | 问题 | 一句话要点 |
 |---|---|---|
-| 基础 | JVM、JRE、JDK 区别 | JDK 含 JRE 和开发工具，JRE 含 JVM 和类库 |
+| 基础 | JVM、JRE、JDK 区别 | 概念上 JDK 包含运行时与工具；JDK 9+ 通常不再单独分发 JRE |
 | 基础 | Java 为什么跨平台 | 字节码 + 各平台 JVM 实现 |
 | 基础 | main 方法为什么是 static | JVM 启动时无对象可调用 |
 | 类型 | 基本类型有哪些，各占多少字节 | 8 种，byte1/short2/int4/long8/float4/double8/char2/boolean 不定 |

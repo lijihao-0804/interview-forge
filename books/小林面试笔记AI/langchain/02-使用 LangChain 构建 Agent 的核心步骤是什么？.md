@@ -37,6 +37,20 @@
 
 第七，先单测 Tool，再测试 Agent 的工具选择与调用轨迹，最后通过 Trace 观察模型调用、工具参数、耗时、Token 和异常。
 
+```mermaid
+flowchart TD
+    A[定义目标、权限与停止条件] --> B[选择模型与 Tool Schema]
+    B --> C[create_agent]
+    C --> D{模型是否请求 Tool}
+    D -->|是| E[运行时校验权限与参数]
+    E --> F[执行 Tool并记录结果]
+    F --> D
+    D -->|否| G[结构化结果/最终答复]
+    G --> H[测试、Trace、成本与 SLO]
+```
+
+图中运行时校验位于模型决策与真实副作用之间；Prompt 或 Schema 只能帮助模型选对，不能替代服务端鉴权和幂等控制。
+
 ## 📝 详细解析
 
 ### 什么才算完整 Agent？
@@ -110,7 +124,8 @@ from langchain.agents import create_agent
 
 # 将模型、工具、行为约束和输出 Schema 组装成 Agent
 agent = create_agent(
-    model="openai:gpt-5.4-mini",
+    # 替换为项目已验证的 provider:model-id，并锁定对应集成包版本
+    model="provider:model-id",
     tools=[lookup_order],
     system_prompt=(
         "你是订单客服。回答订单状态前必须调用查询工具；"

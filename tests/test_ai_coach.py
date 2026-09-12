@@ -1029,6 +1029,10 @@ class AICoachPageContractTests(unittest.TestCase):
         self.assertIn("stopAiWaiting", page)
         self.assertIn('window.addEventListener("pagehide", stopAiWaiting)', page)
         self.assertIn("今日剩余 ", page)
+        self.assertIn('class="ai-output"', page)
+        self.assertIn("grid-area:1 / 1", page)
+        self.assertRegex(page, r"\.ai-wait\{[^}]*min-height:\s*80px")
+        self.assertIn("min-height:2.8em", page)
         ai_start = page.index("var aiCapability")
         ai_end = page.index('document.querySelectorAll("[data-ai-feedback]")', ai_start)
         wait_logic = page[ai_start:ai_end]

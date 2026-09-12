@@ -5,7 +5,7 @@
 > 配套课程：HTTP 细节在《计算机网络》展开；Spring 家族在下一门课；本课把“请求怎么进来、工程怎么组织”讲清。  
 > 示例以 Servlet 4.0 / Tomcat 9 / Maven 3.8 / Git 2.x 为准。
 
-### 怎么用这份笔记
+## 怎么用这份笔记
 
 - **打通链路**：第 1~2 章从浏览器请求讲到 Servlet 处理，是“项目里请求流程”的标准答法；
 - **工程能力**：第 3 章 Maven、第 4 章 Git 是笔试和协作的基本功；
@@ -171,7 +171,7 @@ Tomcat = Connector（连接器，处理网络 IO）+ Container（容器，管理
 - **线程模型**：BIO 时代一连接一线程（Tomcat 8.0 及之前默认 BIO，8.5 起弃用并默认 NIO）；8.5+/9 默认 NIO，用线程池 + 多路复用处理连接，线程数受 `maxThreads` 限制；
 - 常见误区澄清：Tomcat **不使用 Netty**，连接器为自研 NIO/NIO2/APR 实现；Netty 常见于自研网关、Spring WebFlux（Reactor Netty）等场景。
 
-**关键默认值**：默认端口 8080（HTTPS 8443）；`maxThreads` 默认 200；NIO 下 `maxConnections` 默认 10000；`acceptCount`（等待队列）默认 100。
+**关键默认值示例**：Tomcat 9 常见 NIO Connector 配置中，端口为 8080（HTTPS 常见为 8443），`maxThreads` 为 200、`maxConnections` 为 10000、`acceptCount` 为 100；这些是版本、Connector 实现和配置相关的参考值，排查线上连接数或队列问题时应以实际 `server.xml`/运行时配置为准。
 
 **进阶方向（各一句定位）**：异步 Servlet（`AsyncContext` 释放容器线程，长任务不占线程池）、SSE（`text/event-stream` 单向服务端推送）、WebSocket（全双工，见《计算机网络》）；这三者都属于加分项，校招先掌握前几节的同步模型。
 
@@ -212,7 +212,7 @@ Maven 是 Java 项目的构建与依赖管理工具，负责四件事：**编译
 - **中央仓库**：Maven 官方维护，全网公共构件；
 - **私服**：公司内部 Nexus/Artifactory，承载私有构件并代理中央仓库，团队构建更快更稳。
 
-版本号带 `-SNAPSHOT` 表示快照版本，可拉取未发布的开发版本；注意远程快照默认按日更新（daily），`-U` 才强制拉最新；`RELEASE` 是固定发布版本，只拉一次。
+版本号带 `-SNAPSHOT` 表示快照版本，可拉取未发布的开发版本；是否重新检查远程快照由仓库的 `updatePolicy`、本地缓存和镜像配置共同决定，`daily` 只是常见策略，`-U` 可强制更新。正式版本通常应保持不可变，但“只下载一次”不是 Maven 的语言级保证，具体仍以仓库策略和本地缓存为准。
 
 ### 3.3 依赖管理
 
@@ -271,7 +271,7 @@ validate → compile → test → package → verify → install → deploy
 - 问：Maven 依赖冲突怎么解决？
 - 答：先 `dependency:tree` 定位冲突来源，再用 exclusions 排除传递依赖，或通过 dependencyManagement 统一版本。
 - 问：SNAPSHOT 和 RELEASE 的区别？
-- 答：SNAPSHOT 是未发布快照，默认按日更新、`-U` 强制拉新；RELEASE 是稳定版本，只在本地仓库缺失时下载。
+- 答：SNAPSHOT 是可变的开发快照，更新频率由仓库策略决定，`-U` 可强制检查；RELEASE 通常是不可变的稳定版本，但解析和缓存仍受仓库配置影响。
 - 问：执行 mvn package 会发生什么？
 - 答：validate → compile → test → package 依次执行，测试失败则打包失败。
 
@@ -491,7 +491,7 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 | Maven | provided 含义 | 编译期有，运行期容器提供 |
 | Maven | 依赖冲突解决 | 最短路径优先，tree+exclusions |
 | Maven | 生命周期顺序 | compile→test→package→install |
-| Maven | SNAPSHOT 特点 | 未发布快照，默认按日更新，-U 强制拉新 |
+| Maven | SNAPSHOT 特点 | 未发布快照；更新策略由仓库配置决定，-U 强制检查 |
 | Git | 三区 | 工作区/暂存区/本地仓库 |
 | Git | merge vs rebase | 保留分叉 vs 线性历史 |
 | Git | reset vs revert | 移 HEAD 丢弃 vs 反向新提交 |

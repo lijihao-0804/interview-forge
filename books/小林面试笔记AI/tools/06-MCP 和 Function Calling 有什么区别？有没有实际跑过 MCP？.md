@@ -21,11 +21,11 @@
 
 Function Calling 是「调用语言」，定义的是模型怎么表达「我要调哪个函数、参数是什么」；MCP 是「工具生态协议」，定义的是工具怎么标准化打包、注册和被 AI 客户端发现。
 
-MCP 底层其实还是用 Function Calling 来触发工具调用，只是在它之上加了一套工具管理框架，让工具实现一次、到处复用。
+在常见的 Host 中，MCP 工具会被适配成模型 API 能理解的工具定义，模型再通过原生 tool calling、结构化输出或其他策略选择调用；但 MCP 协议本身是 Host/Client 与 Server 之间的协议，并不规定模型必须使用某家厂商的 Function Calling。
 
 打个比方：Function Calling 像 HTTP 请求格式，MCP 像 REST API 的设计规范加服务注册发现机制，两者是不同层次的东西。
 
-关于实际跑过的经验，我用 Claude Desktop 配过文件系统和 GitHub 的 MCP Server，在配置文件里加几行就能用，Claude 会自动发现工具，完全不用写对接代码。
+关于实际跑过的经验，可以描述为：在支持 MCP 的客户端中配置一个本地或远程 Server，完成初始化和能力发现，再由 Host 决定哪些工具暴露给模型。配置减少了重复接入，但权限、认证、版本兼容和用户确认仍需验证，不能笼统说「完全不用写对接代码」。
 
 ## 📝 详细解析
 
@@ -65,23 +65,23 @@ Function Calling 和 MCP 也是同样的关系：Function Calling 管「一次�
 
 既然痛点是「每个应用各自维护一套工具定义」，那解决思路也就很自然了：把工具做成独立的标准化服务，谁要用就来连，不用每次都重写一遍。这就是 MCP 的核心思路。
 
-工具提供方实现一个 MCP Server，这个 Server 是一个独立运行的进程，对外暴露标准接口，告诉外界「我有哪些工具、每个工具怎么调用」。任何支持 MCP 的 AI 客户端连上来，就能自动发现和使用里面的工具，完全不需要手写任何对接代码。
+工具提供方实现一个 MCP Server；stdio 模式通常是本地子进程，Streamable HTTP 模式也可以是远程服务。Server 暴露标准能力描述，客户端可以自动发现，但仍要做版本、认证、权限、结果映射和安全审查。
 
 ![](../images/701f10d6aefd6a1e37153feb.png)
 
-这带来的改变是质的：工具只需要实现一次，所有 AI 客户端都能用。GitHub 的官方 MCP Server 写好之后，不管你用 Claude Desktop、Cursor 还是自己写的 Agent，连上去就能用，不需要各自维护一份 GitHub API 的调用代码。这才是 MCP 的真正价值。
+这带来的改变是集成边界更稳定：工具提供方可以复用 Server，客户端减少重复的 API 适配，但不同客户端的能力、版本、认证和模型映射仍可能不同。MCP 降低重复劳动，不保证所有客户端天然兼容。
 
 ![](../images/2fda600a2b0ed6deac5cd890.png)
 
-### 最关键的联系，MCP 底层依然靠 Function Calling 驱动
+### 最关键的联系：Host 需要一个模型侧的调用机制，但 MCP 不等于 Function Calling
 
-这是很多人没想清楚的一点：MCP 不是 Function Calling 的替代品，而是建立在 Function Calling 之上的。
+这是很多人没想清楚的一点：二者在不同边界上工作。模型 API 的工具调用是「模型如何表达选择」；MCP 是「Host 如何发现、连接和调用外部能力」。一个 Host 可以把 MCP 工具翻译成某厂商的 tool schema，也可以通过自定义策略或结构化输出驱动工具。
 
-当 MCP Client 连上一个 Server 之后，会自动向 Server 拉取所有工具的定义（调用 `list_tools` 接口），然后把这些定义**转换成模型原生的 Function Calling 格式**传给模型。模型依然通过输出 `tool_calls` 来表达「我要调哪个工具」，MCP Client 再把这个请求路由到对应的 Server 去执行，拿到结果后以 tool 消息的形式喂回对话。
+当 MCP Client 连上 Server 后，通常会通过 MCP 的 `tools/list` 发现工具（不是所有 SDK 都把它暴露成名为 `list_tools` 的本地方法），Host 再把选中的能力映射到模型 API 或自己的决策器。模型提出调用后，Host/Client 将请求路由到 `tools/call`，把结果或错误以模型 API 能接受的形式回填。
 
-从**模型的视角**来看，它完全感知不到 MCP 的存在，它以为自己只是在做普通的 Function Calling，根本不知道背后有一套 Server 在运行。MCP 的所有「魔法」都发生在宿主程序层：工具的自动发现、schema 的格式转换、调用请求的路由、执行结果的返回，全都在这一层默默完成。
+从**模型的视角**来看，它通常只看到 Host 提供给它的工具描述，不一定知道这些工具来自 MCP；但 Host 也可以显式说明来源，或不使用模型原生工具调用。MCP 的发现、schema 映射、路由、执行结果返回主要发生在宿主层。
 
-这也意味着一件事：如果模型本身不支持 Function Calling，MCP 就完全没办法用，因为这个「翻译层」失效了。
+这也意味着：如果模型不支持某种原生 Function Calling，Host 仍可能用结构化输出、命令路由或人工/程序策略来驱动 MCP；只是可靠性和实现成本取决于该机制。真正的必要条件是 Host 有可控的「模型选择 → 参数校验 → 工具执行」通路，而不是某个固定字段名。
 
 ![](../images/125e9cf2a024b73368fb519b.png)
 
@@ -202,13 +202,26 @@ if __name__ == "__main__":
 
 ![](../images/ecf2bb377aaca8f4cbe0bf1e.png)
 
+### 一张边界图：不要把两条链路压成一层
+
+```text
+模型 API / 决策器
+  └─ tool calling、结构化输出或自定义策略
+        ↓ Host 适配、权限、确认、预算
+MCP Client ── JSON-RPC + stdio/Streamable HTTP ── MCP Server
+        ↓                                      ↓
+    结果/错误回填                         外部 API、文件、数据库
+```
+
+MCP 也不会自动提供权限、幂等、沙箱和审计；这些属于 Host、Server 与业务系统共同承担的工程边界。
+
 ## 🎯 面试总结
 
 回到开头的面试对话，最大的雷就是把 MCP 当成 Function Calling 的「替代品」或「升级版」，这是很多人的第一反应，但完全搞反了两者的关系。
 
 面试回答这道题，第一个必须说清楚的点是：Function Calling 解决的是单次调用的消息格式问题，MCP 解决的是工具生态的标准化管理和复用问题，两者是不同抽象层次的东西。
 
-第二个关键点是：MCP 底层依然靠 Function Calling 驱动，模型根本感知不到 MCP 的存在，所有的工具发现、schema 转换、调用路由都发生在宿主程序层。
+第二个关键点是：MCP 与模型侧 tool calling 是可组合但不等价的两条链路。Host 可以把 MCP 工具映射为原生 tool schema，也可以用其他结构化决策方式；工具发现、路由、权限、确认和错误处理发生在 Host/Client/Server 边界上。
 
 如果能再补充实际跑过 MCP 的经验就更好了，比如在 Claude Desktop 里配置过哪些 MCP Server、接入流程是什么样的，这些实操细节能让面试官看到你不是只背概念。要避免的误区是：不要说 MCP 就是「换了个写法的 Function Calling」，也不要说两者是竞争关系，它们是上下层的配合关系。
 

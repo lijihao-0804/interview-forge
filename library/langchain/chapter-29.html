@@ -1,202 +1,347 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Agent 架构模式：如何控制自主性与复杂度 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">Agent 架构模式：如何控制自主性与复杂度</span></nav><div class="module-meta">大模型应用 · 第 29 / 33 章 · <span class="muted">更新于 2026-08-30</span></div><h1>Agent 架构模式：如何控制自主性与复杂度</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>Agent 不是单一架构。它只是把部分下一步决策交给模型。设计时应明确模型能决定什么、代码固定什么，以及失败后如何停止。</p>
-<h3 id="291">29.1 五种常见模式</h3>
-<table>
-<thead>
-<tr>
-<th>模式</th>
-<th>下一步由谁决定</th>
-<th>适合场景</th>
-<th>主要风险</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>固定 Workflow</td>
-<td>代码</td>
-<td>报告生成、固定审核流水线</td>
-<td>灵活性低</td>
-</tr>
-<tr>
-<td>Router</td>
-<td>模型选一个分支，分支内部固定</td>
-<td>工单分类、多知识域入口</td>
-<td>错路由</td>
-</tr>
-<tr>
-<td>ReAct / Tool Agent</td>
-<td>模型反复选择工具</td>
-<td>开放式查询、运维助手</td>
-<td>循环、误调用</td>
-</tr>
-<tr>
-<td>Planner-Executor</td>
-<td>模型先计划，再逐步执行</td>
-<td>多阶段研究或复杂任务</td>
-<td>计划过时、成本高</td>
-</tr>
-<tr>
-<td>Supervisor / Multi-Agent</td>
-<td>上层分派给专门 Agent</td>
-<td>上下文和工具边界明显的复杂系统</td>
-<td>通信开销、责任模糊</td>
-</tr>
-</tbody>
-</table>
-<p>应从固定 Workflow 或 Router 起步，只有评估证明固定流程无法满足需求，才增加自主性。</p>
-<h3 id="292-router">29.2 Router：模型分类，代码执行</h3>
-<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>数据摄取与检索工程：把文档真正变成知识库 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">LangChain 入门与工程实践</a><span aria-hidden="true">›</span><span aria-current="page">数据摄取与检索工程：把文档真正变成知识库</span></nav><div class="module-meta">大模型应用 · 第 29 / 34 章 · <span class="muted">更新于 2026-09-12</span></div><h1>数据摄取与检索工程：把文档真正变成知识库</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>最小 RAG 示例把几段文本直接放入内存向量库，适合学习数据流。真实知识库更困难的部分通常不是“调用向量库”，而是文档解析、元数据、增量更新、权限过滤、召回评估和引用回链。</p>
+<h3 id="281">28.1 建库和问答属于两个生命周期</h3>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TB
+    subgraph Offline["离线或异步摄取"]
+      S["文件/网页/数据库"] --&gt; P["解析与清洗"]
+      P --&gt; D["Document + metadata"]
+      D --&gt; C["切分"]
+      C --&gt; H["稳定 ID / 去重 / 版本"]
+      H --&gt; E["Embedding"]
+      E --&gt; V[("Vector Store")]
+    end
+    subgraph Online["在线问答"]
+      Q["用户问题 + 身份"] --&gt; F["权限过滤"]
+      F --&gt; R["召回"]
+      R --&gt; RR["重排/去重"]
+      RR --&gt; B["上下文预算与组装"]
+      B --&gt; M["生成"]
+      M --&gt; A["答案 + 程序绑定引用"]
+    end
+    V --&gt; R</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>不要在每次 HTTP 请求中重新读取全部文件和计算 Embedding。摄取流程应独立运行，并把索引版本告诉在线服务。</p>
+<h3 id="282-loader">28.2 Loader 的输出仍需检查</h3>
+<p>以 PDF 为例，需要额外集成包：</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span>langchain-community<span class="w"> </span>pypdf
+</code></pre></div>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_community.document_loaders</span> <span class="kn">import</span> <span class="n">PyPDFLoader</span>
 
-<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="c1"># PyPDFLoader 只负责解析，不会自动切块或生成 Embedding。</span>
+<span class="n">loader</span> <span class="o">=</span> <span class="n">PyPDFLoader</span><span class="p">(</span><span class="s2">&quot;docs/product-manual.pdf&quot;</span><span class="p">)</span>
+
+<span class="c1"># load() 一次性读取全部页；大批量文档可按 Loader 能力使用 lazy_load()。</span>
+<span class="n">pages</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+
+<span class="c1"># 先检查类型、来源元数据和正文开头，确认没有乱码或错栏。</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">pages</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">pages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">pages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">page_content</span><span class="p">[:</span><span class="mi">100</span><span class="p">])</span>
+</code></pre></div>
+<p>预期输出形态（字段会随 Loader 版本和文件变化）：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Document
+{&#39;source&#39;: &#39;docs/product-manual.pdf&#39;, &#39;page&#39;: 0, ...}
+第一章 产品简介……
+</code></pre></div>
+<p>第一行证明 Loader 返回的是 LangChain Document；第二行用于确认来源和页码；第三行用于人工发现乱码、错栏或扫描页没有 OCR 文本。</p>
+<p>典型结果是一个 <code>Document</code> 列表，每页一个或多个 Document，metadata 可能含 source 和 page。不同 Loader 的元数据键不统一，进入公共流程前应规范化：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">langchain_core.documents</span> <span class="kn">import</span> <span class="n">Document</span>
 
 
-<span class="k">class</span> <span class="nc">Route</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="n">destination</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
-        <span class="s2">&quot;sales&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;after_sales&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;technical&quot;</span><span class="p">,</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;请求应进入的处理队列&quot;</span><span class="p">)</span>
-    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;一句话说明路由依据&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">normalize_document</span><span class="p">(</span><span class="n">doc</span><span class="p">:</span> <span class="n">Document</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Document</span><span class="p">:</span>
+    <span class="c1"># 不要假设每一种 Loader 都一定提供 page。</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">))</span>
+    <span class="n">page</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;page&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Document</span><span class="p">(</span>
+        <span class="c1"># NUL 字符会干扰部分数据库；首尾空白也没有检索价值。</span>
+        <span class="n">page_content</span><span class="o">=</span><span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span>
+        <span class="c1"># 只保留系统明确理解的字段，统一不同 Loader 的 metadata。</span>
+        <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="n">Path</span><span class="p">(</span><span class="n">source</span><span class="p">)</span><span class="o">.</span><span class="n">as_posix</span><span class="p">(),</span>
+            <span class="s2">&quot;page&quot;</span><span class="p">:</span> <span class="n">page</span><span class="p">,</span>
+            <span class="s2">&quot;tenant_id&quot;</span><span class="p">:</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tenant_id&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">),</span>
+            <span class="s2">&quot;document_version&quot;</span><span class="p">:</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;document_version&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;unknown&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
 
 
-<span class="n">router</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span><span class="n">Route</span><span class="p">)</span>
+<span class="n">clean_pages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">normalize_document</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">page</span> <span class="ow">in</span> <span class="n">pages</span>
+    <span class="k">if</span> <span class="n">page</span><span class="o">.</span><span class="n">page_content</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>必须人工抽查解析结果，尤其是扫描 PDF、双栏论文、表格、页眉页脚、代码块和图片。Loader 成功返回不代表语义正确。</p>
+<h3 id="283-chunk">28.3 Chunk 是一个可检索证据单元</h3>
+<p>切块应尽量满足：</p>
+<ul>
+<li>单块能独立解释一个局部事实；</li>
+<li>保留标题、章节、页码等定位信息；</li>
+<li>不超过 Embedding 和生成模型限制；</li>
+<li>相邻块有必要重叠，但不大量重复；</li>
+<li>代码、表格、Markdown 标题尽量按结构切分。</li>
+</ul>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_text_splitters</span> <span class="kn">import</span> <span class="n">RecursiveCharacterTextSplitter</span>
 
-<span class="n">decision</span> <span class="o">=</span> <span class="n">router</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span>
-    <span class="s2">&quot;支付成功后没有生成订单，应该找谁？&quot;</span>
+<span class="n">splitter</span> <span class="o">=</span> <span class="n">RecursiveCharacterTextSplitter</span><span class="p">(</span>
+    <span class="n">chunk_size</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
+    <span class="n">chunk_overlap</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span>
+    <span class="n">separators</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">## &quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">### &quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;。&quot;</span><span class="p">,</span> <span class="s2">&quot;；&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">],</span>
+    <span class="n">add_start_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">decision</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+
+<span class="c1"># 每个 chunk 继承父 Document 的 metadata；</span>
+<span class="c1"># add_start_index=True 还会加入块在父文本中的字符起点。</span>
+<span class="n">chunks</span> <span class="o">=</span> <span class="n">splitter</span><span class="o">.</span><span class="n">split_documents</span><span class="p">(</span><span class="n">clean_pages</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">chunks</span><span class="p">[:</span><span class="mi">2</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="o">.</span><span class="n">page_content</span><span class="p">),</span> <span class="n">chunk</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
 </code></pre></div>
 <p>预期输出形态：</p>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">{
-  &#39;destination&#39;: &#39;after_sales&#39;,
-  &#39;reason&#39;: &#39;用户已支付但订单异常，属于售后问题&#39;
-}
+<div class="codehilite" data-lang="text"><pre><code class="language-text">742 {&#39;source&#39;: &#39;docs/product-manual.pdf&#39;, &#39;page&#39;: 0, &#39;start_index&#39;: 0, ...}
+615 {&#39;source&#39;: &#39;docs/product-manual.pdf&#39;, &#39;page&#39;: 0, &#39;start_index&#39;: 622, ...}
 </code></pre></div>
-<p>随后由普通代码分派：</p>
-<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">handlers</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;sales&quot;</span><span class="p">:</span> <span class="n">handle_sales</span><span class="p">,</span>
-    <span class="s2">&quot;after_sales&quot;</span><span class="p">:</span> <span class="n">handle_after_sales</span><span class="p">,</span>
-    <span class="s2">&quot;technical&quot;</span><span class="p">:</span> <span class="n">handle_technical</span><span class="p">,</span>
-<span class="p">}</span>
+<p>第二块的 start_index 可能小于第一块长度，这是 <code>chunk_overlap</code> 造成的重叠。重叠能保留跨边界语义，但也会增加索引体积和重复召回。</p>
+<p>这里的 <code>chunk_size</code> 默认按字符衡量，不等同于 token。需要精确控制模型窗口时，可使用与模型相符的 tokenizer 切分或在组装上下文时再次统计 token。</p>
+<h3 id="284-id">28.4 稳定 ID、去重与增量更新</h3>
+<p>每次重建若产生完全不同的随机 ID，就很难删除旧版本。可以根据稳定字段生成内容 ID：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">hashlib</span>
 
-<span class="n">handler</span> <span class="o">=</span> <span class="n">handlers</span><span class="p">[</span><span class="n">decision</span><span class="o">.</span><span class="n">destination</span><span class="p">]</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">handler</span><span class="p">(</span><span class="n">user_request</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">make_chunk_id</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tenant_id&quot;</span><span class="p">)),</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">)),</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;document_version&quot;</span><span class="p">)),</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;start_index&quot;</span><span class="p">)),</span>
+        <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">,</span>
+    <span class="p">])</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">make_chunk_id</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">chunks</span><span class="p">]</span>
+<span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span>
+
+<span class="c1"># SHA-256 的十六进制字符串固定为 64 个字符。</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">ids</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
 </code></pre></div>
-<p>即使模型产生异常值，Pydantic 的 Literal 也会拒绝；业务还应提供默认人工队列。路由结果不应直接变成任意模块名或 URL。</p>
-<h3 id="293-react">29.3 ReAct 的本质</h3>
-<p>ReAct 可简化为循环：</p>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">观察当前消息和工具
-→ 推理下一步
-→ 选择工具与参数
-→ 应用执行并返回观察结果
-→ 再次推理
-→ 最终回答
+<p>输出形态：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">9c31f0...（共 64 个十六进制字符）
+64
 </code></pre></div>
-<p>现代供应商通常通过结构化 Tool Call 表达动作，不需要强迫模型输出可见的“Thought”。开发者真正需要审计的是工具名、参数、结果、错误和调用次数，而不是依赖模型暴露完整内部推理。</p>
-<h3 id="294-planner-executor">29.4 Planner-Executor 何时有价值</h3>
-<p>如果任务可以分解为“查资料 → 比较 → 计算 → 生成报告”，Planner 可以先产出结构化步骤，Executor 逐步执行。计划必须被视为可修改草案：</p>
+<p>只要租户、来源、文档版本、起点和正文都不变，ID 就不变；其中任一字段变化都会得到新 ID。这使删除旧版本和跳过未变化内容成为可能。</p>
+<p>一个可靠的增量流程通常是：</p>
+<ol>
+<li>读取文件清单和内容哈希；</li>
+<li>跳过没有变化的文档；</li>
+<li>对变化文档生成新 chunk 和稳定 ID；</li>
+<li>写入新版本；</li>
+<li>原子切换在线索引版本；</li>
+<li>删除旧版本和已删除文档；</li>
+<li>记录解析器、Splitter 和 Embedding 版本。</li>
+</ol>
+<p>Embedding 模型变更通常意味着整个向量空间变化，不能把新旧向量随意混入同一索引。</p>
+<h3 id="285-retriever-top-k">28.5 Retriever 是查询接口，不只是 Top-k</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">retriever</span> <span class="o">=</span> <span class="n">vector_store</span><span class="o">.</span><span class="n">as_retriever</span><span class="p">(</span>
+    <span class="n">search_type</span><span class="o">=</span><span class="s2">&quot;mmr&quot;</span><span class="p">,</span>
+    <span class="n">search_kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;k&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s2">&quot;fetch_k&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span>
+        <span class="s2">&quot;lambda_mult&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">docs</span> <span class="o">=</span> <span class="n">retriever</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="s2">&quot;LangGraph 如何保存线程状态？&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">],</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">[:</span><span class="mi">80</span><span class="p">])</span>
+</code></pre></div>
+<p>MMR（Maximal Marginal Relevance）先获取较多候选，再兼顾与查询的相关性以及候选之间的差异，适合减少四个结果都在重复同一段话的情况。</p>
+<p>参数含义：</p>
 <ul>
-<li>工具结果可能让后续步骤失效；</li>
-<li>计划可能漏掉依赖；</li>
-<li>每一步都应有完成证据；</li>
-<li>失败时应重规划局部，而非从头重复全部副作用；</li>
-<li>设置最大步骤数、总时间和总费用。</li>
+<li><code>k</code>：最终返回多少块；</li>
+<li><code>fetch_k</code>：先召回多少候选供 MMR 选择；</li>
+<li><code>lambda_mult</code>：通常越高越偏相关性，越低越偏多样性；</li>
+<li>metadata filter：应在向量库查询层强制应用权限条件。</li>
 </ul>
-<p>计划中的字符串不能直接当作 shell 命令、SQL 或代码执行。</p>
-<h3 id="295-agent">29.5 多 Agent 不是“多开几个模型”</h3>
-<p>拆分 Agent 应至少满足一个条件：</p>
-<ul>
-<li>工具权限边界不同；</li>
-<li>上下文领域明显不同；</li>
-<li>可独立评估输入输出契约；</li>
-<li>子任务确实能并行；</li>
-<li>一个 Agent 的工具太多，选工具质量显著下降。</li>
-</ul>
-<p>合理例子：</p>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">Supervisor
-├── 文档检索 Agent：只读知识库
-├── 数据分析 Agent：只读受限数据集
-└── 发布 Agent：必须人工审批，才可写入
-</code></pre></div>
-<p>不合理拆分是让三个拥有相同 Prompt、相同工具的 Agent 互相讨论。这样通常只增加 token、延迟和不确定性。</p>
-<h3 id="296">29.6 工具按风险分级</h3>
+<p>不同向量库的 score 定义并不统一：可能是距离，也可能是相似度，数值越大是否越好也可能不同。设置阈值前必须查对应集成文档，并用标注集校准。</p>
+<h3 id="286">28.6 语义检索、关键词检索与混合检索</h3>
 <table>
 <thead>
 <tr>
-<th>级别</th>
-<th>示例</th>
-<th>控制</th>
+<th>方法</th>
+<th>擅长</th>
+<th>容易失败</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>只读低风险</td>
-<td>查天气、查公开文档</td>
-<td>超时、限流、结果长度限制</td>
+<td>向量语义检索</td>
+<td>同义表达、自然语言问题</td>
+<td>精确 ID、少见缩写、数字</td>
 </tr>
 <tr>
-<td>只读敏感</td>
-<td>查用户订单、内部知识库</td>
-<td>鉴权、租户过滤、审计</td>
+<td>BM25/关键词</td>
+<td>产品编号、错误码、专有名词</td>
+<td>语义改写</td>
 </tr>
 <tr>
-<td>可逆写操作</td>
-<td>创建草稿、加标签</td>
-<td>幂等键、明确预览、可撤销</td>
+<td>metadata filter</td>
+<td>租户、时间、文档类型</td>
+<td>不能替代内容相关性</td>
 </tr>
 <tr>
-<td>高影响写操作</td>
-<td>付款、删除、发布、发信</td>
-<td>人工审批、事务、双重校验</td>
+<td>Hybrid</td>
+<td>同时利用关键词和语义</td>
+<td>需要融合与评估</td>
 </tr>
 <tr>
-<td>任意执行</td>
-<td>Shell、SQL、代码解释器</td>
-<td>沙箱、Allowlist、最小权限，通常禁用</td>
+<td>Reranker</td>
+<td>精排候选，改善前几名</td>
+<td>增加延迟和成本</td>
 </tr>
 </tbody>
 </table>
-<p>工具 Schema 描述用途，但真正的权限必须在工具实现中重新检查。不要把可信 <code>user_id</code> 作为模型可自由填写的参数。</p>
-<h3 id="297">29.7 错误应转成模型可处理但不泄密的信息</h3>
-<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">safe_tool_result</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;ok&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-            <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="s2">&quot;TEMPORARY_TIMEOUT&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;服务暂时超时，可稍后重试。&quot;</span><span class="p">,</span>
-        <span class="p">}</span>
+<p>一种常见融合方法是 Reciprocal Rank Fusion（RRF）。它根据名次而非不同系统不可比的原始分数融合：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
 
-    <span class="k">return</span> <span class="p">{</span>
-        <span class="s2">&quot;ok&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="s2">&quot;INTERNAL_ERROR&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;工具执行失败，请转人工处理。&quot;</span><span class="p">,</span>
-    <span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">rrf</span><span class="p">(</span><span class="n">rankings</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">):</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">docs_by_id</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">ranking</span> <span class="ow">in</span> <span class="n">rankings</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">doc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranking</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">doc_id</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;chunk_id&quot;</span><span class="p">]</span>
+            <span class="n">scores</span><span class="p">[</span><span class="n">doc_id</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">rank</span><span class="p">)</span>
+            <span class="n">docs_by_id</span><span class="p">[</span><span class="n">doc_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">doc</span>
+
+    <span class="n">ordered_ids</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">scores</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">scores</span><span class="o">.</span><span class="n">get</span><span class="p">,</span>
+        <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">docs_by_id</span><span class="p">[</span><span class="n">doc_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">doc_id</span> <span class="ow">in</span> <span class="n">ordered_ids</span><span class="p">]</span>
+
+
+<span class="c1"># vector_results 和 keyword_results 分别按各自相关性从高到低排列。</span>
+<span class="c1"># 融合后再截取前 6 个 Document。</span>
+<span class="n">hybrid_docs</span> <span class="o">=</span> <span class="n">rrf</span><span class="p">([</span><span class="n">vector_results</span><span class="p">,</span> <span class="n">keyword_results</span><span class="p">])[:</span><span class="mi">6</span><span class="p">]</span>
 </code></pre></div>
-<p>不要把数据库连接串、完整堆栈、内部路径或第三方原始响应交给模型。详细异常写入受控日志，并用 request ID 关联。</p>
-<h3 id="298-agent-mcp">29.8 Agent 与 MCP 的连接位置</h3>
-<p>MCP Server 可把外部工具、资源和 Prompt 以标准协议暴露给客户端 Agent。LangChain Agent 使用 MCP 工具时，控制关系仍然是：</p>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">模型提出 Tool Call
-→ Agent Runtime 校验
-→ MCP Client 调用 MCP Server
-→ 外部系统执行
-→ 结果返回 ToolMessage
+<p>这里假设每个 Document 都有稳定的 <code>chunk_id</code>。RRF 的 <code>k</code> 是平滑常数，不是最终返回数量。</p>
+<p>例如向量榜为 A、B、C，关键词榜为 B、D、A，取 k=60：</p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th style="text-align: right;">RRF 分数</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B</td>
+<td style="text-align: right;">1/62 + 1/61 ≈ 0.03252</td>
+<td>两个榜都靠前，融合后第一</td>
+</tr>
+<tr>
+<td>A</td>
+<td style="text-align: right;">1/61 + 1/63 ≈ 0.03227</td>
+<td>同时被两路召回，略低于 B</td>
+</tr>
+<tr>
+<td>D</td>
+<td style="text-align: right;">1/62 ≈ 0.01613</td>
+<td>只有关键词榜召回</td>
+</tr>
+<tr>
+<td>C</td>
+<td style="text-align: right;">1/63 ≈ 0.01587</td>
+<td>只有向量榜召回</td>
+</tr>
+</tbody>
+</table>
+<p>原始余弦相似度和 BM25 分数尺度不同，直接相加没有可靠含义；RRF 使用名次，绕开了尺度不可比问题。</p>
+<h3 id="287">28.7 查询改写不是越多越好</h3>
+<p>用户问题可能依赖历史：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">上一轮：LangGraph 的 Checkpointer 是什么？
+当前轮：那 Store 呢？
 </code></pre></div>
-<p>MCP 解决连接标准化，不自动解决权限、安全、幂等和结果真实性。协议细节参见前文链接的 MCP 笔记。</p>
-<h3 id="299">29.9 架构评审的十个问题</h3>
+<p>只检索“那 Store 呢”会丢失主题。应先将其改写为独立问题“LangGraph 中 Store 与 Checkpointer 有什么区别？”。但查询改写也可能改变原意，因此应：</p>
+<ul>
+<li>保留原问题和改写问题；</li>
+<li>对实体名、数字和否定词做一致性检查；</li>
+<li>在 Trace 中记录改写结果；</li>
+<li>用真实多轮问题评估；</li>
+<li>对已经清楚的查询跳过改写，减少延迟。</li>
+</ul>
+<h3 id="288">28.8 重排解决“召回了但排得不够前”</h3>
+<p>第一阶段检索追求高召回率，可以取 20 到 100 个候选；第二阶段 Reranker 读取问题和候选内容，挑出最相关的 4 到 10 个。它不能找回第一阶段完全遗漏的文档。</p>
+<p>调试顺序应是：</p>
 <ol>
-<li>哪些决策必须由模型做，哪些可由规则做？</li>
-<li>工具列表是否过大或语义重叠？</li>
-<li>每个工具的权限在哪里检查？</li>
-<li>写操作怎样预览、审批、幂等和回滚？</li>
-<li>循环按什么条件结束？</li>
-<li>总模型调用、工具调用、时间和费用预算是多少？</li>
-<li>哪些状态要跨请求或跨进程保存？</li>
-<li>外部文本如何防止间接 Prompt Injection？</li>
-<li>如何从 Trace 判断失败发生在哪一步？</li>
-<li>哪些评估样本能证明 Agent 比固定 Workflow 更好？</li>
+<li>标准证据是否进入索引；</li>
+<li>是否出现在第一阶段候选；</li>
+<li>若出现，是否被 Reranker 保留；</li>
+<li>是否进入最终上下文；</li>
+<li>模型是否忠实使用。</li>
 </ol>
-<p>如果这些问题没有答案，继续增加 Agent 或工具通常只会放大不确定性。</p>
-<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#291">29.1 五种常见模式</a></li><li class="lv3"><a href="#292-router">29.2 Router：模型分类，代码执行</a></li><li class="lv3"><a href="#293-react">29.3 ReAct 的本质</a></li><li class="lv3"><a href="#294-planner-executor">29.4 Planner-Executor 何时有价值</a></li><li class="lv3"><a href="#295-agent">29.5 多 Agent 不是“多开几个模型”</a></li><li class="lv3"><a href="#296">29.6 工具按风险分级</a></li><li class="lv3"><a href="#297">29.7 错误应转成模型可处理但不泄密的信息</a></li><li class="lv3"><a href="#298-agent-mcp">29.8 Agent 与 MCP 的连接位置</a></li><li class="lv3"><a href="#299">29.9 架构评审的十个问题</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-28.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-30.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<p>不要只看最终答案来猜检索哪里错了。</p>
+<h3 id="289">28.9 上下文组装与真实引用</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span> <span class="nn">langchain_core.documents</span> <span class="kn">import</span> <span class="n">Document</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">Citation</span><span class="p">:</span>
+    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">page</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">build_context</span><span class="p">(</span>
+    <span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Document</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">Citation</span><span class="p">]]:</span>
+    <span class="n">blocks</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">citations</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">doc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;S</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">))</span>
+        <span class="n">page</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;page&quot;</span><span class="p">)</span>
+
+        <span class="n">blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;&lt;source id=&#39;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">&#39;&gt;</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;&lt;/source&gt;&quot;</span>
+        <span class="p">)</span>
+        <span class="n">citations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">Citation</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">page</span><span class="o">=</span><span class="n">page</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">blocks</span><span class="p">),</span> <span class="n">citations</span>
+
+
+<span class="n">context</span><span class="p">,</span> <span class="n">citations</span> <span class="o">=</span> <span class="n">build_context</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">context</span><span class="p">[:</span><span class="mi">200</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">citations</span><span class="p">)</span>
+</code></pre></div>
+<p>模型可以被要求用 <code>[S1]</code> 格式引用，但 UI 中 <code>S1 → 文件与页码</code> 的映射必须来自程序保存的 Citation，而不是让模型生成文件名。回答完成后还应校验引用标签确实属于当前检索结果。</p>
+<h3 id="2810-rag">28.10 RAG 的最小评估集</h3>
+<p>每条样本至少包含：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;question&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;create_agent 建立在哪个运行时之上？&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;reference_answer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LangGraph&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;relevant_chunk_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;doc-1-chunk-3&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;must_cite&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;answerable&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>检索层可计算 Recall@k、MRR 或 nDCG；生成层评估事实一致性、完整性、拒答和引用正确性。若只评估最终答案，就无法区分“没检索到”和“检索到了但模型没用”。</p>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#281">28.1 建库和问答属于两个生命周期</a></li><li class="lv3"><a href="#282-loader">28.2 Loader 的输出仍需检查</a></li><li class="lv3"><a href="#283-chunk">28.3 Chunk 是一个可检索证据单元</a></li><li class="lv3"><a href="#284-id">28.4 稳定 ID、去重与增量更新</a></li><li class="lv3"><a href="#285-retriever-top-k">28.5 Retriever 是查询接口，不只是 Top-k</a></li><li class="lv3"><a href="#286">28.6 语义检索、关键词检索与混合检索</a></li><li class="lv3"><a href="#287">28.7 查询改写不是越多越好</a></li><li class="lv3"><a href="#288">28.8 重排解决“召回了但排得不够前”</a></li><li class="lv3"><a href="#289">28.9 上下文组装与真实引用</a></li><li class="lv3"><a href="#2810-rag">28.10 RAG 的最小评估集</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-28.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-30.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="langchain:29",moduleId="langchain";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -212,4 +357,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-boot"></script><script src="../assets/library-mermaid.js?v=20260906-boot"></script></body></html>

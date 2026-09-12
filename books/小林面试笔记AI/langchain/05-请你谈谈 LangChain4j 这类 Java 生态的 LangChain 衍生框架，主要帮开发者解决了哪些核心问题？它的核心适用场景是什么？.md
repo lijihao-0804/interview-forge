@@ -15,7 +15,7 @@
 
 🙋‍♂️我：用注解定义一个接口，框架就会把所有事情自动做好，所以接入 LangChain4j 以后，模型切换、安全、记忆和生产监控都不用关心了。
 
-👔面试官：框架减少的是重复胶水代码，不会消灭供应商差异，也不会替你承担权限、数据隔离、评测和运维责任。Guardrails 和部分可观测能力目前还是实验性功能，这些边界不说清楚，怎么做生产选型？
+👔面试官：框架减少的是重复胶水代码，不会消灭供应商差异，也不会替你承担权限、数据隔离、评测和运维责任。某些 Guardrails 或可观测模块可能带有 beta/experimental 状态，必须按目标版本核对，这些边界不说清楚，怎么做生产选型？
 
 这道题真正考的不是你记住了多少类名，而是能不能说清「为什么 Java 项目需要这一层抽象，以及这一层抽象不能替你做什么」。
 
@@ -33,7 +33,19 @@
 
 不过我不会说用了它就能无成本切换所有模型。不同厂商在工具调用、JSON Schema、多模态和流式能力上仍然有差异，Chat Memory 也不等于完整聊天记录，复杂长事务仍需业务系统或专门编排层兜底。
 
-选型时还要看模块成熟度。官方目前仍有带 beta 后缀的模块，Guardrails 和 AI Service Observability 也标注为实验性。
+选型时还要看模块成熟度。某些模块可能带 beta 或 experimental 标记，具体状态会随版本变化；接入前应锁定依赖，并核对对应文档、回归测试、性能和故障恢复行为。
+
+```mermaid
+flowchart LR
+    A[Java 业务服务] --> B[AI Services/模型接口]
+    B --> C[ChatModel/EmbeddingModel]
+    B --> D[Tools与业务权限]
+    B --> E[ChatMemory/RAG]
+    D --> F[确定性鉴权、幂等、审计]
+    E --> G[文档/检索/版本与 ACL]
+```
+
+框架负责连接和类型化调用，业务服务仍负责权限、副作用、数据治理和事实校验；这些边界不能由注解自动消除。
 
 ## 📝 详细解析
 
@@ -51,7 +63,7 @@
 
 可以把这两层理解成「自己组零件」和「直接调用装修好的服务台」。需要精细控制时，我们可以在低层直接操作模型、消息、Embedding 和存储；更关心业务接口时，则在高层使用 AI Services，把这些零件组合起来。
 
-截至 2026 年 7 月 31 日，官方文档也按这个思路组织框架。低层的代表抽象包括 `ChatModel`、`EmbeddingModel` 和 `ChatMemory`，高层的主入口则是 AI Services。
+按本文资料核对时的官方文档，低层代表抽象包括 `ChatModel`、`EmbeddingModel` 和 `ChatMemory`，高层入口包括 AI Services；具体模块名、版本和稳定性标记应在接入前重新核对。
 
 官方文档中的旧式 Chains 已明确标为 legacy。新项目不应因为框架名字里有 Chain，就把 `ConversationalChain` 当成主入口。
 
@@ -203,7 +215,7 @@ Helidon 和 Micronaut 也有对应集成，但普通面试回答不必展开版�
 
 ![](../images/08eff9d747dfb67c38474d9c.png)
 
-Guardrails 用于在模型调用前后校验输入和输出，例如检测越界问题、Prompt Injection、格式错误或违反业务规则的回答。可是截至本文调研时间，官方仍把 Guardrails 和 AI Service Observability 标为实验性，而且它们只适用于 AI Services，不能直接套在低层 `ChatModel` 上。
+Guardrails 可用于在模型调用前后校验输入和输出，例如检测越界问题、Prompt Injection、格式错误或违反业务规则的回答。具体功能、稳定性标记和可作用的调用层级随 LangChain4j 版本/模块变化，应以对应版本文档核对；即使框架提供 Guardrail，也不能把它当作低层模型调用或业务权限的替代品。
 
 还有一个更关键的边界：Guardrail 不是安全系统的替代品。Prompt Injection 检测可能漏报，输出校验也不能替代业务权限。认证、授权、数据隔离、资金风控和审计必须继续放在确定性的业务层。
 
@@ -245,7 +257,7 @@ Guardrails 用于在模型调用前后校验输入和输出，例如检测越界
 
 ## 📚 参考资料
 
-本文依据截至 2026 年 7 月 31 日可见的官方资料整理，版本与实验性标记应在实际接入前再次核对：
+本文依据资料核对时可见的官方资料整理；版本、实验性标记与集成能力应在实际接入前再次核对：
 
 - [LangChain4j 官方定位与架构](https://docs.langchain4j.dev/intro/)
 - [LangChain4j 官方仓库](https://github.com/langchain4j/langchain4j)

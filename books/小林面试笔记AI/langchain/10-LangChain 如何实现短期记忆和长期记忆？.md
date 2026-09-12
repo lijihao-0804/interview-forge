@@ -36,6 +36,20 @@
 
 长对话还需要控制上下文：裁剪只减少本次模型输入，删除会真正移除持久状态，摘要则用更短文本保留主要语义。生产环境要使用数据库型 Checkpointer 和 Store，并做好租户隔离、写入幂等、记忆更正、过期删除、敏感信息保护和检索评测。
 
+```mermaid
+flowchart LR
+    A[当前请求] --> B[thread_id]
+    B --> C[State + Checkpointer]
+    A --> D[可信 user/tenant context]
+    D --> E[namespace/key + Store]
+    C --> F[短期上下文]
+    E --> G[跨线程长期事实]
+    F --> H[模型输入]
+    G --> H
+```
+
+Checkpointer 保存线程状态，Store 保存跨线程数据；二者都要经过租户隔离、访问控制和生命周期治理，不能把“能持久化”当作“应该记住”。
+
 ## 📝 详细解析
 
 ### 应该记住什么？
@@ -61,7 +75,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 # Checkpointer 按 thread_id 保存线程内的 Agent State
 agent = create_agent(
-    model="openai:gpt-5.4-mini",
+    # 替换为项目已验证的 provider:model-id，并锁定对应集成包版本
+    model="provider:model-id",
     tools=[],
     checkpointer=InMemorySaver(),
 )

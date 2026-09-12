@@ -33,6 +33,18 @@
 
 确定性的线性或分支流程可以用 Runnable 和 LCEL，Agent 让模型在运行时动态决定下一步；带循环、持久状态和人工审批的复杂工作流，则更适合用 LangGraph。
 
+```mermaid
+flowchart LR
+    A{下一步是否在编码时确定?} -->|是| B[Runnable/LCEL]
+    A -->|否，需要模型选择 Tool| C[Agent]
+    B --> D{是否需要显式状态、恢复或审批?}
+    C --> D
+    D -->|是| E[LangGraph 编排]
+    D -->|否| F[保持较简单的高层入口]
+```
+
+这张图按控制权和恢复要求选型；Chain、Agent 和 LangGraph 可以嵌套，不是互斥的产品标签。
+
 ## 📝 详细解析
 
 ### 为什么需要 Chain？
@@ -115,7 +127,7 @@ prompt = ChatPromptTemplate.from_messages(
 
 # 使用 LangChain v1 提供的统一模型初始化入口
 # 运行前需要安装对应 Provider 包并配置 OPENAI_API_KEY
-model = init_chat_model("openai:gpt-5.5", temperature=0)
+model = init_chat_model("provider:model-id", temperature=0)
 
 # LCEL 会把三个步骤组合为 RunnableSequence
 # 数据依次经过 Prompt -> 模型 -> 字符串解析器
@@ -153,7 +165,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 
-model = init_chat_model("openai:gpt-5.5", temperature=0)
+model = init_chat_model("provider:model-id", temperature=0)
 parser = StrOutputParser()
 
 # 两个分支接收相同的输入字典，但分别执行不同任务
@@ -209,7 +221,7 @@ print(result["summary"])
 
 Runnable 和 LCEL 的方向，是把重心从「为每个场景造一个专用类」转向「提供少量统一原语，让开发者自己组合」。`LLMChain(prompt=prompt, llm=model)` 能做的事情，现在通常直接写成 `prompt | model | parser`，数据流更清楚，组合能力也更一致。
 
-截至 2026 年 7 月，LangChain v1 迁移指南已经把旧式 chains 明确移到 `langchain-classic`，其中包括 `LLMChain`、`ConversationChain` 和 `SequentialChain` 等旧 API。
+按当前迁移指南，旧式 chains（如 `LLMChain`、`ConversationChain` 和 `SequentialChain`）属于 legacy 路径，具体可用的包名和兼容范围应以目标版本迁移指南为准。
 
 它们不是突然不能运行了。维护旧系统时仍可以安装兼容包，但新项目不应该因为看到旧教程，就继续把这些旧式 Chain 当成首选。
 

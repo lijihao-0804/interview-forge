@@ -1,5 +1,5 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>怎么规避语义被切割掉的问题？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">怎么规避语义被切割掉的问题？</span></nav><div class="module-meta">大模型应用 · 第 5 / 20 章 · <span class="muted">更新于 2026-09-01</span></div><h1>怎么规避语义被切割掉的问题？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：Chunking 的时候语义被切断是个很常见的问题，你有没有遇到过？怎么处理的？</p>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：RAG 面试题</a><span aria-hidden="true">›</span><span aria-current="page">怎么规避语义被切割掉的问题？</span></nav><div class="module-meta">大模型应用 · 第 5 / 20 章 · <span class="muted">更新于 2026-09-12</span></div><h1>怎么规避语义被切割掉的问题？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>👔面试官：Chunking 的时候语义被切断是个很常见的问题，你有没有遇到过？怎么处理的？</p>
 <p>🙋‍♂️我：遇到过，加个 overlap 重叠就好了，前后重叠个 100 token，基本不会出问题。</p>
 <p>👔面试官：overlap 只是兜底方案，它能保证跨边界的文字不丢失，但解决不了「一个完整语义被拆散」的问题。比如「企业用户享有优先客服通道，响应时间不超过 2 小时，并可申请专属技术顾问服务」这句话被切成两段，两段单独看相关度都不高，overlap 帮得了吗？</p>
 <p>🙋‍♂️我：呃……那就把 chunk 设大一点，每个 chunk 包含更多内容，就不会断了。</p>
@@ -21,10 +21,10 @@
 <p>这就是语义截断的核心问题：不是信息丢了，而是信息被拆散之后，每一半都不够强，检索时全军覆没。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/f88b0a8c88-06afdf31a1cbe04bbb4a9dc2.png" /></p>
 <h4 id="overlap">方案一：重叠切割（Overlap）</h4>
-<p>最基础的方案，让相邻 chunk 之间有一段内容重叠，这样就算边界切在语义中间，跨边界的内容也一定会完整地出现在其中一个 chunk 里。</p>
-<p>重叠量通常设为 chunk_size 的 10%～20%，比如 chunk_size=800，overlap=150。</p>
+<p>最基础的方案是让相邻 chunk 有内容重叠，以增加跨边界证据共同出现的机会；它不能保证语义一定完整，也可能扩大索引、上下文和重复成本。</p>
+<p>重叠量可从一个小比例候选开始，但 10%～20% 不是通用规范；要根据语言、结构、问题类型和评测调整，并明确单位。</p>
 <p>你可能会问，为什么不直接设大一点，比如重叠 40%？这是实践经验摸出来的平衡点：太小了（比如 5%）重叠区域覆盖不了完整的跨边界语义，保护效果弱；太大了（比如 40%）重复内容太多，存储和检索成本上升，而且大量重复内容还会干扰 LLM 的阅读和理解。</p>
-<p>重叠切割是所有方案的基础，几乎每个 RAG 系统都应该开启，但它只是兜底，不能彻底解决语义截断问题。很多人以为加了 overlap 就万事大吉了，其实它只能保证跨边界的文字不丢失，解决不了「一个完整语义被拆散」的根本问题。</p>
+<p>重叠切割只是一个基线/兜底，并非每个 RAG 系统都应开启；它不能彻底解决语义截断，还要结合标题/段落边界、父子上下文、表格/代码结构和必要的查询扩展。</p>
 <h4 id="_4">方案二：按语义边界切割</h4>
 <p>重叠切割既然只是兜底，那能不能在切的时候就更聪明一点，直接避免在语义中间截断？这就是语义边界切割的思路——找到文本中自然的语义边界再切。为什么要识别句子边界？</p>
 <p>因为句子是语言表达意思的最小完整单位，一个完整的句子包含了主语、谓语、宾语，能独立表达一个意思。把句子从中间截断，前半截和后半截单独来看都是残缺的，向量化后的语义也是扭曲的。</p>
@@ -71,10 +71,10 @@
 <p>现在这个 chunk 的向量里就包含了「企业用户」「客服条款」「生效日期」这些关键语义，检索时被正确召回的概率大幅提升。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/9ef6672ef7-5848749ed2dcaf76f8c3d9ad.png" /></p>
 <h4 id="prompt-caching-llm">成本控制：用 Prompt Caching 大幅降低 LLM 调用费用</h4>
-<p>你可能会担心，每个 chunk 都要调一次 LLM，这成本得多高？确实，这是 Contextual Retrieval 最大的顾虑，但 Anthropic 的 Prompt Caching 特性可以把这个成本降低 80%-90%：</p>
-<p>每次调用时，<code>full_document</code>（完整文档）在所有 chunk 的请求里是相同的前缀。开启 Prompt Caching 后，第一次调用会把文档内容缓存到 KV Cache，后续同一篇文档的所有 chunk 请求都复用这份缓存，只有 chunk 部分需要重新计算。</p>
-<p>算一下账就清楚了：一篇有 100 个 chunk 的文档，传统做法要把整篇文档的 token 重复处理 100 次；开启 Prompt Caching 后，第一次写入缓存时文档部分按正常价的 1.25 倍计费（25% 的写入溢价），后续 99 次命中缓存的部分只按正常价的 10% 计费。综合下来文档部分的成本能降到原来的 10%～20% 区间。按 Anthropic 官方给的参考数据，8k token 的文档配合 800 token 的 chunk，上下文化处理一百万文档 token 的总成本大约 1 美元出头，整体可控。工程上只需要在调用时把文档内容标记为可缓存前缀，框架就会自动复用。</p>
-<p>根据 Anthropic 的测评数据，Contextual Retrieval 结合 BM25 混合检索，能将检索失败率（Top-20 召回未命中目标 chunk 的比例）降低约 49%，是目前业界实测效果最显著的 chunk 质量提升方案之一。</p>
+<p>你可能会担心，每个 chunk 都要调一次 LLM，这成本得多高？确实，这是 Contextual Retrieval 的重要顾虑。若所用模型/平台支持 Prompt Caching，稳定的文档前缀可能被复用，但命中条件、缓存时长、价格、区域和框架支持都要按当前文档核对。</p>
+<p>每次调用时，<code>full_document</code>（完整文档）若确实保持相同且满足平台缓存规则，可能作为可复用前缀；实际仍要处理前缀变化、缓存未命中、并发、隐私隔离和失效。</p>
+<p>成本应按当前供应商的输入/缓存价格、命中率、文档长度、并发和失败重试计算；不能沿用固定 1.25 倍、10%、10%～20% 或“每百万 token 约 1 美元”等旧数字。缓存还要做好租户隔离、敏感数据生命周期和失效策略。</p>
+<p>Anthropic 的 Contextual Retrieval 文章报告了其数据与设置下的收益；这是特定语料、模型、检索配置和指标定义的结果，不能直接外推到所有业务。应在自己的数据上比较上下文增强、BM25、父子块等方案的 Recall@K、引用支持、成本与延迟。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/9f956b2860-115450283dd2f16ff0210a62.png" /></p>
 <p>把几种方案的核心思路对比一下，实际选型时按场景组合使用：</p>
 <table>
