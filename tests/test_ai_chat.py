@@ -18,8 +18,10 @@ from interview_forge.services.auth import create_session, create_user
 
 
 class FakeChunk:
-    def __init__(self, content="", usage=None):
+    def __init__(self, content="", usage=None, tool_calls=None):
         self.content = content
+        self.tool_calls = list(tool_calls or [])
+        self.tool_call_chunks = []
         self.usage_metadata = usage or {}
         self.response_metadata = {}
         self.additional_kwargs = {}
@@ -37,6 +39,26 @@ class FakeAsyncModel:
             raise self.error
         for chunk in self.chunks:
             yield chunk
+
+
+class ToolCallingFakeModel(FakeAsyncModel):
+    def bind_tools(self, schemas):
+        self.schemas = schemas
+        return self
+
+    async def astream(self, messages):
+        self.messages = messages
+        has_tool_result = any(
+            isinstance(item, dict) and item.get("role") == "tool"
+            for item in messages
+        )
+        if not has_tool_result:
+            yield FakeChunk(
+                "我来查一下。",
+                tool_calls=[{"id": "problem-call", "name": "get_problem", "args": {"problem_id": 146}}],
+            )
+            return
+        yield FakeChunk("146 是 LRU 缓存。", usage={"input_tokens": 12, "output_tokens": 6})
 
 
 def parse_sse(body: str):
@@ -153,6 +175,32 @@ class AIChatContractTests(unittest.TestCase):
         self.assertNotIn("secret detail", events[-1][1]["message"])
         history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
         self.assertEqual([item["role"] for item in history], ["user"])
+
+    def test_tool_calling_sse_events_and_audit_metadata(self):
+        self.service.model_factory = lambda _config: ToolCallingFakeModel()
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream",
+            json={"message": "146题是哪道题"},
+        )
+        events = parse_sse(response.text)
+        self.assertEqual(
+            [name for name, _ in events],
+            ["message.start", "message.delta", "tool.start", "tool.done", "message.delta", "message.done"],
+        )
+        self.assertEqual(events[2][1]["name"], "get_problem")
+        self.assertEqual(events[3][1]["status"], "ok")
+        self.assertEqual(events[-1][1]["usage"]["tool_calls_count"], 1)
+        db = self.users_dir / "ChatAlice" / "hot100-study.db"
+        connection = sqlite3.connect(db)
+        try:
+            row = connection.execute(
+                "SELECT status, tool_name, result_meta_json FROM chat_tool_runs"
+            ).fetchone()
+        finally:
+            connection.close()
+        self.assertEqual(row[0:2], ("success", "get_problem"))
+        self.assertNotIn("LRU 缓存", row[2])
 
     def test_cross_user_session_isolation_and_input_bounds(self):
         created = self.client.post("/api/chat/sessions", json={}).json()

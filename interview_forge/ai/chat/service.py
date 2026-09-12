@@ -18,11 +18,15 @@ from interview_forge.ai.generation import (
     load_ai_config,
     make_chat_model,
 )
-from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.learning_context import LearningContextProvider
+from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
+from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.core.runtime import server_runtime
+from interview_forge.ai.tools.policy import ToolPolicy
+from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
+from interview_forge.ai.tools.contracts import ToolExecutionContext
 
 
 MAX_CHAT_MESSAGE_CHARS = 12_000
@@ -164,10 +168,14 @@ class ChatService:
         config_loader: Callable[[], AIConfig] | None = None,
         model_factory: Callable[[AIConfig], Any] | None = None,
         stream_factory: Callable[[Any, list[Any]], AsyncIterator[tuple[str, dict[str, int]]]] = stream_chat_chunks,
+        tool_registry: ToolRegistry | None = None,
+        tool_policy: ToolPolicy | None = None,
     ) -> None:
         self.config_loader = config_loader or load_ai_config
         self.model_factory = model_factory or make_chat_model
         self.stream_factory = stream_factory
+        self.tool_registry = tool_registry or build_default_tool_registry()
+        self.tool_policy = tool_policy or ToolPolicy()
 
     @staticmethod
     def create_session(*, user_db: Path | str) -> dict[str, Any]:
@@ -272,7 +280,6 @@ class ChatService:
         if not _claim_session(path, session_id):
             yield _event("error", {"code": "chat_in_progress", "message": "该会话正在生成，请先停止当前生成。"})
             return
-        provider_stream: AsyncIterator[tuple[str, dict[str, int]]] | None = None
         model_claimed = False
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
@@ -337,15 +344,41 @@ class ChatService:
                     learning_task=learning_task,
                 )
                 model = await asyncio.to_thread(self.model_factory, config)
-                provider_stream = self.stream_factory(model, messages)
-                async for delta, chunk_usage in provider_stream:
-                    if chunk_usage:
-                        usage.update(chunk_usage)
-                    if not delta:
-                        continue
-                    answer_parts.append(delta)
-                    yield _event("message.delta", {"delta": delta})
+                tool_context = ToolExecutionContext(
+                    user_db=path,
+                    session_id=session_id,
+                    turn_id=stream_message_id,
+                    user_message_id=current_message_id,
+                    current_query=clean_message,
+                    artifacts={
+                        "learning_context": learning_context,
+                        "username": path.parent.name,
+                    },
+                )
+                orchestrator = ToolOrchestrator(
+                    registry=self.tool_registry,
+                    policy=self.tool_policy,
+                )
+                async for item in orchestrator.stream(
+                    model=model,
+                    messages=messages,
+                    context=tool_context,
+                    fallback_stream_factory=self.stream_factory,
+                ):
+                    if item.get("event") == "message.delta":
+                        delta = str(item.get("data", {}).get("delta", ""))
+                        if delta:
+                            answer_parts.append(delta)
+                    yield item
+                turn_result = orchestrator.last_result
+                usage.update(turn_result.usage)
                 usage_payload = _usage_payload(usage, estimated_input_tokens=estimated_prompt_tokens)
+                usage_payload.update({
+                    "tool_calls_count": turn_result.tool_calls_count,
+                    "tool_names": list(turn_result.tool_names),
+                    "tool_run_ids": list(turn_result.tool_run_ids),
+                    "tooling_unavailable": turn_result.tooling_unavailable,
+                })
                 self._save_assistant_message(
                     user_db=path,
                     session_id=session_id,
@@ -370,13 +403,6 @@ class ChatService:
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
                 yield _event("error", {"code": code, "message": safe_message})
         finally:
-            if provider_stream is not None:
-                close = getattr(provider_stream, "aclose", None)
-                if callable(close):
-                    try:
-                        await close()
-                    except Exception:
-                        pass
             if model_claimed:
                 _release_model()
             _release_session(path, session_id)
