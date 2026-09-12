@@ -18,6 +18,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.actions.store import ActionRequestError
 from interview_forge.analytics.learning_analytics import AnalyticsUnavailableError
 from interview_forge.core.paths import DB_PATH
 from interview_forge.services.auth import session_user, user_db_path
@@ -135,6 +136,8 @@ def session_cookie(request: Request, token: str, *, expire: bool = False) -> str
 
 
 def service_error(exc: BaseException, *, write: bool = False) -> JSONResponse | None:
+    if isinstance(exc, ActionRequestError):
+        return error_response(exc.message, exc.status, error_category=exc.code)
     if isinstance(exc, ApiError):
         return error_response(exc.message, exc.status, headers=exc.headers)
     if isinstance(exc, LeetCodeSyncError):

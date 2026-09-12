@@ -195,6 +195,19 @@ class ToolOrchestrator:
                             "display": result.display_text or "已获取信息",
                         },
                     )
+                elif result.status == "confirmation_required" and result.action_id:
+                    spec = self.registry.get(result.tool_name)
+                    yield _event(
+                        "tool.confirmation_required",
+                        {
+                            "action_id": result.action_id,
+                            "call_id": result.call_id,
+                            "name": result.tool_name,
+                            "display_name": spec.display_name if spec else "需要确认的操作",
+                            "message": result.confirmation_text or "是否执行该操作？",
+                            "expires_at": result.expires_at or "",
+                        },
+                    )
                 else:
                     yield _event(
                         "tool.error",

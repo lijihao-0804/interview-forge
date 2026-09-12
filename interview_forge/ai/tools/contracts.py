@@ -37,6 +37,16 @@ ToolHandler = Callable[
     [ToolExecutionContext, BaseModel],
     Any | Awaitable[Any],
 ]
+ConfirmationBuilder = Callable[[BaseModel], str]
+
+
+class ToolHandlerError(Exception):
+    """A safe, expected handler failure with a stable public error code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,7 @@ class ToolSpec:
     requires_confirmation: bool = False
     timeout_seconds: float = 8.0
     max_result_tokens: int = 1500
+    confirmation_builder: ConfirmationBuilder | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.replace("_", "").isalnum():
@@ -76,6 +87,9 @@ class ToolExecutionResult:
     run_id: str = ""
     duration_ms: int = 0
     arguments: Mapping[str, Any] = field(default_factory=dict)
+    action_id: str | None = None
+    confirmation_text: str | None = None
+    expires_at: str | None = None
 
     @property
     def display_text(self) -> str | None:
@@ -88,7 +102,7 @@ class ToolExecutionResult:
                 "tool": self.tool_name,
                 "data": self.result.data,
             }
-        return {
+        payload = {
             "ok": False,
             "tool": self.tool_name,
             "error": {
@@ -96,3 +110,6 @@ class ToolExecutionResult:
                 "message": self.error_message or "工具暂时不可用",
             },
         }
+        if self.action_id:
+            payload["action_id"] = self.action_id
+        return payload

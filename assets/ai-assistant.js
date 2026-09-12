@@ -59,6 +59,65 @@
   function setBusy(value) { input.disabled = !state.current || value; send.disabled = !state.current || value; stop.hidden = !value; status.textContent = value ? "生成中…" : (state.current ? "已连接" : "未连接"); }
   function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
 
+  function actionHost(node) {
+    if (node._actionHost) return node._actionHost;
+    var host = document.createElement("div");
+    host.className = "action-host";
+    node.querySelector(".message-content").appendChild(host);
+    node._actionHost = host;
+    return host;
+  }
+
+  function finishActionCard(card, className, text) {
+    card.className = "action-card " + className;
+    card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+    var stateText = card.querySelector(".action-state");
+    if (stateText) stateText.textContent = text;
+  }
+
+  function decideAction(card, actionId, decision) {
+    card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+    api("/api/chat/actions/" + encodeURIComponent(actionId) + "/" + decision, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    }).then(function (payload) {
+      if (decision === "confirm" && payload.ok && payload.status === "succeeded") {
+        finishActionCard(card, "success", "✓ " + String(payload.display || "操作已启动"));
+      } else if (decision === "cancel" && payload.ok) {
+        finishActionCard(card, "cancelled", "已取消");
+      } else {
+        finishActionCard(card, "error", "× " + String(payload.display || "操作未完成"));
+      }
+    }).catch(function (err) {
+      finishActionCard(card, "error", "× " + String(err.message || "操作暂时不可用"));
+    });
+  }
+
+  function renderActionCard(action, host) {
+    var card = document.createElement("div"); card.className = "action-card";
+    var heading = document.createElement("strong"); heading.textContent = String(action.display_name || "需要确认的操作");
+    var text = document.createElement("div"); text.className = "action-description";
+    text.textContent = "AI 希望执行：" + String(action.message || action.confirmation_text || "该操作");
+    var stateText = document.createElement("div"); stateText.className = "action-state";
+    var actions = document.createElement("div"); actions.className = "action-actions";
+    var confirm = document.createElement("button"); confirm.className = "button primary"; confirm.type = "button"; confirm.textContent = "确认";
+    var cancel = document.createElement("button"); cancel.className = "button"; cancel.type = "button"; cancel.textContent = "取消";
+    confirm.addEventListener("click", function () { decideAction(card, action.action_id, "confirm"); });
+    cancel.addEventListener("click", function () { decideAction(card, action.action_id, "cancel"); });
+    actions.appendChild(confirm); actions.appendChild(cancel);
+    card.appendChild(heading); card.appendChild(text); card.appendChild(stateText); card.appendChild(actions);
+    host.appendChild(card);
+    return card;
+  }
+
+  function renderPendingActions(items) {
+    items.forEach(function (item) {
+      var node = document.createElement("div"); node.className = "message assistant";
+      var content = document.createElement("div"); content.className = "message-content";
+      node.appendChild(content); messages.appendChild(node);
+      renderActionCard(item, actionHost(node));
+    });
+  }
+
   function renderMemories(items) {
     if (!items.length) { memoryList.innerHTML = '<div class="memory-empty">暂时没有保存的长期记忆。</div>'; return; }
     memoryList.textContent = "";
@@ -117,6 +176,7 @@
     content.appendChild(toolStatus);
     node._toolRows = Object.create(null);
     node._toolStatus = toolStatus;
+    actionHost(node);
     return node;
   }
 
@@ -154,6 +214,8 @@
     title.textContent = payload.session.title;
     messages.innerHTML = "";
     (payload.items || []).forEach(renderMessage);
+    var actions = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/actions?status=pending");
+    renderPendingActions(actions.items || []);
     input.disabled = false; send.disabled = false; status.textContent = "已连接";
     try { localStorage.setItem("forge-ai-session", id); } catch (_) { }
     scrollBottom();
@@ -199,6 +261,7 @@
         if (name === "message.start") { state.assistantNode = renderAssistantTurn(); state.assistantNode.querySelector(".bubble").textContent = ""; }
         else if (name === "message.delta" && state.assistantNode) { var bubble = state.assistantNode.querySelector(".bubble"); bubble.dataset.raw = (bubble.dataset.raw || "") + String(payload.delta || ""); bubble.innerHTML = markdown(bubble.dataset.raw); scrollBottom(); }
         else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scrollBottom(); }
+        else if (name === "tool.confirmation_required" && state.assistantNode) { renderActionCard(payload || {}, actionHost(state.assistantNode)); scrollBottom(); }
         else if (name === "message.done") { status.textContent = "已连接"; }
         else if (name === "error") { setError(payload.message || "AI 暂时不可用"); }
       }
