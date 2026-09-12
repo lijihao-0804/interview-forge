@@ -67,6 +67,25 @@ CREATE TABLE IF NOT EXISTS chat_session_summaries (
     through_message_id INTEGER,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_tool_runs (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    user_message_id INTEGER,
+    tool_name TEXT NOT NULL,
+    tool_kind TEXT NOT NULL CHECK (tool_kind IN ('read', 'action')),
+    arguments_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    duration_ms INTEGER,
+    error_code TEXT,
+    result_meta_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_session
+    ON chat_tool_runs(session_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_turn
+    ON chat_tool_runs(turn_id, created_at ASC);
 """
 
 
@@ -115,5 +134,13 @@ def ensure_ai_schema(connection) -> None:
     connection.execute(
         "CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id "
         "ON chat_messages(session_id, id ASC)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_session "
+        "ON chat_tool_runs(session_id, created_at ASC)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_turn "
+        "ON chat_tool_runs(turn_id, created_at ASC)"
     )
     connection.commit()
