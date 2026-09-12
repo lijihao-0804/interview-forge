@@ -570,6 +570,19 @@ def split_chapters(text: str, fallback_title: str) -> tuple[str, list[dict[str, 
             starts.append(index)
     chapters: list[dict[str, str]] = []
     if starts:
+        # 章节之前的内容通常是书名下的学习说明；少数汇总型笔记还会在这里
+        # 放一张总览 Mermaid 图。过去这里直接丢弃前导区，导致这些图既没有
+        # 出现在首章，也让“源笔记图数量 = 课程页图数量”的发布校验失配。
+        # 保留首个真实章节前的正文，但跳过书名和作者目录，避免把目录重复
+        # 塞进首章正文。
+        preamble_lines = lines[: starts[0]]
+        for preamble_index, preamble_line in enumerate(preamble_lines):
+            if re.match(r"^##\s+目录\s*$", preamble_line):
+                preamble_lines = preamble_lines[:preamble_index]
+                break
+        preamble = "\n".join(
+            line for line in preamble_lines if not re.match(r"^#\s+\S", line)
+        ).strip()
         # 章节区间 [starts[i], starts[i+1])：到下一个标题行之间的所有行都是本章正文；
         # 最后一章的右边界是文件末尾。enumerate(..., 1) 使章节号从 1 开始。
         for number, start in enumerate(starts, 1):
@@ -583,6 +596,8 @@ def split_chapters(text: str, fallback_title: str) -> tuple[str, list[dict[str, 
             # 若剥完后标题为空(标题本身就是编号)，回退用原标题。
             heading = display_heading or heading
             body = "\n".join(lines[start + 1:end]).strip()
+            if number == 1 and preamble:
+                body = f"{preamble}\n\n{body}".strip()
             chapters.append({"title": heading, "body": body})
     else:
         # 源里没有任何 “## ” 章节头的兜底分支：整篇作为唯一一章，

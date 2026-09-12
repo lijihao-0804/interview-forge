@@ -1,5 +1,47 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>先给出结论 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Function Calling 与 MCP</a><span aria-hidden="true">›</span><span aria-current="page">先给出结论</span></nav><div class="module-meta">Agent 工程 · 第 1 / 22 章 · <span class="muted">更新于 2026-09-12</span></div><h1>先给出结论</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>Function Calling 和 MCP 经常一起出现，但它们位于不同层次：</p>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Function Calling 与 MCP</a><span aria-hidden="true">›</span><span aria-current="page">先给出结论</span></nav><div class="module-meta">Agent 工程 · 第 1 / 22 章 · <span class="muted">更新于 2026-09-12</span></div><h1>先给出结论</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><blockquote>
+<p>整理自原笔记《Function Calling 与 MCP 协议｜深究 MCP 协议的设计》，并依据 MCP 官方规范重新校正、扩展。<br />
+技术基线：MCP Protocol Revision <code>2026-07-28</code>；最后核对：2026-09-12。旧版 <code>2025-11-25</code> 仍作为兼容基线保留。
+阅读目标：不仅知道“怎么接 MCP”，更能理解它为什么这样设计，以及 Function Calling 与 MCP 各自解决什么问题。</p>
+<p><strong>版本边界（重要）</strong>：本文中 <code>initialize</code>/<code>notifications/initialized</code>、协议级会话，以及部分 Server→Client 请求流属于 <code>2025-11-25</code> 历史协议；最新 <code>2026-07-28</code> 修订移除了协议级 session 和 initialize 握手，改为请求级 <code>_meta</code> 与能力发现，并把 Tasks 移到可选扩展。不同 SDK/Host 可能仍实现旧版，实践时必须锁定具体 revision，不要混用两套流程。迁移差异见 <a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog" target="_blank" rel="noopener noreferrer">MCP Changelog</a>。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th><code>2025-11-25</code> 历史基线</th>
+<th><code>2026-07-28</code> 最新修订</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>能力协商</td>
+<td><code>initialize</code> + <code>notifications/initialized</code></td>
+<td>请求级 <code>_meta</code>；可用 <code>server/discover</code> 发现服务能力</td>
+</tr>
+<tr>
+<td>会话</td>
+<td><code>Mcp-Session-Id</code> 等协议级 session</td>
+<td>不规定协议级 session；需要状态时由应用/扩展显式管理</td>
+</tr>
+<tr>
+<td>Server→Client 额外输入</td>
+<td>Server 发起 Sampling/Roots/Elicitation 请求</td>
+<td>Multi Round-Trip Requests（MRTR）与 <code>InputRequiredResult</code>/重试输入</td>
+</tr>
+<tr>
+<td>Tasks</td>
+<td>核心协议中的实验性能力</td>
+<td><code>io.modelcontextprotocol/tasks</code> 可选扩展</td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td>单 endpoint 上的 POST/GET 与 session 语义</td>
+<td>POST 请求返回 JSON 或请求范围 SSE；不要依赖旧版 session/GET 约定</td>
+</tr>
+</tbody>
+</table>
+<p>Function Calling 和 MCP 经常一起出现，但它们位于不同层次：</p>
 <ul>
 <li><strong>Function Calling</strong> 解决“模型如何表达它想调用哪个工具、使用什么参数”。</li>
 <li><strong>MCP</strong> 解决“应用如何发现、连接和调用外部上下文服务，并以统一协议交换数据”。</li>

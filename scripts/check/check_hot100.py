@@ -622,19 +622,19 @@ elif search_page_path.exists():
         errors.append("搜索页没有加载离线索引")
 # ---- 抽样断言（仅在样例章节存在时检查，避免页面尚未生成时的误报）----
 # java-core/chapter-01 必须给出全文搜索入口与“导出本章”按钮；再抽查三门课的
-# 特定章节内嵌演示：Java 并发锁升级（.demo-embed）、计网 TCP 握手挥手、
-# MySQL ReadView 版本链——这些是课程内容的关键可视化，丢了说明演示迁移失败。
+# 实际章节内嵌演示：Java 并发锁升级、计网 TCP 握手挥手、MySQL ReadView
+# 版本链——章节编号跟随源笔记的真实拆分，不把旧编号写死成过期假设。
 chapter_sample = ROOT / "library" / "java-core" / "chapter-01.html"
 if chapter_sample.exists() and "search.html" not in chapter_sample.read_text(encoding="utf-8-sig"):
     errors.append("书架章节页导航缺少全文搜索入口")
 if chapter_sample.exists() and "exportChapter" not in chapter_sample.read_text(encoding="utf-8-sig"):
     errors.append("书架章节页缺少导出本章按钮")
-concurrency_chapter = ROOT / "library" / "java-concurrency" / "chapter-05.html"
+concurrency_chapter = ROOT / "library" / "java-concurrency" / "chapter-06.html"
 if concurrency_chapter.exists() and 'class="demo-embed"' not in concurrency_chapter.read_text(encoding="utf-8-sig"):
     errors.append("Java 并发章节缺少锁升级内嵌演示")
 for chapter_path, demo_name in (
-    (ROOT / "library" / "computer-network" / "chapter-03.html", "TCP握手挥手可视化"),
-    (ROOT / "library" / "mysql" / "chapter-06.html", "ReadView版本链可视化"),
+    (ROOT / "library" / "computer-network" / "chapter-04.html", "TCP握手挥手可视化"),
+    (ROOT / "library" / "mysql" / "chapter-07.html", "ReadView版本链可视化"),
 ):
     if chapter_path.exists() and demo_name not in chapter_path.read_text(encoding="utf-8-sig"):
         errors.append(f"书架章节缺少内嵌演示：{chapter_path.relative_to(ROOT)} -> {demo_name}")
