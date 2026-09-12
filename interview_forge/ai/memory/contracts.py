@@ -23,6 +23,28 @@ class MemoryCandidate:
 
 
 @dataclass(frozen=True)
+class MemoryPersistenceResult:
+    """Server-owned result made available before an explicit answer is generated."""
+
+    explicit: bool
+    success: bool
+    operation: MemoryOperation | None = None
+    count: int = 0
+    error_code: str | None = None
+
+    @property
+    def context_text(self) -> str:
+        if not self.explicit:
+            return "本轮没有执行显式长期记忆写入。"
+        action = "删除" if self.operation == "forget" else "保存"
+        state = "成功" if self.success else "失败"
+        return (
+            f"服务端已完成显式记忆{action}，persistence_success={str(self.success).lower()}。"
+            f"结果：{state}。"
+        )
+
+
+@dataclass(frozen=True)
 class MemoryItem:
     id: str
     kind: MemoryKind

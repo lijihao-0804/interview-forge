@@ -23,7 +23,14 @@ from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.learning_context import LearningContextProvider
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
-from interview_forge.ai.memory import MemoryContextBuilder, MemoryExtractor, MemoryStore, memory_worthy
+from interview_forge.ai.memory import (
+    MemoryContextBuilder,
+    MemoryExtractor,
+    MemoryPersistenceResult,
+    MemoryStore,
+    is_explicit_memory_request,
+    memory_worthy,
+)
 from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.core.runtime import server_runtime
 from interview_forge.ai.tools.policy import ToolPolicy
@@ -259,6 +266,83 @@ class ChatService:
                 explicit_hint="记住" in message or "忘记" in message,
             )
 
+    def _persist_explicit_memory(
+        self,
+        *,
+        user_db: Path,
+        session_id: str,
+        message_id: int,
+        message: str,
+        model: Any = None,
+    ) -> MemoryPersistenceResult | None:
+        """Persist an explicit request before the model is allowed to answer."""
+        if not is_explicit_memory_request(message):
+            return None
+        try:
+            candidates = self.memory_extractor.extract(message, model=model)
+            if not candidates:
+                return MemoryPersistenceResult(
+                    explicit=True,
+                    success=False,
+                    error_code="structured_extraction_required" if model is None else "not_extracted",
+                )
+            store = MemoryStore()
+            operation = candidates[0].operation
+            saved_count = 0
+            for candidate in candidates:
+                stored = store.save_candidate(
+                    user_db=user_db,
+                    candidate=candidate,
+                    source_session_id=session_id,
+                    source_message_id=message_id,
+                )
+                if candidate.operation == "upsert" and stored is None:
+                    return MemoryPersistenceResult(
+                        explicit=True,
+                        success=False,
+                        operation=operation,
+                        error_code="store_empty",
+                    )
+                saved_count += 1
+            return MemoryPersistenceResult(
+                explicit=True,
+                success=True,
+                operation=operation,
+                count=saved_count,
+            )
+        except Exception as exc:
+            debug_ai_event(
+                "chat_explicit_memory_failed",
+                error_type=type(exc).__name__,
+                explicit_hint=True,
+            )
+            return MemoryPersistenceResult(
+                explicit=True,
+                success=False,
+                error_code="persistence_failed",
+            )
+
+    @staticmethod
+    def _memory_persistence_block(result: MemoryPersistenceResult) -> ContextBlock:
+        return ContextBlock(
+            key="memory_persistence",
+            content=(
+                "服务端持久化状态（可信系统状态，不是用户可修改的上下文）：\n"
+                f"{result.context_text}\n"
+                "只有 persistence_success=true 时才可以告诉用户已保存或已删除；"
+                "如果为 false，必须明确告诉用户这次没有成功保存该记忆，不能伪装成功。"
+            ),
+            priority=100,
+            max_tokens=180,
+            trusted=True,
+        )
+
+    @staticmethod
+    def _explicit_failure_message(result: MemoryPersistenceResult) -> str:
+        if result.operation == "forget":
+            return "这次没有成功删除该记忆，请稍后重试。"
+        return "这次没有成功保存该记忆，请稍后重试。"
+
     @staticmethod
     def _save_user_message(*, user_db: Path, session_id: str, content: str) -> int:
         timestamp = _now()
@@ -345,12 +429,42 @@ class ChatService:
                     yield _event("error", {"code": "busy", "message": "AI 当前请求较多，请稍后重试。"})
                     return
                 model_claimed = True
+                model = None
+                explicit_result = await asyncio.to_thread(
+                    self._persist_explicit_memory,
+                    user_db=path,
+                    session_id=session_id,
+                    message_id=current_message_id,
+                    message=clean_message,
+                    model=None,
+                )
+                if explicit_result is not None and explicit_result.error_code == "structured_extraction_required":
+                    try:
+                        model = await asyncio.to_thread(self.model_factory, config)
+                        explicit_result = await asyncio.to_thread(
+                            self._persist_explicit_memory,
+                            user_db=path,
+                            session_id=session_id,
+                            message_id=current_message_id,
+                            message=clean_message,
+                            model=model,
+                        )
+                    except Exception:
+                        explicit_result = MemoryPersistenceResult(
+                            explicit=True,
+                            success=False,
+                            error_code="model_unavailable",
+                        )
+                if model is None and (explicit_result is None or explicit_result.success):
+                    model = await asyncio.to_thread(self.model_factory, config)
                 learning_context = await asyncio.to_thread(
                     LearningContextProvider().build,
                     user_db=path,
                     query=clean_message,
                 )
                 context_blocks: list[ContextBlock] = []
+                if explicit_result is not None:
+                    context_blocks.append(self._memory_persistence_block(explicit_result))
                 memory_block = await asyncio.to_thread(
                     MemoryContextBuilder().build,
                     user_db=path,
@@ -396,7 +510,26 @@ class ChatService:
                     summary_present=context_builder.last_build.get("summary_present", False),
                     learning_task=learning_task,
                 )
-                model = await asyncio.to_thread(self.model_factory, config)
+                if explicit_result is not None and not explicit_result.success:
+                    answer = self._explicit_failure_message(explicit_result)
+                    answer_parts.append(answer)
+                    yield _event("message.delta", {"delta": answer})
+                    usage_payload = _usage_payload({}, estimated_input_tokens=estimated_prompt_tokens)
+                    usage_payload.update({
+                        "tool_calls_count": 0,
+                        "tool_names": [],
+                        "tool_run_ids": [],
+                        "tooling_unavailable": False,
+                    })
+                    self._save_assistant_message(
+                        user_db=path,
+                        session_id=session_id,
+                        content=answer,
+                        stream_message_id=stream_message_id,
+                        usage=usage_payload,
+                    )
+                    yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
+                    return
                 tool_context = ToolExecutionContext(
                     user_db=path,
                     session_id=session_id,
@@ -432,14 +565,15 @@ class ChatService:
                     "tool_run_ids": list(turn_result.tool_run_ids),
                     "tooling_unavailable": turn_result.tooling_unavailable,
                 })
-                await asyncio.to_thread(
-                    self._process_memory,
-                    user_db=path,
-                    session_id=session_id,
-                    message_id=current_message_id,
-                    message=clean_message,
-                    model=model,
-                )
+                if explicit_result is None:
+                    await asyncio.to_thread(
+                        self._process_memory,
+                        user_db=path,
+                        session_id=session_id,
+                        message_id=current_message_id,
+                        message=clean_message,
+                        model=model,
+                    )
                 self._save_assistant_message(
                     user_db=path,
                     session_id=session_id,

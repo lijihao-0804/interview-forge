@@ -36,6 +36,39 @@ class FakeModel:
         yield FakeChunk("收到")
 
 
+class CapturingFakeModel(FakeModel):
+    def __init__(self):
+        self.messages = None
+
+    async def astream(self, messages):
+        self.messages = messages
+        async for chunk in super().astream(messages):
+            yield chunk
+
+
+class StructuredExtractorModel:
+    def __init__(self):
+        self.calls = 0
+
+    def with_structured_output(self, _schema):
+        return self
+
+    def invoke(self, _messages):
+        self.calls += 1
+        return {
+            "candidates": [{
+                "operation": "upsert",
+                "kind": "preference",
+                "canonical_key": "preference.project_context",
+                "value": {"text": "结合我的项目背景并优先指出风险"},
+                "display_text": "结合我的项目背景并优先指出风险",
+                "explicit": True,
+                "confidence": 0.95,
+                "importance": 4,
+            }]
+        }
+
+
 def _collect(iterator):
     return asyncio.run(_collect_async(iterator))
 
@@ -87,6 +120,26 @@ class MemoryDomainTests(unittest.TestCase):
             connection.close()
         self.assertEqual([row[0] for row in statuses], ["superseded", "active"])
 
+    def test_different_preferences_keep_separate_active_keys(self):
+        store = MemoryStore()
+        first = self.candidate("记住我喜欢先讲思路")
+        second = self.candidate("记住我喜欢用 Python")
+        store.save_candidate(user_db=self.db, candidate=first, source_session_id="s", source_message_id=1)
+        store.save_candidate(user_db=self.db, candidate=second, source_session_id="s", source_message_id=2)
+        active = store.list_active(user_db=self.db)
+        self.assertEqual({item.canonical_key for item in active}, {
+            "preference.explanation_order", "preference.programming_language"
+        })
+
+    def test_complex_worthy_message_uses_structured_extractor_and_normal_chat_skips_it(self):
+        model = StructuredExtractorModel()
+        message = "请记住我希望以后结合我正在维护的项目来解释问题，并优先指出风险"
+        candidates = MemoryExtractor().extract(message, model=model)
+        self.assertEqual(model.calls, 1)
+        self.assertEqual(candidates[0].canonical_key, "preference.project_context")
+        self.assertEqual(MemoryExtractor().extract("今天有点困", model=model), [])
+        self.assertEqual(model.calls, 1)
+
     def test_forget_deletes_content_and_secrets_never_enter_store(self):
         store = MemoryStore()
         store.save_candidate(
@@ -98,8 +151,7 @@ class MemoryDomainTests(unittest.TestCase):
         store.save_candidate(user_db=self.db, candidate=forget, source_session_id="s", source_message_id=2)
         self.assertEqual(store.list_active(user_db=self.db), [])
         secret = _deterministic_candidate("记住我的 LEETCODE_SESSION 是 abc")
-        self.assertIsNotNone(secret)
-        self.assertIsNone(MemoryPolicy().accept(secret))
+        self.assertIsNone(secret)
         self.assertFalse(MemoryExtractor().extract("记住我的 token 是 abc"))
 
     def test_gate_ignores_short_lived_status_and_retrieval_is_relevant_and_bounded(self):
@@ -151,10 +203,74 @@ class MemoryDomainTests(unittest.TestCase):
         )
         session = service.create_session(user_db=self.db)
         events = _collect(service.stream_reply(
-            user_db=self.db, session_id=session["id"], message="记住我喜欢先讲思路"
+            user_db=self.db, session_id=session["id"], message="我的目标是提升算法能力"
         ))
         self.assertEqual([item["event"] for item in events], ["message.start", "message.delta", "message.done"])
         self.assertIn("收到", events[1]["data"]["delta"])
+
+    def test_explicit_memory_save_happens_before_answer(self):
+        config = AIConfig(
+            enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        model = CapturingFakeModel()
+        service = ChatService(config_loader=lambda: config, model_factory=lambda _config: model)
+        session = service.create_session(user_db=self.db)
+        events = _collect(service.stream_reply(
+            user_db=self.db, session_id=session["id"], message="记住我以后解释算法先讲思路"
+        ))
+        self.assertIn("收到", events[1]["data"]["delta"])
+        active = MemoryStore().list_active(user_db=self.db)
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].canonical_key, "preference.explanation_order")
+        system_content = model.messages[0]["content"]
+        self.assertIn("ContextBlock:memory_persistence", system_content)
+        self.assertIn("persistence_success=true", system_content)
+
+    def test_explicit_memory_failure_cannot_claim_saved(self):
+        class BrokenExtractor:
+            def extract(self, *args, **kwargs):
+                raise RuntimeError("provider failed")
+
+        config = AIConfig(
+            enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        service = ChatService(
+            config_loader=lambda: config, model_factory=lambda _config: FakeModel(),
+            memory_extractor=BrokenExtractor(),
+        )
+        session = service.create_session(user_db=self.db)
+        events = _collect(service.stream_reply(
+            user_db=self.db, session_id=session["id"], message="记住我以后解释算法先讲思路"
+        ))
+        answer = events[1]["data"]["delta"]
+        self.assertIn("没有成功保存", answer)
+        self.assertNotIn("已记住", answer)
+
+    def test_explicit_forget_is_persisted_before_answer(self):
+        store = MemoryStore()
+        store.save_candidate(
+            user_db=self.db, candidate=self.candidate("记住我喜欢先讲思路"),
+            source_session_id="old", source_message_id=1,
+        )
+        config = AIConfig(
+            enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        service = ChatService(config_loader=lambda: config, model_factory=lambda _config: FakeModel())
+        session = service.create_session(user_db=self.db)
+        events = _collect(service.stream_reply(
+            user_db=self.db, session_id=session["id"], message="忘记这个偏好"
+        ))
+        self.assertIn("收到", events[1]["data"]["delta"])
+        self.assertEqual(MemoryStore().list_active(user_db=self.db), [])
 
 
 async def _fallback():
