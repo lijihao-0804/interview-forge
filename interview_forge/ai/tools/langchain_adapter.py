@@ -108,11 +108,23 @@ class ToolCallAccumulator:
         raw_chunks = _value(chunk, "tool_call_chunks", ()) or ()
         if raw_chunks:
             for index, raw in enumerate(raw_chunks):
-                key = str(_value(raw, "id", "") or _value(raw, "index", index))
+                raw_id = _value(raw, "id")
+                raw_index = _value(raw, "index")
+                # LangChain may emit the id only on the first chunk and keep
+                # only index on later argument chunks.  Index is therefore
+                # the primary stream key; the provider id remains payload.
+                if raw_index is not None:
+                    key = f"index:{raw_index}"
+                elif raw_id:
+                    key = f"id:{raw_id}"
+                else:
+                    key = f"position:{index}"
                 if key not in self._calls:
-                    self._calls[key] = {"id": key, "name": "", "args": ""}
+                    self._calls[key] = {"id": str(raw_id or ""), "name": "", "args": ""}
                     self._order.append(key)
                 state = self._calls[key]
+                if raw_id:
+                    state["id"] = str(raw_id)
                 name = _value(raw, "name")
                 if name:
                     state["name"] = str(name)
@@ -133,13 +145,13 @@ class ToolCallAccumulator:
 
     def finish(self) -> list[NormalizedToolCall]:
         result: list[NormalizedToolCall] = []
-        for key in self._order:
+        for index, key in enumerate(self._order):
             state = self._calls[key]
             if not state.get("name"):
                 continue
             result.append(
                 NormalizedToolCall(
-                    str(state.get("id") or key),
+                    str(state.get("id") or f"tool-call-{index}"),
                     str(state["name"]),
                     _arguments(state.get("args", {})),
                 )

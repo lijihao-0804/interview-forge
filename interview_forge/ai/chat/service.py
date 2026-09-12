@@ -369,6 +369,34 @@ class ChatService:
             return int(cursor.lastrowid)
 
     @staticmethod
+    def _delete_failed_user_message(*, user_db: Path, session_id: str, message_id: int) -> None:
+        """Remove a turn that never produced an assistant result."""
+        with closing(server_runtime.connect(user_db)) as connection:
+            session = connection.execute(
+                "SELECT created_at FROM chat_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            cursor = connection.execute(
+                "DELETE FROM chat_messages WHERE id = ? AND session_id = ? AND role = 'user'",
+                (message_id, session_id),
+            )
+            if cursor.rowcount:
+                remaining = connection.execute(
+                    "SELECT created_at FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                if remaining is None and session is not None:
+                    connection.execute(
+                        "UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
+                        (DEFAULT_SESSION_TITLE, str(session["created_at"]), session_id),
+                    )
+                elif remaining is not None:
+                    connection.execute(
+                        "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
+                        (str(remaining["created_at"]), session_id),
+                    )
+            connection.commit()
+
+    @staticmethod
     def _save_assistant_message(
         *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any]
     ) -> int:
@@ -405,6 +433,8 @@ class ChatService:
             yield _event("error", {"code": "chat_in_progress", "message": "该会话正在生成，请先停止当前生成。"})
             return
         model_claimed = False
+        current_message_id: int | None = None
+        assistant_saved = False
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
         usage: dict[str, int] = {}
@@ -528,6 +558,7 @@ class ChatService:
                         stream_message_id=stream_message_id,
                         usage=usage_payload,
                     )
+                    assistant_saved = True
                     yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
                     return
                 tool_context = ToolExecutionContext(
@@ -565,15 +596,6 @@ class ChatService:
                     "tool_run_ids": list(turn_result.tool_run_ids),
                     "tooling_unavailable": turn_result.tooling_unavailable,
                 })
-                if explicit_result is None:
-                    await asyncio.to_thread(
-                        self._process_memory,
-                        user_db=path,
-                        session_id=session_id,
-                        message_id=current_message_id,
-                        message=clean_message,
-                        model=model,
-                    )
                 self._save_assistant_message(
                     user_db=path,
                     session_id=session_id,
@@ -581,6 +603,7 @@ class ChatService:
                     stream_message_id=stream_message_id,
                     usage=usage_payload,
                 )
+                assistant_saved = True
                 debug_ai_event(
                     "chat_stream_completed",
                     session_id=session_id,
@@ -590,6 +613,15 @@ class ChatService:
                     output_tokens=usage_payload.get("output_tokens"),
                 )
                 yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
+                if explicit_result is None:
+                    await asyncio.to_thread(
+                        self._process_memory,
+                        user_db=path,
+                        session_id=session_id,
+                        message_id=current_message_id,
+                        message=clean_message,
+                        model=model,
+                    )
             except asyncio.CancelledError:
                 debug_ai_event("chat_stream_cancelled", session_id=session_id, message_id=stream_message_id)
                 raise
@@ -598,6 +630,18 @@ class ChatService:
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
                 yield _event("error", {"code": code, "message": safe_message})
         finally:
+            if current_message_id is not None and not assistant_saved:
+                try:
+                    self._delete_failed_user_message(
+                        user_db=path,
+                        session_id=session_id,
+                        message_id=current_message_id,
+                    )
+                except Exception as exc:
+                    debug_ai_event(
+                        "chat_failed_user_cleanup_error",
+                        error_type=type(exc).__name__,
+                    )
             if model_claimed:
                 _release_model()
             _release_session(path, session_id)

@@ -29,12 +29,20 @@ class _ExtractionEnvelope(BaseModel):
     candidates: list[_ExtractedCandidate] = Field(default_factory=list, max_length=4)
 
 
-_EXPLICIT_MARKERS = ("记住", "不要忘", "忘记", "不要再记住", "别再记住")
+_EXPLICIT_MEMORY_RE = re.compile(
+    r"^(?:请你|请|帮我|麻烦你|麻烦)?\s*(?:以后\s*)?(?:请\s*)?"
+    r"(?:记住|牢记|记得)(?=\s*(?:我|我的|以后|这|该|用户|[:：，,]|$))"
+)
+_EXPLICIT_FORGET_RE = re.compile(
+    r"^(?:请你|请|帮我|麻烦你|麻烦)?\s*(?:以后\s*)?(?:请\s*)?"
+    r"(?:不要再记住|别再记住|忘记|删除|清除|不要忘记|不要忘)"
+    r"(?=\s*(?:我|我的|这个|这条|之前|刚才|关于|这些|该|所有|[:：，,]|$))"
+)
 
 
 def is_explicit_memory_request(message: str) -> bool:
     text = " ".join(str(message or "").strip().split())
-    return bool(text) and any(marker in text for marker in _EXPLICIT_MARKERS)
+    return bool(text) and bool(_EXPLICIT_MEMORY_RE.match(text) or _EXPLICIT_FORGET_RE.match(text))
 
 
 def _deterministic_candidate(message: str) -> MemoryCandidate | None:
