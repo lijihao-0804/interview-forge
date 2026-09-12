@@ -35,6 +35,17 @@ class AiAssistantFrontendTests(unittest.TestCase):
         for event_name in ("message.start", "message.delta", "message.done", 'name === "error"'):
             self.assertIn(event_name, self.source)
 
+    def test_action_confirmation_ui_uses_safe_action_api_and_pending_reload(self):
+        self.assertIn('name === "tool.confirmation_required"', self.source)
+        self.assertIn("/api/chat/actions/", self.source)
+        self.assertIn('decision === "confirm"', self.source)
+        self.assertIn('decision === "cancel"', self.source)
+        self.assertIn('"/" + decision', self.source)
+        self.assertIn("/actions?status=pending", self.source)
+        self.assertIn("确认", self.source)
+        self.assertIn("取消", self.source)
+        self.assertNotIn("action.arguments", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

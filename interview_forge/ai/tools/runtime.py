@@ -19,11 +19,13 @@ from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.tools.contracts import (
     ToolExecutionContext,
     ToolExecutionResult,
+    ToolHandlerError,
     ToolKind,
     ToolResult,
 )
 from interview_forge.ai.tools.langchain_adapter import NormalizedToolCall
 from interview_forge.ai.tools.registry import ToolRegistry
+from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.core.runtime import server_runtime
 
 
@@ -35,6 +37,8 @@ _ERROR_MESSAGES = {
     "tool_error": "工具暂时不可用。",
     "result_too_large": "工具返回结果过大。",
     "cancelled": "工具调用已取消。",
+    "not_configured": "请先完成力扣连接配置。",
+    "action_not_allowed": "该操作当前不可用。",
 }
 
 
@@ -136,6 +140,7 @@ class ToolRuntime:
         code: str,
         started: float,
         arguments: Mapping[str, Any] = (),
+        error_message: str | None = None,
     ) -> ToolExecutionResult:
         duration_ms = round((time.perf_counter() - started) * 1000)
         self._audit(
@@ -153,10 +158,49 @@ class ToolRuntime:
             call_id=call.call_id,
             status=status,
             error_code=code,
-            error_message=_ERROR_MESSAGES.get(code, _ERROR_MESSAGES["tool_error"]),
+            error_message=error_message or _ERROR_MESSAGES.get(code, _ERROR_MESSAGES["tool_error"]),
             run_id=run_id,
             duration_ms=duration_ms,
             arguments=dict(arguments) if isinstance(arguments, Mapping) else {},
+        )
+
+    def _prepare_action(
+        self,
+        *,
+        spec: Any,
+        call: NormalizedToolCall,
+        context: ToolExecutionContext,
+        args_model: BaseModel,
+        arguments: Mapping[str, Any],
+        run_id: str,
+        started: float,
+    ) -> ToolExecutionResult:
+        confirmation_builder = spec.confirmation_builder
+        confirmation_text = (
+            confirmation_builder(args_model) if callable(confirmation_builder)
+            else f"是否执行：{spec.display_name}？"
+        )
+        action = ActionRequestStore().create(
+            user_db=context.user_db,
+            session_id=context.session_id,
+            turn_id=context.turn_id,
+            user_message_id=context.user_message_id,
+            tool_name=spec.name,
+            arguments=arguments,
+            confirmation_text=confirmation_text,
+        )
+        duration_ms = round((time.perf_counter() - started) * 1000)
+        self._audit(
+            context=context, run_id=run_id, call=call, kind=spec.kind,
+            arguments=arguments, status="confirmation_required", duration_ms=duration_ms,
+            error_code="confirmation_required",
+        )
+        return ToolExecutionResult(
+            tool_name=call.name, call_id=call.call_id, status="confirmation_required",
+            error_code="confirmation_required", error_message="该操作需要用户确认",
+            action_id=str(action["action_id"]), confirmation_text=str(action["confirmation_text"]),
+            expires_at=str(action["expires_at"]), run_id=run_id,
+            duration_ms=duration_ms, arguments=dict(arguments),
         )
 
     async def execute(
@@ -199,7 +243,13 @@ class ToolRuntime:
                 duration_ms=duration_ms, arguments=arguments,
             )
 
-        if spec.kind == ToolKind.ACTION or spec.requires_confirmation:
+        if spec.kind == ToolKind.ACTION:
+            return self._prepare_action(
+                spec=spec, call=call, context=context, args_model=args_model,
+                arguments=arguments, run_id=run_id, started=started,
+            )
+
+        if spec.requires_confirmation:
             return self._failure(
                 context=context, call=call, kind=spec.kind, run_id=run_id,
                 status="confirmation_required", code="confirmation_required",
@@ -250,6 +300,81 @@ class ToolRuntime:
         debug_ai_event(
             "chat_tool_completed", tool_name=call.name, tool_kind=spec.kind.value,
             status="success", duration_ms=duration_ms, cache_hit=False,
+            result_chars=len(serialized), result_tokens_estimated=result_tokens,
+        )
+        return ToolExecutionResult(
+            tool_name=call.name, call_id=call.call_id, status="ok", result=result,
+            run_id=run_id, duration_ms=duration_ms, arguments=arguments,
+        )
+
+    async def execute_confirmed_action(
+        self,
+        *,
+        action_request: Mapping[str, Any],
+        context: ToolExecutionContext,
+    ) -> ToolExecutionResult:
+        """Execute only canonical arguments persisted in an action row."""
+        started = time.perf_counter()
+        run_id = uuid.uuid4().hex
+        name = str(action_request.get("tool_name", ""))
+        raw_arguments = action_request.get("arguments")
+        call = NormalizedToolCall(
+            str(action_request.get("action_id", run_id)),
+            name,
+            dict(raw_arguments) if isinstance(raw_arguments, Mapping) else {},
+        )
+        spec = self.registry.get(name)
+        if spec is None or spec.kind != ToolKind.ACTION:
+            return self._failure(
+                context=context, call=call, kind=ToolKind.ACTION, run_id=run_id,
+                status="error", code="action_not_allowed", started=started,
+            )
+        try:
+            args_model, arguments = self._validated_args(spec, call.arguments)
+        except (ValidationError, TypeError, ValueError, AttributeError):
+            return self._failure(
+                context=context, call=call, kind=spec.kind, run_id=run_id,
+                status="error", code="invalid_arguments", started=started,
+            )
+        try:
+            raw_result = await asyncio.wait_for(
+                self._invoke(spec, context, args_model), timeout=spec.timeout_seconds
+            )
+            result = raw_result if isinstance(raw_result, ToolResult) else ToolResult(dict(raw_result))
+            serialized = _safe_json(result.data)
+            result_tokens = _estimate_tokens(serialized)
+            if result_tokens > spec.max_result_tokens:
+                return self._failure(
+                    context=context, call=call, kind=spec.kind, run_id=run_id,
+                    status="error", code="result_too_large", started=started,
+                    arguments=arguments,
+                )
+        except ToolHandlerError as exc:
+            return self._failure(
+                context=context, call=call, kind=spec.kind, run_id=run_id,
+                status="error", code=exc.code, error_message=exc.message,
+                started=started, arguments=arguments,
+            )
+        except asyncio.TimeoutError:
+            return self._failure(
+                context=context, call=call, kind=spec.kind, run_id=run_id,
+                status="timeout", code="timeout", started=started, arguments=arguments,
+            )
+        except asyncio.CancelledError:
+            result = self._failure(
+                context=context, call=call, kind=spec.kind, run_id=run_id,
+                status="cancelled", code="cancelled", started=started, arguments=arguments,
+            )
+            raise
+        except Exception:
+            return self._failure(
+                context=context, call=call, kind=spec.kind, run_id=run_id,
+                status="error", code="tool_error", started=started, arguments=arguments,
+            )
+        duration_ms = round((time.perf_counter() - started) * 1000)
+        self._audit(
+            context=context, run_id=run_id, call=call, kind=spec.kind,
+            arguments=arguments, status="success", duration_ms=duration_ms,
             result_chars=len(serialized), result_tokens_estimated=result_tokens,
         )
         return ToolExecutionResult(

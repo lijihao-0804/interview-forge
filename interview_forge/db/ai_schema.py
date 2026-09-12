@@ -110,6 +110,26 @@ CREATE INDEX IF NOT EXISTS ix_user_memories_status ON user_memories(status);
 CREATE INDEX IF NOT EXISTS ix_user_memories_kind ON user_memories(kind);
 CREATE INDEX IF NOT EXISTS ix_user_memories_canonical_key ON user_memories(canonical_key);
 CREATE INDEX IF NOT EXISTS ix_user_memories_updated_at ON user_memories(updated_at DESC);
+CREATE TABLE IF NOT EXISTS chat_action_requests (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    user_message_id INTEGER,
+    tool_name TEXT NOT NULL,
+    arguments_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'executing', 'succeeded', 'failed', 'cancelled', 'expired')),
+    confirmation_text TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    decided_at TEXT,
+    completed_at TEXT,
+    error_code TEXT,
+    result_meta_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS ix_chat_action_requests_session
+    ON chat_action_requests(session_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS ix_chat_action_requests_status
+    ON chat_action_requests(status, expires_at);
 """
 
 

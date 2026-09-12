@@ -8,7 +8,8 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
     from interview_forge.ai.tools.builtins.learning import GetLearningContextArgs, get_learning_context
     from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
     from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
-    from interview_forge.ai.tools.contracts import ToolSpec
+    from interview_forge.ai.tools.builtins.actions import SyncLeetCodeArgs, sync_leetcode, sync_leetcode_confirmation
+    from interview_forge.ai.tools.contracts import ToolKind, ToolSpec
 
     registry.register(ToolSpec(
         name="get_problem",
@@ -36,6 +37,18 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
         handler=get_weather,
         timeout_seconds=8.0,
         max_result_tokens=700,
+    ))
+    registry.register(ToolSpec(
+        name="sync_leetcode",
+        display_name="同步 LeetCode",
+        description="请求启动当前用户的 LeetCode 学习记录同步；必须等待用户确认，不会自行执行。",
+        args_model=SyncLeetCodeArgs,
+        handler=sync_leetcode,
+        kind=ToolKind.ACTION,
+        requires_confirmation=True,
+        timeout_seconds=5.0,
+        max_result_tokens=300,
+        confirmation_builder=sync_leetcode_confirmation,
     ))
     return registry
 

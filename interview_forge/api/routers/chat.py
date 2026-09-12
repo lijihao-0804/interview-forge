@@ -4,13 +4,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from interview_forge.ai.actions.service import ActionService
 from interview_forge.ai.chat.service import ChatService, MAX_CHAT_BODY_BYTES, normalize_message
+from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error, user_db
 from interview_forge.runtime.streaming import sse_events
 
 
 router = APIRouter()
 chat_service = ChatService()
+action_service = ActionService(registry=chat_service.tool_registry, store=ActionRequestStore())
 
 
 def _handled(exc: BaseException, *, write: bool = False):
@@ -78,6 +81,51 @@ def delete_memory(request: Request, memory_id: str):
         if not deleted:
             return error_response("记忆不存在", 404)
         return json_response({"deleted": True})
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.get("/api/chat/sessions/{session_id}/actions")
+def pending_actions(request: Request, session_id: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        db_path = user_db(user)
+        if chat_service.get_session(user_db=db_path, session_id=session_id) is None:
+            return error_response("会话不存在", 404)
+        items = ActionRequestStore().list_pending(user_db=db_path, session_id=session_id)
+        return json_response({"items": items})
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.post("/api/chat/actions/{action_id}/confirm")
+async def confirm_action(request: Request, action_id: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+        if payload:
+            raise ValueError("确认请求不应包含工具参数")
+        result = await action_service.confirm(user_db=user_db(user), action_id=action_id)
+        return json_response(result)
+    except BaseException as exc:
+        return _handled(exc, write=True)
+
+
+@router.post("/api/chat/actions/{action_id}/cancel")
+async def cancel_action(request: Request, action_id: str):
+    user, denied = require_user(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+        if payload:
+            raise ValueError("取消请求不应包含工具参数")
+        result = await action_service.cancel(user_db=user_db(user), action_id=action_id)
+        return json_response(result)
     except BaseException as exc:
         return _handled(exc, write=True)
 
