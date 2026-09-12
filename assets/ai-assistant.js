@@ -98,7 +98,8 @@
       state.assistantNode._toolRows[callKey] = row;
       state.assistantNode._toolStatus.appendChild(row);
     }
-    var label = toolLabels[name] || "工具信息";
+    var toolName = String(payload.name || "");
+    var label = payload.display_name || toolLabels[toolName] || "工具信息";
     if (name === "tool.start") {
       row.className = "tool-status-item pending";
       row.textContent = "○ 正在查询" + label + "…";
