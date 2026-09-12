@@ -6,6 +6,9 @@ valid while the streaming implementation has one focused home.
 from __future__ import annotations
 
 import time
+import asyncio
+import inspect
+from collections.abc import AsyncIterator
 from typing import Any, Mapping
 
 from interview_forge.ai.models import StreamEnvelope
@@ -61,6 +64,56 @@ def _usage_from(value: Any) -> dict[str, int]:
         if target in result:
             continue
     return result
+
+
+async def stream_chat_chunks(model: Any, messages: list[Any]) -> AsyncIterator[tuple[str, dict[str, int]]]:
+    """Yield answer deltas from an existing ChatModel without exposing reasoning.
+
+    LangChain ChatModels normally provide ``astream``.  The synchronous
+    ``stream`` fallback keeps small test doubles and older compatible models
+    usable without introducing another client or transport.
+    """
+    astream = getattr(model, "astream", None)
+    if callable(astream):
+        iterator = astream(messages)
+        if inspect.isawaitable(iterator):
+            iterator = await iterator
+        try:
+            async for chunk in iterator:
+                yield _chat_chunk(chunk)
+        finally:
+            close = getattr(iterator, "aclose", None)
+            if callable(close):
+                await close()
+        return
+
+    stream = getattr(model, "stream", None)
+    if not callable(stream):
+        raise TypeError("chat model does not support streaming")
+    iterator = iter(stream(messages))
+    sentinel = object()
+
+    def next_chunk() -> Any:
+        try:
+            return next(iterator)
+        except StopIteration:
+            return sentinel
+
+    try:
+        while True:
+            chunk = await asyncio.to_thread(next_chunk)
+            if chunk is sentinel:
+                break
+            yield _chat_chunk(chunk)
+    finally:
+        close = getattr(iterator, "close", None)
+        if callable(close):
+            await asyncio.to_thread(close)
+
+
+def _chat_chunk(chunk: Any) -> tuple[str, dict[str, int]]:
+    """Normalize one ChatModel chunk while intentionally dropping reasoning."""
+    return _content_text(getattr(chunk, "content", chunk)), _usage_from(chunk)
 
 
 
@@ -174,5 +227,4 @@ def _stream_deepseek_once(model: Any, messages: list[Any]) -> tuple[StreamEnvelo
     else:
         metrics["content_tokens_per_sec"] = None
     return StreamEnvelope("".join(content_parts), usage), metrics
-
 

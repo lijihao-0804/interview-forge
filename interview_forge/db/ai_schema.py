@@ -43,6 +43,24 @@ CREATE TABLE IF NOT EXISTS ai_daily_quota (
     reset_offset INTEGER NOT NULL DEFAULT 0 CHECK (reset_offset >= 0),
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_chat_sessions_updated
+    ON chat_sessions(updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id
+    ON chat_messages(session_id, id ASC);
 """
 
 
@@ -84,4 +102,12 @@ def ensure_ai_schema(connection) -> None:
            ON ai_tasks(task, snapshot_hash, prompt_version, model_key, status)"""
     )
     connection.execute("CREATE INDEX IF NOT EXISTS ix_ai_insights_created ON ai_insights(created_at DESC)")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_chat_sessions_updated "
+        "ON chat_sessions(updated_at DESC, id DESC)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id "
+        "ON chat_messages(session_id, id ASC)"
+    )
     connection.commit()
