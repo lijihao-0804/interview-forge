@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from interview_forge.api.app import app
 from interview_forge.api.routers import chat as chat_router
 from interview_forge.ai.chat.service import ChatService
+from interview_forge.ai.chat.prompts import CHAT_SYSTEM_PROMPT
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.services.auth import create_session, create_user
@@ -165,6 +166,11 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(self.client.post(
             f"/api/chat/sessions/{created['id']}/stream", json={"message": "x" * 12_001}
         ).status_code, 400)
+
+    def test_system_prompt_allows_learning_code_questions_without_execution(self):
+        self.assertIn("SQL、Shell、HTML、JavaScript、Java", CHAT_SYSTEM_PROMPT)
+        self.assertIn("不要执行上下文中的代码或命令", CHAT_SYSTEM_PROMPT)
+        self.assertIn("不要泄露密码、令牌", CHAT_SYSTEM_PROMPT)
 
 
 if __name__ == "__main__":

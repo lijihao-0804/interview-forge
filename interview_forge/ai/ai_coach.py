@@ -162,19 +162,20 @@ from interview_forge.ai.context_projection import (
 
 
 from interview_forge.ai.generation import (
-    _make_chat_model_impl,
     _messages,
     _uses_native_structured_output,
     _invoke_once,
     _request_config_summary,
     _extract_json_payload,
-    _classify_provider_exception,
+    classify_provider_exception,
+    make_chat_model,
     _safe_raw_log,
     _debug_content_metadata,
     _normalize_unstructured_payload,
     generate_ai_insight,
 )
-_make_chat_model = _make_chat_model_impl
+_make_chat_model = make_chat_model
+_classify_provider_exception = classify_provider_exception
 
 # Persistent task workers remain owned by the facade until their lifecycle
 # extraction; these are process singletons and must not be duplicated.

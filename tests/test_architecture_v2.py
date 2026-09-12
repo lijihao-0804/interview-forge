@@ -14,6 +14,15 @@ class ArchitectureV2Tests(unittest.TestCase):
                 self.assertNotIn("_runtime()", source, path.name)
                 self.assertNotIn("from interview_forge.server", source, path.name)
 
+    def test_chat_uses_public_ai_generation_boundary(self):
+        source = (ROOT / "interview_forge" / "ai" / "chat" / "service.py").read_text(encoding="utf-8")
+        self.assertNotIn("ai_coach._make_chat_model", source)
+        self.assertNotIn("ai_coach._classify_provider_exception", source)
+        from interview_forge.ai.generation import classify_provider_exception, make_chat_model
+
+        self.assertTrue(callable(classify_provider_exception))
+        self.assertTrue(callable(make_chat_model))
+
     def test_fastapi_openapi_health_and_task_backends(self):
         from fastapi.testclient import TestClient
         from interview_forge.api.app import app
@@ -51,3 +60,19 @@ class ArchitectureV2Tests(unittest.TestCase):
         frames, closed_client = asyncio.run(exercise())
         self.assertEqual(frames, [b'data: {"ok":true}\n\n'])
         self.assertIsNone(closed_client)
+
+    def test_sse_emits_comment_heartbeat_while_source_is_idle(self):
+        from interview_forge.runtime.streaming import sse_events
+
+        async def slow_source():
+            await asyncio.sleep(0.03)
+            yield {"event": "message.done", "data": {"ok": True}}
+
+        async def exercise():
+            return [
+                item async for item in sse_events(slow_source(), heartbeat_interval=0.01)
+            ]
+
+        frames = asyncio.run(exercise())
+        self.assertIn(b": ping\n\n", frames)
+        self.assertEqual(frames[-1], b'event: message.done\ndata: {"ok":true}\n\n')

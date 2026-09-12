@@ -112,38 +112,47 @@ class ContextBuilder:
         *,
         existing: str,
         new_rows: Sequence[sqlite3.Row],
-    ) -> str:
+    ) -> tuple[str, int | None]:
         existing_text = existing.strip()
         prefix = SUMMARY_PREFIX.strip()
         if existing_text.startswith(prefix):
             existing_text = existing_text[len(prefix):].lstrip()
+        prefix_cost = self.estimator.estimate_text(SUMMARY_PREFIX)
+        new_budget = max(
+            1,
+            self.budget.summary_tokens - prefix_cost
+            if not existing_text
+            else self.budget.summary_tokens // 2,
+        )
         lines: list[str] = []
-        # Keep the first and newest complete turns from the newly aged batch.
-        # The existing summary already carries older stable material, while
-        # this preserves both an early goal and the latest incremental outcome.
-        selected_rows = list(new_rows)
-        if len(selected_rows) > 4:
-            selected_rows = selected_rows[:2] + selected_rows[-2:]
-        for row in selected_rows:
+        covered_rows: list[sqlite3.Row] = []
+        for row in new_rows:
             role = "目标/问题" if str(row["role"]) == "user" else "结论/建议"
             content = _collapse(str(row["content"]))
-            if content:
-                if len(content) > 360:
-                    content = content[:357].rstrip() + "..."
-                lines.append(f"{role}：{content}")
+            # Keep every crossed row represented by a small deterministic
+            # excerpt.  The previous first2+last2 approach silently skipped
+            # middle rows while advancing through_message_id past them.
+            if len(content) > 48:
+                content = content[:24].rstrip() + "…" + content[-20:].lstrip()
+            line = f"{role}：{content or '（空消息）'}"
+            lines.append(line)
+            covered_rows.append(row)
+            if self.estimator.estimate_text("\n".join(lines)) > new_budget:
+                lines.pop()
+                covered_rows.pop()
+                break
         if not lines and not existing_text:
-            return ""
+            return "", None
         new_text = "\n".join(lines)
-        new_budget = max(1, self.budget.summary_tokens // 2)
         new_part = trim_text_to_tokens(new_text, new_budget, self.estimator)
-        prefix_cost = self.estimator.estimate_text(SUMMARY_PREFIX)
         new_cost = self.estimator.estimate_text(new_part)
         old_budget = max(1, self.budget.summary_tokens - prefix_cost - new_cost)
         old_part = trim_text_to_tokens(existing_text, old_budget, self.estimator)
         body = SUMMARY_PREFIX + old_part
         if new_part:
             body += "\n" + new_part
-        return trim_text_to_tokens(body, self.budget.summary_tokens, self.estimator)
+        covered_id = int(covered_rows[-1]["id"]) if covered_rows else None
+        return trim_text_to_tokens(body, self.budget.summary_tokens, self.estimator), covered_id
 
     def build(
         self,
@@ -151,15 +160,18 @@ class ContextBuilder:
         session_id: str,
         current_message: str,
         user_db: Path | str,
+        current_message_id: int | None = None,
     ) -> list[dict[str, str]]:
-        """Return ordered, bounded messages with the current request exactly once."""
+        """Return ordered, bounded messages with the current request exactly once.
+
+        The persisted current turn is identified by its database id.  Content
+        equality is intentionally not used: a user may ask the same question
+        more than once and those earlier turns remain meaningful context.
+        """
         rows, summary_row = self._load(user_db=user_db, session_id=session_id)
         # The service persists the current user turn before building.  Remove
-        # all equal user rows so the request is re-added exactly once at the end.
-        history = [
-            row for row in rows
-            if not (str(row["role"]) == "user" and str(row["content"]) == current_message)
-        ]
+        # only that row; equal content in earlier turns is valid history.
+        history = [row for row in rows if current_message_id is None or int(row["id"]) != int(current_message_id)]
         recent = self._select_recent(history)
         recent_ids = {int(row["id"]) for row in recent}
         cutoff_id = min(recent_ids) if recent_ids else (int(history[-1]["id"]) + 1 if history else 0)
@@ -169,14 +181,17 @@ class ContextBuilder:
             if int(row["id"]) > through and int(row["id"]) < cutoff_id and int(row["id"]) not in recent_ids
         ]
         summary_text = str(summary_row["summary"]) if summary_row is not None else ""
+        summary_through = through
         if new_summary_rows:
-            summary_text = self._summary_for(existing=summary_text, new_rows=new_summary_rows)
-            self._save_summary(
-                user_db=user_db,
-                session_id=session_id,
-                summary=summary_text,
-                through_message_id=int(new_summary_rows[-1]["id"]),
-            )
+            summary_text, covered_id = self._summary_for(existing=summary_text, new_rows=new_summary_rows)
+            if covered_id is not None and covered_id > through:
+                summary_through = covered_id
+                self._save_summary(
+                    user_db=user_db,
+                    session_id=session_id,
+                    summary=summary_text,
+                    through_message_id=covered_id,
+                )
 
         system_content = trim_text_to_tokens(
             self.system_prompt + (("\n\n" + self.contextual_system) if self.contextual_system else ""),
@@ -193,7 +208,11 @@ class ContextBuilder:
         })
         self.last_build = {
             "summary_present": bool(summary_text),
-            "summary_through_message_id": int(new_summary_rows[-1]["id"]) if new_summary_rows else through,
+            "summary_through_message_id": summary_through,
+            "summary_pending_message_count": sum(
+                1 for row in new_summary_rows if int(row["id"]) > summary_through
+            ),
+            "current_message_id": current_message_id,
             "recent_message_count": len(recent),
             "recent_message_ids": sorted(recent_ids),
             "estimated_prompt_tokens": self.estimator.estimate_messages(result),
