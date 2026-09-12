@@ -16,7 +16,7 @@ from interview_forge.ai.config import AIConfig
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.ai.telemetry import debug_ai_event
-from interview_forge.ai.chat.prompts import CHAT_SYSTEM_PROMPT
+from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.core.runtime import server_runtime
 
 
@@ -102,7 +102,7 @@ def _safe_provider_error(exc: BaseException) -> tuple[str, str]:
         return "provider_error", "AI 服务暂时不可用，请稍后重试。"
 
 
-def _usage_payload(usage: Mapping[str, Any]) -> dict[str, Any]:
+def _usage_payload(usage: Mapping[str, Any], *, estimated_input_tokens: int | None = None) -> dict[str, Any]:
     normalized = {
         key: int(value)
         for key, value in usage.items()
@@ -110,9 +110,13 @@ def _usage_payload(usage: Mapping[str, Any]) -> dict[str, Any]:
         and isinstance(value, (int, float))
         and value >= 0
     }
-    return {"status": "available", "estimated": False, **normalized} if normalized else {
+    payload = {"status": "available", "estimated": False, **normalized} if normalized else {
         "status": "unavailable", "estimated": False,
     }
+    if estimated_input_tokens is not None and "input_tokens" not in payload:
+        payload["estimated_input_tokens"] = int(estimated_input_tokens)
+        payload["estimated"] = True
+    return payload
 
 
 def _claim_session(db_path: Path, session_id: str) -> bool:
@@ -250,20 +254,6 @@ class ChatService:
             connection.commit()
             return int(cursor.lastrowid)
 
-    @staticmethod
-    def _conversation_messages(*, user_db: Path, session_id: str, current_message: str) -> list[dict[str, str]]:
-        with closing(server_runtime.connect(user_db)) as connection:
-            rows = connection.execute(
-                "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id ASC",
-                (session_id,),
-            ).fetchall()
-        history = [{"role": str(row["role"]), "content": str(row["content"])} for row in rows]
-        for index in range(len(history) - 1, -1, -1):
-            if history[index]["role"] == "user" and history[index]["content"] == current_message:
-                history.pop(index)
-                break
-        return [{"role": "system", "content": CHAT_SYSTEM_PROMPT}, *history, {"role": "user", "content": current_message}]
-
     async def stream_reply(
         self, *, user_db: Path | str, session_id: str, message: str
     ) -> AsyncIterator[dict[str, Any]]:
@@ -299,10 +289,21 @@ class ChatService:
                     yield _event("error", {"code": "busy", "message": "AI 当前请求较多，请稍后重试。"})
                     return
                 model_claimed = True
-                messages = self._conversation_messages(
-                    user_db=path, session_id=session_id, current_message=clean_message
+                context_builder = ContextBuilder()
+                messages = await asyncio.to_thread(
+                    context_builder.build,
+                    user_db=path,
+                    session_id=session_id,
+                    current_message=clean_message,
                 )
-                debug_ai_event("chat_stream_started", session_id=session_id, message_id=stream_message_id)
+                estimated_prompt_tokens = int(context_builder.last_build.get("estimated_prompt_tokens", 0))
+                debug_ai_event(
+                    "chat_stream_started",
+                    session_id=session_id,
+                    message_id=stream_message_id,
+                    input_tokens_estimated=estimated_prompt_tokens,
+                    summary_present=context_builder.last_build.get("summary_present", False),
+                )
                 model = await asyncio.to_thread(self.model_factory, config)
                 provider_stream = self.stream_factory(model, messages)
                 async for delta, chunk_usage in provider_stream:
@@ -312,7 +313,7 @@ class ChatService:
                         continue
                     answer_parts.append(delta)
                     yield _event("message.delta", {"delta": delta})
-                usage_payload = _usage_payload(usage)
+                usage_payload = _usage_payload(usage, estimated_input_tokens=estimated_prompt_tokens)
                 self._save_assistant_message(
                     user_db=path,
                     session_id=session_id,

@@ -61,6 +61,12 @@ CREATE INDEX IF NOT EXISTS ix_chat_sessions_updated
     ON chat_sessions(updated_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id
     ON chat_messages(session_id, id ASC);
+CREATE TABLE IF NOT EXISTS chat_session_summaries (
+    session_id TEXT PRIMARY KEY REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    summary TEXT NOT NULL,
+    through_message_id INTEGER,
+    updated_at TEXT NOT NULL
+);
 """
 
 
