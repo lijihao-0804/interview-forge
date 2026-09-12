@@ -163,6 +163,20 @@ class ToolInfrastructureTests(unittest.TestCase):
             )
         self.assertTrue(learning.data["available"])
         compiler.assert_called_once()
+        preloaded_context = _context(self.db,)
+        preloaded_context.artifacts["learning_context"] = {
+            "task": "learning_diagnosis", "target_problem_id": None,
+            "available": True, "projection": {"task": "learning_diagnosis"},
+            "data_quality": {},
+        }
+        with patch(
+            "interview_forge.ai.tools.builtins.learning.LearningContextProvider.build_for_task"
+        ) as duplicate_compiler:
+            reused = get_learning_context(
+                preloaded_context, GetLearningContextArgs(task="learning_diagnosis")
+            )
+        duplicate_compiler.assert_not_called()
+        self.assertTrue(reused.data["reused_preloaded"])
         with self.assertRaises(Exception):
             GetLearningContextArgs(task="problem_review")
 
@@ -175,6 +189,9 @@ class ToolInfrastructureTests(unittest.TestCase):
         with patch("interview_forge.ai.tools.builtins.weather.weather_for_user", return_value=weather_payload):
             weather = get_weather(ctx, GetWeatherArgs())
         self.assertEqual(weather.data["location"]["display_name"], "南京")
+        with patch("interview_forge.ai.tools.builtins.weather.weather_for_location", return_value=weather_payload) as city_weather:
+            get_weather(ctx, GetWeatherArgs(location="上海"))
+        city_weather.assert_called_once_with("上海")
 
         other = ToolExecutionContext(
             user_db=Path("other-user") / "hot100-study.db", session_id="s", turn_id="t",
