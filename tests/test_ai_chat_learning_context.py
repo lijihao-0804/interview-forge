@@ -109,6 +109,26 @@ class LearningContextSelectorTests(unittest.TestCase):
         self.assertTrue(all(call.kwargs["user_request"] == "" for call in calls))
         self.assertNotIn("最近状态", json.dumps(diagnosis["projection"], ensure_ascii=False))
 
+    def test_compiler_failure_degrades_and_logs_only_safe_category(self):
+        provider = LearningContextProvider()
+        with patch(
+            "interview_forge.ai.chat.learning_context.analytics_cached",
+            side_effect=RuntimeError("password=should-not-be-logged"),
+        ), patch(
+            "interview_forge.ai.chat.learning_context.debug_ai_event"
+        ) as telemetry:
+            result = provider.build(user_db=Path("alice.db"), query="最近状态")
+
+        self.assertFalse(result["available"])
+        telemetry.assert_called_once_with(
+            "chat_learning_context_failed",
+            task="learning_diagnosis",
+            error_type="RuntimeError",
+        )
+        serialized = json.dumps(telemetry.call_args.kwargs, ensure_ascii=False)
+        self.assertNotIn("password", serialized)
+        self.assertNotIn("should-not-be-logged", serialized)
+
     def test_chat_projection_is_bounded_and_keeps_quality_without_trace_material(self):
         context = _compiled_context()
         context["facts"] = context["facts"] * 20

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from interview_forge.ai.context_projection import project_learning_context_for_chat
+from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.analytics.cache import analytics_cached
 from interview_forge.analytics.context_compiler import (
     ContextCompilerError,
@@ -104,6 +105,15 @@ def _unavailable_result(
     }
 
 
+def _record_compile_failure(selection: Mapping[str, Any], exc: BaseException) -> None:
+    """Record only safe exception metadata; never include learning content."""
+    debug_ai_event(
+        "chat_learning_context_failed",
+        task=str(selection.get("task", "unknown")),
+        error_type=type(exc).__name__,
+    )
+
+
 class LearningContextProvider:
     """Build a short-lived, task-specific view over the existing analytics compiler."""
 
@@ -122,11 +132,13 @@ class LearningContextProvider:
                 target_problem_id=selection.get("target_problem_id"),
                 budget_tier=str(selection["budget_tier"]),
             )
-        except (ContextCompilerError, ValueError, TypeError):
+        except (ContextCompilerError, ValueError, TypeError) as exc:
+            _record_compile_failure(selection, exc)
             return _unavailable_result(selection, analytics)
-        except Exception:
+        except Exception as exc:
             # Analytics is a read-only enhancement to chat.  A stale, missing,
             # or temporarily unreadable learning DB must not break ordinary AI.
+            _record_compile_failure(selection, exc)
             return _unavailable_result(selection, analytics)
 
         projection = project_learning_context_for_chat(

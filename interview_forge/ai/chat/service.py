@@ -11,9 +11,13 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from interview_forge.ai import ai_coach
 from interview_forge.ai.config import AIConfig
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.generation import (
+    classify_provider_exception,
+    load_ai_config,
+    make_chat_model,
+)
 from interview_forge.ai.provider import stream_chat_chunks
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.chat.context_builder import ContextBuilder
@@ -97,7 +101,7 @@ def _safe_provider_error(exc: BaseException) -> tuple[str, str]:
     if isinstance(exc, AIServiceError):
         return str(exc.category), str(exc.user_message)
     try:
-        classified = ai_coach._classify_provider_exception(exc)
+        classified = classify_provider_exception(exc)
         return str(classified.category), str(classified.user_message)
     except Exception:
         return "provider_error", "AI 服务暂时不可用，请稍后重试。"
@@ -161,8 +165,8 @@ class ChatService:
         model_factory: Callable[[AIConfig], Any] | None = None,
         stream_factory: Callable[[Any, list[Any]], AsyncIterator[tuple[str, dict[str, int]]]] = stream_chat_chunks,
     ) -> None:
-        self.config_loader = config_loader or ai_coach.load_ai_config
-        self.model_factory = model_factory or (lambda config: ai_coach._make_chat_model(config))
+        self.config_loader = config_loader or load_ai_config
+        self.model_factory = model_factory or make_chat_model
         self.stream_factory = stream_factory
 
     @staticmethod
@@ -275,7 +279,11 @@ class ChatService:
         usage: dict[str, int] = {}
         try:
             try:
-                self._save_user_message(user_db=path, session_id=session_id, content=clean_message)
+                current_message_id = self._save_user_message(
+                    user_db=path,
+                    session_id=session_id,
+                    content=clean_message,
+                )
             except LookupError:
                 yield _event("error", {"code": "session_not_found", "message": "会话不存在。"})
                 return
@@ -317,6 +325,7 @@ class ChatService:
                     user_db=path,
                     session_id=session_id,
                     current_message=clean_message,
+                    current_message_id=current_message_id,
                 )
                 estimated_prompt_tokens = int(context_builder.last_build.get("estimated_prompt_tokens", 0))
                 debug_ai_event(

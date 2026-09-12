@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 
 from interview_forge.ai.chat.context_builder import ContextBuilder, SUMMARY_PREFIX
-from interview_forge.ai.chat.token_budget import DEFAULT_CHAT_TOKEN_BUDGET, DEFAULT_TOKEN_ESTIMATOR
+from interview_forge.ai.chat.token_budget import (
+    ChatTokenBudget,
+    DEFAULT_CHAT_TOKEN_BUDGET,
+    DEFAULT_TOKEN_ESTIMATOR,
+)
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 
@@ -64,6 +68,58 @@ class ChatContextBuilderTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in messages], ["system", "user", "assistant", "user"])
         self.assertEqual(sum(item["content"] == "当前问题" for item in messages), 1)
         self.assertIsNone(self.summary_row())
+
+    def test_repeated_current_content_keeps_earlier_turns(self):
+        self.add_messages([
+            ("user", "继续"),
+            ("assistant", "第一次继续后的回答"),
+            ("user", "继续"),
+        ])
+        connection = sqlite3.connect(self.db)
+        try:
+            current_id = connection.execute(
+                "SELECT id FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (self.session_id,),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
+        messages = ContextBuilder().build(
+            session_id=self.session_id,
+            current_message="继续",
+            current_message_id=int(current_id),
+            user_db=self.db,
+        )
+        self.assertEqual(sum(item["content"] == "继续" for item in messages), 2)
+        self.assertEqual(messages[-1], {"role": "user", "content": "继续"})
+
+    def test_summary_does_not_skip_middle_message(self):
+        marker = "middle-marker-must-survive"
+        self.add_messages([
+            ("user", "summary-row-0"),
+            ("user", "summary-row-1"),
+            ("user", marker),
+            ("user", "summary-row-3"),
+            ("user", "summary-row-4"),
+            ("user", "summary-row-5"),
+        ])
+        builder = ContextBuilder(
+            budget=ChatTokenBudget(
+                summary_tokens=600,
+                recent_tokens=20,
+                system_tokens=50,
+                current_tokens=20,
+                output_tokens=20,
+            )
+        )
+        builder.build(
+            session_id=self.session_id,
+            current_message="当前问题",
+            user_db=self.db,
+        )
+        summary, through = self.summary_row()
+        self.assertIn(marker, summary)
+        self.assertGreater(int(through), 0)
 
     def test_long_history_creates_incremental_summary_and_excludes_recent(self):
         rows = []

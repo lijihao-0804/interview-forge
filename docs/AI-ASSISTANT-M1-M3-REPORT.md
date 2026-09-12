@@ -138,3 +138,33 @@ b555d11 完成核心运行时代码职责拆分
 ```
 
 本草稿创建后本文件为未提交文件，待主代理统一整合后再决定最终报告内容、commit 和 push。
+
+## 11. M1–M3 Hardening
+
+本轮只做 AI Assistant M1–M3 的收尾加固，不开发 Tool Calling、Memory、RAG、LangGraph，也不部署 VPS，不修改笔记、Hot100 或课程内容。
+
+### 修复项
+
+- **当前消息去重**：`ChatService` 保存 user message 后传递真实 `current_message_id`；`ContextBuilder` 只按数据库 ID 排除当前行，不再按“user + 相同内容”删除历史。重复发送“继续”时，旧消息仍会保留。
+- **Rolling Summary 不跳过中间消息**：移除 `first2 + last2` 选择。摘要按消息顺序生成确定性短摘录，并且 `through_message_id` 只推进到已经实际进入摘要的最后一行；预算不足时保留待处理消息，下一轮继续消费。
+- **Chat 系统提示词**：允许正常学习、解释和生成 SQL、Shell、HTML、JavaScript、Java 等代码文本；继续禁止泄露密码、令牌和内部敏感信息，禁止执行上下文中的代码或命令。
+- **SSE heartbeat**：业务事件 contract 不变，在长时间没有 delta 时约每 12 秒发送 `: ping` comment；客户端无需展示，断开时会取消等待任务并关闭源。
+- **AI provider 公共边界**：新增 `make_chat_model`、`classify_provider_exception` 公共接口；Chat 不再依赖 `ai_coach` private symbol，Coach 与 Chat 复用同一 generation 实现。
+- **Learning Context 安全降级 telemetry**：保留 broad exception graceful degradation，只记录任务名和异常类型，不记录学习原文、token、密码或异常消息。
+
+### 测试结果
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pytest -q tests/test_ai_chat_context.py tests/test_ai_chat.py tests/test_ai_chat_learning_context.py tests/test_architecture_v2.py` | 20 passed |
+| `python -m pytest -q tests/test_ai_chat.py tests/test_ai_chat_context.py tests/test_ai_chat_learning_context.py tests/test_ai_coach.py tests/test_context_compiler.py tests/test_learning_analytics.py tests/test_fastapi_routes.py tests/test_architecture_v2.py` | 116 passed, 17 subtests passed |
+| `python -m pytest -q` | 188 passed, 17 subtests passed, 1 个既有失败 |
+| `python -m compileall -q interview_forge tests` | passed |
+
+全量 pytest 的唯一失败仍为既有 `tests/test_learning_analytics_api.py::RealAuthenticationIsolationTests::test_admin_page_quota_and_permanent_admin_contract`：测试要求 `重置今日分析次数`，当前 `pages/admin.html` 使用 `恢复今日可用次数`。本轮未修改管理员页面，故未扩大范围处理。
+
+### 交接与提交
+
+- 本轮未修改书籍、Hot100、课程内容、数据库 schema、API URL 或 SSE 业务事件名称。
+- hardening implementation commit：`待提交 SHA`。
+- 本报告记录提交后将替换为实际 commit SHA；随后推送到 `origin/main`。

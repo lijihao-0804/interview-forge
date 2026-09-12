@@ -146,6 +146,15 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None)
         raise AIServiceError("not_configured", "AI 服务配置不可用。") from exc
 
 
+def make_chat_model(config: AIConfig, *, thinking_mode: str | None = None) -> Any:
+    """Construct the shared ChatModel used by Coach and Chat.
+
+    This is the public provider boundary.  Callers must not reach into the
+    coach facade or depend on the private implementation symbol.
+    """
+    return _make_chat_model_impl(config, thinking_mode=thinking_mode)
+
+
 def _uses_native_structured_output(config: AIConfig) -> bool:
     """DeepSeek currently rejects response_format; keep it for OpenAI-compatible peers."""
     try:
@@ -243,6 +252,11 @@ def _classify_provider_exception(exc: BaseException) -> AIServiceError:
     if isinstance(status_code, int) and status_code in {401, 403}:
         return AIServiceError("not_configured", "AI 服务配置不可用。")
     return AIServiceError("provider_error", "AI 分析暂时失败，请稍后重试。")
+
+
+def classify_provider_exception(exc: BaseException) -> AIServiceError:
+    """Return the shared safe, user-facing provider error classification."""
+    return _classify_provider_exception(exc)
 
 
 def _safe_raw_log(value: Any) -> Any:
