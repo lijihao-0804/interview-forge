@@ -150,7 +150,7 @@ llamafactory-cli webui
 ssh -CNg -L 7860:127.0.0.1:7860 root@123.125.240.150 -p 42151
 ```
 ##### 6. 从 HuggingFace 上下载基座模型
-HuggingFace 是一个集中管理和共享预训练模型的平台  [https://huggingface.co](https://huggingface.co); 
+HuggingFace 是一个集中管理和共享预训练模型的平台  [https://huggingface.co](https://huggingface.co);
 从 HuggingFace 上下载模型有多种不同的方式，可以参考：[如何快速下载huggingface模型——全方法总结](https://zhuanlan.zhihu.com/p/663712983)
 - 创建文件夹统一存放所有基座模型
 ```bash
