@@ -24,6 +24,7 @@ from interview_forge.api.routers.leetcode import router as leetcode_router
 from interview_forge.api.routers.study import router as study_router
 from interview_forge.api.routers.weather import router as weather_router
 from interview_forge.api.routers.static import router as static_router
+from interview_forge.api.routers.chat import router as chat_router
 from interview_forge.core.async_http import AsyncHttpClient
 from interview_forge.runtime.task_manager import task_manager
 
@@ -107,4 +108,5 @@ app.include_router(analytics_router)
 app.include_router(community_router)
 app.include_router(weather_router)
 app.include_router(admin_router)
+app.include_router(chat_router)
 app.include_router(static_router)
