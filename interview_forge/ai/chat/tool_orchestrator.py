@@ -88,6 +88,7 @@ class ToolOrchestrator:
         self.last_result = ToolTurnResult()
         self._round_result = _RoundResult("", (), {})
         self._call_results: list[ToolExecutionResult] = []
+        self._confirmation_action_ids: set[str] = set()
 
     async def _stream_round(self, model: Any, messages: list[Any]):
         text_parts: list[str] = []
@@ -197,17 +198,19 @@ class ToolOrchestrator:
                     )
                 elif result.status == "confirmation_required" and result.action_id:
                     spec = self.registry.get(result.tool_name)
-                    yield _event(
-                        "tool.confirmation_required",
-                        {
-                            "action_id": result.action_id,
-                            "call_id": result.call_id,
-                            "name": result.tool_name,
-                            "display_name": spec.display_name if spec else "需要确认的操作",
-                            "message": result.confirmation_text or "是否执行该操作？",
-                            "expires_at": result.expires_at or "",
-                        },
-                    )
+                    if result.action_id not in self._confirmation_action_ids:
+                        self._confirmation_action_ids.add(result.action_id)
+                        yield _event(
+                            "tool.confirmation_required",
+                            {
+                                "action_id": result.action_id,
+                                "call_id": result.call_id,
+                                "name": result.tool_name,
+                                "display_name": spec.display_name if spec else "需要确认的操作",
+                                "message": result.confirmation_text or "是否执行该操作？",
+                                "expires_at": result.expires_at or "",
+                            },
+                        )
                 else:
                     yield _event(
                         "tool.error",

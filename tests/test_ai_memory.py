@@ -207,6 +207,20 @@ class MemoryDomainTests(unittest.TestCase):
         ))
         self.assertEqual([item["event"] for item in events], ["message.start", "message.delta", "message.done"])
         self.assertIn("收到", events[1]["data"]["delta"])
+        self.assertEqual(
+            [item["role"] for item in ChatService.list_messages(user_db=self.db, session_id=session["id"])],
+            ["user", "assistant"],
+        )
+
+    def test_memory_words_in_normal_questions_do_not_trigger_explicit_persistence(self):
+        from interview_forge.ai.memory.extractor import is_explicit_memory_request
+
+        for message in (
+            "为什么人会忘记东西？",
+            "解释一下缓存为什么会忘记之前的数据",
+            "不要忘了顺便讲一下时间复杂度",
+        ):
+            self.assertFalse(is_explicit_memory_request(message))
 
     def test_explicit_memory_save_happens_before_answer(self):
         config = AIConfig(

@@ -205,6 +205,48 @@ class ActionToolTests(unittest.TestCase):
         self.assertFalse(second["_claimed"])
         self.assertEqual(second["status"], "executing")
 
+    def test_same_action_and_arguments_in_one_turn_share_one_pending_request(self):
+        store = ActionRequestStore()
+        first = store.create(
+            user_db=self.db, session_id="session", turn_id="same-turn", user_message_id=1,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认",
+        )
+        second = store.create(
+            user_db=self.db, session_id="session", turn_id="same-turn", user_message_id=1,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认",
+        )
+        self.assertEqual(first["action_id"], second["action_id"])
+        self.assertTrue(second["_deduplicated"])
+        connection = sqlite3.connect(self.db)
+        try:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM chat_action_requests WHERE session_id = ? AND turn_id = ?",
+                ("session", "same-turn"),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(count, 1)
+
+    def test_duplicate_action_calls_emit_one_confirmation_and_one_pending_row(self):
+        calls = []
+        model = ScriptedModel([
+            [FakeChunk("需要同步", [
+                {"id": "action-a", "name": "sync_leetcode", "args": {"full": False}},
+                {"id": "action-b", "name": "sync_leetcode", "args": {"full": False}},
+            ])],
+            [FakeChunk("请确认一次即可。")],
+        ])
+        events = asyncio.run(_collect(
+            ToolOrchestrator(registry=self.registry(calls)), model, _context(self.db)
+        ))
+        self.assertEqual(len([
+            item for item in events if item["event"] == "tool.confirmation_required"
+        ]), 1)
+        self.assertEqual(len(ActionRequestStore().list_pending(
+            user_db=self.db, session_id="session"
+        )), 1)
+        self.assertEqual(calls, [])
+
     def test_default_leetcode_action_missing_credentials_is_safe_failure(self):
         registry = build_default_tool_registry()
         action = ActionRequestStore().create(

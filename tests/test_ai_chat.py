@@ -174,7 +174,7 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(events[-1][1]["code"], "provider_error")
         self.assertNotIn("secret detail", events[-1][1]["message"])
         history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
-        self.assertEqual([item["role"] for item in history], ["user"])
+        self.assertEqual(history, [])
 
     def test_tool_calling_sse_events_and_audit_metadata(self):
         self.service.model_factory = lambda _config: ToolCallingFakeModel()

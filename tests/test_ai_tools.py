@@ -7,7 +7,11 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from interview_forge.ai.tools.contracts import ToolExecutionContext, ToolKind, ToolResult, ToolSpec
-from interview_forge.ai.tools.langchain_adapter import NormalizedToolCall, tool_spec_schema
+from interview_forge.ai.tools.langchain_adapter import (
+    NormalizedToolCall,
+    ToolCallAccumulator,
+    tool_spec_schema,
+)
 from interview_forge.ai.tools.registry import ToolRegistry
 from interview_forge.ai.tools.runtime import ToolRuntime
 from interview_forge.core import default_runtime
@@ -48,6 +52,26 @@ class ToolInfrastructureTests(unittest.TestCase):
         self.assertNotIn("user_id", json.dumps(schema))
         self.assertNotIn("db_path", json.dumps(schema))
         self.assertFalse(schema["function"]["parameters"]["additionalProperties"])
+
+    def test_streaming_tool_chunks_keep_id_and_index_in_one_call(self):
+        accumulator = ToolCallAccumulator()
+        accumulator.add(type("Chunk", (), {"tool_call_chunks": [{
+            "id": "call-weather",
+            "index": 0,
+            "name": "get_weather",
+            "args": '{"location":',
+        }]})())
+        accumulator.add(type("Chunk", (), {"tool_call_chunks": [{
+            "id": None,
+            "index": 0,
+            "name": None,
+            "args": '"南京"}',
+        }]})())
+        calls = accumulator.finish()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].call_id, "call-weather")
+        self.assertEqual(calls[0].name, "get_weather")
+        self.assertEqual(calls[0].arguments, {"location": "南京"})
 
     def test_unknown_tool_invalid_extra_timeout_exception_and_large_result(self):
         async def slow(_context, _args):

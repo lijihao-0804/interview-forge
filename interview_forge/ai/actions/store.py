@@ -71,7 +71,23 @@ class ActionRequestStore:
         created = _now()
         expires = (_parse_time(created) + timedelta(seconds=max(60, ttl_seconds))).isoformat(timespec="seconds")
         action_id = uuid.uuid4().hex
+        arguments_json = json.dumps(
+            dict(arguments), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        )
         with closing(server_runtime.connect(Path(user_db))) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                """SELECT * FROM chat_action_requests
+                   WHERE session_id = ? AND turn_id = ? AND tool_name = ?
+                     AND arguments_json = ? AND status = 'pending'
+                   ORDER BY created_at ASC LIMIT 1""",
+                (session_id, turn_id, tool_name, arguments_json),
+            ).fetchone()
+            if existing is not None:
+                connection.commit()
+                payload = _payload(existing)
+                payload["_deduplicated"] = True
+                return payload
             connection.execute(
                 """INSERT INTO chat_action_requests(
                     id, session_id, turn_id, user_message_id, tool_name, arguments_json,
@@ -79,18 +95,19 @@ class ActionRequestStore:
                 ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, '{}')""",
                 (
                     action_id, session_id, turn_id, user_message_id, tool_name,
-                    json.dumps(dict(arguments), ensure_ascii=False, separators=(",", ":")),
-                    confirmation_text[:240], created, expires,
+                    arguments_json, confirmation_text[:240], created, expires,
                 ),
             )
             connection.commit()
-        return {
+        payload = {
             "action_id": action_id, "session_id": session_id, "turn_id": turn_id,
             "user_message_id": user_message_id, "tool_name": tool_name,
             "arguments": dict(arguments), "status": "pending",
             "confirmation_text": confirmation_text[:240], "created_at": created,
             "expires_at": expires,
         }
+        payload["_deduplicated"] = False
+        return payload
 
     def get(self, *, user_db: Path | str, action_id: str) -> dict[str, Any] | None:
         with closing(server_runtime.connect(Path(user_db))) as connection:
