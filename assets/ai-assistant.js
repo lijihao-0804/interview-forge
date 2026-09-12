@@ -10,6 +10,7 @@
   var input = document.getElementById("messageInput");
   var send = document.getElementById("send");
   var stop = document.getElementById("stop");
+  var toolLabels = { get_weather: "天气信息", get_learning_context: "学习情况", get_problem: "题目信息" };
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -64,12 +65,50 @@
   function renderMessage(item) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
+    var content = document.createElement("div");
+    content.className = "message-content";
     var bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.innerHTML = item.role === "assistant" ? markdown(item.content) : esc(item.content);
-    node.appendChild(bubble);
+    content.appendChild(bubble);
+    node.appendChild(content);
     messages.appendChild(node);
     return node;
+  }
+
+  function renderAssistantTurn() {
+    var node = renderMessage({ role: "assistant", content: "" });
+    var content = node.querySelector(".message-content");
+    var toolStatus = document.createElement("div");
+    toolStatus.className = "tool-status";
+    toolStatus.setAttribute("aria-live", "polite");
+    content.appendChild(toolStatus);
+    node._toolRows = Object.create(null);
+    node._toolStatus = toolStatus;
+    return node;
+  }
+
+  function updateToolStatus(name, payload) {
+    if (!state.assistantNode || !state.assistantNode._toolStatus) return;
+    var callKey = String(payload.call_id || name || "tool");
+    var row = state.assistantNode._toolRows[callKey];
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "tool-status-item";
+      state.assistantNode._toolRows[callKey] = row;
+      state.assistantNode._toolStatus.appendChild(row);
+    }
+    var label = toolLabels[name] || "工具信息";
+    if (name === "tool.start") {
+      row.className = "tool-status-item pending";
+      row.textContent = "○ 正在查询" + label + "…";
+    } else if (name === "tool.done") {
+      row.className = "tool-status-item done";
+      row.textContent = "✓ 已获取" + label;
+    } else {
+      row.className = "tool-status-item error";
+      row.textContent = "× " + String(payload.message || "工具暂时不可用");
+    }
   }
 
   async function selectSession(id) {
@@ -124,8 +163,9 @@
       if (!response.ok) { var failed = await response.json().catch(function () { return {}; }); throw new Error(failed.error || "发送失败"); }
       var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
       function onEvent(name, payload) {
-        if (name === "message.start") { state.assistantNode = renderMessage({ role: "assistant", content: "" }); state.assistantNode.querySelector(".bubble").textContent = ""; }
+        if (name === "message.start") { state.assistantNode = renderAssistantTurn(); state.assistantNode.querySelector(".bubble").textContent = ""; }
         else if (name === "message.delta" && state.assistantNode) { var bubble = state.assistantNode.querySelector(".bubble"); bubble.dataset.raw = (bubble.dataset.raw || "") + String(payload.delta || ""); bubble.innerHTML = markdown(bubble.dataset.raw); scrollBottom(); }
+        else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scrollBottom(); }
         else if (name === "message.done") { status.textContent = "已连接"; }
         else if (name === "error") { setError(payload.message || "AI 暂时不可用"); }
       }

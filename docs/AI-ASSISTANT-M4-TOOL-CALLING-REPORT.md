@@ -148,3 +148,27 @@ LangChain 只负责模型绑定与消息形状适配，业务执行仍由 Interv
 - `tests/test_ai_chat.py`
 
 后续开发者新增工具时，应先定义参数模型和 `ToolSpec`，再注册到独立 registry，并为身份边界、超时、结果预算、错误和 SSE 行为补回归测试；不要从 Router 或前端直接调用工具 handler。
+
+## M4 Final Hardening
+
+本次收尾没有改动 Tool Calling 架构，也没有引入 Memory、Action Tool、RAG、LangGraph 或 MCP。
+
+### 修复项
+
+- 工具调用被 `max_calls_per_turn`、`max_identical_calls` 拦截时，为 assistant 返回的每一个 `tool_call_id` 补齐一个 `role=tool` 安全错误结果；被拦截的调用不会进入 `ToolRuntime`，随后按 assistant tool calls → tool errors → tools-disabled notice → final model call 的顺序继续。
+- `max_total_result_tokens` 改为真正的追加前准入预算。按工具返回顺序，只有完整结果适合剩余预算时才进入模型历史；超出预算的结果只进入安全错误消息，完整数据不进入模型消息。运行时审计与 `tool.done` 事件仍保留实际执行信息。
+- AI Assistant 前端增加当前回答回合的天气、学习情况、题目信息工具状态；错误只显示后端安全消息，不显示原始 JSON、schema 或 call id。历史消息不回放工具状态，SSE heartbeat 仍被忽略，既有 message 事件合同不变。
+- 增加 `scripts/check/ai_tool_smoke.py` 手动真实 provider 检查清单，不自动执行、不包含 API key；覆盖普通问候、题目、天气和学习上下文四条路径。
+
+### 回归与验证
+
+- M4 定向工具、Chat、前端解析测试：`25 passed`。
+- AI/Analytics/FastAPI 相关测试：`126 passed, 17 subtests passed`；唯一失败为仓库既有的管理后台文案契约（测试期待“重置今日分析次数”，页面现有“恢复今日可用次数”），未修改本次范围外的管理后台。
+- 全量 pytest：`211 passed, 17 subtests passed, 1 pre-existing failure`，失败同上。
+- `python -m compileall -q interview_forge scripts tests`：通过。
+- `node --check assets/ai-assistant.js`：通过。
+- `python tools/build_hot100.py`：通过，100 个题目页保持最新。
+- `python tools/check_hot100.py`：通过，broken links 0、errors 0、warnings 0。
+- `git diff --check`：通过；build 未产生非预期页面差异。
+
+实现 commit SHA 将在提交后回填；本报告更新作为紧随其后的文档提交。
