@@ -77,7 +77,11 @@ def _semantic_coverage(digest: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_llm_context(context: Mapping[str, Any]) -> dict[str, Any]:
+def _build_llm_context(
+    context: Mapping[str, Any],
+    *,
+    include_user_request: bool = True,
+) -> dict[str, Any]:
     if not isinstance(context, Mapping) or context.get("context_schema_version") != CONTEXT_SCHEMA_VERSION:
         raise ValueError("上下文协议不正确")
     if context.get("task") != "learning_diagnosis":
@@ -125,9 +129,267 @@ def _build_llm_context(context: Mapping[str, Any]) -> dict[str, Any]:
         "coverage": _semantic_coverage(digest),
         "data_quality": quality,
         "profile": context.get("profile"),
-        "user_request": context.get("user_request"),
     }
+    if include_user_request:
+        result["user_request"] = context.get("user_request")
     return _prune_empty(result)
+
+
+CHAT_CONTEXT_VERSION = "learning-chat-context-v1"
+
+_CHAT_FACT_KEYS = frozenset(
+    {
+        "entity_type",
+        "problem_id",
+        "title",
+        "module_title",
+        "category",
+        "difficulty",
+        "mark",
+        "due",
+        "overdue",
+        "overdue_days",
+        "next_due_date",
+        "content_due_date",
+        "problem_round_count",
+        "content_round_count",
+        "last_activity_at",
+        "last_completed_at",
+        "last_submission_status",
+        "wa_count",
+        "submit_count",
+        "ever_ac",
+        "wa_after_ac_count",
+        "wa_after_latest_ac_count",
+        "last_wa_at",
+        "last_ac_at",
+        "view_count",
+        "view_days",
+        "pass_rate",
+        "module_total_contents",
+        "module_started_contents",
+        "module_completed_contents",
+        "module_completion_ratio",
+        "module_due_count",
+        "module_overdue_count",
+        "module_last_activity_at",
+        "started",
+        "completed",
+        "confidence",
+    }
+)
+_CHAT_SIGNAL_KEYS = frozenset(
+    {
+        "signal_type",
+        "entity_type",
+        "problem_id",
+        "severity",
+        "confidence",
+        "window",
+        "window_end",
+        "reason_code",
+    }
+)
+_CHAT_PROFILE_KEYS = frozenset({"learning_goal", "available_minutes", "preferred_language"})
+_CHAT_FORBIDDEN_KEYS = frozenset(
+    {
+        "trace_map",
+        "evidence",
+        "evidence_ids",
+        "metric_ids",
+        "selection_reasons",
+        "rule_version",
+        "signal_id",
+        "snapshot_hash",
+        "omitted",
+        "meta",
+    }
+)
+
+
+def _safe_chat_value(value: Any, *, depth: int = 0) -> Any:
+    """Copy only bounded, non-trace material into the chat projection."""
+    if depth > 4:
+        return None
+    if isinstance(value, Mapping):
+        result: dict[str, Any] = {}
+        for raw_key, raw_value in list(value.items())[:40]:
+            key = str(raw_key)
+            if key in _CHAT_FORBIDDEN_KEYS or key.endswith("_ids"):
+                continue
+            child = _safe_chat_value(raw_value, depth=depth + 1)
+            if child not in (None, "", [], {}):
+                result[key[:80]] = child
+        return result
+    if isinstance(value, (list, tuple)):
+        return [
+            child
+            for child in (
+                _safe_chat_value(item, depth=depth + 1) for item in list(value)[:32]
+            )
+            if child not in (None, "", [], {})
+        ]
+    if isinstance(value, str):
+        return value[:500]
+    if isinstance(value, (bool, int, float)):
+        return value
+    return None
+
+
+def _safe_chat_fact(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return _prune_empty(
+        {
+            key: _safe_chat_value(value.get(key))
+            for key in _CHAT_FACT_KEYS
+            if key in value
+        }
+    )
+
+
+def _safe_chat_signal(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return _prune_empty(
+        {
+            key: _safe_chat_value(value.get(key))
+            for key in _CHAT_SIGNAL_KEYS
+            if key in value
+        }
+    )
+
+
+def _safe_chat_digest(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    allowed = {
+        "version",
+        "overview",
+        "review_backlog",
+        "overdue_distribution",
+        "round_distribution",
+        "coverage",
+        "representative_cases",
+        "anomalies",
+        "data_quality_notes",
+    }
+    return _prune_empty(
+        {
+            key: _safe_chat_value(value.get(key))
+            for key in allowed
+            if key in value
+        }
+    )
+
+
+def _trim_chat_projection(projection: dict[str, Any], max_chars: int) -> dict[str, Any]:
+    """Fit the public projection without dropping data-quality disclosure."""
+    limit = max(256, int(max_chars))
+
+    def serialized() -> str:
+        return json.dumps(projection, ensure_ascii=False, separators=(",", ":"))
+
+    for key in ("selected_facts", "related_problem_facts", "signals"):
+        while len(serialized()) > limit and projection.get(key):
+            projection[key].pop()
+    digest = projection.get("diagnostic_digest")
+    if isinstance(digest, dict):
+        for key in ("anomalies", "representative_cases"):
+            while len(serialized()) > limit and digest.get(key):
+                digest[key].pop()
+    if len(serialized()) <= limit:
+        return projection
+
+    # The remaining fields are deliberately small, but a hostile title or
+    # profile value must not defeat the hard projection bound.
+    projection["selected_facts"] = []
+    projection["related_problem_facts"] = []
+    projection["signals"] = []
+    projection["diagnostic_digest"] = {}
+    projection["profile"] = {}
+    if len(serialized()) <= limit:
+        return projection
+
+    quality = projection.get("data_quality")
+    status = quality.get("status") if isinstance(quality, Mapping) else None
+    projection["data_quality"] = {"status": str(status or "unknown")[:48]}
+    if len(serialized()) <= limit:
+        return projection
+
+    # This branch is only reachable for an unusually tiny caller-supplied
+    # limit.  Keep the contract markers and quality status rather than
+    # returning an oversized string.
+    task = str(projection.get("task", ""))[:64]
+    projection.clear()
+    projection.update(
+        {
+            "llm_context_version": CHAT_CONTEXT_VERSION,
+            "task": task,
+            "data_quality": {"status": str(status or "unknown")[:48]},
+        }
+    )
+    return projection
+
+
+def project_learning_context_for_chat(
+    context: Mapping[str, Any],
+    *,
+    include_user_request: bool = False,
+    max_chars: int = 12_000,
+) -> dict[str, Any]:
+    """Project compiler output into bounded, untrusted chat context.
+
+    The compiler remains the source of truth.  This adapter intentionally
+    sends only human-meaningful facts and diagnostics to chat; trace maps,
+    evidence objects, internal IDs, and debug metadata stay server-side.
+    """
+    if not isinstance(context, Mapping) or context.get("context_schema_version") != CONTEXT_SCHEMA_VERSION:
+        raise ValueError("上下文协议不正确")
+    task = str(context.get("task") or "")
+    if not task:
+        raise ValueError("上下文任务不正确")
+
+    if task == "learning_diagnosis":
+        base = _build_llm_context(context, include_user_request=include_user_request)
+        digest = base.get("diagnostic_digest", {})
+    else:
+        digest = context.get("diagnostic_digest", {})
+        if not isinstance(digest, Mapping):
+            digest = {"overview": context.get("summary", {})}
+    facts = [
+        safe
+        for raw in context.get("facts", [])
+        if (safe := _safe_chat_fact(raw))
+    ]
+    signals = [
+        safe
+        for raw in context.get("signals", [])
+        if (safe := _safe_chat_signal(raw))
+    ]
+    projection: dict[str, Any] = {
+        "llm_context_version": CHAT_CONTEXT_VERSION,
+        "task": task,
+        "as_of": context.get("data_as_of"),
+        "diagnostic_digest": _safe_chat_digest(digest),
+        "selected_facts": facts,
+        "related_problem_facts": [
+            fact for fact in facts if fact.get("entity_type") == "problem"
+        ],
+        "signals": signals,
+        "data_quality": _safe_chat_value(context.get("data_quality", {})),
+        "profile": _safe_chat_value(
+            {
+                key: context.get("profile", {}).get(key)
+                for key in _CHAT_PROFILE_KEYS
+                if isinstance(context.get("profile"), Mapping)
+                and key in context.get("profile", {})
+            }
+        ),
+    }
+    if include_user_request:
+        projection["user_request"] = _safe_chat_value(context.get("user_request"))
+    return _trim_chat_projection(_prune_empty(projection), max_chars)
 
 
 def _context_json(context: Mapping[str, Any]) -> str:
