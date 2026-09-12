@@ -172,3 +172,9 @@ LangChain 只负责模型绑定与消息形状适配，业务执行仍由 Interv
 - `git diff --check`：通过；build 未产生非预期页面差异。
 
 实现 commit SHA：`816069e`；本报告更新作为紧随其后的文档提交。
+
+### Final PASS follow-up
+
+复核发现前端工具状态曾将 SSE 事件名误用于工具标签查找，导致天气、学习情况和题目信息都可能显示为“工具信息”。已修正为读取 payload 中的工具名，并优先使用后端提供的 `display_name`；静态回归测试确认 `get_weather`、`get_problem`、`get_learning_context` 映射正确。`node --check assets/ai-assistant.js` 与相关 21 项测试通过。
+
+修复 commit SHA：`db5b944`。M4 Tool Calling Layer: **FINAL PASS**。
