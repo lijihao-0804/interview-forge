@@ -20,6 +20,9 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("get_weather: \"天气信息\"", self.source)
         self.assertIn("get_learning_context: \"学习情况\"", self.source)
         self.assertIn("get_problem: \"题目信息\"", self.source)
+        self.assertIn('var toolName = String(payload.name || "");', self.source)
+        self.assertIn("payload.display_name || toolLabels[toolName]", self.source)
+        self.assertNotIn("toolLabels[name]", self.source)
         self.assertIn("node._toolStatus", self.source)
 
     def test_history_messages_do_not_replay_tool_status_and_heartbeat_is_ignored(self):
