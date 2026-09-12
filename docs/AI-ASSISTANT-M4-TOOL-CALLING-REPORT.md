@@ -171,4 +171,4 @@ LangChain 只负责模型绑定与消息形状适配，业务执行仍由 Interv
 - `python tools/check_hot100.py`：通过，broken links 0、errors 0、warnings 0。
 - `git diff --check`：通过；build 未产生非预期页面差异。
 
-实现 commit SHA 将在提交后回填；本报告更新作为紧随其后的文档提交。
+实现 commit SHA：`816069e`；本报告更新作为紧随其后的文档提交。
