@@ -86,6 +86,30 @@ CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_session
     ON chat_tool_runs(session_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_turn
     ON chat_tool_runs(turn_id, created_at ASC);
+CREATE TABLE IF NOT EXISTS user_memories (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('preference', 'goal', 'constraint', 'learning_context')),
+    canonical_key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    display_text TEXT NOT NULL,
+    source_type TEXT NOT NULL CHECK (source_type IN ('explicit', 'inferred')),
+    source_session_id TEXT,
+    source_message_id INTEGER,
+    confidence REAL NOT NULL,
+    importance INTEGER NOT NULL,
+    valid_from TEXT,
+    valid_to TEXT,
+    status TEXT NOT NULL CHECK (status IN ('active', 'superseded')),
+    supersedes_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_memories_active_key
+    ON user_memories(kind, canonical_key) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS ix_user_memories_status ON user_memories(status);
+CREATE INDEX IF NOT EXISTS ix_user_memories_kind ON user_memories(kind);
+CREATE INDEX IF NOT EXISTS ix_user_memories_canonical_key ON user_memories(canonical_key);
+CREATE INDEX IF NOT EXISTS ix_user_memories_updated_at ON user_memories(updated_at DESC);
 """
 
 
