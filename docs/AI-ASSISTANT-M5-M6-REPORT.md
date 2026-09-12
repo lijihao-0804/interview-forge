@@ -110,3 +110,34 @@ M5 完成了有边界、可删除、可隔离、预算受控的长期记忆；M6
 | `node --check assets/ai-assistant.js` | passed |
 
 M5 Final Hardening implementation SHA：`e7183fd`。
+
+## Post-M1–M6 Reliability Hardening
+
+本轮针对运行时审查中列出的部署前问题做最小收尾，不扩大到 Tool Runtime、Memory 架构或新产品功能。
+
+### 修复项
+
+- **LangChain 流式 ToolCall 聚合**：以 provider chunk 的 `index` 优先关联增量片段，保留真实 `tool_call_id`，避免同一次调用被拆成多个工具调用。
+- **显式记忆意图识别**：由宽松子串判断改为带语义上下文的正则匹配，普通问题中的“忘记/记住”不再误触发保存或删除。
+- **失败 Chat 回滚**：用户消息已落库但本轮未能保存 assistant 消息时，仅回滚当前孤儿 user message，并恢复会话时间/标题状态，避免失败请求污染历史。
+- **inferred Memory 脱离关键回答路径**：先保存 assistant、发送 `message.done`，再异步执行推断记忆；提取或保存失败不会阻止正常 Chat 完成。
+- **同一轮 ACTION 去重**：按 session、turn、tool、规范化参数复用 pending request；同一 action 只发送一次 confirmation SSE，避免重复确认卡片和重复 pending 记录。
+
+第 6–8 项审查建议（trusted system 消息边界、取消语义与更广泛的 provider 细节）本轮未扩大处理范围，留待后续有明确需求时单独评估。
+
+### 验证与提交
+
+| 命令 | 结果 |
+|---|---|
+| Tool/Action/Chat/Memory 定向回归测试 | 48 passed |
+| 全量 `python -m pytest -q` | 234 passed，17 subtests passed，1 个既有管理员文案失败 |
+| `python -m compileall -q interview_forge tests` | passed |
+| `node --check assets/ai-assistant.js` | passed |
+| `python -m scripts.build.build_html_site` | passed，无非预期工作区变更 |
+| `python -m scripts.build.build_hot100` | passed，100 个题目页面保持最新 |
+| `python -m scripts.check.check_hot100` | passed；`broken_links=0, errors=0, warnings=0` |
+| `git diff --check` | passed；仅有 Windows 换行提示 |
+
+全量测试唯一失败仍为既有的 `tests/test_learning_analytics_api.py::RealAuthenticationIsolationTests::test_admin_page_quota_and_permanent_admin_contract`：测试要求管理员页面包含“重置今日分析次数”，当前页面实际使用“恢复今日可用次数”。本轮没有修改管理员页面，该失败与本轮运行时修复无关。
+
+本轮实现提交：`b419e7b`。
