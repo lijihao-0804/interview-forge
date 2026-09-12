@@ -79,3 +79,34 @@ M5 与 M6 保持为两个独立 milestone commit。报告提交只包含文档�
 ## 6. 结论
 
 M5 完成了有边界、可删除、可隔离、预算受控的长期记忆；M6 完成了服务端确认、原子状态机和 exactly-once 语义的安全操作工具层。M1–M6 现已完成本轮开发目标，后续不自动扩展新的 Agent 能力。
+
+## M5 Final Hardening
+
+本次只收尾 M5，不重构 M5/M6，不修改 M6 Tool Runtime、Action state machine、`sync_leetcode`、Learning Context Compiler 或无关前端 UI。
+
+### 修复项
+
+- **ContextBlock priority admission**：`ContextBuilder` 在 system budget 内按 priority 降序做 block admission。Learning Context（90）先于 Memory（80）和其他普通上下文进入预算；低优先级 block 不会因为先 append 而挤掉高优先级 block，并在 `last_build` 中记录实际 admitted block。
+- **Extractor routing**：保留 deterministic fast path，但仅处理可可靠解析的简单表达；复杂但 memory-worthy 的表达进入现有 structured extractor；普通消息不会调用 extractor。所有候选仍统一经过 `MemoryPolicy`。
+- **canonical_key refinement**：确定性路径改用 `preference.explanation_order`、`preference.programming_language`、`constraint.daily_study_minutes`、`goal.target_role` 等具体语义 key；provider 粗粒度 key 会被策略层规范化，互不相关的长期事实不再无故互相 supersede。
+- **Explicit persistence semantics**：识别显式“记住/忘记”请求后，先完成 candidate → policy → store，再允许模型回答。服务端以 `MemoryPersistenceResult` 和可信 ContextBlock 告知本轮持久化状态；保存失败时直接返回“这次没有成功保存该记忆”，禁止伪装已保存。显式 forget 成功也在回答前完成；inferred memory 仍保持 post-turn graceful degradation。
+
+### 新增回归测试
+
+- 高预算不足时 Learning Context 优先于 Memory。
+- 不同 preference 同时 active；同一 canonical key 的新值仍 supersede 旧值。
+- 复杂 memory-worthy 消息确实调用 structured extractor，普通消息跳过 extractor。
+- explicit save 成功后才生成回答并把 `persistence_success=true` 注入模型上下文。
+- explicit save 失败不得出现“已记住”；explicit forget 成功后记忆已删除；inferred extractor 失败不影响 Chat 完成。
+
+### 验证与提交
+
+| 命令 | 结果 |
+|---|---|
+| M5 定向 Memory/Context 测试 | 17 passed |
+| M1–M4 AI + M5/M6 相关测试 | 127 passed，11 subtests passed |
+| 全量 `python -m pytest -q` | 230 passed，17 subtests passed，1 个既有管理员文案失败 |
+| `python -m compileall -q interview_forge tests` | passed |
+| `node --check assets/ai-assistant.js` | passed |
+
+M5 Final Hardening implementation SHA：`e7183fd`。
