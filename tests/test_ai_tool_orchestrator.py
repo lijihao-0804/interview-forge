@@ -214,6 +214,44 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertIn("tool.error", [item["event"] for item in events])
         self.assertEqual(events[-1]["data"]["delta"], "我无法获取该信息。")
         self.assertEqual(model.calls, 3)
+        final_roles = [item["role"] for item in model.seen[2][1:]]
+        self.assertEqual(final_roles, ["assistant", "tool", "assistant", "tool", "system"])
+        final_tool_ids = {
+            item["tool_call_id"] for item in model.seen[2] if item.get("role") == "tool"
+        }
+        self.assertEqual(final_tool_ids, {"x", "y"})
+
+    def test_max_calls_blocks_without_execution_and_keeps_every_tool_call_well_formed(self):
+        executed = []
+
+        def reader(_context, args):
+            executed.append(args.value)
+            return {"value": args.value}
+
+        registry = ToolRegistry([ToolSpec("read", "读", "读", ValueArgs, reader)])
+        model = ScriptedModel([
+            [FakeChunk("先查两项", [
+                {"id": "call-a", "name": "read", "args": {"value": "a"}},
+                {"id": "call-b", "name": "read", "args": {"value": "b"}},
+            ])],
+            [FakeChunk("已停止继续调用")],
+        ])
+        orchestrator = ToolOrchestrator(
+            registry=registry, policy=ToolPolicy(max_calls_per_turn=1)
+        )
+        events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
+        self.assertEqual(executed, [])
+        blocked = [item for item in events if item["event"] == "tool.error"]
+        self.assertEqual([item["data"]["code"] for item in blocked], ["tool_limit_reached"] * 2)
+        final_history = model.seen[1]
+        self.assertEqual(
+            [item["role"] for item in final_history[1:]],
+            ["assistant", "tool", "tool", "system"],
+        )
+        tool_messages = [item for item in final_history if item.get("role") == "tool"]
+        self.assertEqual({item["tool_call_id"] for item in tool_messages}, {"call-a", "call-b"})
+        self.assertTrue(all('"code":"tool_limit_reached"' in item["content"] for item in tool_messages))
+        self.assertEqual(events[-1]["data"]["delta"], "已停止继续调用")
 
     def test_invalid_arguments_and_timeout_return_safe_error_then_continue(self):
         async def slow(_context, _args):
@@ -276,6 +314,48 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(calls, ["x"])
         self.assertEqual(len([item for item in events if item["event"] == "tool.done"]), 2)
         self.assertEqual(model.calls, 4)
+        final_history = model.seen[3]
+        self.assertEqual(
+            [item["role"] for item in final_history[1:]],
+            ["assistant", "tool", "assistant", "tool", "assistant", "tool", "system"],
+        )
+        blocked_message = [
+            item for item in final_history
+            if item.get("role") == "tool" and '"tool_limit_reached"' in item["content"]
+        ]
+        self.assertEqual(len(blocked_message), 1)
+        self.assertEqual(blocked_message[0]["tool_call_id"], "same")
+
+    def test_result_budget_admits_ordered_results_before_history_append(self):
+        def reader(_context, args):
+            return {"marker": args.value * 30}
+
+        registry = ToolRegistry([ToolSpec("read", "读", "读", ValueArgs, reader)])
+        model = ScriptedModel([
+            [FakeChunk("查询两项", [
+                {"id": "budget-a", "name": "read", "args": {"value": "a"}},
+                {"id": "budget-b", "name": "read", "args": {"value": "b"}},
+            ])],
+            [FakeChunk("预算不足时继续回答")],
+        ])
+        orchestrator = ToolOrchestrator(
+            registry=registry,
+            policy=ToolPolicy(max_total_result_tokens=15),
+        )
+        events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
+        final_history = model.seen[1]
+        tool_messages = [item for item in final_history if item.get("role") == "tool"]
+        self.assertEqual(len(tool_messages), 2)
+        first_payload = json.loads(tool_messages[0]["content"])
+        second_payload = json.loads(tool_messages[1]["content"])
+        self.assertTrue(first_payload["ok"])
+        self.assertEqual(second_payload["error"]["code"], "tool_result_budget_exceeded")
+        self.assertEqual(
+            second_payload["error"]["message"],
+            "该工具结果因本轮上下文预算限制未完整提供",
+        )
+        self.assertNotIn("bbbb", tool_messages[1]["content"])
+        self.assertEqual(events[-1]["data"]["delta"], "预算不足时继续回答")
 
     def test_runtime_cancellation_is_audited_without_an_assistant_result(self):
         async def slow(_context, _args):

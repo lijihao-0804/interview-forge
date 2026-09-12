@@ -31,6 +31,10 @@ TOOLS_DISABLED_NOTICE = (
     "工具调用上限已达到。不要再请求工具；仅根据已有上下文与已经返回的工具结果回答，"
     "明确说明无法确认的信息。"
 )
+TOOL_LIMIT_ERROR_CODE = "tool_limit_reached"
+TOOL_LIMIT_ERROR_MESSAGE = "本轮工具调用上限已达到"
+TOOL_RESULT_BUDGET_ERROR_CODE = "tool_result_budget_exceeded"
+TOOL_RESULT_BUDGET_ERROR_MESSAGE = "该工具结果因本轮上下文预算限制未完整提供"
 
 
 @dataclass(frozen=True)
@@ -209,20 +213,68 @@ class ToolOrchestrator:
         messages: list[Any],
         calls: list[NormalizedToolCall],
         results: list[ToolExecutionResult],
-    ) -> None:
+        *,
+        total_result_tokens: int = 0,
+        max_total_result_tokens: int | None = None,
+        blocked: bool = False,
+    ) -> tuple[int, bool]:
+        """Append one tool message for every call, before the next model call.
+
+        The total-result limit is an admission budget for successful result data,
+        matching the runtime's result-token estimate.  A result which does not
+        fit is replaced before it enters model history; its full payload remains
+        available only to the runtime/audit path.
+        """
         by_call_id = {result.call_id: result for result in results}
+        budget_exceeded = False
         for call in calls:
             result = by_call_id.get(call.call_id)
-            payload = result.model_payload() if result is not None else {
-                "ok": False,
-                "tool": call.name,
-                "error": {"code": "tool_error", "message": "工具暂时不可用"},
-            }
+            if blocked:
+                payload = {
+                    "ok": False,
+                    "tool": call.name,
+                    "error": {
+                        "code": TOOL_LIMIT_ERROR_CODE,
+                        "message": TOOL_LIMIT_ERROR_MESSAGE,
+                    },
+                }
+            elif result is None:
+                payload = {
+                    "ok": False,
+                    "tool": call.name,
+                    "error": {"code": "tool_error", "message": "工具暂时不可用"},
+                }
+            else:
+                payload = result.model_payload()
+                if (
+                    max_total_result_tokens is not None
+                    and payload.get("ok") is True
+                    and result.result is not None
+                ):
+                    serialized = json.dumps(
+                        result.result.data,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    result_tokens = max(1, (len(serialized) + 2) // 3)
+                    if total_result_tokens + result_tokens > max_total_result_tokens:
+                        payload = {
+                            "ok": False,
+                            "tool": call.name,
+                            "error": {
+                                "code": TOOL_RESULT_BUDGET_ERROR_CODE,
+                                "message": TOOL_RESULT_BUDGET_ERROR_MESSAGE,
+                            },
+                        }
+                        budget_exceeded = True
+                    else:
+                        total_result_tokens += result_tokens
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.call_id,
                 "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
             })
+        return total_result_tokens, budget_exceeded
 
     async def stream(
         self,
@@ -292,6 +344,21 @@ class ToolOrchestrator:
                 if identical_calls[signature] > self.policy.max_identical_calls:
                     blocked = True
             if blocked:
+                # The provider contract requires one tool result for every
+                # assistant tool call.  These calls are deliberately not sent
+                # to ToolRuntime: they are represented by safe synthetic
+                # results so the final model call remains well-formed.
+                for call in calls:
+                    yield _event(
+                        "tool.error",
+                        {
+                            "call_id": call.call_id,
+                            "name": call.name,
+                            "code": TOOL_LIMIT_ERROR_CODE,
+                            "message": TOOL_LIMIT_ERROR_MESSAGE,
+                        },
+                    )
+                self._append_tool_messages(history, calls, [], blocked=True)
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
                 async for item in self._stream_round(model, history):
                     yield item
@@ -310,16 +377,17 @@ class ToolOrchestrator:
             async for item in self._execute_calls(calls=calls, context=context):
                 yield item
             results = list(self._call_results)
-            self._append_tool_messages(history, calls, results)
+            total_result_tokens, budget_exceeded = self._append_tool_messages(
+                history,
+                calls,
+                results,
+                total_result_tokens=total_result_tokens,
+                max_total_result_tokens=self.policy.max_total_result_tokens,
+            )
             for result in results:
                 if result.run_id:
                     tool_run_ids.append(result.run_id)
-                if result.result is not None:
-                    serialized = json.dumps(
-                        result.result.data, ensure_ascii=False, separators=(",", ":")
-                    )
-                    total_result_tokens += max(1, (len(serialized) + 2) // 3)
-            if round_index + 1 >= self.policy.max_rounds or total_result_tokens > self.policy.max_total_result_tokens:
+            if round_index + 1 >= self.policy.max_rounds or budget_exceeded:
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
                 async for item in self._stream_round(model, history):
                     yield item
