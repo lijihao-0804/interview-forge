@@ -215,6 +215,22 @@ async def weather_for_user_async(username: str) -> dict[str, object]:
     return await asyncio.to_thread(weather_for_user, username)
 
 
+def weather_for_location(location: str) -> dict[str, object]:
+    """Fetch a named city through the existing geocoding and weather service."""
+    candidates = search_weather_locations(location)
+    if not candidates:
+        raise WeatherServiceError("天气位置暂时不可用")
+    candidate = candidates[0]
+    preference = {
+        "mode": "city",
+        "display_name": candidate["city"],
+        "latitude": candidate["latitude"],
+        "longitude": candidate["longitude"],
+        "timezone": candidate.get("timezone") or "auto",
+    }
+    return _fetch_weather(preference)
+
+
 def _normalize_place(value: object) -> str:
     return re.sub(r"[\s·•,，._-]+", "", unicodedata.normalize("NFKC", str(value)).casefold())
 
