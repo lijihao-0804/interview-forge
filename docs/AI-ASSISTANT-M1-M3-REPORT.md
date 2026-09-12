@@ -9,10 +9,10 @@
 | M1 | `feat: add persistent streaming AI chat foundation` | `6d3843546114406ef444f0e0286fbb1bfc554101` |
 | M2 | `feat: add bounded chat context and rolling summaries` | `a055d89165cb5cc5b03befc154e755b6f714168d` |
 | M3 | `feat: integrate learning context into AI chat` | `8d7e4f7c7705529d7be9c356fdb7b41ae822e5a9` |
-| 最终整合实现 SHA（不含本报告单独提交） | 待最终整合提交 | 待提交 |
-| 报告提交 SHA | 本报告提交 | 待提交 |
+| 最终整合实现 SHA（不含本报告校正提交） | `docs: refresh learning resources and generated site` | `cf502c437e91bce7bec42b4239b31dfad1d1b765` |
+| 报告初始提交 SHA | 本报告首次纳入整合提交 | `cf502c437e91bce7bec42b4239b31dfad1d1b765` |
 
-三个 milestone commit 已在本地形成；最终整合提交包含本轮前端动画、笔记资源、生成 HTML 和测试契约变更。本报告的 SHA 在提交后由主代理补录。
+三个 milestone commit 已在本地形成；最终整合提交包含本轮前端动画、笔记资源、生成 HTML 和测试契约变更。本报告随后仅做了 SHA/验证事实校正。
 
 ## 2. 目录与调用链
 
