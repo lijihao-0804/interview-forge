@@ -166,5 +166,5 @@ b555d11 完成核心运行时代码职责拆分
 ### 交接与提交
 
 - 本轮未修改书籍、Hot100、课程内容、数据库 schema、API URL 或 SSE 业务事件名称。
-- hardening implementation commit：`待提交 SHA`。
-- 本报告记录提交后将替换为实际 commit SHA；随后推送到 `origin/main`。
+- hardening implementation commit：`cdb9ff5`（`fix: harden AI assistant M1-M3`）。
+- 本报告 SHA 回填提交将在其后单独推送到 `origin/main`。
