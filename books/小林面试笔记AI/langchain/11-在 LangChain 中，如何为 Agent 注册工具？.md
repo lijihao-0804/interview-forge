@@ -34,6 +34,18 @@ LangChain 中注册 Tool 的本质，是同时向模型提供一份工具说明�
 
 生产环境还要关注参数校验、权限检查、超时、重试、幂等和错误分类。只有网络超时等临时故障适合自动重试，参数错误和业务拒绝应该返回清楚的信息，程序 Bug 则不应该被统一吞掉。
 
+```mermaid
+flowchart LR
+    A[函数/服务] --> B[名称、描述、Schema]
+    B --> C[模型选择并生成 Tool Call]
+    C --> D[运行时校验身份、权限、参数]
+    D --> E[执行并记录副作用]
+    E --> F[ToolMessage回传模型]
+    F --> C
+```
+
+Schema 帮模型理解调用合同，Runtime 和业务服务才是安全边界；对有副作用的工具还要有幂等键、审批、审计和超时策略。
+
 ## 📝 详细解析
 
 ### Tool 注册了什么？
@@ -90,7 +102,8 @@ def query_order(order_id: str, detail: str = "summary") -> str:
 
 # 注册时把 Tool 放进 create_agent 的 tools 列表
 agent = create_agent(
-    model="openai:gpt-5.4-mini",
+    # 替换为项目已验证的 provider:model-id，并锁定对应集成包版本
+    model="provider:model-id",
     tools=[query_order],
 )
 ```

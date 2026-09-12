@@ -19,11 +19,11 @@
 
 MCP 支持两种主要的传输方式，分别适用于不同场景。
 
-本地场景用 stdio，Client 把 Server 作为子进程启动，通过标准输入输出通信，延迟极低，不用开端口，也没有网络安全问题，我用 Claude Desktop 接本地工具走的就是这种方式。
+本地场景用 stdio，Client 把 Server 作为子进程启动，通过标准输入输出通信，通常不用开端口，减少了网络暴露面；但仍需审查启动命令、环境变量、文件权限和子进程的工具权限。我用 Claude Desktop 接本地工具走的就是这种方式。
 
 远程场景现在推荐用 Streamable HTTP，Server 作为独立的 HTTP 服务部署，多个 Client 可以共享同一个 Server，适合团队统一管理工具服务。
 
-MCP 早期版本（2024-11-05 规范）的远程传输是「HTTP + SSE」双端点方案，2025 年 3 月的规范更新里被标记为 deprecated（保留向后兼容但不推荐新项目使用），Streamable HTTP 成为了推荐的远程传输方式。
+较早的 MCP 规范（例如 2024-11-05）定义过「HTTP + SSE」双端点方案；当前规范以 Streamable HTTP 为远程传输主线，旧实现仍可能为了兼容而保留，但不应把历史方案当成新项目默认方案。
 
 不管哪种传输方式，底层消息格式都统一用 JSON-RPC 2.0，传输方式只影响「怎么传」，消息协议本身不变。
 
@@ -43,7 +43,7 @@ MCP 早期版本（2024-11-05 规范）的远程传输是「HTTP + SSE」双端�
 
 每条消息就是一个 JSON 对象，格式固定：
 
-```json
+```jsonc
 // 请求消息（Client -> Server）
 {
   "jsonrpc": "2.0",
@@ -84,7 +84,7 @@ stdio 是 MCP 最常用的传输方式，适合**本地工具**的场景。
 stdio 方式有几个很明显的优点。
 
 - 首先延迟极低，进程间通信比走网络快得多，数据直接在操作系统管道里流转，几乎没有开销。
-- 其次不需要开端口，也就没有网络安全问题，不用担心外部访问。另外 Server 的生命周期是自动管理的，随 Client 启动而启动、随 Client 关闭而关闭，不需要你手动去管进程。
+- 其次通常不需要开端口，网络暴露面较小，但这不等于“没有安全问题”：Server 仍可能读取本地文件、访问网络或继承敏感环境变量。通常由 Client 管理子进程生命周期，但异常退出、僵尸进程、日志泄漏和权限隔离仍需显式处理。
 
 在实际使用中，你只需要在配置文件里告诉 Client「用什么命令启动 Server」就行了，比如在 Claude Desktop 的 `claude_desktop_config.json` 里这样配置：
 
@@ -104,7 +104,7 @@ stdio 方式有几个很明显的优点。
 
 远程场景下，Server 作为独立的 HTTP 服务运行，Client 通过网络连接访问。MCP 当前推荐的远程传输方式是 **Streamable HTTP**。
 
-Streamable HTTP 的核心设计是用单个 HTTP 端点（通常是 `/mcp`）同时处理请求和响应。Client 通过 POST 请求发送 JSON-RPC 消息，Server 可以选择两种方式返回：如果是简单的同步操作，直接返回一个普通的 JSON 响应就行；如果是需要流式输出的操作，Server 返回一个 SSE 流，持续推送数据。这种「按需选择」的设计非常灵活，不需要强制建立长连接。
+Streamable HTTP 的核心设计是用一个 MCP HTTP 端点（常见路径是 `/mcp`，但路径由部署决定）接收 JSON-RPC 消息。Client 通常通过 POST 发送请求，Server 可以返回 `application/json` 的一次性响应，也可以返回 `text/event-stream` 事件流；Client 还可以按规范使用 GET 建立服务器到客户端的事件流。是否保持流、是否复用会话以及断线如何恢复，取决于具体请求和实现，不能简单等同于“永远不需要长连接”。
 
 Streamable HTTP 的优点很明确。Server 可以部署在云端，多个 Client 共享同一个 Server，这对团队来说特别实用，比如团队共用一个部署在服务器上的数据库 MCP Server，所有人连同一个服务就行，不需要各自在本地跑一份。而且支持跨机器访问，不局限于本地环境，适合需要统一管理工具服务的团队或平台。
 
@@ -114,7 +114,7 @@ Streamable HTTP 的优点很明确。Server 可以部署在云端，多个 Clien
 
 ### 为什么 SSE 被弃用了
 
-你可能看到一些早期的 MCP 教程还在讲 SSE（Server-Sent Events）传输方式，这里要说明一下：HTTP + SSE 双端点方案是 MCP 早期版本（2024-11-05 规范）采用的远程传输方案，**在 2025 年 3 月的规范更新里被标记为 deprecated**，仍然保留向后兼容，但新项目应该直接用 Streamable HTTP。
+你可能看到一些早期的 MCP 教程还在讲 SSE（Server-Sent Events，服务器推送事件）传输方式。更准确的说法是：HTTP + SSE 双端点是较早规范的历史方案；当前 Streamable HTTP 将请求入口与流式响应放进同一 MCP 端点，兼容策略取决于 Server 和 SDK 版本，新项目应以所依赖的当前规范和 SDK 文档为准。
 
 为什么要替换？原因是架构上有一个小尴尬：Client 向 Server 发请求要走 POST 端点，Server 向 Client 推数据要走另一条 SSE 长连接端点，同一个对话被拆成了两条通道。这带来的具体问题是状态管理复杂，比如 Client POST 了一条消息之后网络突然断了，那条消息到底被处理了没、SSE 流会不会推回结果，Client 没有一个简单的办法判断，出问题时排查链路很长。
 
@@ -122,7 +122,7 @@ Streamable HTTP 的优点很明确。Server 可以部署在云端，多个 Clien
 
 Streamable HTTP 的做法是把这两条通道合并成一个端点：Client 照样 POST 发请求，Server 根据情况决定返回「一个普通 JSON」还是「一条 SSE 流」，不需要 Client 提前开另一条连接。
 
-注意这里的关键：Streamable HTTP 并没有抛弃 SSE，流式推送的部分底层还是 SSE（`Content-Type: text/event-stream`），只是把端点从两个合成一个。架构更简洁、对负载均衡和 serverless 环境都更友好。目前主流的 MCP 客户端和 SDK 都已经迁移到了 Streamable HTTP。
+注意这里的关键：Streamable HTTP 仍可使用 SSE 事件流（`Content-Type: text/event-stream`），但它不等于“只有 SSE”，也不保证所有实现都以同样方式处理断线、重连、会话和鉴权。实际部署仍需配置认证、Origin 校验、超时、代理缓冲、限流与重放/恢复策略。
 
 ![](../images/d88fcb00994d0f7b30539502.png)
 
@@ -130,10 +130,10 @@ Streamable HTTP 的做法是把这两条通道合并成一个端点：Client 照
 
 回到开头踩的雷，最常见的误区就是想当然地以为 MCP 用 WebSocket 或者 HTTP REST 接口。
 
-面试回答这道题，首先要说清楚 MCP 支持两种传输方式：本地场景用 stdio（标准输入输出，Server 作为子进程运行，通过管道通信），远程场景用 Streamable HTTP（Server 作为 HTTP 服务部署，单个端点同时处理请求和响应）。stdio 不走网络、延迟极低、生命周期自动管理；Streamable HTTP 支持多 Client 共享一个 Server，适合团队统一部署。
+面试回答这道题，首先要说清楚 MCP 常见的两类传输：本地可用 stdio（标准输入输出，Server 作为子进程运行，通过管道通信），远程可用 Streamable HTTP（Server 作为 HTTP 服务部署，通过 MCP 端点处理 JSON-RPC 请求，并可按需返回 JSON 或事件流）。stdio 减少网络暴露面但不自动消除本地权限风险；Streamable HTTP 便于共享部署，但必须考虑认证、会话、断线、代理与多租户隔离。
 
-第二个要点是消息格式和传输方式的解耦。不管用 stdio 还是 Streamable HTTP，底层消息格式都统一用 JSON-RPC 2.0，切换传输方式不影响上层调用逻辑。这个解耦设计是面试官比较看重的点，说明你理解了 MCP 的分层架构，而不是把「消息格式」和「传输方式」混为一谈。
+第二个要点是消息格式和传输方式的解耦。不管用 stdio 还是 Streamable HTTP，MCP 都以 JSON-RPC 2.0 消息表达请求、响应、通知和错误；但会话、鉴权、重连和能力协商仍受传输与实现影响，不能说“切换传输完全不影响行为”。
 
-最后可以加分提一句传输方案的演进历史：MCP 早期（2024-11-05 规范）的远程传输是「HTTP + SSE」双端点方案，因为两条通道状态管理复杂，2025 年 3 月的规范更新里被 Streamable HTTP 取代（单端点，内部流式仍然走 SSE）。能把 SSE 和 Streamable HTTP 的区别说清楚是这题的关键，历史背景是加分项。
+最后可以加分提一句传输方案的演进历史：早期远程实现常见 HTTP + SSE 双端点，当前规范主线是 Streamable HTTP（单个 MCP 端点，按请求返回 JSON 或事件流）。重点不是背日期，而是说明“JSON-RPC 消息层”和“stdio/HTTP 传输层”分离，并补充鉴权、断线恢复和代理兼容等生产问题。
 
 ---

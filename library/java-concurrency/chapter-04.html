@@ -1,127 +1,88 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>volatile 深入 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">volatile 深入</span></nav><div class="module-meta">Java 语言 · 第 4 / 17 章 · <span class="muted">更新于 2026-09-06</span></div><h1>volatile 深入</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>volatile 是最轻量的同步手段，也是面试最喜欢“挖坑”的关键字。</p>
-<h3 id="31-volatile">3.1 volatile 的两条语义</h3>
-<ol>
-<li><strong>可见性</strong>：volatile 变量的写会立即刷新到主内存，读会直接从主内存读取；</li>
-<li><strong>有序性</strong>：禁止指令重排序，JVM 在读写前后插入内存屏障。</li>
-</ol>
-<p>它<strong>不保证原子性</strong>：<code>volatile int count; count++</code> 仍是“读-改-写”三步，多个线程同时执行照样丢计数。</p>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 反例：volatile 不能替代锁或原子类</span>
-<span class="kd">volatile</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-<span class="c1">// 100 个线程各执行 count++ 1000 次，结果 &lt; 100000</span>
-</code></pre></div>
-<h3 id="32">3.2 内存屏障</h3>
-<p>JMM 的保守插入策略：</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>并发三要素与 Java 内存模型 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">并发三要素与 Java 内存模型</span></nav><div class="module-meta">Java 语言 · 第 4 / 18 章 · <span class="muted">更新于 2026-09-12</span></div><h1>并发三要素与 Java 内存模型</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>并发 bug 的根源只有三个：原子性、可见性、有序性。理解 JMM（Java Memory Model）就是理解 Java 如何约束这三者。</p>
+<h3 id="21">2.1 并发问题的三大根源</h3>
 <table>
 <thead>
 <tr>
-<th>操作</th>
-<th>前置屏障</th>
-<th>后置屏障</th>
+<th>问题</th>
+<th>根源</th>
+<th>典型表现</th>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>volatile 写</td>
-<td>StoreStore</td>
-<td>StoreLoad</td>
-</tr>
-<tr>
-<td>volatile 读</td>
-<td>—（无）</td>
-<td>LoadLoad + LoadStore</td>
-</tr>
-</tbody>
-</table>
-<ul>
-<li><strong>StoreStore</strong>：屏障前的普通写不会被重排到 volatile 写之后；</li>
-<li><strong>StoreLoad</strong>：保证 volatile 写的值对其他线程可见（x86 上往往就是一条 <code>lock</code> 前缀指令）；</li>
-<li><strong>LoadLoad/LoadStore</strong>：都插在 volatile 读<strong>之后</strong>，保证屏障后的普通读/写不会被重排到 volatile 读之前。</li>
-</ul>
-<p>补充：x86（TSO 内存模型）上 volatile <strong>读</strong>通常不需要额外指令（普通 load 本身就具备 acquire 语义），volatile <strong>写</strong>才体现为 <code>lock</code> 前缀指令。</p>
-<p>注意：volatile 的语义由 JMM 定义，<strong>不是“禁用 CPU 缓存”</strong>；具体实现依赖屏障指令与缓存一致性协议。</p>
-<h3 id="33">3.3 典型应用一：状态标志</h3>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">volatile</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">stopped</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
-
-<span class="c1">// 工作线程</span>
-<span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stopped</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">doWork</span><span class="p">();</span>
-<span class="p">}</span>
-
-<span class="c1">// 主线程</span>
-<span class="n">stopped</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">    </span><span class="c1">// 可见性保证工作线程能退出</span>
-</code></pre></div>
-<h3 id="34">3.4 典型应用二：双重检查锁单例</h3>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Singleton</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">volatile</span><span class="w"> </span><span class="n">Singleton</span><span class="w"> </span><span class="n">instance</span><span class="p">;</span><span class="w">   </span><span class="c1">// 必须 volatile</span>
-
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="n">Singleton</span><span class="w"> </span><span class="nf">getInstance</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">instance</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">                    </span><span class="c1">// 第一次检查（不加锁）</span>
-<span class="w">            </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">Singleton</span><span class="p">.</span><span class="na">class</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">instance</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">            </span><span class="c1">// 第二次检查（加锁）</span>
-<span class="w">                    </span><span class="n">instance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Singleton</span><span class="p">();</span>
-<span class="w">                </span><span class="p">}</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">instance</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-<p>为什么必须 volatile：<code>new Singleton()</code> 分为“分配内存 → 初始化字段 → 把引用赋给 instance”三步，没有 volatile 时，CPU 可能把“赋引用”重排到“初始化”之前，另一个线程第一次检查时看到非 null 却拿到未初始化的“半个对象”。volatile 的 StoreStore 屏障保证初始化完成前引用不会被发布。</p>
-<p>JDK 5 之后还有另一条路：把 <code>instance</code> 字段设为 <code>final</code>，利用 final 规则保证安全发布。</p>
-<h3 id="35-volatile-synchronized">3.5 volatile 与 synchronized 对比</h3>
-<table>
-<thead>
-<tr>
-<th>对比项</th>
-<th>volatile</th>
-<th>synchronized</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>可见性</td>
-<td>是</td>
-<td>是</td>
-</tr>
 <tr>
 <td>原子性</td>
-<td>否</td>
-<td>是（临界区内）</td>
+<td>线程切换（时间片）</td>
+<td><code>i++</code> 三步操作被打断，计数丢失</td>
+</tr>
+<tr>
+<td>可见性</td>
+<td>CPU 缓存</td>
+<td>一个线程改了变量，另一个线程看不到</td>
 </tr>
 <tr>
 <td>有序性</td>
-<td>禁止重排序</td>
-<td>是（互斥天然有序）</td>
-</tr>
-<tr>
-<td>阻塞</td>
-<td>否</td>
-<td>是（竞争时阻塞）</td>
-</tr>
-<tr>
-<td>使用成本</td>
-<td>低</td>
-<td>较高</td>
-</tr>
-<tr>
-<td>适用</td>
-<td>标志位、单例发布、状态开关</td>
-<td>复合操作、临界区</td>
+<td>编译器和 CPU 重排序</td>
+<td>双重检查锁的“半个对象”问题</td>
 </tr>
 </tbody>
 </table>
-<h3 id="36">3.6 面试追问</h3>
+<p>示例：两个线程各执行 10000 次 <code>count++</code>，结果几乎不可能等于 20000，因为 <code>count++</code> 在字节码层面是“读-改-写”三步，不是原子操作。</p>
+<h3 id="22-jmm">2.2 JMM 是什么</h3>
+<p>JMM 是 Java 语言规范里定义的抽象内存模型，用来约束线程与内存的交互，<strong>不绑定具体硬件</strong>：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">线程 A ──工作内存（寄存器/缓存）──┐
+                                 ├── 主内存（共享变量真正所在）
+线程 B ──工作内存（寄存器/缓存）──┘
+</code></pre></div>
 <ul>
-<li>问：volatile 能保证原子性吗？</li>
-<li>答：不能。volatile 只保证两件事：读到的永远是最新值（可见性）、读写不会被重排序打乱（有序性）。但 <code>i++</code> 是“读 i → 加 1 → 写回”三步复合操作，volatile 挡不住线程切换：线程 A 读到 5，还没写回，线程 B 也读到 5，两人都写 6——两次自增只加了 1。正确做法三选一：<code>AtomicInteger.incrementAndGet()</code>（CAS 无锁）、<code>synchronized</code> 块、或 LongAdder（超高并发计数）。用一个反例检验自己：volatile boolean flag 做开关可以（单次读写，天然原子），volatile int count 做计数器不行（复合操作）——区别就在“单次读写”和“读改写”上。</li>
-<li>问：volatile 的底层实现？</li>
-<li>答：分两层看。JMM 层：JVM 在 volatile 读写前后插入内存屏障，禁止指令重排序越过边界——写前加 StoreStore（保证之前的普通写先完成）、写后加 StoreLoad（保证写立即对后续读可见，这是开销最大的一种屏障）、读后加 LoadLoad/LoadStore。CPU 层：x86 本身是强有序架构，JVM 只需要在 volatile 写上加 <code>lock</code> 前缀指令（如 lock addl），它会把当前核的缓存行写回主存并使其他核的缓存副本失效，这就是“可见性”的硬件原理。面试加分点：能说出“x86 上 volatile 读是普通读（x86 本身不重排读），开销主要在写”——说明理解到了架构差异层面。</li>
-<li>问：双重检查锁为什么需要 volatile？</li>
-<li>答：DCL（Double-Checked Locking）单例的标准写法是 <code>private static volatile Singleton instance;</code>，两次判空 + synchronized。没有 volatile 时的问题出在 <code>instance = new Singleton();</code> 这一行——它不是原子操作，分三步：① 分配内存；② 调用构造器初始化；③ 把引用指向内存。② 和 ③ 可能被重排序成 ①③②：线程 A 执行到 ③（对象还没初始化完），线程 B 进来第一次判空发现 instance 不为 null，直接返回——拿到一个“字段还是默认值”的半成品对象。volatile 禁止这个重排序，保证“初始化完成后引用才可见”。追问方向：静态内部类单例（利用类加载的天然线程安全）和枚举单例可以完全绕开这个问题，也是更推荐的写法。</li>
-<li>问：volatile 能替代锁吗？</li>
-<li>答：不能完全替代。volatile 能做的：状态的发布与可见（开关、配置引用）、“一写多读”的简单场景——因为只有一个线程写，不存在写写冲突。volatile 做不到的：① 原子性的复合操作（i++、check-then-act“先检查再执行”）；② 互斥——多个线程同时进入临界区时它没有排他能力；③ 它无法保护一组变量的整体一致性（volatile 只约束自己）。所以替代规则：状态标志位、一次性发布用 volatile；涉及“读-改-写”或“多变量联动”就用锁或原子类。能答出“volatile 是可见性工具不是互斥工具”这个本质，就是合格答案。</li>
-</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#31-volatile">3.1 volatile 的两条语义</a></li><li class="lv3"><a href="#32">3.2 内存屏障</a></li><li class="lv3"><a href="#33">3.3 典型应用一：状态标志</a></li><li class="lv3"><a href="#34">3.4 典型应用二：双重检查锁单例</a></li><li class="lv3"><a href="#35-volatile-synchronized">3.5 volatile 与 synchronized 对比</a></li><li class="lv3"><a href="#36">3.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-03.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<li>所有共享变量存在<strong>主内存</strong>；</li>
+<li>每个线程有自己的<strong>工作内存</strong>（抽象概念，对应寄存器与 CPU 缓存），读写共享变量前要先在工作内存与主内存之间同步；</li>
+<li>线程不能直接读写其他线程的工作内存，变量传递必须经过主内存。</li>
+</ul>
+<p>JMM 通过三类手段保证并发安全：</p>
+<ol>
+<li><strong>关键字</strong>：<code>volatile</code>、<code>synchronized</code>、<code>final</code>；</li>
+<li><strong>happens-before 规则</strong>：给跨线程的内存操作建立偏序；</li>
+<li><strong>内存屏障</strong>：JVM 在合适位置插入屏障指令，阻止重排序并保证缓存同步。</li>
+</ol>
+<h3 id="23-happens-before">2.3 happens-before 八条规则</h3>
+<p>如果操作 A happens-before 操作 B，那么 A 对内存的写入对 B <strong>可见</strong>，且 A 不会重排到 B 之后。八条规则：</p>
+<ol>
+<li><strong>程序顺序规则</strong>：同一线程内，写在前面的操作 happens-before 后面的操作；</li>
+<li><strong>监视器锁规则</strong>：锁的解锁 happens-before 后续对该锁的加锁（synchronized/Lock）；</li>
+<li><strong>volatile 规则</strong>：volatile 变量的写 happens-before 后续对该变量的读；</li>
+<li><strong>线程启动规则</strong>：<code>Thread.start()</code> 之前的操作 happens-before 新线程中的操作；</li>
+<li><strong>线程终止规则</strong>：线程中的所有操作 happens-before 其他线程从 <code>join()</code> 返回；</li>
+<li><strong>中断规则</strong>：<code>interrupt()</code> 的调用 happens-before 被中断线程检测到中断（抛异常或查到标志）；</li>
+<li><strong>final 规则</strong>：对象构造完成前对 final 字段的写 happens-before 后续通过引用读取该对象；</li>
+<li><strong>传递性</strong>：A happens-before B 且 B happens-before C，则 A happens-before C。</li>
+</ol>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 利用 volatile 规则：写 happens-before 读</span>
+<span class="kd">volatile</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="c1">// 线程 A</span>
+<span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">42</span><span class="p">;</span><span class="w">       </span><span class="c1">// 普通写</span>
+<span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span><span class="w">     </span><span class="c1">// volatile 写</span>
+
+<span class="c1">// 线程 B</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ready</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">      </span><span class="c1">// volatile 读</span>
+<span class="w">    </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">value</span><span class="p">);</span><span class="w">   </span><span class="c1">// 一定看到 42</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="24-as-if-serial">2.4 as-if-serial 与重排序</h3>
+<p>编译器和 CPU 会做指令重排序，但必须遵守 <strong>as-if-serial</strong>：单线程语义下，重排序不能改变程序结果。重排序对多线程可见，所以需要 volatile/synchronized 来约束。</p>
+<h3 id="25">2.5 面试追问</h3>
+<ul>
+<li>问：并发编程的三要素？</li>
+<li>答：① 原子性——一个操作不可被分割，典型反例是 <code>i++</code>：它实际是“读-加-写”三步，两个线程交错执行会丢更新（根源是线程切换调度）；② 可见性——一个线程改了共享变量，另一个线程可能读到旧值（根源是每个 CPU 核有自己的高速缓存，写先落缓存未必立刻刷回主存）；③ 有序性——代码的实际执行顺序可能与书写顺序不同（根源是编译器和 CPU 为了优化做指令重排序，单线程内结果不变，多线程下会出问题）。三类问题各有对应的解决工具，这是并发知识体系的总纲。</li>
+<li>问：JMM 是什么？</li>
+<li>答：Java Memory Model，Java 语言规范定义的一套抽象规则，用来回答“一个线程的写操作，什么条件下对另一个线程可见”。它屏蔽了不同 CPU 架构（x86 强有序、ARM 弱有序）的差异，给 Java 程序员一个统一的承诺。核心内容三块：主内存与工作内存的抽象（所有共享变量存在主内存，线程操作的是自己的工作内存副本，用完再同步回去）；happens-before 规则（判定“一个写是否对后续读可见”的判据）；内存屏障（JVM 实现 JMM 的底层手段）。注意 JMM 是“规范”不是“内存结构”——不要把它和 JVM 运行时数据区（堆、栈）混为一谈，后者是 HotSpot 的实现细节。</li>
+<li>问：happens-before 有什么用？</li>
+<li>答：没有它，判断“多线程下能不能看到某个写入”只能靠猜硬件行为；有了它，就有了一套可推导的规则。常用规则举例：程序顺序规则（单线程内前面的操作先于后面）、监视器锁规则（解锁先于后续加锁）、volatile 规则（写先于后续读）、线程启动规则（start 前的写对 run 内可见）、传递性（A 先于 B、B 先于 C，则 A 先于 C）。实际使用：比如线程 A 创建 HashMap 并填好数据后调 <code>threadB.start()</code>，线程 B 在 run 里读这个 map——满足线程启动规则，B 能看到全部数据，不需要额外同步。反过来，两个线程只靠共享普通变量“打旗语”，就不满足任何规则，读到的值不可靠。</li>
+<li>问：volatile 变量的写读之间能保证什么？</li>
+<li>答：保证两件事：① 可见性——volatile 写 happens-before 后续对同一变量的读，读线程一定能看到这次写；② 有序性——禁止指令重排序跨过 volatile 读写。一个容易被忽略的加强点：借助 happens-before 的传递性，volatile 写之前的<strong>所有</strong>普通写操作，对 volatile 读之后的代码也可见。经典用法：“非 volatile 的配置对象 + volatile 的 ready 标记”——写线程先填好配置再置 ready=true，读线程看到 ready==true 后读配置，一定能拿到完整数据。但要牢记 volatile 不保证原子性（见下一问），这是它和锁最本质的差距。</li>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#21">2.1 并发问题的三大根源</a></li><li class="lv3"><a href="#22-jmm">2.2 JMM 是什么</a></li><li class="lv3"><a href="#23-happens-before">2.3 happens-before 八条规则</a></li><li class="lv3"><a href="#24-as-if-serial">2.4 as-if-serial 与重排序</a></li><li class="lv3"><a href="#25">2.5 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-03.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="java-concurrency:04",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';

@@ -23,7 +23,7 @@
 
 我理解记忆系统分两层。
 
-短期记忆就是 context window 里的对话历史，存当前任务的中间状态，任务结束就清掉；长期记忆用向量数据库存，把信息 embedding 后写入，用的时候做语义检索拿回来注入 prompt。
+短期记忆是当前任务的 messages 和结构化 State，必要时裁剪、摘要或持久化；长期记忆是跨任务存储，可以用向量、关系、键值或事件系统实现。只有适合语义召回的内容才需要 embedding，读取时还要经过权限和新鲜度过滤。
 
 粒度上我通常按「一次完整交互」或「一个关键事件」为单位存，太细碎检索噪音大，太粗糙又丢失细节，这个需要根据业务实际调整。
 
@@ -41,7 +41,7 @@
 
 ### 短期记忆
 
-先说**短期记忆**，它就是你每次调 LLM 时传进去的 messages 列表。你可以把它想象成 LLM 当前的「工作台」，桌面上摆着当前任务的所有相关内容：用户的指令、LLM 自己的思考过程、工具调用的结果、每一步的中间状态。LLM 靠这张桌面知道「我在做什么、做到哪了、前面几步发现了什么」。
+先说**短期记忆**，它是每次调 LLM 时传入的 messages 和结构化 State。你可以把它想象成 LLM 当前的「工作台」，桌面上摆着当前任务的目标、工具调用结果、进度和必要依据；不应假设完整内部推理一定可见或必须永久保留。
 
 实现上非常直接，就是维护一个列表，每一步产生的内容都追加进去：
 
@@ -67,14 +67,14 @@ class ShortTermMemory:
         # 清空意味着这次任务的所有中间状态都消失了
         self.messages = []
 
- 一次任务执行的示例
+# 一次任务执行的示例
 memory = ShortTermMemory()
 memory.add("user", "帮我分析这几家竞品的核心功能差异")
 memory.add("assistant", "好的，我先搜索一下竞品 A 的信息")
 memory.add("tool", "搜索结果：竞品 A 的核心功能是实时协作编辑，支持最多 50 人同时在线……")
 memory.add("assistant", "已拿到竞品 A 的信息，再搜竞品 B")
 
- 每次调 LLM 都传完整历史，它才能知道自己做到哪一步了
+# 每次调 LLM 都传当前所需的历史/State，模型才能知道自己做到哪一步了
 response = llm.chat(messages=memory.get_context())
 ```
 
@@ -82,7 +82,7 @@ response = llm.chat(messages=memory.get_context())
 
 ![](../images/6c265aa2cacd58b977e13464.png)
 
-短期记忆在当前任务结束后就清空了，下次来了新任务，桌面是空的，什么都不记得了。要让 Agent 跨任务记住东西，就需要长期记忆。
+短期记忆在任务结束后可以清理，也可以按审计/恢复策略保存检查点；下次是否复用取决于任务边界。要让 Agent 跨任务记住经治理的信息，才需要长期存储。
 
 不过在聊长期记忆之前，有一个进阶概念值得了解：**结构化工作记忆**（Structured Working Memory）。前面说的短期记忆是纯粹的消息列表，什么都往里塞，比较粗放。
 
@@ -94,7 +94,7 @@ response = llm.chat(messages=memory.get_context())
 
 ### 长期记忆
 
-**长期记忆**的核心工具是向量数据库（Vector Database）加上 Embedding（向量化），对初学者来说这两个词可能很陌生，先解释清楚。
+**长期记忆**的一种常见实现是向量数据库（Vector Database）加上 Embedding（向量化），但结构化事实、精确状态和审计事件通常还需要关系库、键值库或事件存储。
 
 Embedding 是把一段文字转化成一组数字的过程。这组数字通常有几百到几千个维度，它们共同捕捉了这段文字的「语义」。语义相近的文字，转化出来的数字向量在空间里也靠得很近。
 
@@ -122,27 +122,27 @@ Embedding 对文字做的事是一样的：「苹果公司的产品策略」和�
 
 第三种是**程序记忆**（Procedural Memory），存的是「怎么做某件事」的方法论，比如「给这个用户写代码时，先确认风格偏好，再写主逻辑，最后加注释」，它更像是 Agent 积累下来的行为模式。
 
-把记忆按类型区分存储的好处是，检索时可以根据当前需求精准地去对应类型的库里查，语义记忆库回答「是什么」，情节记忆库回答「之前怎么处理过类似情况」，程序记忆库回答「该按什么流程来」，比一锅端地在混合库里搜，召回质量要高不少。
+把记忆按类型区分存储的好处是，检索时可以根据当前需求选择语义、结构化或时间过滤；但是否拆成多个库要用召回质量、延迟、维护成本和租户隔离做权衡。
 
 ```python
+import hashlib
 from openai import OpenAI
 import chromadb
 
 client = OpenAI()
- ChromaDB 是一个轻量的向量数据库，适合本地开发使用
+# ChromaDB 是一个轻量的向量数据库，适合本地开发使用；生产能力需按版本和部署验证
 db = chromadb.Client()
- 创建一个「集合」，类似于关系数据库里的表，用来存 Agent 的长期记忆
+# 创建一个「集合」，类似于关系数据库里的表，用来存 Agent 的长期记忆
 collection = db.get_or_create_collection("agent_memory")
 
 def save_to_long_term(content: str, metadata: dict):
     # 第一步：把文字内容转成 embedding 向量
-    # text-embedding-3-small 是 OpenAI 的 embedding 模型，把文字变成数字向量
+    # 使用项目已验证并锁版本的 embedding 模型，把文字变成数字向量
     embedding = client.embeddings.create(
         input=content,
-        model="text-embedding-3-small"
+        model="embedding-provider:model-id"
     ).data[0].embedding  # 得到一个几百维的浮点数列表
 
-    # 第二步：把向量、原文、元信息一起存进向量数据库
     # 第二步：把向量、原文、元信息一起存进向量数据库
     # metadata 非常关键，它是记忆的「标签」，后续检索时可以按标签过滤
     # 比如只查「coding 类型」的记忆，或者只查「最近 7 天」的记忆
@@ -150,7 +150,10 @@ def save_to_long_term(content: str, metadata: dict):
         embeddings=[embedding],   # 这是「索引」，用于相似度检索
         documents=[content],      # 这是原文，检索命中后返回给 LLM 直接使用
         metadatas=[metadata],     # 附加信息，比如存入时间、任务类型、重要程度、记忆类型
-        ids=[f"mem_{hash(content)}"]
+        # Python 内置 hash 可能跨进程变化；生产中应使用稳定 ID，并带租户/用户命名空间
+        namespace = f"{metadata.get('tenant_id', '')}:{metadata.get('user_id', '')}"
+        stable_id = hashlib.sha256(f"{namespace}:{content}".encode('utf-8')).hexdigest()[:24]
+        ids=[f"mem_{stable_id}"]
     )
 
 def retrieve_memory(query: str, top_k: int = 3) -> list[str]:
@@ -158,7 +161,7 @@ def retrieve_memory(query: str, top_k: int = 3) -> list[str]:
     # 和存储时用的是同一个 embedding 模型，这样「语义距离」才有可比性
     query_embedding = client.embeddings.create(
         input=query,
-        model="text-embedding-3-small"
+        model="embedding-provider:model-id"
     ).data[0].embedding
 
     # 第二步：在向量数据库里找「向量距离最近」的几条记录
@@ -230,14 +233,20 @@ def run_agent_with_memory(user_request: str, long_term_memory, short_term_memory
 
 ![](../images/a4f5243e66fb3f95d34ac5c1.png)
 
+### 生产边界与排错
+
+长期记忆写入至少要带 `tenant_id/user_id`、来源、时间、版本、有效期和删除句柄；查询时先做访问控制和命名空间过滤，再做语义检索或结构化查询。Embedding 模型/版本、向量维度和距离度量要在写入与查询侧保持兼容，切换模型时应重建或分版本索引。召回内容还可能包含过期事实或提示注入，不能直接覆盖系统规则。
+
+评估记忆模块时，分别测写入精确率、召回精确率/召回率、冲突更新正确率、删除后残留、跨租户泄露、任务完成率、延迟和成本。若“记住更多”导致错误偏好更常被召回，记忆系统就是负收益。
+
 ## 🎯 面试总结
 
 这道题最容易踩的雷有三个，对照开头的对话回想一下。
 
-第一个雷是把长期记忆说成「存数据库靠关键词搜索」，这暴露了不了解向量检索，长期记忆的核心是 Embedding + 向量数据库，靠语义相似度而不是字符串匹配来检索，这一点一定要说清楚。
+第一个雷是把长期记忆说成「存数据库靠关键词搜索」。应说明：非结构化语义内容可以用 Embedding + 向量检索，但精确事实、权限和时间条件仍需要结构化过滤或查询，不能一概而论。
 
 第二个雷是以为粒度越细越好，实际上粒度太细会导致记忆碎片化，检索时拿到不完整的信息，合理粒度是「一次完整交互」或「一个独立知识点」。
 
-第三个雷是搞不清两层记忆各自的作用时机，短期记忆是任务执行中的「工作台」，任务结束就清空；长期记忆是任务前检索注入、任务后写入沉淀，两者分工不同，配合使用才能让 Agent 既不中途失忆、又能跨任务积累。
+第三个雷是搞不清两层记忆各自的作用时机：短期 State/Context 负责任务内连续性，是否在任务结束后清理或保存取决于治理策略；长期记忆负责跨任务沉淀，但必须经过权限、时效和冲突处理。
 
 ---

@@ -33,6 +33,21 @@
 
 一句话概括：LangChain 用标准协议统一组件，用 `create_agent` 提供高层 Agent 入口，再由 LangGraph 承担有状态的执行运行时。
 
+```mermaid
+flowchart TD
+    A[用户消息] --> B[Message/Model 协议]
+    B --> C{固定流程还是动态决策?}
+    C -->|固定| D[Runnable/LCEL]
+    C -->|动态| E[create_agent]
+    E --> F[LangGraph State/Node/Edge]
+    F --> G[Tool执行、Checkpointer、Middleware]
+    G --> E
+    D --> H[结果/Trace]
+    E --> H
+```
+
+Message 统一数据表达，Runnable 统一执行方式，Tool 隔开模型与业务副作用，LangGraph 负责需要显式状态的运行时；它们不是同一个抽象层。
+
 ## 📝 详细解析
 
 ### LangChain 解决了什么？

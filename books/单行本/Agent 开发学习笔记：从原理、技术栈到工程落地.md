@@ -4,7 +4,7 @@
 > 适用读者：已掌握 Python 基础和模型 API 调用（前置参考《Python 实用入门与 AI 开发：语法、API、并发及工程实践》）。  
 > 最后核对：2026-08-14（本次为审阅润色复核）。框架与模型变化很快，具体 API 以官方文档为准。
 
-### 怎么用这份笔记
+## 怎么用这份笔记
 
 - **第一次通读**：按第 1 → 21 章顺序阅读，先建立“责任划分”的整体观，再看各环节的细节；
 - **做项目时**：用第 16 章的架构和第 17 章的开发流程搭骨架，把第 18 章的客服案例当作模板改；
@@ -376,7 +376,7 @@ prepare → preview → approve → commit → verify
 | Resources | 应用 | 向模型提供文件、记录等上下文 |
 | Tools | 模型 | 执行查询或动作 |
 
-MCP 基础消息采用 JSON-RPC 2.0，并通过初始化协商能力。MCP 解决的是**连接标准化**，并不会自动解决业务授权、Prompt Injection、数据泄露或工具本身的安全问题。
+MCP 基础消息采用 JSON-RPC 2.0，但“如何初始化”取决于协议 revision：`2025-11-25` 及更早资料常见 `initialize`/`notifications/initialized`；`2026-07-28` 最新修订移除了协议级 session 和 initialize，改用请求级 `_meta` 与服务发现。MCP 解决的是**连接标准化**，并不会自动解决业务授权、Prompt Injection、数据泄露或工具本身的安全问题。实践时要锁定 SDK 支持的 revision，不要混用两套流程。
 
 ### 5.2 Function Calling 与 MCP 的关系
 
@@ -408,7 +408,7 @@ sequenceDiagram
     participant C as MCP Client
     participant S as MCP Server
     H->>C: 建立连接
-    C->>S: initialize + capabilities
+    C->>S: 服务发现 / 带 _meta 的请求
     S-->>C: 协议版本与能力
     C->>S: tools/list
     S-->>C: 工具 Schema
@@ -418,7 +418,17 @@ sequenceDiagram
     C-->>H: 交给模型或应用
 ```
 
-初始化会协商协议版本和能力，不能假设所有 Server 支持相同原语。超时、取消、断连和 Server 重启也需要生命周期管理。
+能力发现结果决定可调用的原语，不能假设所有 Server 支持相同 revision 或能力。旧版 SDK 可能仍走初始化握手；新版本还要考虑请求范围响应流、显式状态句柄和可选 Tasks 扩展。超时、取消、断连和 Server 重启也需要生命周期管理。
+
+版本迁移要点：
+
+| 旧版资料常见写法 | 审查时应补充的边界 |
+|---|---|
+| `initialize` + session | 仅适用于历史兼容基线；最新 revision 不规定协议级 session |
+| Server 直接向 Client 发起 Sampling/Roots/Elicitation | 新修订使用多轮输入结果与重试；具体由 SDK/扩展支持 |
+| Tasks 属于核心能力 | Tasks 是可选扩展，不能默认可用 |
+
+参阅 [MCP 最新规范](https://modelcontextprotocol.io/specification/2026-07-28) 与 [变更日志](https://modelcontextprotocol.io/specification/2026-07-28/changelog)。
 
 ### 5.5 Tools、Resources 与 Prompts 不应混用
 
@@ -1487,8 +1497,8 @@ MCP 标准化连接和能力协商，但信任、授权、用户同意和工具�
 - [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [LangChain Human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/specification/)
-- [MCP Server Primitives](https://modelcontextprotocol.io/specification/2025-06-18/server/index)
-- [MCP Security Best Practices](https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices)
+- [MCP Server Primitives（最新修订）](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [MCP Security Best Practices](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices)
 - [Agent Skills Specification](https://agentskills.io/)
 - [Anthropic：Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)
 

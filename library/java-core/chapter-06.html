@@ -1,170 +1,172 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>集合框架总览与 List 家族 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 核心：语言根基</a><span aria-hidden="true">›</span><span aria-current="page">集合框架总览与 List 家族</span></nav><div class="module-meta">Java 语言 · 第 6 / 18 章 · <span class="muted">更新于 2026-09-05</span></div><h1>集合框架总览与 List 家族</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>集合是 Java 使用频率最高、面试挖得最深的类库。先建立整体体系，再逐个读源码，这是大厂要求的“源码驱动”式学习。</p>
-<h3 id="51">5.1 集合体系总览</h3>
-<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
-    subgraph Collection 体系
-        C[Collection] --&gt; L[List]
-        C --&gt; S[Set]
-        C --&gt; Q[Queue]
-        L --&gt; AL[ArrayList]
-        L --&gt; LL[LinkedList]
-        S --&gt; HS[HashSet]
-        S --&gt; TS[TreeSet]
-        Q --&gt; AD[ArrayDeque]
-    end
-    subgraph Map 体系
-        M[Map] --&gt; HM[HashMap]
-        M --&gt; TM[TreeMap]
-        M --&gt; LHM[LinkedHashMap]
-        M --&gt; CHM[ConcurrentHashMap]
-    end</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
-<ul>
-<li><strong>Collection</strong> 是单列集合的根接口，下面分 <code>List</code>（有序可重复）、<code>Set</code>（不可重复）、<code>Queue</code>（队列）；</li>
-<li><strong>Map</strong> 是双列集合，存键值对，与 Collection 是并列的两大体系；</li>
-<li>集合里存的是<strong>对象引用</strong>，基本类型会自动装箱；<code>Set</code> 的去重依赖 <code>equals</code> 与 <code>hashCode</code>（见“Object 与 String”章）。</li>
-</ul>
-<h3 id="52-arraylist">5.2 ArrayList 源码精读</h3>
-<p><code>ArrayList</code> 底层是 <code>Object[]</code> 数组，支持随机访问。</p>
-<p><strong>扩容机制</strong>：</p>
-<ol>
-<li>无参构造只创建一个空数组，<strong>第一次 add 时才扩容到默认容量 10</strong>（懒加载）；</li>
-<li>容量不够时 <code>grow()</code>：<code>newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1)</code>，即 <strong>1.5 倍</strong>；</li>
-<li>若 1.5 倍仍小于需求容量，直接扩容到需求容量；</li>
-<li>复制使用 <code>Arrays.copyOf</code>（底层 <code>System.arraycopy</code>，native 方法）；</li>
-<li>最大容量约 <code>Integer.MAX_VALUE - 8</code>。</li>
-</ol>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">ArrayList</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// 此时容量 0</span>
-<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">11</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">i</span><span class="p">);</span><span class="w">      </span><span class="c1">// 第一次 add 扩到 10，第 11 个元素再扩到 15</span>
-</code></pre></div>
-<p><strong>增删复杂度</strong>：末尾 add 均摊 <span class="plain-math" aria-label="O(1)">O(1)</span>（扩容偶尔发生）；指定位置 add/remove 需要移动元素，<span class="plain-math" aria-label="O(n)">O(n)</span>；<code>get(i)</code> 直接按下标访问，<span class="plain-math" aria-label="O(1)">O(1)</span>。</p>
-<p><strong>modCount 与 fail-fast</strong>：每次结构修改（add/remove/clear）都会 <code>modCount++</code>。迭代器创建时记录 <code>expectedModCount</code>，迭代中检测到不一致就抛 <code>ConcurrentModificationException</code>，防止多线程或遍历中修改造成不可预期的结果。</p>
-<p><strong>subList 是视图</strong>：<code>list.subList(1, 3)</code> 返回的是原列表的视图，修改它会反映到原列表；在视图上结构性修改会导致原列表的 modCount 变化，再操作原列表可能抛异常。</p>
-<h3 id="53-linkedlist">5.3 LinkedList 源码精读</h3>
-<p><code>LinkedList</code> 底层是<strong>双向链表</strong>：每个节点持有 <code>prev</code>、<code>item</code>、<code>next</code> 三个引用。</p>
-<ul>
-<li>头尾 add/remove 是 <span class="plain-math" aria-label="O(1)">O(1)</span>；按下标 <code>get(i)</code>/<code>add(i)</code> 需要从头或尾开始遍历，<span class="plain-math" aria-label="O(n)">O(n)</span>；</li>
-<li>实现了 <code>List</code> 和 <code>Deque</code>，可当栈、队列、双端队列用；</li>
-<li>每个节点还要存前后指针，<strong>内存占用比 ArrayList 大</strong>，且节点在堆上分散，缓存局部性差；</li>
-<li>面试结论：数据量小、以遍历为主时 ArrayList 更优；频繁在头部插入删除才考虑 LinkedList。</li>
-</ul>
-<h3 id="54-vectorstack-arraydeque">5.4 Vector、Stack 与 ArrayDeque</h3>
-<ul>
-<li><code>Vector</code> 的方法用 <code>synchronized</code> 修饰，线程安全但性能差；扩容默认 2 倍（可指定 <code>capacityIncrement</code>）。JDK 1.2 起就被建议用 ArrayList 替代，只在遗留代码中出现。</li>
-<li><code>Stack</code> 继承 Vector，用它的 <code>addElement</code>/<code>removeElementAt</code>/<code>elementAt</code> 实现栈操作，整表同步，历史包袱重，官方建议用 <code>ArrayDeque</code>。</li>
-<li><code>ArrayDeque</code> 底层是循环数组，push/pop/offer/poll 均为 <span class="plain-math" aria-label="O(1)">O(1)</span>，<strong>不允许 null</strong>；作为栈/队列是首选。</li>
-</ul>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="n">stack</span><span class="p">.</span><span class="na">push</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
-<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">stack</span><span class="p">.</span><span class="na">pop</span><span class="p">());</span><span class="w">   </span><span class="c1">// 2</span>
-</code></pre></div>
-<h3 id="55-arraysaslist-listof">5.5 Arrays.asList 与 List.of 的坑</h3>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arrays</span><span class="p">.</span><span class="na">asList</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">);</span>
-<span class="n">list</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="s">&quot;c&quot;</span><span class="p">);</span><span class="w">   </span><span class="c1">// 抛 UnsupportedOperationException：Arrays.asList 返回固定大小列表</span>
-<span class="n">list</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;x&quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// 可以，修改会同步到原数组</span>
-
-<span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">list2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">List</span><span class="p">.</span><span class="na">of</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">);</span><span class="w">  </span><span class="c1">// JDK 9+，完全不可变</span>
-<span class="n">list2</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;x&quot;</span><span class="p">);</span><span class="w">  </span><span class="c1">// 抛 UnsupportedOperationException</span>
-</code></pre></div>
-<p><code>Arrays.asList</code> 返回的是 <code>java.util.Arrays$ArrayList</code>（内部数组），不是 <code>java.util.ArrayList</code>，只能替换元素不能增删。<code>List.of</code>/<code>Map.of</code>/<code>Set.of</code> 返回不可变集合，任何修改都抛异常；它们也<strong>不允许 null 元素</strong>，传入 null 会抛 NullPointerException。</p>
-<h3 id="56">5.6 遍历时删除的正确姿势</h3>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 错误：for-each 中调用 list.remove，迭代器检查 modCount 失败</span>
-<span class="c1">// for (String s : list) { if (s.equals(&quot;a&quot;)) list.remove(s); }</span>
-
-<span class="c1">// 正确 1：迭代器 remove</span>
-<span class="n">Iterator</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">iterator</span><span class="p">();</span>
-<span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">hasNext</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="na">next</span><span class="p">().</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">))</span><span class="w"> </span><span class="n">it</span><span class="p">.</span><span class="na">remove</span><span class="p">();</span>
-<span class="p">}</span>
-
-<span class="c1">// 正确 2：JDK 8 removeIf</span>
-<span class="n">list</span><span class="p">.</span><span class="na">removeIf</span><span class="p">(</span><span class="n">s</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">));</span>
-
-<span class="c1">// 正确 3：倒序 for 循环按索引删除</span>
-<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">list</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">i</span><span class="p">).</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;a&quot;</span><span class="p">))</span><span class="w"> </span><span class="n">list</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
-<span class="p">}</span>
-</code></pre></div>
-<p><strong>fail-fast vs fail-safe</strong>：ArrayList/HashMap 的迭代器是 fail-fast（快速失败，结构变化立即抛异常）；<code>CopyOnWriteArrayList</code>、<code>ConcurrentHashMap</code> 等并发容器的迭代器基于快照或弱一致语义，迭代过程中修改不会抛异常（fail-safe），但也不保证看到最新数据。</p>
-<h3 id="57-list">5.7 List 家族对比表</h3>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Object、equals/hashCode 与 String · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 核心：语言根基</a><span aria-hidden="true">›</span><span aria-current="page">Object、equals/hashCode 与 String</span></nav><div class="module-meta">Java 语言 · 第 6 / 19 章 · <span class="muted">更新于 2026-09-12</span></div><h1>Object、equals/hashCode 与 String</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>所有类的祖先都是 <code>Object</code>，而 <code>String</code> 是 Java 里使用频率最高的类，也是面试最爱深挖的类。这一章讲透两者的底层机制。</p>
+<h3 id="41-object">4.1 Object 的方法总览</h3>
 <table>
 <thead>
 <tr>
-<th>对比项</th>
-<th>ArrayList</th>
-<th>LinkedList</th>
-<th>Vector</th>
+<th>方法</th>
+<th>作用</th>
+<th>注意</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>底层结构</td>
-<td>Object 数组</td>
-<td>双向链表</td>
-<td>Object 数组</td>
+<td><code>equals(Object)</code></td>
+<td>内容相等比较</td>
+<td>默认是引用比较，需重写</td>
 </tr>
 <tr>
-<td>随机访问 get(i)</td>
-<td><span class="plain-math" aria-label="O(1)">O(1)</span></td>
-<td><span class="plain-math" aria-label="O(n)">O(n)</span></td>
-<td><span class="plain-math" aria-label="O(1)">O(1)</span></td>
+<td><code>hashCode()</code></td>
+<td>返回散列值</td>
+<td>与 equals 有契约关系</td>
 </tr>
 <tr>
-<td>头尾插入删除</td>
-<td>头 <span class="plain-math" aria-label="O(n)">O(n)</span>，尾均摊 <span class="plain-math" aria-label="O(1)">O(1)</span></td>
-<td><span class="plain-math" aria-label="O(1)">O(1)</span></td>
-<td>同 ArrayList</td>
+<td><code>toString()</code></td>
+<td>字符串表示</td>
+<td>默认是 <code>类名@hashCode</code></td>
 </tr>
 <tr>
-<td>中间插入删除</td>
-<td><span class="plain-math" aria-label="O(n)">O(n)</span></td>
-<td><span class="plain-math" aria-label="O(n)">O(n)</span>（先找再改）</td>
-<td><span class="plain-math" aria-label="O(n)">O(n)</span></td>
+<td><code>getClass()</code></td>
+<td>返回运行时 Class</td>
+<td>泛型擦除后取真实类型</td>
 </tr>
 <tr>
-<td>扩容</td>
-<td>1.5 倍</td>
-<td>无</td>
-<td>2 倍</td>
+<td><code>clone()</code></td>
+<td>浅拷贝</td>
+<td>protected native，需实现 Cloneable；深拷贝见下方说明</td>
 </tr>
 <tr>
-<td>线程安全</td>
-<td>否</td>
-<td>否</td>
-<td>是（方法级同步）</td>
+<td><code>wait()/notify()/notifyAll()</code></td>
+<td>线程等待/唤醒</td>
+<td>必须在 synchronized 块内，见并发课程</td>
 </tr>
 <tr>
-<td>内存</td>
-<td>连续数组，占用少</td>
-<td>每节点多两个指针</td>
-<td>连续数组</td>
+<td><code>finalize()</code></td>
+<td>对象回收前回调</td>
+<td>JDK 9 起弃用、JDK 18 起弃用并准备移除，不要使用</td>
 </tr>
 </tbody>
 </table>
-<h3 id="58-priorityqueue">5.8 PriorityQueue：二叉堆</h3>
-<p><code>PriorityQueue</code> 底层是二叉堆（用数组存储），默认<strong>小顶堆</strong>（堆顶最小）：</p>
-<ul>
-<li><code>offer</code>/<code>poll</code> 入堆、出堆 <span class="plain-math" aria-label="O(\log n)">O(log n)</span>，<code>peek</code> 看堆顶 <span class="plain-math" aria-label="O(1)">O(1)</span>；</li>
-<li>用集合构造时采用堆化，整体构建 <span class="plain-math" aria-label="O(n)">O(n)</span>；</li>
-<li>传 <code>Comparator</code> 可改顺序，<code>new PriorityQueue&lt;&gt;(Comparator.reverseOrder())</code> 就是大顶堆；</li>
-<li><strong>不允许 null</strong>，线程不安全；并发场景用 <code>PriorityBlockingQueue</code>（并发课程展开）；</li>
-<li>容量不足时按策略扩容：容量小于 64 时近乎翻倍，否则 1.5 倍；</li>
-<li>典型用途：Top K、任务调度、合并 K 个有序流（与 Hot 100 的堆专题直接衔接）。</li>
-</ul>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">();</span>
-<span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
-<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">pq</span><span class="p">.</span><span class="na">poll</span><span class="p">());</span><span class="w">   </span><span class="c1">// 1，小顶堆先出最小</span>
+<p><code>clone()</code> 默认是<strong>浅拷贝</strong>：引用字段只复制引用，不复制被引用对象。需要深拷贝时，要么在 <code>clone()</code> 里手动复制每个可变字段，要么用序列化拷贝（实现 <code>Serializable</code> 后写字节再读回），或用拷贝构造器/工厂方法。</p>
+<h3 id="42-equals">4.2 equals 的五条契约</h3>
+<p>重写 <code>equals</code> 必须满足：</p>
+<ol>
+<li><strong>自反</strong>：<code>x.equals(x)</code> 为 true；</li>
+<li><strong>对称</strong>：<code>x.equals(y)</code> 与 <code>y.equals(x)</code> 结果一致；</li>
+<li><strong>传递</strong>：<code>x.equals(y)</code>、<code>y.equals(z)</code> 为 true 时，<code>x.equals(z)</code> 必为 true；</li>
+<li><strong>一致</strong>：对象未修改时，多次调用结果一致；</li>
+<li><strong>非空性</strong>：<code>x.equals(null)</code> 为 false。</li>
+</ol>
+<p>标准写法（IDEA 可自动生成）：</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Override</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">equals</span><span class="p">(</span><span class="n">Object</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">o</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">getClass</span><span class="p">()</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="na">getClass</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">    </span><span class="n">User</span><span class="w"> </span><span class="n">user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">User</span><span class="p">)</span><span class="w"> </span><span class="n">o</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">user</span><span class="p">.</span><span class="na">id</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">name</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">user</span><span class="p">.</span><span class="na">name</span><span class="p">);</span>
+<span class="p">}</span>
 </code></pre></div>
-<h3 id="59">5.9 面试追问</h3>
+<p>用 <code>getClass() != o.getClass()</code> 而不是 <code>instanceof</code>，可以避免子类与父类互相 equals 破坏对称性（如 <code>Person</code> 和 <code>Student</code> 用 instanceof 时可能双向为 true，但反过来比较结果不一致）。</p>
+<h3 id="43-hashcode">4.3 hashCode 契约</h3>
 <ul>
-<li>问：ArrayList 和 LinkedList 的区别？</li>
-<li>答：底层结构决定一切。ArrayList 是连续数组：按下标随机访问 O(1)（直接算偏移量），中间插入/删除要移动后续所有元素 O(n)，扩容要整体复制；LinkedList 是双向链表：头尾插入/删除 O(1)，但按位置访问要从头/尾遍历 O(n)。真实项目里几乎总是选 ArrayList，除了结构差异还有两个容易被忽略的原因：① 数组的内存连续性对 CPU 缓存友好，LinkedList 每个节点都是零散堆对象，遍历缓存命中率低；② LinkedList 每个节点额外要存前后指针，内存开销更大。只有“频繁在头部增删”这类场景 LinkedList 才有优势，实践中更常见的替代是 ArrayDeque。</li>
-<li>问：ArrayList 扩容多少倍？为什么是 1.5 倍？</li>
-<li>答：JDK 8 起新容量 = 旧容量 + (旧容量 &gt;&gt; 1)，即 1.5 倍（10 → 15 → 22 → 33…），用位运算实现。为什么是 1.5 而不是 2？扩容本身要新建数组并把旧元素全部复制过去，成本 O(n)：倍率太小时扩容太频繁，均摊成本升高；倍率太大时每次扩容预留的空间可能用不上，内存浪费且复制的绝对量也变大。1.5 倍的巧妙之处在于：1.5 倍乘出来的数反复乘仍然满足“再次扩容可以复用之前释放的空间”（15 + 15/2 = 22 不超过 10+15=25），内存可以原地增长（系统层面）。对比记忆：HashMap 用 2 倍，因为它要求容量永远是 2 的幂，方便用位运算取模。</li>
-<li>问：为什么遍历时用集合自身的 remove 会抛 ConcurrentModificationException？</li>
-<li>答：ArrayList 内部维护一个 modCount（结构修改次数计数器），每次 add/remove 都会 +1。创建迭代器时会快照一份 expectedModCount = modCount，之后每调一次 next() 都校验两者是否相等——不相等说明遍历过程中集合结构被人改了，立即抛 ConcurrentModificationException（快速失败设计，宁可报错也不给你遍历到错乱的数据）。坑在于：循环里调用 list.remove(i) 改了 modCount 但迭代器不知道，下一次 next() 校验失败爆炸。正确做法是用迭代器自己的 <code>iterator.remove()</code>（它会同步更新 expectedModCount），或者 JDK 8 的 <code>list.removeIf(...)</code>。还有一个隐蔽考点：循环中倒数第二个元素删除时不抛异常（ hasNext 判断提前短路），这种“偶发不报错”的 bug 更难排查。</li>
-<li>问：<code>Arrays.asList</code> 和 <code>List.of</code> 有什么区别？</li>
-<li>答：三个维度：① 改元素——Arrays.asList 返回的是底层数组的视图，set() 可以改（改了原数组也变）；List.of 完全不可变，set 直接抛异常。② 增删——两者都不支持 add/remove（Arrays.asList 是定长视图，List.of 是不可变），都会抛 UnsupportedOperationException。③ null——Arrays.asList 允许 null 元素；List.of 禁止 null，传 null 直接抛 NPE。最容易踩的坑是把 Arrays.asList 的返回值当成正常 ArrayList 用：它返回的是内部类 Arrays.ArrayList（没有重写 add），转型成 List 后一调 add 就炸。</li>
-</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#51">5.1 集合体系总览</a></li><li class="lv3"><a href="#52-arraylist">5.2 ArrayList 源码精读</a></li><li class="lv3"><a href="#53-linkedlist">5.3 LinkedList 源码精读</a></li><li class="lv3"><a href="#54-vectorstack-arraydeque">5.4 Vector、Stack 与 ArrayDeque</a></li><li class="lv3"><a href="#55-arraysaslist-listof">5.5 Arrays.asList 与 List.of 的坑</a></li><li class="lv3"><a href="#56">5.6 遍历时删除的正确姿势</a></li><li class="lv3"><a href="#57-list">5.7 List 家族对比表</a></li><li class="lv3"><a href="#58-priorityqueue">5.8 PriorityQueue：二叉堆</a></li><li class="lv3"><a href="#59">5.9 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<li>两个对象 <code>equals</code> 相等，<code>hashCode</code> <strong>必须</strong>相等；</li>
+<li>两个对象 <code>hashCode</code> 不等，<code>equals</code> <strong>必然</strong>不等（逆否命题）；</li>
+<li>两个对象 <code>hashCode</code> 相等，<code>equals</code> 可能不等（哈希碰撞，合法）。</li>
+</ul>
+<p>这就是“重写 equals 必须重写 hashCode”的原因：HashMap 等散列容器先用 hashCode 定位桶，再用 equals 精确比较；桶里是 hashCode 相等但内容不同的对象，equals 就会返回 false，导致 <code>map.get(key)</code> 取不到值。</p>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="nd">@Override</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">hashCode</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">Objects</span><span class="p">.</span><span class="na">hash</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">);</span><span class="w">   </span><span class="c1">// 内部使用 31 作为乘数</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>为什么常用 31：它是奇素数，<code>31 * h + value</code> 在编译器里可优化为 <code>(h &lt;&lt; 5) - h</code>，碰撞率低且计算快。</p>
+<h3 id="44-string">4.4 String 的不可变性与常量池</h3>
+<p><code>String</code> 被 <code>final</code> 修饰，且 JDK 8 内部用 <code>char[]</code> 存储、JDK 9 起改用 <code>byte[] + coder</code>（紧凑字符串，Latin-1 字符只占 1 字节）。所有修改方法都返回新字符串，原对象不变。</p>
+<p><strong>为什么 String 要不可变</strong>：</p>
+<ol>
+<li><strong>缓存安全</strong>：字符串常量池、HashMap 的 key 依赖 hashCode，可变会导致散列失效；</li>
+<li><strong>线程安全</strong>：不可变对象天然可共享，无需同步；</li>
+<li><strong>安全</strong>：类加载器、网络地址、文件路径等敏感字符串不会被意外篡改；</li>
+<li><strong>性能</strong>：常量池复用，避免重复创建。</li>
+</ol>
+<p><strong>字符串常量池（String Pool）</strong>：</p>
+<ul>
+<li>JDK 7 之前位于方法区（PermGen），JDK 7 起移入堆；</li>
+<li>编译期字面量 <code>"abc"</code> 会入池；<code>new String("abc")</code> 在堆上新建对象，不改变池中内容；</li>
+<li><code>intern()</code> 方法把字符串加入池并返回池中的引用。</li>
+</ul>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">String</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;abc&quot;</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 常量池中创建/复用</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="s">&quot;abc&quot;</span><span class="p">);</span><span class="w">     </span><span class="c1">// 堆上新建对象</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">);</span><span class="w">      </span><span class="c1">// false</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s2</span><span class="p">.</span><span class="na">intern</span><span class="p">());</span><span class="w"> </span><span class="c1">// true，intern 返回池中引用</span>
+
+<span class="n">String</span><span class="w"> </span><span class="n">s3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;a&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;b&quot;</span><span class="p">;</span><span class="w">             </span><span class="c1">// 编译期常量折叠，等价于 &quot;ab&quot;</span>
+<span class="n">String</span><span class="w"> </span><span class="n">s4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;ab&quot;</span><span class="p">;</span>
+<span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="n">s3</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s4</span><span class="p">);</span><span class="w">      </span><span class="c1">// true</span>
+</code></pre></div>
+<p>高频题：<code>new String("abc")</code> 创建几个对象？</p>
+<ul>
+<li>若常量池中没有 <code>"abc"</code>：创建 2 个（常量池的 <code>"abc"</code> + 堆上的 String 对象；实际还可能包含 <code>char[]</code>，可视为 2 个主要对象）；</li>
+<li>若常量池已有 <code>"abc"</code>：只创建 1 个堆对象。</li>
+</ul>
+<p>拼接细节：JDK 8 的 javac 会把变量拼接编译成 <code>StringBuilder.append</code>；JDK 9 起改用 <code>invokedynamic</code> + <code>StringConcatFactory</code>，但“每次拼接创建新对象”的本质不变，循环内拼接仍应手写 <code>StringBuilder</code>。</p>
+<h3 id="45-stringbuilder-stringbuffer">4.5 StringBuilder 与 StringBuffer</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>String</th>
+<th>StringBuilder</th>
+<th>StringBuffer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>可变</td>
+<td>否</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>线程安全</td>
+<td>是（不可变）</td>
+<td>否</td>
+<td>是（方法加 synchronized）</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>拼接最慢</td>
+<td>最快</td>
+<td>居中</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>常量/少量拼接</td>
+<td>单线程大量拼接</td>
+<td>多线程共享同一对象</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">1000</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">i</span><span class="p">);</span><span class="w">          </span><span class="c1">// 原地修改，不产生中间对象</span>
+<span class="p">}</span>
+<span class="n">String</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">();</span>
+</code></pre></div>
+<p>容量细节：<code>new StringBuilder()</code> 默认容量 16，容量不足时按“旧容量 × 2 + 2”扩容（<code>AbstractStringBuilder</code> 的 grow 逻辑）；能预估大小时用 <code>new StringBuilder(initialCapacity)</code> 预分配，减少扩容复制。</p>
+<h3 id="46">4.6 面试追问</h3>
+<ul>
+<li>问：为什么重写 equals 必须重写 hashCode？</li>
+<li>答：要先知道散列容器的查找流程：以 HashMap 为例，put/get 都是先用 key 的 hashCode 计算数组下标定位“桶”，桶内再用 equals 逐个比较。契约规定：equals 相等的两个对象，hashCode 必须相等。只重写 equals 不重写 hashCode 时，两个内容相同的对象 hashCode 大概率不同（Object 默认按地址算），于是被分到不同的桶——用其中一个做 key put 进去，再用“内容相同的另一个对象”去 get，定位到的桶里根本没有它，直接返回 null。这类 bug 在业务里极其隐蔽：存的时候好好的，取的时候说没有。反过来“hashCode 相等但 equals 不等”是允许的（哈希冲突），不算违约。</li>
+<li>问：<code>String s = new String("abc")</code> 创建了几个对象？</li>
+<li>答：最多 2 个、至少 1 个，要看执行时机。编译期：如果字符串常量池里还没有 "abc"，编译阶段就会在常量池创建一个 "abc" 对象（类加载时完成）；运行期：<code>new String("abc")</code> 又在堆上创建一个新对象，s 指向的是这个堆对象而不是常量池里的。所以第一次执行创建 2 个，第二次执行同样的代码常量池已经有了，只创建 1 个。追问常问“s == "abc" 吗”——不相等，因为 == 比较的是地址，s 在堆、字面量在常量池，内容相同地址不同；想比较内容用 equals 或对 s 调用 intern() 后再比。</li>
+<li>问：<code>intern()</code> 的作用？</li>
+<li>答：intern 的语义是“返回这个字符串在常量池里的唯一引用”：池里已有内容相同的字符串就直接返回池中引用，没有就把当前字符串放入池中再返回。典型用途是去重省内存——比如系统里有几百万条重复的城市名字符串，全部 intern 后内存里只保留一份。还有一个经典面试题：<code>new String("a") + new String("b")</code> 拼出的 "ab" 在堆上，调用 intern 后 JDK 7+ 的行为是常量池里没有 "ab" 时直接把堆上的引用登记进池（而不是复制一份），因此 <code>s.intern() == s</code> 为 true，而直接写字面量 "ab" 的场景 intern 返回的是常量池里的旧对象，== 为 false。JDK 7 起常量池从永久代移到了堆中，才有了这个行为差异。</li>
+<li>问：String、StringBuilder、StringBuffer 怎么选？</li>
+<li>答：先理解性能差异的来源：String 不可变，每次“拼接”都会产生新对象并把旧内容整个复制一遍，在循环里拼接 n 次就是 O(n²) 的复制——这是面试必考的反模式（循环里用 + 拼 SQL）。StringBuilder 内部维护可变的字符数组（默认容量 16，不够扩容），append 直接在数组尾部追加，拼接 n 次是 O(n)。选择规则：字符串内容不变（如常量、配置）用 String；单线程内拼接（绝大多数场景）用 StringBuilder；多线程共享同一个可变字符串才用 StringBuffer（方法上有 synchronized，有性能损耗，实际上很少遇到这种场景）。</li>
+<li>问：String 为什么设计成不可变？</li>
+<li>答：四个理由，面试按顺序讲：① <strong>常量池的前提</strong>：常量池要求同一内容只有一份引用，如果 String 可变，改一个引用的内容会影响所有指向它的地方，池化就崩了；② <strong>hashCode 缓存</strong>：String 重写 hashCode 时把结果缓存起来（首次计算后不再重算），不可变保证缓存永远有效，所以 String 特别适合做 HashMap 的 key；③ <strong>线程安全</strong>：不可变对象天然线程安全，多线程共享不需要任何同步；④ <strong>安全性</strong>：文件路径、数据库连接 URL、类名等关键参数都用 String 表示，若是可变的，恶意代码在你校验完之后、真正使用之前偷偷改掉内容（TOCTOU 攻击）就防不胜防。</li>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#41-object">4.1 Object 的方法总览</a></li><li class="lv3"><a href="#42-equals">4.2 equals 的五条契约</a></li><li class="lv3"><a href="#43-hashcode">4.3 hashCode 契约</a></li><li class="lv3"><a href="#44-string">4.4 String 的不可变性与常量池</a></li><li class="lv3"><a href="#45-stringbuilder-stringbuffer">4.5 StringBuilder 与 StringBuffer</a></li><li class="lv3"><a href="#46">4.6 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="java-core:06",moduleId="java-core";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -180,4 +182,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-boot"></script><script src="../assets/library-mermaid.js?v=20260906-boot"></script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

@@ -1,99 +1,111 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>CAS 与原子类 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">CAS 与原子类</span></nav><div class="module-meta">Java 语言 · 第 6 / 17 章 · <span class="muted">更新于 2026-09-06</span></div><h1>CAS 与原子类</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>CAS（Compare And Swap）是无锁编程的基石：不阻塞线程，而是乐观地“比较并交换”，失败就重试。</p>
-<h3 id="51-cas">5.1 CAS 原理</h3>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">CAS(内存地址 V, 期望值 A, 新值 B)：
-    如果 V 当前值 == A，则把 V 更新为 B，返回 true
-    否则什么都不做，返回 false
-</code></pre></div>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">AtomicInteger</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AtomicInteger</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>synchronized 原理与锁升级 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Java 并发编程：线程、锁与高并发</a><span aria-hidden="true">›</span><span aria-current="page">synchronized 原理与锁升级</span></nav><div class="module-meta">Java 语言 · 第 6 / 18 章 · <span class="muted">更新于 2026-09-12</span></div><h1>synchronized 原理与锁升级</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>synchronized 是 Java 最基础也最常用的锁。面试要求从“怎么用”讲到“底层锁升级”，两者都要熟。</p>
+<h3 id="41">4.1 三种用法与锁对象</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 1. 同步实例方法：锁是 this</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">synchronized</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">m1</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
 
-<span class="c1">// 等价于 while 循环自旋：</span>
-<span class="c1">// 读旧值 → CAS(旧值, 旧值+1) → 失败则重读再试</span>
-<span class="n">count</span><span class="p">.</span><span class="na">incrementAndGet</span><span class="p">();</span>
+<span class="c1">// 2. 同步静态方法：锁是 Class 对象</span>
+<span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kd">synchronized</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">m2</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+
+<span class="c1">// 3. 同步代码块：锁是括号里的对象</span>
+<span class="kd">public</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">m3</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lock</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
 </code></pre></div>
-<p>底层是 CPU 提供的原子指令（x86 的 <code>cmpxchg</code>），由硬件保证“比较 + 交换”这一整步不可分割，所以 CAS 是原子的。</p>
-<h3 id="52-cas">5.2 CAS 的三个缺点</h3>
-<table>
-<thead>
-<tr>
-<th>缺点</th>
-<th>说明</th>
-<th>解决</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>自旋消耗 CPU</td>
-<td>竞争激烈时不断重试</td>
-<td>限制自旋次数、锁粗化或改用锁</td>
-</tr>
-<tr>
-<td>只能保证一个变量的原子性</td>
-<td>多个变量无法一次 CAS</td>
-<td>把多个值封装成对象用 <code>AtomicReference</code></td>
-</tr>
-<tr>
-<td>ABA 问题</td>
-<td>A 被改成 B 又被改回 A，CAS 误以为没变过</td>
-<td><code>AtomicStampedReference</code> 带版本号</td>
-</tr>
-</tbody>
-</table>
-<p>ABA 示例：线程 1 读到值 A；线程 2 改成 B 又改回 A；线程 1 的 CAS 成功，但中间状态被“偷走”过。解决方式是带上版本号或时间戳：</p>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">AtomicStampedReference</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ref</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AtomicStampedReference</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
-<span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">stamp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
-<span class="n">Integer</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ref</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">stamp</span><span class="p">);</span><span class="w">          </span><span class="c1">// 读取当前值和版本</span>
-<span class="n">ref</span><span class="p">.</span><span class="na">compareAndSet</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="mi">101</span><span class="p">,</span><span class="w"> </span><span class="n">stamp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">stamp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">  </span><span class="c1">// 值和版本都匹配才交换</span>
-</code></pre></div>
-<h3 id="53">5.3 原子类家族</h3>
-<table>
-<thead>
-<tr>
-<th>类别</th>
-<th>类</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>基本类型</td>
-<td>AtomicInteger、AtomicLong、AtomicBoolean</td>
-</tr>
-<tr>
-<td>引用类型</td>
-<td>AtomicReference、AtomicStampedReference、AtomicMarkableReference</td>
-</tr>
-<tr>
-<td>数组</td>
-<td>AtomicIntegerArray、AtomicLongArray、AtomicReferenceArray</td>
-</tr>
-<tr>
-<td>字段更新器</td>
-<td>AtomicIntegerFieldUpdater、AtomicReferenceFieldUpdater</td>
-</tr>
-<tr>
-<td>累加器（JDK 8）</td>
-<td>LongAdder、LongAccumulator、DoubleAdder、DoubleAccumulator</td>
-</tr>
-</tbody>
-</table>
-<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="n">AtomicInteger</span><span class="w"> </span><span class="n">ai</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">AtomicInteger</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
-<span class="n">ai</span><span class="p">.</span><span class="na">getAndIncrement</span><span class="p">();</span><span class="w">      </span><span class="c1">// 返回旧值 10，然后变为 11</span>
-<span class="n">ai</span><span class="p">.</span><span class="na">incrementAndGet</span><span class="p">();</span><span class="w">      </span><span class="c1">// 返回 12</span>
-<span class="n">ai</span><span class="p">.</span><span class="na">compareAndSet</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">);</span><span class="w">  </span><span class="c1">// true，变为 20</span>
-<span class="n">ai</span><span class="p">.</span><span class="na">updateAndGet</span><span class="p">(</span><span class="n">x</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">2</span><span class="p">);</span><span class="w"> </span><span class="c1">// 40，JDK 8 函数式更新</span>
-</code></pre></div>
-<p><strong>LongAdder（JDK 8）</strong>：把单个计数拆成 base + 多个 Cell 分段，各线程分散累加，最后求和，适合“高并发写、不常读”的统计场景（如 QPS 计数）；吞吐比 AtomicLong 高，但 get 不是强一致快照。</p>
-<h3 id="54">5.4 面试追问</h3>
+<p>关键认知：</p>
 <ul>
-<li>问：CAS 的原理？</li>
-<li>答：CAS（Compare And Swap）是一条 CPU 原子指令（x86 的 cmpxchg），它一次性完成“比较内存位置的值是否等于期望值，相等则替换为新值”，整个过程不可被其他线程打断——原子性由硬件保证而不是锁。Java 层的 AtomicInteger.incrementAndGet() 内部就是循环：读当前值 → 尝试 CAS(旧值, 旧值+1) → 成功返回；失败说明期间有别的线程改过，重新读最新值再试（自旋）。它没有锁、没有线程挂起和唤醒，所以在低到中等竞争下比 synchronized 快；竞争极其激烈时自旋空转烧 CPU，反而不如排队。</li>
-<li>问：CAS 的缺点？</li>
-<li>答：三个：① <strong>自旋消耗 CPU</strong>——竞争激烈时线程反复失败重试，空转烧 CPU 不干活，此时应该换锁（排队等待不消耗 CPU）；② <strong>只能保证单个变量的原子性</strong>——要原子地更新“账户 A 扣 100、账户 B 加 100”两个变量，单个 CAS 无能为力，只能封装成对象用 AtomicReference 或干脆加锁；③ <strong>ABA 问题</strong>——值从 A 改成 B 又改回 A，CAS 看到的还是 A 就以为没变过，但对于“链表节点被释放又重新分配”这类场景，中间状态被偷换可能造成逻辑错误（栈顶指针指向了地址相同但内容不同的节点）。三个缺点的应对分别是：换锁、AtomicReference 封装、AtomicStampedReference 加版本号。</li>
-<li>问：ABA 问题怎么解决？</li>
-<li>答：给值附加一个“版本号”，CAS 时不仅比较值，还要比较版本号——值被改回去了，版本号却回不去（只增不减），暴露了中间的变化。AtomicStampedReference 内部维护 [引用, stamp] 二元组，compareAndSet 需要同时传期望值和期望版本：<code>ref.compareAndSet(oldRef, newRef, oldStamp, oldStamp + 1)</code>。不需要版本号本身递增、只需要“标记是否被改过”时用 AtomicMarkableReference（boolean 标记）。一个实务提醒：大多数业务场景（计数器、累加）值回不回都无所谓，ABA 不构成威胁；只有“值相同不代表状态相同”的场景（链表/栈等引用结构）才需要版本号——按需选型，别无脑上版本号。</li>
-<li>问：AtomicInteger 和 LongAdder 怎么选？</li>
-<li>答：差异在“写”的竞争策略。AtomicInteger 所有线程对同一个 value 做 CAS，竞争激烈时大量线程自旋失败重试，吞吐下降；LongAdder（JDK 8）把计数拆成 base + 一个 Cell 数组，不同线程按哈希落到不同 Cell 上分别累加（分散热点），sum() 时把 base 和所有 Cell 加起来。代价是 sum() 读到的<strong>不是精确的瞬时快照</strong>（读的过程中可能还有线程在累加）。选型：低并发、或需要“读到的一定是准确值”的场景（如序列号、限流阈值判断）用 AtomicInteger；超高并发写、只是做统计（QPS 计数、监控指标）用 LongAdder。一句话：LongAdder 用“读的弱一致”换了“写的吞吐”。</li>
-</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#51-cas">5.1 CAS 原理</a></li><li class="lv3"><a href="#52-cas">5.2 CAS 的三个缺点</a></li><li class="lv3"><a href="#53">5.3 原子类家族</a></li><li class="lv3"><a href="#54">5.4 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<li>锁的对象是 <strong>monitor（监视器）</strong>，Java 里每个对象都关联一个 monitor（由对象头中的锁记录/指向）;</li>
+<li>只有<strong>竞争同一个锁对象</strong>的线程才互斥；用 <code>this</code> 和用 <code>Class</code> 锁互不相关；</li>
+<li>是<strong>可重入</strong>的：同一线程重入同一 monitor 会计数 +1，退出同步块时 -1，计数归零才真正释放；所以同步方法里可以再调自己的同步方法。</li>
+</ul>
+<h3 id="42">4.2 锁升级：历史路径与当前实现边界</h3>
+<p>JDK 6 之后 synchronized 做了大量优化，锁存在升级路径：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    A[无锁] --&gt;|第一个线程持有| B[偏向锁&lt;br/&gt;JDK15 起默认禁用]
+    B --&gt;|出现竞争| C[轻量级锁&lt;br/&gt;CAS 自旋]
+    C --&gt;|自旋失败/竞争激烈| D[重量级锁&lt;br/&gt;monitor 阻塞]
+    D --&gt;|释放| E[无锁]
+    C --&gt;|释放| E</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<ul>
+<li><strong>偏向锁（历史）</strong>：只有第一个线程反复进入时，在对象头记录线程 ID，省去 CAS；JDK 15 起默认禁用并弃用（JEP 374），实际开发可以忽略它；</li>
+<li><strong>轻量级锁</strong>：线程在栈帧中创建锁记录，用 CAS 把对象头 Mark Word 替换为指向锁记录的指针；CAS 失败说明有竞争，升级；</li>
+<li><strong>重量级锁</strong>：进入 monitor，竞争线程被阻塞（涉及操作系统互斥量与线程唤醒），开销最大，但公平性最好。</li>
+</ul>
+<p>这张图是 HotSpot 早期实现的面试化示意，不是 Java 语言规范保证的状态机。偏向锁自 JDK 15 起默认禁用并在后续版本移除相关实现；现代 JDK 不应假定每次竞争都会经过“偏向→轻量级→重量级”。“只升级不降级”也只是经典实现的简化记忆，实际锁膨胀、撤销和消除由具体 HotSpot 版本与 JIT 决定。</p>
+<div class="demo-embed"><iframe src="../../books/hot100/05-可视化/锁升级可视化.html?embed=1" title="交互演示：锁升级可视化" loading="lazy" scrolling="no"></iframe></div>
+
+<p>除了升级，JIT 还有两个锁优化：<strong>锁消除</strong>（逃逸分析发现锁对象不逃逸，直接去掉无意义的加锁）与<strong>锁粗化</strong>（把相邻多次加同一把锁合并成一次，减少加解锁次数）。它们是“锁升级”之外的另一半性能故事。</p>
+<h3 id="43-waitnotify">4.3 wait/notify 与锁的关系</h3>
+<div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">synchronized</span><span class="w"> </span><span class="p">(</span><span class="n">lock</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">condition</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">lock</span><span class="p">.</span><span class="na">wait</span><span class="p">();</span><span class="w">      </span><span class="c1">// 释放锁并等待；被唤醒后重新竞争锁</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// 条件满足后继续</span>
+<span class="w">    </span><span class="n">lock</span><span class="p">.</span><span class="na">notifyAll</span><span class="p">();</span><span class="w">     </span><span class="c1">// 唤醒等待者；notify 本身不释放锁，要等同步块退出</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>规范：</p>
+<ul>
+<li><code>wait()</code>/<code>notify()</code>/<code>notifyAll()</code> 必须持有该对象的锁才能调用；</li>
+<li><code>wait</code> 会释放锁，<code>notify</code> 不会释放锁；</li>
+<li>等待条件必须用 <strong>while 循环</strong>包裹（虚假唤醒），不能用 if；</li>
+<li>优先 <code>notifyAll</code> 而不是 <code>notify</code>，避免唤醒错线程。</li>
+</ul>
+<h3 id="44-synchronized-lock">4.4 synchronized 与 Lock 对比</h3>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>synchronized</th>
+<th>ReentrantLock</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>获取/释放</td>
+<td>自动（块结束释放）</td>
+<td>手动 lock/unlock（必须 finally 释放）</td>
+</tr>
+<tr>
+<td>可中断</td>
+<td>否</td>
+<td><code>lockInterruptibly()</code> 是</td>
+</tr>
+<tr>
+<td>超时</td>
+<td>否</td>
+<td><code>tryLock(timeout)</code> 是</td>
+</tr>
+<tr>
+<td>公平性</td>
+<td>非公平</td>
+<td>可构造公平锁</td>
+</tr>
+<tr>
+<td>条件变量</td>
+<td>每个对象一个 wait/notify</td>
+<td><code>newCondition()</code> 多个条件队列</td>
+</tr>
+<tr>
+<td>底层</td>
+<td>monitor（锁升级）</td>
+<td>AQS + LockSupport</td>
+</tr>
+</tbody>
+</table>
+<h3 id="45">4.5 面试追问</h3>
+<ul>
+<li>问：synchronized 锁的是什么？</li>
+<li>答：synchronized 锁的永远是<strong>对象</strong>，不是代码。三种写法对应的锁对象：实例方法 <code>synchronized void f()</code> 锁的是当前实例 this——两个不同实例互不干扰；静态方法 <code>static synchronized void f()</code> 锁的是类的 Class 对象——所有实例共享这一把锁，和 <code>synchronized(Xxx.class)</code> 等价；同步代码块 <code>synchronized(obj)</code> 锁的是括号里指定的对象。由此推导出一个经典考点：同一个实例的两个 synchronized 实例方法互斥，但<strong>不同实例</strong>的两个 synchronized 方法不互斥；实例方法与静态 synchronized 方法也不互斥（锁对象不同）。选锁对象的两个原则：所有线程必须用同一把锁（否则白锁）、锁对象不要被外部拿到（防止别人锁它造成意外阻塞）。</li>
+<li>问：锁升级过程？</li>
+<li>答：面试可以先讲经典 HotSpot 示意：无竞争时走轻量路径，竞争加剧时可能膨胀为 monitor；偏向锁是旧版本优化，JDK 15 起默认禁用，现代 JDK 不应把“偏向→轻量→重量”当成必经路径。真正能否消除、膨胀、阻塞以及何时自旋，取决于 JDK/HotSpot 实现和运行时竞争，语言层只保证 synchronized 的互斥、可见性与可重入语义。</li>
+<li>问：synchronized 可重入吗？</li>
+<li>答：可重入。同一个线程对自己已经持有的锁再次加锁（比如同步方法里调用另一个同步方法，或递归调用），不会把自己锁死——JVM 给 monitor 维护了“持有线程 + 重入计数”两个字段：同一线程每进入一次计数 +1，每退出一次 -1，减到 0 才真正释放锁、唤醒等待线程。可重入是必备特性，否则这种常见代码直接死锁：<code>synchronized void a() { b(); } synchronized void b() { }</code>——a 拿着锁调 b，b 再要同一把锁，不可重入的话就是自己等自己。ReentrantLock 名字里的 Reentrant 也是这个意思，机制同样是计数。</li>
+<li>问：wait 和 notify 为什么要放在 synchronized 里？</li>
+<li>答：两个原因：① 规范要求——不持有对象锁就调 wait/notify 会直接抛 IllegalMonitorStateException；② 正确性需要——生产者消费者的标准模式是“while(条件不满足) wait(); 处理”，检查条件和等待必须是原子动作：如果不在锁内，可能出现“你刚检查完队列是空的，还没来得及 wait，生产者塞进消息并 notify 了一下（此刻没人在等，这次唤醒就丢了），你才开始 wait”——消息永远等不到，这就是经典的<strong>丢失唤醒</strong>问题。锁把“检查 + 等待”变成不可分割的动作，生产者的“修改 + 唤醒”也被同一把锁挡住，通知就不会落在两次检查之间。另外 wait 要放在 while 里而不是 if 里，防虚假唤醒。</li>
+<li>问：锁粒度怎么设计？</li>
+<li>答：三个原则：① <strong>锁范围最小化</strong>——只把真正读写共享变量的几行锁起来，方法里的参数计算、日志、IO 都留在锁外；锁的持有时间直接决定并发上限，锁内一次 50ms 的数据库调用意味着这把锁每秒最多 20 个线程通过；② <strong>锁对象统一</strong>——同一份共享数据的所有访问必须用同一把锁，混用 this/Class/不同对象会出现“自以为互斥其实没有”的竞态；③ <strong>能拆则拆</strong>——不同数据用不同的锁（如 ConcurrentHashMap 的分桶思想），减少无关线程互相阻塞。反面教材：<code>synchronized</code> 包住整个业务方法，里面的远程调用、发邮件全被串行化——这是性能事故最常见的来源之一。</li>
+</ul></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#41">4.1 三种用法与锁对象</a></li><li class="lv3"><a href="#42">4.2 锁升级：历史路径与当前实现边界</a></li><li class="lv3"><a href="#43-waitnotify">4.3 wait/notify 与锁的关系</a></li><li class="lv3"><a href="#44-synchronized-lock">4.4 synchronized 与 Lock 对比</a></li><li class="lv3"><a href="#45">4.5 面试追问</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="java-concurrency:06",moduleId="java-concurrency";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -109,4 +121,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-boot"></script><script src="../assets/library-mermaid.js?v=20260906-boot"></script></body></html>

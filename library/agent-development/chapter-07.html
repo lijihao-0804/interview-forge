@@ -1,83 +1,34 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>状态、会话与记忆 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 开发：从原理到落地</a><span aria-hidden="true">›</span><span aria-current="page">状态、会话与记忆</span></nav><div class="module-meta">Agent 工程 · 第 7 / 23 章 · <span class="muted">更新于 2026-08-30</span></div><h1>状态、会话与记忆</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><p>“记忆”这个词经常混合了不同的数据层。</p>
-<table>
-<thead>
-<tr>
-<th>层次</th>
-<th>内容</th>
-<th>生命周期</th>
-<th>典型存储</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>当前上下文</td>
-<td>当前消息、工具结果</td>
-<td>一次模型调用</td>
-<td>Prompt</td>
-</tr>
-<tr>
-<td>工作状态</td>
-<td>计划、步骤、变量、审批</td>
-<td>一次任务</td>
-<td>Checkpoint / DB</td>
-</tr>
-<tr>
-<td>会话记忆</td>
-<td>对话摘要、最近事实</td>
-<td>一个会话</td>
-<td>SQL / KV</td>
-</tr>
-<tr>
-<td>长期记忆</td>
-<td>用户偏好、稳定知识</td>
-<td>跨会话</td>
-<td>SQL / 文档 / 向量库</td>
-</tr>
-<tr>
-<td>审计记录</td>
-<td>完整事件、调用参数</td>
-<td>按合规策略保存</td>
-<td>Event Log</td>
-</tr>
-</tbody>
-</table>
-<h3 id="71-prompt">7.1 不要把所有历史都塞入 Prompt</h3>
-<p>上下文窗口是有限且昂贵的。常用策略包括：</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Workflow、Agent 与 Harness · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20260906-boot"></head><body><div class="shell"><header class="topbar"><a class="brand" href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<main class="reader"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 开发：从原理到落地</a><span aria-hidden="true">›</span><span aria-current="page">Workflow、Agent 与 Harness</span></nav><div class="module-meta">Agent 工程 · 第 7 / 24 章 · <span class="muted">更新于 2026-09-12</span></div><h1>Workflow、Agent 与 Harness</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid has-otp"><div class="reader-body"><h3 id="61">6.1 三个概念</h3>
+<p><strong>Workflow</strong>：程序预先定义步骤和分支。<br />
+<strong>Agent</strong>：模型根据当前状态动态决定下一步。<br />
+<strong>Agent Harness</strong>：包围模型的完整运行环境，包括工具、文件系统、指令、会话、审批、压缩、Skills、子 Agent 和事件循环。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TB
+    H["Agent Harness"] --&gt; I["Instructions / Skills"]
+    H --&gt; L["Agent Loop"]
+    H --&gt; S["State / Memory"]
+    H --&gt; T["Tools / MCP / CLI"]
+    H --&gt; G["Guardrails / Sandbox"]
+    H --&gt; O["Tracing / Evaluation"]
+    L --&gt; M["LLM"]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>Hermes、OpenClaw、Codex 和 Claude Code 的 Harness 差异及产品定位，见：<br />
+<a href="../agent-cli/index.html" target="_blank" rel="noopener noreferrer">《Hermes、OpenClaw、Codex 与 Claude Code：Agent 与 CLI 学习笔记》</a></p>
+<h3 id="62">6.2 选择原则</h3>
 <ul>
-<li>滑动窗口：保留最近消息；</li>
-<li>摘要压缩：将较早历史变成结构化摘要；</li>
-<li>事实抽取：只保存用户偏好、实体和决定；</li>
-<li>按需检索：根据当前问题加载相关历史；</li>
-<li>外部状态：任务进度保存在数据库，而不是依赖模型“记住”。</li>
+<li>步骤清楚、合规要求高：优先 Workflow。</li>
+<li>路径不可预知、需要探索：在局部使用 Agent。</li>
+<li>最常见的生产架构：<strong>确定性 Workflow 包围有限自主的 Agent 节点</strong>。</li>
 </ul>
-<h3 id="72">7.2 长期记忆的写入策略</h3>
-<p>不要让模型把每句话都写成长期记忆。写入前应判断：</p>
-<ol>
-<li>是否在未来仍有价值；</li>
-<li>是否是稳定事实而非临时情绪；</li>
-<li>是否包含敏感信息；</li>
-<li>是否与已有记忆冲突；</li>
-<li>用户是否允许保存；</li>
-<li>是否需要过期时间和删除机制。</li>
-</ol>
-<h3 id="73-checkpoint-memory">7.3 Checkpoint 与 Memory 不同</h3>
-<p>Checkpoint 用于恢复一次运行的精确状态；Memory 用于未来任务的相关信息。前者强调一致性和恢复，后者强调筛选、检索和更新。LangGraph 的持久化层会在步骤边界保存状态，从而支持恢复、Human-in-the-loop、时间旅行调试和容错。</p>
+<p>例如退款流程不应全部交给 Agent。Agent 可以识别意图、检索政策、草拟建议；资格判断、金额计算和实际退款仍由确定性规则执行。</p>
 <hr />
-<h3 id="74-schema">7.4 状态 Schema 应怎样设计</h3>
-<p>状态应保存可恢复、可验证的事实，而不是冗长思考。常见字段包括运行 ID、消息、任务状态、当前步骤、Artifact 引用、审批、工具尝试次数、预算和最终结果。</p>
-<p>字段要有明确所有者：哪些由模型建议，哪些只能由程序或审批系统修改。<code>payment_status</code> 不能因为模型生成“支付成功”就被改写。</p>
-<h3 id="75">7.5 短期记忆如何控制长度</h3>
-<p>常用策略包括最近消息窗口、早期历史摘要、工具结果裁剪、按需检索历史和把计划/业务变量外置到状态字段。摘要会丢信息，也可能写入错误事实，因此订单号、承诺、审批和来源不能只存在摘要中。</p>
-<h3 id="76">7.6 长期记忆的完整生命周期</h3>
-<p>长期记忆不是“写入向量库”就结束，而要经过提取、过滤、去重、冲突处理、读取、更新、过期和删除。例如用户先要求默认中文，后来改为英文，应更新当前偏好，而不是把两条冲突记忆都塞给模型。</p>
-<p>记忆应按 <code>(tenant_id, user_id, memory_type)</code> 等命名空间隔离。读取时检查权限、相关性和时效性，避免把一个项目的敏感信息带入另一个会话。</p>
-<h3 id="77-checkpoint">7.7 Checkpoint 与副作用一致性</h3>
-<p>若工具已发送邮件，但进程在保存 Checkpoint 前崩溃，恢复后可能再次发送。解决方案包括幂等键、执行记录、事务性 Outbox 和恢复前检查完成状态。</p>
-<p>Checkpoint 太少会重复大量工作，太多会增加存储成本，通常在节点或副作用边界保存。</p>
-<h3 id="78">7.8 记忆与隐私</h3>
-<p>保存用户偏好前应说明用途，支持查看、更正和删除。密码、Token、医疗和财务细节不应自动进入长期记忆。Embedding 也可能泄露语义信息，仍需访问控制、保留期限和删除同步。</p>
-<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#71-prompt">7.1 不要把所有历史都塞入 Prompt</a></li><li class="lv3"><a href="#72">7.2 长期记忆的写入策略</a></li><li class="lv3"><a href="#73-checkpoint-memory">7.3 Checkpoint 与 Memory 不同</a></li><li class="lv3"><a href="#74-schema">7.4 状态 Schema 应怎样设计</a></li><li class="lv3"><a href="#75">7.5 短期记忆如何控制长度</a></li><li class="lv3"><a href="#76">7.6 长期记忆的完整生命周期</a></li><li class="lv3"><a href="#77-checkpoint">7.7 Checkpoint 与副作用一致性</a></li><li class="lv3"><a href="#78">7.8 记忆与隐私</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-06.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-08.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
+<h3 id="63-workflow">6.3 常见 Workflow 模式</h3>
+<p><strong>Prompt Chaining</strong> 把任务固定拆成“提取事实 → 检查证据 → 生成摘要”，每步可验证。<strong>Routing</strong> 先分类意图，再进入退款、技术支持或销售流程。<strong>Parallelization</strong> 同时查询文档、数据库与工单，合并器处理超时和冲突。</p>
+<p><strong>Orchestrator-Workers</strong> 由协调者动态拆分数量未知的子任务，适合研究与代码任务。<strong>Evaluator-Optimizer</strong> 让生成器产出候选、评估器按 Rubric 反馈、再有限轮修订，必须设置轮数和明确改进标准。</p>
+<h3 id="64-harness">6.4 Harness 为什么决定实际能力</h3>
+<p>同一模型放在不同 Harness 中效果可能显著不同。Harness 决定文件与上下文、工具执行、状态持久化、历史压缩、子任务、审批、测试、恢复和进度展示。因此比较代码 Agent 时，不能只比较模型，还要比较隔离、工具和验证能力。</p>
+<h3 id="65">6.5 确定性节点与模型节点</h3>
+<p>图中的节点不一定调用模型。身份验证、规则计算、Schema 校验和数据库写入应使用普通代码；模型适合理解非结构化输入和生成候选。可靠退款流程可能是：模型识别意图 → 程序查订单 → 规则计算资格 → 模型解释政策 → 人工审批 → 程序提交。</p>
+<hr /></div><nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul><li class="lv3"><a href="#61">6.1 三个概念</a></li><li class="lv3"><a href="#62">6.2 选择原则</a></li><li class="lv3"><a href="#63-workflow">6.3 常见 Workflow 模式</a></li><li class="lv3"><a href="#64-harness">6.4 Harness 为什么决定实际能力</a></li><li class="lv3"><a href="#65">6.5 确定性节点与模型节点</a></li></ul></nav></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-06.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-08.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const contentId="agent-development:07",moduleId="agent-development";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{if(!value)return '';const d=new Date(value);return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()}catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -93,4 +44,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20260906-boot');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260906-boot"></script><script src="../assets/library-mermaid.js?v=20260906-boot"></script></body></html>

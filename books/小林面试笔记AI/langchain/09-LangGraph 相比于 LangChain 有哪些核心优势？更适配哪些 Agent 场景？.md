@@ -35,6 +35,19 @@ Checkpointer 保存线程内状态快照，Store 保存跨线程长期记忆；`
 
 只有当业务拓扑、恢复边界或多角色协作成为主要复杂度时，我才直接使用 LangGraph，也常把 LangChain Agent 作为图中的节点或子图复用。
 
+```mermaid
+flowchart TD
+    A[请求] --> B[State]
+    B --> C[节点：模型/工具/规则]
+    C --> D{路由}
+    D -->|继续| C
+    D -->|需要审批| E[interrupt并保存Checkpoint]
+    E -->|resume| C
+    D -->|完成| F[输出]
+```
+
+图的价值在于把状态更新、路由、暂停和恢复变成执行语义；仍需开发者定义 Reducer、幂等边界、错误路径和权限。
+
 ## 📝 详细解析
 
 ### 两者为什么不对立？
@@ -45,7 +58,7 @@ Checkpointer 保存线程内状态快照，Store 保存跨线程长期记忆；`
 
 对应到开发中，LangChain 帮我们快速获得一个常见形态的 Agent；LangGraph 让我们继续向下控制完整业务流程，例如任务在哪暂停、失败后从哪恢复、过程如何持续反馈给用户。
 
-截至 2026 年 7 月，官方也把 LangChain 定位为高层 Agent 框架，把 LangGraph 定位为低层编排框架与运行时。LangChain v1 的 `create_agent` 会构建一个基于 LangGraph 的图运行时，所以两者不是互斥关系。
+按当前官方定位，LangChain 是高层 Agent 框架，LangGraph 是低层编排框架与运行时；`create_agent` 与 LangGraph 的具体集成方式应以项目锁定版本文档为准，因此两者不应简单理解为互斥方案。
 
 ![](../images/f615ed6bcc6f2885c783bd64.png)
 

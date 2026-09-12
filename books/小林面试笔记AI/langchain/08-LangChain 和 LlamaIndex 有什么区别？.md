@@ -29,6 +29,18 @@ LlamaIndex 更偏数据与上下文增强。它在数据接入、文档解析、
 
 选型时应看项目的主要难点：如果难点是模型与工具集成，优先评估 LangChain；如果难点是私有数据处理和检索质量，优先评估 LlamaIndex；如果两边都复杂，可以让 LlamaIndex 负责数据层，把检索能力封装成 Tool，再由 LangChain Agent 或 LangGraph 调度。
 
+```mermaid
+flowchart LR
+    A[业务问题] --> B{主要复杂度}
+    B -->|模型/工具/Agent 组装| C[LangChain]
+    B -->|数据接入/索引/检索| D[LlamaIndex]
+    B -->|状态图/恢复/审批| E[LangGraph]
+    D -->|Query Engine封装为 Tool| C
+    C --> E
+```
+
+组合框架时要让每一层拥有清晰的输入输出、权限和 Trace 边界；如果两套框架没有解决独立问题，额外依赖只会增加升级与排错成本。
+
 ## 📝 详细解析
 
 ### 为什么容易混淆？

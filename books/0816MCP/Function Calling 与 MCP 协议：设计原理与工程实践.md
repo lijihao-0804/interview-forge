@@ -1,8 +1,18 @@
 # Function Calling 与 MCP 协议：设计原理与工程实践
 
 > 整理自原笔记《Function Calling 与 MCP 协议｜深究 MCP 协议的设计》，并依据 MCP 官方规范重新校正、扩展。  
-> 技术基线：MCP Protocol Revision `2025-11-25`；最后核对：2026-07-18。  
+> 技术基线：MCP Protocol Revision `2026-07-28`；最后核对：2026-09-12。旧版 `2025-11-25` 仍作为兼容基线保留。
 > 阅读目标：不仅知道“怎么接 MCP”，更能理解它为什么这样设计，以及 Function Calling 与 MCP 各自解决什么问题。
+
+> **版本边界（重要）**：本文中 `initialize`/`notifications/initialized`、协议级会话，以及部分 Server→Client 请求流属于 `2025-11-25` 历史协议；最新 `2026-07-28` 修订移除了协议级 session 和 initialize 握手，改为请求级 `_meta` 与能力发现，并把 Tasks 移到可选扩展。不同 SDK/Host 可能仍实现旧版，实践时必须锁定具体 revision，不要混用两套流程。迁移差异见 [MCP Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)。
+
+| 主题 | `2025-11-25` 历史基线 | `2026-07-28` 最新修订 |
+|---|---|---|
+| 能力协商 | `initialize` + `notifications/initialized` | 请求级 `_meta`；可用 `server/discover` 发现服务能力 |
+| 会话 | `Mcp-Session-Id` 等协议级 session | 不规定协议级 session；需要状态时由应用/扩展显式管理 |
+| Server→Client 额外输入 | Server 发起 Sampling/Roots/Elicitation 请求 | Multi Round-Trip Requests（MRTR）与 `InputRequiredResult`/重试输入 |
+| Tasks | 核心协议中的实验性能力 | `io.modelcontextprotocol/tasks` 可选扩展 |
+| HTTP | 单 endpoint 上的 POST/GET 与 session 语义 | POST 请求返回 JSON 或请求范围 SSE；不要依赖旧版 session/GET 约定 |
 
 ## 目录
 
@@ -302,7 +312,7 @@ Function Calling 统一了“模型请求工具”的表达，但没有统一工
 |---|---|
 | 角色关系 | Host、Client、Server |
 | 消息格式 | JSON-RPC 2.0 |
-| 连接初始化 | 生命周期与版本/能力协商 |
+| 请求上下文与能力发现 | 请求级元数据、服务发现与可选能力 |
 | 能力发现 | `tools/list`、`resources/list`、`prompts/list` |
 | 工具执行 | `tools/call` |
 | 数据读取 | `resources/read` |
@@ -358,10 +368,10 @@ Host 是面向用户的 AI 应用或 Agent，例如 IDE、桌面助手、研究�
 
 ### 7.2 MCP Client
 
-Client 是 Host 内部的协议组件。通常一个 Client 与一个 Server 维护专用会话。它负责：
+Client 是 Host 内部的协议组件。历史协议通常把一个 Client 与一个 Server 绑定到专用会话；最新修订不再规定协议级 session，状态应由应用或扩展显式管理。它负责：
 
 - 建立传输连接；
-- 初始化并协商版本与能力；
+- 按目标 revision 处理请求级元数据、服务发现与能力；
 - 发送 JSON-RPC 请求；
 - 接收响应、通知以及 Server 发起的请求；
 - 将协议对象转换为 Host 可用的数据。
@@ -393,7 +403,7 @@ MCP 可以分为数据层与传输层：
 flowchart TB
     A[应用语义] --> B[数据层]
     B --> B1[JSON-RPC 2.0]
-    B --> B2[Lifecycle]
+    B --> B2[Lifecycle / request metadata]
     B --> B3[Tools / Resources / Prompts]
     B --> B4[Sampling / Elicitation / Notifications]
     B --> C[传输层]
@@ -407,7 +417,7 @@ flowchart TB
 
 - 请求、响应和通知结构；
 - 方法名称与参数；
-- 初始化和能力协商；
+- 请求级元数据、服务发现和能力协商；
 - Tools、Resources、Prompts 等协议原语；
 - 进度、取消、日志等通用能力。
 
@@ -417,7 +427,7 @@ flowchart TB
 
 - 如何建立连接；
 - 如何分帧；
-- 如何管理 HTTP 会话；
+- 如何承载请求级响应流，以及应用是否需要自行管理状态；
 - 如何承载服务器推送；
 - 远程场景如何授权。
 
@@ -427,9 +437,9 @@ MCP 在不同传输之上保持同一套 JSON-RPC 语义，这使 SDK 可以把�
 
 ## 9. 生命周期与能力协商
 
-MCP 是有生命周期的协议。双方不能一连接就盲目调用任意方法。
+MCP 的请求必须遵循目标 revision 的能力边界，不能一连接就盲目调用任意方法。下面先保留旧版握手，便于维护旧 SDK；最新修订见 9.2。
 
-### 9.1 初始化请求
+### 9.1 `2025-11-25` 历史协议：初始化请求
 
 ```json
 {
@@ -482,7 +492,29 @@ Server 返回其选择的协议版本、能力和身份：
 }
 ```
 
-### 9.2 为什么需要能力协商
+### 9.2 `2026-07-28` 最新修订：请求级元数据与发现
+
+最新修订不再要求 `initialize`/`notifications/initialized` 和 `Mcp-Session-Id`。Host/Client 应按每个请求携带协议版本与客户端能力的 `_meta`，并通过规范定义的服务发现机制获得 Server 信息。下面是**概念示意**，字段细节应以目标 SDK 和 [最新规范](https://modelcontextprotocol.io/specification/2026-07-28) 为准：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "protocolVersion": "2026-07-28",
+      "clientCapabilities": {
+        "elicitation": {"form": {}}
+      }
+    }
+  }
+}
+```
+
+服务发现和工具/资源/提示词列表要按能力结果降级：Server 未声明的原语不应调用；如果只支持旧版，应回到 9.1 的握手流程并在连接配置中明确版本。
+
+### 9.3 为什么需要能力协商
 
 能力协商让协议能够演进：
 
@@ -562,9 +594,9 @@ prompts/get
 
 ## 11. MCP Client 可以提供的能力
 
-MCP 并非只有 Client 请求、Server 响应。Server 也可以向 Client 发起请求。
+MCP 不只是 Client 请求、Server 响应；在历史协议和相应扩展中，Server 可以要求 Host/Client 提供额外输入。最新修订通常通过 MRTR（多轮请求）和显式结果重试表达这类交互，不能直接套用旧版“Server 任意反向发请求”的时序。
 
-### 11.1 Sampling
+### 11.1 Sampling（历史请求流）
 
 Server 可通过 `sampling/createMessage` 请求 Host 侧模型完成生成。价值在于：
 
@@ -572,7 +604,7 @@ Server 可通过 `sampling/createMessage` 请求 Host 侧模型完成生成。�
 - Host 保持模型选择和权限控制；
 - Server 可实现包含模型步骤的高级能力。
 
-规范强调应让用户能够查看、修改或拒绝 Sampling 请求。`2025-11-25` 版本还加入了 Sampling 中的工具调用支持。
+规范强调应让用户能够查看、修改或拒绝 Sampling 请求。`2025-11-25` 版本还加入了 Sampling 中的工具调用支持；在 `2026-07-28` 修订中，交互输入应按 MRTR/`InputRequiredResult` 以及 SDK 实现处理。
 
 ### 11.2 Elicitation
 
@@ -585,7 +617,7 @@ Server 可通过 `elicitation/create` 请求用户补充信息或完成确认。
 
 Server 不应通过 Elicitation 欺骗用户输入密码、长期令牌等敏感信息。
 
-### 11.3 Roots
+### 11.3 Roots（历史请求流/能力提示）
 
 Roots 允许 Client 向 Server 提供文件系统边界，例如允许访问的工作区目录。它是范围提示和协作机制，不应被 Server 当作唯一安全沙箱。
 
@@ -594,7 +626,11 @@ Roots 允许 Client 向 Server 提供文件系统边界，例如允许访问的�
 - Logging：Server 向 Client 发送结构化日志；
 - Progress：长操作报告进度；
 - Cancellation：取消仍在执行的请求；
-- Tasks：`2025-11-25` 引入的实验性耐久执行机制，可查询状态和延后取结果。
+- Tasks：在 `2025-11-25` 资料中常被写作实验性耐久执行机制；最新规范把它移到可选的 [`io.modelcontextprotocol/tasks` 扩展](https://modelcontextprotocol.io/extensions/tasks/overview)，不能假设所有 MCP Server 都支持。
+
+### 11.5 最新修订中的多轮输入
+
+当操作需要用户确认、补充字段或 Host 侧能力时，先返回“需要输入”的结果，再由 Client 带着 `inputResponses` 重试请求。这样可以把额外输入建模为可审计的结果状态，并避免把某个传输层的 Server→Client 长连接当成核心协议前提。
 
 这说明 MCP 的目标已经超出简单“工具列表 + 工具调用”，正在覆盖更完整的 Agent 互操作生命周期。
 
@@ -744,7 +780,7 @@ stdio 被选择不是因为它功能最丰富，而是因为它：
 
 ### 13.2 Streamable HTTP
 
-Streamable HTTP 是标准远程传输。Server 提供一个同时支持 POST 和 GET 的 MCP endpoint，例如：
+Streamable HTTP 是标准远程传输。Server 提供一个 MCP endpoint，例如：
 
 ```text
 https://example.com/mcp
@@ -754,27 +790,26 @@ https://example.com/mcp
 
 - Client 用 HTTP POST 发送 JSON-RPC 消息；
 - Server 可返回 `application/json` 单一响应；
-- Server 也可返回 `text/event-stream`，通过 SSE 发送多个消息；
-- Client 可用 GET 打开 SSE 流，接收 Server 主动请求和通知；
-- Server 可通过 `Mcp-Session-Id` 管理有状态会话；
+- Server 也可返回请求范围内的 `text/event-stream`，通过 SSE 发送该请求的多个消息；
+- `2026-07-28` 修订不再把协议级 session、`Mcp-Session-Id` 或独立 GET SSE 流作为核心前提；订阅/持续监听应按规范的订阅方法和 SDK 支持实现；
 - HTTP 授权遵循 MCP Authorization 规范。
 
 ![Streamable HTTP 示意](assets/function-calling-mcp/07-streamable-http.png)
 
 ### 13.3 HTTP+SSE 与 Streamable HTTP
 
-旧的 HTTP+SSE 传输来自 `2024-11-05` 协议版本，已被 Streamable HTTP 取代。二者的关键差异不是“文本与二进制”，而是连接模型被简化：
+旧的 HTTP+SSE 传输来自 `2024-11-05` 协议版本，已被 Streamable HTTP 取代。`2025-11-25` 资料中的 POST/GET/session 描述也属于历史兼容语义；最新修订的关键变化是请求级响应和无协议 session：
 
 - 旧方案通常使用独立 SSE endpoint 与 POST endpoint；
-- 新方案使用单一 MCP endpoint，POST/GET 组合；
-- 每个 POST 请求可直接获得 JSON 响应，也可开启 SSE 流；
-- 更容易支持无状态基础 Server、有状态会话和反向通知。
+- 历史新方案使用单一 MCP endpoint，POST/GET 组合；
+- 最新修订中每个 POST 请求可直接获得 JSON 响应，也可开启请求范围 SSE 流；
+- 应用是否有状态、如何恢复长任务，应由应用或可选扩展定义。
 
 ### 13.4 一个重要纠错：Streamable HTTP 不等于任意二进制协议
 
 MCP 当前仍使用 UTF-8 JSON-RPC 消息。工具返回图片或音频时，是通过 MCP 内容块表示，例如 base64 数据或资源链接，而不是因为 Streamable HTTP 自动变成了任意二进制 RPC。
 
-HTTP/2/3 也不是 MCP Streamable HTTP 的必要定义条件。HTTP/1.1 配合 SSE 同样可以实现规范要求。
+HTTP/2/3 也不是 MCP Streamable HTTP 的必要定义条件。HTTP/1.1 配合规范允许的响应流同样可以实现要求。
 
 ### 13.5 自定义传输
 
@@ -789,7 +824,7 @@ MCP 允许可插拔的自定义传输，但必须保留 MCP 的 JSON-RPC 消息�
 典型 Host 的工作流：
 
 1. Host 根据配置连接一个或多个 MCP Server；
-2. MCP Client 完成初始化和能力协商；
+2. MCP Client 按目标 revision 完成服务发现/能力处理；
 3. Client 调用 `tools/list`；
 4. Host 将 MCP Tool 转换成模型供应商的 Function Calling/Tool Calling schema；
 5. Host 把工具定义和用户消息发给模型；
@@ -809,8 +844,8 @@ sequenceDiagram
     participant S as MCP Server
 
     H->>C: 连接配置
-    C->>S: initialize
-    S-->>C: 版本与 capabilities
+    C->>S: server/discover 或带 _meta 的请求
+    S-->>C: 服务信息与 capabilities
     C->>S: tools/list
     S-->>C: tools + inputSchema
     H->>L: 用户消息 + 工具定义
@@ -836,7 +871,7 @@ MCP 和 REST/GraphQL/gRPC 并非互斥。
 | 主要调用者 | 普通应用代码 | AI Host/MCP Client |
 | 接口发现 | OpenAPI、文档、SDK | 协议内 `*/list` |
 | 核心对象 | 业务资源和操作 | Tools、Resources、Prompts 等原语 |
-| 生命周期 | 由具体 API 决定 | 标准初始化与能力协商 |
+| 生命周期 | 由具体 API 决定 | 标准请求语义、能力发现与版本边界 |
 | 动态更新 | 轮询、Webhook、自定义流 | 标准 Notifications |
 | 模型语义 | 通常没有 | 工具描述、schema、内容块 |
 | 本地进程 | 通常不覆盖 | 标准 stdio |
@@ -1000,7 +1035,7 @@ logging.info("server started")
 
 ### 17.3 MCP Inspector
 
-官方 Inspector 可用于检查初始化、能力列表、Resources、Prompts、Tools 和调用结果：
+官方 Inspector 可用于检查目标 revision 的服务发现/能力、Resources、Prompts、Tools 和调用结果：
 
 ```bash
 npx -y @modelcontextprotocol/inspector
@@ -1010,7 +1045,7 @@ npx -y @modelcontextprotocol/inspector
 
 1. Server 能否独立启动；
 2. stdout 是否只有协议消息；
-3. Inspector 能否初始化；
+3. Inspector 能否完成目标 revision 的发现或兼容握手；
 4. `tools/list` 是否返回正确 schema；
 5. 使用边界参数调用 Tool；
 6. 错误能否返回为可理解的协议结果；
@@ -1112,7 +1147,7 @@ Server 至少应：
 
 ### 19.4 “MCP 就是统一的 Tool API”
 
-不完整。MCP 包含生命周期、能力协商、Resources、Prompts、Sampling、Elicitation、通知、进度、取消和实验性 Tasks。
+不完整。MCP 还涉及能力发现、Resources、Prompts、通知、进度、取消以及可选扩展；Sampling、Elicitation 和 Tasks 的请求方式、是否属于核心以及支持范围取决于目标 revision/扩展，不能把旧版清单当成最新核心协议。
 
 ### 19.5 “MCP Server 一定是远程服务器”
 
@@ -1120,7 +1155,7 @@ Server 至少应：
 
 ### 19.6 “Streamable HTTP 支持任意二进制，所以替代 SSE”
 
-不准确。MCP 消息仍是 UTF-8 JSON-RPC。Streamable HTTP 的核心改进是单 endpoint 的 POST/GET 模型、可选 SSE、多种响应方式和更清晰的会话管理。
+不准确。MCP 消息仍是 UTF-8 JSON-RPC。Streamable HTTP 的核心是规范化的 POST 响应（JSON 或请求范围 SSE）；旧版资料中的 GET/session 语义不能直接套到 `2026-07-28`。
 
 ### 19.7 “Streamable HTTP 使用 HTTP/2/3 双向流”
 
@@ -1148,9 +1183,9 @@ Server 至少应：
 
 - Host 在运行时发现 Server 能力；
 - 双方协商可选特性；
-- 工具变化后通知 Client；
+- 工具变化后按目标 revision 的通知/订阅机制更新 Client；
 - 同一协议同时服务本地进程和远程服务；
-- 支持 Server 反向请求 Client。
+- 支持需要额外输入的可审计多轮请求或扩展能力。
 
 因此 MCP 更像“面向 AI 上下文的插件总线”，而不只是 RPC 格式。
 
@@ -1207,10 +1242,10 @@ MCP Server 仍需要可靠的领域代码；Host 仍需要模型编排；业务 
 
 ### 阶段一：理解消息
 
-手工写出：
+手工写出（先选定 revision）：
 
-- `initialize` 请求与响应；
-- `notifications/initialized`；
+- `2025-11-25` 的 `initialize` 请求与响应、`notifications/initialized`；或
+- `2026-07-28` 的服务发现、请求级 `_meta` 与需要输入时的重试；
 - `tools/list`；
 - `tools/call`；
 - 成功和失败结果。
@@ -1234,7 +1269,7 @@ MCP Server 仍需要可靠的领域代码；Host 仍需要模型编排；业务 
 使用官方 SDK：
 
 1. 启动 stdio Server；
-2. 初始化 ClientSession；
+2. 按 SDK 的目标 revision 完成服务发现或兼容握手；
 3. 列出 Tools；
 4. 调用 Tool；
 5. 读取 Resource；
@@ -1270,15 +1305,14 @@ MCP Server 仍需要可靠的领域代码；Host 仍需要模型编排；业务 
 
 - [MCP 官方简介](https://modelcontextprotocol.io/docs/getting-started/intro)
 - [MCP 架构概览](https://modelcontextprotocol.io/docs/learn/architecture)
-- [MCP 2025-11-25 规范](https://modelcontextprotocol.io/specification/2025-11-25)
-- [生命周期](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)
-- [传输层](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
-- [Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-- [Resources](https://modelcontextprotocol.io/specification/2025-11-25/server/resources)
-- [Prompts](https://modelcontextprotocol.io/specification/2025-11-25/server/prompts)
-- [Sampling](https://modelcontextprotocol.io/specification/2025-11-25/client/sampling)
-- [Elicitation](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation)
-- [Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+- [MCP 最新规范（2026-07-28）](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [MCP 任务扩展](https://modelcontextprotocol.io/extensions/tasks/overview)
+- [MCP 2025-11-25 历史规范](https://modelcontextprotocol.io/specification/2025-11-25)
+- [Tools（最新修订）](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [Resources（最新修订）](https://modelcontextprotocol.io/specification/2026-07-28/server/resources)
+- [Prompts（最新修订）](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
+- [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 - [安全最佳实践](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices)
 - [官方 Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 - [构建 MCP Server 教程](https://modelcontextprotocol.io/docs/develop/build-server)
