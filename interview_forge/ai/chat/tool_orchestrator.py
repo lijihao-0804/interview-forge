@@ -146,8 +146,24 @@ class ToolOrchestrator:
     ):
         results: list[ToolExecutionResult | None] = [None] * len(calls)
         max_parallel = max(1, self.policy.max_parallel_read_tools)
-        for start in range(0, len(calls), max_parallel):
-            batch = calls[start : start + max_parallel]
+        start = 0
+        while start < len(calls):
+            first_spec = self.registry.get(calls[start].name)
+            read_batch = bool(
+                first_spec
+                and first_spec.kind == ToolKind.READ
+                and not first_spec.requires_confirmation
+            )
+            if read_batch:
+                batch = []
+                while start + len(batch) < len(calls) and len(batch) < max_parallel:
+                    candidate = calls[start + len(batch)]
+                    candidate_spec = self.registry.get(candidate.name)
+                    if not candidate_spec or candidate_spec.kind != ToolKind.READ or candidate_spec.requires_confirmation:
+                        break
+                    batch.append(candidate)
+            else:
+                batch = [calls[start]]
             for call in batch:
                 spec = self.registry.get(call.name)
                 yield _event(
@@ -185,6 +201,7 @@ class ToolOrchestrator:
                             "message": result.error_message or "工具暂时不可用",
                         },
                     )
+            start += len(batch)
         self._call_results = [result for result in results if result is not None]
 
     @staticmethod
