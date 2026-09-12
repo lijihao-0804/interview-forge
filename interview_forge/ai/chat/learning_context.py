@@ -117,11 +117,32 @@ def _record_compile_failure(selection: Mapping[str, Any], exc: BaseException) ->
 class LearningContextProvider:
     """Build a short-lived, task-specific view over the existing analytics compiler."""
 
-    def build(self, *, user_db: Path | str, query: str) -> dict[str, Any] | None:
-        selection = select_learning_task(query)
-        if selection is None:
-            return None
+    def build_for_task(
+        self,
+        *,
+        user_db: Path | str,
+        task: str,
+        problem_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Build one explicit task without asking a Tool to parse SQLite."""
+        if task not in CHAT_TASK_POLICIES:
+            raise ValueError("学习上下文任务不正确")
+        if task == "problem_review" and (problem_id is None or int(problem_id) <= 0):
+            raise ValueError("题目复习需要有效题号")
+        selection: dict[str, Any] = {
+            "task": task,
+            "budget_tier": CHAT_TASK_POLICIES[task],
+        }
+        if problem_id is not None:
+            selection["target_problem_id"] = int(problem_id)
+        return self._build_selection(user_db=user_db, selection=selection)
 
+    def _build_selection(
+        self,
+        *,
+        user_db: Path | str,
+        selection: Mapping[str, Any],
+    ) -> dict[str, Any]:
         analytics: Any = None
         try:
             analytics = analytics_cached(Path(user_db))
@@ -155,6 +176,12 @@ class LearningContextProvider:
             "projection": projection,
             "data_quality": compiled.get("data_quality", {}),
         }
+
+    def build(self, *, user_db: Path | str, query: str) -> dict[str, Any] | None:
+        selection = select_learning_task(query)
+        if selection is None:
+            return None
+        return self._build_selection(user_db=user_db, selection=selection)
 
 
 __all__ = ["CHAT_TASK_POLICIES", "LearningContextProvider", "select_learning_task"]

@@ -134,6 +134,56 @@ class ToolInfrastructureTests(unittest.TestCase):
         self.assertEqual(sorted(row[0] for row in rows), ["cache_hit", "confirmation_required", "success"])
         self.assertTrue(any(row[0] == "cache_hit" and '"cache_hit":true' in row[1] for row in rows))
 
+    def test_default_read_tools_problem_learning_weather_and_no_cross_user_db(self):
+        from unittest.mock import patch
+
+        from interview_forge.ai.tools.builtins.learning import GetLearningContextArgs, get_learning_context
+        from interview_forge.ai.tools.builtins.problem import GetProblemArgs, get_problem
+        from interview_forge.ai.tools.builtins.weather import GetWeatherArgs, get_weather
+        from interview_forge.ai.tools.registry import build_default_tool_registry
+
+        registry = build_default_tool_registry()
+        self.assertEqual({spec.name for spec in registry.list_specs()}, {
+            "get_problem", "get_learning_context", "get_weather"
+        })
+        ctx = _context(self.db)
+        problem = get_problem(ctx, GetProblemArgs(problem_id=146))
+        self.assertTrue(problem.data["found"])
+        self.assertEqual(problem.data["problem"]["problem_id"], 146)
+        missing = get_problem(ctx, GetProblemArgs(problem_id=999999))
+        self.assertFalse(missing.data["found"])
+
+        with patch(
+            "interview_forge.ai.tools.builtins.learning.LearningContextProvider.build_for_task",
+            return_value={"task": "learning_diagnosis", "available": True,
+                          "projection": {"task": "learning_diagnosis"}, "data_quality": {}},
+        ) as compiler:
+            learning = get_learning_context(
+                ctx, GetLearningContextArgs(task="learning_diagnosis")
+            )
+        self.assertTrue(learning.data["available"])
+        compiler.assert_called_once()
+        with self.assertRaises(Exception):
+            GetLearningContextArgs(task="problem_review")
+
+        weather_payload = {
+            "location": {"display_name": "南京", "mode": "default"},
+            "current": {"temperature": 24, "apparent_temperature": 25, "description": "晴", "icon": "☀️"},
+            "daily": {"temperature_max": 28, "temperature_min": 22, "precipitation_probability_max": 0},
+            "updated_at": "now", "stale": False,
+        }
+        with patch("interview_forge.ai.tools.builtins.weather.weather_for_user", return_value=weather_payload):
+            weather = get_weather(ctx, GetWeatherArgs())
+        self.assertEqual(weather.data["location"]["display_name"], "南京")
+
+        other = ToolExecutionContext(
+            user_db=Path("other-user") / "hot100-study.db", session_id="s", turn_id="t",
+            user_message_id=1, current_query="x",
+        )
+        with patch("interview_forge.ai.tools.builtins.weather.weather_for_user", return_value=weather_payload) as weather_call:
+            get_weather(other, GetWeatherArgs())
+        self.assertEqual(weather_call.call_args.args[0], "other-user")
+
 
 if __name__ == "__main__":
     unittest.main()
