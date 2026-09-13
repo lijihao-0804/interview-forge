@@ -186,6 +186,7 @@ class ToolOrchestrator:
             batch_results = await asyncio.gather(*tasks)
             for offset, result in enumerate(batch_results):
                 results[start + offset] = result
+                result_spec = self.registry.get(result.tool_name)
                 if result.status in {"ok", "cache_hit"}:
                     yield _event(
                         "tool.done",
@@ -193,6 +194,7 @@ class ToolOrchestrator:
                             "call_id": result.call_id,
                             "name": result.tool_name,
                             "status": "ok",
+                            "display_name": result_spec.display_name if result_spec else "工具",
                             "display": result.display_text or "已获取信息",
                         },
                     )
@@ -206,7 +208,7 @@ class ToolOrchestrator:
                                 "action_id": result.action_id,
                                 "call_id": result.call_id,
                                 "name": result.tool_name,
-                                "display_name": spec.display_name if spec else "需要确认的操作",
+                                "display_name": result_spec.display_name if result_spec else "需要确认的操作",
                                 "message": result.confirmation_text or "是否执行该操作？",
                                 "expires_at": result.expires_at or "",
                             },
@@ -218,6 +220,7 @@ class ToolOrchestrator:
                             "call_id": result.call_id,
                             "name": result.tool_name,
                             "code": result.error_code or "tool_error",
+                            "display_name": result_spec.display_name if result_spec else "工具",
                             "message": result.error_message or "工具暂时不可用",
                         },
                     )
@@ -371,6 +374,7 @@ class ToolOrchestrator:
                             "call_id": call.call_id,
                             "name": call.name,
                             "code": TOOL_LIMIT_ERROR_CODE,
+                            "display_name": self.registry.get(call.name).display_name if self.registry.get(call.name) else "工具",
                             "message": TOOL_LIMIT_ERROR_MESSAGE,
                         },
                     )

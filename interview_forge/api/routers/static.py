@@ -23,8 +23,17 @@ router = APIRouter()
 _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
 _PUBLIC_PREFIXES = ("/assets/fonts",)
 _ADMIN_PAGE = "/pages/admin.html"
-_WIDGET_SCRIPTS = ("/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1")
+_WIDGET_STYLES = ("/assets/ai-launcher.css?v=1",)
+_WIDGET_SCRIPTS = (
+    "/assets/navigation-policy.js?v=1",
+    "/assets/auth-widget.js?v=2",
+    "/assets/feedback-widget.js?v=1",
+    "/assets/theme-toggle.js?v=1",
+    "/assets/ai-page-context.js?v=1",
+    "/assets/ai-launcher.js?v=1",
+)
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+_AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 
 
 def _sensitive(path: str) -> bool:
@@ -69,7 +78,21 @@ def _inject_html(path: str, body: bytes) -> bytes:
     scripts = ("/assets/navigation-policy.js?v=1",) if navigation_only else tuple(
         script for script in _WIDGET_SCRIPTS if not (script.startswith("/assets/auth-widget") and path in _AUTH_WIDGET_SKIP)
     )
-    widget = "".join(f'<script src="{script}" defer></script>' for script in scripts).encode()
+    if path in _AI_LAUNCHER_SKIP or navigation_only:
+        scripts = tuple(script for script in scripts if not any(
+            marker in script for marker in ("ai-page-context.js", "ai-launcher.js")
+        ))
+    styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
+    style_html = b"" if b"ai-launcher.css" in body else "".join(
+        f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
+        for style in styles
+    ).encode()
+    script_html = "".join(
+        f'<script src="{script}" defer data-interviewforge-ai></script>'
+        for script in scripts
+        if script.rsplit("/", 1)[-1].split("?", 1)[0].encode() not in body
+    ).encode()
+    widget = style_html + script_html
     marker = b"</body>"
     index = body.lower().rfind(marker)
     return body[:index] + widget + body[index:] if index >= 0 else body + widget

@@ -1,7 +1,12 @@
 (function () {
   "use strict";
 
-  var state = { sessions: [], current: null, controller: null, assistantNode: null };
+  var embedded = new URLSearchParams(window.location.search).get("embedded") === "1";
+  document.body.classList.toggle("embedded", embedded);
+  var state = {
+    sessions: [], current: null, controller: null, assistantNode: null,
+    cancelRequested: false, streamFailed: false, pageContext: null
+  };
   var list = document.getElementById("sessionList");
   var messages = document.getElementById("messages");
   var title = document.getElementById("chatTitle");
@@ -191,7 +196,8 @@
       state.assistantNode._toolStatus.appendChild(row);
     }
     var toolName = String(payload.name || "");
-    var label = payload.display_name || toolLabels[toolName] || "工具信息";
+    var label = payload.display_name || row.dataset.label || toolLabels[toolName] || "工具";
+    if (name === "tool.start") row.dataset.label = label;
     if (name === "tool.start") {
       row.className = "tool-status-item pending";
       row.textContent = "○ 正在查询" + label + "…";
@@ -230,6 +236,21 @@
     await selectSession(state.sessions.some(function (item) { return item.id === saved; }) ? saved : state.sessions[0].id);
   }
 
+  function currentPageContext() {
+    if (state.pageContext) return state.pageContext;
+    try {
+      return window.InterviewForgeAI && window.InterviewForgeAI.getPageContext
+        ? window.InterviewForgeAI.getPageContext() : null;
+    } catch (_) { return null; }
+  }
+
+  async function reloadCurrentSession() {
+    var id = state.current;
+    if (!id) return;
+    state.controller = null;
+    try { await selectSession(id); } catch (err) { setError(err.message || "读取会话失败"); }
+  }
+
   async function newSession() {
     setError("");
     var item = await api("/api/chat/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -252,9 +273,14 @@
     if (!state.current || state.controller) return;
     var text = input.value.trim(); if (!text) return;
     setError(""); input.value = ""; renderMessage({ role: "user", content: text });
+    state.streamFailed = false;
+    if (embedded) window.parent.postMessage({ type: "interviewforge:request-page-context" }, window.location.origin);
+    var pageContext = currentPageContext();
     state.controller = new AbortController(); setBusy(true); scrollBottom();
     try {
-      var response = await fetch("/api/chat/sessions/" + encodeURIComponent(state.current) + "/stream", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }), signal: state.controller.signal });
+      var requestBody = { message: text };
+      if (pageContext) requestBody.page_context = pageContext;
+      var response = await fetch("/api/chat/sessions/" + encodeURIComponent(state.current) + "/stream", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: state.controller.signal });
       if (!response.ok) { var failed = await response.json().catch(function () { return {}; }); throw new Error(failed.error || "发送失败"); }
       var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
       function onEvent(name, payload) {
@@ -263,12 +289,27 @@
         else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scrollBottom(); }
         else if (name === "tool.confirmation_required" && state.assistantNode) { renderActionCard(payload || {}, actionHost(state.assistantNode)); scrollBottom(); }
         else if (name === "message.done") { status.textContent = "已连接"; }
-        else if (name === "error") { setError(payload.message || "AI 暂时不可用"); }
+        else if (name === "error") { state.streamFailed = true; setError(payload.message || "AI 暂时不可用"); }
       }
       while (true) { var part = await reader.read(); if (part.done) break; buffer += decoder.decode(part.value, { stream: true }); buffer = parseSse(buffer, onEvent); }
       parseSse(buffer + "\n\n", onEvent);
-      await loadSessions();
-    } catch (err) { if (err.name !== "AbortError") setError(err.message || "发送失败"); }
+      if (state.streamFailed) {
+        var streamError = error.textContent;
+        await reloadCurrentSession();
+        setError(streamError);
+      } else {
+        await loadSessions();
+      }
+    } catch (err) {
+      if (err.name === "AbortError" && state.cancelRequested) {
+        state.cancelRequested = false;
+        await reloadCurrentSession();
+      } else if (err.name !== "AbortError") {
+        var networkError = err.message || "发送失败";
+        await reloadCurrentSession();
+        setError(networkError);
+      }
+    }
     finally { state.controller = null; setBusy(false); state.assistantNode = null; }
   }
 
@@ -277,6 +318,15 @@
   memoryClose.addEventListener("click", function () { memoryDialog.close(); });
   document.getElementById("composer").addEventListener("submit", sendMessage);
   input.addEventListener("keydown", function (event) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); document.getElementById("composer").requestSubmit(); } });
-  stop.addEventListener("click", function () { if (state.controller) state.controller.abort(); });
+  stop.addEventListener("click", function () {
+    if (state.controller) { state.cancelRequested = true; state.controller.abort(); }
+  });
+  window.addEventListener("message", function (event) {
+    if (event.origin !== window.location.origin || !event.data) return;
+    if (event.data.type === "interviewforge:page-context" && event.data.context) {
+      state.pageContext = event.data.context;
+    }
+  });
+  if (embedded) window.parent.postMessage({ type: "interviewforge:request-page-context" }, window.location.origin);
   loadSessions().catch(function (err) { setError(err.message || "读取会话失败"); list.innerHTML = '<div class="empty">读取失败，请刷新重试。</div>'; });
 }());
