@@ -93,4 +93,4 @@ M7 完成后冻结 Tool Pack 与 Agent Evaluation 边界，不自动开始 M8。
 
 全量 pytest 唯一失败为既有的 `tests/test_learning_analytics_api.py::RealAuthenticationIsolationTests::test_admin_page_quota_and_permanent_admin_contract`：旧测试仍要求管理员页面包含“重置今日分析次数”，当前页面已经使用“恢复今日可用次数”。本轮没有修改管理员页面，也没有因 M7 改变该行为。
 
-实现提交 SHA：待提交。
+实现提交 SHA：`dcfdd0a`。
