@@ -154,6 +154,7 @@ async def stream_session(request: Request, session_id: str):
             session_id=session_id,
             message=message,
             page_context=page_context,
+            request_id=str(getattr(request.state, "request_id", "")),
         )
         return StreamingResponse(
             sse_events(source, request=request),

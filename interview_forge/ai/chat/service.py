@@ -5,6 +5,7 @@ import asyncio
 import json
 import sqlite3
 import threading
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import closing
@@ -38,6 +39,7 @@ from interview_forge.core.runtime import server_runtime
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
 from interview_forge.ai.tools.contracts import ToolExecutionContext
+from interview_forge.observability.ai_trace import TraceRecorder
 
 
 MAX_CHAT_MESSAGE_CHARS = 12_000
@@ -458,6 +460,7 @@ class ChatService:
         session_id: str,
         message: str,
         page_context: PageContext | Mapping[str, Any] | None = None,
+        request_id: str = "",
     ) -> AsyncIterator[dict[str, Any]]:
         """Persist the user turn, stream the provider, then persist success only."""
         try:
@@ -482,6 +485,8 @@ class ChatService:
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
         usage: dict[str, int] = {}
+        trace_recorder: TraceRecorder | None = None
+        turn_started = time.perf_counter()
 
         def release_claims() -> None:
             nonlocal model_claimed, claims_released
@@ -511,6 +516,14 @@ class ChatService:
                     raise AIServiceError("disabled", "AI 聊天暂未启用，请稍后重试。")
                 if not config.configured:
                     raise AIServiceError("not_configured", "AI 聊天尚未完成配置，请稍后重试。")
+                trace_recorder = TraceRecorder(
+                    user_db=path,
+                    trace_id=stream_message_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    provider=config.provider,
+                    model=config.model,
+                )
                 if not _try_claim_model(config):
                     yield _event("error", {"code": "busy", "message": "AI 当前请求较多，请稍后重试。"})
                     return
@@ -629,6 +642,10 @@ class ChatService:
                         usage=usage_payload,
                     )
                     assistant_saved = True
+                    trace_recorder.record_chat(
+                        status="failed", duration_ms=(time.perf_counter() - turn_started) * 1000,
+                        usage=usage_payload, error_code=explicit_result.error_code,
+                    )
                     release_claims()
                     yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
                     return
@@ -646,6 +663,7 @@ class ChatService:
                 orchestrator = ToolOrchestrator(
                     registry=self.tool_registry,
                     policy=self.tool_policy,
+                    trace_recorder=trace_recorder,
                 )
                 async for item in orchestrator.stream(
                     model=model,
@@ -673,6 +691,10 @@ class ChatService:
                 })
                 answer = "".join(answer_parts).strip()
                 if not answer and not turn_result.has_valid_tool_activity:
+                    trace_recorder.record_chat(
+                        status="failed", duration_ms=(time.perf_counter() - turn_started) * 1000,
+                        usage=usage_payload, error_code="empty_response",
+                    )
                     yield _event(
                         "error",
                         {
@@ -703,6 +725,10 @@ class ChatService:
                     input_tokens=usage_payload.get("input_tokens"),
                     output_tokens=usage_payload.get("output_tokens"),
                 )
+                trace_recorder.record_chat(
+                    status="success", duration_ms=(time.perf_counter() - turn_started) * 1000,
+                    usage=usage_payload,
+                )
                 release_claims()
                 if explicit_result is None:
                     self._schedule_inferred_memory(
@@ -719,6 +745,11 @@ class ChatService:
             except BaseException as exc:
                 code, safe_message = _safe_provider_error(exc)
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
+                if trace_recorder is not None:
+                    trace_recorder.record_chat(
+                        status="failed", duration_ms=(time.perf_counter() - turn_started) * 1000,
+                        usage=usage, error_code=code,
+                    )
                 yield _event("error", {"code": code, "message": safe_message})
         finally:
             if current_message_id is not None and not assistant_saved and not durable_turn_state:
