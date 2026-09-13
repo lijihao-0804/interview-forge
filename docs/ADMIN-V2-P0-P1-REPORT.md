@@ -6,7 +6,7 @@
 - P0 UI SHA: `6b0cd99` — `feat: add admin observability dashboard`
 - P1 Backend SHA: `fa3bc12` — `feat: add admin operations backend`
 - P1 UI SHA: `02bde66` — `feat: complete admin operations dashboard`
-- Final SHA: `ebe7253`（本轮实现与报告基线）
+- Final SHA: `a8c8dae`（包含最终日志读取侧脱敏修复）
 
 ## 2. Architecture
 
