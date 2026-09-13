@@ -2049,6 +2049,10 @@ def render_markdown(source: Path) -> None:
         page_heading = f"<h1>{html.escape(source.stem)}</h1>"
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={ASSET_VERSION}"
+    ai_asset_base = web_rel(output, ROOT / "assets")
+    ai_css_href = ai_asset_base + "/ai-launcher.css?v=1"
+    ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
+    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=1"
     root_href = web_rel(output, ROOT / "index.html")
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
     map_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "02-算法模式地图.html")
@@ -2065,6 +2069,7 @@ def render_markdown(source: Path) -> None:
   <meta name="color-scheme" content="light dark">
   <title>{html.escape(title)} · Hot 100</title>
   <link rel="stylesheet" href="{html.escape(css_href)}">
+  <link rel="stylesheet" data-interviewforge-ai href="{html.escape(ai_css_href)}">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到正文</a>
@@ -2095,6 +2100,8 @@ def render_markdown(source: Path) -> None:
     <footer class="site-footer">Interview Forge · 在线学习站</footer>
   </div>
   <script src="{html.escape(js_href)}" defer></script>
+  <script src="{html.escape(ai_context_href)}" defer data-interviewforge-ai></script>
+  <script src="{html.escape(ai_launcher_href)}" defer data-interviewforge-ai></script>
 </body>
 </html>
 """

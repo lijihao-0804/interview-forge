@@ -21,7 +21,7 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("get_learning_context: \"学习情况\"", self.source)
         self.assertIn("get_problem: \"题目信息\"", self.source)
         self.assertIn('var toolName = String(payload.name || "");', self.source)
-        self.assertIn("payload.display_name || toolLabels[toolName]", self.source)
+        self.assertIn("payload.display_name || row.dataset.label || toolLabels[toolName]", self.source)
         self.assertNotIn("toolLabels[name]", self.source)
         self.assertIn("node._toolStatus", self.source)
 
@@ -45,6 +45,26 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("确认", self.source)
         self.assertIn("取消", self.source)
         self.assertNotIn("action.arguments", self.source)
+
+    def test_page_context_and_failed_turns_reload_persisted_history(self):
+        self.assertIn("page_context", self.source)
+        self.assertIn("currentPageContext", self.source)
+        self.assertIn("reloadCurrentSession", self.source)
+        self.assertIn("cancelRequested", self.source)
+        self.assertIn("interviewforge:page-context", self.source)
+        self.assertIn("interviewforge:request-page-context", self.source)
+
+    def test_new_tool_labels_use_server_display_name(self):
+        self.assertIn('var label = payload.display_name || row.dataset.label || toolLabels[toolName] || "工具";', self.source)
+        self.assertIn('if (name === "tool.start") row.dataset.label = label;', self.source)
+
+    def test_launcher_and_context_assets_exist(self):
+        self.assertTrue((ROOT / "assets" / "ai-launcher.js").exists())
+        self.assertTrue((ROOT / "assets" / "ai-launcher.css").exists())
+        self.assertTrue((ROOT / "assets" / "ai-page-context.js").exists())
+        page = (ROOT / "pages" / "ai-assistant.html").read_text(encoding="utf-8")
+        self.assertIn("ai-assistant.css", page)
+        self.assertIn("ai-page-context.js", page)
 
 
 if __name__ == "__main__":

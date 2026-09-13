@@ -22,6 +22,7 @@ from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.learning_context import LearningContextProvider
+from interview_forge.ai.chat.page_context import PageContext, PageContextProvider
 from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.memory import (
@@ -366,8 +367,15 @@ class ChatService:
         return "这次没有成功保存该记忆，请稍后重试。"
 
     @staticmethod
-    def _save_user_message(*, user_db: Path, session_id: str, content: str) -> int:
+    def _save_user_message(
+        *, user_db: Path, session_id: str, content: str, page_context: PageContext | None = None
+    ) -> int:
         timestamp = _now()
+        metadata = json.dumps(
+            {"page_context": page_context.to_dict()} if page_context is not None else {},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
         with closing(server_runtime.connect(user_db)) as connection:
             session = connection.execute(
                 "SELECT title FROM chat_sessions WHERE id = ?", (session_id,)
@@ -379,8 +387,8 @@ class ChatService:
             ).fetchone()[0])
             cursor = connection.execute(
                 "INSERT INTO chat_messages(session_id, role, content, metadata_json, created_at) "
-                "VALUES (?, 'user', ?, '{}', ?)",
-                (session_id, content, timestamp),
+                "VALUES (?, 'user', ?, ?, ?)",
+                (session_id, content, metadata, timestamp),
             )
             title = _title_from_message(content) if count == 0 else str(session["title"])
             connection.execute(
@@ -442,11 +450,21 @@ class ChatService:
             return int(cursor.lastrowid)
 
     async def stream_reply(
-        self, *, user_db: Path | str, session_id: str, message: str
+        self,
+        *,
+        user_db: Path | str,
+        session_id: str,
+        message: str,
+        page_context: PageContext | Mapping[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Persist the user turn, stream the provider, then persist success only."""
         try:
             clean_message = normalize_message(message)
+            normalized_page_context = (
+                page_context
+                if isinstance(page_context, PageContext)
+                else PageContext.from_payload(page_context)
+            )
         except ValueError as exc:
             yield _event("error", {"code": "invalid_message", "message": str(exc)})
             return
@@ -479,6 +497,7 @@ class ChatService:
                     user_db=path,
                     session_id=session_id,
                     content=clean_message,
+                    page_context=normalized_page_context,
                 )
             except LookupError:
                 yield _event("error", {"code": "session_not_found", "message": "会话不存在。"})
@@ -548,6 +567,9 @@ class ChatService:
                 )
                 if recent_action_block is not None:
                     context_blocks.append(recent_action_block)
+                page_context_block = PageContextProvider().build(normalized_page_context)
+                if page_context_block is not None:
+                    context_blocks.append(page_context_block)
                 learning_task = None
                 if learning_context:
                     learning_task = learning_context.get("task")

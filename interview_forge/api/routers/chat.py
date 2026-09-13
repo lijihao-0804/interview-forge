@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from interview_forge.ai.actions.service import ActionService
 from interview_forge.ai.chat.service import ChatService, MAX_CHAT_BODY_BYTES, normalize_message
+from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error, user_db
 from interview_forge.runtime.streaming import sse_events
@@ -141,13 +142,19 @@ async def stream_session(request: Request, session_id: str):
         return denied
     try:
         payload = await read_json(request, max_length=MAX_CHAT_BODY_BYTES)
-        if set(payload) != {"message"}:
+        if set(payload) - {"message", "page_context"} or "message" not in payload:
             raise ValueError("请求参数不正确")
         message = normalize_message(payload.get("message"))
+        page_context = PageContext.from_payload(payload.get("page_context"))
         db_path = user_db(user)
         if chat_service.get_session(user_db=db_path, session_id=session_id) is None:
             return error_response("会话不存在", 404)
-        source = chat_service.stream_reply(user_db=db_path, session_id=session_id, message=message)
+        source = chat_service.stream_reply(
+            user_db=db_path,
+            session_id=session_id,
+            message=message,
+            page_context=page_context,
+        )
         return StreamingResponse(
             sse_events(source, request=request),
             media_type="text/event-stream",
