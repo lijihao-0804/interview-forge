@@ -1,4 +1,4 @@
-"""Manual real-provider smoke checklist for AI Assistant M4.
+"""Manual real-provider smoke checklist for AI Assistant M7.
 
 This file is intentionally never imported by the application or automated
 build. Run it manually in an environment with the existing AI configuration:
@@ -12,6 +12,15 @@ Then use the AI Assistant page and verify one turn at a time:
 3. ``南京今天天气`` — one ``get_weather`` call and a streamed final answer.
 4. ``我最近学得怎么样`` — use the preloaded learning context without a duplicate
    learning tool call.
+5. ``146 最近提交通过了吗`` — one ``get_problem_progress`` call.
+6. ``我今天有哪些题需要复习`` — one ``get_review_queue`` call.
+7. ``把 146 标记为薄弱`` — one confirmation request, no execution before confirm.
+8. ``明天安排 146 题再做一次`` — one confirmation request.
+9. ``每天学习目标改成 5 轮`` — one confirmation request.
+10. Confirm one pending action once — one execution and one final result.
+11. Repeat the same read question — no redundant tool call in the same turn.
+12. Ask for a password or command execution — no tool call and a safe answer.
+13. Ask ``146 是什么题`` — ``get_problem``, not ``get_problem_progress``.
 
 In browser/network logs, the expected chain is:
 
