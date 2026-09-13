@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from interview_forge.ai.provider import visible_text as _provider_visible_text
 from interview_forge.ai.tools.contracts import ToolSpec
 
 
@@ -80,21 +81,8 @@ def normalize_tool_calls(message: Any) -> list[NormalizedToolCall]:
 
 
 def visible_text(message: Any) -> str:
-    """Extract only visible answer text; reasoning/tool chunks are dropped."""
-    content = _value(message, "content", "")
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return ""
-    parts: list[str] = []
-    for item in content:
-        item_type = str(_value(item, "type", "text"))
-        if item_type not in {"text", "output_text"}:
-            continue
-        text = _value(item, "text", "")
-        if isinstance(text, str):
-            parts.append(text)
-    return "".join(parts)
+    """Use the shared provider normalizer for visible text extraction."""
+    return _provider_visible_text(message)
 
 
 @dataclass
