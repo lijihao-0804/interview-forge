@@ -130,6 +130,32 @@ CREATE INDEX IF NOT EXISTS ix_chat_action_requests_session
     ON chat_action_requests(session_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS ix_chat_action_requests_status
     ON chat_action_requests(status, expires_at);
+CREATE TABLE IF NOT EXISTS ai_trace_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id TEXT NOT NULL,
+    session_id TEXT,
+    request_id TEXT,
+    event_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    provider TEXT,
+    model TEXT,
+    round_index INTEGER,
+    started_at TEXT,
+    finished_at TEXT,
+    duration_ms INTEGER,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    reasoning_tokens INTEGER,
+    error_code TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS ix_ai_trace_events_trace
+    ON ai_trace_events(trace_id, id ASC);
+CREATE INDEX IF NOT EXISTS ix_ai_trace_events_finished
+    ON ai_trace_events(finished_at DESC);
+CREATE INDEX IF NOT EXISTS ix_ai_trace_events_type
+    ON ai_trace_events(event_type, finished_at DESC);
 """
 
 
@@ -186,5 +212,13 @@ def ensure_ai_schema(connection) -> None:
     connection.execute(
         "CREATE INDEX IF NOT EXISTS ix_chat_tool_runs_turn "
         "ON chat_tool_runs(turn_id, created_at ASC)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_ai_trace_events_trace "
+        "ON ai_trace_events(trace_id, id ASC)"
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS ix_ai_trace_events_finished "
+        "ON ai_trace_events(finished_at DESC)"
     )
     connection.commit()

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +22,7 @@ from interview_forge.ai.tools.langchain_adapter import (
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
 from interview_forge.ai.tools.runtime import ToolRuntime
+from interview_forge.observability.ai_trace import TraceRecorder
 
 
 TOOLING_UNAVAILABLE_NOTICE = (
@@ -88,20 +90,25 @@ class ToolOrchestrator:
         *,
         registry: ToolRegistry | None = None,
         policy: ToolPolicy | None = None,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self.registry = registry or build_default_tool_registry()
         self.policy = policy or ToolPolicy()
         self.runtime = ToolRuntime(self.registry)
+        self.trace_recorder = trace_recorder
         self.last_result = ToolTurnResult()
         self._round_result = _RoundResult("", (), {})
         self._call_results: list[ToolExecutionResult] = []
         self._confirmation_action_ids: set[str] = set()
 
-    async def _stream_round(self, model: Any, messages: list[Any]):
+    async def _stream_round(self, model: Any, messages: list[Any], *, round_index: int = 0):
         text_parts: list[str] = []
         accumulator = ToolCallAccumulator()
         round_usage: dict[str, int] = {}
         iterator: Any = None
+        started = time.perf_counter()
+        status = "success"
+        error_code = None
         try:
             astream = getattr(model, "astream", None)
             if callable(astream):
@@ -138,6 +145,10 @@ class ToolOrchestrator:
                         yield _event("message.delta", {"delta": text})
                     accumulator.add(chunk)
                     _merge_usage(round_usage, _usage_from(chunk))
+        except BaseException as exc:
+            status = "failed"
+            error_code = type(exc).__name__
+            raise
         finally:
             close = getattr(iterator, "aclose", None)
             if callable(close):
@@ -149,6 +160,14 @@ class ToolOrchestrator:
             self._round_result = _RoundResult(
                 "".join(text_parts), tuple(accumulator.finish()), round_usage
             )
+            if self.trace_recorder is not None:
+                self.trace_recorder.record_llm_round(
+                    round_index=round_index,
+                    status=status,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    usage=round_usage,
+                    error_code=error_code,
+                )
 
     async def _execute_calls(
         self,
@@ -360,7 +379,7 @@ class ToolOrchestrator:
             return
 
         for round_index in range(self.policy.max_rounds):
-            async for item in self._stream_round(bound_model, history):
+            async for item in self._stream_round(bound_model, history, round_index=round_index + 1):
                 yield item
             result = self._round_result
             visible_text_parts.append(result.text)
@@ -401,7 +420,7 @@ class ToolOrchestrator:
                     )
                 self._append_tool_messages(history, calls, [], blocked=True)
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
-                async for item in self._stream_round(model, history):
+                async for item in self._stream_round(model, history, round_index=round_index + 2):
                     yield item
                 final_result = self._round_result
                 visible_text_parts.append(final_result.text)
@@ -435,7 +454,7 @@ class ToolOrchestrator:
                     tool_run_ids.append(result.run_id)
             if round_index + 1 >= self.policy.max_rounds or budget_exceeded:
                 history.append({"role": "system", "content": TOOLS_DISABLED_NOTICE})
-                async for item in self._stream_round(model, history):
+                async for item in self._stream_round(model, history, round_index=round_index + 2):
                     yield item
                 final_result = self._round_result
                 visible_text_parts.append(final_result.text)
