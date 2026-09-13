@@ -44,6 +44,13 @@ class ToolTurnResult:
     tool_names: tuple[str, ...] = ()
     tool_run_ids: tuple[str, ...] = ()
     tooling_unavailable: bool = False
+    visible_text_chars: int = 0
+    has_valid_tool_activity: bool = False
+
+    @property
+    def is_valid_turn(self) -> bool:
+        """A successful turn must expose text or a user-visible tool result."""
+        return self.visible_text_chars > 0 or self.has_valid_tool_activity
 
 
 @dataclass(frozen=True)
@@ -310,6 +317,8 @@ class ToolOrchestrator:
         call_count = 0
         total_result_tokens = 0
         identical_calls: Counter[str] = Counter()
+        visible_text_parts: list[str] = []
+        has_valid_tool_activity = False
         history = list(messages)
         try:
             bound_model = bind_tools(model, self.registry.list_specs())
@@ -333,18 +342,28 @@ class ToolOrchestrator:
                 async for delta, usage in fallback:
                     _merge_usage(total_usage, usage)
                     if delta:
+                        visible_text_parts.append(delta)
                         yield _event("message.delta", {"delta": delta})
             finally:
                 close = getattr(fallback, "aclose", None)
                 if callable(close):
                     await close()
-            self.last_result = ToolTurnResult(total_usage, 0, (), (), True)
+            self.last_result = ToolTurnResult(
+                total_usage,
+                0,
+                (),
+                (),
+                True,
+                len("".join(visible_text_parts).strip()),
+                False,
+            )
             return
 
         for round_index in range(self.policy.max_rounds):
             async for item in self._stream_round(bound_model, history):
                 yield item
             result = self._round_result
+            visible_text_parts.append(result.text)
             for key, value in result.usage.items():
                 total_usage[key] = total_usage.get(key, 0) + value
             calls = list(result.calls)
@@ -353,6 +372,8 @@ class ToolOrchestrator:
                 self.last_result = ToolTurnResult(
                     total_usage, call_count, tuple(dict.fromkeys(tool_names)),
                     tuple(tool_run_ids), False,
+                    len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity,
                 )
                 return
 
@@ -383,11 +404,14 @@ class ToolOrchestrator:
                 async for item in self._stream_round(model, history):
                     yield item
                 final_result = self._round_result
+                visible_text_parts.append(final_result.text)
                 for key, value in final_result.usage.items():
                     total_usage[key] = total_usage.get(key, 0) + value
                 self.last_result = ToolTurnResult(
                     total_usage, call_count, tuple(dict.fromkeys(tool_names)),
                     tuple(tool_run_ids), False,
+                    len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity,
                 )
                 return
 
@@ -397,6 +421,8 @@ class ToolOrchestrator:
             async for item in self._execute_calls(calls=calls, context=context):
                 yield item
             results = list(self._call_results)
+            if any(result.status in {"ok", "cache_hit", "confirmation_required"} for result in results):
+                has_valid_tool_activity = True
             total_result_tokens, budget_exceeded = self._append_tool_messages(
                 history,
                 calls,
@@ -412,11 +438,14 @@ class ToolOrchestrator:
                 async for item in self._stream_round(model, history):
                     yield item
                 final_result = self._round_result
+                visible_text_parts.append(final_result.text)
                 for key, value in final_result.usage.items():
                     total_usage[key] = total_usage.get(key, 0) + value
                 self.last_result = ToolTurnResult(
                     total_usage, call_count, tuple(dict.fromkeys(tool_names)),
                     tuple(tool_run_ids), False,
+                    len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity,
                 )
                 return
 

@@ -8,26 +8,53 @@ from __future__ import annotations
 import time
 import asyncio
 import inspect
-from collections.abc import AsyncIterator
-from typing import Any, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
+from typing import Any
 
 from interview_forge.ai.models import StreamEnvelope
 
+_VISIBLE_CONTENT_BLOCK_TYPES = frozenset({"text", "output_text"})
+
+
 def _content_text(value: Any) -> str:
-    """Extract answer text only; reasoning blocks are intentionally excluded."""
+    """Extract visible answer text from common LangChain content shapes.
+
+    ChatOpenAI may expose ``content`` as a string, a list of strings, or a
+    list of typed content blocks.  Typed reasoning blocks must never become
+    user-visible text, so only explicit text block types are admitted.
+    """
+    if hasattr(value, "content") and not isinstance(value, (str, bytes, Mapping, Sequence)):
+        value = getattr(value, "content", "")
     if isinstance(value, str):
         return value
-    if not isinstance(value, list):
+    if isinstance(value, bytes):
         return ""
-    parts: list[str] = []
-    for item in value:
-        if isinstance(item, str):
-            parts.append(item)
-        elif isinstance(item, Mapping) and str(item.get("type", "text")) in {"text", "output_text"}:
-            text = item.get("text")
-            if isinstance(text, str):
-                parts.append(text)
-    return "".join(parts)
+    if isinstance(value, Mapping):
+        block_type = value.get("type")
+        if block_type is not None and str(block_type) not in _VISIBLE_CONTENT_BLOCK_TYPES:
+            return ""
+        text = value.get("text")
+        if isinstance(text, str):
+            return text
+        if isinstance(text, (list, tuple)):
+            return "".join(_content_text(item) for item in text)
+        return ""
+    if isinstance(value, (list, tuple)):
+        return "".join(_content_text(item) for item in value)
+    block_type = getattr(value, "type", None)
+    if block_type is not None and str(block_type) not in _VISIBLE_CONTENT_BLOCK_TYPES:
+        return ""
+    text = getattr(value, "text", None)
+    if isinstance(text, str):
+        return text
+    return ""
+
+
+def visible_text(message: Any) -> str:
+    """Return only user-visible text from a model message/chunk."""
+    if isinstance(message, Mapping) and "content" in message and "type" not in message:
+        return _content_text(message.get("content"))
+    return _content_text(getattr(message, "content", message))
 
 
 def _usage_from(value: Any) -> dict[str, int]:
@@ -113,7 +140,7 @@ async def stream_chat_chunks(model: Any, messages: list[Any]) -> AsyncIterator[t
 
 def _chat_chunk(chunk: Any) -> tuple[str, dict[str, int]]:
     """Normalize one ChatModel chunk while intentionally dropping reasoning."""
-    return _content_text(getattr(chunk, "content", chunk)), _usage_from(chunk)
+    return visible_text(chunk), _usage_from(chunk)
 
 
 
@@ -227,4 +254,3 @@ def _stream_deepseek_once(model: Any, messages: list[Any]) -> tuple[StreamEnvelo
     else:
         metrics["content_tokens_per_sec"] = None
     return StreamEnvelope("".join(content_parts), usage), metrics
-

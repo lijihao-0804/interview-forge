@@ -18,13 +18,13 @@ from interview_forge.services.auth import create_session, create_user
 
 
 class FakeChunk:
-    def __init__(self, content="", usage=None, tool_calls=None):
+    def __init__(self, content="", usage=None, tool_calls=None, additional_kwargs=None):
         self.content = content
         self.tool_calls = list(tool_calls or [])
         self.tool_call_chunks = []
         self.usage_metadata = usage or {}
         self.response_metadata = {}
-        self.additional_kwargs = {}
+        self.additional_kwargs = dict(additional_kwargs or {})
 
 
 class FakeAsyncModel:
@@ -55,6 +55,22 @@ class ToolCallingFakeModel(FakeAsyncModel):
         if not has_tool_result:
             yield FakeChunk(
                 "我来查一下。",
+                tool_calls=[{"id": "problem-call", "name": "get_problem", "args": {"problem_id": 146}}],
+            )
+            return
+        yield FakeChunk("146 是 LRU 缓存。", usage={"input_tokens": 12, "output_tokens": 6})
+
+
+class ToolCallingNoTextFirstRoundModel(ToolCallingFakeModel):
+    async def astream(self, messages):
+        self.messages = messages
+        has_tool_result = any(
+            isinstance(item, dict) and item.get("role") == "tool"
+            for item in messages
+        )
+        if not has_tool_result:
+            yield FakeChunk(
+                "",
                 tool_calls=[{"id": "problem-call", "name": "get_problem", "args": {"problem_id": 146}}],
             )
             return
@@ -197,6 +213,35 @@ class AIChatContractTests(unittest.TestCase):
         history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
         self.assertEqual(history, [])
 
+    def test_empty_provider_response_emits_empty_response_and_never_persists_assistant(self):
+        self.service.model_factory = lambda _config: FakeAsyncModel([FakeChunk("")])
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream", json={"message": "你好"}
+        )
+        events = parse_sse(response.text)
+        self.assertEqual([name for name, _ in events], ["message.start", "error"])
+        self.assertEqual(events[-1][1], {
+            "code": "empty_response",
+            "message": "AI 没有返回有效内容，请重试。",
+        })
+        history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
+        self.assertEqual(history, [])
+
+    def test_reasoning_only_response_cannot_complete_silently(self):
+        self.service.model_factory = lambda _config: FakeAsyncModel([
+            FakeChunk("", additional_kwargs={"reasoning_content": "hidden reasoning"}),
+        ])
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream", json={"message": "你好"}
+        )
+        events = parse_sse(response.text)
+        self.assertEqual(events[-1][0], "error")
+        self.assertEqual(events[-1][1]["code"], "empty_response")
+        history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
+        self.assertEqual(history, [])
+
     def test_tool_calling_sse_events_and_audit_metadata(self):
         self.service.model_factory = lambda _config: ToolCallingFakeModel()
         created = self.client.post("/api/chat/sessions", json={}).json()
@@ -222,6 +267,22 @@ class AIChatContractTests(unittest.TestCase):
             connection.close()
         self.assertEqual(row[0:2], ("success", "get_problem"))
         self.assertNotIn("LRU 缓存", row[2])
+
+    def test_tool_call_without_first_round_text_still_completes_normally(self):
+        self.service.model_factory = lambda _config: ToolCallingNoTextFirstRoundModel()
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream", json={"message": "146题是哪道题"}
+        )
+        events = parse_sse(response.text)
+        self.assertEqual(
+            [name for name, _ in events],
+            ["message.start", "tool.start", "tool.done", "message.delta", "message.done"],
+        )
+        self.assertEqual(events[-1][0], "message.done")
+        history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
+        self.assertEqual([item["role"] for item in history], ["user", "assistant"])
+        self.assertEqual(history[-1]["content"], "146 是 LRU 缓存。")
 
     def test_pending_action_keeps_source_turn_when_later_model_round_fails(self):
         self.service.model_factory = lambda _config: ActionThenFailModel()

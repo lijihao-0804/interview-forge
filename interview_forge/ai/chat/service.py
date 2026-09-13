@@ -430,6 +430,8 @@ class ChatService:
     def _save_assistant_message(
         *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any]
     ) -> int:
+        if not content.strip():
+            raise ValueError("assistant message must contain visible text")
         timestamp = _now()
         metadata = json.dumps(
             {"stream_message_id": stream_message_id, "usage": dict(usage)},
@@ -669,14 +671,30 @@ class ChatService:
                     "tool_run_ids": list(turn_result.tool_run_ids),
                     "tooling_unavailable": turn_result.tooling_unavailable,
                 })
-                self._save_assistant_message(
-                    user_db=path,
-                    session_id=session_id,
-                    content="".join(answer_parts),
-                    stream_message_id=stream_message_id,
-                    usage=usage_payload,
-                )
-                assistant_saved = True
+                answer = "".join(answer_parts).strip()
+                if not answer and not turn_result.has_valid_tool_activity:
+                    yield _event(
+                        "error",
+                        {
+                            "code": "empty_response",
+                            "message": "AI 没有返回有效内容，请重试。",
+                        },
+                    )
+                    return
+                if answer:
+                    self._save_assistant_message(
+                        user_db=path,
+                        session_id=session_id,
+                        content=answer,
+                        stream_message_id=stream_message_id,
+                        usage=usage_payload,
+                    )
+                    assistant_saved = True
+                else:
+                    # A successful tool result/confirmation is itself a
+                    # user-visible turn.  Keep the user message and tool
+                    # audit, but never create an empty assistant row.
+                    durable_turn_state = True
                 debug_ai_event(
                     "chat_stream_completed",
                     session_id=session_id,

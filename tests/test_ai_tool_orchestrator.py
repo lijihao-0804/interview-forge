@@ -103,6 +103,14 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(orchestrator.last_result.tool_calls_count, 0)
         self.assertEqual(orchestrator.last_result.usage["output_tokens"], 2)
 
+    def test_empty_normal_round_is_explicitly_invalid(self):
+        model = ScriptedModel([[FakeChunk("")]])
+        orchestrator = ToolOrchestrator(registry=ToolRegistry())
+        events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
+        self.assertEqual(events, [])
+        self.assertFalse(orchestrator.last_result.is_valid_turn)
+        self.assertEqual(orchestrator.last_result.visible_text_chars, 0)
+
     def test_get_problem_emits_tool_events_then_final_answer(self):
         model = ScriptedModel([
             [FakeChunk("我帮你查一下。", [{"id": "p1", "name": "get_problem", "args": {"problem_id": 146}}])],
@@ -117,6 +125,17 @@ class ToolOrchestratorTests(unittest.TestCase):
         self.assertEqual(orchestrator.last_result.tool_names, ("get_problem",))
         self.assertEqual(len(orchestrator.last_result.tool_run_ids), 1)
         self.assertIn('"role": "tool"', json.dumps(model.seen[1], ensure_ascii=False))
+
+    def test_tool_call_without_first_round_text_is_valid_when_final_text_arrives(self):
+        model = ScriptedModel([
+            [FakeChunk("", [{"id": "p1", "name": "get_problem", "args": {"problem_id": 146}}])],
+            [FakeChunk("146 是 LRU 缓存。")],
+        ])
+        orchestrator = ToolOrchestrator(registry=build_default_tool_registry())
+        events = asyncio.run(_collect(orchestrator, model, _context(self.db)))
+        self.assertEqual(events[0]["event"], "tool.start")
+        self.assertEqual(events[-1]["data"]["delta"], "146 是 LRU 缓存。")
+        self.assertTrue(orchestrator.last_result.is_valid_turn)
 
     def test_weather_and_preloaded_learning_context(self):
         calls = []
