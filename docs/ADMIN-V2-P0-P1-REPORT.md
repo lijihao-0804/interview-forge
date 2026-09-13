@@ -63,6 +63,7 @@ API Router → Admin Service → DB / Runtime / Observability
 ## 6. Observability Data
 
 - `logs/app.jsonl`：InterviewForge 自有结构化请求日志，5 MB × 5 rotating；路径可由 `INTERVIEW_FORGE_LOG_PATH` 指定，否则使用项目 `logs/app.jsonl`。日志目录已加入 `.gitignore`。
+- Admin 日志读取阶段再次执行字段脱敏，避免历史 JSONL 中的敏感字段绕过展示边界。
 - `ai_trace_events`：telemetry only，保存 trace/request/session、provider/model、round、状态、耗时、Token 和错误类别。
 - `chat_tool_runs`：Tool source of truth，Trace Detail 只聚合安全列。
 - `chat_action_requests`：Action source of truth，Trace/Action Audit 不复制参数和结果正文。
@@ -86,7 +87,7 @@ API Router → Admin Service → DB / Runtime / Observability
 
 | Command | Result |
 |---|---|
-| `python -m pytest -q` | **272 passed, 25 subtests passed**, 1 existing deprecation warning |
+| `python -m pytest -q` | **273 passed, 25 subtests passed**, 1 existing deprecation warning |
 | `python -m pytest -q tests/test_admin_v2.py` | passed |
 | `python -m compileall -q interview_forge tests scripts` | passed |
 | `node --check assets/admin-observability.js` | passed |
