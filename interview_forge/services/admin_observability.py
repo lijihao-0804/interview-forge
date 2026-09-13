@@ -20,7 +20,7 @@ from interview_forge.ai.config import load_ai_config
 from interview_forge.core.paths import PROJECT_ROOT
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.costs import estimate_cost, load_pricing
-from interview_forge.observability.logging import log_paths
+from interview_forge.observability.logging import _safe_value, log_paths
 from interview_forge.observability.metrics import started_at, uptime_seconds
 from interview_forge.services import auth
 from interview_forge.runtime.task_manager import task_manager
@@ -95,7 +95,7 @@ def _read_log_records(
                 continue
             if request_id and str(row.get("request_id", "")) != request_id:
                 continue
-            records.append(row)
+            records.append({str(key): _safe_value(str(key), value) for key, value in row.items()})
             if len(records) >= normalized_limit:
                 return {"items": records, "has_more": True}
     return {"items": records, "has_more": False}

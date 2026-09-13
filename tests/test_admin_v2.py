@@ -15,6 +15,7 @@ from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.ai_trace import TraceRecorder
 from interview_forge.observability.logging import close_log_handlers
+from interview_forge.observability.logging import log_event
 from interview_forge.services.auth import create_session, create_user, user_db_path
 
 
@@ -63,6 +64,15 @@ class AdminV2BackendTests(unittest.TestCase):
         logs = self._admin().get("/api/admin/logs", params={"request_id": "admin-v2-test"})
         self.assertEqual(logs.status_code, 200)
         self.assertTrue(any(item.get("event") == "api_request" for item in logs.json()["items"]))
+
+    def test_log_redaction_is_applied_on_write_and_admin_read(self):
+        log_event("redaction_test", module="test", password="secret-password", token="secret-token", safe_value="visible")
+        payload = self._admin().get("/api/admin/logs", params={"event": "redaction_test"})
+        self.assertEqual(payload.status_code, 200)
+        rendered = json.dumps(payload.json(), ensure_ascii=False)
+        self.assertNotIn("secret-password", rendered)
+        self.assertNotIn("secret-token", rendered)
+        self.assertIn("[redacted]", rendered)
 
     def test_trace_aggregation_and_detail_never_returns_bodies(self):
         db = user_db_path("UserV2")
