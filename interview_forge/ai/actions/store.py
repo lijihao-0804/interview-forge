@@ -186,6 +186,27 @@ class ActionRequestStore:
                 result.append(item)
         return result
 
+    def list_recent(
+        self, *, user_db: Path | str, session_id: str, limit: int = 4
+    ) -> list[dict[str, Any]]:
+        """Return a small, server-owned view of recent completed action rows.
+
+        The store still returns its normal internal payload to trusted callers;
+        the chat context provider deliberately projects it without arguments,
+        IDs, or result bodies before it reaches the model.
+        """
+        bounded_limit = min(max(int(limit), 1), 10)
+        with closing(server_runtime.connect(Path(user_db))) as connection:
+            rows = connection.execute(
+                """SELECT * FROM chat_action_requests
+                   WHERE session_id = ?
+                     AND status IN ('executing', 'succeeded', 'failed', 'cancelled')
+                   ORDER BY COALESCE(completed_at, decided_at, created_at) DESC, id DESC
+                   LIMIT ?""",
+                (session_id, bounded_limit),
+            ).fetchall()
+        return [_payload(row) for row in rows]
+
     def claim_pending(self, *, user_db: Path | str, action_id: str) -> dict[str, Any] | None:
         now = _now()
         with closing(server_runtime.connect(Path(user_db))) as connection:

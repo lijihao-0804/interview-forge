@@ -22,6 +22,7 @@ from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.learning_context import LearningContextProvider
+from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
 from interview_forge.ai.chat.tool_orchestrator import ToolOrchestrator
 from interview_forge.ai.memory import (
     MemoryContextBuilder,
@@ -540,6 +541,13 @@ class ChatService:
                 )
                 if memory_block is not None:
                     context_blocks.append(memory_block)
+                recent_action_block = await asyncio.to_thread(
+                    RecentActionContextProvider().build,
+                    user_db=path,
+                    session_id=session_id,
+                )
+                if recent_action_block is not None:
+                    context_blocks.append(recent_action_block)
                 learning_task = None
                 if learning_context:
                     learning_task = learning_context.get("task")
