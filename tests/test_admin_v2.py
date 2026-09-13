@@ -100,6 +100,16 @@ class AdminV2BackendTests(unittest.TestCase):
         self.assertEqual(usage.status_code, 200)
         self.assertEqual(usage.json()["turns"], 1)
 
+    def test_observability_ui_uses_separate_assets_and_safe_text_rendering(self):
+        root = Path(__file__).resolve().parents[1]
+        page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
+        script = (root / "assets" / "admin-observability.js").read_text(encoding="utf-8")
+        self.assertIn("/assets/admin-observability.css?v=1", page)
+        self.assertIn("/assets/admin-observability.js?v=1", page)
+        self.assertIn("data-admin-v2", page)
+        self.assertIn("textContent", script)
+        self.assertNotIn("innerHTML", script)
+
 
 if __name__ == "__main__":
     unittest.main()
