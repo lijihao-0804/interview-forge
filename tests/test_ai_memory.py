@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.service import ChatService
+import interview_forge.ai.chat.service as chat_service_module
 from interview_forge.ai.memory import MemoryExtractor, MemoryPolicy, MemoryStore, memory_worthy
 from interview_forge.ai.memory.extractor import _deterministic_candidate
 from interview_forge.api.app import app
@@ -212,6 +213,30 @@ class MemoryDomainTests(unittest.TestCase):
             ["user", "assistant"],
         )
 
+    def test_chat_releases_session_and_model_slots_before_done(self):
+        config = AIConfig(
+            enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        service = ChatService(config_loader=lambda: config, model_factory=lambda _config: FakeModel())
+        service._process_memory = lambda **_kwargs: __import__("time").sleep(0.2)
+        session = service.create_session(user_db=self.db)
+
+        async def consume_until_done():
+            async for item in service.stream_reply(
+                user_db=self.db, session_id=session["id"], message="我的目标是提升算法能力"
+            ):
+                if item["event"] == "message.done":
+                    with chat_service_module._ACTIVE_SESSIONS_LOCK:
+                        self.assertFalse(chat_service_module._ACTIVE_SESSIONS)
+                    with chat_service_module._ACTIVE_MODEL_CALLS_LOCK:
+                        self.assertEqual(chat_service_module._ACTIVE_MODEL_CALLS, 0)
+                    break
+
+        asyncio.run(consume_until_done())
+
     def test_memory_words_in_normal_questions_do_not_trigger_explicit_persistence(self):
         from interview_forge.ai.memory.extractor import is_explicit_memory_request
 
@@ -221,6 +246,14 @@ class MemoryDomainTests(unittest.TestCase):
             "不要忘了顺便讲一下时间复杂度",
         ):
             self.assertFalse(is_explicit_memory_request(message))
+
+        keep = _deterministic_candidate("不要忘记我喜欢 Python")
+        self.assertIsNotNone(keep)
+        self.assertEqual(keep.operation, "upsert")
+        self.assertEqual(keep.canonical_key, "preference.programming_language")
+        forget = _deterministic_candidate("不要再记住我喜欢 Python")
+        self.assertIsNotNone(forget)
+        self.assertEqual(forget.operation, "forget")
 
     def test_explicit_memory_save_happens_before_answer(self):
         config = AIConfig(
@@ -265,6 +298,36 @@ class MemoryDomainTests(unittest.TestCase):
         answer = events[1]["data"]["delta"]
         self.assertIn("没有成功保存", answer)
         self.assertNotIn("已记住", answer)
+
+    def test_durable_explicit_memory_keeps_source_turn_when_model_fails(self):
+        class FailingBoundModel(FakeModel):
+            def bind_tools(self, _schemas):
+                return self
+
+            async def astream(self, _messages):
+                raise RuntimeError("provider failed after memory save")
+                yield  # pragma: no cover
+
+        config = AIConfig(
+            enabled=True, provider="openai-compatible", model="test", base_url="https://example.invalid",
+            api_key="test-key", wire_api="chat_completions", actor_authorization="", reasoning_effort="",
+            thinking_enabled=False, request_timeout_seconds=10, max_concurrent_requests=2,
+            daily_limit_per_user=3, beta_users="*",
+        )
+        service = ChatService(
+            config_loader=lambda: config,
+            model_factory=lambda _config: FailingBoundModel(),
+        )
+        session = service.create_session(user_db=self.db)
+        events = _collect(service.stream_reply(
+            user_db=self.db, session_id=session["id"], message="记住我喜欢 Python"
+        ))
+        self.assertEqual(events[-1]["event"], "error")
+        history = ChatService.list_messages(user_db=self.db, session_id=session["id"])
+        active = MemoryStore().list_active(user_db=self.db)
+        self.assertEqual([item["role"] for item in history], ["user"])
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0].source_message_id, history[0]["id"])
 
     def test_explicit_forget_is_persisted_before_answer(self):
         store = MemoryStore()

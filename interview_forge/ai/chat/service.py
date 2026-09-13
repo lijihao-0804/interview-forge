@@ -187,6 +187,27 @@ class ChatService:
         self.tool_registry = tool_registry or build_default_tool_registry()
         self.tool_policy = tool_policy or ToolPolicy()
         self.memory_extractor = memory_extractor or MemoryExtractor()
+        self._background_memory_tasks: set[asyncio.Task[Any]] = set()
+
+    def _schedule_inferred_memory(
+        self,
+        *,
+        user_db: Path,
+        session_id: str,
+        message_id: int,
+        message: str,
+        model: Any,
+    ) -> None:
+        task = asyncio.create_task(asyncio.to_thread(
+            self._process_memory,
+            user_db=user_db,
+            session_id=session_id,
+            message_id=message_id,
+            message=message,
+            model=model,
+        ))
+        self._background_memory_tasks.add(task)
+        task.add_done_callback(self._background_memory_tasks.discard)
 
     @staticmethod
     def create_session(*, user_db: Path | str) -> dict[str, Any]:
@@ -433,11 +454,24 @@ class ChatService:
             yield _event("error", {"code": "chat_in_progress", "message": "该会话正在生成，请先停止当前生成。"})
             return
         model_claimed = False
+        claims_released = False
         current_message_id: int | None = None
         assistant_saved = False
+        durable_turn_state = False
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
         usage: dict[str, int] = {}
+
+        def release_claims() -> None:
+            nonlocal model_claimed, claims_released
+            if claims_released:
+                return
+            if model_claimed:
+                _release_model()
+                model_claimed = False
+            _release_session(path, session_id)
+            claims_released = True
+
         try:
             try:
                 current_message_id = self._save_user_message(
@@ -485,6 +519,10 @@ class ChatService:
                             success=False,
                             error_code="model_unavailable",
                         )
+                if explicit_result is not None and explicit_result.success:
+                    # The memory row is durable even if the later model turn
+                    # fails, so its source user message must not be rolled back.
+                    durable_turn_state = True
                 if model is None and (explicit_result is None or explicit_result.success):
                     model = await asyncio.to_thread(self.model_factory, config)
                 learning_context = await asyncio.to_thread(
@@ -559,6 +597,7 @@ class ChatService:
                         usage=usage_payload,
                     )
                     assistant_saved = True
+                    release_claims()
                     yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
                     return
                 tool_context = ToolExecutionContext(
@@ -586,6 +625,10 @@ class ChatService:
                         delta = str(item.get("data", {}).get("delta", ""))
                         if delta:
                             answer_parts.append(delta)
+                    elif item.get("event") == "tool.confirmation_required":
+                        # A pending ACTION references this user turn.  Keep
+                        # the source message if a later model round fails.
+                        durable_turn_state = True
                     yield item
                 turn_result = orchestrator.last_result
                 usage.update(turn_result.usage)
@@ -612,16 +655,16 @@ class ChatService:
                     input_tokens=usage_payload.get("input_tokens"),
                     output_tokens=usage_payload.get("output_tokens"),
                 )
-                yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
+                release_claims()
                 if explicit_result is None:
-                    await asyncio.to_thread(
-                        self._process_memory,
+                    self._schedule_inferred_memory(
                         user_db=path,
                         session_id=session_id,
                         message_id=current_message_id,
                         message=clean_message,
                         model=model,
                     )
+                yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
             except asyncio.CancelledError:
                 debug_ai_event("chat_stream_cancelled", session_id=session_id, message_id=stream_message_id)
                 raise
@@ -630,7 +673,7 @@ class ChatService:
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
                 yield _event("error", {"code": code, "message": safe_message})
         finally:
-            if current_message_id is not None and not assistant_saved:
+            if current_message_id is not None and not assistant_saved and not durable_turn_state:
                 try:
                     self._delete_failed_user_message(
                         user_db=path,
@@ -642,9 +685,7 @@ class ChatService:
                         "chat_failed_user_cleanup_error",
                         error_type=type(exc).__name__,
                     )
-            if model_claimed:
-                _release_model()
-            _release_session(path, session_id)
+            release_claims()
 
 
 __all__ = [

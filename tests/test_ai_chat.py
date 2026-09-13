@@ -61,6 +61,27 @@ class ToolCallingFakeModel(FakeAsyncModel):
         yield FakeChunk("146 是 LRU 缓存。", usage={"input_tokens": 12, "output_tokens": 6})
 
 
+class ActionThenFailModel(FakeAsyncModel):
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    def bind_tools(self, schemas):
+        self.schemas = schemas
+        return self
+
+    async def astream(self, messages):
+        self.calls += 1
+        if self.calls == 1:
+            yield FakeChunk(
+                "我先请求确认。",
+                tool_calls=[{"id": "action-call", "name": "sync_leetcode", "args": {"full": False}}],
+            )
+            return
+        raise RuntimeError("provider failed after action creation")
+        yield  # pragma: no cover
+
+
 def parse_sse(body: str):
     result = []
     for frame in body.split("\n\n"):
@@ -201,6 +222,23 @@ class AIChatContractTests(unittest.TestCase):
             connection.close()
         self.assertEqual(row[0:2], ("success", "get_problem"))
         self.assertNotIn("LRU 缓存", row[2])
+
+    def test_pending_action_keeps_source_turn_when_later_model_round_fails(self):
+        self.service.model_factory = lambda _config: ActionThenFailModel()
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream",
+            json={"message": "帮我同步 LeetCode"},
+        )
+        events = parse_sse(response.text)
+        self.assertEqual(events[-1][0], "error")
+        history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
+        self.assertEqual([item["role"] for item in history], ["user"])
+        pending = self.client.get(
+            f"/api/chat/sessions/{created['id']}/actions"
+        ).json()["items"]
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0]["user_message_id"], history[0]["id"])
 
     def test_cross_user_session_isolation_and_input_bounds(self):
         created = self.client.post("/api/chat/sessions", json={}).json()

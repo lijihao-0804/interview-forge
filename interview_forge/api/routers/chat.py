@@ -1,6 +1,8 @@
 """Authenticated persistent AI chat routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
@@ -111,6 +113,8 @@ async def confirm_action(request: Request, action_id: str):
             raise ValueError("确认请求不应包含工具参数")
         result = await action_service.confirm(user_db=user_db(user), action_id=action_id)
         return json_response(result)
+    except asyncio.CancelledError:
+        raise
     except BaseException as exc:
         return _handled(exc, write=True)
 
