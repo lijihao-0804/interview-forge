@@ -183,8 +183,10 @@ class MemoryDomainTests(unittest.TestCase):
         messages = ContextBuilder(context_blocks=[memory_block]).build(
             user_db=self.db, session_id="missing-session", current_message="讲解算法"
         )
-        self.assertIn("先讲思路", messages[0]["content"])
-        self.assertIn("不可信上下文", messages[0]["content"])
+        context_message = next(item for item in messages if "ContextBlock:memory" in item["content"])
+        self.assertEqual(context_message["role"], "user")
+        self.assertIn("先讲思路", context_message["content"])
+        self.assertIn("不可信上下文", context_message["content"])
 
     def test_memory_failure_does_not_fail_chat(self):
         class BrokenExtractor:

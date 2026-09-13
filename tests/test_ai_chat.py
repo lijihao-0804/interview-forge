@@ -77,6 +77,22 @@ class ToolCallingNoTextFirstRoundModel(ToolCallingFakeModel):
         yield FakeChunk("146 是 LRU 缓存。", usage={"input_tokens": 12, "output_tokens": 6})
 
 
+class ToolCallingReadEmptyFinalModel(ToolCallingFakeModel):
+    async def astream(self, messages):
+        self.messages = messages
+        has_tool_result = any(
+            isinstance(item, dict) and item.get("role") == "tool"
+            for item in messages
+        )
+        if not has_tool_result:
+            yield FakeChunk(
+                "",
+                tool_calls=[{"id": "problem-call", "name": "get_problem", "args": {"problem_id": 146}}],
+            )
+            return
+        yield FakeChunk("")
+
+
 class ActionThenFailModel(FakeAsyncModel):
     def __init__(self):
         super().__init__()
@@ -284,6 +300,18 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual([item["role"] for item in history], ["user", "assistant"])
         self.assertEqual(history[-1]["content"], "146 是 LRU 缓存。")
 
+    def test_successful_read_with_empty_final_text_is_not_a_successful_turn(self):
+        self.service.model_factory = lambda _config: ToolCallingReadEmptyFinalModel()
+        created = self.client.post("/api/chat/sessions", json={}).json()
+        response = self.client.post(
+            f"/api/chat/sessions/{created['id']}/stream", json={"message": "146题是哪道题"}
+        )
+        events = parse_sse(response.text)
+        self.assertEqual(events[-1][0], "error")
+        self.assertEqual(events[-1][1]["code"], "empty_response")
+        history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
+        self.assertEqual(history, [])
+
     def test_pending_action_keeps_source_turn_when_later_model_round_fails(self):
         self.service.model_factory = lambda _config: ActionThenFailModel()
         created = self.client.post("/api/chat/sessions", json={}).json()
@@ -338,8 +366,10 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(parse_sse(response.text)[-1][0], "message.done")
         self.assertIsNotNone(self.model.messages)
         system = self.model.messages[0]["content"]
-        self.assertIn("ContextBlock:current_page", system)
-        self.assertIn("题号：146", system)
+        context_message = next(item for item in self.model.messages if "ContextBlock:current_page" in item["content"])
+        self.assertEqual(context_message["role"], "user")
+        self.assertNotIn("ContextBlock:current_page", system)
+        self.assertIn("题号：146", context_message["content"])
         history = self.client.get(f"/api/chat/sessions/{created['id']}/messages").json()["items"]
         self.assertEqual(history[0]["metadata"]["page_context"]["problem_id"], 146)
 

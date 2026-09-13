@@ -95,6 +95,7 @@ def list_actions(*, username: str = "", tool: str = "", status: str = "", window
                 continue
             items.append({"username": str(user["username"]), **dict(row)})
     maximum = observability.bounded_limit(limit)
+    items.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
     return {"items": items[:maximum], "has_more": len(items) > maximum, "window": observability.bounded_window(window)}
 
 
@@ -229,7 +230,14 @@ def diagnostics() -> dict[str, Any]:
                 pass
     add("user_databases", "ok" if readable == len(users) else "warning", f"{readable}/{len(users)} readable")
     log_dir = observability.log_paths()[0].parent
-    add("log_directory", "ok" if os.access(log_dir, os.W_OK) or not log_dir.exists() else "warning", "writable" if os.access(log_dir, os.W_OK) else "not writable")
+    if log_dir.exists():
+        log_writable = os.access(log_dir, os.W_OK)
+        log_message = "writable" if log_writable else "not writable"
+    else:
+        parent = log_dir.parent
+        log_writable = parent.exists() and os.access(parent, os.W_OK)
+        log_message = "will be created under writable parent" if log_writable else "parent not writable"
+    add("log_directory", "ok" if log_writable else "warning", log_message)
     disk = shutil.disk_usage(PROJECT_ROOT)
     add("disk_free", "ok" if disk.free > 100 * 1024 * 1024 else "warning", str(disk.free))
     config = load_ai_config()

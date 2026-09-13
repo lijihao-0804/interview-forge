@@ -14,7 +14,7 @@ import time
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from interview_forge.ai.config import load_ai_config
 from interview_forge.core.paths import PROJECT_ROOT
@@ -66,11 +66,9 @@ def _percentile(values: list[float], percentile: float = 0.95) -> float | None:
     return round(ordered[index], 2)
 
 
-def _read_log_records(
-    *, level: str = "", module: str = "", event: str = "", request_id: str = "", limit: int = 100,
-) -> dict[str, Any]:
-    normalized_limit = bounded_limit(limit)
-    records: list[dict[str, Any]] = []
+def _iter_log_records(
+    *, level: str = "", module: str = "", event: str = "", request_id: str = "",
+) -> Iterator[dict[str, Any]]:
     for path in log_paths():
         if not path.is_file():
             continue
@@ -95,9 +93,18 @@ def _read_log_records(
                 continue
             if request_id and str(row.get("request_id", "")) != request_id:
                 continue
-            records.append({str(key): _safe_value(str(key), value) for key, value in row.items()})
-            if len(records) >= normalized_limit:
-                return {"items": records, "has_more": True}
+            yield {str(key): _safe_value(str(key), value) for key, value in row.items()}
+
+
+def _read_log_records(
+    *, level: str = "", module: str = "", event: str = "", request_id: str = "", limit: int = 100,
+) -> dict[str, Any]:
+    normalized_limit = bounded_limit(limit)
+    records: list[dict[str, Any]] = []
+    for row in _iter_log_records(level=level, module=module, event=event, request_id=request_id):
+        records.append(row)
+        if len(records) >= normalized_limit:
+            return {"items": records, "has_more": True}
     return {"items": records, "has_more": False}
 
 
@@ -109,7 +116,10 @@ def list_logs(*, level: str = "", module: str = "", event: str = "", request_id:
     )
 
 
-def _trace_rows(path: Path, *, cutoff: str | None = None, model: str = "") -> list[sqlite3.Row]:
+def _trace_rows(
+    path: Path, *, cutoff: str | None = None, model: str = "", trace_id: str = "",
+    limit: int | None = 2000,
+) -> list[sqlite3.Row]:
     if not path.is_file():
         return []
     try:
@@ -122,13 +132,19 @@ def _trace_rows(path: Path, *, cutoff: str | None = None, model: str = "") -> li
             if model:
                 clauses.append("model = ?")
                 params.append(model[:128])
-            return connection.execute(
+            if trace_id:
+                clauses.append("trace_id = ?")
+                params.append(trace_id[:128])
+            query = (
                 "SELECT id, trace_id, session_id, request_id, event_type, name, status, provider, model, "
                 "round_index, started_at, finished_at, duration_ms, input_tokens, output_tokens, "
                 "reasoning_tokens, error_code, metadata_json FROM ai_trace_events WHERE "
-                + " AND ".join(clauses) + " ORDER BY id DESC LIMIT 2000",
-                params,
-            ).fetchall()
+                + " AND ".join(clauses) + " ORDER BY id DESC"
+            )
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(max(1, int(limit)))
+            return connection.execute(query, params).fetchall()
     except sqlite3.Error:
         return []
 
@@ -139,10 +155,9 @@ def _row_int(row: Any, key: str) -> int:
 
 
 def _request_stats() -> tuple[int, int, float | None]:
-    records = _read_log_records(limit=500)
     recent: list[dict[str, Any]] = []
     cutoff = datetime.now(timezone.utc) - WINDOWS["24h"]
-    for row in records["items"]:
+    for row in _iter_log_records():
         try:
             timestamp = datetime.fromisoformat(str(row.get("time", "")).replace("Z", "+00:00"))
         except (TypeError, ValueError):
@@ -169,7 +184,7 @@ def overview() -> dict[str, Any]:
             db_bytes += path.stat().st_size if path.is_file() else 0
         except OSError:
             pass
-        rows = _trace_rows(path, cutoff=cutoff)
+        rows = _trace_rows(path, cutoff=cutoff, limit=None)
         for row in rows:
             if str(row["event_type"]) == "chat":
                 turns += 1
@@ -230,7 +245,7 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
     rows: list[tuple[str, sqlite3.Row]] = []
     cutoff = _cutoff(selected)
     for user, path in iter_user_databases(username or None):
-        rows.extend((str(user["username"]), row) for row in _trace_rows(path, cutoff=cutoff, model=model))
+        rows.extend((str(user["username"]), row) for row in _trace_rows(path, cutoff=cutoff, model=model, limit=None))
     chats = [row for _, row in rows if str(row["event_type"]) == "chat"]
     turns = len(chats)
     success = sum(str(row["status"]) == "success" for row in chats)
@@ -306,8 +321,10 @@ def trace_detail(trace_id: str, *, username: str = "") -> dict[str, Any] | None:
     trace_id = str(trace_id).strip()[:128]
     for user, path in iter_user_databases(username or None):
         user_name = str(user["username"])
-        rows = _trace_rows(path)
-        selected = [row for row in rows if str(row["trace_id"]) == trace_id]
+        # A detail view must not depend on the newest-traces page window.  A
+        # trace may be older than the latest 2,000 events while still being a
+        # valid direct lookup.
+        selected = _trace_rows(path, trace_id=trace_id, limit=None)
         if not selected:
             continue
         timeline = [

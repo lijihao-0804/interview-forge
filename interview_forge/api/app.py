@@ -70,18 +70,33 @@ async def request_observability(request, call_next):
     request.state.request_id = request_id
     origin = request.headers.get("origin", "")
     cors_origins = {"http://localhost", "http://127.0.0.1", "http://localhost:8765", "http://127.0.0.1:8765"}
-    if request.method == "OPTIONS":
-        if origin in cors_origins:
-            response = Response(status_code=204, headers={
-                "Access-Control-Allow-Origin": origin,
-                "Access-Control-Allow-Headers": "Content-Type, X-CSRFToken",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Max-Age": "3600",
-            })
+    try:
+        if request.method == "OPTIONS":
+            if origin in cors_origins:
+                response = Response(status_code=204, headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Headers": "Content-Type, X-CSRFToken",
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Max-Age": "3600",
+                })
+            else:
+                response = Response(status_code=405)
         else:
-            response = Response(status_code=405)
-    else:
-        response = await call_next(request)
+            response = await call_next(request)
+    except Exception as exc:
+        # Exception handlers may turn this into a 500 response later, but the
+        # request event must still exist even when the router never returned.
+        log_event(
+            "api_request",
+            module="api",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status=500,
+            elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
+            error_type=type(exc).__name__,
+        )
+        raise
     elapsed = round((time.perf_counter() - started) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
     if origin in cors_origins:
