@@ -125,3 +125,16 @@ API Router → Admin Service → DB / Runtime / Observability
 - `.gitignore`
 
 本轮未部署 VPS，未修改 systemd/nginx，未开发 AI Chat/Memory/Tool Calling 新功能，也未修改笔记、Hot100、课程内容。
+
+## 12. Post Big-Update Reliability Hardening
+
+本轮只做稳定性收口，没有继续扩展 Admin UI，也没有部署 VPS：
+
+- 普通 READ Tool 成功但最终模型没有可见文本时，统一返回 `empty_response`，不写入空 assistant 消息；待确认 Action 仍可作为无文本的合法终态。
+- `trusted=False` 的 Learning、Memory、Page Context 不再进入 system role，改为独立的受限 user 参考资料消息；ContextBlock 仍按 priority 做 admission。
+- AI Trace 使用真实 wall-clock 起止时间；Chat/Tool 的 Trace SQLite 写入移出异步流式 Event Loop。
+- Overview 请求统计、AI Usage 不再受 500/2000 条展示窗口截断；Trace Detail 改为按 `trace_id` 直接查询；Action 列表统一全局时间排序。
+- FastAPI middleware 对未捕获异常补写 500 请求事件，只记录异常类型；诊断中的日志目录状态区分“已存在可写”和“待创建但父目录可写”。
+- AI Launcher 的滚动/选区上下文更新使用 rAF 合并，发送前按 request id 获取最新 Page Context。
+
+验证结果：`277 passed, 25 subtests passed`；`compileall`、Node.js 静态检查、`build_hot100`、`check_hot100` 和 `git diff --check` 均通过。唯一保留的是既有 Starlette deprecation warning；本轮未修改数据库 schema、systemd、nginx 或 VPS。

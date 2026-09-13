@@ -22,7 +22,7 @@ from interview_forge.ai.tools.langchain_adapter import (
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
 from interview_forge.ai.tools.runtime import ToolRuntime
-from interview_forge.observability.ai_trace import TraceRecorder
+from interview_forge.observability.ai_trace import TraceRecorder, utc_now_iso
 
 
 TOOLING_UNAVAILABLE_NOTICE = (
@@ -48,11 +48,12 @@ class ToolTurnResult:
     tooling_unavailable: bool = False
     visible_text_chars: int = 0
     has_valid_tool_activity: bool = False
+    has_pending_confirmation: bool = False
 
     @property
     def is_valid_turn(self) -> bool:
-        """A successful turn must expose text or a user-visible tool result."""
-        return self.visible_text_chars > 0 or self.has_valid_tool_activity
+        """A successful turn must expose text or a pending confirmation."""
+        return self.visible_text_chars > 0 or self.has_pending_confirmation
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,7 @@ class ToolOrchestrator:
         round_usage: dict[str, int] = {}
         iterator: Any = None
         started = time.perf_counter()
+        started_at = utc_now_iso()
         status = "success"
         error_code = None
         try:
@@ -161,13 +163,21 @@ class ToolOrchestrator:
                 "".join(text_parts), tuple(accumulator.finish()), round_usage
             )
             if self.trace_recorder is not None:
-                self.trace_recorder.record_llm_round(
-                    round_index=round_index,
-                    status=status,
-                    duration_ms=(time.perf_counter() - started) * 1000,
-                    usage=round_usage,
-                    error_code=error_code,
-                )
+                try:
+                    await asyncio.to_thread(
+                        self.trace_recorder.record_llm_round,
+                        round_index=round_index,
+                        status=status,
+                        duration_ms=(time.perf_counter() - started) * 1000,
+                        usage=round_usage,
+                        error_code=error_code,
+                        started_at=started_at,
+                        finished_at=utc_now_iso(),
+                    )
+                except Exception:
+                    # Trace persistence is observability only and must never
+                    # change the model/tool contract.
+                    pass
 
     async def _execute_calls(
         self,
@@ -338,6 +348,7 @@ class ToolOrchestrator:
         identical_calls: Counter[str] = Counter()
         visible_text_parts: list[str] = []
         has_valid_tool_activity = False
+        has_pending_confirmation = False
         history = list(messages)
         try:
             bound_model = bind_tools(model, self.registry.list_specs())
@@ -368,13 +379,9 @@ class ToolOrchestrator:
                 if callable(close):
                     await close()
             self.last_result = ToolTurnResult(
-                total_usage,
-                0,
-                (),
-                (),
-                True,
-                len("".join(visible_text_parts).strip()),
-                False,
+                usage=total_usage,
+                tooling_unavailable=True,
+                visible_text_chars=len("".join(visible_text_parts).strip()),
             )
             return
 
@@ -389,10 +396,13 @@ class ToolOrchestrator:
             history.append(_tool_call_message(result.text, calls))
             if not calls:
                 self.last_result = ToolTurnResult(
-                    total_usage, call_count, tuple(dict.fromkeys(tool_names)),
-                    tuple(tool_run_ids), False,
-                    len("".join(visible_text_parts).strip()),
-                    has_valid_tool_activity,
+                    usage=total_usage,
+                    tool_calls_count=call_count,
+                    tool_names=tuple(dict.fromkeys(tool_names)),
+                    tool_run_ids=tuple(tool_run_ids),
+                    visible_text_chars=len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity=has_valid_tool_activity,
+                    has_pending_confirmation=has_pending_confirmation,
                 )
                 return
 
@@ -427,10 +437,13 @@ class ToolOrchestrator:
                 for key, value in final_result.usage.items():
                     total_usage[key] = total_usage.get(key, 0) + value
                 self.last_result = ToolTurnResult(
-                    total_usage, call_count, tuple(dict.fromkeys(tool_names)),
-                    tuple(tool_run_ids), False,
-                    len("".join(visible_text_parts).strip()),
-                    has_valid_tool_activity,
+                    usage=total_usage,
+                    tool_calls_count=call_count,
+                    tool_names=tuple(dict.fromkeys(tool_names)),
+                    tool_run_ids=tuple(tool_run_ids),
+                    visible_text_chars=len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity=has_valid_tool_activity,
+                    has_pending_confirmation=has_pending_confirmation,
                 )
                 return
 
@@ -442,6 +455,11 @@ class ToolOrchestrator:
             results = list(self._call_results)
             if any(result.status in {"ok", "cache_hit", "confirmation_required"} for result in results):
                 has_valid_tool_activity = True
+            if any(
+                result.status == "confirmation_required" and bool(result.action_id)
+                for result in results
+            ):
+                has_pending_confirmation = True
             total_result_tokens, budget_exceeded = self._append_tool_messages(
                 history,
                 calls,
@@ -461,10 +479,13 @@ class ToolOrchestrator:
                 for key, value in final_result.usage.items():
                     total_usage[key] = total_usage.get(key, 0) + value
                 self.last_result = ToolTurnResult(
-                    total_usage, call_count, tuple(dict.fromkeys(tool_names)),
-                    tuple(tool_run_ids), False,
-                    len("".join(visible_text_parts).strip()),
-                    has_valid_tool_activity,
+                    usage=total_usage,
+                    tool_calls_count=call_count,
+                    tool_names=tuple(dict.fromkeys(tool_names)),
+                    tool_run_ids=tuple(tool_run_ids),
+                    visible_text_chars=len("".join(visible_text_parts).strip()),
+                    has_valid_tool_activity=has_valid_tool_activity,
+                    has_pending_confirmation=has_pending_confirmation,
                 )
                 return
 

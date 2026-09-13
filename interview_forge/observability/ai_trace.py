@@ -7,7 +7,6 @@ no prompt, response, memory, context, arguments or result body is accepted.
 from __future__ import annotations
 
 import json
-import time
 import uuid
 from datetime import datetime, timezone
 from contextlib import closing
@@ -17,7 +16,7 @@ from typing import Any
 from interview_forge.core.runtime import server_runtime
 
 
-def _now() -> str:
+def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
@@ -92,11 +91,13 @@ class TraceRecorder:
     def record_llm_round(
         self, *, round_index: int, status: str, duration_ms: int | float,
         usage: dict[str, Any] | None = None, error_code: str | None = None,
+        started_at: str | None = None, finished_at: str | None = None,
     ) -> None:
         usage = usage or {}
         self.record(
             event_type="llm", name="model_round", status=status,
-            round_index=round_index, started_at=_now(), finished_at=_now(),
+            round_index=round_index, started_at=started_at or utc_now_iso(),
+            finished_at=finished_at or utc_now_iso(),
             duration_ms=duration_ms, input_tokens=_int(usage.get("input_tokens")),
             output_tokens=_int(usage.get("output_tokens")),
             reasoning_tokens=_int(usage.get("reasoning_tokens")), error_code=error_code,
@@ -105,11 +106,13 @@ class TraceRecorder:
     def record_chat(
         self, *, status: str, duration_ms: int | float,
         usage: dict[str, Any] | None = None, error_code: str | None = None,
+        started_at: str | None = None, finished_at: str | None = None,
     ) -> None:
         usage = usage or {}
         self.record(
             event_type="chat", name="chat_turn", status=status,
-            started_at=_now(), finished_at=_now(), duration_ms=duration_ms,
+            started_at=started_at or utc_now_iso(),
+            finished_at=finished_at or utc_now_iso(), duration_ms=duration_ms,
             input_tokens=_int(usage.get("input_tokens")),
             output_tokens=_int(usage.get("output_tokens")),
             reasoning_tokens=_int(usage.get("reasoning_tokens")), error_code=error_code,
@@ -117,4 +120,4 @@ class TraceRecorder:
         )
 
 
-__all__ = ["TraceRecorder"]
+__all__ = ["TraceRecorder", "utc_now_iso"]

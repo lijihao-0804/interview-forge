@@ -216,9 +216,11 @@ class ChatLearningContextIntegrationTests(unittest.TestCase):
                 )
             )
         self.assertEqual([event["event"] for event in events], ["message.start", "message.delta", "message.done"])
-        self.assertIn("Learning Context", captured[0]["content"])
-        self.assertIn("weak_problem_count", captured[0]["content"])
-        self.assertNotIn("最近状态", captured[0]["content"])
+        context_message = next(item for item in captured if "ContextBlock:learning" in item["content"])
+        self.assertEqual(context_message["role"], "user")
+        self.assertIn("weak_problem_count", context_message["content"])
+        self.assertNotIn("最近状态", context_message["content"])
+        self.assertNotIn("ContextBlock:learning", captured[0]["content"])
         self.assertEqual(captured[-1], {"role": "user", "content": "最近状态"})
 
 

@@ -19,12 +19,25 @@
 
     var drawer = null;
     var frame = null;
-    function sendContext() {
+    var contextFrame = null;
+    function sendContext(requestId) {
       if (!frame || !frame.contentWindow) return;
-      frame.contentWindow.postMessage({
+      var payload = {
         type: "interviewforge:page-context",
         context: pageContext()
-      }, global.location.origin);
+      };
+      if (requestId) payload.request_id = String(requestId);
+      frame.contentWindow.postMessage(payload, global.location.origin);
+    }
+    function scheduleContext() {
+      if (contextFrame !== null) return;
+      var requestFrame = global.requestAnimationFrame || function (callback) {
+        return global.setTimeout(callback, 16);
+      };
+      contextFrame = requestFrame(function () {
+        contextFrame = null;
+        sendContext();
+      });
     }
     function close() {
       if (!drawer) return;
@@ -50,9 +63,9 @@
     button.addEventListener("click", open);
     global.addEventListener("message", function (event) {
       if (event.origin !== global.location.origin || !event.data) return;
-      if (event.data.type === "interviewforge:request-page-context") sendContext();
+      if (event.data.type === "interviewforge:request-page-context") sendContext(event.data.request_id);
     });
-    var update = function () { if (drawer) sendContext(); };
+    var update = function () { if (drawer) scheduleContext(); };
     global.addEventListener("scroll", update, { passive: true });
     document.addEventListener("selectionchange", update);
   }

@@ -66,6 +66,13 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("ai-assistant.css", page)
         self.assertIn("ai-page-context.js", page)
 
+    def test_page_context_refresh_is_throttled_and_request_scoped(self):
+        launcher = (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8")
+        self.assertIn("requestAnimationFrame", launcher)
+        self.assertIn("request_id", launcher)
+        self.assertIn("requestFreshPageContext", self.source)
+        self.assertIn("pageContextWaiters", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,8 @@
   document.body.classList.toggle("embedded", embedded);
   var state = {
     sessions: [], current: null, controller: null, assistantNode: null,
-    cancelRequested: false, streamFailed: false, pageContext: null
+    cancelRequested: false, streamFailed: false, pageContext: null,
+    pageContextWaiters: Object.create(null), contextRequestSerial: 0
   };
   var list = document.getElementById("sessionList");
   var messages = document.getElementById("messages");
@@ -244,6 +245,31 @@
     } catch (_) { return null; }
   }
 
+  function requestFreshPageContext() {
+    if (!embedded || !window.parent || window.parent === window) return Promise.resolve(currentPageContext());
+    var requestId = "page-context-" + Date.now() + "-" + (++state.contextRequestSerial);
+    return new Promise(function (resolve) {
+      var settled = false;
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        delete state.pageContextWaiters[requestId];
+        resolve(state.pageContext || null);
+      }, 250);
+      state.pageContextWaiters[requestId] = function (context) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        delete state.pageContextWaiters[requestId];
+        resolve(context || null);
+      };
+      window.parent.postMessage({
+        type: "interviewforge:request-page-context",
+        request_id: requestId
+      }, window.location.origin);
+    });
+  }
+
   async function reloadCurrentSession() {
     var id = state.current;
     if (!id) return;
@@ -274,10 +300,11 @@
     var text = input.value.trim(); if (!text) return;
     setError(""); input.value = ""; renderMessage({ role: "user", content: text });
     state.streamFailed = false;
-    if (embedded) window.parent.postMessage({ type: "interviewforge:request-page-context" }, window.location.origin);
-    var pageContext = currentPageContext();
     state.controller = new AbortController(); setBusy(true); scrollBottom();
     try {
+      // The drawer receives context asynchronously. Ask for a fresh snapshot
+      // immediately before sending so scroll/selection changes are current.
+      var pageContext = await requestFreshPageContext();
       var requestBody = { message: text };
       if (pageContext) requestBody.page_context = pageContext;
       var response = await fetch("/api/chat/sessions/" + encodeURIComponent(state.current) + "/stream", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: state.controller.signal });
@@ -323,10 +350,13 @@
   });
   window.addEventListener("message", function (event) {
     if (event.origin !== window.location.origin || !event.data) return;
-    if (event.data.type === "interviewforge:page-context" && event.data.context) {
-      state.pageContext = event.data.context;
+    if (event.data.type === "interviewforge:page-context") {
+      state.pageContext = event.data.context || null;
+      if (event.data.request_id && state.pageContextWaiters[event.data.request_id]) {
+        state.pageContextWaiters[event.data.request_id](state.pageContext);
+      }
     }
   });
-  if (embedded) window.parent.postMessage({ type: "interviewforge:request-page-context" }, window.location.origin);
+  if (embedded) requestFreshPageContext();
   loadSessions().catch(function (err) { setError(err.message || "读取会话失败"); list.innerHTML = '<div class="empty">读取失败，请刷新重试。</div>'; });
 }());

@@ -90,8 +90,11 @@ class ChatContextBuilderTests(unittest.TestCase):
             current_message="当前问题",
             user_db=self.db,
         )
-        self.assertIn("ContextBlock:learning", messages[0]["content"])
-        self.assertNotIn("ContextBlock:memory", messages[0]["content"])
+        context_message = next(item for item in messages if "ContextBlock:" in item["content"])
+        self.assertEqual(context_message["role"], "user")
+        self.assertIn("ContextBlock:learning", context_message["content"])
+        self.assertNotIn("ContextBlock:memory", context_message["content"])
+        self.assertNotIn("ContextBlock:learning", messages[0]["content"])
         self.assertEqual(builder.last_build["context_blocks"], ["learning"])
 
     def test_repeated_current_content_keeps_earlier_turns(self):

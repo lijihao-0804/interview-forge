@@ -17,6 +17,7 @@ from interview_forge.observability.ai_trace import TraceRecorder
 from interview_forge.observability.logging import close_log_handlers
 from interview_forge.observability.logging import log_event
 from interview_forge.services.auth import create_session, create_user, user_db_path
+from interview_forge.services import admin_observability
 
 
 class AdminV2BackendTests(unittest.TestCase):
@@ -156,6 +157,47 @@ class AdminV2BackendTests(unittest.TestCase):
         diagnostics = client.post("/api/admin/system/diagnostics")
         self.assertEqual(diagnostics.status_code, 200)
         self.assertIn(diagnostics.json()["status"], {"ok", "warning", "failed"})
+
+    def test_request_stats_reads_all_recent_request_events_not_the_log_page_limit(self):
+        from datetime import datetime, timezone
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        rows = iter(
+            {"time": timestamp, "event": "api_request", "status": 200, "elapsed_ms": 3}
+            for _ in range(501)
+        )
+        with patch.object(admin_observability, "_iter_log_records", return_value=rows):
+            total, errors, p95 = admin_observability._request_stats()
+        self.assertEqual(total, 501)
+        self.assertEqual(errors, 0)
+        self.assertEqual(p95, 3.0)
+
+    def test_trace_detail_queries_trace_id_directly_beyond_recent_page_window(self):
+        db = user_db_path("UserV2")
+        rows = []
+        for index in range(2001):
+            rows.append((
+                "trace-old" if index == 0 else f"trace-{index}",
+                "session-1", "request-1", "chat", "chat_turn", "success",
+                "openai-compatible", "test-model", None,
+                "2026-09-14T01:00:00+00:00", "2026-09-14T01:00:00+00:00",
+                10, 1, 1, 0, None, "{}",
+            ))
+        with closing(server_runtime.connect(db)) as connection:
+            connection.executemany(
+                """INSERT INTO ai_trace_events(
+                    trace_id, session_id, request_id, event_type, name, status,
+                    provider, model, round_index, started_at, finished_at,
+                    duration_ms, input_tokens, output_tokens, reasoning_tokens,
+                    error_code, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                rows,
+            )
+            connection.commit()
+        detail = admin_observability.trace_detail("trace-old", username="UserV2")
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail["trace_id"], "trace-old")
+        self.assertEqual(len(detail["timeline"]), 1)
 
 
 if __name__ == "__main__":
