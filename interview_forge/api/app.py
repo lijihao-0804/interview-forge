@@ -24,6 +24,7 @@ from interview_forge.api.routers.weather import router as weather_router
 from interview_forge.api.routers.static import router as static_router
 from interview_forge.api.routers.chat import router as chat_router
 from interview_forge.api.routers.admin_observability import router as admin_observability_router
+from interview_forge.api.routers.admin_operations import router as admin_operations_router
 from interview_forge.core.async_http import AsyncHttpClient
 from interview_forge.runtime.task_manager import task_manager
 
@@ -109,4 +110,5 @@ app.include_router(weather_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
 app.include_router(admin_observability_router)
+app.include_router(admin_operations_router)
 app.include_router(static_router)

@@ -378,7 +378,8 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
     task_id = uuid.uuid4().hex[:12]
     task: dict[str, object] = {
         "logs": [], "running": True, "result": None, "error": None,
-        "error_category": None, "owner": owner,
+        "error_category": None, "owner": owner, "created_at": runtime.now_iso(),
+        "started_at": None, "finished_at": None,
     }
 
     def progress(text: str) -> None:
@@ -388,6 +389,7 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
                 logs.append({"text": text, "at": runtime.now_parts()[0]})
 
     def worker() -> None:
+        task["started_at"] = runtime.now_iso()
         try:
             task["result"] = runtime.leetcode_sync(credentials, db_path=db_path, full=full, progress=progress)
         except LeetCodeSyncError as exc:
@@ -402,6 +404,7 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
             finally:
                 with SYNC_TASKS_LOCK:
                     task["running"] = False
+                    task["finished_at"] = runtime.now_iso()
 
     with SYNC_TASKS_LOCK:
         SYNC_TASKS[task_id] = task
@@ -424,6 +427,25 @@ def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
             "logs": list(task["logs"]), "result": task["result"],
             "error": task["error"], "error_category": task.get("error_category"),
         }
+
+
+def admin_list_sync_tasks() -> list[dict[str, object]]:
+    """Return a credential-free projection of process-local sync tasks."""
+    with SYNC_TASKS_LOCK:
+        items: list[dict[str, object]] = []
+        for task_id, task in SYNC_TASKS.items():
+            logs = task.get("logs")
+            items.append({
+                "task_id": str(task_id),
+                "owner": str(task.get("owner", "")),
+                "running": bool(task.get("running")),
+                "error_category": task.get("error_category"),
+                "created_at": task.get("created_at"),
+                "started_at": task.get("started_at"),
+                "finished_at": task.get("finished_at"),
+                "log_count": len(logs) if isinstance(logs, list) else 0,
+            })
+        return items
 
 
 from interview_forge.runtime.task_manager import TaskBackend, task_manager

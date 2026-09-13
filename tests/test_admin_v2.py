@@ -110,6 +110,34 @@ class AdminV2BackendTests(unittest.TestCase):
         self.assertIn("textContent", script)
         self.assertNotIn("innerHTML", script)
 
+    def test_operations_projections_and_diagnostics_are_metadata_only(self):
+        db = user_db_path("UserV2")
+        with closing(server_runtime.connect(db)) as connection:
+            connection.execute(
+                "INSERT INTO ai_tasks(task_id, task, status, snapshot_hash, prompt_version, model_key, created_at, context_preview, fallback_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("task-1", "analysis", "failed", "hash", "v1", "model", "2026-09-14T01:00:00+00:00", "private context", "{}"),
+            )
+            connection.commit()
+        client = self._admin()
+        tasks = client.get("/api/admin/tasks", params={"kind": "ai", "username": "UserV2"})
+        self.assertEqual(tasks.status_code, 200)
+        self.assertIn("task-1", json.dumps(tasks.json()))
+        self.assertNotIn("private context", json.dumps(tasks.json()))
+        detail = client.get("/api/admin/users/UserV2/detail")
+        self.assertEqual(detail.status_code, 200)
+        detail_text = json.dumps(detail.json(), ensure_ascii=False)
+        self.assertNotIn("content", detail_text)
+        self.assertNotIn("display_text", detail_text)
+        memory = client.get("/api/admin/memory/summary")
+        self.assertEqual(memory.status_code, 200)
+        system = client.get("/api/admin/system/info")
+        self.assertEqual(system.status_code, 200)
+        self.assertNotIn("API_KEY", json.dumps(system.json()))
+        diagnostics = client.post("/api/admin/system/diagnostics")
+        self.assertEqual(diagnostics.status_code, 200)
+        self.assertIn(diagnostics.json()["status"], {"ok", "warning", "failed"})
+
 
 if __name__ == "__main__":
     unittest.main()
