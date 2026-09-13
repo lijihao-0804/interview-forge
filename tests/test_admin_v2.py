@@ -110,6 +110,15 @@ class AdminV2BackendTests(unittest.TestCase):
         self.assertIn("textContent", script)
         self.assertNotIn("innerHTML", script)
 
+    def test_operations_ui_is_separate_and_does_not_use_html_injection(self):
+        root = Path(__file__).resolve().parents[1]
+        page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
+        script = (root / "assets" / "admin-operations.js").read_text(encoding="utf-8")
+        self.assertIn("/assets/admin-operations.css?v=1", page)
+        self.assertIn("/assets/admin-operations.js?v=1", page)
+        self.assertIn("data-admin-operations", page)
+        self.assertNotIn("innerHTML", script)
+
     def test_operations_projections_and_diagnostics_are_metadata_only(self):
         db = user_db_path("UserV2")
         with closing(server_runtime.connect(db)) as connection:
