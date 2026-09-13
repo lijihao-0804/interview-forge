@@ -141,3 +141,40 @@ M5 Final Hardening implementation SHA：`e7183fd`。
 全量测试唯一失败仍为既有的 `tests/test_learning_analytics_api.py::RealAuthenticationIsolationTests::test_admin_page_quota_and_permanent_admin_contract`：测试要求管理员页面包含“重置今日分析次数”，当前页面实际使用“恢复今日可用次数”。本轮没有修改管理员页面，该失败与本轮运行时修复无关。
 
 本轮实现提交：`b419e7b`。
+
+## Reliability Hardening Follow-up
+
+针对后续审查确认的边界问题做局部收尾，不修改数据库 schema、不重构 M1–M6 架构，也不纳入 RAG/Memory 扩展。
+
+### 修复项
+
+- **记忆意图语义修正**：`不要忘记/别忘了` 现在表示保留事实并执行 upsert；只有“忘记、删除、清除、不要再记住”等表达才执行 forget。
+- **Chat 锁释放时机**：assistant 持久化后立即释放 session/model 并发槽，再发送 `message.done`；inferred Memory 改为受引用管理的后台任务，不再占用下一轮 Chat 的关键运行锁。
+- **Action 取消恢复**：覆盖 claim、执行和结果落库阶段的取消竞态；已切换到 `executing` 的请求会被安全标记为 failed/cancelled，不再永久卡住。确认路由会继续传播取消信号。
+- **Action 结果元数据边界**：先递归限制字段/字符串，再序列化；读取历史异常元数据时安全降级，禁止通过截断 JSON 制造非法记录。
+- **来源消息一致性**：当本轮已经成功写入 explicit Memory 或创建 pending Action 时，即使后续模型轮次失败，也保留来源 user message，避免 durable state 指向不存在的消息。
+
+### 回归测试与验证
+
+新增测试覆盖：
+
+- `不要忘记我喜欢 Python` 为 upsert，`不要再记住我喜欢 Python` 为 forget。
+- Chat 在 `message.done` 前释放 session/model 槽位。
+- 显式 Memory 保存成功后模型失败，来源 user message 保留。
+- pending Action 创建后后续模型失败，来源 user message 保留。
+- Action 确认取消竞态不留下 `executing`。
+- 超大 Action 结果元数据仍为合法且不超过 4000 字符的 JSON。
+
+| 命令 | 结果 |
+|---|---|
+| Memory/Action/Chat 定向测试 | 30 passed |
+| 全量 `python -m pytest -q` | 239 passed，17 subtests passed，1 个既有管理员文案失败 |
+| `python -m compileall -q interview_forge tests` | passed |
+| `node --check assets/ai-assistant.js` | passed |
+| FastAPI/app/AI import smoke | passed |
+| `python -m scripts.build.build_html_site` | passed |
+| `python -m scripts.build.build_hot100` | passed |
+| `python -m scripts.check.check_hot100` | passed；`broken_links=0, errors=0, warnings=0` |
+| `git diff --check` | passed；仅有 Windows 换行提示 |
+
+全量测试唯一失败仍为既有的 `tests/test_learning_analytics_api.py::RealAuthenticationIsolationTests::test_admin_page_quota_and_permanent_admin_contract`：测试要求管理员页面包含“重置今日分析次数”，当前页面实际使用“恢复今日可用次数”。本轮没有修改管理员页面。

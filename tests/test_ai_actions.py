@@ -205,6 +205,59 @@ class ActionToolTests(unittest.TestCase):
         self.assertFalse(second["_claimed"])
         self.assertEqual(second["status"], "executing")
 
+    def test_cancelled_confirmation_does_not_remain_executing(self):
+        async def slow_handler(_context, _args):
+            await asyncio.sleep(60)
+            return ToolResult({"status": "started"}, "已启动")
+
+        registry = ToolRegistry([ToolSpec(
+            name="sync_leetcode", display_name="同步 LeetCode", description="同步",
+            args_model=SyncArgs, handler=slow_handler, kind=ToolKind.ACTION,
+            requires_confirmation=True,
+        )])
+        action = ActionRequestStore().create(
+            user_db=self.db, session_id="session", turn_id="turn", user_message_id=1,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认",
+        )
+
+        async def run_cancelled():
+            task = asyncio.create_task(ActionService(registry=registry).confirm(
+                user_db=self.db, action_id=action["action_id"]
+            ))
+            await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        asyncio.run(run_cancelled())
+        row = ActionRequestStore().get(user_db=self.db, action_id=action["action_id"])
+        self.assertEqual(row["status"], "failed")
+        self.assertEqual(row["error_code"], "cancelled")
+
+    def test_result_metadata_is_valid_bounded_json(self):
+        store = ActionRequestStore()
+        action = store.create(
+            user_db=self.db, session_id="session", turn_id="turn", user_message_id=1,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认",
+        )
+        self.assertTrue(store.claim_pending(user_db=self.db, action_id=action["action_id"])["_claimed"])
+        store.complete(
+            user_db=self.db, action_id=action["action_id"], status="failed",
+            error_code="tool_error", result_meta={"result": {"data": "x" * 20_000}},
+        )
+        row = store.get(user_db=self.db, action_id=action["action_id"])
+        self.assertIsInstance(row["result_meta"], dict)
+        connection = sqlite3.connect(self.db)
+        try:
+            raw = connection.execute(
+                "SELECT result_meta_json FROM chat_action_requests WHERE id = ?",
+                (action["action_id"],),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertLessEqual(len(raw), 4000)
+        self.assertIsInstance(json.loads(raw), dict)
+
     def test_same_action_and_arguments_in_one_turn_share_one_pending_request(self):
         store = ActionRequestStore()
         first = store.create(

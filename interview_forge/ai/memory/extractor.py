@@ -31,11 +31,12 @@ class _ExtractionEnvelope(BaseModel):
 
 _EXPLICIT_MEMORY_RE = re.compile(
     r"^(?:请你|请|帮我|麻烦你|麻烦)?\s*(?:以后\s*)?(?:请\s*)?"
-    r"(?:记住|牢记|记得)(?=\s*(?:我|我的|以后|这|该|用户|[:：，,]|$))"
+    r"(?:记住|牢记|记得|不要忘记|不要忘|别忘记|别忘了)"
+    r"(?=\s*(?:我|我的|以后|这|该|用户|[:：，,]|$))"
 )
 _EXPLICIT_FORGET_RE = re.compile(
     r"^(?:请你|请|帮我|麻烦你|麻烦)?\s*(?:以后\s*)?(?:请\s*)?"
-    r"(?:不要再记住|别再记住|忘记|删除|清除|不要忘记|不要忘)"
+    r"(?:不要再记住|别再记住|忘记|删除|清除)"
     r"(?=\s*(?:我|我的|这个|这条|之前|刚才|关于|这些|该|所有|[:：，,]|$))"
 )
 
@@ -49,7 +50,11 @@ def _deterministic_candidate(message: str) -> MemoryCandidate | None:
     text = " ".join(message.strip().split())
     if not memory_worthy(text):
         return None
-    forget = any(marker in text for marker in ("忘记", "不要再记住", "别再记住"))
+    # "不要忘记/别忘了" is a request to retain the following fact.  Only
+    # explicit deletion wording is allowed to create a forget candidate.
+    forget = any(marker in text for marker in ("不要再记住", "别再记住", "忘记", "删除", "清除"))
+    if any(marker in text for marker in ("不要忘记", "不要忘", "别忘记", "别忘了")):
+        forget = False
     language = re.search(r"\b(Python|JavaScript|TypeScript|Java|Go|Rust|C\+\+)\b", text, re.I)
     if language and any(marker in text for marker in ("喜欢", "偏好", "使用", "用")):
         kind, key, importance = "preference", "preference.programming_language", 4

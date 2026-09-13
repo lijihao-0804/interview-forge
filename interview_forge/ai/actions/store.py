@@ -35,8 +35,63 @@ def _expired(value: str, now: str | None = None) -> bool:
         return True
 
 
+_RESULT_META_MAX_CHARS = 4000
+
+
+def _json_size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str))
+
+
+def _bound_result_value(value: Any, budget: int, *, depth: int = 0) -> Any:
+    """Bound metadata before serialization; never cut a JSON string blindly."""
+    if budget <= 32 or depth >= 4:
+        return "[内容已省略]"
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        if len(value) <= budget:
+            return value
+        return value[: max(0, budget - 20)] + "…[内容已省略]"
+    if isinstance(value, Mapping):
+        bounded: dict[str, Any] = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key)[:80]
+            bounded[key] = _bound_result_value(raw_value, max(64, budget // 2), depth=depth + 1)
+            if _json_size(bounded) > budget:
+                bounded.pop(key, None)
+                break
+        if not bounded and value:
+            return {"truncated": True}
+        return bounded
+    if isinstance(value, (list, tuple)):
+        bounded_list: list[Any] = []
+        for raw_value in value:
+            candidate = _bound_result_value(raw_value, max(64, budget // 2), depth=depth + 1)
+            bounded_list.append(candidate)
+            if _json_size(bounded_list) > budget:
+                bounded_list.pop()
+                break
+        return bounded_list
+    return str(value)[: max(0, budget - 20)] + "…[内容已省略]"
+
+
+def _bounded_result_meta(value: Mapping[str, Any]) -> dict[str, Any]:
+    bounded = _bound_result_value(dict(value), _RESULT_META_MAX_CHARS)
+    if isinstance(bounded, Mapping) and _json_size(bounded) <= _RESULT_META_MAX_CHARS:
+        return dict(bounded)
+    return {"truncated": True, "message": "结果过大，详细内容已省略。"}
+
+
+def _decode_result_meta(value: Any) -> dict[str, Any]:
+    try:
+        decoded = json.loads(str(value or "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {"truncated": True, "message": "结果元数据损坏，详细内容已省略。"}
+    return dict(decoded) if isinstance(decoded, Mapping) else {}
+
+
 def _payload(row: Any) -> dict[str, Any]:
-    result_meta = json.loads(str(row["result_meta_json"] or "{}"))
+    result_meta = _decode_result_meta(row["result_meta_json"])
     return {
         "action_id": str(row["id"]),
         "session_id": str(row["session_id"]),
@@ -212,7 +267,11 @@ class ActionRequestStore:
                    WHERE id = ? AND status = 'executing'""",
                 (
                     status, now, error_code,
-                    json.dumps(dict(result_meta), ensure_ascii=False, separators=(",", ":"))[:4000],
+                    json.dumps(
+                        _bounded_result_meta(result_meta),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
                     str(action_id),
                 ),
             )

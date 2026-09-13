@@ -22,9 +22,48 @@ class ActionService:
         self.registry = registry or build_default_tool_registry()
         self.store = store or ActionRequestStore()
 
+    def _mark_cancelled_if_executing(self, *, user_db: Path, action_id: str) -> None:
+        request = self.store.get(user_db=user_db, action_id=action_id)
+        if request is not None and str(request.get("status")) == "executing":
+            self.store.complete(
+                user_db=user_db,
+                action_id=action_id,
+                status="failed",
+                error_code="cancelled",
+                result_meta={"error": {"code": "cancelled", "message": "操作已取消。"}},
+            )
+
+    async def _recover_cancelled_confirmation(self, *, user_db: Path, action_id: str) -> None:
+        try:
+            await asyncio.shield(asyncio.to_thread(
+                self._mark_cancelled_if_executing,
+                user_db=user_db,
+                action_id=action_id,
+            ))
+        except Exception:
+            # The original cancellation must still propagate; telemetry/error
+            # handling for an unavailable database belongs to the caller.
+            return
+
     async def confirm(self, *, user_db: Path | str, action_id: str) -> dict[str, Any]:
         path = Path(user_db)
-        request = await asyncio.to_thread(self.store.claim_pending, user_db=path, action_id=action_id)
+        claim_task = asyncio.create_task(asyncio.to_thread(
+            self.store.claim_pending,
+            user_db=path,
+            action_id=action_id,
+        ))
+        try:
+            request = await asyncio.shield(claim_task)
+        except asyncio.CancelledError:
+            # Let the SQLite claim finish before checking whether it actually
+            # moved the row to executing; otherwise the recovery query could
+            # race the worker thread and miss the transition.
+            try:
+                await asyncio.shield(claim_task)
+            except Exception:
+                pass
+            await self._recover_cancelled_confirmation(user_db=path, action_id=action_id)
+            raise
         if request is None:
             raise ActionRequestError("操作不存在", 404, "not_found")
         status = str(request["status"])
@@ -50,18 +89,26 @@ class ActionService:
             artifacts={"username": path.parent.name},
         )
         runtime = ToolRuntime(self.registry)
-        result = await runtime.execute_confirmed_action(action_request=request, context=context)
-        payload = result.model_payload()
-        final_status = "succeeded" if result.status in {"ok", "cache_hit"} else "failed"
-        meta = {"result": payload, "display": result.display_text or ""}
-        await asyncio.to_thread(
-            self.store.complete,
-            user_db=path,
-            action_id=action_id,
-            status=final_status,
-            error_code=result.error_code,
-            result_meta=meta,
-        )
+        try:
+            result = await runtime.execute_confirmed_action(action_request=request, context=context)
+            payload = result.model_payload()
+            final_status = "succeeded" if result.status in {"ok", "cache_hit"} else "failed"
+            meta = {"result": payload, "display": result.display_text or ""}
+            await asyncio.to_thread(
+                self.store.complete,
+                user_db=path,
+                action_id=action_id,
+                status=final_status,
+                error_code=result.error_code,
+                result_meta=meta,
+            )
+        except asyncio.CancelledError:
+            # A disconnected/cancelled confirmation must not leave the row in
+            # executing forever.  The underlying sync handler may still finish
+            # its worker thread, so expose a conservative failed result rather
+            # than claiming that the action succeeded.
+            await self._recover_cancelled_confirmation(user_db=path, action_id=action_id)
+            raise
         return {
             "ok": final_status == "succeeded",
             "action_id": action_id,
