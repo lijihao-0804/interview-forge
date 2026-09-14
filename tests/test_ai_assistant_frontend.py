@@ -1,4 +1,6 @@
 import unittest
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -26,7 +28,7 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("node._toolStatus", self.source)
 
     def test_history_messages_do_not_replay_tool_status_and_heartbeat_is_ignored(self):
-        self.assertIn("(payload.items || []).forEach(renderMessage)", self.source)
+        self.assertIn("(payload.items || []).forEach(function (item) { renderMessage(item, fragment); });", self.source)
         self.assertIn("if (data)", self.source)
         self.assertNotIn("JSON.stringify(payload)", self.source)
         self.assertNotIn("payload.call_id", self.source.split("row.textContent", 1)[-1])
@@ -96,6 +98,40 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("request_id", launcher)
         self.assertIn("requestFreshPageContext", self.source)
         self.assertIn("pageContextWaiters", self.source)
+
+    def test_streaming_hot_path_uses_throttled_plain_text_preview(self):
+        delta_block = self.source.split('else if (name === "message.delta"', 1)[1].split('else if (name === "tool.start"', 1)[0]
+        self.assertIn("bubble._rawText", delta_block)
+        self.assertIn("scheduleStreamRender(bubble)", delta_block)
+        self.assertNotIn("markdown(", delta_block)
+        self.assertNotIn("innerHTML", delta_block)
+        self.assertNotIn("scrollBottom", delta_block)
+        self.assertIn("STREAM_RENDER_INTERVAL = 100", self.source)
+        self.assertIn("bubble._streamRenderTimer", self.source)
+        self.assertIn("function finalizeAssistant", self.source)
+        self.assertIn("bubble.classList.remove(\"streaming\")", self.source)
+
+    def test_streaming_scroll_and_session_refresh_contract(self):
+        css = (ROOT / "assets" / "ai-assistant.css").read_text(encoding="utf-8")
+        self.assertIn(".bubble.streaming", css)
+        self.assertIn("white-space:pre-wrap", css)
+        self.assertIn("function scheduleScrollBottom", self.source)
+        self.assertIn("AUTO_FOLLOW_THRESHOLD = 120", self.source)
+        self.assertIn("messages.addEventListener(\"scroll\", updateAutoFollow", self.source)
+        self.assertIn("function refreshSessionList", self.source)
+        self.assertIn("await refreshSessionList();", self.source)
+        self.assertNotIn("await loadSessions();", self.source)
+
+    def test_streaming_performance_harness(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        result = subprocess.run(
+            [node, str(ROOT / "tests" / "test_ai_assistant_streaming.js")],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        )
+        self.assertIn('"delta_count":1000', result.stdout)
+        self.assertRegex(result.stdout, r'"render_count":(?:[1-9][0-9]?|1[0-4][0-9])')
 
 
 if __name__ == "__main__":
