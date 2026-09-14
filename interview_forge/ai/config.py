@@ -37,7 +37,7 @@ class AIConfig:
     @property
     def configured(self) -> bool:
         return bool(
-            self.provider in {"openai", "openai-compatible"}
+            self.provider in {"openai", "openai-compatible", "anthropic", "gemini"}
             and self.model
             and self.api_key
         )

@@ -30,6 +30,11 @@ Qwen-compatible, GLM-compatible, New API, Sub2API and custom
 OpenAI-compatible endpoints. Model discovery only consumes a bounded
 `GET /models` response; it never makes a paid generation request.
 
+Optional native protocols `anthropic_messages` and `gemini` are also available
+through lazy adapters. Their SDKs are not imported during normal startup; they
+must be installed from `requirements-ai.txt` only when one of those protocols
+is selected.
+
 ## Admin API
 
 All endpoints below require the existing administrator session:

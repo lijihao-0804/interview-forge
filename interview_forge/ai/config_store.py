@@ -26,7 +26,7 @@ from interview_forge.core.paths import DATA_DIR
 
 AI_CONFIG_DB_PATH = DATA_DIR / "ai_config.db"
 SUPPORTED_BUSINESS_KEYS = ("chat", "learning_analysis", "memory_extraction")
-SUPPORTED_PROTOCOLS = {"openai_chat", "openai_responses"}
+SUPPORTED_PROTOCOLS = {"openai_chat", "openai_responses", "anthropic_messages", "gemini"}
 _MAX_PROVIDER_NAME = 96
 _MAX_MODEL_ID = 160
 
