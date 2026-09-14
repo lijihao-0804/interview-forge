@@ -46,6 +46,9 @@
     item.value = value; item.textContent = label; item.disabled = !!disabled;
     select.appendChild(item); return item;
   }
+  function emptyOption(select, label) {
+    option(select, "", label, true); select.value = "";
+  }
   function selectedProvider() {
     return state.providers.find(function (item) { return item.id === state.selectedProvider; }) || null;
   }
@@ -232,6 +235,7 @@
     var select = $("admin-ai-model-provider-select");
     var current = state.selectedProvider || (state.providers[0] && state.providers[0].id) || "";
     select.textContent = "";
+    if (!state.providers.length) { emptyOption(select, "暂无 Provider，请先添加"); state.selectedProvider = ""; return; }
     state.providers.forEach(function (provider) { option(select, provider.id, provider.name + " · " + provider.vendor, !provider.enabled); });
     select.value = current; state.selectedProvider = select.value || current;
   }
@@ -289,6 +293,7 @@
 
   function renderRouteProviders(selectedId) {
     var select = $("admin-ai-profile-provider"); select.textContent = "";
+    if (!state.providers.length) { emptyOption(select, "暂无 Provider，请先添加"); return; }
     state.providers.forEach(function (provider) { option(select, provider.id, provider.name + " · " + provider.vendor, !provider.enabled); });
     if (selectedId) select.value = selectedId;
     if (!select.value && state.providers.length) select.value = state.providers[0].id;
@@ -296,6 +301,7 @@
   function renderRouteModels(providerId, selectedId) {
     var select = $("admin-ai-profile-model"); select.textContent = "";
     modelsFor(providerId).forEach(function (item) { if (item.enabled && item.available) option(select, item.model_id, item.display_name || item.model_id); });
+    if (!select.options.length) emptyOption(select, providerId ? "暂无可用模型，请先同步或添加" : "请先选择 Provider");
     if (selectedId) select.value = selectedId;
     updateReasoningControls();
   }
