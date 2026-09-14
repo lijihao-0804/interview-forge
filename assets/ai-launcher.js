@@ -20,6 +20,9 @@
     var drawer = null;
     var frame = null;
     var contextFrame = null;
+    function clearDrawerOpenState() {
+      document.documentElement.classList.remove("if-ai-drawer-open");
+    }
     function sendContext(requestId) {
       if (!frame || !frame.contentWindow) return;
       var payload = {
@@ -40,27 +43,33 @@
       });
     }
     function close() {
-      if (!drawer) return;
-      drawer.remove();
+      if (drawer) drawer.remove();
       drawer = null;
       frame = null;
+      clearDrawerOpenState();
       button.hidden = false;
       document.body.style.overflow = "";
     }
     function open() {
       if (drawer) { sendContext(); return; }
-      drawer = document.createElement("div");
-      drawer.className = "if-ai-drawer-wrap";
-      drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" aria-label="关闭 AI 助手"></button>' +
-        '<aside class="if-ai-drawer" aria-label="AI 助手" role="dialog"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
-      document.body.appendChild(drawer);
-      button.hidden = true;
-      frame = drawer.querySelector("iframe");
-      drawer.querySelector(".if-ai-drawer-backdrop").addEventListener("click", close);
-      drawer.querySelector(".if-ai-drawer-actions button").addEventListener("click", close);
-      frame.addEventListener("load", sendContext);
-      document.body.style.overflow = "hidden";
-      sendContext();
+      try {
+        drawer = document.createElement("div");
+        drawer.className = "if-ai-drawer-wrap";
+        drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" aria-label="关闭 AI 助手"></button>' +
+          '<aside class="if-ai-drawer" aria-label="AI 助手" role="dialog"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
+        document.body.appendChild(drawer);
+        document.documentElement.classList.add("if-ai-drawer-open");
+        button.hidden = true;
+        frame = drawer.querySelector("iframe");
+        drawer.querySelector(".if-ai-drawer-backdrop").addEventListener("click", close);
+        drawer.querySelector(".if-ai-drawer-actions button").addEventListener("click", close);
+        frame.addEventListener("load", sendContext);
+        document.body.style.overflow = "hidden";
+        sendContext();
+      } catch (error) {
+        close();
+        throw error;
+      }
     }
     button.addEventListener("click", open);
     global.addEventListener("message", function (event) {
@@ -70,6 +79,7 @@
     var update = function () { if (drawer) scheduleContext(); };
     global.addEventListener("scroll", update, { passive: true });
     document.addEventListener("selectionchange", update);
+    global.addEventListener("pagehide", clearDrawerOpenState, { once: true });
   }
 
   fetch("/api/me", { credentials: "same-origin", cache: "no-store" })

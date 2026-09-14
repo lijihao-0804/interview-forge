@@ -77,6 +77,19 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertIn("var(--forge-auth-reserve", feedback)
         self.assertNotIn("bottom:calc(58px", feedback)
 
+    def test_ai_drawer_owns_overlay_layer_and_hides_global_widgets(self):
+        launcher = (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8")
+        style = (ROOT / "assets" / "ai-launcher.css").read_text(encoding="utf-8")
+        self.assertIn('document.documentElement.classList.add("if-ai-drawer-open")', launcher)
+        self.assertIn('document.documentElement.classList.remove("if-ai-drawer-open")', launcher)
+        self.assertIn('global.addEventListener("pagehide", clearDrawerOpenState', launcher)
+        for selector in ("#forge-auth-pill", "#forge-fb-btn", "#forge-theme-btn", ".forge-panel"):
+            self.assertIn("html.if-ai-drawer-open " + selector, style)
+        self.assertIn("z-index: 10020", style)
+        self.assertIn("z-index: 10021", style)
+        self.assertIn("visibility: hidden !important", style)
+        self.assertIn("pointer-events: none !important", style)
+
     def test_generated_library_page_does_not_receive_duplicate_launcher(self):
         page = ROOT / "library" / "agent-cli" / "chapter-01.html"
         body = page.read_bytes()
