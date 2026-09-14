@@ -70,6 +70,11 @@ def validate_base_url(value: str) -> str:
     return value
 
 
+def _validate_protocol_base_url(protocol: str, base_url: str) -> None:
+    if str(protocol or "").strip().lower() == "gemini" and base_url.rstrip("/") != "https://generativelanguage.googleapis.com":
+        raise AIConfigError("Gemini Native Provider 目前只支持官方 Base URL")
+
+
 def network_scope(value: str) -> str:
     """Classify only what can be established without performing DNS."""
     hostname = (urlparse(str(value or "")).hostname or "").lower()
@@ -82,30 +87,43 @@ def network_scope(value: str) -> str:
     return "local/private" if address.is_private or address.is_loopback else "public"
 
 
-def validate_network_target(value: str) -> None:
-    """Resolve a probe target once and reject unsafe resolved addresses."""
+def resolve_network_target(value: str) -> tuple[str, tuple[tuple[int, tuple[Any, ...]], ...]]:
+    """Resolve once, validate every address, and return the pinned endpoints."""
     hostname = (urlparse(str(value or "")).hostname or "").strip().lower()
     if not hostname:
         raise AIConfigError("Base URL 主机名缺失")
     if hostname in {"metadata.google.internal", "metadata", "instance-data"}:
         raise AIConfigError("禁止访问云元数据地址")
     try:
-        addresses = {
-            ipaddress.ip_address(item[4][0])
-            for item in socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-        }
+        parsed = urlparse(str(value or ""))
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        records = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
     except (OSError, ValueError) as exc:
         raise AIConfigError("Base URL 主机名无法解析") from exc
-    if not addresses:
+    endpoints: list[tuple[int, tuple[Any, ...]]] = []
+    for family, _socktype, _proto, _canonname, sockaddr in records:
+        try:
+            address = ipaddress.ip_address(sockaddr[0])
+        except (IndexError, ValueError):
+            continue
+        if address.is_unspecified or address.is_link_local or address.is_multicast:
+            raise AIConfigError("Base URL 解析到不允许的网络地址")
+        endpoint = (family, tuple(sockaddr))
+        if endpoint not in endpoints:
+            endpoints.append(endpoint)
+    if not endpoints:
         raise AIConfigError("Base URL 主机名无法解析")
-    forbidden = [address for address in addresses if address.is_unspecified or address.is_link_local or address.is_multicast]
-    if forbidden:
-        raise AIConfigError("Base URL 解析到不允许的网络地址")
+    return hostname, tuple(endpoints)
+
+
+def validate_network_target(value: str) -> None:
+    """Resolve once and reject unsafe resolved addresses."""
+    resolve_network_target(value)
 
 
 def _validate_models_path(value: str) -> str:
     value = str(value or "/models").strip()
-    if not value.startswith("/") or "://" in value or len(value) > 160:
+    if not value.startswith("/") or value.startswith("//") or "://" in value or len(value) > 160:
         raise AIConfigError("模型发现路径不合法")
     return value
 
@@ -299,6 +317,7 @@ class AIConfigStore:
         if protocol not in SUPPORTED_PROTOCOLS:
             raise AIConfigError("不支持的 Provider Protocol")
         base_url = validate_base_url(base_url)
+        _validate_protocol_base_url(protocol, base_url)
         encrypted = encrypt_secret(api_key) if api_key else None
         now, provider_id = _now(), uuid.uuid4().hex
         with closing(self.connect()) as connection:
@@ -323,11 +342,13 @@ class AIConfigStore:
             if not value: raise AIConfigError("Provider 名称不能为空")
             fields.append("name = ?"); values.append(value)
         if vendor is not None: fields.append("vendor = ?"); values.append(str(vendor).strip().lower()[:64])
+        protocol_value = str(current.protocol if protocol is None else protocol).strip().lower()[:64]
         if protocol is not None:
-            protocol_value = str(protocol).strip().lower()[:64]
             if protocol_value not in SUPPORTED_PROTOCOLS: raise AIConfigError("不支持的 Provider Protocol")
             fields.append("protocol = ?"); values.append(protocol_value)
-        if base_url is not None: fields.append("base_url = ?"); values.append(validate_base_url(base_url))
+        next_base_url = validate_base_url(current.base_url if base_url is None else base_url)
+        _validate_protocol_base_url(protocol_value, next_base_url)
+        if base_url is not None: fields.append("base_url = ?"); values.append(next_base_url)
         if enabled is not None: fields.append("enabled = ?"); values.append(int(bool(enabled)))
         if models_path is not None: fields.append("models_path = ?"); values.append(_validate_models_path(models_path))
         if clear_api_key and api_key:
@@ -370,8 +391,8 @@ class AIConfigStore:
                 VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_id,model_id) DO UPDATE SET
                 display_name=excluded.display_name, available=excluded.available,
                 last_seen_at=excluded.last_seen_at,
-                capabilities_json=CASE WHEN excluded.capability_source='manual' THEN excluded.capabilities_json ELSE ai_models.capabilities_json END,
-                capability_source=CASE WHEN excluded.capability_source='manual' THEN excluded.capability_source ELSE ai_models.capability_source END""",
+                capabilities_json=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capabilities_json ELSE excluded.capabilities_json END,
+                capability_source=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capability_source ELSE excluded.capability_source END""",
                 (uuid.uuid4().hex, str(provider_id), model_id, str(display_name or model_id)[:_MAX_MODEL_ID], int(enabled), int(available),
                  json.dumps(dict(capabilities or {}), ensure_ascii=False, separators=(",", ":")), str(capability_source), discovered_at, now))
             connection.commit()
@@ -453,4 +474,4 @@ class AIConfigStore:
         return self._secret_for(provider_id)
 
 
-__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "network_scope", "validate_base_url", "validate_network_target"]
+__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "network_scope", "resolve_network_target", "validate_base_url", "validate_network_target"]

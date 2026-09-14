@@ -15,8 +15,9 @@ import httpx
 
 from interview_forge.ai.config import AIConfig
 from interview_forge.ai.errors import AIServiceError
-from interview_forge.ai.config_store import AIConfigError, validate_network_target
+from interview_forge.ai.config_store import AIConfigError
 from .base import ProviderAdapter, ProviderProbeResult
+from .network import PinnedHTTPTransport
 
 MAX_RESPONSE_BYTES = 1_000_000
 MAX_MODELS = 200
@@ -71,12 +72,12 @@ class _NativeHTTPAdapter(ProviderAdapter):
         started = time.perf_counter()
         url = urljoin(str(base_url).rstrip("/") + "/", str(models_path or self.default_path).lstrip("/"))
         try:
-            validate_network_target(base_url)
+            transport = PinnedHTTPTransport(base_url)
             request_headers = dict(self.headers)
             if self.__class__.__name__ == "AnthropicAdapter" and api_key:
                 request_headers["x-api-key"] = api_key
             params = {"key": api_key} if self.__class__.__name__ == "GeminiAdapter" and api_key else None
-            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, headers=request_headers) as client:
+            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, trust_env=False, transport=transport, headers=request_headers) as client:
                 if hasattr(client, "stream"):
                     with client.stream("GET", url, params=params) as response:
                         status_code = response.status_code
