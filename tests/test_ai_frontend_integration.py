@@ -41,6 +41,8 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertIn("showModal", script)
         self.assertIn("renderPresetSelect", script)
         self.assertIn('option(select, preset.key', script)
+        self.assertIn("emptyOption(select", script)
+        self.assertIn("暂无可用模型，请先同步或添加", script)
         self.assertIn("status-partial", style)
         self.assertIn("position:fixed", style)
         self.assertIn("width:100%; max-width:none", style)
