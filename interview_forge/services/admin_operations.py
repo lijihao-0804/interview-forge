@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from interview_forge.ai.config import load_ai_config
+from interview_forge.ai.config_store import SUPPORTED_BUSINESS_KEYS
+from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.tools.registry import build_default_tool_registry
 from interview_forge.core.paths import DATA_DIR, PROJECT_ROOT
 from interview_forge.core.runtime import server_runtime
@@ -186,8 +188,95 @@ def _project_size() -> int:
     return total
 
 
+def _runtime_error_category(exc: BaseException) -> str:
+    """Map resolver failures to a safe, non-sensitive diagnostic category."""
+    message = str(exc)
+    if "模型已停用" in message:
+        return "model_disabled"
+    if "模型当前不可用" in message:
+        return "model_unavailable"
+    if "模型不存在" in message:
+        return "model_missing"
+    if "Provider 未启用或不存在" in message:
+        return "provider_unavailable"
+    if "主密钥" in message or "API Key" in message:
+        return "secret_unavailable"
+    if "reasoning" in message.lower() or "推理" in message:
+        return "reasoning_unsupported"
+    return "runtime_unavailable"
+
+
+def _runtime_projection(business_key: str) -> dict[str, Any]:
+    """Return only the effective, non-sensitive runtime for one workload."""
+    try:
+        runtime = resolve_ai_runtime(business_key)
+    except Exception as exc:
+        return {
+            "business_key": business_key,
+            "status": "error",
+            "source": "unknown",
+            "error_category": _runtime_error_category(exc),
+        }
+    config = runtime.config
+    configured = bool(config.enabled and config.configured)
+    policy = runtime.reasoning_policy
+    return {
+        "business_key": business_key,
+        "status": "ok" if configured else "unavailable",
+        "source": str(runtime.config_source or "env"),
+        "provider_id": runtime.provider_id,
+        "provider_name": runtime.provider_name,
+        "vendor": getattr(runtime, "vendor", None),
+        "protocol": runtime.protocol,
+        "model": runtime.model,
+        "reasoning_mode": getattr(policy, "mode", None),
+        "reasoning_effort": getattr(policy, "effort", None),
+        "reasoning_budget": getattr(policy, "budget_tokens", None),
+    }
+
+
+def _legacy_fallback_projection() -> dict[str, Any]:
+    """Describe ENV fallback separately from the effective business routes."""
+    try:
+        config = load_ai_config()
+    except Exception as exc:
+        return {
+            "status": "error",
+            "enabled": False,
+            "configured": False,
+            "error_category": _runtime_error_category(exc),
+        }
+    configured = bool(config.enabled and config.configured)
+    return {
+        "status": "ok" if configured else "unavailable",
+        "enabled": bool(config.enabled),
+        "configured": bool(config.configured),
+        "provider": config.provider,
+        "model": config.model,
+        "source": "legacy_env",
+    }
+
+
+def _ai_runtime_snapshot() -> dict[str, Any]:
+    routes = {
+        business_key: _runtime_projection(business_key)
+        for business_key in SUPPORTED_BUSINESS_KEYS
+    }
+    legacy = _legacy_fallback_projection()
+    # This is deliberately derived from the effective resolver results. It is
+    # not a second provider/profile selection path.
+    managed_available = any(
+        item.get("source") == "db" for item in routes.values()
+    )
+    return {
+        "managed_config_available": managed_available,
+        "routes": routes,
+        "legacy_fallback": legacy,
+    }
+
+
 def system_info() -> dict[str, Any]:
-    config = load_ai_config()
+    ai = _ai_runtime_snapshot()
     registry = build_default_tool_registry()
     specs = registry.list_specs()
     disk = shutil.disk_usage(PROJECT_ROOT)
@@ -198,7 +287,14 @@ def system_info() -> dict[str, Any]:
         "fastapi_version": _package_version("fastapi"), "uvicorn_version": _package_version("uvicorn"),
         "registered_tools": len(specs), "registered_action_tools": sum(1 for spec in specs if str(spec.kind) == "ToolKind.ACTION" or getattr(spec.kind, "value", "") == "action"),
         "task_backends": list(task_manager.kinds()),
-        "ai": {"enabled": config.enabled, "configured": config.configured, "provider": config.provider, "model": config.model},
+        "ai": ai | {
+            # Keep the old scalar fields for API consumers during the
+            # transition, but the admin UI no longer presents them as current.
+            "enabled": ai["legacy_fallback"]["enabled"],
+            "configured": ai["legacy_fallback"]["configured"],
+            "provider": ai["legacy_fallback"].get("provider", ""),
+            "model": ai["legacy_fallback"].get("model", ""),
+        },
         "runtime_metrics": runtime,
         "storage": {"project_data_bytes": _project_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free, **runtime.get("storage", {})},
     }
@@ -250,8 +346,28 @@ def diagnostics() -> dict[str, Any]:
         add("observability_database", "failed", "not readable")
     disk = shutil.disk_usage(PROJECT_ROOT)
     add("disk_free", "ok" if disk.free > 100 * 1024 * 1024 else "warning", str(disk.free))
-    config = load_ai_config()
-    add("ai_config", "ok" if config.enabled and config.configured else "warning", "enabled and configured" if config.enabled and config.configured else "disabled or incomplete")
+    route_items = {
+        business_key: _runtime_projection(business_key)
+        for business_key in SUPPORTED_BUSINESS_KEYS
+    }
+    for business_key, item in route_items.items():
+        if item["status"] == "ok":
+            status, message = "ok", f"{item['source']} runtime resolved"
+        elif item["status"] == "unavailable":
+            status, message = "warning", "runtime is not configured"
+        else:
+            status, message = "failed", f"resolver error: {item['error_category']}"
+        add(f"ai_route_{business_key}", status, message)
+    legacy = _legacy_fallback_projection()
+    managed_routes_ok = any(item["status"] == "ok" and item["source"] == "db" for item in route_items.values())
+    if legacy["status"] == "ok":
+        add("ai_legacy_fallback", "ok", "ENV fallback is enabled and configured")
+    elif legacy["status"] == "error":
+        add("ai_legacy_fallback", "failed", f"resolver error: {legacy['error_category']}")
+    elif managed_routes_ok:
+        add("ai_legacy_fallback", "warning", "ENV fallback is not configured; managed routes are active")
+    else:
+        add("ai_legacy_fallback", "warning", "ENV fallback is disabled or incomplete")
     try:
         registry = build_default_tool_registry()
         add("tool_registry", "ok", f"{len(registry.list_specs())} tools")

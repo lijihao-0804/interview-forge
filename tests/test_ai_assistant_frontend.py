@@ -66,6 +66,24 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("ai-assistant.css", page)
         self.assertIn("ai-page-context.js", page)
 
+    def test_markdown_renderer_covers_gfm_blocks_and_safe_external_links(self):
+        self.assertIn("markdown-table-wrap", self.source)
+        self.assertIn("<thead><tr>", self.source)
+        self.assertIn("<blockquote>", self.source)
+        self.assertIn("target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\"", self.source)
+        self.assertIn("javascript|data|vbscript", self.source)
+        self.assertIn("esc(code.join", self.source)
+
+    def test_embedded_layout_and_theme_sync_contracts_exist(self):
+        css = (ROOT / "assets" / "ai-assistant.css").read_text(encoding="utf-8")
+        launcher = (ROOT / "assets" / "ai-launcher.css").read_text(encoding="utf-8")
+        theme = (ROOT / "assets" / "theme-toggle.js").read_text(encoding="utf-8")
+        self.assertIn("100dvh", css)
+        self.assertIn("top: 50%", launcher)
+        self.assertIn("button.hidden = true", (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8"))
+        self.assertIn('event.key === KEY', theme)
+        self.assertIn('embedded', theme)
+
     def test_page_context_refresh_is_throttled_and_request_scoped(self):
         launcher = (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8")
         self.assertIn("requestAnimationFrame", launcher)

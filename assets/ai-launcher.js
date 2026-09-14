@@ -44,6 +44,7 @@
       drawer.remove();
       drawer = null;
       frame = null;
+      button.hidden = false;
       document.body.style.overflow = "";
     }
     function open() {
@@ -53,6 +54,7 @@
       drawer.innerHTML = '<button class="if-ai-drawer-backdrop" type="button" aria-label="关闭 AI 助手"></button>' +
         '<aside class="if-ai-drawer" aria-label="AI 助手" role="dialog"><header class="if-ai-drawer-head"><span>AI 助手</span><span class="if-ai-drawer-actions"><a href="/pages/ai-assistant.html" target="_blank" rel="noopener noreferrer">打开完整页面</a><button type="button" aria-label="关闭">×</button></span></header><iframe title="AI 助手对话" src="/pages/ai-assistant.html?embedded=1"></iframe></aside>';
       document.body.appendChild(drawer);
+      button.hidden = true;
       frame = drawer.querySelector("iframe");
       drawer.querySelector(".if-ai-drawer-backdrop").addEventListener("click", close);
       drawer.querySelector(".if-ai-drawer-actions button").addEventListener("click", close);

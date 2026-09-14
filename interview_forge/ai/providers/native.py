@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import httpx
 
@@ -111,6 +111,71 @@ class _NativeHTTPAdapter(ProviderAdapter):
 
     def test_connection(self, *, base_url, models_path, api_key, timeout=8.0):
         return self._request(base_url=base_url, models_path=models_path, api_key=api_key, timeout=timeout)
+
+    def test_model(self, *, base_url, model_id, api_key, timeout=12.0):
+        started = time.perf_counter()
+        is_anthropic = self.__class__.__name__ == "AnthropicAdapter"
+        is_gemini = self.__class__.__name__ == "GeminiAdapter"
+        if is_anthropic:
+            url = urljoin(str(base_url).rstrip("/") + "/", "v1/messages")
+            payload = {"model": model_id, "max_tokens": 8, "stream": True, "messages": [{"role": "user", "content": "Reply with OK."}]}
+        elif is_gemini:
+            url = urljoin(str(base_url).rstrip("/") + "/", "v1beta/models/" + quote(str(model_id), safe="") + ":streamGenerateContent")
+            payload = {"contents": [{"role": "user", "parts": [{"text": "Reply with OK."}]}], "generationConfig": {"maxOutputTokens": 8}}
+        else:
+            return ProviderProbeResult(False, "not_supported")
+        headers = {"Content-Type": "application/json"}
+        headers.update(self.headers)
+        if is_anthropic and api_key:
+            headers["x-api-key"] = api_key
+        params = {"key": api_key, "alt": "sse"} if is_gemini and api_key else None
+        try:
+            transport = PinnedHTTPTransport(base_url)
+            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, trust_env=False, transport=transport, headers=headers) as client:
+                with client.stream("POST", url, params=params, json=payload) as response:
+                    if response.status_code in {401, 403}:
+                        return ProviderProbeResult(False, "authentication", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+                    if response.status_code == 404:
+                        return ProviderProbeResult(False, "model_not_found", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+                    if response.status_code == 429:
+                        return ProviderProbeResult(False, "quota", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+                    if response.status_code >= 500:
+                        return ProviderProbeResult(False, "upstream_error", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+                    if response.status_code >= 400:
+                        return ProviderProbeResult(False, "protocol_error", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+                    first_token = None
+                    meaningful = False
+                    for raw_line in response.iter_lines():
+                        line = raw_line.decode("utf-8", "replace") if isinstance(raw_line, bytes) else str(raw_line)
+                        if line.startswith("data:"):
+                            line = line[5:].strip()
+                        if not line or line == "[DONE]":
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        if is_anthropic:
+                            values = chunk.get("delta", {}).get("text", "") if isinstance(chunk, dict) else ""
+                        else:
+                            candidates = chunk.get("candidates", []) if isinstance(chunk, dict) else []
+                            values = ""
+                            if candidates and isinstance(candidates[0], dict):
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                values = "".join(str(item.get("text", "")) for item in parts if isinstance(item, dict))
+                        if isinstance(values, str) and values:
+                            meaningful = True
+                            if first_token is None:
+                                first_token = time.perf_counter()
+                    latency = round((time.perf_counter() - started) * 1000, 2)
+                    ttft = round((first_token - started) * 1000, 2) if first_token is not None else None
+                    return ProviderProbeResult(meaningful, "ok" if meaningful else "invalid_response", latency_ms=latency, ttft_ms=ttft, streaming=True)
+        except AIConfigError:
+            return ProviderProbeResult(False, "unsafe_network_target", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+        except httpx.TimeoutException:
+            return ProviderProbeResult(False, "timeout", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+        except httpx.HTTPError:
+            return ProviderProbeResult(False, "network", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
 
     def apply_reasoning(self, config, policy=None, *, thinking_mode=None):
         mode = getattr(policy, "mode", None) or getattr(config, "reasoning_mode", "auto")

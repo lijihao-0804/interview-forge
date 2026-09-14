@@ -209,6 +209,11 @@ class ModelRecord:
     capability_catalog_version: str | None
     discovered_at: str | None
     last_seen_at: str | None
+    last_test_status: str | None = None
+    last_test_category: str | None = None
+    last_test_latency_ms: float | None = None
+    last_test_ttft_ms: float | None = None
+    last_test_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -239,6 +244,8 @@ CREATE TABLE IF NOT EXISTS ai_models (
  capability_source TEXT NOT NULL DEFAULT 'unknown', capability_profile TEXT NOT NULL DEFAULT 'generic_openai_compatible',
  canonical_model TEXT, capability_verified_at TEXT, capability_catalog_version TEXT,
  discovered_at TEXT, last_seen_at TEXT,
+ last_test_status TEXT, last_test_category TEXT, last_test_latency_ms REAL,
+ last_test_ttft_ms REAL, last_test_at TEXT,
  UNIQUE(provider_id, model_id)
 );
 CREATE TABLE IF NOT EXISTS ai_business_profiles (
@@ -280,6 +287,11 @@ class AIConfigStore:
                 ("canonical_model", "TEXT"),
                 ("capability_verified_at", "TEXT"),
                 ("capability_catalog_version", "TEXT"),
+                ("last_test_status", "TEXT"),
+                ("last_test_category", "TEXT"),
+                ("last_test_latency_ms", "REAL"),
+                ("last_test_ttft_ms", "REAL"),
+                ("last_test_at", "TEXT"),
             ):
                 if name not in model_columns:
                     connection.execute(f"ALTER TABLE ai_models ADD COLUMN {name} {ddl}")
@@ -321,6 +333,11 @@ class AIConfigStore:
             capability_verified_at=str(row["capability_verified_at"]) if row["capability_verified_at"] else None,
             capability_catalog_version=str(row["capability_catalog_version"]) if row["capability_catalog_version"] else None,
             discovered_at=row["discovered_at"], last_seen_at=row["last_seen_at"],
+            last_test_status=row["last_test_status"] if "last_test_status" in row.keys() else None,
+            last_test_category=row["last_test_category"] if "last_test_category" in row.keys() else None,
+            last_test_latency_ms=row["last_test_latency_ms"] if "last_test_latency_ms" in row.keys() else None,
+            last_test_ttft_ms=row["last_test_ttft_ms"] if "last_test_ttft_ms" in row.keys() else None,
+            last_test_at=row["last_test_at"] if "last_test_at" in row.keys() else None,
         )
 
     def list_providers(self) -> list[ProviderRecord]:
@@ -484,6 +501,25 @@ class AIConfigStore:
                 connection.commit()
         item = next((item for item in self.list_models(provider_id) if item.model_id == str(model_id)), None)
         if item is None: raise LookupError("模型不存在")
+        return item
+
+    def record_model_test(
+        self, *, provider_id: str, model_id: str, status: str, category: str,
+        latency_ms: float | None, ttft_ms: float | None,
+    ) -> ModelRecord:
+        with closing(self.connect()) as connection:
+            cursor = connection.execute(
+                """UPDATE ai_models SET last_test_status=?, last_test_category=?,
+                   last_test_latency_ms=?, last_test_ttft_ms=?, last_test_at=?
+                   WHERE provider_id=? AND model_id=?""",
+                (str(status)[:24], str(category)[:48], latency_ms, ttft_ms, _now(), str(provider_id), str(model_id)),
+            )
+            if cursor.rowcount == 0:
+                raise LookupError("模型不存在")
+            connection.commit()
+        item = next((item for item in self.list_models(provider_id) if item.model_id == str(model_id)), None)
+        if item is None:
+            raise LookupError("模型不存在")
         return item
 
     def get_profile(self, business_key: str) -> BusinessProfile | None:

@@ -23,14 +23,14 @@ router = APIRouter()
 _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
 _PUBLIC_PREFIXES = ("/assets/fonts",)
 _ADMIN_PAGE = "/pages/admin.html"
-_WIDGET_STYLES = ("/assets/ai-launcher.css?v=1",)
+_WIDGET_STYLES = ("/assets/ai-launcher.css?v=2",)
 _WIDGET_SCRIPTS = (
     "/assets/navigation-policy.js?v=1",
     "/assets/auth-widget.js?v=2",
     "/assets/feedback-widget.js?v=2",
-    "/assets/theme-toggle.js?v=1",
+    "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=1",
-    "/assets/ai-launcher.js?v=1",
+    "/assets/ai-launcher.js?v=2",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
@@ -74,13 +74,14 @@ def _security_headers(path: str) -> dict[str, str]:
     return {"Cache-Control": cache, "X-Content-Type-Options": "nosniff", "X-Frame-Options": "SAMEORIGIN"}
 
 
-def _inject_html(path: str, body: bytes) -> bytes:
+def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     navigation_only = path.startswith("/books/hot100/05-可视化/")
+    embedded_assistant = path == "/pages/ai-assistant.html" and embedded
     scripts = ("/assets/navigation-policy.js?v=1",) if navigation_only else tuple(
         script for script in _WIDGET_SCRIPTS
         if not (
-            (script.startswith("/assets/auth-widget") and path in _AUTH_WIDGET_SKIP)
-            or (script.startswith("/assets/feedback-widget") and path in _FEEDBACK_WIDGET_SKIP)
+            (script.startswith("/assets/auth-widget") and (path in _AUTH_WIDGET_SKIP or embedded_assistant))
+            or (script.startswith("/assets/feedback-widget") and (path in _FEEDBACK_WIDGET_SKIP or embedded_assistant))
         )
     )
     if path in _AI_LAUNCHER_SKIP or navigation_only:
@@ -138,7 +139,7 @@ def static_path(request: Request, path: str):
     if db_path is not None:
         _record_view(decoded, db_path)
     if decoded.lower().endswith(".html"):
-        body = _inject_html(decoded, target.read_bytes())
+        body = _inject_html(decoded, target.read_bytes(), embedded=request.query_params.get("embedded") == "1")
         return Response(content=body, media_type="text/html", headers=_security_headers(decoded))
     return FileResponse(target, headers=_security_headers(decoded))
 

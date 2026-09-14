@@ -162,6 +162,35 @@ def discover_models(provider_id: str) -> dict[str, Any]:
     return {"ok": True, "category": "ok", "items": [_model(provider, item) for item in store.list_models(provider_id)]}
 
 
+def test_model(provider_id: str, model_id: str) -> dict[str, Any]:
+    """Run and persist an explicit generation probe for one selected model."""
+    from datetime import datetime, timezone
+
+    store = _store()
+    provider = store.get_provider(provider_id)
+    if provider is None:
+        raise LookupError("Provider 不存在")
+    model = next((item for item in store.list_models(provider_id) if item.model_id == model_id), None)
+    if model is None:
+        raise LookupError("模型不存在")
+    secret = store.provider_secret(provider_id)
+    result = get_provider_adapter(provider.protocol).test_model(
+        base_url=provider.base_url, model_id=model.model_id, api_key=secret,
+    )
+    status = "passed" if result.ok else "failed"
+    item = store.record_model_test(
+        provider_id=provider_id, model_id=model_id, status=status,
+        category=result.category, latency_ms=result.latency_ms, ttft_ms=result.ttft_ms,
+    )
+    return {
+        "ok": result.ok, "status": status, "category": result.category,
+        "latency_ms": result.latency_ms, "ttft_ms": result.ttft_ms,
+        "streaming": bool(result.streaming),
+        "tested_at": item.last_test_at or datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "model_id": model.model_id,
+    }
+
+
 def profiles() -> dict[str, Any]:
     return {"items": [asdict(item) for item in _store().list_profiles()], "supported_business_keys": list(SUPPORTED_BUSINESS_KEYS)}
 
@@ -185,4 +214,4 @@ def save_profile(business_key: str, payload: Mapping[str, Any]) -> dict[str, Any
     return asdict(item)
 
 
-__all__ = ["add_model", "create_provider", "delete_provider", "discover_models", "profiles", "provider_models", "provider_presets", "providers", "save_profile", "test_provider", "update_model", "update_provider"]
+__all__ = ["add_model", "create_provider", "delete_provider", "discover_models", "profiles", "provider_models", "provider_presets", "providers", "save_profile", "test_model", "test_provider", "update_model", "update_provider"]

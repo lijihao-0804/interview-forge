@@ -28,6 +28,9 @@ class ResolvedAIRuntime:
     canonical_model: str | None = None
     capability_verified_at: str | None = None
     capability_catalog_version: str | None = None
+    # Managed providers expose a vendor separately from the wire protocol.
+    # ENV-only runtimes use the normalized provider name as a safe fallback.
+    vendor: str | None = None
 
 
 def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConfigStore | None = None) -> ResolvedAIRuntime:
@@ -72,10 +75,14 @@ def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConf
             config, provider.id, provider.name, model.model_id, provider.protocol, secret,
             policy, business_key, "db", capabilities, resolution.source, resolution.profile,
             resolution.canonical_model, resolution.verified_at, resolution.catalog_version,
+            provider.vendor,
         )
     config = load_ai_config(daily_limit)
     policy = ReasoningPolicy("effort", config.reasoning_effort) if config.reasoning_effort else ReasoningPolicy("auto")
-    return ResolvedAIRuntime(config, None, config.provider, config.model, config.wire_api, config.api_key, policy, business_key, "env", {})
+    return ResolvedAIRuntime(
+        config, None, config.provider, config.model, config.wire_api, config.api_key,
+        policy, business_key, "env", {}, vendor=config.provider or None,
+    )
 
 
 __all__ = ["ResolvedAIRuntime", "resolve_ai_runtime"]
