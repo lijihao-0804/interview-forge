@@ -34,6 +34,12 @@ class TraceRecorder:
         request_id: str = "",
         provider: str = "",
         model: str = "",
+        provider_id: str | None = None,
+        provider_name: str = "",
+        business_key: str = "",
+        reasoning_mode: str = "",
+        reasoning_effort: str | None = None,
+        config_source: str = "env",
     ) -> None:
         self.user_db = Path(user_db)
         self.trace_id = str(trace_id)[:128]
@@ -41,6 +47,12 @@ class TraceRecorder:
         self.request_id = str(request_id)[:128]
         self.provider = str(provider)[:64]
         self.model = str(model)[:128]
+        self.provider_id = str(provider_id or "")[:96]
+        self.provider_name = str(provider_name)[:96]
+        self.business_key = str(business_key)[:64]
+        self.reasoning_mode = str(reasoning_mode)[:24]
+        self.reasoning_effort = str(reasoning_effort or "")[:24]
+        self.config_source = str(config_source)[:16]
 
     def record(
         self,
@@ -63,6 +75,14 @@ class TraceRecorder:
                 str(key): value for key, value in (metadata or {}).items()
                 if str(key) in {"estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms"}
             }
+            safe_metadata.update({
+                "provider_id": self.provider_id or None,
+                "provider_name": self.provider_name or None,
+                "business_key": self.business_key or None,
+                "reasoning_mode": self.reasoning_mode or None,
+                "reasoning_effort": self.reasoning_effort or None,
+                "config_source": self.config_source,
+            })
             with closing(server_runtime.connect(self.user_db)) as connection:
                 connection.execute(
                     """INSERT INTO ai_trace_events(

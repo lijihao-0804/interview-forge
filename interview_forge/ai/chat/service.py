@@ -19,6 +19,7 @@ from interview_forge.ai.generation import (
     load_ai_config,
     make_chat_model,
 )
+from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.telemetry import debug_ai_event
 from interview_forge.ai.chat.context_builder import ContextBuilder
 from interview_forge.ai.chat.context_blocks import ContextBlock
@@ -179,6 +180,7 @@ class ChatService:
         self,
         *,
         config_loader: Callable[[], AIConfig] | None = None,
+        runtime_loader: Callable[[str], Any] | None = None,
         model_factory: Callable[[AIConfig], Any] | None = None,
         stream_factory: Callable[[Any, list[Any]], AsyncIterator[tuple[str, dict[str, int]]]] = stream_chat_chunks,
         tool_registry: ToolRegistry | None = None,
@@ -186,6 +188,7 @@ class ChatService:
         memory_extractor: MemoryExtractor | None = None,
     ) -> None:
         self.config_loader = config_loader or load_ai_config
+        self.runtime_loader = runtime_loader if runtime_loader is not None else (None if config_loader is not None else resolve_ai_runtime)
         self.model_factory = model_factory or make_chat_model
         self.stream_factory = stream_factory
         self.tool_registry = tool_registry or build_default_tool_registry()
@@ -275,7 +278,14 @@ class ChatService:
         if not memory_worthy(message):
             return
         try:
-            candidates = self.memory_extractor.extract(message, model=model)
+            memory_model = model
+            if self.runtime_loader is not None:
+                try:
+                    memory_runtime = self.runtime_loader("memory_extraction")
+                    memory_model = self.model_factory(memory_runtime.config)
+                except Exception as exc:
+                    debug_ai_event("chat_memory_runtime_unavailable", error_type=type(exc).__name__)
+            candidates = self.memory_extractor.extract(message, model=memory_model)
             store = MemoryStore()
             for candidate in candidates:
                 store.save_candidate(
@@ -535,7 +545,8 @@ class ChatService:
                 return
             yield _event("message.start", {"message_id": stream_message_id})
             try:
-                config = self.config_loader()
+                runtime = self.runtime_loader("chat") if self.runtime_loader is not None else None
+                config = runtime.config if runtime is not None else self.config_loader()
                 if not config.enabled:
                     raise AIServiceError("disabled", "AI 聊天暂未启用，请稍后重试。")
                 if not config.configured:
@@ -547,6 +558,12 @@ class ChatService:
                     request_id=request_id,
                     provider=config.provider,
                     model=config.model,
+                    provider_id=getattr(runtime, "provider_id", None) if runtime is not None else None,
+                    provider_name=getattr(runtime, "provider_name", "") if runtime is not None else "",
+                    business_key="chat",
+                    reasoning_mode=getattr(getattr(runtime, "reasoning_policy", None), "mode", "") if runtime is not None else "",
+                    reasoning_effort=getattr(getattr(runtime, "reasoning_policy", None), "effort", None) if runtime is not None else None,
+                    config_source=getattr(runtime, "config_source", "env") if runtime is not None else "env",
                 )
                 if not _try_claim_model(config):
                     yield _event("error", {"code": "busy", "message": "AI 当前请求较多，请稍后重试。"})
@@ -563,14 +580,18 @@ class ChatService:
                 )
                 if explicit_result is not None and explicit_result.error_code == "structured_extraction_required":
                     try:
-                        model = await asyncio.to_thread(self.model_factory, config)
+                        extraction_config = config
+                        if self.runtime_loader is not None:
+                            extraction_runtime = await asyncio.to_thread(self.runtime_loader, "memory_extraction")
+                            extraction_config = extraction_runtime.config
+                        extraction_model = await asyncio.to_thread(self.model_factory, extraction_config)
                         explicit_result = await asyncio.to_thread(
                             self._persist_explicit_memory,
                             user_db=path,
                             session_id=session_id,
                             message_id=current_message_id,
                             message=clean_message,
-                            model=model,
+                            model=extraction_model,
                         )
                     except Exception:
                         explicit_result = MemoryPersistenceResult(

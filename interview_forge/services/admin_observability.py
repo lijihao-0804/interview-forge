@@ -156,6 +156,24 @@ def _row_int(row: Any, key: str) -> int:
     return int(value) if isinstance(value, (int, float)) else 0
 
 
+def _trace_dimensions(row: Any) -> dict[str, Any]:
+    """Read only the non-sensitive dimensions written by TraceRecorder."""
+    try:
+        value = json.loads(str(row["metadata_json"] or "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        value = {}
+    if not isinstance(value, dict):
+        value = {}
+    return {
+        "provider_id": str(value.get("provider_id") or ""),
+        "provider_name": str(value.get("provider_name") or row["provider"] or ""),
+        "business_key": str(value.get("business_key") or ""),
+        "reasoning_mode": str(value.get("reasoning_mode") or ""),
+        "reasoning_effort": str(value.get("reasoning_effort") or ""),
+        "config_source": str(value.get("config_source") or "env"),
+    }
+
+
 def _request_stats() -> tuple[int, int, float | None]:
     recent: list[dict[str, Any]] = []
     cutoff = datetime.now(timezone.utc) - WINDOWS["24h"]
@@ -295,15 +313,16 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
                 memory_writes += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE created_at >= ?", (cutoff,)).fetchone()[0])
         except sqlite3.Error:
             continue
-    models: dict[str, dict[str, Any]] = {}
+    models: dict[tuple[str, str, str], dict[str, Any]] = {}
     priced = 0
     total_chat = 0
     estimated_cost = 0.0
     for _, row in rows:
         if str(row["event_type"]) != "chat":
             continue
-        key = str(row["model"] or "unknown")
-        item = models.setdefault(key, {"model": key, "turns": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "estimated_cost_usd": None})
+        dimensions = _trace_dimensions(row)
+        key = (dimensions["provider_name"], str(row["model"] or "unknown"), dimensions["business_key"])
+        item = models.setdefault(key, {"model": key[1], **dimensions, "turns": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "estimated_cost_usd": None})
         item["turns"] += 1
         item["input_tokens"] += _row_int(row, "input_tokens")
         item["output_tokens"] += _row_int(row, "output_tokens")
@@ -472,6 +491,7 @@ def list_traces(*, username: str = "", request_id: str = "", status: str = "", m
                 "output_tokens": row["output_tokens"], "reasoning_tokens": row["reasoning_tokens"],
                 "error_code": row["error_code"],
             }
+            grouped[key].update(_trace_dimensions(row))
     items = sorted(grouped.values(), key=lambda item: str(item.get("finished_at") or ""), reverse=True)
     bounded = items[:bounded_limit(limit)]
     return {"items": bounded, "has_more": len(items) > len(bounded)}
@@ -495,6 +515,8 @@ def trace_detail(trace_id: str, *, username: str = "") -> dict[str, Any] | None:
              "error_code": row["error_code"], "started_at": row["started_at"], "finished_at": row["finished_at"]}
             for row in selected
         ]
+        for item, row in zip(timeline, selected):
+            item.update(_trace_dimensions(row))
         try:
             with closing(server_runtime.connect(path)) as connection:
                 tools = [dict(row) for row in connection.execute(

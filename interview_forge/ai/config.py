@@ -29,6 +29,10 @@ class AIConfig:
     max_concurrent_requests: int
     daily_limit_per_user: int
     beta_users: str
+    # Managed-profile fields are optional so every legacy positional constructor
+    # in the test/compatibility surface keeps working unchanged.
+    reasoning_mode: str = "auto"
+    reasoning_budget: int | None = None
 
     @property
     def configured(self) -> bool:

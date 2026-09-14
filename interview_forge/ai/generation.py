@@ -29,6 +29,7 @@ from interview_forge.ai.prompts import (
     OUTPUT_CONTRACT, SYSTEM_PROMPT, LLM_CONTEXT_VERSION,
 )
 from interview_forge.ai.provider import _content_text, _stream_deepseek_once, _usage_from
+from interview_forge.ai.providers.chat_model import build_chat_model_kwargs
 from interview_forge.ai.validation import (
     _InvalidAIOutput, _bounded_string_list, _bounded_text, _plain_model_value,
     _pydantic_schema, build_rule_fallback, validate_insight_payload,
@@ -106,7 +107,7 @@ def _messages(context_json: str, repair: bool = False) -> list[Any]:
     return [("system", SYSTEM_PROMPT), ("human", human)]
 
 
-def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None) -> Any:
+def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None, runtime: Any = None) -> Any:
     # All provider-specific construction is kept in this single function.
     if thinking_mode not in {None, "enabled", "disabled"}:
         raise ValueError("thinking_mode must be enabled, disabled, or None")
@@ -114,29 +115,7 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None)
         from langchain_openai import ChatOpenAI
     except (ImportError, ModuleNotFoundError) as exc:
         raise AIServiceError("not_configured", "AI 分析依赖尚未安装。") from exc
-    kwargs: dict[str, Any] = {
-        "model": config.model,
-        "api_key": config.api_key,
-        "timeout": config.request_timeout_seconds,
-        "max_retries": 0,
-    }
-    if config.base_url:
-        kwargs["base_url"] = config.base_url
-    if config.wire_api == "responses":
-        kwargs["use_responses_api"] = True
-        kwargs["store"] = False
-        kwargs["output_version"] = "responses/v1"
-    if config.actor_authorization:
-        kwargs["default_headers"] = {
-            "x-openai-actor-authorization": config.actor_authorization,
-        }
-    if config.reasoning_effort in {"low", "medium", "high"}:
-        kwargs["reasoning_effort"] = config.reasoning_effort
-    effective_thinking_mode = thinking_mode
-    if effective_thinking_mode is None and config.thinking_enabled:
-        effective_thinking_mode = "enabled"
-    if effective_thinking_mode is not None:
-        kwargs["extra_body"] = {"thinking": {"type": effective_thinking_mode}}
+    kwargs = build_chat_model_kwargs(config, thinking_mode=thinking_mode)
     if not _uses_native_structured_output(config):
         # ChatOpenAI maps this to stream_options.include_usage when supported.
         kwargs["stream_usage"] = True
@@ -146,13 +125,13 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None)
         raise AIServiceError("not_configured", "AI 服务配置不可用。") from exc
 
 
-def make_chat_model(config: AIConfig, *, thinking_mode: str | None = None) -> Any:
+def make_chat_model(config: AIConfig, *, thinking_mode: str | None = None, runtime: Any = None) -> Any:
     """Construct the shared ChatModel used by Coach and Chat.
 
     This is the public provider boundary.  Callers must not reach into the
     coach facade or depend on the private implementation symbol.
     """
-    return _make_chat_model_impl(config, thinking_mode=thinking_mode)
+    return _make_chat_model_impl(config, thinking_mode=thinking_mode, runtime=runtime)
 
 
 def _uses_native_structured_output(config: AIConfig) -> bool:
