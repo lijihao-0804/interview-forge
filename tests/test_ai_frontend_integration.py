@@ -40,6 +40,8 @@ class AiFrontendIntegrationTests(unittest.TestCase):
             self.assertIn(marker, page)
         self.assertIn("showModal", script)
         self.assertIn("status-partial", style)
+        self.assertIn("position:fixed", style)
+        self.assertIn("width:100%; max-width:none", style)
         self.assertNotIn("window.prompt", script)
         self.assertNotIn("innerHTML", script)
 
