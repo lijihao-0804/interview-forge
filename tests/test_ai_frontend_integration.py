@@ -39,6 +39,8 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         ):
             self.assertIn(marker, page)
         self.assertIn("showModal", script)
+        self.assertIn("renderPresetSelect", script)
+        self.assertIn('option(select, preset.key', script)
         self.assertIn("status-partial", style)
         self.assertIn("position:fixed", style)
         self.assertIn("width:100%; max-width:none", style)

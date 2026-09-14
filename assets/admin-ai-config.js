@@ -117,6 +117,21 @@
     $("admin-ai-base-url").value = preset.default_base_url || "";
     $("admin-ai-models-path").value = preset.models_path || "/models";
   }
+  function renderPresetSelect(selectedKey) {
+    var select = $("admin-ai-preset");
+    if (!select) return;
+    var current = selectedKey || select.value;
+    select.textContent = "";
+    if (!state.presets.length) {
+      option(select, "", "暂无可用 Provider 类型", true);
+      select.value = "";
+      return;
+    }
+    state.presets.forEach(function (preset) {
+      option(select, preset.key, preset.display_name || preset.key);
+    });
+    select.value = current && state.presets.some(function (preset) { return preset.key === current; }) ? current : state.presets[0].key;
+  }
   function presetForProvider(provider) {
     return state.presets.find(function (item) { return item.vendor === provider.vendor && item.protocol === provider.protocol; }) ||
       state.presets.find(function (item) { return item.protocol === provider.protocol; });
@@ -128,7 +143,8 @@
     $("admin-ai-provider-form").reset();
     $("admin-ai-clear-key-wrap").hidden = true;
     $("admin-ai-clear-key").checked = false;
-    if (state.presets.length) { $("admin-ai-preset").value = state.presets[0].key; presetChanged(); }
+    renderPresetSelect();
+    if (state.presets.length) presetChanged();
     setMessage("admin-ai-provider-message", "");
   }
   function openProviderDialog(provider, focusKey) {
@@ -312,7 +328,7 @@
     });
   }
 
-  function renderAll() { renderProviders(); renderModelProviderSelect(); renderModels(); renderRouteProviders(); renderRouteCards(); updateSummary(); }
+  function renderAll() { renderPresetSelect(); renderProviders(); renderModelProviderSelect(); renderModels(); renderRouteProviders(); renderRouteCards(); updateSummary(); }
   function settle(promise) { return promise.then(function (value) { return { ok: true, value: value }; }, function (error) { return { ok: false, error: error }; }); }
   function load() {
     setStatus("neutral", "加载中…");
