@@ -52,6 +52,10 @@ def provider_models(provider_id: str, request: Request): return _call(request, l
 @router.post("/api/admin/ai/providers/{provider_id}/models")
 async def add_model(provider_id: str, request: Request): return await _write(request, lambda payload: service.add_model(provider_id, payload))
 
+@router.put("/api/admin/ai/providers/{provider_id}/models/{model_id}")
+async def update_model(provider_id: str, model_id: str, request: Request):
+    return await _write(request, lambda payload: service.update_model(provider_id, model_id, payload))
+
 @router.get("/api/admin/ai/business-profiles")
 def profiles(request: Request): return _call(request, service.profiles)
 

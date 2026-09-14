@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .config import AIConfig, load_ai_config
-from .config_store import AIConfigStore, AISecretUnavailable, BusinessProfile
-from .policy import ReasoningPolicy
+from .config_store import AIConfigError, AIConfigStore, AISecretUnavailable, BusinessProfile
+from .policy import ReasoningPolicy, validate_reasoning_policy
 
 
 @dataclass(frozen=True)
@@ -27,24 +27,33 @@ def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConf
     store = store or AIConfigStore()
     profile = store.get_profile(business_key)
     if profile is not None and profile.enabled:
+        legacy = load_ai_config(daily_limit)
         provider = store.get_provider(profile.provider_id)
         if provider is None or not provider.enabled:
-            raise AISecretUnavailable("AI Provider 未启用或不存在")
+            raise AIConfigError("AI Provider 未启用或不存在")
         secret = store.provider_secret(provider.id)
         model = next((item for item in store.list_models(provider.id) if item.model_id == profile.model_id), None)
-        capabilities = model.capabilities if model else {}
+        if model is None:
+            raise AIConfigError("AI 模型不存在")
+        if not model.enabled:
+            raise AIConfigError("AI 模型已停用")
+        if not model.available:
+            raise AIConfigError("AI 模型当前不可用")
+        capabilities = model.capabilities
         policy = ReasoningPolicy(profile.reasoning_mode, profile.reasoning_effort, profile.reasoning_budget)
+        validate_reasoning_policy(policy, capabilities)
         config = AIConfig(
             enabled=True, provider={"anthropic_messages": "anthropic", "gemini": "gemini"}.get(provider.protocol, "openai" if provider.protocol == "openai_responses" else "openai-compatible"),
             model=profile.model_id, base_url=provider.base_url, api_key=secret,
             wire_api={"openai_responses": "responses", "anthropic_messages": "anthropic_messages", "gemini": "gemini"}.get(provider.protocol, "chat_completions"),
             actor_authorization="", reasoning_effort=profile.reasoning_effort or "",
             thinking_enabled=profile.reasoning_mode not in {"off", "auto"},
-            request_timeout_seconds=45.0, max_concurrent_requests=2,
-            daily_limit_per_user=daily_limit, beta_users="*",
+            request_timeout_seconds=legacy.request_timeout_seconds,
+            max_concurrent_requests=legacy.max_concurrent_requests,
+            daily_limit_per_user=daily_limit, beta_users=legacy.beta_users,
             reasoning_mode=profile.reasoning_mode, reasoning_budget=profile.reasoning_budget,
         )
-        return ResolvedAIRuntime(config, provider.id, provider.name, model.model_id if model else profile.model_id, provider.protocol, secret, policy, business_key, "db", capabilities)
+        return ResolvedAIRuntime(config, provider.id, provider.name, model.model_id, provider.protocol, secret, policy, business_key, "db", capabilities)
     config = load_ai_config(daily_limit)
     policy = ReasoningPolicy("effort", config.reasoning_effort) if config.reasoning_effort else ReasoningPolicy("auto")
     return ResolvedAIRuntime(config, None, config.provider, config.model, config.wire_api, config.api_key, policy, business_key, "env", {})

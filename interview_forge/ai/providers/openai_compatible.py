@@ -7,11 +7,27 @@ from urllib.parse import urljoin
 
 import httpx
 
+from interview_forge.ai.config_store import AIConfigError, validate_network_target
 from .base import ProviderAdapter, ProviderProbeResult
 
 
 MAX_RESPONSE_BYTES = 1_000_000
 MAX_MODELS = 200
+
+
+def _read_limited(response: httpx.Response) -> bytes:
+    chunks: list[bytes] = []
+    size = 0
+    for chunk in response.iter_bytes():
+        remaining = MAX_RESPONSE_BYTES + 1 - size
+        if remaining <= 0:
+            break
+        data = bytes(chunk[:remaining])
+        chunks.append(data)
+        size += len(data)
+        if size > MAX_RESPONSE_BYTES:
+            break
+    return b"".join(chunks)
 
 
 def models_url(base_url: str, models_path: str = "/models") -> str:
@@ -21,18 +37,71 @@ def models_url(base_url: str, models_path: str = "/models") -> str:
 
 
 class OpenAICompatibleAdapter(ProviderAdapter):
+    def apply_reasoning(self, config, policy=None, *, thinking_mode=None):
+        mode = getattr(policy, "mode", None) or getattr(config, "reasoning_mode", "auto")
+        effort = getattr(policy, "effort", None) or getattr(config, "reasoning_effort", "")
+        budget = getattr(policy, "budget_tokens", None)
+        if budget is None:
+            budget = getattr(config, "reasoning_budget", None)
+        if mode == "auto" and thinking_mode is None and not getattr(config, "thinking_enabled", False):
+            return {}
+        if mode == "off":
+            return {"extra_body": {"thinking": {"type": "disabled"}}}
+        if mode == "budget" and budget is not None:
+            return {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": int(budget)}}}
+        if mode == "effort" and effort:
+            if config.wire_api == "responses":
+                return {"reasoning_effort": effort}
+            return {
+                "reasoning_effort": effort,
+                "extra_body": {"thinking": {"type": "enabled"}},
+            }
+        effective = thinking_mode
+        if effective is None and getattr(config, "thinking_enabled", False):
+            effective = "enabled"
+        if effective is not None:
+            return {"extra_body": {"thinking": {"type": effective}}}
+        return {}
+
+    def make_chat_model(self, config, *, thinking_mode=None):
+        try:
+            from langchain_openai import ChatOpenAI
+        except (ImportError, ModuleNotFoundError) as exc:
+            from interview_forge.ai.errors import AIServiceError
+            raise AIServiceError("not_configured", "AI 分析依赖尚未安装。") from exc
+        from interview_forge.ai.providers.chat_model import build_chat_model_kwargs
+        kwargs = build_chat_model_kwargs(config, thinking_mode=thinking_mode)
+        if config.wire_api not in {"anthropic_messages", "gemini"}:
+            kwargs["stream_usage"] = True
+        try:
+            return ChatOpenAI(**kwargs)
+        except Exception as exc:
+            from interview_forge.ai.errors import AIServiceError
+            raise AIServiceError("not_configured", "AI 服务配置不可用。") from exc
+
     def discover_models(self, *, base_url: str, models_path: str, api_key: str, timeout: float = 8.0) -> ProviderProbeResult:
         started = time.perf_counter()
         try:
+            validate_network_target(base_url)
             with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, headers={"Authorization": f"Bearer {api_key}"} if api_key else {}) as client:
-                response = client.get(models_url(base_url, models_path))
+                url = models_url(base_url, models_path)
+                if hasattr(client, "stream"):
+                    with client.stream("GET", url) as response:
+                        status_code = response.status_code
+                        content = _read_limited(response)
+                else:  # small compatibility seam for old test doubles
+                    response = client.get(url)
+                    status_code = response.status_code
+                    content = response.content
                 latency = round((time.perf_counter() - started) * 1000, 2)
-                if response.status_code in {401, 403}: return ProviderProbeResult(False, "authentication", latency_ms=latency)
-                if response.status_code >= 400: return ProviderProbeResult(False, "http_error", latency_ms=latency)
-                if len(response.content) > MAX_RESPONSE_BYTES: return ProviderProbeResult(False, "response_too_large", latency_ms=latency)
-                payload = response.json()
+                if status_code in {401, 403}: return ProviderProbeResult(False, "authentication", latency_ms=latency)
+                if status_code >= 400: return ProviderProbeResult(False, "http_error", latency_ms=latency)
+                if len(content) > MAX_RESPONSE_BYTES: return ProviderProbeResult(False, "response_too_large", latency_ms=latency)
+                payload = json.loads(content.decode("utf-8"))
         except httpx.TimeoutException:
             return ProviderProbeResult(False, "timeout", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+        except AIConfigError:
+            return ProviderProbeResult(False, "unsafe_network_target", latency_ms=round((time.perf_counter() - started) * 1000, 2))
         except (httpx.HTTPError, ValueError, json.JSONDecodeError):
             return ProviderProbeResult(False, "network_or_invalid_response", latency_ms=round((time.perf_counter() - started) * 1000, 2))
         items = payload.get("data") if isinstance(payload, dict) else None

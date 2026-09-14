@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
+import ipaddress
+import socket
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -59,7 +61,46 @@ def validate_base_url(value: str) -> str:
         raise AIConfigError("Base URL 不允许包含用户名或密码")
     if parsed.fragment:
         raise AIConfigError("Base URL 不允许包含 fragment")
+    try:
+        address = ipaddress.ip_address(parsed.hostname or "")
+    except ValueError:
+        address = None
+    if address is not None and (address.is_unspecified or address.is_link_local or address.is_multicast):
+        raise AIConfigError("Base URL 不允许指向未指定、链路本地或组播地址")
     return value
+
+
+def network_scope(value: str) -> str:
+    """Classify only what can be established without performing DNS."""
+    hostname = (urlparse(str(value or "")).hostname or "").lower()
+    if hostname == "localhost":
+        return "local/private"
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return "unknown"
+    return "local/private" if address.is_private or address.is_loopback else "public"
+
+
+def validate_network_target(value: str) -> None:
+    """Resolve a probe target once and reject unsafe resolved addresses."""
+    hostname = (urlparse(str(value or "")).hostname or "").strip().lower()
+    if not hostname:
+        raise AIConfigError("Base URL 主机名缺失")
+    if hostname in {"metadata.google.internal", "metadata", "instance-data"}:
+        raise AIConfigError("禁止访问云元数据地址")
+    try:
+        addresses = {
+            ipaddress.ip_address(item[4][0])
+            for item in socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+        }
+    except (OSError, ValueError) as exc:
+        raise AIConfigError("Base URL 主机名无法解析") from exc
+    if not addresses:
+        raise AIConfigError("Base URL 主机名无法解析")
+    forbidden = [address for address in addresses if address.is_unspecified or address.is_link_local or address.is_multicast]
+    if forbidden:
+        raise AIConfigError("Base URL 解析到不允许的网络地址")
 
 
 def _validate_models_path(value: str) -> str:
@@ -345,6 +386,39 @@ class AIConfigStore:
                     connection.execute("UPDATE ai_models SET available = 0 WHERE provider_id = ? AND model_id = ?", (str(provider_id), str(row[0])))
             connection.commit()
 
+    def update_model(
+        self,
+        *,
+        provider_id: str,
+        model_id: str,
+        enabled: bool | None = None,
+        display_name: str | None = None,
+        capabilities: Mapping[str, Any] | None = None,
+    ) -> ModelRecord:
+        fields: list[str] = []
+        values: list[Any] = []
+        if enabled is not None:
+            fields.append("enabled = ?"); values.append(int(bool(enabled)))
+        if display_name is not None:
+            label = str(display_name).strip()[:_MAX_MODEL_ID]
+            if not label: raise AIConfigError("模型显示名不能为空")
+            fields.append("display_name = ?"); values.append(label)
+        if capabilities is not None:
+            fields.extend(["capabilities_json = ?", "capability_source = ?"])
+            values.extend([json.dumps(dict(capabilities), ensure_ascii=False, separators=(",", ":")), "manual"])
+        if fields:
+            with closing(self.connect()) as connection:
+                values.extend([str(provider_id), str(model_id)])
+                cursor = connection.execute(
+                    f"UPDATE ai_models SET {', '.join(fields)} WHERE provider_id = ? AND model_id = ?",
+                    values,
+                )
+                if cursor.rowcount == 0: raise LookupError("模型不存在")
+                connection.commit()
+        item = next((item for item in self.list_models(provider_id) if item.model_id == str(model_id)), None)
+        if item is None: raise LookupError("模型不存在")
+        return item
+
     def get_profile(self, business_key: str) -> BusinessProfile | None:
         with closing(self.connect()) as connection:
             row = connection.execute("SELECT * FROM ai_business_profiles WHERE business_key = ?", (str(business_key),)).fetchone()
@@ -359,7 +433,16 @@ class AIConfigStore:
     def save_profile(self, profile: BusinessProfile) -> BusinessProfile:
         if profile.business_key not in SUPPORTED_BUSINESS_KEYS: raise AIConfigError("不支持的业务类型")
         with closing(self.connect()) as connection:
-            if not connection.execute("SELECT 1 FROM ai_providers WHERE id = ?", (profile.provider_id,)).fetchone(): raise LookupError("Provider 不存在")
+            provider = connection.execute("SELECT enabled FROM ai_providers WHERE id = ?", (profile.provider_id,)).fetchone()
+            if provider is None: raise LookupError("Provider 不存在")
+            if not _bool(provider[0]): raise AIConfigError("Provider 已停用")
+            model = connection.execute(
+                "SELECT enabled, available FROM ai_models WHERE provider_id = ? AND model_id = ?",
+                (profile.provider_id, profile.model_id),
+            ).fetchone()
+            if model is None: raise AIConfigError("模型不存在")
+            if not _bool(model[0]): raise AIConfigError("模型已停用")
+            if not _bool(model[1]): raise AIConfigError("模型当前不可用")
             connection.execute("""INSERT INTO ai_business_profiles(business_key,provider_id,model_id,reasoning_mode,reasoning_effort,reasoning_budget,enabled,updated_at)
                 VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(business_key) DO UPDATE SET provider_id=excluded.provider_id,model_id=excluded.model_id,reasoning_mode=excluded.reasoning_mode,reasoning_effort=excluded.reasoning_effort,reasoning_budget=excluded.reasoning_budget,enabled=excluded.enabled,updated_at=excluded.updated_at""",
                 (profile.business_key, profile.provider_id, profile.model_id, profile.reasoning_mode, profile.reasoning_effort, profile.reasoning_budget, int(profile.enabled), _now()))
@@ -370,4 +453,4 @@ class AIConfigStore:
         return self._secret_for(provider_id)
 
 
-__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "validate_base_url"]
+__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "network_scope", "validate_base_url", "validate_network_target"]

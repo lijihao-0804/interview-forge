@@ -204,6 +204,7 @@ class ChatService:
         message_id: int,
         message: str,
         model: Any,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         task = asyncio.create_task(asyncio.to_thread(
             self._process_memory,
@@ -212,6 +213,7 @@ class ChatService:
             message_id=message_id,
             message=message,
             model=model,
+            trace_recorder=trace_recorder,
         ))
         self._background_memory_tasks.add(task)
         task.add_done_callback(self._background_memory_tasks.discard)
@@ -274,6 +276,7 @@ class ChatService:
         message_id: int,
         message: str,
         model: Any,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         if not memory_worthy(message):
             return
@@ -285,6 +288,19 @@ class ChatService:
                     memory_model = self.model_factory(memory_runtime.config)
                 except Exception as exc:
                     debug_ai_event("chat_memory_runtime_unavailable", error_type=type(exc).__name__)
+                    if trace_recorder is not None:
+                        trace_recorder.record(
+                            event_type="memory",
+                            name="memory_runtime_fallback",
+                            status="fallback",
+                            metadata={
+                                "requested_business": "memory_extraction",
+                                "fallback": True,
+                                "fallback_reason": type(exc).__name__,
+                                "fallback_provider": trace_recorder.provider,
+                                "fallback_model": trace_recorder.model,
+                            },
+                        )
             candidates = self.memory_extractor.extract(message, model=memory_model)
             store = MemoryStore()
             for candidate in candidates:
@@ -781,6 +797,7 @@ class ChatService:
                         message_id=current_message_id,
                         message=clean_message,
                         model=model,
+                        trace_recorder=trace_recorder,
                     )
                 yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
             except asyncio.CancelledError:

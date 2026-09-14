@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.config_store import AIConfigError, AISecretUnavailable
 from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.prompts import (
     AI_TASK_STATUSES, MAX_RECENT_TASKS, MAX_TASK_ROWS, PROMPT_VERSION,
@@ -43,8 +44,8 @@ def load_ai_config():
     return facade().load_ai_config()
 
 
-def ai_capability(username: str, role: str, daily_limit: int | None = None):
-    return facade().ai_capability(username, role, daily_limit)
+def ai_capability(username: str, role: str, daily_limit: int | None = None, *, config=None):
+    return facade().ai_capability(username, role, daily_limit, config=config)
 
 
 def model_key(config=None):
@@ -349,6 +350,11 @@ def _run_persisted_task(db_path: Path, task_id: str) -> None:
                     quota_connection.execute("COMMIT")
 
             runtime = resolve_ai_runtime("learning_analysis")
+            if model_key(runtime.config) != str(row["model_key"]):
+                raise AIServiceError(
+                    "configuration_changed",
+                    "AI 分析配置已变化，请重新发起分析。",
+                )
             result = generate_ai_insight(
                 context, config=runtime.config, debug_id=task_id, before_model_request=consume_quota
             )
@@ -432,10 +438,14 @@ def create_ai_task(
     daily_limit: int | None = None,
 ) -> dict[str, Any]:
     """Create or reuse one diagnosis task and enqueue it without blocking HTTP."""
-    config = load_ai_config()
-    capability = ai_capability(username, role, daily_limit)
     fallback = build_rule_fallback(context)
     public_fallback = {**fallback, "result": _public_insight(fallback.get("result"), context)}
+    try:
+        runtime = resolve_ai_runtime("learning_analysis", daily_limit=daily_limit or 3)
+    except (AIConfigError, AISecretUnavailable) as exc:
+        raise AIServiceError("not_configured", "AI 分析配置不可用，请联系管理员。", fallback=public_fallback) from exc
+    config = runtime.config
+    capability = ai_capability(username, role, daily_limit, config=config)
     if not capability["can_analyze"]:
         status_map = {
             "disabled": HTTPStatus.SERVICE_UNAVAILABLE,

@@ -43,9 +43,16 @@ def validate_reasoning_policy(policy: ReasoningPolicy, capabilities: Mapping[str
     caps = dict(capabilities or {})
     if policy.mode == "auto":
         return
+    allowed_modes = caps.get("reasoning_modes")
+    if isinstance(allowed_modes, list) and policy.mode not in allowed_modes:
+        raise ValueError("该模型不支持所选 reasoning mode")
+    if policy.mode == "off":
+        if not isinstance(allowed_modes, list) or "off" not in allowed_modes:
+            raise ValueError("该模型不支持关闭 reasoning")
+        return
     if caps.get("reasoning") is not True:
         raise ValueError("该模型不支持 reasoning")
-    if policy.mode == "budget" and caps.get("reasoning_budget") is False:
+    if policy.mode == "budget" and caps.get("reasoning_budget") is not True:
         raise ValueError("该模型不支持 reasoning budget")
     if policy.mode == "effort":
         allowed = caps.get("reasoning_efforts")
@@ -56,12 +63,13 @@ def validate_reasoning_policy(policy: ReasoningPolicy, capabilities: Mapping[str
 def capabilities_for_preset(*, protocol: str, reasoning_adapter: str = "none") -> dict[str, Any]:
     """Conservative defaults; adapters may opt into only known capabilities."""
     return {
-        "streaming": protocol in {"openai_chat", "openai_responses"},
-        "tools": protocol in {"openai_chat", "openai_responses"},
+        "streaming": protocol in {"openai_chat", "openai_responses", "anthropic_messages", "gemini"},
+        "tools": protocol in {"openai_chat", "openai_responses", "anthropic_messages", "gemini"},
         "structured_output": protocol in {"openai_chat", "openai_responses"},
         "reasoning": reasoning_adapter in {"openai", "deepseek"},
         "reasoning_modes": ["auto", "off", "effort"] if reasoning_adapter in {"openai", "deepseek"} else ["auto"],
         "reasoning_efforts": ["minimal", "low", "medium", "high"] if reasoning_adapter == "openai" else [],
+        "reasoning_budget": False,
     }
 
 

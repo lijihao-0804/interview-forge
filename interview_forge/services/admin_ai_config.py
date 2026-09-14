@@ -4,10 +4,9 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Mapping
 
-from interview_forge.ai.config_store import AIConfigStore, BusinessProfile, SUPPORTED_BUSINESS_KEYS
-from interview_forge.ai.policy import ReasoningPolicy, validate_reasoning_policy
-from interview_forge.ai.providers import PROVIDER_PRESETS
-from interview_forge.ai.providers.openai_compatible import OpenAICompatibleAdapter
+from interview_forge.ai.config_store import AIConfigStore, BusinessProfile, SUPPORTED_BUSINESS_KEYS, network_scope
+from interview_forge.ai.policy import ReasoningPolicy, capabilities_for_preset, validate_reasoning_policy
+from interview_forge.ai.providers import PROVIDER_PRESETS, get_provider_adapter
 
 
 def _store() -> AIConfigStore:
@@ -17,11 +16,17 @@ def _store() -> AIConfigStore:
 def _provider(value: Any) -> dict[str, Any]:
     item = asdict(value)
     item["key_configured"] = bool(item.pop("key_configured", False))
+    item["network_scope"] = network_scope(item.get("base_url", ""))
     return item
 
 
 def provider_presets() -> dict[str, Any]:
-    return {"items": [asdict(item) for item in PROVIDER_PRESETS.values()]}
+    return {"items": [
+        {**asdict(item), "capabilities": capabilities_for_preset(
+            protocol=item.protocol, reasoning_adapter=item.reasoning_adapter
+        )}
+        for item in PROVIDER_PRESETS.values()
+    ]}
 
 
 def providers() -> dict[str, Any]:
@@ -67,11 +72,31 @@ def add_model(provider_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     return asdict(item)
 
 
+def update_model(provider_id: str, model_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    allowed = {"enabled", "display_name", "capabilities"}
+    unknown = set(payload) - allowed
+    if unknown: raise ValueError("存在不支持的模型字段")
+    capabilities = payload.get("capabilities")
+    if capabilities is not None and not isinstance(capabilities, dict):
+        raise ValueError("capabilities 必须是对象")
+    item = _store().update_model(
+        provider_id=provider_id,
+        model_id=model_id,
+        enabled=payload.get("enabled") if "enabled" in payload else None,
+        display_name=payload.get("display_name") if "display_name" in payload else None,
+        capabilities=capabilities,
+    )
+    return asdict(item)
+
+
 def test_provider(provider_id: str) -> dict[str, Any]:
     store = _store(); provider = store.get_provider(provider_id)
     if provider is None: raise LookupError("Provider 不存在")
     secret = store.provider_secret(provider_id)
-    result = OpenAICompatibleAdapter().discover_models(base_url=provider.base_url, models_path=provider.models_path, api_key=secret)
+    result = get_provider_adapter(provider.protocol).test_connection(
+        base_url=provider.base_url, models_path=provider.models_path,
+        api_key=secret,
+    )
     # Keep probe metadata non-sensitive and do not return upstream response body.
     from datetime import datetime, timezone
     with store.connect() as connection:
@@ -83,7 +108,10 @@ def test_provider(provider_id: str) -> dict[str, Any]:
 def discover_models(provider_id: str) -> dict[str, Any]:
     store = _store(); provider = store.get_provider(provider_id)
     if provider is None: raise LookupError("Provider 不存在")
-    result = OpenAICompatibleAdapter().discover_models(base_url=provider.base_url, models_path=provider.models_path, api_key=store.provider_secret(provider_id))
+    result = get_provider_adapter(provider.protocol).discover_models(
+        base_url=provider.base_url, models_path=provider.models_path,
+        api_key=store.provider_secret(provider_id),
+    )
     if not result.ok: return {"ok": False, "category": result.category, "items": []}
     for model_id in result.model_ids:
         store.upsert_model(provider_id=provider_id, model_id=model_id, capability_source="discovered")
@@ -102,9 +130,13 @@ def save_profile(business_key: str, payload: Mapping[str, Any]) -> dict[str, Any
     model = next((item for item in store.list_models(provider_id) if item.model_id == model_id), None)
     if model is None:
         raise ValueError("模型不存在，请先手工添加或获取模型")
+    if not model.enabled:
+        raise ValueError("模型已停用，不能配置业务路由")
+    if not model.available:
+        raise ValueError("模型当前不可用，不能配置业务路由")
     validate_reasoning_policy(policy, model.capabilities if model else {})
     item = store.save_profile(BusinessProfile(business_key, provider_id, model_id, policy.mode, policy.effort, policy.budget_tokens, bool(payload.get("enabled", True)), ""))
     return asdict(item)
 
 
-__all__ = ["add_model", "create_provider", "delete_provider", "discover_models", "profiles", "provider_models", "provider_presets", "providers", "save_profile", "test_provider", "update_provider"]
+__all__ = ["add_model", "create_provider", "delete_provider", "discover_models", "profiles", "provider_models", "provider_presets", "providers", "save_profile", "test_provider", "update_model", "update_provider"]
