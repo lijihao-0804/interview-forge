@@ -106,20 +106,87 @@
     return host;
   }
 
-  function finishActionCard(card, className, text) {
-    card.className = "action-card " + className;
-    card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+  function setActionState(card, text) {
     var stateText = card.querySelector(".action-state");
     if (stateText) stateText.textContent = text;
   }
 
+  function finishActionCard(card, className, text) {
+    card.className = "action-card " + className;
+    card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+    var actions = card.querySelector(".action-actions");
+    if (actions) actions.hidden = true;
+    setActionState(card, text);
+  }
+
+  function actionTaskId(payload) {
+    var result = payload && payload.result;
+    var data = result && result.data;
+    return String(
+      (data && data.task_id) ||
+      (result && result.task_id) ||
+      ""
+    );
+  }
+
+  function notifyLearningDataUpdated() {
+    try {
+      window.parent.postMessage({ type: "interviewforge:learning-data-updated" }, window.location.origin);
+    } catch (_) { /* 独立页面没有可通知的父页面 */ }
+  }
+
+  function watchLeetCodeSync(card, taskId) {
+    var startedAt = Date.now();
+    var maxWaitMs = 180000;
+    setActionState(card, "⏳ 已确认，正在同步 LeetCode 数据…");
+
+    function poll() {
+      api("/api/leetcode/sync/status?task_id=" + encodeURIComponent(taskId)).then(function (payload) {
+        var logs = Array.isArray(payload.logs) ? payload.logs : [];
+        var lastLog = logs.length ? String((logs[logs.length - 1] || {}).text || "") : "";
+        if (payload.running) {
+          setActionState(card, "⏳ " + (lastLog || "正在同步 LeetCode 数据…"));
+          if (Date.now() - startedAt >= maxWaitMs) {
+            finishActionCard(card, "success", "✓ 同步仍在后台运行，完成后可刷新学习数据");
+            return;
+          }
+          window.setTimeout(poll, 1000);
+          return;
+        }
+        if (payload.error) {
+          finishActionCard(card, "error", "× " + String(payload.error));
+          return;
+        }
+        var result = payload.result || {};
+        var added = Number(result.submissions_added || 0);
+        var solved = Number(result.solved_added || 0);
+        finishActionCard(card, "success", "✓ 同步完成：新增提交 " + added + " 条，新增已解决 " + solved + " 题");
+        notifyLearningDataUpdated();
+        reloadCurrentSession().catch(function () {});
+      }).catch(function (err) {
+        finishActionCard(card, "error", "× " + String(err.message || "同步状态读取失败"));
+      });
+    }
+
+    poll();
+  }
+
   function decideAction(card, actionId, decision) {
     card.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
+    setActionState(card, decision === "confirm" ? "正在确认操作…" : "正在取消操作…");
     api("/api/chat/actions/" + encodeURIComponent(actionId) + "/" + decision, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
     }).then(function (payload) {
       if (decision === "confirm" && payload.ok && payload.status === "succeeded") {
-        finishActionCard(card, "success", "✓ " + String(payload.display || "操作已启动"));
+        var taskId = actionTaskId(payload);
+        if (taskId && payload.result && payload.result.tool === "sync_leetcode") {
+          card.className = "action-card success";
+          var actions = card.querySelector(".action-actions");
+          if (actions) actions.hidden = true;
+          watchLeetCodeSync(card, taskId);
+        } else {
+          finishActionCard(card, "success", "✓ " + String(payload.display || "操作已完成"));
+        }
       } else if (decision === "cancel" && payload.ok) {
         finishActionCard(card, "cancelled", "已取消");
       } else {

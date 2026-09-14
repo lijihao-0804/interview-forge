@@ -38,6 +38,12 @@ class AiAssistantFrontendTests(unittest.TestCase):
     def test_action_confirmation_ui_uses_safe_action_api_and_pending_reload(self):
         self.assertIn('name === "tool.confirmation_required"', self.source)
         self.assertIn("/api/chat/actions/", self.source)
+        self.assertIn("actionTaskId", self.source)
+        self.assertIn("/api/leetcode/sync/status?task_id=", self.source)
+        self.assertIn("watchLeetCodeSync", self.source)
+        self.assertIn("新增提交", self.source)
+        self.assertIn("interviewforge:learning-data-updated", self.source)
+        self.assertIn("actions.hidden = true", self.source)
         self.assertIn('decision === "confirm"', self.source)
         self.assertIn('decision === "cancel"', self.source)
         self.assertIn('"/" + decision', self.source)
