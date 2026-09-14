@@ -109,6 +109,7 @@ color:var(--success);background:var(--success-soft)}
 .item .due.overdue{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .item .reason{flex:none;font-size:11.5px;color:var(--muted)}
 .empty{color:var(--muted);font-size:13px;padding:10px 4px}
+.module-retry{margin-top:7px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--brand);padding:5px 9px;font:inherit;font-size:12px;cursor:pointer}.module-retry:hover{border-color:var(--brand);background:var(--brand-soft)}
 /* 入口 */
 .entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px;
 border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);
@@ -334,6 +335,24 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 
 <script>
 (function () {
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/service-worker.js", { updateViaCache: "none" }).then(function (registration) {
+        var activateWaiting = function () {
+          if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        };
+        activateWaiting();
+        registration.addEventListener("updatefound", function () {
+          var worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", function () {
+            if (worker.state === "installed") activateWaiting();
+          });
+        });
+        registration.update().catch(function () {});
+      }).catch(function () {});
+    });
+  }
   /* ---- 时钟：rAF 对齐秒边界 ---- */
   var clockEl = document.getElementById("clock");
   var clockMainEl = document.getElementById("clock-main");
@@ -363,17 +382,48 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     return w;
   }
 
+  function makeApiError(endpoint, status, category, publicMessage) {
+    var error = new Error(publicMessage || "请求暂时失败");
+    error.endpoint = endpoint;
+    error.status = Number(status) || 0;
+    error.category = category || "network";
+    error.publicMessage = publicMessage || "请求暂时失败";
+    if (window.console && typeof console.warn === "function") {
+      console.warn("[cockpit api]", { endpoint: endpoint, status: error.status, category: error.category });
+    }
+    return error;
+  }
+
   function api(path, options) {
     var request = Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {});
+    var requestUrl = String(path);
+    var endpoint = requestUrl.split("?", 1)[0];
     if (request.body && typeof request.body !== "string") request.body = JSON.stringify(request.body);
     var controller = new AbortController();
     request.signal = controller.signal;
     var timer = setTimeout(function () { controller.abort(); }, 12000);
-    return fetch(path, request).finally(function () { clearTimeout(timer); })
-      .then(function (r) {
-        if (r.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
-        return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    return fetch(requestUrl, request).then(function (r) {
+      return r.text().then(function (text) {
+        if (r.status === 401) {
+          location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html"));
+          throw makeApiError(endpoint, 401, "unauthorized", "登录状态已失效，请重新登录");
+        }
+        var data = null;
+        if (text) {
+          try { data = JSON.parse(text); }
+          catch (error) { throw makeApiError(endpoint, r.status, "invalid_json", "服务响应格式异常"); }
+        }
+        if (!r.ok) {
+          var message = r.status >= 500 ? "服务暂时不可用" : (r.status === 404 ? "请求的内容不存在" : "请求未成功");
+          throw makeApiError(endpoint, r.status, "http_error", message);
+        }
+        return { ok: true, data: data };
       });
+    }).catch(function (error) {
+      if (error && error.category) throw error;
+      throw makeApiError(endpoint, 0, error && error.name === "AbortError" ? "timeout" : "network",
+        error && error.name === "AbortError" ? "请求超时，请稍后重试" : "网络暂时不可用，请稍后重试");
+    }).finally(function () { clearTimeout(timer); });
   }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 
@@ -701,6 +751,44 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     });
   }
 
+  function renderModuleError(id, message, retryLabel, retry) {
+    var box = document.getElementById(id);
+    box.textContent = "";
+    box.appendChild(el("div", "empty", message));
+    var button = el("button", "module-retry", retryLabel);
+    button.type = "button";
+    button.addEventListener("click", retry);
+    box.appendChild(button);
+  }
+
+  function resetDashboardPlaceholders() {
+    ["st-viewed", "st-done", "st-total", "st-rounds", "bar-pct"].forEach(function (id) {
+      document.getElementById(id).textContent = "—";
+    });
+    document.getElementById("bar-fill").style.width = "0%";
+  }
+
+  function loadBootstrap() {
+    return api("/api/bootstrap").then(function (res) {
+      renderDue(res.data.daily);
+      renderDash(res.data.dashboard);
+      applyAiCapability(res.data.capabilities && res.data.capabilities.ai_coach);
+    }).catch(function (error) {
+      resetDashboardPlaceholders();
+      renderModuleError("due-list", "今日待复习暂时无法加载，请稍后重试。", "重新加载学习概览", loadBootstrap);
+      if (window.console && typeof console.warn === "function") console.warn("[cockpit module] bootstrap", error);
+    });
+  }
+
+  function loadPlan() {
+    return api("/api/plan?count=3").then(function (res) {
+      renderPlan(res.data);
+    }).catch(function (error) {
+      renderModuleError("plan-list", "今日计划暂时无法加载，请稍后重试。", "重试今日计划", loadPlan);
+      if (window.console && typeof console.warn === "function") console.warn("[cockpit module] plan", error);
+    });
+  }
+
   function showAiHistory(taskId) {
     var task = aiHistoryItems.find(function (item) { return item.task_id === taskId; });
     if (!task || task.is_latest) { returnToLatestAi(); return; }
@@ -906,7 +994,6 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     if (aiPollTimer) clearTimeout(aiPollTimer);
     api("/api/coach/tasks/" + encodeURIComponent(taskId)).then(function (res) {
       if (!res) return;
-      if (!res.ok) { renderAiError(res.data); return; }
       renderAiTask(res.data);
       if (res.data.status === "queued" || res.data.status === "running") {
         aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1200);
@@ -921,7 +1008,7 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     if (renderLatest == null) renderLatest = true;
     document.getElementById("ai-history-status").textContent = "正在读取历史…";
     api("/api/coach/insights/recent").then(function (res) {
-      if (!res || !res.ok || !res.data || !Array.isArray(res.data.items)) throw new Error("history unavailable");
+      if (!res || !res.data || !Array.isArray(res.data.items)) throw new Error("history unavailable");
       if (res.data.capability) {
         aiCapability = res.data.capability;
         if (aiCapability.quota) applyAiQuota(aiCapability.quota);
@@ -950,7 +1037,6 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
     document.getElementById("ai-hint").textContent = "正在保存本次分析任务…";
     api("/api/coach/analyze", { method: "POST", body: {} }).then(function (res) {
       if (!res) return;
-      if (!res.ok) { renderAiError(res.data); return; }
       renderAiTask(res.data);
       if (res.data.status === "queued" || res.data.status === "running") pollAiTask(res.data.task_id);
       else loadAiRecent(false);
@@ -1000,22 +1086,14 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   });
 
   api("/api/me").then(function (res) {
-    if (!res || !res.ok) { location.replace("/pages/login.html?next=" + encodeURIComponent("/cockpit.html")); return null; }
     document.getElementById("ghello").textContent = greet(new Date()) + "，" + (res.data.nickname || res.data.username);
     if (res.data.role === "admin") document.getElementById("entry-admin").hidden = false;
     loadWeather();
-    return api("/api/bootstrap");
-  }).then(function (res) {
-    if (!res || !res.ok) return;
-    renderDue(res.data.daily);
-    renderDash(res.data.dashboard);
-    applyAiCapability(res.data.capabilities && res.data.capabilities.ai_coach);
-    return api("/api/plan?count=3");
-  }).then(function (res) {
-    if (res && res.ok) renderPlan(res.data);
-  }).catch(function () {
-    document.getElementById("due-list").innerHTML = '<div class="empty">学习服务暂时不可用，请检查网络后重试。</div>';
-    document.getElementById("plan-list").innerHTML = '<div class="empty">学习服务暂时不可用，请检查网络后重试。</div>';
+    loadBootstrap();
+    loadPlan();
+  }).catch(function (error) {
+    if (error && error.category === "unauthorized") return;
+    if (window.console && typeof console.warn === "function") console.warn("[cockpit module] session", error);
   });
 
   tick();
