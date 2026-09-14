@@ -1,6 +1,7 @@
 """Learning, review, dashboard, export and submission routes."""
 from __future__ import annotations
 
+import time
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -11,6 +12,7 @@ from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
 from interview_forge.services.auth import effective_ai_daily_limit
 from interview_forge.services.submissions import record_submission, submissions_for_problem
+from interview_forge.observability.logging import log_event
 from interview_forge.services.study import (
     complete_content, complete_round, daily_data, dashboard_cached, export_data,
     export_database_snapshot, get_settings, library_data, mock_exam,
@@ -30,20 +32,89 @@ def _user(request: Request):
     return require_user(request)
 
 
+def _failure_category(exc: BaseException) -> str:
+    """Return a bounded, non-sensitive category for study endpoint telemetry."""
+    name = type(exc).__name__.lower()
+    module = type(exc).__module__.lower()
+    if module == "sqlite3" or module.startswith("sqlite3.") or "sqlite" in name:
+        return "database_error"
+    if isinstance(exc, (KeyError, TypeError, ValueError)):
+        return "validation_error"
+    return "service_error"
+
+
+def _user_label(user) -> str:
+    try:
+        return str(user["username"])[:64]
+    except (KeyError, IndexError, TypeError):
+        return ""
+
+
+def _log_study_failure(request: Request, user, endpoint: str, started: float,
+                       exc: BaseException, response) -> None:
+    """Record only routing metadata; never include exception text or payloads."""
+    try:
+        log_event(
+            "study_endpoint_failed",
+            module="api.study",
+            endpoint=endpoint,
+            username=_user_label(user),
+            status=int(getattr(response, "status_code", 500)),
+            error_category=_failure_category(exc),
+            elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
+            request_id=str(getattr(request.state, "request_id", ""))[:96],
+        )
+    except Exception:
+        # Telemetry must never turn a controlled service response into a 500.
+        return
+
+
 @router.get("/api/bootstrap")
 def bootstrap(request: Request):
     user, denied = _user(request)
     if denied is not None:
         return denied
+    started = time.perf_counter()
+    db = user_db(user)
     try:
-        db = user_db(user)
-        limit = effective_ai_daily_limit(user)
-        capability = ai_capability(str(user["username"]), str(user["role"]), limit)
-        capability["quota"] = get_ai_quota(db, str(user["role"]), daily_limit=limit)
-        return json_response({"dashboard": dashboard_cached(db), "daily": daily_data(db),
-                              "settings": get_settings(db), "capabilities": {"ai_coach": capability}})
+        payload = {
+            "dashboard": dashboard_cached(db),
+            "daily": daily_data(db),
+            "settings": get_settings(db),
+        }
     except BaseException as exc:
-        return _handled(exc)
+        response = _handled(exc)
+        _log_study_failure(request, user, "/api/bootstrap", started, exc, response)
+        return response
+
+    # AI capability/quota is optional metadata.  A provider/configuration
+    # failure must not hide the core learning dashboard.
+    unavailable_capability = {
+        "visible": True,
+        "can_analyze": False,
+        "status": "unavailable",
+        "message": "AI 状态暂时不可用，仍可使用规则分析。",
+    }
+    capability = unavailable_capability
+    try:
+        limit = effective_ai_daily_limit(user)
+        resolved_capability = ai_capability(str(user["username"]), str(user["role"]), limit)
+        resolved_capability["quota"] = get_ai_quota(db, str(user["role"]), daily_limit=limit)
+        capability = resolved_capability
+    except BaseException as exc:
+        capability = unavailable_capability
+        log_event(
+            "study_optional_capability_failed",
+            module="api.study",
+            endpoint="/api/bootstrap",
+            username=_user_label(user),
+            status=200,
+            error_category=_failure_category(exc),
+            elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
+            request_id=str(getattr(request.state, "request_id", ""))[:96],
+        )
+    payload["capabilities"] = {"ai_coach": capability}
+    return json_response(payload)
 
 
 @router.get("/api/dashboard")
@@ -124,6 +195,7 @@ def plan(request: Request):
     user, denied = _user(request)
     if denied is not None:
         return denied
+    started = time.perf_counter()
     try:
         try:
             count = max(1, min(int(request.query_params.get("count", "3") or "3"), 20))
@@ -131,7 +203,9 @@ def plan(request: Request):
             raise ValueError("count 必须是整数") from exc
         return json_response(today_plan(user_db(user), count=count, randomize=request.query_params.get("random") == "1"))
     except BaseException as exc:
-        return _handled(exc)
+        response = _handled(exc)
+        _log_study_failure(request, user, "/api/plan", started, exc, response)
+        return response
 
 
 @router.get("/api/weaklist")

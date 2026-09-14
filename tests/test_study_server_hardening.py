@@ -205,7 +205,7 @@ class StudyServerHardeningTests(unittest.TestCase):
             connection.close()
         self.assertEqual(count, 1)
 
-    def test_today_plan_commits_expired_pin_cleanup(self) -> None:
+    def test_today_plan_is_read_only_and_ignores_expired_pins(self) -> None:
         connection = server.connect(self.db_path)
         try:
             connection.execute(
@@ -214,15 +214,27 @@ class StudyServerHardeningTests(unittest.TestCase):
             connection.commit()
         finally:
             connection.close()
+        statements = []
+        real_connect = server.connect
+
+        def traced_connect(path):
+            connection = real_connect(path)
+            connection.set_trace_callback(statements.append)
+            return connection
+
         with patch.object(server, "daily_data", return_value={"problems": [], "relearn": []}), \
-             patch.object(server, "problem_review_state", return_value={}):
+             patch.object(server, "problem_review_state", return_value={}), \
+             patch.object(server, "connect", side_effect=traced_connect):
             server.today_plan(self.db_path)
         connection = sqlite3.connect(self.db_path)
         try:
             remaining = connection.execute("SELECT COUNT(*) FROM plan_pins").fetchone()[0]
         finally:
             connection.close()
-        self.assertEqual(remaining, 0)
+        self.assertEqual(remaining, 1)
+        writes = [statement.strip().upper() for statement in statements
+                  if statement.strip() and statement.strip().split(None, 1)[0].upper() in {"INSERT", "UPDATE", "DELETE", "REPLACE"}]
+        self.assertEqual(writes, [])
 
     def test_sensitive_path_rejects_case_and_double_encoded_variants(self) -> None:
         handler = object.__new__(server.StudyHandler)

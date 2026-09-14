@@ -149,6 +149,56 @@ class FastApiRouteContractTests(unittest.TestCase):
         self.assertEqual(settings.json(), {"theme": "light"})
         self.assertEqual(analytics.json(), {"summary": {"completed": 1}})
 
+    def test_bootstrap_core_data_survives_ai_capability_failure(self):
+        with patch("interview_forge.api.support.current_user", return_value=USER), \
+             patch("interview_forge.api.routers.study.user_db", return_value=self.db_path), \
+             patch("interview_forge.api.routers.study.dashboard_cached", return_value={"dashboard": True}), \
+             patch("interview_forge.api.routers.study.daily_data", return_value={"daily": True}), \
+             patch("interview_forge.api.routers.study.get_settings", return_value={"theme": "light"}), \
+             patch("interview_forge.api.routers.study.ai_capability", side_effect=RuntimeError("provider unavailable")), \
+             patch("interview_forge.api.routers.study.log_event") as log_event:
+            response = self.client.get("/api/bootstrap")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["dashboard"], {"dashboard": True})
+        self.assertEqual(body["daily"], {"daily": True})
+        self.assertEqual(body["settings"], {"theme": "light"})
+        self.assertEqual(body["capabilities"]["ai_coach"]["status"], "unavailable")
+        log_event.assert_called_once()
+        fields = log_event.call_args.kwargs
+        self.assertEqual(fields["endpoint"], "/api/bootstrap")
+        self.assertEqual(fields["status"], 200)
+        self.assertEqual(fields["error_category"], "service_error")
+
+    def test_bootstrap_quota_failure_also_returns_safe_ai_unavailable_state(self):
+        with patch("interview_forge.api.support.current_user", return_value=USER), \
+             patch("interview_forge.api.routers.study.user_db", return_value=self.db_path), \
+             patch("interview_forge.api.routers.study.dashboard_cached", return_value={"dashboard": True}), \
+             patch("interview_forge.api.routers.study.daily_data", return_value={"daily": True}), \
+             patch("interview_forge.api.routers.study.get_settings", return_value={"theme": "light"}), \
+             patch("interview_forge.api.routers.study.ai_capability", return_value={"visible": True, "can_analyze": True}), \
+             patch("interview_forge.api.routers.study.get_ai_quota", side_effect=RuntimeError("quota unavailable")):
+            response = self.client.get("/api/bootstrap")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["capabilities"]["ai_coach"]["status"], "unavailable")
+        self.assertFalse(response.json()["capabilities"]["ai_coach"]["can_analyze"])
+
+    def test_plan_failure_logs_safe_endpoint_metadata(self):
+        with patch("interview_forge.api.support.current_user", return_value=USER), \
+             patch("interview_forge.api.routers.study.user_db", return_value=self.db_path), \
+             patch("interview_forge.api.routers.study.today_plan", side_effect=RuntimeError("private details")), \
+             patch("interview_forge.api.routers.study.log_event") as log_event:
+            response = self.client.get("/api/plan?count=3")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"error": "服务暂时不可用"})
+        log_event.assert_called_once()
+        fields = log_event.call_args.kwargs
+        self.assertEqual(fields["endpoint"], "/api/plan")
+        self.assertEqual(fields["username"], "alice")
+        self.assertEqual(fields["status"], 500)
+        self.assertEqual(fields["error_category"], "service_error")
+        self.assertIsInstance(fields["elapsed_ms"], float)
+
     def test_export_database_snapshot_preserves_source(self):
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as source:
             source_path = Path(source.name)

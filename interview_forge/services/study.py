@@ -983,16 +983,12 @@ def today_plan(db_path: Path = DB_PATH, count: int = 3, randomize: bool = False)
         }
 
     # 已排期（用户显式"纳入明天计划"，到期自动进入）。
-    # 只清理"已过期"（for_date < today）的 pin；当天的 pin 保留可重复读取，
-    # 避免中控台/面板多次拉取互相吞掉排期（GET 无副作用原则）。
+    # GET 只读取当天的 pin；过期 pin 由后续写操作/维护任务清理，
+    # 避免中控台/面板多次拉取申请写锁并与 LeetCode 同步发生冲突。
     pinned: list[int] = []
     with closing(server_runtime.connect(db_path)) as connection:
-        connection.execute("DELETE FROM plan_pins WHERE for_date < ?", (today,))
-        # The default sqlite isolation level starts a transaction for DELETE;
-        # commit explicitly so stale pins are actually removed on close.
-        connection.commit()
         for row in connection.execute(
-            "SELECT problem_id FROM plan_pins WHERE for_date <= ? ORDER BY for_date", (today,)
+            "SELECT problem_id FROM plan_pins WHERE for_date = ? ORDER BY problem_id", (today,)
         ):
             pid = int(row["problem_id"])
             if pid in PROBLEM_BY_ID:

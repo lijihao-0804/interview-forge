@@ -778,7 +778,18 @@ async function refresh(){
   maybeNotify();
 }
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/service-worker.js',{updateViaCache:'none'}).then(reg=>{
+      const activateWaiting=()=>{if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});};
+      activateWaiting();
+      reg.addEventListener('updatefound',()=>{
+        const worker=reg.installing;
+        if(!worker)return;
+        worker.addEventListener('statechange',()=>{if(worker.state==='installed')activateWaiting();});
+      });
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  });
 }
 let lastNotifyDate='';
 function maybeNotify(){
