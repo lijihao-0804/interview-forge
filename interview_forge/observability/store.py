@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import sqlite3
+import threading
+import time
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,6 +25,11 @@ from interview_forge.db.observability_schema import ensure_observability_schema
 # captures slow/error requests beyond the last bound.
 HISTOGRAM_BOUNDS_MS = (50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000)
 _HISTOGRAM_KEYS = tuple(str(value) for value in HISTOGRAM_BOUNDS_MS) + ("inf",)
+_METRICS_QUEUE: queue.Queue[tuple[tuple[Any, ...], dict[str, Any]] | None] = queue.Queue(maxsize=1024)
+_METRICS_WORKER: threading.Thread | None = None
+_METRICS_LOCK = threading.Lock()
+_METRICS_STOP = threading.Event()
+_METRICS_WRITE_LOCK = threading.Lock()
 
 
 def observability_db_path() -> Path:
@@ -95,7 +103,7 @@ def _connect() -> sqlite3.Connection:
     return connection
 
 
-def record_request(*, route: str, path: str, method: str, status: int, elapsed_ms: float) -> None:
+def _record_request_sync_unlocked(*, route: str, path: str, method: str, status: int, elapsed_ms: float) -> None:
     """Best-effort aggregate write; observability can never fail a request."""
     try:
         status_code = int(status)
@@ -142,6 +150,85 @@ def record_request(*, route: str, path: str, method: str, status: int, elapsed_m
             connection.commit()
     except Exception:
         return
+
+
+def _record_request_sync(*, route: str, path: str, method: str, status: int, elapsed_ms: float) -> None:
+    with _METRICS_WRITE_LOCK:
+        _record_request_sync_unlocked(
+            route=route, path=path, method=method, status=status, elapsed_ms=elapsed_ms
+        )
+
+
+def record_request(*, route: str, path: str, method: str, status: int, elapsed_ms: float) -> None:
+    """Synchronous compatibility API for scripts/tests and explicit callers."""
+    _record_request_sync(route=route, path=path, method=method, status=status, elapsed_ms=elapsed_ms)
+
+
+def _metrics_worker_loop() -> None:
+    while True:
+        item = _METRICS_QUEUE.get()
+        try:
+            if item is None:
+                return
+            args, kwargs = item
+            _record_request_sync(*args, **kwargs)
+        finally:
+            _METRICS_QUEUE.task_done()
+
+
+def start_metrics_writer() -> None:
+    global _METRICS_WORKER
+    with _METRICS_LOCK:
+        if _METRICS_WORKER is not None and _METRICS_WORKER.is_alive():
+            return
+        _METRICS_STOP.clear()
+        _METRICS_WORKER = threading.Thread(
+            target=_metrics_worker_loop, name="interviewforge-metrics", daemon=True
+        )
+        _METRICS_WORKER.start()
+
+
+def stop_metrics_writer(timeout: float = 2.0) -> None:
+    global _METRICS_WORKER
+    worker = _METRICS_WORKER
+    if worker is None:
+        return
+    # Give queued writes a bounded opportunity to flush before stopping.
+    deadline = time.monotonic() + max(0.0, timeout)
+    while _METRICS_QUEUE.unfinished_tasks and time.monotonic() < deadline:
+        time.sleep(0.02)
+    # If a slow database write exceeded the bound, drop queued (not currently
+    # executing) work so the sentinel can always reach the worker.
+    while _METRICS_QUEUE.unfinished_tasks and time.monotonic() >= deadline:
+        try:
+            pending = _METRICS_QUEUE.get_nowait()
+        except queue.Empty:
+            break
+        if pending is not None:
+            _METRICS_QUEUE.task_done()
+    _METRICS_STOP.set()
+    _METRICS_QUEUE.put(None)
+    worker.join(max(0.1, max(0.0, deadline - time.monotonic())))
+    with _METRICS_LOCK:
+        if not worker.is_alive():
+            _METRICS_WORKER = None
+
+
+def enqueue_request(*, route: str, path: str, method: str, status: int, elapsed_ms: float) -> bool:
+    """Enqueue best-effort metrics without waiting for SQLite."""
+    # The FastAPI lifespan owns the worker lifecycle.  Do not implicitly spawn
+    # a process-lifetime thread when a test/client calls middleware without
+    # entering lifespan.
+    if _METRICS_WORKER is None or not _METRICS_WORKER.is_alive():
+        return False
+    try:
+        _METRICS_QUEUE.put_nowait(((), {
+            "route": route, "path": path, "method": method,
+            "status": status, "elapsed_ms": elapsed_ms,
+        }))
+        return True
+    except queue.Full:
+        return False
 
 
 def _cutoff(window: str) -> datetime:
@@ -221,5 +308,5 @@ def storage_size() -> int:
 
 __all__ = [
     "HISTOGRAM_BOUNDS_MS", "normalize_route", "observability_db_path", "record_request",
-    "request_metrics", "storage_size",
+    "request_metrics", "storage_size", "enqueue_request", "start_metrics_writer", "stop_metrics_writer",
 ]

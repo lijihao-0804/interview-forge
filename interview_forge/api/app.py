@@ -35,7 +35,7 @@ from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services import leetcode as _leetcode_service  # noqa: F401
 from interview_forge.ai import tasks as _ai_tasks  # noqa: F401
 from interview_forge.observability.logging import log_event
-from interview_forge.observability.store import record_request
+from interview_forge.observability.store import enqueue_request, start_metrics_writer, stop_metrics_writer
 
 
 @asynccontextmanager
@@ -44,11 +44,13 @@ async def lifespan(app: FastAPI):
     # or opening a production database connection during module import.
     client = AsyncHttpClient()
     await client.start()
+    start_metrics_writer()
     app.state.http_client = client
     app.state.task_manager = task_manager
     try:
         yield
     finally:
+        stop_metrics_writer()
         await client.close()
 
 
@@ -99,8 +101,7 @@ async def request_observability(request, call_next):
             elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
             error_type=type(exc).__name__,
         )
-        await asyncio.to_thread(
-            record_request,
+        enqueue_request(
             route=getattr(request.scope.get("route"), "path", ""),
             path=request.url.path,
             method=request.method,
@@ -123,8 +124,7 @@ async def request_observability(request, call_next):
         status=response.status_code,
         elapsed_ms=elapsed,
     )
-    await asyncio.to_thread(
-        record_request,
+    enqueue_request(
         route=getattr(request.scope.get("route"), "path", ""),
         path=request.url.path,
         method=request.method,

@@ -17,5 +17,18 @@ class ProviderAdapter:
     def discover_models(self, *, base_url: str, models_path: str, api_key: str, timeout: float = 8.0) -> ProviderProbeResult:
         raise NotImplementedError
 
+    def test_connection(self, *, base_url: str, models_path: str, api_key: str, timeout: float = 8.0) -> ProviderProbeResult:
+        """Run the protocol's least-invasive connection check."""
+        return self.discover_models(
+            base_url=base_url, models_path=models_path, api_key=api_key, timeout=timeout
+        )
+
+    def make_chat_model(self, config: Any, *, thinking_mode: str | None = None) -> Any:
+        raise NotImplementedError
+
+    def apply_reasoning(self, config: Any, policy: Any = None, *, thinking_mode: str | None = None) -> dict[str, Any]:
+        """Translate a provider-neutral policy into protocol kwargs."""
+        return {}
+
 
 __all__ = ["ProviderAdapter", "ProviderProbeResult"]

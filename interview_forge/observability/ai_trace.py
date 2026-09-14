@@ -73,7 +73,11 @@ class TraceRecorder:
         try:
             safe_metadata = {
                 str(key): value for key, value in (metadata or {}).items()
-                if str(key) in {"estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms"}
+                if str(key) in {
+                    "estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms",
+                    "requested_business", "fallback", "fallback_reason",
+                    "fallback_provider", "fallback_model",
+                }
             }
             safe_metadata.update({
                 "provider_id": self.provider_id or None,

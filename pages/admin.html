@@ -150,6 +150,7 @@
       <div class="admin-v2-panel" data-admin-panel="traffic" id="admin-traffic">
         <div class="admin-v2-toolbar"><label>时间窗口 <select id="admin-traffic-window"><option value="24h">24 小时</option><option value="7d">7 天</option><option value="30d">30 天</option></select></label><button type="button" id="admin-traffic-refresh">刷新</button></div>
         <div class="admin-v2-cards" id="admin-traffic-cards"></div>
+        <p class="muted admin-ai-metric-note">延迟百分位根据直方图区间估算，不代表毫秒级精确值。</p>
         <div class="admin-v2-chart" id="admin-traffic-chart" title="每个时间桶的请求量，柱高按当前窗口最大值归一化"></div>
         <div class="admin-v2-table-wrap"><table><thead><tr><th>时间</th><th>请求量</th><th>2xx</th><th>3xx</th><th>4xx</th><th>5xx</th><th>P50</th><th>P95</th><th>P99</th></tr></thead><tbody id="admin-traffic-series"></tbody></table></div>
         <h3 class="admin-v2-subheading">Endpoint 排名（路由已归一化）</h3>
@@ -158,7 +159,7 @@
       <div class="admin-v2-panel" data-admin-panel="usage" id="admin-ai">
         <div class="admin-v2-toolbar"><label>时间窗口 <select id="admin-usage-window"><option value="24h">24 小时</option><option value="7d">7 天</option><option value="30d">30 天</option></select></label><button type="button" id="admin-usage-refresh">刷新</button></div>
         <div class="admin-v2-cards" id="admin-usage-cards"></div><div class="admin-v2-table-wrap"><table><thead><tr><th>Provider</th><th>业务</th><th>模型</th><th>轮次</th><th>输入 tokens</th><th>输出 tokens</th><th>推理 tokens</th><th>估算费用</th></tr></thead><tbody id="admin-usage-models"></tbody></table></div>
-        <h3 class="admin-v2-subheading">AI 趋势</h3><div class="admin-v2-chart" id="admin-ai-chart" title="每个时间桶的 AI 轮次，柱高按当前窗口最大值归一化"></div><div class="admin-v2-table-wrap"><table><thead><tr><th>时间</th><th>轮次</th><th>成功率</th><th>延迟 P95</th><th>TTFT P95</th><th>tokens</th></tr></thead><tbody id="admin-ai-series"></tbody></table></div>
+        <h3 class="admin-v2-subheading">AI 趋势</h3><p class="muted admin-ai-metric-note">P50/P95/TTFT P95 均根据聚合直方图区间估算。</p><div class="admin-v2-chart" id="admin-ai-chart" title="每个时间桶的 AI 轮次，柱高按当前窗口最大值归一化"></div><div class="admin-v2-table-wrap"><table><thead><tr><th>时间</th><th>轮次</th><th>成功率</th><th>P95</th><th>TTFT P95</th><th>tokens</th></tr></thead><tbody id="admin-ai-series"></tbody></table></div>
       </div>
       <div class="admin-v2-panel" data-admin-panel="traces">
         <div class="admin-v2-toolbar"><label>窗口 <select id="admin-trace-window"><option value="24h">24 小时</option><option value="7d">7 天</option><option value="30d">30 天</option></select></label><button type="button" id="admin-trace-refresh">刷新</button></div>
@@ -181,18 +182,20 @@
       <div class="ops-panel" data-ops-panel="system" id="admin-system"><div class="admin-v2-toolbar"><button type="button" id="admin-ops-system-refresh">刷新</button><button type="button" id="admin-ops-diagnostics">运行无副作用诊断</button></div><div class="admin-v2-columns"><div><h3>运行</h3><dl id="admin-ops-system-runtime"></dl></div><div><h3>AI</h3><dl id="admin-ops-system-ai"></dl></div><div><h3>存储</h3><dl id="admin-ops-system-storage"></dl></div></div><pre class="admin-v2-detail" id="admin-ops-diagnostics-result" hidden></pre></div>
     </section>
     <section id="admin-ai-config">
-      <div class="admin-v2-heading"><div><h2>AI 配置</h2><p class="muted">管理 Provider、模型发现与业务路由。API Key 只允许替换，不会在页面回显。</p></div><span class="msg" id="admin-ai-config-status">就绪</span></div>
+      <div class="admin-v2-heading"><div><h2>AI 配置</h2><p class="muted">按 Provider、模型和业务路由管理 AI。API Key 只允许替换，不会在页面回显。</p></div><span class="msg" id="admin-ai-config-status">就绪</span></div>
       <div class="ai-config-form">
+        <div class="field"><label for="admin-ai-preset">Provider 类型</label><select id="admin-ai-preset"></select></div>
         <div class="field"><label for="admin-ai-name">名称</label><input id="admin-ai-name" placeholder="例如：主模型"></div>
-        <div class="field"><label for="admin-ai-vendor">Vendor</label><input id="admin-ai-vendor" placeholder="openai / custom"></div>
+        <div class="field"><label for="admin-ai-vendor">Vendor</label><input id="admin-ai-vendor" readonly></div>
         <div class="field"><label for="admin-ai-protocol">Protocol</label><select id="admin-ai-protocol"><option value="openai_chat">openai_chat</option><option value="openai_responses">openai_responses</option><option value="anthropic_messages">anthropic_messages</option><option value="gemini">gemini</option></select></div>
         <div class="field"><label for="admin-ai-base-url">Base URL</label><input id="admin-ai-base-url" style="width:230px" placeholder="https://.../v1"></div>
+        <div class="field"><label for="admin-ai-models-path">模型路径</label><input id="admin-ai-models-path" value="/models" style="width:140px"></div>
         <div class="field"><label for="admin-ai-key">API Key（仅写入）</label><input id="admin-ai-key" type="password" autocomplete="off" style="width:190px"></div>
         <button id="admin-ai-provider-create">保存 Provider</button><button class="ghost" id="admin-ai-config-refresh">刷新</button>
       </div>
-      <div class="ai-config-grid" style="margin-top:16px"><div><h3>供应商</h3><div class="ai-config-list" id="admin-ai-providers"></div></div><div><h3>最近模型</h3><div class="ai-config-list" id="admin-ai-models"><span class="muted">点击“获取模型”查看</span></div></div></div>
+      <div class="ai-config-grid" style="margin-top:16px"><div><h3>供应商</h3><div class="ai-config-list" id="admin-ai-providers"></div></div><div><h3>模型管理</h3><div class="ai-config-form"><input id="admin-ai-model-provider" type="hidden"><input id="admin-ai-model-id" placeholder="手工添加 model id"><input id="admin-ai-model-capabilities" placeholder='capabilities JSON（可选）' style="width:210px"><button class="ghost" id="admin-ai-model-add">添加模型</button></div><div class="ai-config-list" id="admin-ai-models"><span class="muted">选择 Provider 后加载模型</span></div></div></div>
       <h3 style="margin-top:18px">业务路由</h3>
-      <div class="ai-config-form"><div class="field"><label for="admin-ai-business">业务</label><select id="admin-ai-business"><option value="chat">Chat</option><option value="learning_analysis">学习分析</option><option value="memory_extraction">Memory 提取</option></select></div><div class="field"><label for="admin-ai-profile-provider">Provider ID</label><input id="admin-ai-profile-provider" placeholder="Provider ID"></div><div class="field"><label for="admin-ai-profile-model">Model ID</label><input id="admin-ai-profile-model" placeholder="model-id" style="width:190px"></div><div class="field"><label for="admin-ai-reasoning-mode">Reasoning</label><select id="admin-ai-reasoning-mode"><option value="auto">auto</option><option value="off">off</option><option value="effort">effort</option><option value="budget">budget</option></select></div><div class="field"><label for="admin-ai-reasoning-effort">Effort</label><input id="admin-ai-reasoning-effort" placeholder="high" style="width:90px"></div><div class="field"><label for="admin-ai-reasoning-budget">Budget tokens</label><input id="admin-ai-reasoning-budget" type="number" min="1" max="200000" style="width:120px"></div><button id="admin-ai-profile-save">保存路由</button></div>
+      <div class="ai-config-form"><div class="field"><label for="admin-ai-business">业务</label><select id="admin-ai-business"><option value="chat">Chat</option><option value="learning_analysis">学习分析</option><option value="memory_extraction">Memory 提取</option></select></div><div class="field"><label for="admin-ai-profile-provider">Provider</label><select id="admin-ai-profile-provider"></select></div><div class="field"><label for="admin-ai-profile-model">Model</label><select id="admin-ai-profile-model"></select></div><div class="field"><label for="admin-ai-reasoning-mode">Reasoning</label><select id="admin-ai-reasoning-mode"><option value="auto">auto</option><option value="off">off</option><option value="effort">effort</option><option value="budget">budget</option></select></div><div class="field"><label for="admin-ai-reasoning-effort">Effort</label><input id="admin-ai-reasoning-effort" placeholder="high" style="width:90px"></div><div class="field"><label for="admin-ai-reasoning-budget">Budget tokens</label><input id="admin-ai-reasoning-budget" type="number" min="1" max="200000" style="width:120px"></div><button id="admin-ai-profile-save">保存路由</button></div>
       <div class="ai-config-list" id="admin-ai-profiles"></div>
     </section>
   </div>
@@ -560,6 +563,6 @@ api("/api/me").then(function (res) {
 </script>
 <script src="../assets/admin-observability.js?v=1" defer></script>
 <script src="../assets/admin-operations.js?v=1" defer></script>
-<script src="../assets/admin-ai-config.js?v=1" defer></script>
+<script src="../assets/admin-ai-config.js?v=2" defer></script>
 </body>
 </html>

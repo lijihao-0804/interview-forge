@@ -100,13 +100,27 @@ def _beta_allows(beta_users: str, username: str) -> bool:
     return bool(username and username.strip().lower() in values)
 
 
-def _dependencies_available() -> bool:
+def _dependencies_available(config: AIConfig | None = None) -> bool:
     """Check optional packages without importing them during normal startup."""
+    if config is not None:
+        return dependencies_available_for(config)
     try:
-        return all(
-            importlib.util.find_spec(name) is not None
-            for name in ("pydantic", "langchain_core", "langchain_openai")
-        )
+        return all(importlib.util.find_spec(name) is not None for name in ("pydantic", "langchain_core", "langchain_openai"))
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+
+
+def dependencies_available_for(config: AIConfig) -> bool:
+    """Check optional packages for the resolved protocol, not just OpenAI."""
+    required = ["pydantic", "langchain_core"]
+    if config.provider in {"openai", "openai-compatible"}:
+        required.append("langchain_openai")
+    elif config.provider == "anthropic":
+        required.append("langchain_anthropic")
+    elif config.provider == "gemini":
+        required.append("langchain_google_genai")
+    try:
+        return all(importlib.util.find_spec(name) is not None for name in required)
     except (ImportError, ModuleNotFoundError, ValueError):
         return False
 
@@ -126,9 +140,6 @@ def model_key(
         if config.base_url
         else "default"
     )
-    provider = (
-        config.provider
-        if config.provider in {"openai", "openai-compatible"}
-        else "unknown"
-    )
-    return f"{provider}:model-{model_digest}:endpoint-{endpoint_digest}"
+    provider = str(config.provider or "unknown").strip().lower() or "unknown"
+    protocol = str(config.wire_api or "unknown").strip().lower() or "unknown"
+    return f"{provider}:{protocol}:model-{model_digest}:endpoint-{endpoint_digest}"

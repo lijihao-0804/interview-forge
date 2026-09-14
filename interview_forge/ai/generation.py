@@ -38,8 +38,8 @@ from interview_forge.ai.context_projection import _context_json, _model_projecti
 
 
 
-def _dependencies_available():
-    return facade()._dependencies_available()
+def _dependencies_available(config: AIConfig | None = None):
+    return facade()._dependencies_available(config)
 
 
 def load_ai_config():
@@ -111,19 +111,11 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None,
     # All provider-specific construction is kept in this single function.
     if thinking_mode not in {None, "enabled", "disabled"}:
         raise ValueError("thinking_mode must be enabled, disabled, or None")
-    if config.wire_api in {"anthropic_messages", "gemini"}:
-        from interview_forge.ai.providers.native import make_native_chat_model
-        return make_native_chat_model(config)
+    from interview_forge.ai.providers import get_provider_adapter
     try:
-        from langchain_openai import ChatOpenAI
-    except (ImportError, ModuleNotFoundError) as exc:
-        raise AIServiceError("not_configured", "AI 分析依赖尚未安装。") from exc
-    kwargs = build_chat_model_kwargs(config, thinking_mode=thinking_mode)
-    if not _uses_native_structured_output(config):
-        # ChatOpenAI maps this to stream_options.include_usage when supported.
-        kwargs["stream_usage"] = True
-    try:
-        return ChatOpenAI(**kwargs)
+        return get_provider_adapter(config.wire_api).make_chat_model(config, thinking_mode=thinking_mode)
+    except AIServiceError:
+        raise
     except Exception as exc:
         raise AIServiceError("not_configured", "AI 服务配置不可用。") from exc
 
@@ -283,7 +275,7 @@ def generate_ai_insight(
     fallback = build_rule_fallback(context)
     if not config.enabled:
         raise AIServiceError("disabled", "AI 分析暂未启用。", fallback=fallback)
-    if not config.configured or not _dependencies_available():
+    if not config.configured or not _dependencies_available(config):
         raise AIServiceError("not_configured", "AI 分析尚未完成配置。", fallback=fallback)
     try:
         model_started = time.perf_counter()

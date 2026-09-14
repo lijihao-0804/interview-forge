@@ -32,6 +32,7 @@ from interview_forge.ai.config import (
     _env_bool,
     _env_float,
     _env_int,
+    dependencies_available_for,
     load_ai_config as _load_ai_config,
     model_key as _config_model_key,
 )
@@ -115,13 +116,19 @@ def model_key(config: AIConfig | None = None) -> str:
     )
 
 
-def ai_capability(username: str, role: str, daily_limit: int | None = None) -> dict[str, Any]:
+def ai_capability(
+    username: str,
+    role: str,
+    daily_limit: int | None = None,
+    *,
+    config: AIConfig | None = None,
+) -> dict[str, Any]:
     """Return capability state without exposing key, endpoint or raw model name."""
-    config = load_ai_config()
+    config = config or load_ai_config()
     enabled = config.enabled
     configured = config.configured
     allowed = role == "admin" or _beta_allows(config.beta_users, username)
-    dependencies = _dependencies_available() if enabled and configured else False
+    dependencies = dependencies_available_for(config) if enabled and configured else False
     effective_limit = None if role == "admin" else _validated_daily_limit(daily_limit)
     if role != "admin" and effective_limit == 0:
         status, message = "quota_disabled", "管理员已暂停当前账号的一键 AI 分析。"
