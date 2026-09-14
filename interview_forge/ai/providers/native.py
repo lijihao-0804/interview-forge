@@ -68,6 +68,17 @@ class _NativeHTTPAdapter(ProviderAdapter):
     payload_key = "data"
     headers: dict[str, str] = {}
 
+    def capability_contract(self):
+        return {
+            "streaming": True,
+            "tools": True,
+            "structured_output": False,
+            "reasoning": False,
+            "reasoning_modes": ["auto"],
+            "reasoning_efforts": [],
+            "reasoning_budget": False,
+        }
+
     def _request(self, *, base_url: str, models_path: str, api_key: str, timeout: float) -> ProviderProbeResult:
         started = time.perf_counter()
         url = urljoin(str(base_url).rstrip("/") + "/", str(models_path or self.default_path).lstrip("/"))
@@ -113,6 +124,9 @@ class AnthropicAdapter(_NativeHTTPAdapter):
     payload_key = "data"
     headers = {"anthropic-version": "2023-06-01"}
 
+    def capability_contract(self):
+        return super().capability_contract()
+
     def make_chat_model(self, config, *, thinking_mode=None):
         try:
             from langchain_anthropic import ChatAnthropic
@@ -134,6 +148,11 @@ class AnthropicAdapter(_NativeHTTPAdapter):
 class GeminiAdapter(_NativeHTTPAdapter):
     default_path = "/v1beta/models"
     payload_key = "models"
+
+    def capability_contract(self):
+        result = super().capability_contract()
+        result["structured_output"] = True
+        return result
 
     def make_chat_model(self, config, *, thinking_mode=None):
         default = "https://generativelanguage.googleapis.com"

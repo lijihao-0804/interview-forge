@@ -9,7 +9,8 @@ from .openai_compatible import OpenAICompatibleAdapter
 def get_provider_adapter(protocol: str) -> ProviderAdapter:
     value = str(protocol or "").strip().lower()
     if value in {"openai_chat", "openai_responses", "chat_completions", "responses"}:
-        return OpenAICompatibleAdapter()
+        normalized = {"chat_completions": "openai_chat", "responses": "openai_responses"}.get(value, value)
+        return OpenAICompatibleAdapter(normalized)
     if value == "anthropic_messages":
         return AnthropicAdapter()
     if value == "gemini":

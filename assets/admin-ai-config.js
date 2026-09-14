@@ -13,7 +13,7 @@
     ["reasoning", "推理"]
   ];
   var state = {
-    presets: [], providers: [], profiles: [], modelsByProvider: {},
+    presets: [], capabilityProfiles: [], providers: [], profiles: [], modelsByProvider: {},
     selectedProvider: "", editingProviderId: "", editingModel: null,
     routeBusinessKey: "", modelErrors: {}
   };
@@ -58,6 +58,34 @@
   function modelsFor(id) { return state.modelsByProvider[id] || []; }
   function modelFor(providerId, modelId) {
     return modelsFor(providerId).find(function (item) { return item.model_id === modelId; }) || null;
+  }
+  function capabilitySourceLabel(source) {
+    return {
+      manual: "管理员覆盖",
+      provider: "Provider 声明",
+      official_catalog: "官方目录",
+      protocol: "协议基线",
+      unknown: "未知"
+    }[source] || "未知";
+  }
+  function capabilityProfile(key) {
+    return state.capabilityProfiles.find(function (item) { return item.key === key; }) || null;
+  }
+  function renderCapabilityProfileSelect(selectedKey) {
+    var select = $("admin-ai-capability-profile");
+    if (!select) return;
+    var current = selectedKey || select.value;
+    select.textContent = "";
+    if (!state.capabilityProfiles.length) {
+      emptyOption(select, "暂无可用能力 Profile");
+      return;
+    }
+    state.capabilityProfiles.forEach(function (item) {
+      option(select, item.key, item.display_name || item.key);
+    });
+    select.value = current && capabilityProfile(current) ? current : state.capabilityProfiles[0].key;
+    var profile = capabilityProfile(select.value);
+    text($("admin-ai-capability-profile-note"), profile ? profile.description : "");
   }
   function showDialog(id) {
     var dialog = $(id);
@@ -119,6 +147,7 @@
     $("admin-ai-protocol").value = preset.protocol || "openai_chat";
     $("admin-ai-base-url").value = preset.default_base_url || "";
     $("admin-ai-models-path").value = preset.models_path || "/models";
+    renderCapabilityProfileSelect(preset.capability_profile || "generic_openai_compatible");
   }
   function renderPresetSelect(selectedKey) {
     var select = $("admin-ai-preset");
@@ -148,6 +177,7 @@
     $("admin-ai-clear-key").checked = false;
     renderPresetSelect();
     if (state.presets.length) presetChanged();
+    else renderCapabilityProfileSelect();
     setMessage("admin-ai-provider-message", "");
   }
   function openProviderDialog(provider, focusKey) {
@@ -161,6 +191,7 @@
       $("admin-ai-name").value = provider.name || "";
       $("admin-ai-vendor").value = provider.vendor || "";
       $("admin-ai-protocol").value = provider.protocol || "openai_chat";
+      renderCapabilityProfileSelect(provider.capability_profile || (preset && preset.capability_profile) || "generic_openai_compatible");
       $("admin-ai-base-url").value = provider.base_url || "";
       $("admin-ai-models-path").value = provider.models_path || "/models";
       $("admin-ai-clear-key-wrap").hidden = !provider.key_configured;
@@ -254,7 +285,12 @@
       var id = document.createElement("td"); var strong = document.createElement("strong"); text(strong, item.model_id); id.appendChild(strong); if (item.display_name && item.display_name !== item.model_id) { var name = document.createElement("small"); text(name, item.display_name); id.appendChild(name); } row.appendChild(id);
       var caps = document.createElement("td"); CAPABILITIES.forEach(function (pair) { if (item.capabilities && item.capabilities[pair[0]] === true) caps.appendChild(badge(pair[1])); }); if (!caps.childNodes.length) caps.appendChild(badge("能力未声明", "muted")); row.appendChild(caps);
       var status = document.createElement("td"); status.appendChild(badge(item.available && item.enabled ? "● 可用" : (item.available ? "○ 已停用" : "○ 不可用"), item.available && item.enabled ? "ok" : "disabled")); row.appendChild(status);
-      var source = document.createElement("td"); text(source, item.capability_source === "manual" ? "手工" : item.capability_source === "discovered" ? "发现" : "未知"); row.appendChild(source);
+      var source = document.createElement("td"); text(source, capabilitySourceLabel(item.capability_source));
+      if (item.capability_verified_at) { var verified = document.createElement("small"); text(verified, "验证：" + item.capability_verified_at); source.appendChild(verified); }
+      if (item.capability_profile) { var catalog = document.createElement("small"); text(catalog, "Profile：" + item.capability_profile + (item.capability_catalog_version ? " / " + item.capability_catalog_version : "")); source.appendChild(catalog); }
+      if (item.canonical_model) { var alias = document.createElement("small"); text(alias, "旧名称 · 实际映射至 " + item.canonical_model); id.appendChild(alias); }
+      if (item.capability_source === "unknown") { var warning = document.createElement("small"); text(warning, "已发现，但显式能力尚未验证；默认仅允许 Auto"); source.appendChild(warning); }
+      row.appendChild(source);
       var actions = document.createElement("td"); actions.appendChild(actionButton("编辑", function () { openModelDialog(provider.id, item); })); actions.appendChild(actionButton(item.enabled ? "停用" : "启用", function () {
         var button = this; runButton(button, "处理中…", function () { return api("/api/admin/ai/providers/" + encodeURIComponent(provider.id) + "/models/" + encodeURIComponent(item.model_id), { method: "PUT", body: JSON.stringify({ enabled: !item.enabled }) }); }).then(function () { return loadModels(provider.id); }).catch(function (error) { setStatus("partial", error.message); });
       })); row.appendChild(actions); body.appendChild(row);
@@ -309,13 +345,19 @@
     var model = modelFor($("admin-ai-profile-provider").value, $("admin-ai-profile-model").value); var caps = model && model.capabilities || {};
     var modes = Array.isArray(caps.reasoning_modes) ? caps.reasoning_modes : ["auto"];
     var modelAvailable = !!model;
-    var mode = $("admin-ai-reasoning-mode"); mode.disabled = !modelAvailable;
-    Array.prototype.forEach.call(mode.options, function (item) { item.disabled = modes.indexOf(item.value) < 0; });
-    if (mode.options[mode.selectedIndex] && mode.options[mode.selectedIndex].disabled) mode.value = modes.indexOf("auto") >= 0 ? "auto" : (modes[0] || "auto");
+    var mode = $("admin-ai-reasoning-mode"); var previousMode = mode.value;
+    mode.textContent = "";
+    (modelAvailable ? modes : ["auto"]).forEach(function (item) { option(mode, item, item === "auto" ? "Auto" : item === "off" ? "Off" : item === "effort" ? "Effort" : "Budget"); });
+    mode.value = modes.indexOf(previousMode) >= 0 ? previousMode : (modes.indexOf("auto") >= 0 ? "auto" : (modes[0] || "auto"));
+    mode.disabled = !modelAvailable;
     var effortAllowed = Array.isArray(caps.reasoning_efforts) ? caps.reasoning_efforts : [];
-    Array.prototype.forEach.call($("admin-ai-reasoning-effort").options, function (item) { item.disabled = effortAllowed.indexOf(item.value) < 0; });
-    $("admin-ai-reasoning-effort").disabled = !modelAvailable || mode.value !== "effort";
+    var effort = $("admin-ai-reasoning-effort"); var previousEffort = effort.value; effort.textContent = "";
+    if (!effortAllowed.length) option(effort, "", "该模型未声明 Effort", true);
+    else effortAllowed.forEach(function (item) { option(effort, item, String(item).toUpperCase() === "XHIGH" ? "XHigh" : String(item).charAt(0).toUpperCase() + String(item).slice(1)); });
+    effort.value = effortAllowed.indexOf(previousEffort) >= 0 ? previousEffort : (effortAllowed[0] || "");
+    effort.disabled = !modelAvailable || mode.value !== "effort" || !effortAllowed.length;
     $("admin-ai-reasoning-budget").disabled = !modelAvailable || mode.value !== "budget" || caps.reasoning_budget !== true;
+    text($("admin-ai-reasoning-note"), modelAvailable && model.capability_source === "unknown" ? "显式推理能力尚未验证，当前仅允许 Auto。" : modelAvailable ? "仅显示当前模型已验证的 Reasoning 能力。" : "请先选择可用模型。");
   }
   function renderRouteCards() {
     var list = $("admin-ai-profiles"); list.textContent = "";
@@ -340,7 +382,7 @@
     setStatus("neutral", "加载中…");
     return Promise.all([settle(api("/api/admin/ai/provider-presets")), settle(api("/api/admin/ai/providers")), settle(api("/api/admin/ai/business-profiles"))]).then(function (results) {
       var errors = 0;
-      if (results[0].ok) state.presets = results[0].value.items || []; else errors++;
+      if (results[0].ok) { state.presets = results[0].value.items || []; state.capabilityProfiles = results[0].value.capability_profiles || []; } else errors++;
       if (results[1].ok) state.providers = results[1].value.items || []; else errors++;
       if (results[2].ok) state.profiles = results[2].value.items || []; else errors++;
       if (!state.selectedProvider || !providerById(state.selectedProvider)) state.selectedProvider = state.providers[0] ? state.providers[0].id : "";
@@ -358,11 +400,15 @@
     if (!$("admin-ai-config")) return;
     document.querySelectorAll("[data-ai-tab]").forEach(function (button) { button.onclick = function () { activateTab(button.getAttribute("data-ai-tab")); }; });
     $("admin-ai-preset").onchange = presetChanged;
+    $("admin-ai-capability-profile").onchange = function () {
+      var profile = capabilityProfile(this.value);
+      text($("admin-ai-capability-profile-note"), profile ? profile.description : "");
+    };
     $("admin-ai-provider-add").onclick = function () { openProviderDialog(); };
     document.querySelectorAll("[data-close-dialog]").forEach(function (button) { button.onclick = function () { closeDialog(button.getAttribute("data-close-dialog")); }; });
     $("admin-ai-provider-form").onsubmit = function (event) {
       event.preventDefault(); setMessage("admin-ai-provider-message", "");
-      var payload = { name: $("admin-ai-name").value.trim(), vendor: $("admin-ai-vendor").value.trim(), protocol: $("admin-ai-protocol").value, base_url: $("admin-ai-base-url").value.trim(), models_path: $("admin-ai-models-path").value.trim() || "/models" };
+      var payload = { name: $("admin-ai-name").value.trim(), vendor: $("admin-ai-vendor").value.trim(), protocol: $("admin-ai-protocol").value, capability_profile: $("admin-ai-capability-profile").value, base_url: $("admin-ai-base-url").value.trim(), models_path: $("admin-ai-models-path").value.trim() || "/models" };
       var key = $("admin-ai-key").value; if (key) payload.api_key = key; if ($("admin-ai-clear-key").checked) payload.clear_api_key = true;
       var path = state.editingProviderId ? "/api/admin/ai/providers/" + encodeURIComponent(state.editingProviderId) : "/api/admin/ai/providers";
       var method = state.editingProviderId ? "PUT" : "POST"; var button = $("admin-ai-provider-save");

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any, Mapping
+
+from .catalog import protocol_capabilities
 
 
 REASONING_MODES = {"off", "auto", "effort", "budget"}
@@ -62,41 +63,12 @@ def validate_reasoning_policy(policy: ReasoningPolicy, capabilities: Mapping[str
 
 
 def capabilities_for_preset(*, protocol: str, reasoning_adapter: str = "none") -> dict[str, Any]:
-    """Conservative defaults; adapters may opt into only known capabilities."""
-    return {
-        "streaming": protocol in {"openai_chat", "openai_responses", "anthropic_messages", "gemini"},
-        "tools": protocol in {"openai_chat", "openai_responses", "anthropic_messages", "gemini"},
-        "structured_output": protocol in {"openai_chat", "openai_responses"},
-        "reasoning": reasoning_adapter in {"openai", "deepseek"},
-        "reasoning_modes": ["auto", "off", "effort"] if reasoning_adapter in {"openai", "deepseek"} else ["auto"],
-        "reasoning_efforts": ["minimal", "low", "medium", "high", "xhigh", "max"] if reasoning_adapter == "openai" else [],
-        "reasoning_budget": False,
-    }
+    """Return only transport-level protocol capabilities.
 
-
-def capabilities_for_model(*, vendor: str, protocol: str, model_id: str) -> dict[str, Any]:
-    """Return conservative discovered capabilities for one known model family.
-
-    Discovery itself only proves that a model appears in ``/models``.  It must
-    not turn every model into a reasoning/tool-capable model.  The small
-    registry below opts in only for model families whose request semantics are
-    known by our adapters; administrators can still override the result.
+    ``reasoning_adapter`` remains in the signature for compatibility with the
+    existing preset API, but it no longer grants model capabilities.
     """
-    caps = capabilities_for_preset(protocol=protocol, reasoning_adapter="none")
-    caps.update({"reasoning": False, "reasoning_modes": ["auto"], "reasoning_efforts": []})
-    vendor_key = str(vendor or "").strip().lower()
-    model_key = str(model_id or "").strip().lower()
-    if vendor_key == "openai" and re.match(r"^(gpt-5(?:\.\d+)?(?:[-_.].*)?|o[1-4](?:[-_.].*)?)$", model_key):
-        caps["reasoning"] = True
-        caps["reasoning_modes"] = ["auto", "off", "effort"]
-        caps["reasoning_efforts"] = ["low", "medium", "high"] if model_key.startswith("o") else ["minimal", "low", "medium", "high"]
-        if re.match(r"^gpt-5\.(?:[6-9]|\d{2,})", model_key) or "codex-max" in model_key:
-            caps["reasoning_efforts"] += ["xhigh", "max"]
-    elif vendor_key == "deepseek" and re.search(r"(?:reasoner|thinking|deepseek-r1|deepseek-v4)", model_key):
-        caps["reasoning"] = True
-        caps["reasoning_modes"] = ["auto", "off", "effort"]
-        caps["reasoning_efforts"] = ["low", "medium", "high"]
-    return caps
+    return protocol_capabilities(protocol)
 
 
-__all__ = ["REASONING_EFFORTS", "REASONING_MODES", "ReasoningPolicy", "capabilities_for_model", "capabilities_for_preset", "validate_reasoning_policy"]
+__all__ = ["REASONING_EFFORTS", "REASONING_MODES", "ReasoningPolicy", "capabilities_for_preset", "validate_reasoning_policy"]

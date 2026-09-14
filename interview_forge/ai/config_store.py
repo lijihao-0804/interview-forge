@@ -24,11 +24,13 @@ import socket
 from cryptography.fernet import Fernet, InvalidToken
 
 from interview_forge.core.paths import DATA_DIR
+from .catalog import CAPABILITY_PROFILES
 
 
 AI_CONFIG_DB_PATH = DATA_DIR / "ai_config.db"
 SUPPORTED_BUSINESS_KEYS = ("chat", "learning_analysis", "memory_extraction")
 SUPPORTED_PROTOCOLS = {"openai_chat", "openai_responses", "anthropic_messages", "gemini"}
+SUPPORTED_CAPABILITY_PROFILES = set(CAPABILITY_PROFILES)
 _MAX_PROVIDER_NAME = 96
 _MAX_MODEL_ID = 160
 
@@ -128,6 +130,13 @@ def _validate_models_path(value: str) -> str:
     return value
 
 
+def _validate_capability_profile(value: str) -> str:
+    value = str(value or "generic_openai_compatible").strip().lower()
+    if value not in SUPPORTED_CAPABILITY_PROFILES:
+        raise AIConfigError("不支持的 Capability Profile")
+    return value
+
+
 def _cipher() -> Fernet:
     raw = os.environ.get("INTERVIEW_FORGE_AI_CONFIG_KEY", "").strip()
     if not raw:
@@ -171,6 +180,7 @@ class ProviderRecord:
     name: str
     vendor: str
     protocol: str
+    capability_profile: str
     base_url: str
     enabled: bool
     models_path: str
@@ -193,6 +203,10 @@ class ModelRecord:
     available: bool
     capabilities: dict[str, Any]
     capability_source: str
+    capability_profile: str
+    canonical_model: str | None
+    capability_verified_at: str | None
+    capability_catalog_version: str | None
     discovered_at: str | None
     last_seen_at: str | None
 
@@ -212,7 +226,8 @@ class BusinessProfile:
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ai_providers (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, vendor TEXT NOT NULL,
- protocol TEXT NOT NULL, base_url TEXT NOT NULL, encrypted_secret TEXT,
+ protocol TEXT NOT NULL, capability_profile TEXT NOT NULL DEFAULT 'generic_openai_compatible',
+ base_url TEXT NOT NULL, encrypted_secret TEXT,
  enabled INTEGER NOT NULL DEFAULT 1, models_path TEXT NOT NULL DEFAULT '/models',
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
  last_test_status TEXT, last_test_latency_ms REAL, last_test_at TEXT
@@ -221,7 +236,9 @@ CREATE TABLE IF NOT EXISTS ai_models (
  id TEXT PRIMARY KEY, provider_id TEXT NOT NULL REFERENCES ai_providers(id) ON DELETE CASCADE,
  model_id TEXT NOT NULL, display_name TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
  available INTEGER NOT NULL DEFAULT 1, capabilities_json TEXT NOT NULL DEFAULT '{}',
- capability_source TEXT NOT NULL DEFAULT 'unknown', discovered_at TEXT, last_seen_at TEXT,
+ capability_source TEXT NOT NULL DEFAULT 'unknown', capability_profile TEXT NOT NULL DEFAULT 'generic_openai_compatible',
+ canonical_model TEXT, capability_verified_at TEXT, capability_catalog_version TEXT,
+ discovered_at TEXT, last_seen_at TEXT,
  UNIQUE(provider_id, model_id)
 );
 CREATE TABLE IF NOT EXISTS ai_business_profiles (
@@ -254,6 +271,18 @@ class AIConfigStore:
     def ensure_schema(self) -> None:
         with closing(self.connect()) as connection:
             connection.executescript(SCHEMA)
+            provider_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(ai_providers)").fetchall()}
+            model_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(ai_models)").fetchall()}
+            if "capability_profile" not in provider_columns:
+                connection.execute("ALTER TABLE ai_providers ADD COLUMN capability_profile TEXT NOT NULL DEFAULT 'generic_openai_compatible'")
+            for name, ddl in (
+                ("capability_profile", "TEXT NOT NULL DEFAULT 'generic_openai_compatible'"),
+                ("canonical_model", "TEXT"),
+                ("capability_verified_at", "TEXT"),
+                ("capability_catalog_version", "TEXT"),
+            ):
+                if name not in model_columns:
+                    connection.execute(f"ALTER TABLE ai_models ADD COLUMN {name} {ddl}")
             connection.commit()
 
     @staticmethod
@@ -267,7 +296,7 @@ class AIConfigStore:
                 hint = "已配置（主密钥不可用）"
         return ProviderRecord(
             id=str(row["id"]), name=str(row["name"]), vendor=str(row["vendor"]),
-            protocol=str(row["protocol"]), base_url=str(row["base_url"]),
+            protocol=str(row["protocol"]), capability_profile=str(row["capability_profile"] or "generic_openai_compatible"), base_url=str(row["base_url"]),
             enabled=_bool(row["enabled"]), models_path=str(row["models_path"]),
             key_configured=bool(secret), key_hint=hint,
             created_at=str(row["created_at"]), updated_at=str(row["updated_at"]),
@@ -287,6 +316,10 @@ class AIConfigStore:
             enabled=_bool(row["enabled"]), available=_bool(row["available"]),
             capabilities=capabilities if isinstance(capabilities, dict) else {},
             capability_source=str(row["capability_source"]),
+            capability_profile=str(row["capability_profile"] or "generic_openai_compatible"),
+            canonical_model=str(row["canonical_model"]) if row["canonical_model"] else None,
+            capability_verified_at=str(row["capability_verified_at"]) if row["capability_verified_at"] else None,
+            capability_catalog_version=str(row["capability_catalog_version"]) if row["capability_catalog_version"] else None,
             discovered_at=row["discovered_at"], last_seen_at=row["last_seen_at"],
         )
 
@@ -308,7 +341,8 @@ class AIConfigStore:
         return decrypt_secret(str(row[0] or ""))
 
     def create_provider(self, *, name: str, vendor: str, protocol: str, base_url: str,
-                        api_key: str = "", enabled: bool = True, models_path: str = "/models") -> ProviderRecord:
+                        api_key: str = "", enabled: bool = True, models_path: str = "/models",
+                        capability_profile: str = "generic_openai_compatible") -> ProviderRecord:
         name = str(name or "").strip()[:_MAX_PROVIDER_NAME]
         vendor = str(vendor or "").strip().lower()[:64]
         protocol = str(protocol or "").strip().lower()[:64]
@@ -316,22 +350,24 @@ class AIConfigStore:
             raise AIConfigError("Provider 名称、Vendor、Protocol 不能为空")
         if protocol not in SUPPORTED_PROTOCOLS:
             raise AIConfigError("不支持的 Provider Protocol")
+        capability_profile = _validate_capability_profile(capability_profile)
         base_url = validate_base_url(base_url)
         _validate_protocol_base_url(protocol, base_url)
         encrypted = encrypt_secret(api_key) if api_key else None
         now, provider_id = _now(), uuid.uuid4().hex
         with closing(self.connect()) as connection:
             connection.execute("""INSERT INTO ai_providers
-                (id,name,vendor,protocol,base_url,encrypted_secret,enabled,models_path,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (provider_id, name, vendor, protocol, base_url, encrypted, int(enabled), _validate_models_path(models_path), now, now))
+                (id,name,vendor,protocol,capability_profile,base_url,encrypted_secret,enabled,models_path,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (provider_id, name, vendor, protocol, capability_profile, base_url, encrypted, int(enabled), _validate_models_path(models_path), now, now))
             connection.commit()
         return self.get_provider(provider_id)  # type: ignore[return-value]
 
     def update_provider(self, provider_id: str, *, name: str | None = None, vendor: str | None = None,
-                        protocol: str | None = None, base_url: str | None = None,
-                        api_key: str | None = None, clear_api_key: bool = False,
-                        enabled: bool | None = None, models_path: str | None = None) -> ProviderRecord:
+                        protocol: str | None = None, capability_profile: str | None = None,
+                        base_url: str | None = None, api_key: str | None = None,
+                        clear_api_key: bool = False, enabled: bool | None = None,
+                        models_path: str | None = None) -> ProviderRecord:
         current = self.get_provider(provider_id)
         if current is None:
             raise LookupError("Provider 不存在")
@@ -346,6 +382,8 @@ class AIConfigStore:
         if protocol is not None:
             if protocol_value not in SUPPORTED_PROTOCOLS: raise AIConfigError("不支持的 Provider Protocol")
             fields.append("protocol = ?"); values.append(protocol_value)
+        if capability_profile is not None:
+            fields.append("capability_profile = ?"); values.append(_validate_capability_profile(capability_profile))
         next_base_url = validate_base_url(current.base_url if base_url is None else base_url)
         _validate_protocol_base_url(protocol_value, next_base_url)
         if base_url is not None: fields.append("base_url = ?"); values.append(next_base_url)
@@ -380,21 +418,29 @@ class AIConfigStore:
 
     def upsert_model(self, *, provider_id: str, model_id: str, display_name: str | None = None,
                      capabilities: Mapping[str, Any] | None = None, capability_source: str = "unknown",
+                     capability_profile: str = "generic_openai_compatible", canonical_model: str | None = None,
+                     capability_verified_at: str | None = None, capability_catalog_version: str | None = None,
                      available: bool = True, enabled: bool = True, discovered_at: str | None = None) -> ModelRecord:
         model_id = str(model_id or "").strip()
         if not model_id or len(model_id) > _MAX_MODEL_ID or any(ord(ch) < 32 for ch in model_id):
             raise AIConfigError("模型 ID 不合法")
+        capability_profile = _validate_capability_profile(capability_profile)
         now = _now(); discovered_at = discovered_at or now
         with closing(self.connect()) as connection:
             connection.execute("""INSERT INTO ai_models
-                (id,provider_id,model_id,display_name,enabled,available,capabilities_json,capability_source,discovered_at,last_seen_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_id,model_id) DO UPDATE SET
+                (id,provider_id,model_id,display_name,enabled,available,capabilities_json,capability_source,capability_profile,canonical_model,capability_verified_at,capability_catalog_version,discovered_at,last_seen_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_id,model_id) DO UPDATE SET
                 display_name=excluded.display_name, available=excluded.available,
                 last_seen_at=excluded.last_seen_at,
                 capabilities_json=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capabilities_json ELSE excluded.capabilities_json END,
-                capability_source=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capability_source ELSE excluded.capability_source END""",
+                capability_source=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capability_source ELSE excluded.capability_source END,
+                capability_profile=excluded.capability_profile,
+                canonical_model=CASE WHEN ai_models.capability_source='manual' THEN ai_models.canonical_model ELSE excluded.canonical_model END,
+                capability_verified_at=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capability_verified_at ELSE excluded.capability_verified_at END,
+                capability_catalog_version=CASE WHEN ai_models.capability_source='manual' THEN ai_models.capability_catalog_version ELSE excluded.capability_catalog_version END""",
                 (uuid.uuid4().hex, str(provider_id), model_id, str(display_name or model_id)[:_MAX_MODEL_ID], int(enabled), int(available),
-                 json.dumps(dict(capabilities or {}), ensure_ascii=False, separators=(",", ":")), str(capability_source), discovered_at, now))
+                 json.dumps(dict(capabilities or {}), ensure_ascii=False, separators=(",", ":")), str(capability_source), capability_profile, canonical_model,
+                 capability_verified_at, capability_catalog_version, discovered_at, now))
             connection.commit()
             row = connection.execute("SELECT * FROM ai_models WHERE provider_id = ? AND model_id = ?", (str(provider_id), model_id)).fetchone()
         return self._model(row)  # type: ignore[arg-type]
@@ -474,4 +520,4 @@ class AIConfigStore:
         return self._secret_for(provider_id)
 
 
-__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "network_scope", "resolve_network_target", "validate_base_url", "validate_network_target"]
+__all__ = ["AIConfigError", "AIConfigStore", "AISecretUnavailable", "AI_CONFIG_DB_PATH", "BusinessProfile", "ModelRecord", "ProviderRecord", "SUPPORTED_BUSINESS_KEYS", "SUPPORTED_CAPABILITY_PROFILES", "SUPPORTED_PROTOCOLS", "decrypt_secret", "encrypt_secret", "key_hint", "network_scope", "resolve_network_target", "validate_base_url", "validate_network_target"]

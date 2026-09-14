@@ -4,8 +4,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .catalog import resolve_model_capabilities
 from .config import AIConfig, load_ai_config
 from .config_store import AIConfigError, AIConfigStore, AISecretUnavailable, BusinessProfile
+from .providers import get_provider_adapter
 from .policy import ReasoningPolicy, validate_reasoning_policy
 
 
@@ -21,6 +23,11 @@ class ResolvedAIRuntime:
     business_key: str
     config_source: str
     capabilities: dict[str, Any]
+    capability_source: str = "unknown"
+    capability_profile: str = "generic_openai_compatible"
+    canonical_model: str | None = None
+    capability_verified_at: str | None = None
+    capability_catalog_version: str | None = None
 
 
 def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConfigStore | None = None) -> ResolvedAIRuntime:
@@ -39,7 +46,15 @@ def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConf
             raise AIConfigError("AI 模型已停用")
         if not model.available:
             raise AIConfigError("AI 模型当前不可用")
-        capabilities = model.capabilities
+        resolution = resolve_model_capabilities(
+            capability_profile=provider.capability_profile,
+            protocol=provider.protocol,
+            model_id=model.model_id,
+            manual_capabilities=model.capabilities if model.capability_source == "manual" else None,
+            capability_source=model.capability_source,
+            adapter_capabilities=get_provider_adapter(provider.protocol).capability_contract(),
+        )
+        capabilities = resolution.capabilities
         policy = ReasoningPolicy(profile.reasoning_mode, profile.reasoning_effort, profile.reasoning_budget)
         validate_reasoning_policy(policy, capabilities)
         config = AIConfig(
@@ -53,7 +68,11 @@ def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConf
             daily_limit_per_user=daily_limit, beta_users=legacy.beta_users,
             reasoning_mode=profile.reasoning_mode, reasoning_budget=profile.reasoning_budget,
         )
-        return ResolvedAIRuntime(config, provider.id, provider.name, model.model_id, provider.protocol, secret, policy, business_key, "db", capabilities)
+        return ResolvedAIRuntime(
+            config, provider.id, provider.name, model.model_id, provider.protocol, secret,
+            policy, business_key, "db", capabilities, resolution.source, resolution.profile,
+            resolution.canonical_model, resolution.verified_at, resolution.catalog_version,
+        )
     config = load_ai_config(daily_limit)
     policy = ReasoningPolicy("effort", config.reasoning_effort) if config.reasoning_effort else ReasoningPolicy("auto")
     return ResolvedAIRuntime(config, None, config.provider, config.model, config.wire_api, config.api_key, policy, business_key, "env", {})

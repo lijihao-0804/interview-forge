@@ -36,6 +36,8 @@ class AiFrontendIntegrationTests(unittest.TestCase):
             'data-ai-tab="providers"', 'data-ai-tab="models"', 'data-ai-tab="routes"',
             'id="admin-ai-provider-dialog"', 'id="admin-ai-model-dialog"',
             'id="admin-ai-route-dialog"', 'id="admin-ai-provider-count"',
+            'id="admin-ai-capability-profile"', 'id="admin-ai-capability-profile-note"',
+            'id="admin-ai-reasoning-note"',
         ):
             self.assertIn(marker, page)
         self.assertIn("showModal", script)
@@ -43,6 +45,12 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertIn('option(select, preset.key', script)
         self.assertIn("emptyOption(select", script)
         self.assertIn("暂无可用模型，请先同步或添加", script)
+        self.assertIn("capabilityProfiles", script)
+        self.assertIn("capabilitySourceLabel", script)
+        self.assertIn('mode.textContent = ""', script)
+        self.assertIn('effort.textContent = ""', script)
+        self.assertIn("capability_profile", script)
+        self.assertNotIn('if (item.model_id.indexOf("deepseek")', script)
         self.assertIn("status-partial", style)
         self.assertIn("position:fixed", style)
         self.assertIn("width:100%; max-width:none", style)
