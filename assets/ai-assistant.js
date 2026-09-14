@@ -101,6 +101,12 @@
 
   function setError(value) { error.textContent = value || ""; }
   function setBusy(value) { input.disabled = !state.current || value; send.disabled = !state.current || value; stop.hidden = !value; status.textContent = value ? "生成中…" : (state.current ? "已连接" : "未连接"); }
+  function resetStreamDiagnostics() {
+    if (!STREAM_DIAGNOSTICS_ENABLED) return;
+    state.streamDiagnostics.delta_count = 0;
+    state.streamDiagnostics.render_count = 0;
+    state.streamDiagnostics.max_render_ms = 0;
+  }
   function updateAutoFollow() {
     var distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
     state.autoFollow = distance <= AUTO_FOLLOW_THRESHOLD;
@@ -390,6 +396,8 @@
     var payload = await api("/api/chat/sessions");
     state.sessions = payload.items || [];
     renderSessions();
+    var current = state.sessions.find(function (item) { return item.id === state.current; });
+    if (current) title.textContent = current.title;
   }
 
   async function loadSessions() {
@@ -462,6 +470,7 @@
     if (!state.current || state.controller) return;
     var text = input.value.trim(); if (!text) return;
     setError("");
+    resetStreamDiagnostics();
     state.autoFollow = messages.scrollHeight - messages.scrollTop - messages.clientHeight <= AUTO_FOLLOW_THRESHOLD;
     input.value = ""; renderMessage({ role: "user", content: text });
     state.streamFailed = false; state.streamCompleted = false;
@@ -482,9 +491,6 @@
           startedBubble._rawText = "";
           startedBubble.classList.add("streaming");
           startedBubble.textContent = "";
-          state.streamDiagnostics.delta_count = 0;
-          state.streamDiagnostics.render_count = 0;
-          state.streamDiagnostics.max_render_ms = 0;
         }
         else if (name === "message.delta" && state.assistantNode) {
           var bubble = state.assistantNode.querySelector(".bubble");
