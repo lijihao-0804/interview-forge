@@ -46,16 +46,42 @@ def admin_ai_usage(
     return _call(request, lambda: service.ai_usage(window=window, username=username, model=model))
 
 
+@router.get("/api/admin/metrics/requests")
+def admin_request_metrics(request: Request, window: str = Query(default="24h", max_length=8)):
+    return _call(request, lambda: service.request_metrics(window=window))
+
+
+@router.get("/api/admin/metrics/ai")
+def admin_ai_metrics(
+    request: Request,
+    window: str = Query(default="24h", max_length=8),
+    username: str = Query(default="", max_length=32),
+    model: str = Query(default="", max_length=128),
+):
+    return _call(request, lambda: service.ai_metrics(window=window, username=username, model=model))
+
+
+@router.get("/api/admin/metrics/users")
+def admin_user_metrics(request: Request, window: str = Query(default="24h", max_length=8)):
+    return _call(request, lambda: service.user_metrics(window=window))
+
+
+@router.get("/api/admin/metrics/tools")
+def admin_tool_metrics(request: Request, window: str = Query(default="24h", max_length=8), username: str = Query(default="", max_length=32)):
+    return _call(request, lambda: service.tool_metrics(window=window, username=username))
+
+
 @router.get("/api/admin/ai/traces")
 def admin_ai_traces(
     request: Request,
     username: str = Query(default="", max_length=32),
+    request_id: str = Query(default="", max_length=128),
     status: str = Query(default="", max_length=32),
     model: str = Query(default="", max_length=128),
     window: str = Query(default="24h", max_length=8),
     limit: int = Query(default=100, ge=1, le=500),
 ):
-    return _call(request, lambda: service.list_traces(username=username, status=status, model=model, window=window, limit=limit))
+    return _call(request, lambda: service.list_traces(username=username, request_id=request_id, status=status, model=model, window=window, limit=limit))
 
 
 @router.get("/api/admin/ai/traces/{trace_id}")

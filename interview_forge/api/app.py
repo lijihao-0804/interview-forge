@@ -7,6 +7,7 @@ explicit fallback command, but is intentionally not included in this app.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import asyncio
 import time
 import uuid
 
@@ -33,6 +34,7 @@ from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services import leetcode as _leetcode_service  # noqa: F401
 from interview_forge.ai import tasks as _ai_tasks  # noqa: F401
 from interview_forge.observability.logging import log_event
+from interview_forge.observability.store import record_request
 
 
 @asynccontextmanager
@@ -96,6 +98,14 @@ async def request_observability(request, call_next):
             elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
             error_type=type(exc).__name__,
         )
+        await asyncio.to_thread(
+            record_request,
+            route=getattr(request.scope.get("route"), "path", ""),
+            path=request.url.path,
+            method=request.method,
+            status=500,
+            elapsed_ms=round((time.perf_counter() - started) * 1000, 2),
+        )
         raise
     elapsed = round((time.perf_counter() - started) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
@@ -109,6 +119,14 @@ async def request_observability(request, call_next):
         request_id=request_id,
         method=request.method,
         path=request.url.path,
+        status=response.status_code,
+        elapsed_ms=elapsed,
+    )
+    await asyncio.to_thread(
+        record_request,
+        route=getattr(request.scope.get("route"), "path", ""),
+        path=request.url.path,
+        method=request.method,
         status=response.status_code,
         elapsed_ms=elapsed,
     )
