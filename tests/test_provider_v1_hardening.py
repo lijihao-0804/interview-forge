@@ -12,7 +12,8 @@ from unittest.mock import patch
 from interview_forge.ai.config import AIConfig, model_key
 from interview_forge.ai.config_store import AIConfigError, AIConfigStore, BusinessProfile, validate_base_url, validate_network_target
 from interview_forge.ai.errors import AIServiceError
-from interview_forge.ai.policy import ReasoningPolicy
+from interview_forge.ai.policy import ReasoningPolicy, capabilities_for_model
+from interview_forge.ai.providers.base import ProviderProbeResult
 from interview_forge.ai.providers import get_provider_adapter
 from interview_forge.ai.providers.native import AnthropicAdapter, GeminiAdapter
 from interview_forge.ai.providers.openai_compatible import OpenAICompatibleAdapter
@@ -98,13 +99,14 @@ class ProviderV1HardeningTests(unittest.TestCase):
             def __exit__(self, *args): return False
             def get(self, url, **kwargs): return Response(self.payload)
 
-        with patch("interview_forge.ai.providers.native.validate_network_target"), patch("interview_forge.ai.providers.native.httpx.Client", Client):
+        pinned = ("example.com", ((socket.AF_INET, ("127.0.0.1", 443)),))
+        with patch("interview_forge.ai.providers.network.resolve_network_target", return_value=pinned), patch("interview_forge.ai.providers.native.httpx.Client", Client):
             result = AnthropicAdapter().discover_models(base_url="https://example.com", models_path="/v1/models", api_key="k")
         self.assertEqual(result.category, "ok")
         self.assertEqual(result.model_ids, ("claude-test",))
 
         Client.payload = {"models": [{"name": "models/gemini-test"}]}
-        with patch("interview_forge.ai.providers.native.validate_network_target"), patch("interview_forge.ai.providers.native.httpx.Client", Client):
+        with patch("interview_forge.ai.providers.network.resolve_network_target", return_value=pinned), patch("interview_forge.ai.providers.native.httpx.Client", Client):
             result = GeminiAdapter().discover_models(base_url="https://example.com", models_path="/v1beta/models", api_key="k")
         self.assertEqual(result.model_ids, ("gemini-test",))
 
@@ -120,12 +122,86 @@ class ProviderV1HardeningTests(unittest.TestCase):
     def test_reasoning_is_translated_or_rejected_explicitly(self):
         effort = _config(provider="openai", wire_api="responses", reasoning_mode="effort", reasoning_effort="high")
         self.assertEqual(build_chat_model_kwargs(effort)["reasoning_effort"], "high")
+        disabled = _config(provider="openai", wire_api="responses", reasoning_mode="off")
+        disabled_kwargs = build_chat_model_kwargs(disabled)
+        self.assertEqual(disabled_kwargs["reasoning_effort"], "none")
+        self.assertNotIn("extra_body", disabled_kwargs)
         budget = _config(provider="openai-compatible", wire_api="chat_completions", reasoning_mode="budget", reasoning_budget=512)
         self.assertEqual(build_chat_model_kwargs(budget)["extra_body"]["thinking"]["budget_tokens"], 512)
         native = _config(provider="anthropic", wire_api="anthropic_messages")
         self.assertEqual(AnthropicAdapter().apply_reasoning(native, ReasoningPolicy("auto")), {})
         with self.assertRaises(AIServiceError):
             AnthropicAdapter().apply_reasoning(native, ReasoningPolicy("effort", "high"))
+
+    def test_discovery_uses_known_model_capabilities_and_preserves_manual_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_db = Path(directory) / "ai.db"
+            with patch.dict(os.environ, {
+                "INTERVIEW_FORGE_AI_CONFIG_KEY": "master",
+                "INTERVIEW_FORGE_AI_CONFIG_DB": str(config_db),
+            }, clear=False):
+                store = AIConfigStore(config_db)
+                provider = store.create_provider(
+                    name="OpenAI", vendor="openai", protocol="openai_responses",
+                    base_url="https://example.com/v1", api_key="k",
+                )
+
+                class Adapter:
+                    def discover_models(self, **_kwargs):
+                        return ProviderProbeResult(True, "ok", ("gpt-5.6-luna", "vendor-model"))
+
+                from interview_forge.services import admin_ai_config
+                with patch.object(admin_ai_config, "get_provider_adapter", return_value=Adapter()):
+                    result = admin_ai_config.discover_models(provider.id)
+                by_id = {item["model_id"]: item for item in result["items"]}
+                self.assertTrue(by_id["gpt-5.6-luna"]["capabilities"]["reasoning"])
+                self.assertFalse(by_id["vendor-model"]["capabilities"]["reasoning"])
+                store.update_model(
+                    provider_id=provider.id,
+                    model_id="gpt-5.6-luna",
+                    capabilities={"manual": True, "reasoning": False},
+                )
+                with patch.object(admin_ai_config, "get_provider_adapter", return_value=Adapter()):
+                    admin_ai_config.discover_models(provider.id)
+                item = next(item for item in store.list_models(provider.id) if item.model_id == "gpt-5.6-luna")
+                self.assertEqual(item.capabilities, {"manual": True, "reasoning": False})
+
+    def test_gemini_custom_base_url_is_rejected_at_create_and_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ, {"INTERVIEW_FORGE_AI_CONFIG_KEY": "master"}, clear=False):
+                store = AIConfigStore(Path(directory) / "ai.db")
+                with self.assertRaises(AIConfigError):
+                    store.create_provider(
+                        name="Gemini", vendor="google", protocol="gemini",
+                        base_url="https://custom.example", api_key="k",
+                    )
+                provider = store.create_provider(
+                    name="Gemini", vendor="google", protocol="gemini",
+                    base_url="https://generativelanguage.googleapis.com", api_key="k",
+                )
+                with self.assertRaises(AIConfigError):
+                    store.update_provider(provider.id, base_url="https://custom.example")
+
+    def test_pinned_transport_resolves_once_and_keeps_validated_endpoints(self):
+        from interview_forge.ai.providers.network import PinnedHTTPTransport
+
+        records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.10", 443))]
+        with patch("interview_forge.ai.config_store.socket.getaddrinfo", return_value=records) as resolver:
+            transport = PinnedHTTPTransport("https://provider.example/v1")
+            try:
+                backend = transport._pool._network_backend
+                self.assertEqual(resolver.call_count, 1)
+                self.assertEqual(backend.endpoints, ((socket.AF_INET, ("203.0.113.10", 443)),))
+            finally:
+                transport.close()
+
+    def test_capability_registry_is_conservative_for_unknown_models(self):
+        known = capabilities_for_model(vendor="openai", protocol="openai_responses", model_id="gpt-5.6-luna")
+        unknown = capabilities_for_model(vendor="openai", protocol="openai_responses", model_id="vendor-custom-model")
+        self.assertTrue(known["reasoning"])
+        self.assertIn("xhigh", known["reasoning_efforts"])
+        self.assertFalse(unknown["reasoning"])
+        self.assertEqual(unknown["reasoning_modes"], ["auto"])
 
     def test_resolver_rejects_disabled_or_unavailable_models(self):
         with tempfile.TemporaryDirectory() as directory:

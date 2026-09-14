@@ -5,7 +5,7 @@ from dataclasses import asdict
 from typing import Any, Mapping
 
 from interview_forge.ai.config_store import AIConfigStore, BusinessProfile, SUPPORTED_BUSINESS_KEYS, network_scope
-from interview_forge.ai.policy import ReasoningPolicy, capabilities_for_preset, validate_reasoning_policy
+from interview_forge.ai.policy import ReasoningPolicy, capabilities_for_model, capabilities_for_preset, validate_reasoning_policy
 from interview_forge.ai.providers import PROVIDER_PRESETS, get_provider_adapter
 
 
@@ -113,8 +113,14 @@ def discover_models(provider_id: str) -> dict[str, Any]:
         api_key=store.provider_secret(provider_id),
     )
     if not result.ok: return {"ok": False, "category": result.category, "items": []}
+    provider = store.get_provider(provider_id)
+    if provider is None: raise LookupError("Provider 不存在")
     for model_id in result.model_ids:
-        store.upsert_model(provider_id=provider_id, model_id=model_id, capability_source="discovered")
+        store.upsert_model(
+            provider_id=provider_id, model_id=model_id,
+            capabilities=capabilities_for_model(vendor=provider.vendor, protocol=provider.protocol, model_id=model_id),
+            capability_source="discovered",
+        )
     store.mark_provider_models_unavailable(provider_id, set(result.model_ids))
     return {"ok": True, "category": "ok", "items": [asdict(item) for item in store.list_models(provider_id)]}
 

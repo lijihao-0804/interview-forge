@@ -7,8 +7,9 @@ from urllib.parse import urljoin
 
 import httpx
 
-from interview_forge.ai.config_store import AIConfigError, validate_network_target
+from interview_forge.ai.config_store import AIConfigError
 from .base import ProviderAdapter, ProviderProbeResult
+from .network import PinnedHTTPTransport
 
 
 MAX_RESPONSE_BYTES = 1_000_000
@@ -45,7 +46,9 @@ class OpenAICompatibleAdapter(ProviderAdapter):
             budget = getattr(config, "reasoning_budget", None)
         if mode == "auto" and thinking_mode is None and not getattr(config, "thinking_enabled", False):
             return {}
-        if mode == "off":
+        if mode == "off" or (mode == "auto" and thinking_mode == "disabled"):
+            if str(getattr(config, "provider", "")).strip().lower() == "openai" and config.wire_api == "responses":
+                return {"reasoning_effort": "none"}
             return {"extra_body": {"thinking": {"type": "disabled"}}}
         if mode == "budget" and budget is not None:
             return {"extra_body": {"thinking": {"type": "enabled", "budget_tokens": int(budget)}}}
@@ -82,8 +85,8 @@ class OpenAICompatibleAdapter(ProviderAdapter):
     def discover_models(self, *, base_url: str, models_path: str, api_key: str, timeout: float = 8.0) -> ProviderProbeResult:
         started = time.perf_counter()
         try:
-            validate_network_target(base_url)
-            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, headers={"Authorization": f"Bearer {api_key}"} if api_key else {}) as client:
+            transport = PinnedHTTPTransport(base_url)
+            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, trust_env=False, transport=transport, headers={"Authorization": f"Bearer {api_key}"} if api_key else {}) as client:
                 url = models_url(base_url, models_path)
                 if hasattr(client, "stream"):
                     with client.stream("GET", url) as response:
