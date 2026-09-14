@@ -27,12 +27,13 @@ _WIDGET_STYLES = ("/assets/ai-launcher.css?v=1",)
 _WIDGET_SCRIPTS = (
     "/assets/navigation-policy.js?v=1",
     "/assets/auth-widget.js?v=2",
-    "/assets/feedback-widget.js?v=1",
+    "/assets/feedback-widget.js?v=2",
     "/assets/theme-toggle.js?v=1",
     "/assets/ai-page-context.js?v=1",
     "/assets/ai-launcher.js?v=1",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+_FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
 _AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 
 
@@ -76,7 +77,11 @@ def _security_headers(path: str) -> dict[str, str]:
 def _inject_html(path: str, body: bytes) -> bytes:
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     scripts = ("/assets/navigation-policy.js?v=1",) if navigation_only else tuple(
-        script for script in _WIDGET_SCRIPTS if not (script.startswith("/assets/auth-widget") and path in _AUTH_WIDGET_SKIP)
+        script for script in _WIDGET_SCRIPTS
+        if not (
+            (script.startswith("/assets/auth-widget") and path in _AUTH_WIDGET_SKIP)
+            or (script.startswith("/assets/feedback-widget") and path in _FEEDBACK_WIDGET_SKIP)
+        )
     )
     if path in _AI_LAUNCHER_SKIP or navigation_only:
         scripts = tuple(script for script in scripts if not any(

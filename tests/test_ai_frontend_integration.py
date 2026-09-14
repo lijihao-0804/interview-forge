@@ -23,6 +23,19 @@ class AiFrontendIntegrationTests(unittest.TestCase):
                 self.assertNotIn("ai-launcher.js", rendered)
                 self.assertNotIn("ai-page-context.js", rendered)
 
+    def test_admin_does_not_receive_floating_auth_or_feedback_widgets(self):
+        rendered = _inject_html("/pages/admin.html", b"<html><body></body></html>").decode()
+        self.assertNotIn("auth-widget.js", rendered)
+        self.assertNotIn("feedback-widget.js", rendered)
+
+    def test_feedback_button_uses_dynamic_auth_reserve(self):
+        auth = (ROOT / "assets" / "auth-widget.js").read_text(encoding="utf-8")
+        feedback = (ROOT / "assets" / "feedback-widget.js").read_text(encoding="utf-8")
+        self.assertIn("--forge-auth-reserve", auth)
+        self.assertIn("ResizeObserver", auth)
+        self.assertIn("var(--forge-auth-reserve", feedback)
+        self.assertNotIn("bottom:calc(58px", feedback)
+
     def test_generated_library_page_does_not_receive_duplicate_launcher(self):
         page = ROOT / "library" / "agent-cli" / "chapter-01.html"
         body = page.read_bytes()

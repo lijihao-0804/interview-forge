@@ -552,6 +552,16 @@
 
       document.body.appendChild(pill);
 
+      // 反馈按钮位于认证胶囊上方。胶囊内容会随角色、昵称和未读数变化，
+      // 不能用固定 bottom 值，否则窄屏或管理员账号容易发生重叠。
+      function updateFloatingReserve() {
+        var height = Math.ceil(pill.getBoundingClientRect().height || 0);
+        document.documentElement.style.setProperty("--forge-auth-reserve", (height + 28) + "px");
+      }
+      updateFloatingReserve();
+      if (typeof ResizeObserver === "function") new ResizeObserver(updateFloatingReserve).observe(pill);
+      window.addEventListener("resize", updateFloatingReserve, { passive: true });
+
       // ---- 聊天未读感知：面板关闭时每 15 秒探针一次；401 视为会话过期跳登录 ----
       fetch("/api/chat/messages?after=-1&limit=1", { cache: "no-store" })
         .then(function (r) { if (r.status === 401) { authGone(); return null; } return r.json(); })
