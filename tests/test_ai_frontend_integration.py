@@ -28,6 +28,21 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertNotIn("auth-widget.js", rendered)
         self.assertNotIn("feedback-widget.js", rendered)
 
+    def test_admin_ai_config_uses_tabbed_cards_and_modal_editors(self):
+        page = (ROOT / "pages" / "admin.html").read_text(encoding="utf-8")
+        script = (ROOT / "assets" / "admin-ai-config.js").read_text(encoding="utf-8")
+        style = (ROOT / "assets" / "admin-ai-config.css").read_text(encoding="utf-8")
+        for marker in (
+            'data-ai-tab="providers"', 'data-ai-tab="models"', 'data-ai-tab="routes"',
+            'id="admin-ai-provider-dialog"', 'id="admin-ai-model-dialog"',
+            'id="admin-ai-route-dialog"', 'id="admin-ai-provider-count"',
+        ):
+            self.assertIn(marker, page)
+        self.assertIn("showModal", script)
+        self.assertIn("status-partial", style)
+        self.assertNotIn("window.prompt", script)
+        self.assertNotIn("innerHTML", script)
+
     def test_feedback_button_uses_dynamic_auth_reserve(self):
         auth = (ROOT / "assets" / "auth-widget.js").read_text(encoding="utf-8")
         feedback = (ROOT / "assets" / "feedback-widget.js").read_text(encoding="utf-8")

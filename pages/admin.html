@@ -61,7 +61,7 @@
 </style>
 <link rel="stylesheet" href="../assets/admin-observability.css?v=1">
 <link rel="stylesheet" href="../assets/admin-operations.css?v=1">
-<link rel="stylesheet" href="../assets/admin-ai-config.css?v=1">
+<link rel="stylesheet" href="../assets/admin-ai-config.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -181,23 +181,87 @@
       <div class="ops-panel" data-ops-panel="memory"><div class="admin-v2-toolbar"><button type="button" id="admin-ops-memory-refresh">刷新</button></div><div class="admin-v2-cards" id="admin-ops-memory-cards"></div><pre class="admin-v2-detail" id="admin-ops-memory-detail"></pre></div>
       <div class="ops-panel" data-ops-panel="system" id="admin-system"><div class="admin-v2-toolbar"><button type="button" id="admin-ops-system-refresh">刷新</button><button type="button" id="admin-ops-diagnostics">运行无副作用诊断</button></div><div class="admin-v2-columns"><div><h3>运行</h3><dl id="admin-ops-system-runtime"></dl></div><div><h3>AI</h3><dl id="admin-ops-system-ai"></dl></div><div><h3>存储</h3><dl id="admin-ops-system-storage"></dl></div></div><pre class="admin-v2-detail" id="admin-ops-diagnostics-result" hidden></pre></div>
     </section>
-    <section id="admin-ai-config">
-      <div class="admin-v2-heading"><div><h2>AI 配置</h2><p class="muted">按 Provider、模型和业务路由管理 AI。API Key 只允许替换，不会在页面回显。</p></div><span class="msg" id="admin-ai-config-status">就绪</span></div>
-      <div class="ai-config-form">
-        <div class="field"><label for="admin-ai-preset">Provider 类型</label><select id="admin-ai-preset"></select></div>
-        <div class="field"><label for="admin-ai-name">名称</label><input id="admin-ai-name" placeholder="例如：主模型"></div>
-        <div class="field"><label for="admin-ai-vendor">Vendor</label><input id="admin-ai-vendor" readonly></div>
-        <div class="field"><label for="admin-ai-protocol">Protocol</label><select id="admin-ai-protocol"><option value="openai_chat">openai_chat</option><option value="openai_responses">openai_responses</option><option value="anthropic_messages">anthropic_messages</option><option value="gemini">gemini</option></select></div>
-        <div class="field"><label for="admin-ai-base-url">Base URL</label><input id="admin-ai-base-url" style="width:230px" placeholder="https://.../v1"></div>
-        <div class="field"><label for="admin-ai-models-path">模型路径</label><input id="admin-ai-models-path" value="/models" style="width:140px"></div>
-        <div class="field"><label for="admin-ai-key">API Key（仅写入）</label><input id="admin-ai-key" type="password" autocomplete="off" style="width:190px"></div>
-        <button id="admin-ai-provider-create">保存 Provider</button><button class="ghost" id="admin-ai-config-refresh">刷新</button>
+    <section id="admin-ai-config" class="ai-config-section">
+      <div class="admin-v2-heading ai-config-header">
+        <div><h2>AI 配置</h2><p class="muted">管理模型供应商、模型能力与业务路由。API Key 只允许替换，不会在页面回显。</p></div>
+        <span class="ai-config-status status-neutral" id="admin-ai-config-status">加载中…</span>
       </div>
-      <div class="ai-config-grid" style="margin-top:16px"><div><h3>供应商</h3><div class="ai-config-list" id="admin-ai-providers"></div></div><div><h3>模型管理</h3><div class="ai-config-form"><input id="admin-ai-model-provider" type="hidden"><input id="admin-ai-model-id" placeholder="手工添加 model id"><input id="admin-ai-model-capabilities" placeholder='capabilities JSON（可选）' style="width:210px"><button class="ghost" id="admin-ai-model-add">添加模型</button></div><div class="ai-config-list" id="admin-ai-models"><span class="muted">选择 Provider 后加载模型</span></div></div></div>
-      <h3 style="margin-top:18px">业务路由</h3>
-      <div class="ai-config-form"><div class="field"><label for="admin-ai-business">业务</label><select id="admin-ai-business"><option value="chat">Chat</option><option value="learning_analysis">学习分析</option><option value="memory_extraction">Memory 提取</option></select></div><div class="field"><label for="admin-ai-profile-provider">Provider</label><select id="admin-ai-profile-provider"></select></div><div class="field"><label for="admin-ai-profile-model">Model</label><select id="admin-ai-profile-model"></select></div><div class="field"><label for="admin-ai-reasoning-mode">Reasoning</label><select id="admin-ai-reasoning-mode"><option value="auto">auto</option><option value="off">off</option><option value="effort">effort</option><option value="budget">budget</option></select></div><div class="field"><label for="admin-ai-reasoning-effort">Effort</label><input id="admin-ai-reasoning-effort" placeholder="high" style="width:90px"></div><div class="field"><label for="admin-ai-reasoning-budget">Budget tokens</label><input id="admin-ai-reasoning-budget" type="number" min="1" max="200000" style="width:120px"></div><button id="admin-ai-profile-save">保存路由</button></div>
-      <div class="ai-config-list" id="admin-ai-profiles"></div>
+      <div class="ai-config-summary" aria-label="AI 配置摘要">
+        <div class="ai-config-summary-card"><span>Provider</span><strong id="admin-ai-provider-count">0</strong><small>已配置供应商</small></div>
+        <div class="ai-config-summary-card"><span>Models</span><strong id="admin-ai-model-count">0</strong><small>已发现或手工添加</small></div>
+        <div class="ai-config-summary-card"><span>Business Routes</span><strong id="admin-ai-route-count">0</strong><small>已配置业务路由</small></div>
+      </div>
+      <nav class="ai-config-tabs" aria-label="AI 配置导航">
+        <button type="button" class="active" data-ai-tab="providers">供应商</button>
+        <button type="button" data-ai-tab="models">模型</button>
+        <button type="button" data-ai-tab="routes">业务路由</button>
+      </nav>
+
+      <div class="ai-config-panel active" data-ai-panel="providers">
+        <div class="ai-config-panel-heading"><div><h3>供应商</h3><p class="muted">连接外部 AI 服务，并在这里测试或同步模型。</p></div><button type="button" id="admin-ai-provider-add">+ 添加供应商</button></div>
+        <div class="ai-config-list ai-provider-grid" id="admin-ai-providers"></div>
+      </div>
+
+      <div class="ai-config-panel" data-ai-panel="models">
+        <div class="ai-config-panel-heading"><div><h3>模型</h3><p class="muted">只显示当前供应商的模型，能力以标签展示。</p></div><div class="ai-config-toolbar-actions"><label class="ai-config-inline-field">供应商<select id="admin-ai-model-provider-select"></select></label><button type="button" class="ghost" id="admin-ai-model-sync">同步模型</button><button type="button" id="admin-ai-model-add">+ 手工添加</button></div></div>
+        <div class="ai-config-search"><label for="admin-ai-model-search">搜索 model id</label><input id="admin-ai-model-search" type="search" placeholder="输入模型 ID 或显示名"></div>
+        <div class="ai-config-table-wrap"><table class="ai-config-table"><thead><tr><th>Model</th><th>能力</th><th>状态</th><th>来源</th><th>操作</th></tr></thead><tbody id="admin-ai-models"></tbody></table></div>
+      </div>
+
+      <div class="ai-config-panel" data-ai-panel="routes">
+        <div class="ai-config-panel-heading"><div><h3>业务路由</h3><p class="muted">为不同 AI 业务选择可用模型和 Reasoning 策略。</p></div></div>
+        <div class="ai-route-grid" id="admin-ai-profiles"></div>
+      </div>
     </section>
+
+    <dialog id="admin-ai-provider-dialog" class="ai-config-dialog" aria-labelledby="admin-ai-provider-dialog-title">
+      <form method="dialog" id="admin-ai-provider-form">
+        <div class="ai-dialog-header"><div><h3 id="admin-ai-provider-dialog-title">添加供应商</h3><p class="muted">保存后可在供应商卡片中测试连接或同步模型。</p></div><button type="button" class="ai-dialog-close ghost" data-close-dialog="admin-ai-provider-dialog" aria-label="关闭">×</button></div>
+        <div class="ai-dialog-body">
+          <div class="ai-dialog-grid">
+            <div class="field"><label for="admin-ai-preset">Provider 类型</label><select id="admin-ai-preset"></select></div>
+            <div class="field"><label for="admin-ai-name">名称</label><input id="admin-ai-name" placeholder="例如：主模型" required></div>
+            <div class="field ai-dialog-full"><label for="admin-ai-key">API Key（仅写入）</label><input id="admin-ai-key" type="password" autocomplete="off" placeholder="新增时填写，编辑时留空表示保持不变"></div>
+          </div>
+          <label class="ai-checkline" id="admin-ai-clear-key-wrap" hidden><input id="admin-ai-clear-key" type="checkbox"> 清除当前 API Key</label>
+          <details class="ai-advanced"><summary>高级设置</summary><div class="ai-dialog-grid">
+            <div class="field"><label for="admin-ai-vendor">Vendor</label><input id="admin-ai-vendor" readonly></div>
+            <div class="field"><label for="admin-ai-protocol">Protocol</label><select id="admin-ai-protocol"><option value="openai_chat">openai_chat</option><option value="openai_responses">openai_responses</option><option value="anthropic_messages">anthropic_messages</option><option value="gemini">gemini</option></select></div>
+            <div class="field ai-dialog-full"><label for="admin-ai-base-url">Base URL</label><input id="admin-ai-base-url" placeholder="https://.../v1" required></div>
+            <div class="field"><label for="admin-ai-models-path">模型路径</label><input id="admin-ai-models-path" value="/models" placeholder="/models"></div>
+          </div></details>
+          <div class="ai-dialog-message" id="admin-ai-provider-message" role="status"></div>
+        </div>
+        <div class="ai-dialog-actions"><button type="button" class="ghost" data-close-dialog="admin-ai-provider-dialog">取消</button><button type="submit" id="admin-ai-provider-save">保存</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="admin-ai-model-dialog" class="ai-config-dialog" aria-labelledby="admin-ai-model-dialog-title">
+      <form method="dialog" id="admin-ai-model-form">
+        <div class="ai-dialog-header"><div><h3 id="admin-ai-model-dialog-title">添加模型</h3><p class="muted">能力将用于控制业务路由中的 Reasoning 选项。</p></div><button type="button" class="ai-dialog-close ghost" data-close-dialog="admin-ai-model-dialog" aria-label="关闭">×</button></div>
+        <div class="ai-dialog-body">
+          <div class="ai-dialog-grid"><div class="field"><label for="admin-ai-model-id">Model ID</label><input id="admin-ai-model-id" required></div><div class="field"><label for="admin-ai-model-display-name">显示名称</label><input id="admin-ai-model-display-name" placeholder="可选"></div></div>
+          <label class="ai-checkline"><input id="admin-ai-model-enabled" type="checkbox" checked> 启用此模型</label>
+          <fieldset class="ai-capabilities"><legend>Capabilities</legend><div class="ai-capability-grid">
+            <label><input id="admin-ai-cap-streaming" type="checkbox"> 流式</label><label><input id="admin-ai-cap-tools" type="checkbox"> 工具</label><label><input id="admin-ai-cap-structured" type="checkbox"> 结构化输出</label><label><input id="admin-ai-cap-reasoning" type="checkbox"> 推理</label>
+          </div></fieldset>
+          <div class="ai-reasoning-editor" id="admin-ai-reasoning-editor" hidden>
+            <fieldset class="ai-capabilities"><legend>Reasoning 能力</legend><div class="ai-capability-grid"><label><input id="admin-ai-cap-mode-auto" type="checkbox"> Auto</label><label><input id="admin-ai-cap-mode-off" type="checkbox"> Off</label><label><input id="admin-ai-cap-mode-effort" type="checkbox"> Effort</label><label><input id="admin-ai-cap-mode-budget" type="checkbox"> Budget</label><label><input id="admin-ai-cap-budget" type="checkbox"> 支持 Budget tokens</label></div><div class="ai-effort-grid" id="admin-ai-effort-grid"><label><input value="minimal" type="checkbox"> Minimal</label><label><input value="low" type="checkbox"> Low</label><label><input value="medium" type="checkbox"> Medium</label><label><input value="high" type="checkbox"> High</label><label><input value="xhigh" type="checkbox"> XHigh</label><label><input value="max" type="checkbox"> Max</label></div></fieldset>
+          </div>
+          <details class="ai-advanced"><summary>高级：编辑原始 Capability JSON</summary><textarea id="admin-ai-model-capabilities" rows="5" spellcheck="false"></textarea></details>
+          <div class="ai-dialog-message" id="admin-ai-model-message" role="status"></div>
+        </div>
+        <div class="ai-dialog-actions"><button type="button" class="ghost" data-close-dialog="admin-ai-model-dialog">取消</button><button type="submit" id="admin-ai-model-save">保存</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="admin-ai-route-dialog" class="ai-config-dialog" aria-labelledby="admin-ai-route-dialog-title">
+      <form method="dialog" id="admin-ai-route-form">
+        <div class="ai-dialog-header"><div><h3 id="admin-ai-route-dialog-title">编辑业务路由</h3><p class="muted" id="admin-ai-route-description"></p></div><button type="button" class="ai-dialog-close ghost" data-close-dialog="admin-ai-route-dialog" aria-label="关闭">×</button></div>
+        <div class="ai-dialog-body"><div class="ai-dialog-grid"><div class="field"><label for="admin-ai-profile-provider">Provider</label><select id="admin-ai-profile-provider"></select></div><div class="field"><label for="admin-ai-profile-model">Model</label><select id="admin-ai-profile-model"></select></div><div class="field"><label for="admin-ai-reasoning-mode">Reasoning</label><select id="admin-ai-reasoning-mode"><option value="auto">Auto</option><option value="off">Off</option><option value="effort">Effort</option><option value="budget">Budget</option></select></div><div class="field"><label for="admin-ai-reasoning-effort">Effort</label><select id="admin-ai-reasoning-effort"><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div><div class="field"><label for="admin-ai-reasoning-budget">Budget tokens</label><input id="admin-ai-reasoning-budget" type="number" min="1" max="200000" placeholder="例如 2048"></div></div><label class="ai-checkline"><input id="admin-ai-route-enabled" type="checkbox" checked> 启用此业务路由</label><div class="ai-dialog-message" id="admin-ai-route-message" role="status"></div></div>
+        <div class="ai-dialog-actions"><button type="button" class="ghost" data-close-dialog="admin-ai-route-dialog">取消</button><button type="submit" id="admin-ai-profile-save">保存路由</button></div>
+      </form>
+    </dialog>
   </div>
 </div>
 
@@ -563,6 +627,6 @@ api("/api/me").then(function (res) {
 </script>
 <script src="../assets/admin-observability.js?v=1" defer></script>
 <script src="../assets/admin-operations.js?v=1" defer></script>
-<script src="../assets/admin-ai-config.js?v=2" defer></script>
+<script src="../assets/admin-ai-config.js?v=3" defer></script>
 </body>
 </html>
