@@ -14,6 +14,7 @@ from .network import PinnedHTTPTransport
 
 MAX_RESPONSE_BYTES = 1_000_000
 MAX_MODELS = 200
+TEST_MODEL_MAX_TOKENS = 64
 
 
 def _read_limited(response: httpx.Response) -> bytes:
@@ -163,9 +164,9 @@ class OpenAICompatibleAdapter(ProviderAdapter):
         """Make one bounded streaming generation request without returning its body."""
         started = time.perf_counter()
         payload = (
-            {"model": model_id, "input": "Reply with OK.", "max_output_tokens": 8, "stream": True}
+            {"model": model_id, "input": "Reply with OK.", "max_output_tokens": TEST_MODEL_MAX_TOKENS, "stream": True}
             if self.protocol == "openai_responses" else
-            {"model": model_id, "messages": [{"role": "user", "content": "Reply with OK."}], "max_tokens": 8, "stream": True}
+            {"model": model_id, "messages": [{"role": "user", "content": "Reply with OK."}], "max_tokens": TEST_MODEL_MAX_TOKENS, "stream": True}
         )
         try:
             transport = PinnedHTTPTransport(base_url)
@@ -217,4 +218,4 @@ class OpenAICompatibleAdapter(ProviderAdapter):
             return ProviderProbeResult(False, "network", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
 
 
-__all__ = ["MAX_MODELS", "MAX_RESPONSE_BYTES", "OpenAICompatibleAdapter", "models_url"]
+__all__ = ["MAX_MODELS", "MAX_RESPONSE_BYTES", "OpenAICompatibleAdapter", "TEST_MODEL_MAX_TOKENS", "models_url"]
