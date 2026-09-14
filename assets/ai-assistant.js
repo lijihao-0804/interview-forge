@@ -5,9 +5,15 @@
   document.body.classList.toggle("embedded", embedded);
   var state = {
     sessions: [], current: null, controller: null, assistantNode: null,
-    cancelRequested: false, streamFailed: false, pageContext: null,
-    pageContextWaiters: Object.create(null), contextRequestSerial: 0
+    cancelRequested: false, streamFailed: false, streamCompleted: false, pageContext: null,
+    pageContextWaiters: Object.create(null), contextRequestSerial: 0,
+    autoFollow: true, scrollFrame: null,
+    streamDiagnostics: { delta_count: 0, render_count: 0, max_render_ms: 0 }
   };
+  var STREAM_RENDER_INTERVAL = 100;
+  var AUTO_FOLLOW_THRESHOLD = 120;
+  var STREAM_DIAGNOSTICS_ENABLED = window.__INTERVIEW_FORGE_STREAM_DIAGNOSTICS__ === true;
+  if (STREAM_DIAGNOSTICS_ENABLED) window.__interviewForgeStreamDiagnostics = state.streamDiagnostics;
   var list = document.getElementById("sessionList");
   var messages = document.getElementById("messages");
   var title = document.getElementById("chatTitle");
@@ -95,7 +101,57 @@
 
   function setError(value) { error.textContent = value || ""; }
   function setBusy(value) { input.disabled = !state.current || value; send.disabled = !state.current || value; stop.hidden = !value; status.textContent = value ? "生成中…" : (state.current ? "已连接" : "未连接"); }
-  function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
+  function updateAutoFollow() {
+    var distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
+    state.autoFollow = distance <= AUTO_FOLLOW_THRESHOLD;
+  }
+
+  function scheduleScrollBottom() {
+    if (!state.autoFollow || state.scrollFrame != null) return;
+    var run = function () {
+      state.scrollFrame = null;
+      if (state.autoFollow) messages.scrollTop = messages.scrollHeight;
+    };
+    state.scrollFrame = window.requestAnimationFrame
+      ? window.requestAnimationFrame(run)
+      : window.setTimeout(run, 16);
+  }
+
+  function cancelStreamRender(bubble) {
+    if (!bubble || bubble._streamRenderTimer == null) return;
+    window.clearTimeout(bubble._streamRenderTimer);
+    bubble._streamRenderTimer = null;
+  }
+
+  function renderStreamPreview(bubble) {
+    if (!bubble) return;
+    var started = performance.now();
+    bubble.textContent = bubble._rawText || "";
+    bubble._lastStreamRenderAt = Date.now();
+    state.streamDiagnostics.render_count += 1;
+    state.streamDiagnostics.max_render_ms = Math.max(
+      state.streamDiagnostics.max_render_ms, performance.now() - started
+    );
+    scheduleScrollBottom();
+  }
+
+  function scheduleStreamRender(bubble) {
+    if (!bubble || bubble._streamRenderTimer != null) return;
+    var elapsed = Date.now() - (bubble._lastStreamRenderAt || 0);
+    var delay = Math.max(0, STREAM_RENDER_INTERVAL - elapsed);
+    bubble._streamRenderTimer = window.setTimeout(function () {
+      bubble._streamRenderTimer = null;
+      renderStreamPreview(bubble);
+    }, delay);
+  }
+
+  function finalizeAssistant(bubble) {
+    if (!bubble) return;
+    cancelStreamRender(bubble);
+    bubble.innerHTML = markdown(bubble._rawText || "");
+    bubble.classList.remove("streaming");
+    if (state.autoFollow) scheduleScrollBottom();
+  }
 
   function actionHost(node) {
     if (node._actionHost) return node._actionHost;
@@ -258,7 +314,7 @@
     list.querySelectorAll("[data-session]").forEach(function (node) { node.addEventListener("click", function () { selectSession(node.getAttribute("data-session")); }); });
   }
 
-  function renderMessage(item) {
+  function renderMessage(item, target) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
     var content = document.createElement("div");
@@ -268,7 +324,7 @@
     bubble.innerHTML = item.role === "assistant" ? markdown(item.content) : esc(item.content);
     content.appendChild(bubble);
     node.appendChild(content);
-    messages.appendChild(node);
+    (target || messages).appendChild(node);
     return node;
   }
 
@@ -312,25 +368,32 @@
 
   async function selectSession(id) {
     if (state.controller) state.controller.abort();
+    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
     state.current = id;
     state.assistantNode = null;
     setError("");
     renderSessions();
     var payload = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/messages");
     title.textContent = payload.session.title;
-    messages.innerHTML = "";
-    (payload.items || []).forEach(renderMessage);
+    var fragment = document.createDocumentFragment();
+    (payload.items || []).forEach(function (item) { renderMessage(item, fragment); });
+    messages.replaceChildren(fragment);
     var actions = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/actions?status=pending");
     renderPendingActions(actions.items || []);
     input.disabled = false; send.disabled = false; status.textContent = "已连接";
     try { localStorage.setItem("forge-ai-session", id); } catch (_) { }
-    scrollBottom();
+    state.autoFollow = true;
+    scheduleScrollBottom();
   }
 
-  async function loadSessions() {
+  async function refreshSessionList() {
     var payload = await api("/api/chat/sessions");
     state.sessions = payload.items || [];
     renderSessions();
+  }
+
+  async function loadSessions() {
+    await refreshSessionList();
     if (!state.sessions.length) return;
     var saved = null; try { saved = localStorage.getItem("forge-ai-session"); } catch (_) { }
     await selectSession(state.sessions.some(function (item) { return item.id === saved; }) ? saved : state.sessions[0].id);
@@ -372,6 +435,7 @@
   async function reloadCurrentSession() {
     var id = state.current;
     if (!id) return;
+    if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
     state.controller = null;
     try { await selectSession(id); } catch (err) { setError(err.message || "读取会话失败"); }
   }
@@ -397,9 +461,11 @@
     event.preventDefault();
     if (!state.current || state.controller) return;
     var text = input.value.trim(); if (!text) return;
-    setError(""); input.value = ""; renderMessage({ role: "user", content: text });
-    state.streamFailed = false;
-    state.controller = new AbortController(); setBusy(true); scrollBottom();
+    setError("");
+    state.autoFollow = messages.scrollHeight - messages.scrollTop - messages.clientHeight <= AUTO_FOLLOW_THRESHOLD;
+    input.value = ""; renderMessage({ role: "user", content: text });
+    state.streamFailed = false; state.streamCompleted = false;
+    state.controller = new AbortController(); setBusy(true); scheduleScrollBottom();
     try {
       // The drawer receives context asynchronously. Ask for a fresh snapshot
       // immediately before sending so scroll/selection changes are current.
@@ -410,21 +476,39 @@
       if (!response.ok) { var failed = await response.json().catch(function () { return {}; }); throw new Error(failed.error || "发送失败"); }
       var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
       function onEvent(name, payload) {
-        if (name === "message.start") { state.assistantNode = renderAssistantTurn(); state.assistantNode.querySelector(".bubble").textContent = ""; }
-        else if (name === "message.delta" && state.assistantNode) { var bubble = state.assistantNode.querySelector(".bubble"); bubble.dataset.raw = (bubble.dataset.raw || "") + String(payload.delta || ""); bubble.innerHTML = markdown(bubble.dataset.raw); scrollBottom(); }
-        else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scrollBottom(); }
-        else if (name === "tool.confirmation_required" && state.assistantNode) { renderActionCard(payload || {}, actionHost(state.assistantNode)); scrollBottom(); }
-        else if (name === "message.done") { status.textContent = "已连接"; }
+        if (name === "message.start") {
+          state.assistantNode = renderAssistantTurn();
+          var startedBubble = state.assistantNode.querySelector(".bubble");
+          startedBubble._rawText = "";
+          startedBubble.classList.add("streaming");
+          startedBubble.textContent = "";
+          state.streamDiagnostics.delta_count = 0;
+          state.streamDiagnostics.render_count = 0;
+          state.streamDiagnostics.max_render_ms = 0;
+        }
+        else if (name === "message.delta" && state.assistantNode) {
+          var bubble = state.assistantNode.querySelector(".bubble");
+          bubble._rawText = (bubble._rawText || "") + String(payload.delta || "");
+          state.streamDiagnostics.delta_count += 1;
+          scheduleStreamRender(bubble);
+        }
+        else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scheduleScrollBottom(); }
+        else if (name === "tool.confirmation_required" && state.assistantNode) { renderActionCard(payload || {}, actionHost(state.assistantNode)); scheduleScrollBottom(); }
+        else if (name === "message.done") {
+          state.streamCompleted = true;
+          if (state.assistantNode) finalizeAssistant(state.assistantNode.querySelector(".bubble"));
+          status.textContent = "已连接";
+        }
         else if (name === "error") { state.streamFailed = true; setError(payload.message || "AI 暂时不可用"); }
       }
       while (true) { var part = await reader.read(); if (part.done) break; buffer += decoder.decode(part.value, { stream: true }); buffer = parseSse(buffer, onEvent); }
       parseSse(buffer + "\n\n", onEvent);
-      if (state.streamFailed) {
+      if (state.streamFailed || !state.streamCompleted) {
         var streamError = error.textContent;
         await reloadCurrentSession();
-        setError(streamError);
+        setError(streamError || "AI 响应不完整，请重试");
       } else {
-        await loadSessions();
+        await refreshSessionList();
       }
     } catch (err) {
       if (err.name === "AbortError" && state.cancelRequested) {
@@ -447,6 +531,7 @@
   stop.addEventListener("click", function () {
     if (state.controller) { state.cancelRequested = true; state.controller.abort(); }
   });
+  messages.addEventListener("scroll", updateAutoFollow, { passive: true });
   window.addEventListener("message", function (event) {
     if (event.origin !== window.location.origin || !event.data) return;
     if (event.data.type === "interviewforge:page-context") {
