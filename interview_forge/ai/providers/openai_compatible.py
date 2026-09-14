@@ -38,6 +38,24 @@ def models_url(base_url: str, models_path: str = "/models") -> str:
 
 
 class OpenAICompatibleAdapter(ProviderAdapter):
+    def __init__(self, protocol: str | None = None):
+        self.protocol = str(protocol or "openai_chat").strip().lower()
+
+    def capability_contract(self):
+        is_responses = self.protocol == "openai_responses"
+        return {
+            "streaming": True,
+            "tools": True,
+            "structured_output": True,
+            # This is the adapter's wire capability, not a claim about every
+            # model behind an OpenAI-compatible endpoint. The catalog/manual
+            # model capability still has to opt reasoning in.
+            "reasoning": True,
+            "reasoning_modes": ["off", "auto", "effort"] if is_responses else ["off", "auto", "effort", "budget"],
+            "reasoning_efforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
+            "reasoning_budget": not is_responses,
+        }
+
     def apply_reasoning(self, config, policy=None, *, thinking_mode=None):
         mode = getattr(policy, "mode", None) or getattr(config, "reasoning_mode", "auto")
         effort = getattr(policy, "effort", None) or getattr(config, "reasoning_effort", "")

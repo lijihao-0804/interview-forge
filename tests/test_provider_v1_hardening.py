@@ -11,8 +11,9 @@ from unittest.mock import patch
 
 from interview_forge.ai.config import AIConfig, model_key
 from interview_forge.ai.config_store import AIConfigError, AIConfigStore, BusinessProfile, validate_base_url, validate_network_target
+from interview_forge.ai.catalog import resolve_model_capabilities
 from interview_forge.ai.errors import AIServiceError
-from interview_forge.ai.policy import ReasoningPolicy, capabilities_for_model
+from interview_forge.ai.policy import ReasoningPolicy
 from interview_forge.ai.providers.base import ProviderProbeResult
 from interview_forge.ai.providers import get_provider_adapter
 from interview_forge.ai.providers.native import AnthropicAdapter, GeminiAdapter
@@ -133,7 +134,7 @@ class ProviderV1HardeningTests(unittest.TestCase):
         with self.assertRaises(AIServiceError):
             AnthropicAdapter().apply_reasoning(native, ReasoningPolicy("effort", "high"))
 
-    def test_discovery_uses_known_model_capabilities_and_preserves_manual_override(self):
+    def test_discovery_does_not_guess_capabilities_and_preserves_manual_override(self):
         with tempfile.TemporaryDirectory() as directory:
             config_db = Path(directory) / "ai.db"
             with patch.dict(os.environ, {
@@ -154,7 +155,7 @@ class ProviderV1HardeningTests(unittest.TestCase):
                 with patch.object(admin_ai_config, "get_provider_adapter", return_value=Adapter()):
                     result = admin_ai_config.discover_models(provider.id)
                 by_id = {item["model_id"]: item for item in result["items"]}
-                self.assertTrue(by_id["gpt-5.6-luna"]["capabilities"]["reasoning"])
+                self.assertFalse(by_id["gpt-5.6-luna"]["capabilities"]["reasoning"])
                 self.assertFalse(by_id["vendor-model"]["capabilities"]["reasoning"])
                 store.update_model(
                     provider_id=provider.id,
@@ -196,12 +197,19 @@ class ProviderV1HardeningTests(unittest.TestCase):
                 transport.close()
 
     def test_capability_registry_is_conservative_for_unknown_models(self):
-        known = capabilities_for_model(vendor="openai", protocol="openai_responses", model_id="gpt-5.6-luna")
-        unknown = capabilities_for_model(vendor="openai", protocol="openai_responses", model_id="vendor-custom-model")
-        self.assertTrue(known["reasoning"])
-        self.assertIn("xhigh", known["reasoning_efforts"])
-        self.assertFalse(unknown["reasoning"])
-        self.assertEqual(unknown["reasoning_modes"], ["auto"])
+        known = resolve_model_capabilities(
+            capability_profile="deepseek_official", protocol="openai_chat", model_id="deepseek-flash",
+            adapter_capabilities=OpenAICompatibleAdapter().capability_contract(),
+        )
+        unknown = resolve_model_capabilities(
+            capability_profile="deepseek_official", protocol="openai_chat", model_id="vendor-custom-model",
+            adapter_capabilities=OpenAICompatibleAdapter().capability_contract(),
+        )
+        self.assertTrue(known.capabilities["reasoning"])
+        self.assertIn("high", known.capabilities["reasoning_efforts"])
+        self.assertFalse(unknown.capabilities["reasoning"])
+        self.assertEqual(unknown.capabilities["reasoning_modes"], ["auto"])
+        self.assertEqual(unknown.source, "unknown")
 
     def test_resolver_rejects_disabled_or_unavailable_models(self):
         with tempfile.TemporaryDirectory() as directory:

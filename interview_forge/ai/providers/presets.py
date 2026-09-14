@@ -13,11 +13,12 @@ class ProviderPreset:
     default_base_url: str
     models_path: str = "/models"
     reasoning_adapter: str = "none"
+    capability_profile: str = "generic_openai_compatible"
 
 
 _PRESETS = [
-    ProviderPreset("openai", "openai", "OpenAI", "openai_responses", "https://api.openai.com/v1", reasoning_adapter="openai"),
-    ProviderPreset("deepseek", "deepseek", "DeepSeek", "openai_chat", "https://api.deepseek.com", reasoning_adapter="deepseek"),
+    ProviderPreset("openai", "openai", "OpenAI", "openai_responses", "https://api.openai.com/v1", reasoning_adapter="openai", capability_profile="openai_official"),
+    ProviderPreset("deepseek", "deepseek", "DeepSeek", "openai_chat", "https://api.deepseek.com", reasoning_adapter="deepseek", capability_profile="deepseek_official"),
     ProviderPreset("openrouter", "openrouter", "OpenRouter", "openai_chat", "https://openrouter.ai/api/v1"),
     ProviderPreset("siliconflow", "siliconflow", "SiliconFlow", "openai_chat", "https://api.siliconflow.cn/v1"),
     ProviderPreset("kimi", "kimi", "Kimi", "openai_chat", "https://api.moonshot.cn/v1"),
@@ -26,8 +27,8 @@ _PRESETS = [
     ProviderPreset("new-api", "new-api", "New API", "openai_chat", "http://127.0.0.1:3000/v1"),
     ProviderPreset("sub2api", "sub2api", "Sub2API", "openai_chat", "http://127.0.0.1:3000/v1"),
     ProviderPreset("custom-openai-compatible", "custom", "Custom OpenAI-compatible", "openai_chat", ""),
-    ProviderPreset("anthropic", "anthropic", "Anthropic", "anthropic_messages", "https://api.anthropic.com", models_path="/v1/models", reasoning_adapter="none"),
-    ProviderPreset("gemini", "google", "Gemini", "gemini", "https://generativelanguage.googleapis.com", models_path="/v1beta/models", reasoning_adapter="none"),
+    ProviderPreset("anthropic", "anthropic", "Anthropic", "anthropic_messages", "https://api.anthropic.com", models_path="/v1/models", reasoning_adapter="none", capability_profile="anthropic_official"),
+    ProviderPreset("gemini", "google", "Gemini", "gemini", "https://generativelanguage.googleapis.com", models_path="/v1beta/models", reasoning_adapter="none", capability_profile="gemini_official"),
 ]
 
 PROVIDER_PRESETS = {item.key: item for item in _PRESETS}

@@ -30,6 +30,41 @@ Qwen-compatible, GLM-compatible, New API, Sub2API and custom
 OpenAI-compatible endpoints. Model discovery only consumes a bounded
 `GET /models` response; it never makes a paid generation request.
 
+## Model discovery is not capability discovery
+
+The `/models` response answers only which model IDs are currently available at
+an endpoint. It does not prove that a model supports reasoning, tools or a
+particular structured-output mode. Discovery therefore updates availability
+and timestamps; it never infers capabilities from `gpt`, `deepseek`, `flash`,
+`reasoner` or any other model-name fragment.
+
+Effective capabilities use one authoritative resolution path:
+
+1. administrator manual override;
+2. an explicit capability declaration from the Provider;
+3. an exact match in the versioned official catalog;
+4. the conservative protocol/adapter baseline;
+5. unknown-safe fallback.
+
+The catalog lives in `interview_forge/ai/catalog/manifests/` and is reviewed
+like code. It records a catalog version, verification date, source, exact model
+IDs and explicitly documented legacy aliases. The current DeepSeek profile
+contains exact `deepseek-flash` and `deepseek-v4-pro` entries plus aliases; an
+unlisted model remains available but is reasoning-disabled and Auto-only until
+an administrator verifies it.
+
+`capability_profile` is separate from `vendor`. Official profiles such as
+`deepseek_official` may be selected only when the endpoint preserves the
+corresponding provider semantics. Custom, New API and Sub2API presets default
+to `generic_openai_compatible`; they do not inherit vendor-specific
+capabilities merely because a returned model ID contains a vendor name.
+
+The final capability is the intersection of model/catalog claims and the wire
+adapter contract. The admin model page shows source, profile, verification and
+catalog metadata, including the canonical target for aliases. Business-route
+selects render only effective reasoning modes and efforts; invalid choices are
+not shown as disabled options.
+
 Optional native protocols `anthropic_messages` and `gemini` are also available
 through lazy adapters. Their SDKs are not imported during normal startup; they
 must be installed from `requirements-ai.txt` only when one of those protocols

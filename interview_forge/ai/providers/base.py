@@ -14,6 +14,18 @@ class ProviderProbeResult:
 
 
 class ProviderAdapter:
+    def capability_contract(self) -> dict[str, Any]:
+        """Capabilities this adapter can express on its wire protocol."""
+        return {
+            "streaming": False,
+            "tools": False,
+            "structured_output": False,
+            "reasoning": False,
+            "reasoning_modes": ["auto"],
+            "reasoning_efforts": [],
+            "reasoning_budget": False,
+        }
+
     def discover_models(self, *, base_url: str, models_path: str, api_key: str, timeout: float = 8.0) -> ProviderProbeResult:
         raise NotImplementedError
 
