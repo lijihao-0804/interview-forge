@@ -507,8 +507,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
     AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+    # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
+    FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=1", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=2", "/assets/feedback-widget.js?v=2", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -1038,7 +1040,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
 
     def serve_html_with_widget(self, decoded_path: str, navigation_only: bool = False) -> bool:
         """读取 HTML 文件、在 </body> 前注入小部件脚本后发送；文件不存在返回 False 交给默认 404。
-        可视化页只注入导航策略；认证胶囊在登录/注册/管理页跳过（它们自带登录界面），反馈按钮全站可见。"""
+        可视化页只注入导航策略；认证胶囊与反馈按钮在登录/注册/管理页跳过。"""
         try:
             target = (ROOT / decoded_path.lstrip("/")).resolve()
             if not (target.is_file() and str(target).startswith(str(ROOT.resolve()))):
@@ -1051,7 +1053,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
         else:
             scripts = [
                 s for s in self.WIDGET_SCRIPTS
-                if not (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
+                if not (
+                    (s.startswith("/assets/auth-widget") and decoded_path in self.AUTH_WIDGET_SKIP_PATHS)
+                    or (s.startswith("/assets/feedback-widget") and decoded_path in self.FEEDBACK_WIDGET_SKIP_PATHS)
+                )
             ]
         widget = "".join(f'<script src="{s}" defer></script>' for s in scripts).encode()
         idx = body.lower().rfind(b"</body>")

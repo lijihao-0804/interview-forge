@@ -8,11 +8,12 @@
 
   var style = document.createElement("style");
   style.textContent =
-    "#forge-fb-btn{position:fixed;right:16px;bottom:calc(58px + env(safe-area-inset-bottom));z-index:9998;width:38px;height:38px;border-radius:50%;" +
+    ":root{--forge-auth-reserve:76px}" +
+    "#forge-fb-btn{position:fixed;right:16px;bottom:calc(var(--forge-auth-reserve,76px) + env(safe-area-inset-bottom));z-index:9996;width:38px;height:38px;border-radius:50%;" +
     "border:1px solid #dfe4ee;background:rgba(255,255,255,.94);box-shadow:0 6px 18px rgba(33,45,73,.18);" +
-    "font-size:17px;line-height:36px;text-align:center;cursor:pointer;user-select:none;transition:transform .15s}" +
+    "font-size:17px;line-height:36px;text-align:center;cursor:pointer;user-select:none;transition:transform .15s,bottom .15s}" +
     "#forge-fb-btn:hover{transform:scale(1.1);background:#eeedff}" +
-    "#forge-fb-panel{position:fixed;right:16px;bottom:calc(106px + env(safe-area-inset-bottom));z-index:9999;width:min(320px,calc(100vw - 32px));" +
+    "#forge-fb-panel{position:fixed;right:16px;bottom:calc(var(--forge-auth-reserve,76px) + 52px + env(safe-area-inset-bottom));z-index:10000;width:min(320px,calc(100vw - 32px));" +
     "background:#fff;border:1px solid #dfe4ee;border-radius:14px;padding:16px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
     "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#182235}" +
     "#forge-fb-panel h3{margin:0 0 4px;font-size:15px}" +
@@ -29,7 +30,7 @@
     "#forge-fb-panel .fap-hint{font-size:12px;color:#66748a;margin-top:6px;min-height:16px}" +
     "#forge-fb-panel .fap-hint.err{color:#b3372f}" +
     "#forge-fb-panel .fap-hint.ok{color:#157a52}" +
-    "@media (max-width:640px){#forge-fb-btn{right:10px;bottom:calc(52px + env(safe-area-inset-bottom))}#forge-fb-panel{right:10px;bottom:calc(100px + env(safe-area-inset-bottom))}}";
+    "@media (max-width:640px){#forge-fb-btn{right:10px}#forge-fb-panel{right:10px}}";
   document.head.appendChild(style);
 
   var btn = document.createElement("button");
