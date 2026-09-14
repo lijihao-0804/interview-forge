@@ -35,9 +35,9 @@ def resolve_ai_runtime(business_key: str, *, daily_limit: int = 3, store: AIConf
         capabilities = model.capabilities if model else {}
         policy = ReasoningPolicy(profile.reasoning_mode, profile.reasoning_effort, profile.reasoning_budget)
         config = AIConfig(
-            enabled=True, provider="openai" if provider.protocol == "openai_responses" else "openai-compatible",
+            enabled=True, provider={"anthropic_messages": "anthropic", "gemini": "gemini"}.get(provider.protocol, "openai" if provider.protocol == "openai_responses" else "openai-compatible"),
             model=profile.model_id, base_url=provider.base_url, api_key=secret,
-            wire_api="responses" if provider.protocol == "openai_responses" else "chat_completions",
+            wire_api={"openai_responses": "responses", "anthropic_messages": "anthropic_messages", "gemini": "gemini"}.get(provider.protocol, "chat_completions"),
             actor_authorization="", reasoning_effort=profile.reasoning_effort or "",
             thinking_enabled=profile.reasoning_mode not in {"off", "auto"},
             request_timeout_seconds=45.0, max_concurrent_requests=2,

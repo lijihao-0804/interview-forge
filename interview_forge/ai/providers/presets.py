@@ -26,6 +26,8 @@ _PRESETS = [
     ProviderPreset("new-api", "new-api", "New API", "openai_chat", "http://127.0.0.1:3000/v1"),
     ProviderPreset("sub2api", "sub2api", "Sub2API", "openai_chat", "http://127.0.0.1:3000/v1"),
     ProviderPreset("custom-openai-compatible", "custom", "Custom OpenAI-compatible", "openai_chat", ""),
+    ProviderPreset("anthropic", "anthropic", "Anthropic", "anthropic_messages", "https://api.anthropic.com", reasoning_adapter="none"),
+    ProviderPreset("gemini", "google", "Gemini", "gemini", "https://generativelanguage.googleapis.com", reasoning_adapter="none"),
 ]
 
 PROVIDER_PRESETS = {item.key: item for item in _PRESETS}

@@ -111,6 +111,9 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None,
     # All provider-specific construction is kept in this single function.
     if thinking_mode not in {None, "enabled", "disabled"}:
         raise ValueError("thinking_mode must be enabled, disabled, or None")
+    if config.wire_api in {"anthropic_messages", "gemini"}:
+        from interview_forge.ai.providers.native import make_native_chat_model
+        return make_native_chat_model(config)
     try:
         from langchain_openai import ChatOpenAI
     except (ImportError, ModuleNotFoundError) as exc:
