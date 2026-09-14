@@ -23,7 +23,7 @@
         "padding:4px 12px;border-radius:999px;cursor:pointer}" +
         "#forge-auth-pill .fap-name{padding:0;background:transparent;color:var(--muted,#66748a);font-size:13px;font-weight:400}" +
         "#forge-auth-pill button:hover{background:color-mix(in srgb,var(--brand-soft,#eeedff) 82%,var(--brand,#5654d4))}" +
-        "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:58px;z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
+        "@keyframes forge-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.forge-panel{animation:none}}.forge-panel{position:fixed;right:16px;bottom:calc(var(--forge-auth-reserve,76px) + 16px + env(safe-area-inset-bottom));z-index:9999;width:min(360px,calc(100vw - 32px));animation:forge-panel-in .2s cubic-bezier(.22,1,.36,1);" +
         "background:var(--surface,var(--panel,#fff));border:1px solid var(--line,#dfe4ee);border-radius:14px;box-shadow:0 16px 44px rgba(33,45,73,.22);" +
         "font:14px/1.6 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:var(--text,#182235);display:flex;flex-direction:column}" +
         ".forge-panel .fp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line,#dfe4ee)}" +
@@ -35,7 +35,7 @@
         ".forge-panel .fcp-older button:hover{background:var(--brand-soft,#eeedff)}.forge-panel .fcp-older button:disabled{cursor:default;opacity:.65}" +
         ".forge-panel .fcp-status{min-height:18px;padding:0 12px 5px;color:var(--muted,#66748a);font-size:12px}" +
         "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));padding:4px 6px 4px 10px}" +
-        ".forge-panel{right:10px;bottom:calc(58px + env(safe-area-inset-bottom))}}";
+        ".forge-panel{right:10px;bottom:calc(var(--forge-auth-reserve,76px) + 16px + env(safe-area-inset-bottom))}}";
       document.head.appendChild(style);
 
       function closePanels(except) {

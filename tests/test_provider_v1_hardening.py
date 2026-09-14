@@ -136,6 +136,9 @@ class ProviderV1HardeningTests(unittest.TestCase):
             def __exit__(self, *args): return False
             def stream(self, method, url, **kwargs):
                 self.method, self.url, self.request_kwargs = method, url, kwargs
+                type(self).last_method = method
+                type(self).last_url = url
+                type(self).last_request_kwargs = kwargs
                 return Response()
 
         pinned = ("example.com", ((socket.AF_INET, ("127.0.0.1", 443)),))
@@ -143,6 +146,9 @@ class ProviderV1HardeningTests(unittest.TestCase):
             result = OpenAICompatibleAdapter("openai_chat").test_model(
                 base_url="https://example.com/v1", model_id="test-model", api_key="secret"
             )
+        self.assertEqual(Client.last_method, "POST")
+        self.assertEqual(Client.last_url, "https://example.com/v1/chat/completions")
+        self.assertEqual(Client.last_request_kwargs["json"]["max_tokens"], 64)
         self.assertTrue(result.ok)
         self.assertEqual(result.category, "ok")
         self.assertTrue(result.streaming)

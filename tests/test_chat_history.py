@@ -85,8 +85,10 @@ class ChatHistoryTests(unittest.TestCase):
             'msgs.addEventListener("scroll"', "msgs.scrollTop < 64",
             "chatState.messages.sort", "chatState.messages.length > 2000",
             'scrollMode === "preserve"', "previousTime",
+            "var(--forge-auth-reserve,76px) + 16px",
         ):
             self.assertIn(marker, source)
+        self.assertNotIn("bottom:58px", source)
         self.assertNotIn("while (msgs.children.length > 300)", source)
         self.assertNotIn("renderedOrder.length > 1000", source)
 
