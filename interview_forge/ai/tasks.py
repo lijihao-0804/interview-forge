@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from interview_forge.ai.errors import AIServiceError
+from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.prompts import (
     AI_TASK_STATUSES, MAX_RECENT_TASKS, MAX_TASK_ROWS, PROMPT_VERSION,
 )
@@ -347,8 +348,9 @@ def _run_persisted_task(db_path: Path, task_id: str) -> None:
                     _consume_ai_quota(quota_connection, task_id)
                     quota_connection.execute("COMMIT")
 
+            runtime = resolve_ai_runtime("learning_analysis")
             result = generate_ai_insight(
-                context, debug_id=task_id, before_model_request=consume_quota
+                context, config=runtime.config, debug_id=task_id, before_model_request=consume_quota
             )
     except AIServiceError as exc:
         debug_ai_event(
