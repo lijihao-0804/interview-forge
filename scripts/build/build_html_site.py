@@ -2050,9 +2050,9 @@ def render_markdown(source: Path) -> None:
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={ASSET_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
-    ai_css_href = ai_asset_base + "/ai-launcher.css?v=1"
+    ai_css_href = ai_asset_base + "/ai-launcher.css?v=2"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
-    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=1"
+    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=2"
     root_href = web_rel(output, ROOT / "index.html")
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
     map_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "02-算法模式地图.html")

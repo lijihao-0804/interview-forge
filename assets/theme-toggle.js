@@ -17,11 +17,11 @@
     return MODES.some(function (m) { return m.v === v; }) ? v : "system";
   }
 
-  function apply(mode) {
+  function apply(mode, persist) {
     var root = document.documentElement;
     if (mode === "light" || mode === "dark") root.setAttribute("data-theme", mode);
     else root.removeAttribute("data-theme");
-    try { localStorage.setItem(KEY, mode); } catch (e) { }
+    if (persist !== false) try { localStorage.setItem(KEY, mode); } catch (e) { }
     paint(mode);
   }
 
@@ -31,6 +31,7 @@
     btn.title = m.label;
   }
 
+  var embedded = new URLSearchParams(window.location.search).get("embedded") === "1";
   var btn = document.createElement("button");
   btn.type = "button";
   btn.setAttribute("aria-label", "切换主题");
@@ -41,7 +42,10 @@
     "box-shadow:0 6px 18px rgba(33,45,73,.14);transition:transform .15s";
   btn.onclick = function () { apply(MODES[(MODES.findIndex(function (m) { return m.v === stored(); }) + 1) % MODES.length].v); };
 
-  // 首帧：先按系统/存储值上色，避免闪烁
-  apply(stored());
-  document.body.appendChild(btn);
+  // 首帧：先按系统/存储值上色，避免闪烁。嵌入页只同步主题，不渲染悬浮按钮。
+  apply(stored(), false);
+  if (!embedded) document.body.appendChild(btn);
+  window.addEventListener("storage", function (event) {
+    if (event.key === KEY) apply(event.newValue || "system", false);
+  });
 })();

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -18,6 +19,8 @@ from interview_forge.observability.logging import close_log_handlers
 from interview_forge.observability.logging import log_event
 from interview_forge.services.auth import create_session, create_user, user_db_path
 from interview_forge.services import admin_observability
+from interview_forge.services import admin_operations
+from interview_forge.ai.config_store import AIConfigError
 
 
 class AdminV2BackendTests(unittest.TestCase):
@@ -125,8 +128,8 @@ class AdminV2BackendTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-operations.js").read_text(encoding="utf-8")
-        self.assertIn("../assets/admin-operations.css?v=1", page)
-        self.assertIn("../assets/admin-operations.js?v=1", page)
+        self.assertIn("../assets/admin-operations.css?v=2", page)
+        self.assertIn("../assets/admin-operations.js?v=2", page)
         self.assertIn("data-admin-operations", page)
         self.assertNotIn("innerHTML", script)
 
@@ -157,6 +160,70 @@ class AdminV2BackendTests(unittest.TestCase):
         diagnostics = client.post("/api/admin/system/diagnostics")
         self.assertEqual(diagnostics.status_code, 200)
         self.assertIn(diagnostics.json()["status"], {"ok", "warning", "failed"})
+
+    @staticmethod
+    def _fake_runtime(*, source="db", model="deepseek-v4-flash", provider_id="provider-1", provider_name="DeepSeek", vendor="deepseek", enabled=True, configured=True):
+        return SimpleNamespace(
+            config=SimpleNamespace(enabled=enabled, configured=configured, provider="openai-compatible"),
+            provider_id=provider_id if source == "db" else None,
+            provider_name=provider_name,
+            vendor=vendor,
+            protocol="openai_chat",
+            model=model,
+            reasoning_policy=SimpleNamespace(mode="auto", effort=None, budget_tokens=None),
+            config_source=source,
+        )
+
+    def test_system_info_uses_effective_managed_route_and_separates_legacy_env(self):
+        env_runtime = self._fake_runtime(source="env", model="gpt-5.6-luna", provider_name="openai", vendor="openai", provider_id=None)
+
+        def resolve(business_key):
+            return self._fake_runtime() if business_key == "chat" else env_runtime
+
+        legacy = SimpleNamespace(enabled=True, configured=True, provider="openai", model="gpt-5.6-luna")
+        with patch.object(admin_operations, "resolve_ai_runtime", side_effect=resolve), patch.object(admin_operations, "load_ai_config", return_value=legacy):
+            payload = self._admin().get("/api/admin/system/info")
+        self.assertEqual(payload.status_code, 200)
+        ai = payload.json()["ai"]
+        self.assertEqual(ai["routes"]["chat"]["model"], "deepseek-v4-flash")
+        self.assertEqual(ai["routes"]["chat"]["source"], "db")
+        self.assertEqual(ai["legacy_fallback"]["model"], "gpt-5.6-luna")
+        self.assertEqual(ai["legacy_fallback"]["source"], "legacy_env")
+
+    def test_system_info_shows_env_fallback_when_managed_route_is_missing(self):
+        env_runtime = self._fake_runtime(source="env", model="gpt-5.6-luna", provider_name="openai", vendor="openai", provider_id=None)
+        legacy = SimpleNamespace(enabled=True, configured=True, provider="openai", model="gpt-5.6-luna")
+        with patch.object(admin_operations, "resolve_ai_runtime", return_value=env_runtime), patch.object(admin_operations, "load_ai_config", return_value=legacy):
+            payload = self._admin().get("/api/admin/system/info")
+        self.assertEqual(payload.status_code, 200)
+        self.assertEqual(payload.json()["ai"]["routes"]["chat"]["source"], "env")
+        self.assertEqual(payload.json()["ai"]["routes"]["chat"]["model"], "gpt-5.6-luna")
+
+    def test_system_info_contains_safe_error_when_one_managed_route_is_broken(self):
+        env_runtime = self._fake_runtime(source="env", model="gpt-5.6-luna", provider_name="openai", vendor="openai", provider_id=None)
+
+        def resolve(business_key):
+            if business_key == "chat":
+                raise AIConfigError("AI 模型已停用")
+            return env_runtime
+
+        with patch.object(admin_operations, "resolve_ai_runtime", side_effect=resolve):
+            payload = self._admin().get("/api/admin/system/info")
+        self.assertEqual(payload.status_code, 200)
+        self.assertEqual(payload.json()["ai"]["routes"]["chat"]["status"], "error")
+        self.assertEqual(payload.json()["ai"]["routes"]["chat"]["error_category"], "model_disabled")
+
+    def test_diagnostics_does_not_fail_whole_ai_when_managed_routes_work_without_env(self):
+        managed = self._fake_runtime()
+        missing_env = SimpleNamespace(enabled=False, configured=False, provider="", model="")
+        with patch.object(admin_operations, "resolve_ai_runtime", return_value=managed), patch.object(admin_operations, "load_ai_config", return_value=missing_env):
+            payload = self._admin().post("/api/admin/system/diagnostics")
+        self.assertEqual(payload.status_code, 200)
+        data = payload.json()
+        self.assertNotEqual(data["status"], "failed")
+        checks = {item["name"]: item for item in data["checks"]}
+        self.assertEqual(checks["ai_route_chat"]["status"], "ok")
+        self.assertEqual(checks["ai_legacy_fallback"]["status"], "warning")
 
     def test_request_stats_reads_all_recent_request_events_not_the_log_page_limit(self):
         from datetime import datetime, timezone

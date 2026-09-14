@@ -904,9 +904,9 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     body = body.replace("<img ", '<img loading="lazy" decoding="async" ')
     asset_base = css_href.rsplit("assets/", 1)[0] + "assets" if "assets/" in css_href else "assets"
     ai_assets = (
-        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=1">'
+        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=2">'
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
-        f'<script src="{asset_base}/ai-launcher.js?v=1" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-launcher.js?v=2" defer data-interviewforge-ai></script>'
     )
     page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)} · 学习书架</title><link rel="stylesheet" href="{css_href}?v={ASSET_VERSION}">{ai_assets}</head><body>{body}{scripts}</body></html>'''
     return mark_cross_page_links(page)

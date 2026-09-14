@@ -120,6 +120,55 @@ class ProviderV1HardeningTests(unittest.TestCase):
         with self.assertRaises(AIServiceError):
             GeminiAdapter().make_chat_model(_config(provider="gemini", wire_api="gemini", base_url="https://custom.example"))
 
+    def test_openai_compatible_model_probe_measures_streaming_ttft_without_exposing_body(self):
+        class Response:
+            status_code = 200
+
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def iter_lines(self):
+                yield b'data: {"choices":[{"delta":{"content":"OK"}}]}'
+                yield b"data: [DONE]"
+
+        class Client:
+            def __init__(self, *args, **kwargs): self.kwargs = kwargs
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def stream(self, method, url, **kwargs):
+                self.method, self.url, self.request_kwargs = method, url, kwargs
+                return Response()
+
+        pinned = ("example.com", ((socket.AF_INET, ("127.0.0.1", 443)),))
+        with patch("interview_forge.ai.providers.network.resolve_network_target", return_value=pinned), patch("interview_forge.ai.providers.openai_compatible.httpx.Client", Client):
+            result = OpenAICompatibleAdapter("openai_chat").test_model(
+                base_url="https://example.com/v1", model_id="test-model", api_key="secret"
+            )
+        self.assertTrue(result.ok)
+        self.assertEqual(result.category, "ok")
+        self.assertTrue(result.streaming)
+        self.assertIsNotNone(result.ttft_ms)
+        self.assertIsNotNone(result.latency_ms)
+
+    def test_model_test_result_is_persisted_separately_from_capabilities(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "ai.db"
+            with patch.dict(os.environ, {"INTERVIEW_FORGE_AI_CONFIG_KEY": "master", "INTERVIEW_FORGE_AI_CONFIG_DB": str(db)}, clear=False):
+                store = AIConfigStore(db)
+                provider = store.create_provider(name="Managed", vendor="custom", protocol="openai_chat", base_url="https://example.com", api_key="k")
+                store.upsert_model(provider_id=provider.id, model_id="test-model", capabilities={"tools": False})
+                class Adapter:
+                    def test_model(self, **_kwargs):
+                        return ProviderProbeResult(True, "ok", latency_ms=42.0, ttft_ms=11.0, streaming=True)
+                from interview_forge.services import admin_ai_config
+                with patch.object(admin_ai_config, "get_provider_adapter", return_value=Adapter()):
+                    result = admin_ai_config.test_model(provider.id, "test-model")
+                item = next(item for item in store.list_models(provider.id) if item.model_id == "test-model")
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["status"], "passed")
+                self.assertEqual(item.last_test_status, "passed")
+                self.assertEqual(item.last_test_ttft_ms, 11.0)
+                self.assertEqual(item.capabilities, {"tools": False})
+
     def test_reasoning_is_translated_or_rejected_explicitly(self):
         effort = _config(provider="openai", wire_api="responses", reasoning_mode="effort", reasoning_effort="high")
         self.assertEqual(build_chat_model_kwargs(effort)["reasoning_effort"], "high")

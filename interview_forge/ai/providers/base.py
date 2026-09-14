@@ -11,6 +11,8 @@ class ProviderProbeResult:
     category: str
     model_ids: tuple[str, ...] = ()
     latency_ms: float | None = None
+    ttft_ms: float | None = None
+    streaming: bool = False
 
 
 class ProviderAdapter:
@@ -34,6 +36,10 @@ class ProviderAdapter:
         return self.discover_models(
             base_url=base_url, models_path=models_path, api_key=api_key, timeout=timeout
         )
+
+    def test_model(self, *, base_url: str, model_id: str, api_key: str, timeout: float = 12.0) -> ProviderProbeResult:
+        """Run a minimal, explicit generation probe for one model."""
+        return ProviderProbeResult(False, "not_supported")
 
     def make_chat_model(self, config: Any, *, thinking_mode: str | None = None) -> Any:
         raise NotImplementedError

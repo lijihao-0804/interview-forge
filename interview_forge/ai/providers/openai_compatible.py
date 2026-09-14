@@ -37,6 +37,30 @@ def models_url(base_url: str, models_path: str = "/models") -> str:
     return urljoin(base, path)
 
 
+def _generation_url(base_url: str, protocol: str) -> str:
+    endpoint = "/responses" if protocol == "openai_responses" else "/chat/completions"
+    return urljoin(str(base_url).rstrip("/") + "/", endpoint.lstrip("/"))
+
+
+def _stream_text(payload: object, protocol: str) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    if protocol == "openai_responses":
+        value = payload.get("delta") or payload.get("text") or payload.get("output_text")
+        return value if isinstance(value, str) else ""
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return ""
+    delta = choices[0].get("delta")
+    if isinstance(delta, dict):
+        value = delta.get("content")
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            return "".join(str(item.get("text", "")) for item in value if isinstance(item, dict))
+    return ""
+
+
 class OpenAICompatibleAdapter(ProviderAdapter):
     def __init__(self, protocol: str | None = None):
         self.protocol = str(protocol or "openai_chat").strip().lower()
@@ -134,6 +158,63 @@ class OpenAICompatibleAdapter(ProviderAdapter):
                 model_ids.append(value.strip())
         if not model_ids: return ProviderProbeResult(False, "no_valid_models", latency_ms=round((time.perf_counter() - started) * 1000, 2))
         return ProviderProbeResult(True, "ok", tuple(dict.fromkeys(model_ids)), latency_ms=round((time.perf_counter() - started) * 1000, 2))
+
+    def test_model(self, *, base_url: str, model_id: str, api_key: str, timeout: float = 12.0) -> ProviderProbeResult:
+        """Make one bounded streaming generation request without returning its body."""
+        started = time.perf_counter()
+        payload = (
+            {"model": model_id, "input": "Reply with OK.", "max_output_tokens": 8, "stream": True}
+            if self.protocol == "openai_responses" else
+            {"model": model_id, "messages": [{"role": "user", "content": "Reply with OK."}], "max_tokens": 8, "stream": True}
+        )
+        try:
+            transport = PinnedHTTPTransport(base_url)
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            with httpx.Client(timeout=httpx.Timeout(timeout), follow_redirects=False, trust_env=False, transport=transport, headers=headers) as client:
+                with client.stream("POST", _generation_url(base_url, self.protocol), json=payload) as response:
+                    if response.status_code in {401, 403}:
+                        return ProviderProbeResult(False, "authentication", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                    if response.status_code == 404:
+                        return ProviderProbeResult(False, "model_not_found", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                    if response.status_code == 429:
+                        return ProviderProbeResult(False, "quota", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                    if response.status_code >= 500:
+                        return ProviderProbeResult(False, "upstream_error", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                    if response.status_code >= 400:
+                        return ProviderProbeResult(False, "protocol_error", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                    first_token: float | None = None
+                    total_bytes = 0
+                    meaningful = False
+                    for raw_line in response.iter_lines():
+                        line = raw_line.decode("utf-8", "replace") if isinstance(raw_line, bytes) else str(raw_line)
+                        total_bytes += len(line.encode("utf-8"))
+                        if total_bytes > 1_000_000:
+                            return ProviderProbeResult(False, "response_too_large", latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                        if line.startswith("data:"):
+                            line = line[5:].strip()
+                        if not line or line == "[DONE]":
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        if _stream_text(chunk, self.protocol):
+                            meaningful = True
+                            if first_token is None:
+                                first_token = time.perf_counter()
+                    latency = round((time.perf_counter() - started) * 1000, 2)
+                    ttft = round((first_token - started) * 1000, 2) if first_token is not None else None
+                    if not meaningful:
+                        return ProviderProbeResult(False, "invalid_response", latency_ms=latency, ttft_ms=ttft, streaming=True)
+                    return ProviderProbeResult(True, "ok", latency_ms=latency, ttft_ms=ttft, streaming=True)
+        except httpx.TimeoutException:
+            return ProviderProbeResult(False, "timeout", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+        except AIConfigError:
+            return ProviderProbeResult(False, "unsafe_network_target", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
+        except httpx.HTTPError:
+            return ProviderProbeResult(False, "network", latency_ms=round((time.perf_counter() - started) * 1000, 2), streaming=True)
 
 
 __all__ = ["MAX_MODELS", "MAX_RESPONSE_BYTES", "OpenAICompatibleAdapter", "models_url"]

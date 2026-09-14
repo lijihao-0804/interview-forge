@@ -15,6 +15,13 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertIn("ai-page-context.js", rendered)
         self.assertIn("ai-launcher.js", rendered)
 
+    def test_embedded_assistant_does_not_receive_auth_or_feedback_widgets(self):
+        body = b"<html><body></body></html>"
+        rendered = _inject_html("/pages/ai-assistant.html", body, embedded=True).decode()
+        self.assertNotIn("auth-widget.js", rendered)
+        self.assertNotIn("feedback-widget.js", rendered)
+        self.assertIn("theme-toggle.js", rendered)
+
     def test_launcher_is_not_injected_into_admin_or_full_page(self):
         body = b"<html><body></body></html>"
         for path in ("/pages/admin.html", "/pages/ai-assistant.html", "/pages/login.html"):
@@ -75,7 +82,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library
 
-        self.assertIn("/ai-launcher.css?v=1", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
+        self.assertIn("/ai-launcher.css?v=2", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
         self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
 
 

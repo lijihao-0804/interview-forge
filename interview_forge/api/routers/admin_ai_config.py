@@ -46,6 +46,9 @@ def test_provider(provider_id: str, request: Request): return _call(request, lam
 @router.post("/api/admin/ai/providers/{provider_id}/discover-models")
 def discover_models(provider_id: str, request: Request): return _call(request, lambda: service.discover_models(provider_id))
 
+@router.post("/api/admin/ai/providers/{provider_id}/models/{model_id}/test")
+def test_model(provider_id: str, model_id: str, request: Request): return _call(request, lambda: service.test_model(provider_id, model_id))
+
 @router.get("/api/admin/ai/providers/{provider_id}/models")
 def provider_models(provider_id: str, request: Request): return _call(request, lambda: service.provider_models(provider_id))
 

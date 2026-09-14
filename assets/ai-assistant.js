@@ -30,24 +30,56 @@
   }
 
   function markdown(value) {
-    var text = esc(value);
-    var blocks = [];
-    text = text.replace(/```([\w-]*)\n?([\s\S]*?)```/g, function (_, lang, code) {
-      blocks.push("<pre><code" + (lang ? " data-language=\"" + esc(lang) + "\"" : "") + ">" + code.replace(/\n$/, "") + "</code></pre>");
-      return "\u0000BLOCK" + (blocks.length - 1) + "\u0000";
-    });
-    text = text.split(/\n\n+/).map(function (part) {
-      if (/^\s*[-*] /.test(part)) {
-        return "<ul>" + part.split(/\n/).map(function (line) { return "<li>" + inline(line.replace(/^\s*[-*] /, "")) + "</li>"; }).join("") + "</ul>";
+    var lines = String(value == null ? "" : value).replace(/\r\n?/g, "\n").split("\n");
+    var html = [];
+    function isTableSeparator(line) { return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line); }
+    function cells(line) { return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (item) { return item.trim(); }); }
+    function table(start) {
+      var headers = cells(lines[start]); var row = start + 2; var rows = [];
+      while (row < lines.length && lines[row].trim() && lines[row].indexOf("|") >= 0) { rows.push(cells(lines[row])); row += 1; }
+      var out = "<div class=\"markdown-table-wrap\"><table><thead><tr>" + headers.map(function (cell) { return "<th>" + inline(cell) + "</th>"; }).join("") + "</tr></thead><tbody>";
+      out += rows.map(function (items) { return "<tr>" + headers.map(function (_, index) { return "<td>" + inline(items[index] || "") + "</td>"; }).join("") + "</tr>"; }).join("");
+      return { html: out + "</tbody></table></div>", next: row };
+    }
+    function list(start, ordered) {
+      var tag = ordered ? "ol" : "ul"; var out = ["<" + tag + ">"]; var index = start;
+      while (index < lines.length) {
+        var match = lines[index].match(ordered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/);
+        if (!match) break;
+        out.push("<li>" + inline(match[1]) + "</li>"); index += 1;
       }
-      return "<p>" + inline(part).replace(/\n/g, "<br>") + "</p>";
-    }).join("");
-    text = text.replace(/\u0000BLOCK(\d+)\u0000/g, function (_, index) { return blocks[Number(index)]; });
-    return text;
+      return { html: out.join("") + "</" + tag + ">", next: index };
+    }
+    var i = 0;
+    while (i < lines.length) {
+      if (!lines[i].trim()) { i += 1; continue; }
+      if (/^\s*```/.test(lines[i])) {
+        var lang = lines[i].replace(/^\s*```/, "").trim(); var code = []; i += 1;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) { code.push(lines[i]); i += 1; }
+        if (i < lines.length) i += 1;
+        html.push("<pre><code" + (lang ? " data-language=\"" + esc(lang) + "\"" : "") + ">" + esc(code.join("\n")) + "</code></pre>"); continue;
+      }
+      var heading = lines[i].match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (heading) { html.push("<h" + heading[1].length + ">" + inline(heading[2]) + "</h" + heading[1].length + ">"); i += 1; continue; }
+      if (/^\s*(\*{3,}|-{3,}|_{3,})\s*$/.test(lines[i])) { html.push("<hr>"); i += 1; continue; }
+      if (i + 1 < lines.length && lines[i].indexOf("|") >= 0 && isTableSeparator(lines[i + 1])) { var renderedTable = table(i); html.push(renderedTable.html); i = renderedTable.next; continue; }
+      if (/^\s*[-*+]\s+/.test(lines[i])) { var unordered = list(i, false); html.push(unordered.html); i = unordered.next; continue; }
+      if (/^\s*\d+[.)]\s+/.test(lines[i])) { var ordered = list(i, true); html.push(ordered.html); i = ordered.next; continue; }
+      if (/^\s*>\s?/.test(lines[i])) { var quote = []; while (i < lines.length && /^\s*>/.test(lines[i])) { quote.push(lines[i].replace(/^\s*>\s?/, "")); i += 1; } html.push("<blockquote>" + inline(quote.join("\n")).replace(/\n/g, "<br>") + "</blockquote>"); continue; }
+      var paragraph = [lines[i]]; i += 1;
+      while (i < lines.length && lines[i].trim() && !/^\s*(#{1,6})\s+/.test(lines[i]) && !/^\s*```/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+[.)]\s+/.test(lines[i]) && !/^\s*>/.test(lines[i])) { paragraph.push(lines[i]); i += 1; }
+      html.push("<p>" + inline(paragraph.join("\n")).replace(/\n/g, "<br>") + "</p>");
+    }
+    return html.join("");
   }
 
   function inline(value) {
-    return value.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    var text = esc(value);
+    text = text.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+[^)]*)?\)/g, function (_, label, url) {
+      var decoded = String(url).replace(/&amp;/g, "&"); var safe = /^(https?:\/\/|mailto:|\/|#)/i.test(decoded) && !/^(javascript|data|vbscript):/i.test(decoded);
+      return safe ? "<a href=\"" + esc(decoded) + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + label + "</a>" : label;
+    });
+    return text.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>").replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>");
   }
 
   async function api(path, options) {
