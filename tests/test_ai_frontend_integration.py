@@ -22,6 +22,11 @@ class AiFrontendIntegrationTests(unittest.TestCase):
         self.assertNotIn("feedback-widget.js", rendered)
         self.assertIn("theme-toggle.js", rendered)
 
+    def test_full_assistant_does_not_receive_bottom_overlays(self):
+        rendered = _inject_html("/pages/ai-assistant.html", b"<html><body></body></html>").decode()
+        self.assertNotIn("auth-widget.js", rendered)
+        self.assertNotIn("feedback-widget.js", rendered)
+
     def test_launcher_is_not_injected_into_admin_or_full_page(self):
         body = b"<html><body></body></html>"
         for path in ("/pages/admin.html", "/pages/ai-assistant.html", "/pages/login.html"):

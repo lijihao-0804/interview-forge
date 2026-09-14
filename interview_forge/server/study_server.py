@@ -506,9 +506,9 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 手动 307 跳转补 Content-Length: 0，见 do_GET）。
     protocol_version = "HTTP/1.1"
     # 不注入认证胶囊的页面：登录/注册/管理页自带登录与退出界面。
-    AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+    AUTH_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
-    FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html"}
+    FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
     WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=3", "/assets/feedback-widget.js?v=2", "/assets/theme-toggle.js?v=1"]
 
