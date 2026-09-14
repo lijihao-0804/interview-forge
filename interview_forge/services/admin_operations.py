@@ -15,6 +15,8 @@ from interview_forge.ai.tools.registry import build_default_tool_registry
 from interview_forge.core.paths import DATA_DIR, PROJECT_ROOT
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.metrics import started_at, uptime_seconds
+from interview_forge.observability.system import runtime_metrics
+from interview_forge.observability.store import request_metrics
 from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services import admin_observability as observability
 from interview_forge.services import auth
@@ -73,7 +75,8 @@ def list_tasks(*, kind: str = "", status: str = "", username: str = "", limit: i
                 "error_code": row.get("error_category"),
             })
     items.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
-    return {"items": items[:maximum], "has_more": len(items) > maximum}
+    counts = {key: sum(1 for item in items if item["status"] == key) for key in ("queued", "running", "succeeded", "failed", "cancelled")}
+    return {"items": items[:maximum], "has_more": len(items) > maximum, "counts": counts}
 
 
 def list_actions(*, username: str = "", tool: str = "", status: str = "", window: str = "24h", limit: int = 100) -> dict[str, Any]:
@@ -188,6 +191,7 @@ def system_info() -> dict[str, Any]:
     registry = build_default_tool_registry()
     specs = registry.list_specs()
     disk = shutil.disk_usage(PROJECT_ROOT)
+    runtime = runtime_metrics()
     return {
         "version_sha": observability.version_sha(), "started_at": started_at(), "uptime_seconds": uptime_seconds(),
         "python_version": sys.version.split()[0],
@@ -195,7 +199,8 @@ def system_info() -> dict[str, Any]:
         "registered_tools": len(specs), "registered_action_tools": sum(1 for spec in specs if str(spec.kind) == "ToolKind.ACTION" or getattr(spec.kind, "value", "") == "action"),
         "task_backends": list(task_manager.kinds()),
         "ai": {"enabled": config.enabled, "configured": config.configured, "provider": config.provider, "model": config.model},
-        "storage": {"project_data_bytes": _project_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free},
+        "runtime_metrics": runtime,
+        "storage": {"project_data_bytes": _project_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free, **runtime.get("storage", {})},
     }
 
 
@@ -238,6 +243,11 @@ def diagnostics() -> dict[str, Any]:
         log_writable = parent.exists() and os.access(parent, os.W_OK)
         log_message = "will be created under writable parent" if log_writable else "parent not writable"
     add("log_directory", "ok" if log_writable else "warning", log_message)
+    try:
+        metrics = request_metrics("30d")
+        add("observability_database", "ok", f"readable; {metrics.get('totals', {}).get('request_count', 0)} aggregated requests")
+    except Exception:
+        add("observability_database", "failed", "not readable")
     disk = shutil.disk_usage(PROJECT_ROOT)
     add("disk_free", "ok" if disk.free > 100 * 1024 * 1024 else "warning", str(disk.free))
     config = load_ai_config()

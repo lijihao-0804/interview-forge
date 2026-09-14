@@ -22,6 +22,8 @@ from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.costs import estimate_cost, load_pricing
 from interview_forge.observability.logging import _safe_value, log_paths
 from interview_forge.observability.metrics import started_at, uptime_seconds
+from interview_forge.observability.store import request_metrics as stored_request_metrics
+from interview_forge.observability.store import storage_size as observability_storage_size
 from interview_forge.services import auth
 from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services.leetcode import admin_list_sync_tasks
@@ -169,13 +171,21 @@ def _request_stats() -> tuple[int, int, float | None]:
     return len(recent), errors, _percentile(durations)
 
 
+def _request_snapshot_stats() -> tuple[int, int, float | None]:
+    """Read the bounded aggregate store; never scans JSONL for Overview."""
+    payload = stored_request_metrics("24h")
+    totals = payload.get("totals", {})
+    return int(totals.get("request_count", 0)), int(totals.get("5xx", 0)), totals.get("p95_ms")
+
+
 def overview() -> dict[str, Any]:
-    total_requests, request_errors, request_p95 = _request_stats()
+    total_requests, request_errors, request_p95 = _request_snapshot_stats()
     turns = 0
     successes = 0
     durations: list[float] = []
     input_tokens = output_tokens = tool_calls = tool_errors = 0
-    failed_tasks = running_tasks = 0
+    ttft_values: list[float] = []
+    task_counts = {key: 0 for key in ("queued", "running", "succeeded", "failed", "cancelled")}
     db_bytes = 0
     users = list(auth.list_users())
     cutoff = _cutoff("24h")
@@ -193,17 +203,25 @@ def overview() -> dict[str, Any]:
                     durations.append(float(row["duration_ms"]))
                 input_tokens += _row_int(row, "input_tokens")
                 output_tokens += _row_int(row, "output_tokens")
+                try:
+                    value = json.loads(str(row["metadata_json"] or "{}")).get("ttft_ms")
+                    if isinstance(value, (int, float)) and value >= 0:
+                        ttft_values.append(float(value))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    pass
         try:
             with closing(server_runtime.connect(path)) as connection:
                 tool_calls += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ?", (cutoff,)).fetchone()[0])
                 tool_errors += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ? AND status NOT IN ('ok','cache_hit','confirmation_required')", (cutoff,)).fetchone()[0])
-                running_tasks += int(connection.execute("SELECT COUNT(*) FROM ai_tasks WHERE status IN ('queued','running')").fetchone()[0])
-                failed_tasks += int(connection.execute("SELECT COUNT(*) FROM ai_tasks WHERE status = 'failed' AND finished_at >= ?", (cutoff,)).fetchone()[0])
+                for task_row in connection.execute("SELECT status, COUNT(*) AS count FROM ai_tasks GROUP BY status"):
+                    if str(task_row["status"]) in task_counts:
+                        task_counts[str(task_row["status"])] += int(task_row["count"])
         except sqlite3.Error:
             continue
     leetcode_tasks = admin_list_sync_tasks()
-    running_tasks += sum(1 for item in leetcode_tasks if item.get("running"))
-    failed_tasks += sum(1 for item in leetcode_tasks if item.get("error_category"))
+    task_counts["running"] += sum(1 for item in leetcode_tasks if item.get("running"))
+    task_counts["failed"] += sum(1 for item in leetcode_tasks if item.get("error_category"))
+    task_counts["succeeded"] += sum(1 for item in leetcode_tasks if not item.get("running") and not item.get("error_category"))
     disk = shutil.disk_usage(PROJECT_ROOT)
     return {
         "system": {"status": "ok", "uptime": uptime_seconds(), "version": version_sha()},
@@ -219,11 +237,17 @@ def overview() -> dict[str, Any]:
         },
         "ai": {
             "turns_24h": turns, "success_rate": round(successes / turns, 4) if turns else 0,
-            "p95_ms": _percentile(durations), "input_tokens": input_tokens,
+            "p50_ms": _percentile(durations, .50), "p95_ms": _percentile(durations), "ttft_p95_ms": _percentile(ttft_values), "input_tokens": input_tokens,
             "output_tokens": output_tokens, "tool_calls": tool_calls, "tool_errors": tool_errors,
         },
-        "tasks": {"running": running_tasks, "failed": failed_tasks},
-        "storage": {"user_db_bytes": db_bytes, "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free},
+        "tasks": {**task_counts, "running": task_counts["running"], "failed": task_counts["failed"]},
+        "recent_exceptions": {
+            "request_5xx_24h": request_errors,
+            "ai_failed_24h": turns - successes,
+            "tool_errors_24h": tool_errors,
+            "task_failed": task_counts["failed"],
+        },
+        "storage": {"user_db_bytes": db_bytes, "observability_db_bytes": observability_storage_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free},
     }
 
 
@@ -250,6 +274,15 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
     turns = len(chats)
     success = sum(str(row["status"]) == "success" for row in chats)
     durations = [float(row["duration_ms"]) for row in chats if isinstance(row["duration_ms"], (int, float))]
+    ttft_values: list[float] = []
+    for row in chats:
+        try:
+            metadata = json.loads(str(row["metadata_json"] or "{}"))
+            value = metadata.get("ttft_ms")
+            if isinstance(value, (int, float)) and value >= 0:
+                ttft_values.append(float(value))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
     input_tokens = sum(_row_int(row, "input_tokens") for _, row in rows if str(row["event_type"]) == "chat")
     output_tokens = sum(_row_int(row, "output_tokens") for _, row in rows if str(row["event_type"]) == "chat")
     reasoning_tokens = sum(_row_int(row, "reasoning_tokens") for _, row in rows if str(row["event_type"]) == "chat")
@@ -270,10 +303,11 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
         if str(row["event_type"]) != "chat":
             continue
         key = str(row["model"] or "unknown")
-        item = models.setdefault(key, {"model": key, "turns": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost_usd": None})
+        item = models.setdefault(key, {"model": key, "turns": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "estimated_cost_usd": None})
         item["turns"] += 1
         item["input_tokens"] += _row_int(row, "input_tokens")
         item["output_tokens"] += _row_int(row, "output_tokens")
+        item["reasoning_tokens"] += _row_int(row, "reasoning_tokens")
         cost = estimate_cost(key, _row_int(row, "input_tokens"), _row_int(row, "output_tokens"))
         if cost is not None:
             item["estimated_cost_usd"] = round(float(item["estimated_cost_usd"] or 0) + cost, 8)
@@ -285,7 +319,9 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
         "success_rate": round(success / turns, 4) if turns else 0,
         "input_tokens": input_tokens, "output_tokens": output_tokens, "reasoning_tokens": reasoning_tokens,
         "avg_latency_ms": round(sum(durations) / len(durations), 2) if durations else None,
-        "p95_latency_ms": _percentile(durations), "tool_calls": tool_calls,
+        "p50_latency_ms": _percentile(durations, .50),
+        "p95_latency_ms": _percentile(durations), "ttft_p50_ms": _percentile(ttft_values, .50),
+        "ttft_p95_ms": _percentile(ttft_values), "ttft_count": len(ttft_values), "tool_calls": tool_calls,
         "tool_errors": tool_errors, "memory_writes": memory_writes, "models": list(models.values()),
         "estimated_cost_usd": round(estimated_cost, 8) if priced else None,
         "cost_coverage_percent": round(priced / total_chat * 100, 2) if total_chat else 0,
@@ -293,13 +329,137 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
     }
 
 
-def list_traces(*, username: str = "", status: str = "", model: str = "", window: str = "24h", limit: int = 100) -> dict[str, Any]:
+def _metric_bucket_key(value: Any, window: str) -> str:
+    parsed = _parse_time(value)
+    if parsed is not None:
+        if window == "24h":
+            return parsed.replace(minute=0, second=0, microsecond=0).isoformat(timespec="hours")
+        return parsed.date().isoformat()
+    text = str(value or "")
+    return text[:13] if window == "24h" else text[:10]
+
+
+def ai_metrics(*, window: str = "24h", username: str = "", model: str = "") -> dict[str, Any]:
+    selected = bounded_window(window)
+    cutoff = _cutoff(selected)
+    buckets: dict[str, dict[str, Any]] = {}
+    for user, path in iter_user_databases(username or None):
+        for row in _trace_rows(path, cutoff=cutoff, model=model, limit=None):
+            if str(row["event_type"]) != "chat":
+                continue
+            key = _metric_bucket_key(row["finished_at"] or row["started_at"], selected)
+            item = buckets.setdefault(key, {"bucket_start": key, "turns": 0, "success": 0, "failed": 0, "latencies": [], "ttft": [], "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0})
+            item["turns"] += 1
+            if str(row["status"]) == "success":
+                item["success"] += 1
+            else:
+                item["failed"] += 1
+            if isinstance(row["duration_ms"], (int, float)):
+                item["latencies"].append(float(row["duration_ms"]))
+            item["input_tokens"] += _row_int(row, "input_tokens")
+            item["output_tokens"] += _row_int(row, "output_tokens")
+            item["reasoning_tokens"] += _row_int(row, "reasoning_tokens")
+            try:
+                value = json.loads(str(row["metadata_json"] or "{}")).get("ttft_ms")
+                if isinstance(value, (int, float)) and value >= 0:
+                    item["ttft"].append(float(value))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+    series = []
+    for key in sorted(buckets):
+        item = buckets[key]
+        series.append({
+            "bucket_start": key, "turns": item["turns"], "success": item["success"], "failed": item["failed"],
+            "success_rate": round(item["success"] / item["turns"], 4) if item["turns"] else 0,
+            "p50_latency_ms": _percentile(item["latencies"], .50), "p95_latency_ms": _percentile(item["latencies"]),
+            "ttft_p50_ms": _percentile(item["ttft"], .50), "ttft_p95_ms": _percentile(item["ttft"]),
+            "input_tokens": item["input_tokens"], "output_tokens": item["output_tokens"], "reasoning_tokens": item["reasoning_tokens"],
+        })
+    summary = ai_usage(window=selected, username=username, model=model)
+    return {"window": selected, "granularity": "hour" if selected == "24h" else "day", "summary": summary, "series": series}
+
+
+def user_metrics(*, window: str = "24h") -> dict[str, Any]:
+    selected = bounded_window(window)
+    now = datetime.now(timezone.utc)
+    cutoff = now - WINDOWS[selected]
+    users = list(auth.list_users())
+    registered = active = 0
+    registration_buckets: dict[str, int] = {}
+    activity_buckets: dict[str, int] = {}
+    for user in users:
+        created = _parse_time(user.get("created_at"))
+        last_active = _parse_time(user.get("last_active") or user.get("last_login"))
+        if created and created >= cutoff:
+            registered += 1
+            key = created.strftime("%Y-%m-%dT%H:00:00+00:00" if selected == "24h" else "%Y-%m-%d")
+            registration_buckets[key] = registration_buckets.get(key, 0) + 1
+        if last_active and last_active >= cutoff:
+            active += 1
+            key = last_active.strftime("%Y-%m-%dT%H:00:00+00:00" if selected == "24h" else "%Y-%m-%d")
+            activity_buckets[key] = activity_buckets.get(key, 0) + 1
+    return {
+        "window": selected, "granularity": "hour" if selected == "24h" else "day",
+        "total": len(users), "active": active, "registered": registered,
+        "dau": _active_count(users, timedelta(days=1)), "wau": _active_count(users, timedelta(days=7)),
+        "mau": _active_count(users, timedelta(days=30)),
+        "series": [{"bucket_start": key, "registered": registration_buckets.get(key, 0), "active": activity_buckets.get(key, 0)} for key in sorted(set(registration_buckets) | set(activity_buckets))],
+    }
+
+
+def _parse_time(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def tool_metrics(*, window: str = "24h", username: str = "") -> dict[str, Any]:
+    selected = bounded_window(window)
+    cutoff = _cutoff(selected)
+    grouped: dict[str, dict[str, Any]] = {}
+    series: dict[str, dict[str, Any]] = {}
+    for _, path in iter_user_databases(username or None):
+        try:
+            with closing(server_runtime.connect(path)) as connection:
+                rows = connection.execute(
+                    "SELECT tool_name, status, duration_ms, created_at FROM chat_tool_runs WHERE created_at >= ?",
+                    (cutoff,),
+                ).fetchall()
+        except sqlite3.Error:
+            continue
+        for row in rows:
+            name = str(row["tool_name"])
+            item = grouped.setdefault(name, {"tool": name, "calls": 0, "success": 0, "failed": 0, "latencies": []})
+            item["calls"] += 1
+            if str(row["status"]) in {"ok", "cache_hit"}:
+                item["success"] += 1
+            elif str(row["status"]) != "confirmation_required":
+                item["failed"] += 1
+            if isinstance(row["duration_ms"], (int, float)):
+                item["latencies"].append(float(row["duration_ms"]))
+            key = _metric_bucket_key(row["created_at"], selected)
+            point = series.setdefault(key, {"bucket_start": key, "calls": 0, "success": 0, "failed": 0})
+            point["calls"] += 1
+            point["success"] += int(str(row["status"]) in {"ok", "cache_hit"})
+            point["failed"] += int(str(row["status"]) not in {"ok", "cache_hit", "confirmation_required"})
+    items = []
+    for item in grouped.values():
+        item["p95_ms"] = _percentile(item.pop("latencies"))
+        item["error_rate"] = round(item["failed"] / item["calls"], 4) if item["calls"] else 0
+        items.append(item)
+    items.sort(key=lambda item: (-item["calls"], item["tool"]))
+    return {"window": selected, "granularity": "hour" if selected == "24h" else "day", "items": items, "series": [series[key] for key in sorted(series)]}
+
+
+def list_traces(*, username: str = "", request_id: str = "", status: str = "", model: str = "", window: str = "24h", limit: int = 100) -> dict[str, Any]:
     selected = bounded_window(window)
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for user, path in iter_user_databases(username or None):
         user_name = str(user["username"])
         for row in _trace_rows(path, cutoff=_cutoff(selected), model=model):
-            if str(row["event_type"]) != "chat" or (status and str(row["status"]) != status):
+            if str(row["event_type"]) != "chat" or (request_id and str(row["request_id"] or "") != request_id) or (status and str(row["status"]) != status):
                 continue
             key = (user_name, str(row["trace_id"]))
             if key in grouped:
@@ -367,6 +527,10 @@ def version_sha() -> str:
 
 
 __all__ = [
-    "ai_usage", "bounded_limit", "bounded_window", "iter_user_databases", "list_logs",
-    "list_traces", "overview", "trace_detail", "version_sha",
+    "ai_metrics", "ai_usage", "bounded_limit", "bounded_window", "iter_user_databases", "list_logs",
+    "list_traces", "overview", "request_metrics", "tool_metrics", "trace_detail", "user_metrics", "version_sha",
 ]
+
+
+def request_metrics(*, window: str = "24h") -> dict[str, Any]:
+    return stored_request_metrics(bounded_window(window))

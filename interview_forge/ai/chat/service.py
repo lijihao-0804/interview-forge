@@ -485,6 +485,7 @@ class ChatService:
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
         usage: dict[str, int] = {}
+        ttft_ms: float | None = None
         trace_recorder: TraceRecorder | None = None
         turn_started = time.perf_counter()
         turn_started_at = utc_now_iso()
@@ -504,6 +505,7 @@ class ChatService:
                     error_code=error_code,
                     started_at=turn_started_at,
                     finished_at=utc_now_iso(),
+                    ttft_ms=ttft_ms,
                 )
             except Exception:
                 # Telemetry must remain best-effort, including on a slow or
@@ -696,6 +698,8 @@ class ChatService:
                     if item.get("event") == "message.delta":
                         delta = str(item.get("data", {}).get("delta", ""))
                         if delta:
+                            if ttft_ms is None:
+                                ttft_ms = (time.perf_counter() - turn_started) * 1000
                             answer_parts.append(delta)
                     elif item.get("event") == "tool.confirmation_required":
                         # A pending ACTION references this user turn.  Keep

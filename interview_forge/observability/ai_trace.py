@@ -61,7 +61,7 @@ class TraceRecorder:
         try:
             safe_metadata = {
                 str(key): value for key, value in (metadata or {}).items()
-                if str(key) in {"estimated", "tool_calls_count", "tool_names", "tooling_unavailable"}
+                if str(key) in {"estimated", "tool_calls_count", "tool_names", "tooling_unavailable", "ttft_ms"}
             }
             with closing(server_runtime.connect(self.user_db)) as connection:
                 connection.execute(
@@ -107,8 +107,12 @@ class TraceRecorder:
         self, *, status: str, duration_ms: int | float,
         usage: dict[str, Any] | None = None, error_code: str | None = None,
         started_at: str | None = None, finished_at: str | None = None,
+        ttft_ms: int | float | None = None,
     ) -> None:
         usage = usage or {}
+        metadata = dict(usage)
+        if isinstance(ttft_ms, (int, float)) and ttft_ms >= 0:
+            metadata["ttft_ms"] = round(float(ttft_ms), 2)
         self.record(
             event_type="chat", name="chat_turn", status=status,
             started_at=started_at or utc_now_iso(),
@@ -116,7 +120,7 @@ class TraceRecorder:
             input_tokens=_int(usage.get("input_tokens")),
             output_tokens=_int(usage.get("output_tokens")),
             reasoning_tokens=_int(usage.get("reasoning_tokens")), error_code=error_code,
-            metadata=usage,
+            metadata=metadata,
         )
 
 
