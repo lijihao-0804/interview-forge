@@ -122,6 +122,16 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("await refreshSessionList();", self.source)
         self.assertNotIn("await loadSessions();", self.source)
 
+    def test_streaming_cache_title_and_diagnostics_contract(self):
+        page = (ROOT / "pages" / "ai-assistant.html").read_text(encoding="utf-8")
+        self.assertIn("ai-assistant.css?v=4", page)
+        self.assertIn("ai-assistant.js?v=8", page)
+        self.assertIn("function resetStreamDiagnostics", self.source)
+        send_block = self.source.split("async function sendMessage", 1)[1].split("try {", 1)[0]
+        self.assertIn("resetStreamDiagnostics();", send_block)
+        self.assertIn("var current = state.sessions.find", self.source)
+        self.assertIn('if (current) title.textContent = current.title;', self.source)
+
     def test_streaming_performance_harness(self):
         node = shutil.which("node")
         if not node:
