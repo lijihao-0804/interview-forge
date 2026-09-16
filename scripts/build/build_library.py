@@ -905,7 +905,7 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     asset_base = css_href.rsplit("assets/", 1)[0] + "assets" if "assets/" in css_href else "assets"
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
     ai_assets = (
-        f'<script src="{time_asset_base}/time-utils.js?v=1"></script>'
+        f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
         f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=2">'
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=2" defer data-interviewforge-ai></script>'

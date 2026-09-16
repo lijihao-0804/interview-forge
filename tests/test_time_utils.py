@@ -22,9 +22,9 @@ class FrontendTimeUtilsTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         for relative in ("index.html", "cockpit.html", "pages/history.html", "pages/admin.html", "pages/ai-assistant.html"):
             source = (root / relative).read_text(encoding="utf-8")
-            self.assertIn("time-utils.js?v=1", source, relative)
-        self.assertIn('"/assets/time-utils.js?v=1"', (root / "interview_forge" / "api" / "routers" / "static.py").read_text(encoding="utf-8"))
-        self.assertIn('time-utils.js?v=1', (root / "scripts" / "build" / "build_library.py").read_text(encoding="utf-8"))
+            self.assertIn("time-utils.js?v=2", source, relative)
+        self.assertIn('"/assets/time-utils.js?v=2"', (root / "interview_forge" / "api" / "routers" / "static.py").read_text(encoding="utf-8"))
+        self.assertIn('time-utils.js?v=2', (root / "scripts" / "build" / "build_library.py").read_text(encoding="utf-8"))
 
     def test_admin_bucket_consumers_use_beijing_formatter(self) -> None:
         root = Path(__file__).resolve().parents[1]

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class CockpitP0Tests(unittest.TestCase):
     def test_service_worker_version_and_update_contract(self):
         source = (ROOT / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn('const VERSION = "hot100-v7-20260914"', source)
+        self.assertIn('const VERSION = "hot100-v8-20260916"', source)
         self.assertIn("self.clients.claim()", source)
         self.assertIn('event.data.type === "SKIP_WAITING"', source)
         self.assertIn("caches.delete(key)", source)
