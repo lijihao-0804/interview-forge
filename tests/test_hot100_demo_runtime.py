@@ -46,6 +46,25 @@ class Hot100DemoRuntimeTests(unittest.TestCase):
         self.assertNotIn("setInterval", source)
         self.assertNotIn("clearInterval", source)
 
+    def test_binary_tree_renderer_keeps_edges_in_svg_namespace(self):
+        source = (VISUAL_DIR / "二叉树演示.html").read_text(encoding="utf-8-sig")
+        self.assertIn('var edges = document.createElementNS(svgNS, "g");', source)
+        self.assertNotIn('var edges = el("g");', source)
+
+    def test_binary_tree_demos_pass_renderer_view_shape_and_stable_ids(self):
+        source = (VISUAL_DIR / "二叉树演示.html").read_text(encoding="utf-8-sig")
+        self.assertIn(
+            'ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", { tree: tree });',
+            source,
+        )
+        self.assertIn(
+            'ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", { tree: tree });',
+            source,
+        )
+        self.assertIn("nodeIdByValue[String(nums[mid])]", source)
+        self.assertNotIn("hl: [String(mid + 1)]", source)
+        self.assertNotIn("done: [2, 4, 1, 6, 3]", source)
+
     def test_native_visual_pages_use_single_timeout_and_pagehide_cleanup(self):
         native_pages = (
             "01-哈希表.html",

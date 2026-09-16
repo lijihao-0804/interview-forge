@@ -518,7 +518,9 @@ function drawTree(view, stage) {
   svg.setAttribute("width", "100%"); svg.setAttribute("height", Ht);
   svg.setAttribute("viewBox", "0 0 " + W + " " + Ht);
   var hl = view.hl || [], done = view.done || [], path = view.path || [];
-  var edges = el("g");
+  // 连线和节点都必须属于 SVG 命名空间；DemoKit.el 使用的是 HTML
+  // document.createElement，不能用来创建 SVG 的 <g> 容器。
+  var edges = document.createElementNS(svgNS, "g");
   (function drawEdges(n) {
     if (!n) return;
     [[n.left, "L"], [n.right, "R"]].forEach(function (p) {
@@ -749,17 +751,26 @@ var DEMOS = {
     build: function (ctx) {
       var nums = [-10, -3, 0, 5, 9];
       var tree = toTree([0, -3, 9, -10, null, 5, null]);
+      var nodeIdByValue = {};
+      var allNodeIds = [];
+      (function indexTree(n) {
+        if (!n) return;
+        nodeIdByValue[String(n.val)] = n.id;
+        allNodeIds.push(n.id);
+        indexTree(n.left);
+        indexTree(n.right);
+      })(tree);
       function build(l, r) {
         if (l > r) { ctx.step("区间空 [" + l + "," + r + "]，返回 null", { tree: tree, side: { 区间: "[" + l + "," + r + "]" } }); return null; }
         var mid = (l + r) >> 1;
         ctx.step("取中点 " + nums[mid] + "（下标 " + mid + "）作为子树根 → 保证左右平衡",
-          { tree: tree, hl: [String(mid + 1)], side: { 区间: "[" + l + "," + r + "]", 中点: nums[mid] } });
+          { tree: tree, hl: [nodeIdByValue[String(nums[mid])]], side: { 区间: "[" + l + "," + r + "]", 中点: nums[mid] } });
         build(l, mid - 1);
         build(mid + 1, r);
       }
-      ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", tree);
+      ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", { tree: tree });
       build(0, nums.length - 1);
-      ctx.step("完成！高度平衡的 BST 构造完毕", { tree: tree, done: [2, 4, 1, 6, 3] });
+      ctx.step("完成！高度平衡的 BST 构造完毕", { tree: tree, done: allNodeIds });
     },
     render: drawTree },
 
@@ -920,7 +931,7 @@ var DEMOS = {
         prefix[cur] -= 1; cur -= n.val; order.pop();
         ctx.step("回溯离开 " + n.val + "：撤销前缀登记（防止跨分支误配）", { tree: root, side: { 路径和: cur, 计数: count } });
       }
-      ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", tree);
+      ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", { tree: tree });
       go(root);
       ctx.step("完成！和为 " + target + " 的路径共 " + count + " 条", { tree: root, side: { 答案: count } });
     },
