@@ -181,9 +181,11 @@ from interview_forge.services.leetcode import (
     lc_status_invalidate,
     leetcode_status,
     leetcode_sync,
+    release_sync_owner,
     set_credentials,
     start_leetcode_sync_task,
     sync_task_status,
+    try_acquire_sync_owner,
 )
 from interview_forge.services.submissions import (
     VALID_SUBMIT_SOURCES,
@@ -1415,6 +1417,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/leetcode/sync：拉取力扣提交历史入库 —— full=1 全量翻页，否则增量最近 100 条。
             elif path == "/api/leetcode/sync":
                 full = str(payload.get("full", "0")) in ("1", "true", "True")
+                try:
+                    offset = max(0, min(int(payload.get("offset", 0) or 0), 1_000_000))
+                except (TypeError, ValueError):
+                    offset = 0
                 credentials = get_credentials(db)
                 if not credentials.get("leetcode_session"):
                     raise LeetCodeSyncError(
@@ -1431,10 +1437,19 @@ class StudyHandler(SimpleHTTPRequestHandler):
                             full,
                             owner=str(user["username"]),
                             db_path=db,
+                            offset=offset,
                         ),
                     }
                 else:
-                    result = {"ok": True, **leetcode_sync(credentials, db_path=db, full=full)}
+                    owner = str(user["username"])
+                    if not try_acquire_sync_owner(owner):
+                        raise LeetCodeSyncError("sync_in_progress", "已有力扣同步任务运行中，请稍后重试", HTTPStatus.CONFLICT)
+                    try:
+                        result = {"ok": True, **leetcode_sync(
+                            credentials, db_path=db, full=full, offset=offset
+                        )}
+                    finally:
+                        release_sync_owner(owner)
             # /api/leetcode/clear：一键清空凭证（等价"退出力扣连接"，不影响已同步记录）。
             else:
                 clear_credentials(db)

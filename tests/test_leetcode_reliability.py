@@ -141,6 +141,35 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertNotIn("leetcode.cn", serialized)
         self.assertNotIn("session-secret", serialized)
 
+    def test_sync_offset_can_continue_after_incremental_page_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "learning.db"
+            requested_urls = []
+
+            def fake_fetch(url, headers, *args, **kwargs):
+                requested_urls.append(url)
+                if "problems/all" in url:
+                    return {"user_name": "alice", "stat_status_pairs": []}
+                if "offset=0" in url:
+                    return {"submissions_dump": [{"id": 7, "title": "Two Sum", "status_display": "Accepted",
+                                                   "is_pending": "Not Pending", "timestamp": "1780000000", "lang": "python3"}],
+                            "has_next": True}
+                return {"submissions_dump": [], "has_next": False}
+
+            with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
+                first = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path, full=False)
+                second = leetcode.leetcode_sync(
+                    {"leetcode_session": "session-secret"}, db_path=db_path, full=False,
+                    offset=first["next_offset"],
+                )
+
+        self.assertTrue(first["partial"])
+        self.assertEqual(first["partial_error_category"], "page_limit")
+        self.assertEqual(first["next_offset"], 1)
+        self.assertTrue(first["has_more"])
+        self.assertFalse(second["partial"])
+        self.assertIn("offset=1", requested_urls[-1])
+
 
 class LeetCodeTaskReliabilityTests(unittest.TestCase):
     def setUp(self):
@@ -188,6 +217,26 @@ class LeetCodeTaskReliabilityTests(unittest.TestCase):
             release.set()
             result = self._wait_for_done(task_ids[0])
         self.assertEqual(result["result"]["submissions_added"], 1)
+
+    def test_same_owner_different_sync_modes_are_not_silently_reused(self):
+        started = threading.Event()
+        release = threading.Event()
+
+        def fake_sync(*args, **kwargs):
+            started.set()
+            self.assertTrue(release.wait(timeout=5))
+            return {"submissions_seen": 0, "submissions_added": 0, "partial": False}
+
+        with patch.dict(leetcode.server_runtime._values, {"leetcode_sync": fake_sync}):
+            incremental = leetcode.start_leetcode_sync_task({}, False, owner="alice", db_path=Path("alice.db"))
+            self.assertTrue(started.wait(timeout=5))
+            with self.assertRaises(leetcode.LeetCodeSyncError) as raised:
+                leetcode.start_leetcode_sync_task({}, True, owner="alice", db_path=Path("alice.db"))
+            release.set()
+            self._wait_for_done(incremental)
+
+        self.assertEqual(raised.exception.category, "sync_in_progress")
+        self.assertEqual(raised.exception.status, 409)
 
     def test_different_owners_can_run_concurrently(self):
         started = {"alice": threading.Event(), "bob": threading.Event()}
@@ -282,6 +331,13 @@ class LeetCodeConnectPageTests(unittest.TestCase):
         self.assertIn("syncBtn.disabled=busy", source)
         self.assertIn("syncFullBtn.disabled=busy", source)
         self.assertIn("finally{setSyncBusy(false);}", source)
+        self.assertIn("sessionStorage", source)
+
+    def test_homepage_preserves_and_continues_partial_sync(self):
+        source = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        self.assertIn("sessionStorage", source)
+        self.assertLess(source.index("if(task.partial||result.partial)"), source.index("if(task.error)"))
+        self.assertIn("await refresh();", source[source.index("if(task.partial||result.partial)"):])
 
 
 if __name__ == "__main__":

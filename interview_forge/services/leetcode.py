@@ -31,6 +31,35 @@ _LC_STATUS_CACHE: dict[tuple[str, str], tuple[float, dict[str, object]]] = {}
 _LC_STATUS_LOCK = threading.Lock()
 SYNC_TASKS: dict[str, dict[str, object]] = {}
 SYNC_TASKS_LOCK = threading.Lock()
+_SYNC_OWNER_LOCKS: dict[str, threading.Lock] = {}
+_SYNC_OWNER_LOCKS_GUARD = threading.Lock()
+
+
+def _sync_owner_lock(owner: str) -> threading.Lock | None:
+    owner = str(owner or "")
+    if not owner:
+        return None
+    with _SYNC_OWNER_LOCKS_GUARD:
+        return _SYNC_OWNER_LOCKS.setdefault(owner, threading.Lock())
+
+
+def try_acquire_sync_owner(owner: str) -> bool:
+    """Reserve one user's sync slot for direct or background execution."""
+    lock = _sync_owner_lock(owner)
+    return lock is None or lock.acquire(blocking=False)
+
+
+def release_sync_owner(owner: str) -> None:
+    lock = _sync_owner_lock(owner)
+    if lock is not None and lock.locked():
+        lock.release()
+
+
+def _normalize_sync_offset(value: object) -> int:
+    try:
+        return max(0, min(int(value or 0), 1_000_000))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _safe_log_event(event: str, **fields: object) -> None:
@@ -308,10 +337,12 @@ def _safe_sync_error(category: str) -> LeetCodeSyncError:
         "provider_rate_limited": "力扣请求较频繁，请稍后重试",
         "provider_unavailable": "力扣服务暂时不可用，请稍后重试",
         "network_error": "连接力扣失败，请检查网络后重试",
+        "sync_in_progress": "已有力扣同步任务运行中，请稍后重试",
     }
     statuses = {
         "session_invalid": HTTPStatus.UNAUTHORIZED,
         "provider_rate_limited": HTTPStatus.SERVICE_UNAVAILABLE,
+        "sync_in_progress": HTTPStatus.CONFLICT,
     }
     return LeetCodeSyncError(
         category, messages.get(category, "连接力扣失败，请稍后重试"),
@@ -330,15 +361,18 @@ def leetcode_sync(
     limit: int = 100,
     full: bool = False,
     progress=None,
+    offset: int = 0,
 ) -> dict[str, object]:
     runtime = server_runtime
     if not credentials.get("leetcode_session"):
         raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", HTTPStatus.CONFLICT)
     headers = _leetcode_headers(credentials)
+    start_offset = _normalize_sync_offset(offset)
     results: dict[str, object] = {
         "solved_added": 0, "solved_existing": 0,
         "submissions_added": 0, "submissions_seen": 0, "sync_errors": [],
-        "full": bool(full), "partial": False, "degraded": False,
+        "full": bool(full), "offset": start_offset, "next_offset": None,
+        "has_more": False, "partial": False, "degraded": False,
     }
     try:
         data = runtime._fetch_json_with_retry("https://leetcode.cn/api/problems/all/", headers)
@@ -365,17 +399,13 @@ def leetcode_sync(
     collected: list[dict[str, object]] = []
     fetch_errors: list[str] = []
     partial_error_category: str | None = None
-    offset = 0
+    offset = start_offset
     page = 0
     max_pages = 50 if full else 1
     if progress is not None:
         progress("开始拉取提交记录")
     while True:
         page += 1
-        if page > max_pages:
-            fetch_errors.append(f"已达分页上限（{max_pages} 页），如有更多历史请再次全量同步")
-            partial_error_category = "page_limit"
-            break
         try:
             payload = runtime._fetch_json_with_retry(
                 f"https://leetcode.cn/api/submissions/?offset={offset}&limit={min(int(limit), 100)}",
@@ -389,6 +419,8 @@ def leetcode_sync(
                     raise _leetcode_sync_http_error(exc) from None
                 raise _safe_sync_error(_exception_category(exc)) from None
             partial_error_category = _exception_category(exc)
+            results["next_offset"] = offset
+            results["has_more"] = True
             fetch_errors.append(f"第 {page} 页拉取失败（错误类别：{partial_error_category}，已停止后续拉取）")
             if progress is not None:
                 progress(f"第 {page} 页拉取失败，已停止拉取")
@@ -422,8 +454,15 @@ def leetcode_sync(
             progress(f"第 {page} 页完成，已读取 {results['submissions_seen']} 条")
         if not payload.get("has_next"):
             break
+        next_offset = offset + len(dump)
+        if page >= max_pages:
+            results["next_offset"] = next_offset
+            results["has_more"] = True
+            fetch_errors.append(f"已达分页上限（{max_pages} 页），可继续同步剩余历史记录")
+            partial_error_category = "page_limit"
+            break
         time.sleep(0.8)
-        offset += len(dump)
+        offset = next_offset
 
     with closing(runtime.connect(db_path)) as connection:
         existing_lc = {
@@ -485,14 +524,21 @@ async def leetcode_sync_async(
     limit: int = 100,
     full: bool = False,
     progress=None,
+    offset: int = 0,
 ) -> dict[str, object]:
     """Run the existing sync/SQLite workflow without blocking an async caller."""
     return await asyncio.to_thread(
-        leetcode_sync, credentials, db_path, limit, full, progress
+        leetcode_sync, credentials, db_path, limit, full, progress, offset
     )
 
 
-def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str = "", db_path: Path = DB_PATH) -> str:
+def start_leetcode_sync_task(
+    credentials: dict[str, str],
+    full: bool,
+    owner: str = "",
+    db_path: Path = DB_PATH,
+    offset: int = 0,
+) -> str:
     runtime = server_runtime
     reused_task_id: str | None = None
     task_id: str | None = None
@@ -503,14 +549,26 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
     with SYNC_TASKS_LOCK:
         for existing_id, existing in SYNC_TASKS.items():
             if str(existing.get("owner", "")) == owner and bool(existing.get("running")):
-                reused_task_id = str(existing_id)
+                if bool(existing.get("full")) == bool(full):
+                    reused_task_id = str(existing_id)
+                else:
+                    raise LeetCodeSyncError(
+                        "sync_in_progress",
+                        f"已有{'全量' if bool(existing.get('full')) else '增量'}同步任务运行中，请稍后重试",
+                        HTTPStatus.CONFLICT,
+                    )
                 break
         if reused_task_id is None:
+            if not try_acquire_sync_owner(owner):
+                raise LeetCodeSyncError(
+                    "sync_in_progress", "已有力扣同步任务运行中，请稍后重试", HTTPStatus.CONFLICT
+                )
             task_id = uuid.uuid4().hex[:12]
             task = {
                 "logs": [], "running": True, "result": None, "error": None,
                 "error_category": None, "partial": False, "degraded_category": None,
-                "owner": owner, "full": bool(full), "created_at": runtime.now_iso(),
+                "owner": owner, "full": bool(full), "offset": _normalize_sync_offset(offset),
+                "created_at": runtime.now_iso(),
                 "started_at": None, "finished_at": None,
             }
             SYNC_TASKS[task_id] = task
@@ -541,7 +599,13 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
             owner=owner, full=bool(full), duration_ms=0,
         )
         try:
-            result = runtime.leetcode_sync(credentials, db_path=db_path, full=full, progress=progress)
+            if task["offset"]:
+                result = runtime.leetcode_sync(
+                    credentials, db_path=db_path, full=full, offset=task["offset"], progress=progress
+                )
+            else:
+                # Keep the legacy composition-root seam callable by existing workers/tests.
+                result = runtime.leetcode_sync(credentials, db_path=db_path, full=full, progress=progress)
             task["result"] = result
             if isinstance(result, dict) and bool(result.get("partial")):
                 task["partial"] = True
@@ -571,6 +635,7 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
                     partial = bool(task.get("partial"))
                     degraded_category = task.get("degraded_category")
                     duration_ms = int((time.monotonic() - started_monotonic) * 1000) if started_monotonic is not None else None
+                    release_sync_owner(owner)
                 if partial:
                     event = "leetcode_sync_partial"
                     event_category = str(degraded_category or "partial")

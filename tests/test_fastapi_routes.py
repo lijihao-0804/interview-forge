@@ -94,6 +94,19 @@ class FastApiRouteContractTests(unittest.TestCase):
         self.assertEqual(response.json(), {"ok": True, "solved_added": 1, "sync_errors": []})
         adapter.assert_awaited_once_with(credentials, db_path=self.db_path, full=False)
 
+    def test_direct_leetcode_sync_rejects_another_running_owner_task(self):
+        credentials = {"leetcode_session": "saved"}
+        adapter = AsyncMock()
+        with patch("interview_forge.api.support.current_user", return_value=USER), \
+             patch("interview_forge.api.routers.leetcode.user_db", return_value=self.db_path), \
+             patch("interview_forge.api.routers.leetcode.get_credentials", return_value=credentials), \
+             patch("interview_forge.api.routers.leetcode.try_acquire_sync_owner", return_value=False), \
+             patch("interview_forge.api.routers.leetcode.leetcode_sync_async", adapter):
+            response = self.client.post("/api/leetcode/sync", json={"full": False})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["error_category"], "sync_in_progress")
+        adapter.assert_not_awaited()
+
     def test_leetcode_status_and_background_sync_contracts(self):
         credentials = {"leetcode_session": "saved"}
         with patch("interview_forge.api.support.current_user", return_value=USER), \

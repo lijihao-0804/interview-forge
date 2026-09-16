@@ -6,7 +6,8 @@ from fastapi import APIRouter, Request
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
 from interview_forge.services.leetcode import (
     LeetCodeSyncError, clear_credentials, get_credentials, lc_status_cached, lc_status_invalidate,
-    leetcode_status_async, leetcode_sync_async, set_credentials,
+    leetcode_status_async, leetcode_sync_async, release_sync_owner, set_credentials,
+    try_acquire_sync_owner,
 )
 from interview_forge.runtime.task_manager import task_manager
 
@@ -74,15 +75,33 @@ async def sync(request: Request):
     try:
         payload = await read_json(request)
         full = str(payload.get("full", "0")) in ("1", "true", "True")
+        try:
+            offset = max(0, min(int(payload.get("offset", 0) or 0), 1_000_000))
+        except (TypeError, ValueError):
+            offset = 0
         db = user_db(user)
         credentials = get_credentials(db)
         if not credentials.get("leetcode_session"):
             raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", 409)
         if payload.get("async") in (1, True, "1", "true", "True"):
-            task_id = task_manager.submit("leetcode", credentials, full, owner=str(user["username"]), db_path=db)
+            task_id = task_manager.submit(
+                "leetcode", credentials, full, owner=str(user["username"]), db_path=db,
+                offset=offset,
+            )
             return json_response({"ok": True, "task_id": task_id}, 201)
-        result = {"ok": True, **await leetcode_sync_async(credentials, db_path=db, full=full)}
-        invalidate_learning(db)
+        owner = str(user["username"])
+        if not try_acquire_sync_owner(owner):
+            raise LeetCodeSyncError("sync_in_progress", "已有力扣同步任务运行中，请稍后重试", 409)
+        try:
+            if offset:
+                result = {"ok": True, **await leetcode_sync_async(
+                    credentials, db_path=db, full=full, offset=offset
+                )}
+            else:
+                result = {"ok": True, **await leetcode_sync_async(credentials, db_path=db, full=full)}
+            invalidate_learning(db)
+        finally:
+            release_sync_owner(owner)
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc)

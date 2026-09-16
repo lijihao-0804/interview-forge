@@ -33,7 +33,7 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
     def test_incremental_request_loading_guard_and_refresh(self):
         script = self.template
         self.assertEqual(script.count("leetcodeSyncRequest('/api/leetcode/sync',{"), 1)
-        self.assertIn("body:JSON.stringify({full:false,async:true})", script)
+        self.assertIn("body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})", script)
         self.assertIn("if(leetcodeSyncInFlight)return;", script)
         self.assertIn("leetcodeSyncBtn.disabled=busy", script)
         self.assertIn("busy?'同步中…':'一键同步'", script)
@@ -45,7 +45,7 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
         self.assertIn("请先前往力扣连接页面填写 LEETCODE_SESSION。", script)
         self.assertIn("LEETCODE_SESSION 已过期或无效", script)
         self.assertIn("同步暂时失败，请检查网络后重试", script)
-        self.assertIn("同步成功。本次处理 ${seen} 条提交，新增 ${added} 条记录。", script)
+        self.assertIn("${partial?'同步部分完成':'同步成功'}。本次处理 ${seen} 条提交，新增 ${added} 条记录。", script)
         self.assertIn("category==='not_configured'", script)
         self.assertIn("category==='session_invalid'", script)
         self.assertNotIn("${task.error}", script)
@@ -71,7 +71,7 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
             'id="leetcodeSyncBtn"',
             'id="leetcodeSyncModal"',
             "function runLeetcodeIncrementalSync()",
-            "body:JSON.stringify({full:false,async:true})",
+            "body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})",
             "function leetcodeSyncSummary(data)",
         )
         for marker in markers:

@@ -91,6 +91,20 @@ function fetchWithTimeout(input,options,timeout=12000){
   const timer=setTimeout(()=>controller.abort(),timeout);
   return fetch(input,request).finally(()=>clearTimeout(timer));
 }
+function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
+function leetcodeSyncCursor(full){
+  try{
+    const value=Number(sessionStorage.getItem(leetcodeSyncCursorKey(full))||0);
+    return Number.isSafeInteger(value)&&value>=0?value:0;
+  }catch(_){return 0;}
+}
+function saveLeetcodeSyncCursor(full,data){
+  try{
+    const next=Number(data&&data.next_offset);
+    if(data&&data.has_more&&Number.isSafeInteger(next)&&next>0)sessionStorage.setItem(leetcodeSyncCursorKey(full),String(next));
+    else sessionStorage.removeItem(leetcodeSyncCursorKey(full));
+  }catch(_){/* sessionStorage may be unavailable; the next run safely starts at zero. */}
+}
 async function api(path,options){
   const response=await fetchWithTimeout(path,options||{});
   const data=await response.json().catch(()=>({}));
@@ -129,7 +143,7 @@ async function runSync(full){
   setSyncBusy(true);
   syncBox.textContent=full?'全量同步中，正在启动任务…':'增量同步中，正在启动任务…';
   try{
-    const start=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true})});
+    const start=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})});
     const taskId=start.task_id;
     if(!taskId){throw new Error('同步任务未正常创建');}
     syncBox.textContent='同步任务已启动…';
@@ -142,10 +156,12 @@ async function runSync(full){
         const data=st.result||{};
         if(st.error&&!st.partial){throw new Error(st.error);}
         if(st.partial||data.partial){
+          saveLeetcodeSyncCursor(full,data);
           syncBox.textContent=(logs?logs+'\n':'')+`同步部分完成，已写入提交记录 ${data.submissions_added||0} 条（本次共读取 ${data.submissions_seen||0} 条）`;
-          showStatus(false,'同步部分完成，请稍后重试。');
+          showStatus(false,data.has_more?'同步部分完成，再次点击同步可继续读取。':'同步部分完成，请稍后重试。');
           return;
         }
+        saveLeetcodeSyncCursor(full,data);
         syncBox.textContent=(logs?logs+'\n':'')+`已写入提交记录 ${data.submissions_added} 条（本次共读取 ${data.submissions_seen} 条）${data.solved_added?`；已解答兜底补 ${data.solved_added} 条`:''}${data.sync_errors&&data.sync_errors.length?'；注意：'+(data.sync_errors.join('；')):''}`;
         showStatus(true,full?'全量同步完成。':'增量同步完成。');
         return;

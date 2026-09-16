@@ -371,10 +371,26 @@ function leetcodeSyncSummary(data){
   const added=Number(data.submissions_added||0);
   const solvedAdded=Number(data.solved_added||0);
   const warningCount=Array.isArray(data.sync_errors)?data.sync_errors.length:0;
-  let text=`同步成功。本次处理 ${seen} 条提交，新增 ${added} 条记录。`;
+  const partial=Boolean(data.partial||data.degraded);
+  let text=`${partial?'同步部分完成':'同步成功'}。本次处理 ${seen} 条提交，新增 ${added} 条记录。`;
   if(solvedAdded)text+=` 另补充 ${solvedAdded} 条已解决记录。`;
   if(warningCount)text+=` 有 ${warningCount} 项暂未读取，可稍后再次同步。`;
+  if(data.has_more&&Number.isSafeInteger(Number(data.next_offset)))text+=' 仍有更早记录，可再次点击同步继续。';
   return text;
+}
+function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
+function leetcodeSyncCursor(full){
+  try{
+    const value=Number(sessionStorage.getItem(leetcodeSyncCursorKey(full))||0);
+    return Number.isSafeInteger(value)&&value>=0?value:0;
+  }catch(_){return 0;}
+}
+function saveLeetcodeSyncCursor(full,data){
+  try{
+    const next=Number(data&&data.next_offset);
+    if(data&&data.has_more&&Number.isSafeInteger(next)&&next>0)sessionStorage.setItem(leetcodeSyncCursorKey(full),String(next));
+    else sessionStorage.removeItem(leetcodeSyncCursorKey(full));
+  }catch(_){/* sessionStorage may be unavailable; the next run safely starts at zero. */}
 }
 function showLeetcodeSyncError(error){
   const category=String(error&&error.category||'');
@@ -390,6 +406,10 @@ function showLeetcodeSyncError(error){
     openLeetcodeSyncModal('error','登录状态已失效','当前网站登录状态已失效，请刷新页面并重新登录。');
     return;
   }
+  if(category==='sync_in_progress'){
+    openLeetcodeSyncModal('error','同步正在进行','已有力扣同步任务运行中，请等待当前任务完成后再试。');
+    return;
+  }
   const message=category==='provider_blocked'
     ?'力扣暂时拒绝了本次连接，请稍后重试；如持续失败，请联系管理员。'
     :'同步暂时失败，请检查网络后重试；如持续失败，请联系管理员。';
@@ -397,6 +417,7 @@ function showLeetcodeSyncError(error){
 }
 async function runLeetcodeIncrementalSync(){
   if(leetcodeSyncInFlight)return;
+  const full=false;
   setLeetcodeSyncBusy(true);
   try{
     const connection=await leetcodeSyncRequest('/api/leetcode/status',{cache:'no-store'});
@@ -409,19 +430,26 @@ async function runLeetcodeIncrementalSync(){
       throw error;
     }
     const start=await leetcodeSyncRequest('/api/leetcode/sync',{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full:false,async:true})
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})
     });
     if(!start.task_id)throw new Error('task unavailable');
     while(true){
       await new Promise(resolve=>setTimeout(resolve,1000));
       const task=await leetcodeSyncRequest('/api/leetcode/sync/status?task_id='+encodeURIComponent(start.task_id),{cache:'no-store'});
       if(task.running)continue;
+      const result=task.result||{};
+      if(task.partial||result.partial){
+        saveLeetcodeSyncCursor(full,result);
+        await refresh();
+        openLeetcodeSyncModal('success','同步部分完成',leetcodeSyncSummary(result));
+        return;
+      }
       if(task.error){
         const error=new Error('sync failed');
         error.category=String(task.error_category||'server_error');
         throw error;
       }
-      const result=task.result||{};
+      saveLeetcodeSyncCursor(full,result);
       await refresh();
       openLeetcodeSyncModal('success','同步完成',leetcodeSyncSummary(result));
       return;
