@@ -819,6 +819,27 @@ MISSING_STATEMENTS = {
 }
 
 
+def _remove_embedded_problem_statements(rest: str) -> str:
+    """移除题面拆出后仍残留在解法正文中的重复题面小节。
+
+    原稿里偶尔会把同一题面写两遍。第一遍由
+    :func:`split_problem_statement` 提升为页面级 ``## 题目与约束``；
+    后续同名小节不能继续留在 ``## 完整推导`` 内，否则读者会先看到推导，
+    再遇到第二个题面。这里只匹配规范化后的独立三级标题，删除该标题直到
+    下一个同级标题，避免误删题面之后的实现/复杂度内容。
+    """
+    heading = re.compile(r"(?m)^###\s*题目与约束\s*$")
+    while True:
+        duplicate = heading.search(rest)
+        if duplicate is None:
+            break
+        tail = rest[duplicate.end():]
+        next_heading = re.search(r"(?m)^###\s+", tail)
+        end = duplicate.end() + next_heading.start() if next_heading else len(rest)
+        rest = rest[:duplicate.start()].rstrip() + "\n\n" + rest[end:].lstrip("\n")
+    return re.sub(r"\n{3,}", "\n\n", rest).strip()
+
+
 def split_problem_statement(clean: str) -> tuple[str, str]:
     """把规范化正文中的「### 题目与约束」小节拆出，返回 (题目, 其余正文)。"""
     # 定位正文中唯一约定的“### 题目与约束”标题；找不到说明此题无题面，
@@ -834,7 +855,7 @@ def split_problem_statement(clean: str) -> tuple[str, str]:
     statement = clean[start:end].strip()
     # 其余正文 = 题面前内容 + 题面后内容，用两个换行接回，仍是一篇完整 Markdown。
     rest = clean[:match.start()].rstrip() + "\n\n" + clean[end:].lstrip("\n")
-    return statement, re.sub(r"\n{3,}", "\n\n", rest).strip()
+    return statement, _remove_embedded_problem_statements(rest)
 
 
 def render_problem_pages(original: dict[int, list[tuple[str, str, str]]]) -> None:

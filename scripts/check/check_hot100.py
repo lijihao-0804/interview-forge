@@ -101,6 +101,14 @@ for path in problem_files:
     for required in ("## 题目与约束", "## 核心不变量", "时间复杂度", "空间复杂度"):
         if required not in text:
             errors.append(f"缺少 {required}：{path}")
+    # 题面是页面级公共内容，只能出现一次，并且必须位于推导/解法之前。
+    # 这条是构建模板的回归约束，防止原稿重复的“### 题目与约束”小节泄漏到解法正文。
+    statement_headings = list(re.finditer(r"(?m)^##\s+题目与约束\s*$", text))
+    if len(statement_headings) != 1:
+        errors.append(f"题目与约束必须恰好出现一次：{path}")
+    derivation_heading = re.search(r"(?m)^##\s+(?:完整推导|解法\s+)", text)
+    if statement_headings and derivation_heading and statement_headings[0].start() > derivation_heading.start():
+        errors.append(f"题目与约束必须位于推导之前：{path}")
     # ---- 整理痕迹（模板演进残留）----
     # 站点经历过多次模板改版，旧模板会给页面打上“施工期”标记：旧标题“先记住”、
     # emoji 分类标题（📌🧠🛠️⏱️）、以及四句整理说明（“保留原方法”“仅做结构和

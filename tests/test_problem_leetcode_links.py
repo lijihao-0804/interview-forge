@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 import sys
+import re
 
 from bs4 import BeautifulSoup
 
@@ -10,9 +11,50 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from tools.build_hot100 import LEETCODE_BASE, LEETCODE_SLUGS, PROBLEMS, problem_filename
+from scripts.build.build_hot100 import split_problem_statement
 
 
 class ProblemLeetCodeLinkTests(unittest.TestCase):
+    def test_split_problem_statement_removes_repeated_statement_sections(self):
+        clean = """### 题目与约束
+题面和约束。
+
+### 思路推导
+先建立不变量。
+
+### 题目与约束
+重复题面，不应再次出现在解法中。
+
+### Java 实现
+实现代码。
+"""
+        statement, rest = split_problem_statement(clean)
+
+        self.assertEqual(statement, "题面和约束。")
+        self.assertEqual(rest.count("### 题目与约束"), 0)
+        self.assertIn("### 思路推导", rest)
+        self.assertIn("### Java 实现", rest)
+
+    def test_problem_statement_is_unique_and_before_derivation(self):
+        for problem in PROBLEMS:
+            stem = problem_filename(problem)
+            md_path = ROOT / "books" / "hot100" / "03-题解" / str(problem["folder"]) / stem
+            markdown = md_path.read_text(encoding="utf-8")
+            headings = list(re.finditer(r"(?m)^##\s+题目与约束\s*$", markdown))
+            self.assertEqual(len(headings), 1, md_path.name)
+            derivation = re.search(r"(?m)^##\s+(?:完整推导|解法\s+)", markdown)
+            self.assertIsNotNone(derivation, md_path.name)
+            self.assertLess(headings[0].start(), derivation.start(), md_path.name)
+
+            html_path = md_path.with_suffix(".html")
+            soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+            html_headings = [
+                heading
+                for heading in soup.find_all(["h2", "h3"])
+                if heading.get_text(" ", strip=True) == "题目与约束"
+            ]
+            self.assertEqual(len(html_headings), 1, html_path.name)
+
     def test_every_problem_reuses_its_own_safe_url_before_solution_and_at_end(self):
         for problem in PROBLEMS:
             pid = int(problem["id"])
