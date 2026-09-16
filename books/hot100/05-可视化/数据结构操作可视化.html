@@ -1474,6 +1474,26 @@ function initPanel(idx) {
     lastBtn.disabled = atLast;
   }
 
+  function stopAuto() {
+    if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+    state.running = false;
+    autoBtn.textContent = '▶ 自动';
+  }
+  function scheduleAuto() {
+    if (!state.running || state.timer || !state.steps.length) return;
+    const speed = parseInt(speedSlider.value);
+    const delay = Math.max(30, 200 - speed * 15);
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      if (state.stepIdx < state.steps.length - 1) {
+        state.stepIdx++;
+        render();
+        updateButtons();
+        scheduleAuto();
+      } else stopAuto();
+    }, delay);
+  }
+
   // ===== 操作按钮 =====
   for (const { btn, op } of opBtns) {
     btn.addEventListener('click', () => {
@@ -1481,7 +1501,7 @@ function initPanel(idx) {
       if (op !== '取最大值' && (isNaN(val) || val === '')) { msgEl.textContent = '请输入一个有效数字'; return; }
 
       // 重置步骤到开头
-      if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
+      stopAuto();
 
       if (idx === 0) { // BST
         let result, opSteps;
@@ -1592,7 +1612,7 @@ function initPanel(idx) {
 
   // 重置/初始化
   initBtn.addEventListener('click', () => {
-    if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
+    stopAuto();
     loadSampleData(state, idx);
     render();
     updateButtons();
@@ -1609,21 +1629,19 @@ function initPanel(idx) {
   lastBtn.addEventListener('click', () => { state.stepIdx = state.steps.length - 1; render(); updateButtons(); });
   autoBtn.addEventListener('click', () => {
     if (state.running) {
-      if (state.timer) { clearInterval(state.timer); state.timer = null; }
-      state.running = false; autoBtn.textContent = '▶ 自动';
+      stopAuto();
     } else {
       if (!state.steps.length) return;
       state.running = true; autoBtn.textContent = '⏸';
-      const speed = parseInt(speedSlider.value);
-      const delay = Math.max(30, 200 - speed * 15);
-      state.timer = setInterval(() => {
-        if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
-        else { clearInterval(state.timer); state.timer = null; state.running = false; autoBtn.textContent = '▶ 自动'; }
-      }, delay);
+      scheduleAuto();
     }
+  });
+  speedSlider.addEventListener('input', () => {
+    if (state.running) { if (state.timer) { clearTimeout(state.timer); state.timer = null; } scheduleAuto(); }
   });
 
   state.render = render;
+  state.stop = stopAuto;
   panelData[idx] = state;
 
   // 初始状态（加载示例数据）
@@ -2043,7 +2061,7 @@ DS_DATA.forEach((_, idx) => {
 
 document.querySelectorAll('.ds-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    panelData.forEach(s => { if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; } });
+    panelData.forEach(s => { if (s && s.stop) s.stop(); });
     document.querySelectorAll('.ds-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.btn-auto').forEach(b => b.textContent = '▶ 自动');
@@ -2054,6 +2072,7 @@ document.querySelectorAll('.ds-tab').forEach(tab => {
     if (s && s.render) s.render();
   });
 });
+window.addEventListener('pagehide', () => panelData.forEach(s => { if (s && s.stop) s.stop(); }));
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
 </body>

@@ -1292,8 +1292,17 @@ function initPanel(idx){
   }
 
   function stopAuto(){
-    if(state.timer){clearInterval(state.timer);state.timer=null;state.running=false}
+    if(state.timer){clearTimeout(state.timer);state.timer=null}
+    state.running=false;
     const ab=panel.querySelector('.btn-auto');if(ab)ab.textContent='▶ 自动';
+  }
+  function scheduleAuto(){
+    if(!state.running||state.timer)return;
+    state.timer=setTimeout(()=>{
+      state.timer=null;
+      if(state.stepIdx<state.steps.length-1){state.stepIdx++;render();scheduleAuto()}
+      else stopAuto();
+    },600);
   }
 
   function applyPreset(pi){
@@ -1327,16 +1336,14 @@ function initPanel(idx){
   panel.querySelector('.btn-auto').addEventListener('click',()=>{
     if(state.running){stopAuto()}else{
       state.running=true;panel.querySelector('.btn-auto').textContent='⏸';
-      state.timer=setInterval(()=>{
-        if(state.stepIdx<state.steps.length-1){state.stepIdx++;render()}
-        else{stopAuto()}
-      },600);
+      scheduleAuto();
     }
   });
 
   const ro=new ResizeObserver(()=>render());
   ro.observe(document.getElementById('canvas-'+idx));
   state.render=render;
+  state.stop=stopAuto;
   panelData[idx]=state;
   resetDefault();
 }
@@ -1345,7 +1352,7 @@ function initPanel(idx){
 P.forEach((_,idx)=>initPanel(idx));
 document.querySelectorAll('.sort-tab').forEach(tab=>{
   tab.addEventListener('click',()=>{
-    panelData.forEach(s=>{if(s&&s.timer){clearInterval(s.timer);s.timer=null;s.running=false}});
+    panelData.forEach(s=>{if(s&&s.stop)s.stop()});
     document.querySelectorAll('.sort-tab').forEach(t=>t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.btn-auto').forEach(b=>b.textContent='▶ 自动');
@@ -1356,6 +1363,7 @@ document.querySelectorAll('.sort-tab').forEach(tab=>{
     if(s&&s.render)setTimeout(()=>s.render(),50);
   });
 });
+window.addEventListener('pagehide',()=>panelData.forEach(s=>{if(s&&s.stop)s.stop()}));
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
 </body>

@@ -536,7 +536,7 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     {lock:"竞争加剧",bits:["Lock Record 指针:62","lock:00"],caption:"T3 也加入：多线程持续竞争，自旋超过阈值或 CPU 压力大，轻量级锁判定“继续自旋不划算”，准备升级重量级。",threads:[["T1","持有轻量级锁（owner）"],["T2","自旋中"],["T3","自旋中"]]},
     {lock:"重量级锁",bits:["Monitor 指针:62","lock:10"],caption:"升级为重量级锁：Mark Word 改为指向内核 Monitor 对象，锁标志位 10。抢不到锁的线程通过 futex 进入内核挂起（两次内核往返），不再忙等。",threads:[["T1","持有 Monitor（owner）"],["T2","阻塞挂起（等待唤醒）"],["T3","阻塞挂起（等待唤醒）"]]}
   ];
-  let index=0,timer=null;
+  let index=0,timer=null,playing=false;
   const $=id=>document.getElementById(id);
   function render(){
     const s=steps[index];
@@ -551,18 +551,25 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
   $("prev").addEventListener("click",()=>{if(index>0){index--;render()}});
   $("next").addEventListener("click",()=>{if(index<steps.length-1){index++;render()}});
   $("reset").addEventListener("click",()=>{stop();index=0;render()});
-  function stop(){if(timer){clearInterval(timer);timer=null;$("play").textContent="自动播放"}}
-  $("play").addEventListener("click",()=>{
-    if(timer){stop();return}
-    if(index>=steps.length-1)index=0;
-    $("play").textContent="暂停";
-    timer=setInterval(()=>{
-      if(index<steps.length-1){index++;render()}
+  function stop(){if(timer){clearTimeout(timer);timer=null}playing=false;$("play").textContent="自动播放"}
+  function schedule(){
+    if(!playing||timer)return;
+    timer=setTimeout(()=>{
+      timer=null;
+      if(index<steps.length-1){index++;render();schedule()}
       else stop();
     },1800);
+  }
+  $("play").addEventListener("click",()=>{
+    if(playing){stop();return}
+    if(index>=steps.length-1)index=0;
+    playing=true;
+    $("play").textContent="暂停";
     render();
+    schedule();
   });
   render();
+  window.addEventListener("pagehide",stop);
 })();
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>

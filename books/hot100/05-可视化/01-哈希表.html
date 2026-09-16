@@ -1310,6 +1310,24 @@ function initPanel(idx) {
   const state = { steps: [], stepIdx: 0, running: false, timer: null };
   panelData[idx] = state;
 
+  function stopAuto() {
+    if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+    state.running = false;
+    const autoBtn = panel.querySelector('.btn-auto');
+    if (autoBtn) autoBtn.textContent = '▶ 自动播放';
+  }
+  function scheduleAuto() {
+    if (!state.running || state.timer) return;
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      if (state.stepIdx < state.steps.length - 1) {
+        state.stepIdx++;
+        render();
+        scheduleAuto();
+      } else stopAuto();
+    }, 800);
+  }
+
   // DOM refs
   const inputEls = {};
   panel.querySelectorAll('.custom-input').forEach(el => {
@@ -1386,7 +1404,7 @@ function initPanel(idx) {
     if (result) {
       state.steps = result;
       state.stepIdx = 0;
-      if (state.timer) { clearInterval(state.timer); state.timer = null; state.running = false; }
+      stopAuto();
       const autoBtn = panel.querySelector('.btn-auto');
       if (autoBtn) autoBtn.textContent = '▶ 自动播放';
       render();
@@ -1445,22 +1463,11 @@ function initPanel(idx) {
   });
   panel.querySelector('.btn-auto').addEventListener('click', () => {
     if (state.running) {
-      if (state.timer) { clearInterval(state.timer); state.timer = null; }
-      state.running = false;
-      panel.querySelector('.btn-auto').textContent = '▶ 自动播放';
+      stopAuto();
     } else {
       state.running = true;
       panel.querySelector('.btn-auto').textContent = '⏸ 暂停';
-      state.timer = setInterval(() => {
-        if (state.stepIdx < state.steps.length - 1) {
-          state.stepIdx++;
-          render();
-        } else {
-          clearInterval(state.timer); state.timer = null;
-          state.running = false;
-          panel.querySelector('.btn-auto').textContent = '▶ 自动播放';
-        }
-      }, 800);
+      scheduleAuto();
     }
   });
 
@@ -1469,6 +1476,7 @@ function initPanel(idx) {
   ro.observe(document.getElementById('canvas-' + idx));
 
   state.render = render;
+  state.stop = stopAuto;
   panelData[idx] = state;
 
   // Init with default data
@@ -1483,7 +1491,7 @@ PROBLEM_DATA.forEach((_, idx) => initPanel(idx));
 document.querySelectorAll('.sort-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     panelData.forEach(s => {
-      if (s && s.timer) { clearInterval(s.timer); s.timer = null; s.running = false; }
+      if (s && s.stop) s.stop();
     });
     document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1495,6 +1503,7 @@ document.querySelectorAll('.sort-tab').forEach(tab => {
     if (s && s.render) setTimeout(() => s.render(), 50);
   });
 });
+window.addEventListener('pagehide', () => panelData.forEach(s => { if (s && s.stop) s.stop(); }));
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
 </body>

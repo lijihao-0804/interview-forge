@@ -36,7 +36,7 @@ background:var(--dk-soft);border-radius:0 9px 9px 0;font-size:13px;color:var(--d
 background:var(--dk-panel);overflow:auto}
 .dk-desc{margin:12px 2px 6px;padding:10px 14px;border-radius:10px;background:var(--dk-brand-soft);
 color:var(--dk-brand-strong);font-weight:600;height:68px;min-height:68px;display:flex;align-items:flex-start;overflow:auto}
-.dk-vars{display:flex;gap:8px;flex-wrap:wrap;margin:0 2px 12px;min-height:32px}
+.dk-vars{display:flex;gap:8px;flex-wrap:nowrap;margin:0 2px 12px;height:40px;min-height:40px;overflow-x:auto;overflow-y:hidden}
 .dk-var{font-size:12.5px;padding:3px 10px;border-radius:8px;background:var(--dk-soft);
 border:1px solid var(--dk-line);color:var(--dk-muted)}
 .dk-var b{color:var(--dk-text);font-weight:700}
