@@ -32,23 +32,24 @@ color:var(--dk-text);background:var(--dk-bg);padding:18px 18px 26px;min-height:1
 border-radius:999px;padding:2px 10px}
 .dk-example{margin:10px 0 14px;padding:9px 13px;border-left:3px solid var(--dk-brand);
 background:var(--dk-soft);border-radius:0 9px 9px 0;font-size:13px;color:var(--dk-muted);white-space:pre-wrap}
-.dk-stage{min-height:190px;padding:18px;border:1px solid var(--dk-line);border-radius:var(--dk-radius);
-background:var(--dk-panel);overflow-x:auto}
+.dk-stage{height:var(--dk-stage-height,320px);min-height:220px;padding:18px;border:1px solid var(--dk-line);border-radius:var(--dk-radius);
+background:var(--dk-panel);overflow:auto}
 .dk-desc{margin:12px 2px 6px;padding:10px 14px;border-radius:10px;background:var(--dk-brand-soft);
-color:var(--dk-brand-strong);font-weight:600;min-height:42px;display:flex;align-items:center}
-.dk-vars{display:flex;gap:8px;flex-wrap:wrap;margin:0 2px 12px}
+color:var(--dk-brand-strong);font-weight:600;height:68px;min-height:68px;display:flex;align-items:flex-start;overflow:auto}
+.dk-vars{display:flex;gap:8px;flex-wrap:wrap;margin:0 2px 12px;min-height:32px}
 .dk-var{font-size:12.5px;padding:3px 10px;border-radius:8px;background:var(--dk-soft);
 border:1px solid var(--dk-line);color:var(--dk-muted)}
 .dk-var b{color:var(--dk-text);font-weight:700}
-.dk-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:14px 0 6px}
+.dk-bar{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;min-height:42px;margin:14px 0 6px;overflow-x:auto;white-space:nowrap}
 .dk-btn{border:1px solid var(--dk-line);background:var(--dk-panel);color:var(--dk-text);border-radius:9px;
-padding:7px 14px;font:inherit;font-weight:600;cursor:pointer}
+padding:7px 14px;min-height:38px;flex:0 0 auto;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.dk-btn.primary{min-width:104px}
 .dk-btn:hover{border-color:var(--dk-brand);color:var(--dk-brand)}
 .dk-btn.primary{background:var(--dk-brand);border-color:var(--dk-brand);color:#fff}
 .dk-btn.primary:hover{background:var(--dk-brand-strong)}
 .dk-btn:disabled{opacity:.45;cursor:not-allowed}
-.dk-progress{font-size:13px;color:var(--dk-muted);font-variant-numeric:tabular-nums}
-.dk-speed{display:flex;gap:4px}
+.dk-progress{font-size:13px;color:var(--dk-muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.dk-speed{display:flex;gap:4px;flex:0 0 auto}
 .dk-speed button{border:1px solid var(--dk-line);background:var(--dk-panel);color:var(--dk-muted);
 border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer}
 .dk-speed button.on{background:var(--dk-brand-soft);color:var(--dk-brand);border-color:var(--dk-brand);font-weight:700}
@@ -132,6 +133,10 @@ color:var(--dk-brand);white-space:nowrap}
     }
 
     var stage = el("div", "dk-stage");
+    var stageHeight = Number(cfg.stageHeight);
+    if (Number.isFinite(stageHeight) && stageHeight >= 220) {
+      stage.style.setProperty("--dk-stage-height", Math.round(stageHeight) + "px");
+    }
     wrap.appendChild(stage);
 
     var vars = el("div", "dk-vars");
@@ -166,6 +171,7 @@ color:var(--dk-brand);white-space:nowrap}
     bar.appendChild(speed);
     if (cfg.sizes && cfg.sizes.length > 1) {
       var resetBtn = el("button", "dk-btn", "↻ 重置");
+      resetBtn.onclick = rebuild;
       bar.appendChild(resetBtn);
     }
     wrap.appendChild(bar);
@@ -189,6 +195,19 @@ color:var(--dk-brand);white-space:nowrap}
     var idx = 0, timer = null, playing = false;
 
     function interval() { return speeds[speedIdx][0] * 900; }
+    function scheduleNext() {
+      if (!playing || timer) return;
+      timer = setTimeout(function () {
+        timer = null;
+        playTick();
+        if (playing) scheduleNext();
+      }, interval());
+    }
+    function reschedule() {
+      if (!playing) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      scheduleNext();
+    }
     function show(i) {
       idx = Math.max(0, Math.min(steps.length - 1, i));
       window.__dk = { steps: steps, idx: idx, progressEl: progress, stageEl: stage };
@@ -208,6 +227,7 @@ color:var(--dk-brand);white-space:nowrap}
       btnNext.disabled = btnLast.disabled = idx === steps.length - 1;
     }
     function rebuild() {
+      stop();
       steps = [];
       stage.textContent = ""; desc.textContent = ""; vars.textContent = ""; log.textContent = "";
       ctx.reset && ctx.reset();
@@ -220,27 +240,32 @@ color:var(--dk-brand);white-space:nowrap}
         progress.textContent = "0 / 0";
         return;
       }
-      idx = 0; playing = false;
+      idx = 0;
       btnPlay.textContent = "▶ 自动播放";
       show(0);
+      window.dispatchEvent(new CustomEvent("hot100:demo-rebuilt"));
     }
     function playTick() {
       if (idx >= steps.length - 1) { stop(); return; }
       show(idx + 1);
+      if (idx >= steps.length - 1) stop();
     }
-    function stop() { if (timer) { clearInterval(timer); timer = null; } playing = false; btnPlay.textContent = "▶ 自动播放"; }
+    function stop() { if (timer) { clearTimeout(timer); timer = null; } playing = false; btnPlay.textContent = "▶ 自动播放"; }
 
     btnPlay.onclick = function () {
       if (playing) { stop(); return; }
       if (idx >= steps.length - 1) show(0);
       playing = true; btnPlay.textContent = "⏸ 暂停";
-      timer = setInterval(playTick, interval());
       playTick();
+      scheduleNext();
     };
     btnNext.onclick = function () { stop(); show(idx + 1); };
     btnPrev.onclick = function () { stop(); show(idx - 1); };
     btnFirst.onclick = function () { stop(); show(0); };
     btnLast.onclick = function () { stop(); show(steps.length - 1); };
+    [].forEach.call(speed.children, function (b) {
+      b.addEventListener("click", reschedule);
+    });
     if (sizeSel) sizeSel.onchange = rebuild;
     document.addEventListener("keydown", function (e) {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
@@ -250,6 +275,7 @@ color:var(--dk-brand);white-space:nowrap}
     });
 
     rebuild();
+    window.addEventListener("pagehide", stop);
   }
 
   global.DemoKit = { mount: mount, el: el };

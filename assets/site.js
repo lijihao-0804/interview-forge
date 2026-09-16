@@ -66,13 +66,25 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
 });
 
 const readerVisualFrames = [...document.querySelectorAll('iframe.reader-visual-frame')];
+const pendingVisualHeights = new Map();
+let visualHeightFrame = 0;
+const flushVisualHeights = () => {
+  visualHeightFrame = 0;
+  pendingVisualHeights.forEach((nextHeight, frame) => {
+    if (Math.abs(frame.getBoundingClientRect().height - nextHeight) > 2) {
+      frame.style.height = `${nextHeight}px`;
+    }
+  });
+  pendingVisualHeights.clear();
+};
 window.addEventListener('message', (event) => {
   if (event.data?.type !== 'hot100:visual-height') return;
   const frame = readerVisualFrames.find((item) => item.contentWindow === event.source);
   const height = Math.ceil(Number(event.data.height));
   if (!frame || !Number.isFinite(height) || height < 240) return;
   const nextHeight = height + 2;
-  if (Math.abs(frame.getBoundingClientRect().height - nextHeight) > 2) frame.style.height = `${nextHeight}px`;
+  pendingVisualHeights.set(frame, nextHeight);
+  if (!visualHeightFrame) visualHeightFrame = requestAnimationFrame(flushVisualHeights);
 });
 readerVisualFrames.forEach((frame) => {
   frame.addEventListener('load', () => {

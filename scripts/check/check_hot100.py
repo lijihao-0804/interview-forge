@@ -348,6 +348,8 @@ for path in html_files:
             errors.append(f"可视化页缺少响应式样式：{rel}")
         if soup.select_one("#hot100-a11y") is None:
             errors.append(f"可视化页缺少键盘/可访问性增强：{rel}")
+        if soup.select_one('#hot100-a11y[src="assets/embed-runtime.js"]') is None:
+            errors.append(f"可视化页未使用共享 embed-runtime.js：{rel}")
         if soup.select_one("#hot100-embed-bootstrap") is None:
             errors.append(f"可视化组件缺少题解内嵌启动逻辑：{rel}")
         # 内嵌模式（html.hot100-embedded）下，讲解类区域（笔记/输入/复杂度/代码/
@@ -382,6 +384,20 @@ for path in html_files:
                 errors.append(f"彩色题头说明文字可能继承灰色并失去对比度：{rel}")
             if ".complexity .badge-time, .complexity .badge-space" not in text:
                 errors.append(f"复杂度色点可能被渲染成嵌套徽标：{rel}")
+
+# 所有可视化页共用一个内嵌运行时；高度测量不能退回到 body 级常驻观察器或轮询。
+visual_runtime = ROOT / "books" / "hot100" / "05-可视化" / "assets" / "embed-runtime.js"
+if not visual_runtime.exists():
+    errors.append("可视化页缺少共享运行时：books/hot100/05-可视化/assets/embed-runtime.js")
+else:
+    runtime_text = visual_runtime.read_text(encoding="utf-8-sig")
+    for forbidden in (
+        "new ResizeObserver(reportHeight)",
+        "new MutationObserver(reportHeight)",
+        "setInterval(reportHeight",
+    ):
+        if forbidden in runtime_text:
+            errors.append(f"共享 embed-runtime.js 仍包含禁止的常驻高度机制：{forbidden}")
 
 # ---------- D. 学习面板 dashboard（index.html）----------
 # 面板是整个学习站的门面：缺失直接报错并用空文档占位（避免下面代码因

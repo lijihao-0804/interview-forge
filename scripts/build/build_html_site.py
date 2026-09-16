@@ -701,13 +701,25 @@ document.querySelectorAll('.markdown-body pre').forEach((pre) => {
 });
 
 const readerVisualFrames = [...document.querySelectorAll('iframe.reader-visual-frame')];
+const pendingVisualHeights = new Map();
+let visualHeightFrame = 0;
+const flushVisualHeights = () => {
+  visualHeightFrame = 0;
+  pendingVisualHeights.forEach((nextHeight, frame) => {
+    if (Math.abs(frame.getBoundingClientRect().height - nextHeight) > 2) {
+      frame.style.height = `${nextHeight}px`;
+    }
+  });
+  pendingVisualHeights.clear();
+};
 window.addEventListener('message', (event) => {
   if (event.data?.type !== 'hot100:visual-height') return;
   const frame = readerVisualFrames.find((item) => item.contentWindow === event.source);
   const height = Math.ceil(Number(event.data.height));
   if (!frame || !Number.isFinite(height) || height < 240) return;
   const nextHeight = height + 2;
-  if (Math.abs(frame.getBoundingClientRect().height - nextHeight) > 2) frame.style.height = `${nextHeight}px`;
+  pendingVisualHeights.set(frame, nextHeight);
+  if (!visualHeightFrame) visualHeightFrame = requestAnimationFrame(flushVisualHeights);
 });
 readerVisualFrames.forEach((frame) => {
   frame.addEventListener('load', () => {
@@ -1279,25 +1291,21 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 </style>
 """
 
-# VISUAL_A11Y_SCRIPT：可视化页的可访问性增强 + 内嵌模式驱动（注入 </body> 前，
-# 由 polish_visual 幂等地替换/插入）。两半职责：
+# VISUAL_RUNTIME_JS：可视化页的可访问性增强 + 内嵌模式驱动，构建为
+# 05-可视化/assets/embed-runtime.js；VISUAL_A11Y_SCRIPT 只负责引用它。两半职责：
 #   ① a11y（无嵌入参数也执行）：tab 类控件补 role=button/tabindex/aria-pressed，
 #      MutationObserver 同步 active 状态，支持 Enter/空格键触发；所有 button 显式
 #      补 type=button 防误触发表单；无标签表单控件按 placeholder/name/id 兜底补
 #      aria-label；canvas 标为 role=img 并取所在面板标题生成 aria-label，容器打上
 #      hot100-native-canvas（被 VISUAL_POLISH 用作安全区样式钩子）；柱状舞台按是否
 #      含 .bar-wrapper 打 hot100-bar-stage；日志/状态区补 aria-live=polite。
-#   ② 内嵌驱动（embed=1 时）：按 ?panel 点击对应 .sort-tab/.ds-tab 页签、
-#      按 ?mode 设置 #mode 下拉并派发 change（驱动可视化重绘）；随后由
-#      ResizeObserver/MutationObserver/load/fonts.ready/message 多路触发
-#      reportHeight：取 body 各可见子元素 bottom 最大值向上取整，postMessage
-#      {type:'hot100:visual-height', height} 给父页——被阅读页 SITE_JS 的
-#      message 监听者接收并调整 iframe 高度。
+#   ② 内嵌驱动（embed=1 时）统一放入 assets/embed-runtime.js：按 ?panel 点击
+#      对应页签、按 ?mode 设置模式，并仅在初始加载、字体完成、窗口调整、实际
+#      面板/模式变化和 DemoKit 重建时测量高度；不在 body 上安装常驻观察器或轮询。
 # 与 VISUAL_EMBED_BOOTSTRAP 的分工：bootstrap 只做静态类标记（head 顶部），
-# 本脚本做交互级切换与持续测量（body 末尾），两者缺一不可。
+# 本脚本做静态类标记；交互切换与按需测量由外部 embed-runtime.js 负责。
 
-VISUAL_A11Y_SCRIPT = r"""
-<script id="hot100-a11y">
+VISUAL_RUNTIME_JS = r"""
 (() => {
   // 可视化中心的演示卡片由页面脚本动态生成；只处理卡片容器，不拦截全站点击。
   const ensureVisualCardLinks = () => document.querySelectorAll('#grid a.card').forEach((link) => {
@@ -1365,32 +1373,42 @@ VISUAL_A11Y_SCRIPT = r"""
         .map((item) => item.getBoundingClientRect().bottom);
       return Math.max(320, Math.ceil(Math.max(0, ...bottoms) + 12));
     };
-    // 上报收敛：高度与上次一致就不发消息（防抖 + 防增长循环重复灌消息）。
+    // 单帧合并测量：同一时段的多个触发只保留一次布局读取。
     let lastReported = -1;
-    const reportHeight = () => requestAnimationFrame(() => {
+    let measureFrame = 0;
+    let resizeTimer = 0;
+    const measure = (reason) => {
+      measureFrame = 0;
       const height = computeHeight();
       if (Math.abs(height - lastReported) <= 2) return;
       lastReported = height;
-      parent.postMessage({ type: 'hot100:visual-height', height }, '*');
-    });
-    new ResizeObserver(reportHeight).observe(document.body);
-    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+      parent.postMessage({ type: 'hot100:visual-height', height, reason }, '*');
+    };
+    const scheduleEmbeddedMeasure = (reason = 'structure') => {
+      if (measureFrame) return;
+      measureFrame = requestAnimationFrame(() => measure(reason));
+    };
+    window.__hot100ScheduleEmbeddedMeasure = scheduleEmbeddedMeasure;
     window.addEventListener('message', (event) => {
-      if (event.data?.type === 'hot100:measure') reportHeight();
+      if (event.data?.type === 'hot100:measure') scheduleEmbeddedMeasure('parent-request');
     });
-    window.addEventListener('load', reportHeight, { once: true });
-    document.fonts?.ready.then(reportHeight);
-    // 常驻巡检（300ms 节流由高度收敛判断兜底）：事件观察覆盖不到的时序 ——
-    // canvas 内部绘制引起的晚到尺寸变化、超过延迟重报窗口的收缩、宿主侧
-    // resize 引发的重排 —— 都会在下一拍被上报。事件观察保留以获得即时性。
-    setInterval(reportHeight, 300);
-    setTimeout(reportHeight, 400);
-    setTimeout(reportHeight, 1200);
-    reportHeight();
+    window.addEventListener('load', () => scheduleEmbeddedMeasure('load'), { once: true });
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => scheduleEmbeddedMeasure('resize'), 100);
+    }, { passive: true });
+    document.fonts?.ready.then(() => scheduleEmbeddedMeasure('fonts'));
+    window.addEventListener('hot100:demo-rebuilt', () => scheduleEmbeddedMeasure('demo-rebuild'));
+    document.querySelectorAll('.sort-tab, .ds-tab').forEach((item) => {
+      item.addEventListener('click', () => setTimeout(() => scheduleEmbeddedMeasure('panel-change'), 0));
+    });
+    modeSelect?.addEventListener('change', () => setTimeout(() => scheduleEmbeddedMeasure('mode-change'), 0));
+    scheduleEmbeddedMeasure('initial');
   }
 })();
-</script>
 """
+
+VISUAL_A11Y_SCRIPT = '<script id="hot100-a11y" src="assets/embed-runtime.js"></script>'
 
 
 # 源 Markdown → 输出 HTML 的路径映射（全站唯一权威映射；链接改写、build()、
@@ -2139,7 +2157,7 @@ def render_markdown(source: Path) -> None:
 #   <head> 尾部  —— VISUAL_POLISH（统一样式层，#hot100-polish，替换/追加）；
 #   <body> 后    —— nav 导航条（class="hot100-topnav" data-hot100-nav：页面标题
 #                    + 返回学习面板/可视化中心两条链接，替换/追加）；
-#   </body> 前   —— VISUAL_A11Y_SCRIPT（a11y + 内嵌驱动的运行脚本，替换/追加）。
+#   </body> 前   —— VISUAL_A11Y_SCRIPT（共享运行时脚本引用，替换/追加）。
 # 另有两处源码级修复：
 #   a) 柱状演示的 canvas 尺寸改为“内容盒尺寸”（clientWidth/clientHeight 减去
 #      padding）——旧实现按含内边距的尺寸计算柱高，指针与数值标签会超出内容区
@@ -2233,7 +2251,7 @@ def polish_visual(path: Path) -> None:
     else:
         text = re.sub(r"(?is)(<body[^>]*>)", r"\1\n" + nav, text, count=1)
     if 'id="hot100-a11y"' in text:
-        text = re.sub(r"(?is)<script id=\"hot100-a11y\">.*?</script>", VISUAL_A11Y_SCRIPT.strip(), text, count=1)
+        text = re.sub(r"(?is)<script id=\"hot100-a11y\"[^>]*>.*?</script>", VISUAL_A11Y_SCRIPT.strip(), text, count=1)
     else:
         text = re.sub(r"(?is)</body>", VISUAL_A11Y_SCRIPT + "\n</body>", text, count=1)
     text = text.replace('href="../README.md"', 'href="../guide.html"')
@@ -2409,6 +2427,9 @@ def build() -> None:
     assets.mkdir(parents=True, exist_ok=True)
     (assets / "site.css").write_text(SITE_CSS.strip() + "\n", encoding="utf-8")
     (assets / "site.js").write_text(SITE_JS.strip() + "\n", encoding="utf-8")
+    visual_assets = ROOT / "books" / "hot100" / "05-可视化" / "assets"
+    visual_assets.mkdir(parents=True, exist_ok=True)
+    (visual_assets / "embed-runtime.js").write_text(VISUAL_RUNTIME_JS.strip() + "\n", encoding="utf-8")
     # 离线图表库 uPlot：与 mermaid 同模式，构建时从 tools/vendor 复制。
     vendor = ROOT / "tools" / "vendor"
     for name in ("uplot.min.js", "uplot.min.css"):
