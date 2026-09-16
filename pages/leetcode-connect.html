@@ -93,6 +93,7 @@ function fetchWithTimeout(input,options,timeout=12000){
 }
 function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
 function leetcodeSyncCursor(full){
+  if(!full)return 0;
   try{
     const value=Number(sessionStorage.getItem(leetcodeSyncCursorKey(full))||0);
     return Number.isSafeInteger(value)&&value>=0?value:0;
@@ -100,6 +101,7 @@ function leetcodeSyncCursor(full){
 }
 function saveLeetcodeSyncCursor(full,data){
   try{
+    if(!full){sessionStorage.removeItem(leetcodeSyncCursorKey(false));return;}
     const next=Number(data&&data.next_offset);
     if(data&&data.has_more&&Number.isSafeInteger(next)&&next>0)sessionStorage.setItem(leetcodeSyncCursorKey(full),String(next));
     else sessionStorage.removeItem(leetcodeSyncCursorKey(full));
@@ -143,7 +145,7 @@ async function runSync(full){
   setSyncBusy(true);
   syncBox.textContent=full?'全量同步中，正在启动任务…':'增量同步中，正在启动任务…';
   try{
-    const start=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})});
+    const start=await api('/api/leetcode/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})});
     const taskId=start.task_id;
     if(!taskId){throw new Error('同步任务未正常创建');}
     syncBox.textContent='同步任务已启动…';

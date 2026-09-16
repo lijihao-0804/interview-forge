@@ -367,7 +367,9 @@ def leetcode_sync(
     if not credentials.get("leetcode_session"):
         raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", HTTPStatus.CONFLICT)
     headers = _leetcode_headers(credentials)
-    start_offset = _normalize_sync_offset(offset)
+    # Incremental sync always means "the newest page".  Continuation offsets
+    # are only meaningful for an explicit full/backfill sync.
+    start_offset = _normalize_sync_offset(offset) if full else 0
     results: dict[str, object] = {
         "solved_added": 0, "solved_existing": 0,
         "submissions_added": 0, "submissions_seen": 0, "sync_errors": [],
@@ -452,7 +454,10 @@ def leetcode_sync(
         results["submissions_seen"] = int(results["submissions_seen"]) + len(dump)
         if progress is not None:
             progress(f"第 {page} 页完成，已读取 {results['submissions_seen']} 条")
-        if not payload.get("has_next"):
+        # Incremental mode intentionally reads one newest page.  A provider
+        # reporting older pages does not make this run partial and must not
+        # turn the daily sync into a historical cursor walk.
+        if not payload.get("has_next") or not full:
             break
         next_offset = offset + len(dump)
         if page >= max_pages:
@@ -567,7 +572,8 @@ def start_leetcode_sync_task(
             task = {
                 "logs": [], "running": True, "result": None, "error": None,
                 "error_category": None, "partial": False, "degraded_category": None,
-                "owner": owner, "full": bool(full), "offset": _normalize_sync_offset(offset),
+                "owner": owner, "full": bool(full),
+                "offset": _normalize_sync_offset(offset) if full else 0,
                 "created_at": runtime.now_iso(),
                 "started_at": None, "finished_at": None,
             }

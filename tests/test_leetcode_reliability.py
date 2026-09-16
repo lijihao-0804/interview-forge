@@ -141,7 +141,7 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertNotIn("leetcode.cn", serialized)
         self.assertNotIn("session-secret", serialized)
 
-    def test_sync_offset_can_continue_after_incremental_page_limit(self):
+    def test_incremental_sync_always_starts_at_newest_page(self):
         with tempfile.TemporaryDirectory() as directory:
             db_path = Path(directory) / "learning.db"
             requested_urls = []
@@ -154,21 +154,59 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
                     return {"submissions_dump": [{"id": 7, "title": "Two Sum", "status_display": "Accepted",
                                                    "is_pending": "Not Pending", "timestamp": "1780000000", "lang": "python3"}],
                             "has_next": True}
-                return {"submissions_dump": [], "has_next": False}
+                raise AssertionError(f"incremental sync walked to an old page: {url}")
 
             with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
                 first = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path, full=False)
                 second = leetcode.leetcode_sync(
                     {"leetcode_session": "session-secret"}, db_path=db_path, full=False,
+                    offset=5000,
+                )
+
+        self.assertFalse(first["partial"])
+        self.assertFalse(first["degraded"])
+        self.assertIsNone(first["next_offset"])
+        self.assertFalse(first["has_more"])
+        self.assertFalse(second["partial"])
+        self.assertIsNone(second["next_offset"])
+        submission_urls = [url for url in requested_urls if "submissions" in url]
+        self.assertEqual(len(submission_urls), 2)
+        self.assertTrue(all("offset=0" in url for url in submission_urls))
+
+    def test_full_sync_keeps_continuation_offset_after_page_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "learning.db"
+            submission_calls = 0
+            requested_urls = []
+
+            def fake_fetch(url, headers, *args, **kwargs):
+                nonlocal submission_calls
+                if "problems/all" in url:
+                    return {"user_name": "alice", "stat_status_pairs": []}
+                requested_urls.append(url)
+                submission_calls += 1
+                if submission_calls <= 50:
+                    return {"submissions_dump": [{"id": submission_calls, "title": "Two Sum",
+                                                    "status_display": "Accepted", "is_pending": "Not Pending",
+                                                    "timestamp": "1780000000", "lang": "python3"}], "has_next": True}
+                return {"submissions_dump": [], "has_next": False}
+
+            with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}), patch(
+                "interview_forge.services.leetcode.time.sleep"
+            ):
+                first = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path, full=True)
+                second = leetcode.leetcode_sync(
+                    {"leetcode_session": "session-secret"}, db_path=db_path, full=True,
                     offset=first["next_offset"],
                 )
 
         self.assertTrue(first["partial"])
         self.assertEqual(first["partial_error_category"], "page_limit")
-        self.assertEqual(first["next_offset"], 1)
+        self.assertEqual(first["next_offset"], 50)
         self.assertTrue(first["has_more"])
         self.assertFalse(second["partial"])
-        self.assertIn("offset=1", requested_urls[-1])
+        self.assertEqual(requested_urls[0].split("offset=", 1)[1].split("&", 1)[0], "0")
+        self.assertEqual(requested_urls[-1].split("offset=", 1)[1].split("&", 1)[0], "50")
 
 
 class LeetCodeTaskReliabilityTests(unittest.TestCase):

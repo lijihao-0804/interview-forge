@@ -33,7 +33,9 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
     def test_incremental_request_loading_guard_and_refresh(self):
         script = self.template
         self.assertEqual(script.count("leetcodeSyncRequest('/api/leetcode/sync',{"), 1)
-        self.assertIn("body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})", script)
+        self.assertIn("body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})", script)
+        self.assertIn("if(!full)return 0", script)
+        self.assertIn("if(!full){sessionStorage.removeItem(leetcodeSyncCursorKey(false));return;}", script)
         self.assertIn("if(leetcodeSyncInFlight)return;", script)
         self.assertIn("leetcodeSyncBtn.disabled=busy", script)
         self.assertIn("busy?'同步中…':'一键同步'", script)
@@ -71,7 +73,7 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
             'id="leetcodeSyncBtn"',
             'id="leetcodeSyncModal"',
             "function runLeetcodeIncrementalSync()",
-            "body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})",
+            "body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})",
             "function leetcodeSyncSummary(data)",
         )
         for marker in markers:

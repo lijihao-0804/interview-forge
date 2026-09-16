@@ -380,6 +380,7 @@ function leetcodeSyncSummary(data){
 }
 function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
 function leetcodeSyncCursor(full){
+  if(!full)return 0;
   try{
     const value=Number(sessionStorage.getItem(leetcodeSyncCursorKey(full))||0);
     return Number.isSafeInteger(value)&&value>=0?value:0;
@@ -387,6 +388,7 @@ function leetcodeSyncCursor(full){
 }
 function saveLeetcodeSyncCursor(full,data){
   try{
+    if(!full){sessionStorage.removeItem(leetcodeSyncCursorKey(false));return;}
     const next=Number(data&&data.next_offset);
     if(data&&data.has_more&&Number.isSafeInteger(next)&&next>0)sessionStorage.setItem(leetcodeSyncCursorKey(full),String(next));
     else sessionStorage.removeItem(leetcodeSyncCursorKey(full));
@@ -430,7 +432,7 @@ async function runLeetcodeIncrementalSync(){
       throw error;
     }
     const start=await leetcodeSyncRequest('/api/leetcode/sync',{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:leetcodeSyncCursor(full)})
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})
     });
     if(!start.task_id)throw new Error('task unavailable');
     while(true){
