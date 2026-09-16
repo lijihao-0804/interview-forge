@@ -5,6 +5,13 @@
   function fmtMs(value) { return value == null ? "—" : String(Math.round(Number(value))) + " ms"; }
   function fmtNumber(value) { return Number(value || 0).toLocaleString(); }
   function fmtTime(value) { return value == null || value === "" ? "—" : (window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(value) : String(value)); }
+  function fmtBucket(value) {
+    if (value == null || value === "") return "—";
+    var raw = String(value);
+    return window.InterviewForgeTime
+      ? (/^\d{4}-\d{2}-\d{2}$/.test(raw) ? InterviewForgeTime.formatDate(raw) : InterviewForgeTime.formatDateTime(raw))
+      : raw;
+  }
   function request(path) {
     return fetch(path, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
       return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "请求失败"); return data; });
@@ -12,7 +19,7 @@
   }
   function card(label, value) { var node = document.createElement("div"); node.className = "admin-v2-card"; var strong = document.createElement("strong"); text(strong, value); var span = document.createElement("span"); text(span, label); node.appendChild(strong); node.appendChild(span); return node; }
   function fillDl(node, values) { node.textContent = ""; Object.keys(values).forEach(function (key) { var dt = document.createElement("dt"); var dd = document.createElement("dd"); text(dt, key); text(dd, values[key]); node.appendChild(dt); node.appendChild(dd); }); }
-  function drawBars(node, values, key) { node.textContent = ""; var numbers = values.map(function (item) { return Number(item[key] || 0); }); var max = Math.max.apply(Math, numbers.concat([1])); values.forEach(function (item, index) { var bar = document.createElement("span"); bar.className = "admin-v2-chart-bar"; bar.style.height = Math.max(3, Math.round(numbers[index] / max * 56)) + "px"; bar.title = String(item.bucket_start || "") + " · " + String(numbers[index]); node.appendChild(bar); }); }
+  function drawBars(node, values, key) { node.textContent = ""; var numbers = values.map(function (item) { return Number(item[key] || 0); }); var max = Math.max.apply(Math, numbers.concat([1])); values.forEach(function (item, index) { var bar = document.createElement("span"); bar.className = "admin-v2-chart-bar"; bar.style.height = Math.max(3, Math.round(numbers[index] / max * 56)) + "px"; bar.title = fmtBucket(item.bucket_start) + " · " + String(numbers[index]); node.appendChild(bar); }); }
   function fail(error) { var status = $("admin-v2-status"); status.className = "admin-v2-status error"; text(status, error && error.message ? error.message : "加载失败"); }
   function loadOverview() {
     return request("/api/admin/overview").then(function (data) {
@@ -34,7 +41,7 @@
       var cards = $("admin-usage-cards"); cards.textContent = "";
       cards.appendChild(card("轮次", data.turns)); cards.appendChild(card("成功率", (Number(data.success_rate || 0) * 100).toFixed(2) + "%")); cards.appendChild(card("平均耗时", fmtMs(data.avg_latency_ms))); cards.appendChild(card("TTFT P95", fmtMs(data.ttft_p95_ms))); cards.appendChild(card("估算费用", data.estimated_cost_usd == null ? "未配置" : "$" + data.estimated_cost_usd));
       var body = $("admin-usage-models"); body.textContent = ""; (data.models || []).forEach(function (item) { var tr = document.createElement("tr"); [item.provider_name, item.business_key, item.model, item.turns, fmtNumber(item.input_tokens), fmtNumber(item.output_tokens), fmtNumber(item.reasoning_tokens), item.estimated_cost_usd == null ? "—" : "$" + item.estimated_cost_usd].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); body.appendChild(tr); });
-      var series = $("admin-ai-series"); series.textContent = ""; (trend.series || []).forEach(function (item) { var tr = document.createElement("tr"); [item.bucket_start, item.turns, (Number(item.success_rate || 0) * 100).toFixed(2) + "%", fmtMs(item.p95_latency_ms), fmtMs(item.ttft_p95_ms), fmtNumber(Number(item.input_tokens || 0) + Number(item.output_tokens || 0) + Number(item.reasoning_tokens || 0))].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); series.appendChild(tr); }); drawBars($("admin-ai-chart"), trend.series || [], "turns");
+      var series = $("admin-ai-series"); series.textContent = ""; (trend.series || []).forEach(function (item) { var tr = document.createElement("tr"); [fmtBucket(item.bucket_start), item.turns, (Number(item.success_rate || 0) * 100).toFixed(2) + "%", fmtMs(item.p95_latency_ms), fmtMs(item.ttft_p95_ms), fmtNumber(Number(item.input_tokens || 0) + Number(item.output_tokens || 0) + Number(item.reasoning_tokens || 0))].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); series.appendChild(tr); }); drawBars($("admin-ai-chart"), trend.series || [], "turns");
     });
   }
   function loadTraffic() {
@@ -42,7 +49,7 @@
     return request("/api/admin/metrics/requests?window=" + encodeURIComponent(windowValue)).then(function (data) {
       var totals = data.totals || {}, cards = $("admin-traffic-cards"); cards.textContent = "";
       cards.appendChild(card("请求量", fmtNumber(totals.request_count))); cards.appendChild(card("5xx 错误率", (Number(totals["5xx_rate"] || 0) * 100).toFixed(2) + "%")); cards.appendChild(card("P50", fmtMs(totals.p50_ms))); cards.appendChild(card("P95", fmtMs(totals.p95_ms))); cards.appendChild(card("P99", fmtMs(totals.p99_ms)));
-      var series = $("admin-traffic-series"); series.textContent = ""; (data.series || []).forEach(function (item) { var tr = document.createElement("tr"); [fmtTime(item.bucket_start), item.request_count, item["2xx"], item["3xx"], item["4xx"], item["5xx"], fmtMs(item.p50_ms), fmtMs(item.p95_ms), fmtMs(item.p99_ms)].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); series.appendChild(tr); }); drawBars($("admin-traffic-chart"), data.series || [], "request_count");
+      var series = $("admin-traffic-series"); series.textContent = ""; (data.series || []).forEach(function (item) { var tr = document.createElement("tr"); [fmtBucket(item.bucket_start), item.request_count, item["2xx"], item["3xx"], item["4xx"], item["5xx"], fmtMs(item.p50_ms), fmtMs(item.p95_ms), fmtMs(item.p99_ms)].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); series.appendChild(tr); }); drawBars($("admin-traffic-chart"), data.series || [], "request_count");
       var endpoints = $("admin-traffic-endpoints"); endpoints.textContent = ""; (data.endpoints || []).forEach(function (item) { var tr = document.createElement("tr"); [item.method, item.route, item.request_count, item.error_count, item["5xx"], fmtMs(item.p95_ms)].forEach(function (value) { var td = document.createElement("td"); text(td, value); tr.appendChild(td); }); endpoints.appendChild(tr); });
     });
   }

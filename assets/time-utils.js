@@ -3,6 +3,7 @@
 
   var TIME_ZONE = "Asia/Shanghai";
   var DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+  var NAIVE_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/;
   var WEEKDAYS = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   var cache = Object.create(null);
   var partsFormatter = new Intl.DateTimeFormat("en-US", {
@@ -19,7 +20,12 @@
     if (typeof value === "number") { var numeric = new Date(value); return isNaN(numeric.getTime()) ? null : numeric; }
     var text = String(value == null ? "" : value).trim();
     if (!text || DATE_ONLY_RE.test(text)) return null;
-    var parsed = new Date(text.replace(" ", "T"));
+    var normalized = text.replace(" ", "T");
+    // Datetimes without an explicit offset are business timestamps in this
+    // project, not browser-local instants.  Make that contract explicit
+    // before Date parses the value.
+    if (NAIVE_DATETIME_RE.test(normalized)) normalized += "+08:00";
+    var parsed = new Date(normalized);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
   function formatter(options) {

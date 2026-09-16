@@ -17,6 +17,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+try:
+    from zoneinfo import ZoneInfo
+    _DISPLAY_TZ = ZoneInfo("Asia/Shanghai")
+except Exception:  # pragma: no cover - minimal Python installations
+    _DISPLAY_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
+
 from interview_forge.core.paths import DATA_DIR
 from interview_forge.db.observability_schema import ensure_observability_schema
 
@@ -65,7 +71,10 @@ def _bucket_start(value: datetime | None = None) -> str:
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
     current = current.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    return current.isoformat(timespec="hours")
+    # Keep the persisted UTC bucket sortable and parseable by browser Date.
+    # ``timespec="hours"`` produces ``T14+00:00``, which is not a portable
+    # ISO datetime for JavaScript consumers.
+    return current.isoformat(timespec="seconds")
 
 
 def _histogram(value: Any = None) -> dict[str, int]:
@@ -236,6 +245,25 @@ def _cutoff(window: str) -> datetime:
     return datetime.now(timezone.utc) - durations.get(window, durations["24h"])
 
 
+def _parse_bucket_start(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _display_bucket_start(value: Any, *, day: bool) -> str | None:
+    parsed = _parse_bucket_start(value)
+    if parsed is None:
+        return None
+    if day:
+        return parsed.astimezone(_DISPLAY_TZ).date().isoformat()
+    return parsed.replace(minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+
+
 def _percentile(histogram: dict[str, int], percentile: float) -> float | None:
     total = sum(histogram.values())
     if not total:
@@ -269,22 +297,30 @@ def _aggregate(rows: Iterable[sqlite3.Row]) -> dict[str, Any]:
 
 def request_metrics(window: str = "24h") -> dict[str, Any]:
     selected = window if window in {"24h", "7d", "30d"} else "24h"
-    cutoff = _cutoff(selected).isoformat(timespec="hours")
+    cutoff_dt = _cutoff(selected).replace(minute=0, second=0, microsecond=0)
     granularity = "hour" if selected == "24h" else "day"
     with closing(_connect()) as connection:
         rows = connection.execute(
             "SELECT * FROM request_metric_buckets WHERE bucket_start >= ? ORDER BY bucket_start ASC",
-            (cutoff,),
+            # Include the preceding hour so legacy ``T14+00:00`` rows at the
+            # boundary are still readable; the precise filter below removes
+            # anything older than the requested bucket.
+            ((cutoff_dt - timedelta(hours=1)).isoformat(timespec="seconds"),),
         ).fetchall()
+    filtered_rows: list[sqlite3.Row] = []
     grouped: dict[str, list[sqlite3.Row]] = {}
     for row in rows:
-        key = str(row["bucket_start"])
-        if granularity == "day":
-            key = key[:10]
+        parsed = _parse_bucket_start(row["bucket_start"])
+        if parsed is None or parsed < cutoff_dt:
+            continue
+        key = _display_bucket_start(row["bucket_start"], day=granularity == "day")
+        if key is None:
+            continue
+        filtered_rows.append(row)
         grouped.setdefault(key, []).append(row)
-    series = [{"bucket_start": key, **_aggregate(bucket_rows)} for key, bucket_rows in grouped.items()]
+    series = [{"bucket_start": key, **_aggregate(grouped[key])} for key in sorted(grouped)]
     endpoints: dict[tuple[str, str], list[sqlite3.Row]] = {}
-    for row in rows:
+    for row in filtered_rows:
         endpoints.setdefault((str(row["method"]), str(row["route"])), []).append(row)
     endpoint_items = []
     for (method, route), endpoint_rows in endpoints.items():
@@ -294,7 +330,7 @@ def request_metrics(window: str = "24h") -> dict[str, Any]:
     slowest = sorted(endpoint_items, key=lambda item: (-(item["p95_ms"] or -1), item["route"]))
     return {
         "window": selected, "granularity": granularity, "series": series,
-        "totals": _aggregate(rows), "endpoints": endpoint_items[:50], "slowest_endpoints": slowest[:10],
+        "totals": _aggregate(filtered_rows), "endpoints": endpoint_items[:50], "slowest_endpoints": slowest[:10],
         "histogram_bounds_ms": list(HISTOGRAM_BOUNDS_MS),
     }
 

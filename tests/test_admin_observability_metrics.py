@@ -16,7 +16,8 @@ from interview_forge.api.app import app
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.ai_trace import TraceRecorder
-from interview_forge.observability.store import normalize_route, record_request, request_metrics
+from interview_forge.observability import store as observability_store
+from interview_forge.observability.store import _bucket_start, normalize_route, record_request, request_metrics
 from interview_forge.observability.logging import close_log_handlers
 from interview_forge.services import admin_observability
 from interview_forge.services.auth import create_session, create_user, user_db_path
@@ -71,6 +72,58 @@ class AdminObservabilityMetricsTests(unittest.TestCase):
         self.assertEqual(len(payload["endpoints"]), 1)
         self.assertEqual(payload["endpoints"][0]["route"], "/api/items/{item_id}")
         self.assertIsNotNone(payload["totals"]["p95_ms"])
+
+    def test_observability_buckets_are_complete_iso_and_beijing_day_keys(self):
+        sample = datetime.fromisoformat("2026-09-16T14:37:12+00:00")
+        self.assertEqual(_bucket_start(sample), "2026-09-16T14:00:00+00:00")
+        self.assertEqual(
+            admin_observability._metric_bucket_key("2026-09-16T14:37:12+00:00", "24h"),
+            "2026-09-16T14:00:00+00:00",
+        )
+        self.assertEqual(
+            admin_observability._metric_bucket_key("2026-09-16T16:30:00+00:00", "7d"),
+            "2026-09-17",
+        )
+        self.assertEqual(
+            admin_observability._metric_bucket_key("2026-09-16T16:30:00+00:00", "30d"),
+            "2026-09-17",
+        )
+
+        record_request(route="/api/health", path="/api/health", method="GET", status=200, elapsed_ms=10)
+        series = request_metrics("24h")["series"]
+        self.assertTrue(series)
+        self.assertTrue(all(len(item["bucket_start"]) == 25 for item in series))
+        self.assertTrue(all(item["bucket_start"].endswith("+00:00") for item in series))
+
+    def test_request_metrics_reads_legacy_hour_shape_without_returning_it(self):
+        legacy = "2026-09-16T14+00:00"
+        with patch.object(observability_store, "_cutoff", return_value=datetime.fromisoformat("2026-09-16T14:00:00+00:00")):
+            with closing(observability_store._connect()) as connection:
+                connection.execute(
+                    "INSERT INTO request_metric_buckets(bucket_start, route, method, request_count, status_2xx, status_3xx, status_4xx, status_5xx, latency_count, latency_sum_ms, latency_histogram_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (legacy, "/api/legacy", "GET", 1, 1, 0, 0, 0, 1, 12, '{"50":1}'),
+                )
+                connection.commit()
+            payload = observability_store.request_metrics("24h")
+        self.assertEqual(payload["series"][0]["bucket_start"], "2026-09-16T14:00:00+00:00")
+
+    def test_request_metrics_uses_beijing_dates_for_day_series(self):
+        rows = [
+            ("2026-09-16T15:00:00+00:00", "/api/late", 1),
+            ("2026-09-16T15:30:00+00:00", "/api/late", 2),
+            ("2026-09-16T16:30:00+00:00", "/api/next", 1),
+        ]
+        with patch.object(observability_store, "_cutoff", return_value=datetime.fromisoformat("2026-09-15T00:00:00+00:00")):
+            with closing(observability_store._connect()) as connection:
+                for bucket, route, count in rows:
+                    connection.execute(
+                        "INSERT INTO request_metric_buckets(bucket_start, route, method, request_count, status_2xx, status_3xx, status_4xx, status_5xx, latency_count, latency_sum_ms, latency_histogram_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (bucket, route, "GET", count, count, 0, 0, 0, count, 10 * count, '{"50":%d}' % count),
+                    )
+                connection.commit()
+            payload = observability_store.request_metrics("7d")
+        self.assertEqual([item["bucket_start"] for item in payload["series"]], ["2026-09-16", "2026-09-17"])
+        self.assertEqual([item["request_count"] for item in payload["series"]], [3, 1])
 
     def test_request_aggregate_concurrent_writes_keep_counts(self):
         with ThreadPoolExecutor(max_workers=8) as pool:

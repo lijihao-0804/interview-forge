@@ -16,6 +16,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
+try:
+    from zoneinfo import ZoneInfo
+    _DISPLAY_TZ = ZoneInfo("Asia/Shanghai")
+except Exception:  # pragma: no cover - minimal Python installations
+    _DISPLAY_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
+
 from interview_forge.ai.config import load_ai_config
 from interview_forge.core.paths import PROJECT_ROOT
 from interview_forge.core.runtime import server_runtime
@@ -367,8 +373,8 @@ def _metric_bucket_key(value: Any, window: str) -> str:
     parsed = _parse_time(value)
     if parsed is not None:
         if window == "24h":
-            return parsed.replace(minute=0, second=0, microsecond=0).isoformat(timespec="hours")
-        return parsed.date().isoformat()
+            return parsed.replace(minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+        return parsed.astimezone(_DISPLAY_TZ).date().isoformat()
     text = str(value or "")
     return text[:13] if window == "24h" else text[:10]
 
@@ -427,11 +433,11 @@ def user_metrics(*, window: str = "24h") -> dict[str, Any]:
         last_active = _parse_time(user.get("last_active") or user.get("last_login"))
         if created and created >= cutoff:
             registered += 1
-            key = created.strftime("%Y-%m-%dT%H:00:00+00:00" if selected == "24h" else "%Y-%m-%d")
+            key = _metric_bucket_key(created, selected)
             registration_buckets[key] = registration_buckets.get(key, 0) + 1
         if last_active and last_active >= cutoff:
             active += 1
-            key = last_active.strftime("%Y-%m-%dT%H:00:00+00:00" if selected == "24h" else "%Y-%m-%d")
+            key = _metric_bucket_key(last_active, selected)
             activity_buckets[key] = activity_buckets.get(key, 0) + 1
     return {
         "window": selected, "granularity": "hour" if selected == "24h" else "day",

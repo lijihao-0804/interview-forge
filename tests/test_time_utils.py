@@ -26,6 +26,12 @@ class FrontendTimeUtilsTests(unittest.TestCase):
         self.assertIn('"/assets/time-utils.js?v=1"', (root / "interview_forge" / "api" / "routers" / "static.py").read_text(encoding="utf-8"))
         self.assertIn('time-utils.js?v=1', (root / "scripts" / "build" / "build_library.py").read_text(encoding="utf-8"))
 
+    def test_admin_bucket_consumers_use_beijing_formatter(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "assets" / "admin-observability.js").read_text(encoding="utf-8")
+        self.assertIn("function fmtBucket", source)
+        self.assertIn("fmtBucket(item.bucket_start)", source)
+
     def test_business_date_heatmap_does_not_parse_date_only_in_browser_timezone(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (root / "index.html").read_text(encoding="utf-8")
