@@ -371,6 +371,14 @@ class LeetCodeConnectPageTests(unittest.TestCase):
         self.assertIn("finally{setSyncBusy(false);}", source)
         self.assertIn("sessionStorage", source)
 
+    def test_connection_page_invalidates_full_cursor_when_account_changes(self):
+        source = (Path(__file__).resolve().parents[1] / "pages" / "leetcode-connect.html").read_text(encoding="utf-8")
+        self.assertIn("function clearLeetcodeFullSyncCursor()", source)
+        self.assertIn("forge_leetcode_sync_user", source)
+        self.assertIn("if(previous&&previous!==current)clearLeetcodeFullSyncCursor();", source)
+        self.assertIn("clearLeetcodeFullSyncCursor();\n    if(data.connected)rememberLeetcodeSyncUser(data.user_name);", source)
+        self.assertIn("clearLeetcodeFullSyncCursor();clearLeetcodeSyncUser();", source)
+
     def test_homepage_preserves_and_continues_partial_sync(self):
         source = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
         self.assertIn("sessionStorage", source)

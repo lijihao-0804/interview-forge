@@ -92,6 +92,21 @@ function fetchWithTimeout(input,options,timeout=12000){
   return fetch(input,request).finally(()=>clearTimeout(timer));
 }
 function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
+function clearLeetcodeFullSyncCursor(){
+  try{sessionStorage.removeItem(leetcodeSyncCursorKey(true));}catch(_){/* sessionStorage may be unavailable. */}
+}
+function rememberLeetcodeSyncUser(userName){
+  const current=String(userName||'').trim();
+  if(!current)return;
+  try{
+    const previous=String(sessionStorage.getItem('forge_leetcode_sync_user')||'');
+    if(previous&&previous!==current)clearLeetcodeFullSyncCursor();
+    sessionStorage.setItem('forge_leetcode_sync_user',current);
+  }catch(_){/* sessionStorage may be unavailable. */}
+}
+function clearLeetcodeSyncUser(){
+  try{sessionStorage.removeItem('forge_leetcode_sync_user');}catch(_){/* sessionStorage may be unavailable. */}
+}
 function leetcodeSyncCursor(full){
   if(!full)return 0;
   try{
@@ -119,9 +134,9 @@ async function loadStatus(){
     if(data.credentials_saved){
       sessionInput.value='';
       csrfInput.value='';
-      if(data.connected){showStatus(true,`已连接：${data.user_name}（已解决 ${data.num_solved} 题）。凭证已保存但不会回显；要更换时重新粘贴即可。`);}
+      if(data.connected){rememberLeetcodeSyncUser(data.user_name);showStatus(true,`已连接：${data.user_name}（已解决 ${data.num_solved} 题）。凭证已保存但不会回显；要更换时重新粘贴即可。`);}
       else{showStatus(false,'凭证已保存，但连接测试未通过：'+(data.message||'未知原因'));}
-    }else{sessionInput.value='';csrfInput.value='';showStatus(false,'尚未保存凭证，按上面四步操作。');}
+    }else{clearLeetcodeFullSyncCursor();clearLeetcodeSyncUser();sessionInput.value='';csrfInput.value='';showStatus(false,'尚未保存凭证，按上面四步操作。');}
   }catch(error){showStatus(false,'查询失败：'+error.message);}
 }
 document.getElementById('saveBtn').addEventListener('click',async()=>{
@@ -130,12 +145,15 @@ document.getElementById('saveBtn').addEventListener('click',async()=>{
   if(!session){showStatus(false,'请先粘贴 LEETCODE_SESSION');return;}
   try{
     const data=await api('/api/leetcode/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({leetcode_session:session,leetcode_csrf:csrf})});
+    clearLeetcodeFullSyncCursor();
+    if(data.connected)rememberLeetcodeSyncUser(data.user_name);
+    else{clearLeetcodeSyncUser();}
     if(data.connected){showStatus(true,`连接成功：${data.user_name}（已解决 ${data.num_solved} 题）`);}
     else{showStatus(false,'保存完成，但测试未通过：'+(data.message||'未知原因'));}
   }catch(error){showStatus(false,'保存失败：'+error.message);}
 });
 document.getElementById('clearBtn').addEventListener('click',async()=>{
-  try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});sessionInput.value='';csrfInput.value='';showStatus(false,'凭证已清除');syncBox.textContent='';}
+  try{await api('/api/leetcode/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});clearLeetcodeFullSyncCursor();clearLeetcodeSyncUser();sessionInput.value='';csrfInput.value='';showStatus(false,'凭证已清除');syncBox.textContent='';}
   catch(error){showStatus(false,'清除失败：'+error.message);}
 });
 syncBtn.addEventListener('click',()=>runSync(false));
