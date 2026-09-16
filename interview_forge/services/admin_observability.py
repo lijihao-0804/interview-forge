@@ -203,7 +203,7 @@ def overview() -> dict[str, Any]:
     durations: list[float] = []
     input_tokens = output_tokens = tool_calls = tool_errors = 0
     ttft_values: list[float] = []
-    task_counts = {key: 0 for key in ("queued", "running", "succeeded", "failed", "cancelled")}
+    task_counts = {key: 0 for key in ("queued", "running", "succeeded", "degraded", "failed", "cancelled")}
     db_bytes = 0
     users = list(auth.list_users())
     cutoff = _cutoff("24h")
@@ -238,7 +238,8 @@ def overview() -> dict[str, Any]:
             continue
     leetcode_tasks = admin_list_sync_tasks()
     task_counts["running"] += sum(1 for item in leetcode_tasks if item.get("running"))
-    task_counts["failed"] += sum(1 for item in leetcode_tasks if item.get("error_category"))
+    task_counts["degraded"] += sum(1 for item in leetcode_tasks if not item.get("running") and item.get("partial"))
+    task_counts["failed"] += sum(1 for item in leetcode_tasks if not item.get("running") and item.get("error_category") and not item.get("partial"))
     task_counts["succeeded"] += sum(1 for item in leetcode_tasks if not item.get("running") and not item.get("error_category"))
     disk = shutil.disk_usage(PROJECT_ROOT)
     return {
@@ -264,6 +265,7 @@ def overview() -> dict[str, Any]:
             "ai_failed_24h": turns - successes,
             "tool_errors_24h": tool_errors,
             "task_failed": task_counts["failed"],
+            "task_degraded": task_counts["degraded"],
         },
         "storage": {"user_db_bytes": db_bytes, "observability_db_bytes": observability_storage_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free},
     }

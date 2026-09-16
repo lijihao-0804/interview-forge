@@ -67,17 +67,23 @@ def list_tasks(*, kind: str = "", status: str = "", username: str = "", limit: i
         for row in admin_list_sync_tasks():
             if username and str(row.get("owner", "")) != username:
                 continue
-            row_status = "running" if row.get("running") else ("failed" if row.get("error_category") else "succeeded")
+            row_status = "running" if row.get("running") else (
+                "degraded" if row.get("partial") else ("failed" if row.get("error_category") else "succeeded")
+            )
             if status and row_status != status:
                 continue
+            error_code = row.get("error_category")
+            if row.get("partial"):
+                error_code = "partial" + (f":{row['degraded_category']}" if row.get("degraded_category") else "")
             items.append({
                 "task_id": str(row.get("task_id", "")), "kind": "leetcode", "username": str(row.get("owner", "")),
                 "status": row_status, "created_at": row.get("created_at"), "started_at": row.get("started_at"),
                 "finished_at": row.get("finished_at"), "duration_ms": _duration_ms(row.get("started_at"), row.get("finished_at")),
-                "error_code": row.get("error_category"),
+                "error_code": error_code, "partial": bool(row.get("partial")),
+                "degraded_category": row.get("degraded_category"),
             })
     items.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
-    counts = {key: sum(1 for item in items if item["status"] == key) for key in ("queued", "running", "succeeded", "failed", "cancelled")}
+    counts = {key: sum(1 for item in items if item["status"] == key) for key in ("queued", "running", "succeeded", "degraded", "failed", "cancelled")}
     return {"items": items[:maximum], "has_more": len(items) > maximum, "counts": counts}
 
 

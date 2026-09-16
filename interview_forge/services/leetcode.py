@@ -16,12 +16,14 @@ import time
 import urllib.error
 import uuid
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 
 from interview_forge.core.paths import DB_PATH
 from interview_forge.core.runtime import server_runtime
+from interview_forge.observability.logging import log_event
 
 
 LC_STATUS_TTL = 60.0
@@ -29,6 +31,14 @@ _LC_STATUS_CACHE: dict[tuple[str, str], tuple[float, dict[str, object]]] = {}
 _LC_STATUS_LOCK = threading.Lock()
 SYNC_TASKS: dict[str, dict[str, object]] = {}
 SYNC_TASKS_LOCK = threading.Lock()
+
+
+def _safe_log_event(event: str, **fields: object) -> None:
+    """Observability must never change sync success/failure semantics."""
+    try:
+        log_event(event, **fields)
+    except Exception:  # noqa: BLE001 - logging is deliberately best effort
+        return
 
 
 
@@ -104,6 +114,97 @@ def _lc_http_get(url: str, headers: dict[str, str], timeout: int = 25) -> bytes:
     return response.content
 
 
+@dataclass(frozen=True)
+class _LeetCodeHTTPClassification:
+    category: str
+    message: str
+    status: HTTPStatus
+    retryable: bool
+
+
+def _http_error_body_head(exc: urllib.error.HTTPError, limit: int = 512) -> bytes:
+    """Read only a finite body prefix, caching it for later classification."""
+    cached = getattr(exc, "_interview_forge_body_head", None)
+    if isinstance(cached, bytes):
+        return cached
+    try:
+        body = exc.read(limit)
+    except Exception:  # noqa: BLE001 - classification must never mask the error
+        body = b""
+    if not isinstance(body, bytes):
+        body = str(body).encode("utf-8", errors="ignore")[:limit]
+    try:
+        setattr(exc, "_interview_forge_body_head", body[:limit])
+    except Exception:  # noqa: BLE001 - some HTTPError-like objects may be immutable
+        pass
+    return body[:limit]
+
+
+def _header_value(headers, name: str) -> str:
+    try:
+        value = headers.get(name, "") if headers is not None else ""
+    except Exception:  # noqa: BLE001 - a provider header object is untrusted
+        value = ""
+    return str(value or "").strip().lower()
+
+
+def _classify_leetcode_http_error(exc: urllib.error.HTTPError) -> _LeetCodeHTTPClassification:
+    """Classify an upstream response without exposing its body or headers."""
+    headers = getattr(exc, "headers", None)
+    body_head = _http_error_body_head(exc)
+    cloudflare_challenge = (
+        _header_value(headers, "cf-mitigated") == "challenge"
+        or b"just a moment" in body_head.lower()
+    )
+    code = int(getattr(exc, "code", 0) or 0)
+    if cloudflare_challenge:
+        return _LeetCodeHTTPClassification(
+            "provider_blocked",
+            "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请稍后重试；管理员可检查 HTTP 客户端依赖与服务器出口网络。",
+            HTTPStatus.BAD_GATEWAY,
+            False,
+        )
+    if code in (401, 403):
+        return _LeetCodeHTTPClassification(
+            "session_invalid",
+            "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+            HTTPStatus.UNAUTHORIZED,
+            False,
+        )
+    if code == 429:
+        return _LeetCodeHTTPClassification(
+            "provider_rate_limited",
+            "力扣请求较频繁，请稍后重试",
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            True,
+        )
+    if 500 <= code <= 599:
+        return _LeetCodeHTTPClassification(
+            "provider_unavailable",
+            "力扣服务暂时不可用，请稍后重试",
+            HTTPStatus.BAD_GATEWAY,
+            True,
+        )
+    return _LeetCodeHTTPClassification(
+        "provider_unavailable",
+        "力扣服务暂时不可用，请稍后重试",
+        HTTPStatus.BAD_GATEWAY,
+        False,
+    )
+
+
+def _exception_category(exc: Exception) -> str:
+    if isinstance(exc, LeetCodeSyncError):
+        return exc.category
+    if isinstance(exc, urllib.error.HTTPError):
+        return _classify_leetcode_http_error(exc).category
+    if isinstance(exc, TimeoutError) or "timeout" in type(exc).__name__.lower():
+        return "network_error"
+    if isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)):
+        return "provider_unavailable"
+    return "network_error"
+
+
 def _fetch_json_with_retry(
     url: str,
     headers: dict[str, str],
@@ -117,7 +218,8 @@ def _fetch_json_with_retry(
             return json.loads(server_runtime._lc_http_get(url, headers, timeout).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc
-            if exc.code not in (403, 429, 500, 502, 503, 504):
+            classification = _classify_leetcode_http_error(exc)
+            if not classification.retryable:
                 raise
         except Exception as exc:  # noqa: BLE001 - 网络抖动统一走退避重试
             last_error = exc
@@ -158,20 +260,18 @@ def leetcode_status(credentials: dict[str, str], timeout: int = 20) -> dict[str,
             "https://leetcode.cn/api/problems/all/", _leetcode_headers(credentials), timeout
         ).decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        body_head = b""
-        try:
-            body_head = exc.read(500)
-        except Exception:  # noqa: BLE001
-            pass
-        if b"Just a moment" in body_head:
+        classification = _classify_leetcode_http_error(exc)
+        if classification.category == "provider_blocked":
             return {
                 "connected": False,
                 "reason": "cloudflare",
-                "message": "出口 IP 被力扣 Cloudflare 拦截（非会话问题）；在服务器执行 pip3 install curl_cffi 后重启服务即可",
+                "message": classification.message,
             }
-        if exc.code in (401, 403):
-            return {"connected": False, "reason": "expired", "message": "会话无效或已过期（HTTP %s）" % exc.code}
-        return {"connected": False, "reason": "http", "message": "力扣返回 HTTP %s" % exc.code}
+        if classification.category == "session_invalid":
+            return {"connected": False, "reason": "expired", "message": classification.message}
+        if classification.category == "provider_rate_limited":
+            return {"connected": False, "reason": "rate-limited", "message": classification.message}
+        return {"connected": False, "reason": "http", "message": classification.message}
     except Exception as exc:  # noqa: BLE001
         return {"connected": False, "reason": "network", "message": f"网络错误：{type(exc).__name__}"}
     user_name = str(data.get("user_name") or "")
@@ -201,19 +301,27 @@ class LeetCodeSyncError(RuntimeError):
         self.status = status
 
 
+def _safe_sync_error(category: str) -> LeetCodeSyncError:
+    messages = {
+        "provider_blocked": "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请稍后重试；管理员可检查 HTTP 客户端依赖与服务器出口网络。",
+        "session_invalid": "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+        "provider_rate_limited": "力扣请求较频繁，请稍后重试",
+        "provider_unavailable": "力扣服务暂时不可用，请稍后重试",
+        "network_error": "连接力扣失败，请检查网络后重试",
+    }
+    statuses = {
+        "session_invalid": HTTPStatus.UNAUTHORIZED,
+        "provider_rate_limited": HTTPStatus.SERVICE_UNAVAILABLE,
+    }
+    return LeetCodeSyncError(
+        category, messages.get(category, "连接力扣失败，请稍后重试"),
+        statuses.get(category, HTTPStatus.BAD_GATEWAY),
+    )
+
+
 def _leetcode_sync_http_error(exc) -> LeetCodeSyncError:
-    body_head = b""
-    try:
-        body_head = exc.read(500)
-    except Exception:  # noqa: BLE001
-        pass
-    if b"Just a moment" in body_head:
-        return LeetCodeSyncError("provider_blocked", "力扣暂时拒绝了服务器连接，请稍后重试", HTTPStatus.BAD_GATEWAY)
-    if exc.code in (401, 403):
-        return LeetCodeSyncError("session_invalid", "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新", HTTPStatus.UNAUTHORIZED)
-    if exc.code == 429:
-        return LeetCodeSyncError("provider_rate_limited", "力扣请求较频繁，请稍后重试", HTTPStatus.SERVICE_UNAVAILABLE)
-    return LeetCodeSyncError("provider_unavailable", "力扣服务暂时不可用，请稍后重试", HTTPStatus.BAD_GATEWAY)
+    classification = _classify_leetcode_http_error(exc)
+    return LeetCodeSyncError(classification.category, classification.message, classification.status)
 
 
 def leetcode_sync(
@@ -230,7 +338,7 @@ def leetcode_sync(
     results: dict[str, object] = {
         "solved_added": 0, "solved_existing": 0,
         "submissions_added": 0, "submissions_seen": 0, "sync_errors": [],
-        "full": bool(full),
+        "full": bool(full), "partial": False, "degraded": False,
     }
     try:
         data = runtime._fetch_json_with_retry("https://leetcode.cn/api/problems/all/", headers)
@@ -256,6 +364,7 @@ def leetcode_sync(
 
     collected: list[dict[str, object]] = []
     fetch_errors: list[str] = []
+    partial_error_category: str | None = None
     offset = 0
     page = 0
     max_pages = 50 if full else 1
@@ -265,16 +374,22 @@ def leetcode_sync(
         page += 1
         if page > max_pages:
             fetch_errors.append(f"已达分页上限（{max_pages} 页），如有更多历史请再次全量同步")
+            partial_error_category = "page_limit"
             break
         try:
             payload = runtime._fetch_json_with_retry(
                 f"https://leetcode.cn/api/submissions/?offset={offset}&limit={min(int(limit), 100)}",
                 headers,
             )
-        except Exception as exc:  # noqa: BLE001
-            fetch_errors.append(
-                f"第 {page} 页拉取失败：{type(exc).__name__}: {exc}（已自动重试，仍失败可能是力扣风控，请稍后重试或重新复制 LEETCODE_SESSION）"
-            )
+        except Exception as exc:  # noqa: BLE001 - later pages degrade safely
+            if page == 1:
+                if isinstance(exc, LeetCodeSyncError):
+                    raise exc
+                if isinstance(exc, urllib.error.HTTPError):
+                    raise _leetcode_sync_http_error(exc) from None
+                raise _safe_sync_error(_exception_category(exc)) from None
+            partial_error_category = _exception_category(exc)
+            fetch_errors.append(f"第 {page} 页拉取失败（错误类别：{partial_error_category}，已停止后续拉取）")
             if progress is not None:
                 progress(f"第 {page} 页拉取失败，已停止拉取")
             break
@@ -356,6 +471,10 @@ def leetcode_sync(
             results["solved_added"] = int(results["solved_added"]) + 1
         connection.commit()
     results["sync_errors"] = fetch_errors
+    if partial_error_category is not None:
+        results["partial"] = True
+        results["degraded"] = True
+        results["partial_error_category"] = partial_error_category
     runtime._invalidate_learning_caches(db_path)
     return results
 
@@ -375,12 +494,37 @@ async def leetcode_sync_async(
 
 def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str = "", db_path: Path = DB_PATH) -> str:
     runtime = server_runtime
-    task_id = uuid.uuid4().hex[:12]
-    task: dict[str, object] = {
-        "logs": [], "running": True, "result": None, "error": None,
-        "error_category": None, "owner": owner, "created_at": runtime.now_iso(),
-        "started_at": None, "finished_at": None,
-    }
+    reused_task_id: str | None = None
+    task_id: str | None = None
+    task: dict[str, object] | None = None
+
+    # Check and insert are one atomic operation.  The task manager remains the
+    # source of truth; this only prevents duplicate work for one owner.
+    with SYNC_TASKS_LOCK:
+        for existing_id, existing in SYNC_TASKS.items():
+            if str(existing.get("owner", "")) == owner and bool(existing.get("running")):
+                reused_task_id = str(existing_id)
+                break
+        if reused_task_id is None:
+            task_id = uuid.uuid4().hex[:12]
+            task = {
+                "logs": [], "running": True, "result": None, "error": None,
+                "error_category": None, "partial": False, "degraded_category": None,
+                "owner": owner, "full": bool(full), "created_at": runtime.now_iso(),
+                "started_at": None, "finished_at": None,
+            }
+            SYNC_TASKS[task_id] = task
+
+    if reused_task_id is not None:
+        _safe_log_event(
+            "leetcode_sync_reused", module="leetcode", task_id=reused_task_id,
+            owner=owner, full=bool(full),
+        )
+        return reused_task_id
+
+    assert task is not None
+    assert task_id is not None
+    started_monotonic: float | None = None
 
     def progress(text: str) -> None:
         with SYNC_TASKS_LOCK:
@@ -389,9 +533,21 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
                 logs.append({"text": text, "at": runtime.now_parts()[0]})
 
     def worker() -> None:
+        nonlocal started_monotonic
+        started_monotonic = time.monotonic()
         task["started_at"] = runtime.now_iso()
+        _safe_log_event(
+            "leetcode_sync_started", module="leetcode", task_id=task_id,
+            owner=owner, full=bool(full), duration_ms=0,
+        )
         try:
-            task["result"] = runtime.leetcode_sync(credentials, db_path=db_path, full=full, progress=progress)
+            result = runtime.leetcode_sync(credentials, db_path=db_path, full=full, progress=progress)
+            task["result"] = result
+            if isinstance(result, dict) and bool(result.get("partial")):
+                task["partial"] = True
+                task["degraded_category"] = result.get("partial_error_category")
+                task["error"] = "同步部分完成，请稍后重试"
+                task["error_category"] = "partial"
         except LeetCodeSyncError as exc:
             task["error"] = exc.user_message
             task["error_category"] = exc.category
@@ -405,9 +561,34 @@ def start_leetcode_sync_task(credentials: dict[str, str], full: bool, owner: str
                 with SYNC_TASKS_LOCK:
                     task["running"] = False
                     task["finished_at"] = runtime.now_iso()
+                    result = task.get("result")
+                    if isinstance(result, dict):
+                        seen = int(result.get("submissions_seen") or 0)
+                        added = int(result.get("submissions_added") or 0)
+                    else:
+                        seen = added = 0
+                    error_category = task.get("error_category")
+                    partial = bool(task.get("partial"))
+                    degraded_category = task.get("degraded_category")
+                    duration_ms = int((time.monotonic() - started_monotonic) * 1000) if started_monotonic is not None else None
+                if partial:
+                    event = "leetcode_sync_partial"
+                    event_category = str(degraded_category or "partial")
+                elif error_category:
+                    event = "leetcode_sync_failed"
+                    event_category = str(error_category)
+                else:
+                    event = "leetcode_sync_succeeded"
+                    event_category = None
+                fields = {
+                    "module": "leetcode", "task_id": task_id, "owner": owner,
+                    "full": bool(full), "duration_ms": duration_ms,
+                    "submissions_seen": seen, "submissions_added": added,
+                }
+                if event_category is not None:
+                    fields["error_category"] = event_category
+                _safe_log_event(event, **fields)
 
-    with SYNC_TASKS_LOCK:
-        SYNC_TASKS[task_id] = task
     threading.Thread(target=worker, daemon=True).start()
     with SYNC_TASKS_LOCK:
         completed = [tid for tid, item in SYNC_TASKS.items() if not item["running"]]
@@ -426,6 +607,8 @@ def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
             "task_id": task_id, "running": bool(task["running"]),
             "logs": list(task["logs"]), "result": task["result"],
             "error": task["error"], "error_category": task.get("error_category"),
+            "partial": bool(task.get("partial")),
+            "degraded_category": task.get("degraded_category"),
         }
 
 
@@ -440,6 +623,8 @@ def admin_list_sync_tasks() -> list[dict[str, object]]:
                 "owner": str(task.get("owner", "")),
                 "running": bool(task.get("running")),
                 "error_category": task.get("error_category"),
+                "partial": bool(task.get("partial")),
+                "degraded_category": task.get("degraded_category"),
                 "created_at": task.get("created_at"),
                 "started_at": task.get("started_at"),
                 "finished_at": task.get("finished_at"),
