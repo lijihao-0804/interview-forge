@@ -60,6 +60,17 @@ def _cutoff(window: str) -> str:
     return (datetime.now(timezone.utc) - WINDOWS[bounded_window(window)]).isoformat(timespec="seconds")
 
 
+def _business_cutoff(window: str) -> str:
+    """Return a Beijing cutoff for timestamps in per-user business tables.
+
+    Trace/log/observability records are UTC and continue to use ``_cutoff``.
+    User DB business records are written through ``server_runtime.now_iso`` in
+    Asia/Shanghai; SQLite's datetime() comparison below also handles older
+    rows that were written with an explicit UTC offset.
+    """
+    return (server_runtime.business_now() - WINDOWS[bounded_window(window)]).isoformat(timespec="seconds")
+
+
 def _percentile(values: list[float], percentile: float = 0.95) -> float | None:
     if not values:
         return None
@@ -207,6 +218,7 @@ def overview() -> dict[str, Any]:
     db_bytes = 0
     users = list(auth.list_users())
     cutoff = _cutoff("24h")
+    business_cutoff = _business_cutoff("24h")
     for user, path in iter_user_databases():
         try:
             db_bytes += path.stat().st_size if path.is_file() else 0
@@ -229,8 +241,8 @@ def overview() -> dict[str, Any]:
                     pass
         try:
             with closing(server_runtime.connect(path)) as connection:
-                tool_calls += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ?", (cutoff,)).fetchone()[0])
-                tool_errors += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ? AND status NOT IN ('ok','cache_hit','confirmation_required')", (cutoff,)).fetchone()[0])
+                tool_calls += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?)", (business_cutoff,)).fetchone()[0])
+                tool_errors += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?) AND status NOT IN ('ok','cache_hit','confirmation_required')", (business_cutoff,)).fetchone()[0])
                 for task_row in connection.execute("SELECT status, COUNT(*) AS count FROM ai_tasks GROUP BY status"):
                     if str(task_row["status"]) in task_counts:
                         task_counts[str(task_row["status"])] += int(task_row["count"])
@@ -288,6 +300,7 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
     selected = bounded_window(window)
     rows: list[tuple[str, sqlite3.Row]] = []
     cutoff = _cutoff(selected)
+    business_cutoff = _business_cutoff(selected)
     for user, path in iter_user_databases(username or None):
         rows.extend((str(user["username"]), row) for row in _trace_rows(path, cutoff=cutoff, model=model, limit=None))
     chats = [row for _, row in rows if str(row["event_type"]) == "chat"]
@@ -310,9 +323,9 @@ def ai_usage(*, window: str = "24h", username: str = "", model: str = "") -> dic
     for user, path in iter_user_databases(username or None):
         try:
             with closing(server_runtime.connect(path)) as connection:
-                tool_calls += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ?", (cutoff,)).fetchone()[0])
-                tool_errors += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ? AND status NOT IN ('ok','cache_hit','confirmation_required')", (cutoff,)).fetchone()[0])
-                memory_writes += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE created_at >= ?", (cutoff,)).fetchone()[0])
+                tool_calls += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?)", (business_cutoff,)).fetchone()[0])
+                tool_errors += int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?) AND status NOT IN ('ok','cache_hit','confirmation_required')", (business_cutoff,)).fetchone()[0])
+                memory_writes += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE datetime(created_at) >= datetime(?)", (business_cutoff,)).fetchone()[0])
         except sqlite3.Error:
             continue
     models: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -362,6 +375,7 @@ def _metric_bucket_key(value: Any, window: str) -> str:
 
 def ai_metrics(*, window: str = "24h", username: str = "", model: str = "") -> dict[str, Any]:
     selected = bounded_window(window)
+    # AI traces are observability records and are persisted in UTC.
     cutoff = _cutoff(selected)
     buckets: dict[str, dict[str, Any]] = {}
     for user, path in iter_user_databases(username or None):
@@ -438,14 +452,14 @@ def _parse_time(value: Any) -> datetime | None:
 
 def tool_metrics(*, window: str = "24h", username: str = "") -> dict[str, Any]:
     selected = bounded_window(window)
-    cutoff = _cutoff(selected)
+    cutoff = _business_cutoff(selected)
     grouped: dict[str, dict[str, Any]] = {}
     series: dict[str, dict[str, Any]] = {}
     for _, path in iter_user_databases(username or None):
         try:
             with closing(server_runtime.connect(path)) as connection:
                 rows = connection.execute(
-                    "SELECT tool_name, status, duration_ms, created_at FROM chat_tool_runs WHERE created_at >= ?",
+                    "SELECT tool_name, status, duration_ms, created_at FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?)",
                     (cutoff,),
                 ).fetchall()
         except sqlite3.Error:

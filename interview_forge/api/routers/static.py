@@ -25,6 +25,7 @@ _PUBLIC_PREFIXES = ("/assets/fonts",)
 _ADMIN_PAGE = "/pages/admin.html"
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=2",)
 _WIDGET_SCRIPTS = (
+    "/assets/time-utils.js?v=1",
     "/assets/navigation-policy.js?v=1",
     "/assets/auth-widget.js?v=3",
     "/assets/feedback-widget.js?v=2",

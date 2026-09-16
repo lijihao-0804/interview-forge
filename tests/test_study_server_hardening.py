@@ -141,6 +141,28 @@ class StudyServerHardeningTests(unittest.TestCase):
             _content_type, _filename, weekly = server.export_data("weekly", self.db_path)
             self.assertIn("题目 2 轮", weekly)
 
+    def test_submission_sql_date_modifier_keeps_shanghai_0030_and_2330_on_one_day(self) -> None:
+        connection = server.connect(self.db_path)
+        try:
+            connection.executemany(
+                "INSERT INTO submissions(problem_id, status, lang, submitted_at, source) VALUES (1, 'ac', '', ?, 'manual')",
+                [
+                    ("2026-09-07T16:30:00+00:00",),  # Beijing 00:30 on 2026-09-08
+                    ("2026-09-08T15:30:00+00:00",),  # Beijing 23:30 on 2026-09-08
+                ],
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        with patch.object(server, "business_now", return_value=datetime.fromisoformat("2026-09-08T23:45:00+08:00")):
+            summary = server.submission_summary(self.db_path)["summary"]
+            dashboard = server.dashboard_data(self.db_path)
+        self.assertEqual(summary["today_ac"], 2)
+        self.assertEqual(summary["today_submits"], 2)
+        self.assertEqual(dashboard["summary"]["today_rounds"], 1)
+        active = {item["date"]: item for item in dashboard["activity"] if item["rounds"]}
+        self.assertEqual(active["2026-09-08"]["rounds"], 1)
+
     def test_event_date_aggregates_use_studied_at_shanghai_day(self) -> None:
         # The persisted study_date in old VPS databases may have been written
         # in UTC.  Aggregates must derive the business day from studied_at.

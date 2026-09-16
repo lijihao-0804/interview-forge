@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<script src="assets/time-utils.js?v=1"></script>
 <title>学习中控台 · InterviewForge</title>
 <style>
 :root{
@@ -360,19 +361,20 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   var DAY_CN = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function tick() {
-    var d = new Date();
-    clockMainEl.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
-    clockSecondsEl.textContent = pad(d.getSeconds());
+    var now = InterviewForgeTime.nowParts();
+    clockMainEl.textContent = pad(now.hour) + ":" + pad(now.minute);
+    clockSecondsEl.textContent = pad(now.second);
     clockSecondsEl.classList.remove("tick");
     void clockSecondsEl.offsetWidth;
     clockSecondsEl.classList.add("tick");
-    clockEl.setAttribute("aria-label", "当前时间 " + pad(d.getHours()) + "点" + pad(d.getMinutes()) + "分" + pad(d.getSeconds()) + "秒");
+    clockEl.setAttribute("aria-label", "当前时间 " + pad(now.hour) + "点" + pad(now.minute) + "分" + pad(now.second) + "秒");
     document.getElementById("gday").textContent =
-      (d.getMonth() + 1) + "月" + d.getDate() + "日 · " + DAY_CN[d.getDay()];
+      now.month + "月" + now.day + "日 · " + DAY_CN[now.weekday];
     setTimeout(tick, 1000 - (Date.now() % 1000) + 20);
   }
   function greet(d) {
-    var h = d.getHours(), w;
+    var now = InterviewForgeTime.parts(d) || InterviewForgeTime.nowParts();
+    var h = now.hour, w;
     if (h >= 5 && h < 9) w = "清晨好";
     else if (h < 12) w = "上午好";
     else if (h < 14) w = "中午好";
@@ -444,14 +446,9 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
   }
   function formatWeatherUpdate(value) {
     if (!value) return "刚刚更新";
-    var date = new Date(value), hours, minutes;
-    if (!Number.isNaN(date.getTime())) { hours = pad(date.getHours()); minutes = pad(date.getMinutes()); }
-    else {
-      var match = String(value).match(/(?:T|\s)(\d{2}):(\d{2})/);
-      if (!match) return "刚刚更新";
-      hours = match[1]; minutes = match[2];
-    }
-    return hours + ":" + minutes + " 更新";
+    var formatted = InterviewForgeTime.formatTime(value);
+    if (formatted !== "—") return formatted + " 更新";
+    return "刚刚更新";
   }
   function renderWeather(data) {
     document.getElementById("weather-place").textContent = data.location.display_name || "南京";
@@ -718,10 +715,8 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 
   function formatAiDate(value) {
     if (!value) return "时间未知";
-    var date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, 16);
-    return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+    var formatted = InterviewForgeTime.formatDateTime(value);
+    return formatted === "—" ? String(value).replace("T", " ").slice(0, 16) : formatted;
   }
 
   function aiTaskResult(task) {

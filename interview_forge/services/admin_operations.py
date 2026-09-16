@@ -29,6 +29,11 @@ def _cutoff(window: str) -> str:
     return (datetime.now(timezone.utc) - observability.WINDOWS[observability.bounded_window(window)]).isoformat(timespec="seconds")
 
 
+def _business_cutoff(window: str) -> str:
+    """Cutoff for timestamps in the user's business database, in Beijing."""
+    return (server_runtime.business_now() - observability.WINDOWS[observability.bounded_window(window)]).isoformat(timespec="seconds")
+
+
 def _duration_ms(started: Any, finished: Any) -> int | None:
     try:
         a = datetime.fromisoformat(str(started)).astimezone(timezone.utc)
@@ -88,14 +93,14 @@ def list_tasks(*, kind: str = "", status: str = "", username: str = "", limit: i
 
 
 def list_actions(*, username: str = "", tool: str = "", status: str = "", window: str = "24h", limit: int = 100) -> dict[str, Any]:
-    cutoff = _cutoff(window)
+    cutoff = _business_cutoff(window)
     items: list[dict[str, Any]] = []
     for user, path in observability.iter_user_databases(username or None):
         try:
             with closing(server_runtime.connect(path)) as connection:
                 rows = connection.execute(
                     "SELECT tool_name, status, confirmation_text, created_at, decided_at, completed_at, error_code "
-                    "FROM chat_action_requests WHERE created_at >= ? ORDER BY created_at DESC LIMIT 500", (cutoff,)
+                    "FROM chat_action_requests WHERE datetime(created_at) >= datetime(?) ORDER BY created_at DESC LIMIT 500", (cutoff,)
                 ).fetchall()
         except sqlite3.Error:
             continue
@@ -138,18 +143,19 @@ def user_detail(username: str) -> dict[str, Any]:
                         pass
                 ai["chat_sessions"] = int(connection.execute("SELECT COUNT(*) FROM chat_sessions").fetchone()[0])
                 ai["messages"] = int(connection.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0])
-                cutoff = _cutoff("7d")
+                trace_cutoff = _cutoff("7d")
+                business_cutoff = _business_cutoff("7d")
                 trace_rows = connection.execute(
-                    "SELECT input_tokens, output_tokens FROM ai_trace_events WHERE event_type = 'chat' AND finished_at >= ?", (cutoff,)
+                    "SELECT input_tokens, output_tokens FROM ai_trace_events WHERE event_type = 'chat' AND finished_at >= ?", (trace_cutoff,)
                 ).fetchall()
                 ai["turns_7d"] = len(trace_rows)
                 ai["tokens_7d"] = sum(int(row["input_tokens"] or 0) + int(row["output_tokens"] or 0) for row in trace_rows)
-                ai["tool_calls_7d"] = int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ?", (cutoff,)).fetchone()[0])
-                ai["tool_errors_7d"] = int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE created_at >= ? AND status NOT IN ('ok','cache_hit','confirmation_required')", (cutoff,)).fetchone()[0])
+                ai["tool_calls_7d"] = int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?)", (business_cutoff,)).fetchone()[0])
+                ai["tool_errors_7d"] = int(connection.execute("SELECT COUNT(*) FROM chat_tool_runs WHERE datetime(created_at) >= datetime(?) AND status NOT IN ('ok','cache_hit','confirmation_required')", (business_cutoff,)).fetchone()[0])
                 for row in connection.execute("SELECT status, COUNT(*) AS count FROM chat_action_requests GROUP BY status"):
                     ai["action_counts"][str(row["status"])] = int(row["count"])
                 ai["recent_error_categories"] = [str(row[0]) for row in connection.execute(
-                    "SELECT DISTINCT error_code FROM ai_trace_events WHERE error_code IS NOT NULL AND finished_at >= ? LIMIT 10", (cutoff,)
+                    "SELECT DISTINCT error_code FROM ai_trace_events WHERE error_code IS NOT NULL AND finished_at >= ? LIMIT 10", (trace_cutoff,)
                 )]
                 memory["total_active"] = int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE status = 'active'").fetchone()[0])
                 memory["total_superseded"] = int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE status = 'superseded'").fetchone()[0])
@@ -167,13 +173,13 @@ def memory_summary(*, username: str = "") -> dict[str, Any]:
     active = superseded = recent = 0
     by_kind: dict[str, int] = {}
     by_source: dict[str, int] = {}
-    cutoff = _cutoff("7d")
+    cutoff = _business_cutoff("7d")
     for _, path in observability.iter_user_databases(username or None):
         try:
             with closing(server_runtime.connect(path)) as connection:
                 active += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE status = 'active'").fetchone()[0])
                 superseded += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE status = 'superseded'").fetchone()[0])
-                recent += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE created_at >= ?", (cutoff,)).fetchone()[0])
+                recent += int(connection.execute("SELECT COUNT(*) FROM user_memories WHERE datetime(created_at) >= datetime(?)", (cutoff,)).fetchone()[0])
                 for row in connection.execute("SELECT kind, COUNT(*) AS count FROM user_memories GROUP BY kind"):
                     by_kind[str(row["kind"])] = by_kind.get(str(row["kind"]), 0) + int(row["count"])
                 for row in connection.execute("SELECT source_type, COUNT(*) AS count FROM user_memories GROUP BY source_type"):

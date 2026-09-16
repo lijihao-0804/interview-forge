@@ -218,7 +218,7 @@
       var modelStat = document.createElement("div"); var modelCount = modelsFor(provider.id).length; text(modelStat, modelCount + " 个模型"); stats.appendChild(modelStat);
       var testStat = document.createElement("div"); text(testStat, provider.last_test_latency_ms == null ? "最近测试 —" : "最近测试 " + Math.round(Number(provider.last_test_latency_ms)) + " ms"); stats.appendChild(testStat);
       var keyStat = document.createElement("div"); text(keyStat, provider.key_configured ? "Key 已配置" : "Key 未配置"); stats.appendChild(keyStat); card.appendChild(stats);
-      var meta = document.createElement("p"); meta.className = "ai-card-meta"; text(meta, "网络：" + (provider.network_scope || "unknown") + " · " + (provider.last_test_at ? "测试于 " + provider.last_test_at : "尚未测试")); card.appendChild(meta);
+      var meta = document.createElement("p"); meta.className = "ai-card-meta"; text(meta, "网络：" + (provider.network_scope || "unknown") + " · " + (provider.last_test_at ? "测试于 " + (window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(provider.last_test_at) : provider.last_test_at) : "尚未测试")); card.appendChild(meta);
       var actions = document.createElement("div"); actions.className = "ai-config-actions";
       actions.appendChild(actionButton("测试", function () {
         var button = this;

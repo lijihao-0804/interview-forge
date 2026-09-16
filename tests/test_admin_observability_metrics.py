@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -97,7 +98,9 @@ class AdminObservabilityMetricsTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["ttft_count"], 1)
         self.assertEqual(payload["summary"]["ttft_p95_ms"], 123.4)
         with closing(server_runtime.connect(user_db_path("MetricUser"))) as connection:
-            row = connection.execute("SELECT metadata_json FROM ai_trace_events WHERE trace_id = 'trace-ttft'").fetchone()
+            row = connection.execute("SELECT started_at, finished_at, metadata_json FROM ai_trace_events WHERE trace_id = 'trace-ttft'").fetchone()
+        self.assertTrue(str(row["started_at"]).endswith("+00:00"))
+        self.assertTrue(str(row["finished_at"]).endswith("+00:00"))
         self.assertEqual(json.loads(row["metadata_json"])["ttft_ms"], 123.4)
 
     def test_tool_and_user_metrics_are_metadata_only(self):
@@ -121,6 +124,40 @@ class AdminObservabilityMetricsTests(unittest.TestCase):
             payload = admin_observability.overview()
         self.assertIn("requests", payload)
         self.assertIn("observability_db_bytes", payload["storage"])
+
+    def test_business_cutoff_handles_beijing_midnight_and_mixed_offsets(self):
+        with closing(server_runtime.connect(user_db_path("MetricUser"))) as connection:
+            connection.executemany(
+                "INSERT INTO chat_tool_runs(id, session_id, turn_id, tool_name, tool_kind, arguments_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    ("before-midnight", "s", "t", "get_weather", "read", "{}", "ok", "2026-09-15T16:29:59+00:00"),
+                    ("at-midnight", "s", "t", "get_weather", "read", "{}", "ok", "2026-09-15T16:30:00+00:00"),
+                ],
+            )
+            connection.commit()
+        fixed_now = datetime.fromisoformat("2026-09-17T00:30:00+08:00")
+        with patch.object(default_runtime, "business_now", return_value=fixed_now):
+            cutoff = admin_observability._business_cutoff("24h")
+            payload = admin_observability.tool_metrics(window="24h", username="MetricUser")
+        self.assertEqual(cutoff, "2026-09-16T00:30:00+08:00")
+        self.assertEqual(payload["items"][0]["calls"], 1)
+
+        with closing(server_runtime.connect(user_db_path("MetricUser"))) as connection:
+            connection.executemany(
+                "INSERT INTO chat_tool_runs(id, session_id, turn_id, tool_name, tool_kind, arguments_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    ("before-evening", "s", "t", "get_problem", "read", "{}", "ok", "2026-09-16T15:29:59+00:00"),
+                    ("at-evening", "s", "t", "get_problem", "read", "{}", "ok", "2026-09-16T15:30:00+00:00"),
+                ],
+            )
+            connection.commit()
+        fixed_evening = datetime.fromisoformat("2026-09-17T23:30:00+08:00")
+        with patch.object(default_runtime, "business_now", return_value=fixed_evening):
+            cutoff = admin_observability._business_cutoff("24h")
+            payload = admin_observability.tool_metrics(window="24h", username="MetricUser")
+        self.assertEqual(cutoff, "2026-09-16T23:30:00+08:00")
+        self.assertEqual(payload["items"][0]["tool"], "get_problem")
+        self.assertEqual(payload["items"][0]["calls"], 1)
 
 
 if __name__ == "__main__":

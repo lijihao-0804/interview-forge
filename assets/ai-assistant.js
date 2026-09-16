@@ -294,7 +294,7 @@
       var text = document.createElement("div"); text.className = "memory-item-text";
       text.textContent = (memoryKinds[item.kind] || "记忆") + "：" + String(item.display_text || "");
       var meta = document.createElement("div"); meta.className = "memory-item-meta";
-      meta.textContent = (item.source_type === "explicit" ? "你明确告诉我的" : "根据对话推断") + " · " + String(item.updated_at || "");
+      meta.textContent = (item.source_type === "explicit" ? "你明确告诉我的" : "根据对话推断") + " · " + (window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(item.updated_at) : String(item.updated_at || ""));
       content.appendChild(text); content.appendChild(meta);
       var remove = document.createElement("button"); remove.className = "button"; remove.type = "button"; remove.textContent = "删除";
       remove.addEventListener("click", function () {
@@ -315,7 +315,8 @@
   function renderSessions() {
     if (!state.sessions.length) { list.innerHTML = '<div class="empty">还没有会话，点击“新建”。</div>'; return; }
     list.innerHTML = state.sessions.map(function (item) {
-      return '<button class="session-item ' + (item.id === state.current ? "active" : "") + '" type="button" data-session="' + esc(item.id) + '"><span class="session-title">' + esc(item.title) + '</span><span class="session-time">' + esc(item.updated_at || "") + '</span></button>';
+      var updated = window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(item.updated_at) : String(item.updated_at || "");
+      return '<button class="session-item ' + (item.id === state.current ? "active" : "") + '" type="button" data-session="' + esc(item.id) + '"><span class="session-title">' + esc(item.title) + '</span><span class="session-time">' + esc(updated) + '</span></button>';
     }).join("");
     list.querySelectorAll("[data-session]").forEach(function (node) { node.addEventListener("click", function () { selectSession(node.getAttribute("data-session")); }); });
   }

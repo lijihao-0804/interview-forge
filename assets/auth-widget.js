@@ -132,10 +132,12 @@
           return img;
         }
         function fmtDivider(iso) {
-          var d = new Date(iso);
-          var hm = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
-          if (d.toDateString() === new Date().toDateString()) return hm;
-          return (d.getMonth() + 1) + "-" + d.getDate() + " " + hm;
+          var item = window.InterviewForgeTime && window.InterviewForgeTime.parts(iso);
+          var now = window.InterviewForgeTime && window.InterviewForgeTime.nowParts();
+          if (!item || !now) return String(iso || "").replace("T", " ");
+          var hm = window.InterviewForgeTime.formatTime(iso);
+          if (item.year === now.year && item.month === now.month && item.day === now.day) return hm;
+          return item.month + "-" + item.day + " " + hm;
         }
         function setChatStatus(message, isError) {
           var status = panel.querySelector("#fcp-status");
