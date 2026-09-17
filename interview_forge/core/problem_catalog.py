@@ -251,17 +251,6 @@ PROBLEMS = [
     "difficulty": "简单"
   },
   {
-    "id": 234,
-    "title": "回文链表",
-    "category": "链表",
-    "folder": "07-链表",
-    "method": "找中点 + 反转后半段",
-    "time": "O(n)",
-    "space": "O(1)",
-    "invariant": "只比较等长的两半，结束后恢复链表更稳妥",
-    "difficulty": "简单"
-  },
-  {
     "id": 206,
     "title": "反转链表",
     "category": "链表",
@@ -270,6 +259,17 @@ PROBLEMS = [
     "time": "O(n)",
     "space": "O(1)",
     "invariant": "修改 next 前必须先保存原来的后继",
+    "difficulty": "简单"
+  },
+  {
+    "id": 234,
+    "title": "回文链表",
+    "category": "链表",
+    "folder": "07-链表",
+    "method": "找中点 + 反转后半段",
+    "time": "O(n)",
+    "space": "O(1)",
+    "invariant": "只比较等长的两半，结束后恢复链表更稳妥",
     "difficulty": "简单"
   },
   {
@@ -713,6 +713,17 @@ PROBLEMS = [
     "difficulty": "中等"
   },
   {
+    "id": 34,
+    "title": "在排序数组中查找元素的第一个和最后一个位置",
+    "category": "二分查找",
+    "folder": "11-二分查找",
+    "method": "左右边界二分",
+    "time": "O(log n)",
+    "space": "O(1)",
+    "invariant": "分别寻找第一个大于等于 target 和第一个大于 target 的位置",
+    "difficulty": "中等"
+  },
+  {
     "id": 33,
     "title": "搜索旋转排序数组",
     "category": "二分查找",
@@ -799,17 +810,6 @@ PROBLEMS = [
     "space": "O(n)",
     "invariant": "出栈时当前柱子的左右第一个更矮边界已经确定",
     "difficulty": "困难"
-  },
-  {
-    "id": 232,
-    "title": "用栈实现队列",
-    "category": "栈",
-    "folder": "12-栈",
-    "method": "输入栈 + 输出栈",
-    "time": "均摊 O(1)",
-    "space": "O(n)",
-    "invariant": "输出栈为空时才把输入栈全部倒入",
-    "difficulty": "简单"
   },
   {
     "id": 215,
@@ -1129,6 +1129,7 @@ _LEETCODE_SLUGS = {
   "24": "swap-nodes-in-pairs",
   "25": "reverse-nodes-in-k-group",
   "31": "next-permutation",
+  "34": "find-first-and-last-position-of-element-in-sorted-array",
   "32": "longest-valid-parentheses",
   "33": "search-in-rotated-sorted-array",
   "35": "search-insert-position",
@@ -1190,7 +1191,6 @@ _LEETCODE_SLUGS = {
   "215": "kth-largest-element-in-an-array",
   "226": "invert-binary-tree",
   "230": "kth-smallest-element-in-a-bst",
-  "232": "implement-queue-using-stacks",
   "234": "palindrome-linked-list",
   "236": "lowest-common-ancestor-of-a-binary-tree",
   "238": "product-of-array-except-self",
@@ -1221,4 +1221,3 @@ def _safe_name(text: str) -> str:
 
 def problem_filename(problem: dict[str, object]) -> str:
     return f"{int(problem['id']):04d}-{_safe_name(str(problem['title']))}.md"
-

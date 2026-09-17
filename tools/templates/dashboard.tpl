@@ -7,6 +7,7 @@
 <title>Interview Forge</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#5755d4">
+<script src="assets/time-utils.js?v=2"></script>
 <link rel="stylesheet" href="assets/uplot.min.css?v=__ASSET_VERSION__">
 <style>
 @font-face{font-family:"Inter";src:url("assets/fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -480,7 +481,7 @@ document.addEventListener('keydown',event=>{
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;category.appendChild(option)});
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
 function infoFor(id){return state.data.problems[String(id)]||{rounds:0,last_viewed_at:null,last_completed_at:null,last_activity_at:null}}
-function localTime(value){if(!value)return '尚无记录';const date=new Date(value);return `${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`}
+function localTime(value){if(!value)return '尚无记录';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}
 function updateSummary(){
   const summary=state.data.summary;
   document.getElementById('todayViewed').textContent=summary.today_viewed;
@@ -548,8 +549,7 @@ function renderHeatmap(){
   const el=document.getElementById('heatmap');
   const days=state.data.activity||[];
   if(!days.length){el.innerHTML='';return}
-  const first=new Date(`${days[0].date}T00:00:00`);
-  const leading=(first.getDay()+6)%7;
+  const leading=(InterviewForgeTime.weekdayForDate(days[0].date)+6)%7;
   const cells=[...Array.from({length:leading},()=>null),...days];
   const weeks=[];
   for(let i=0;i<cells.length;i+=7)weeks.push(cells.slice(i,i+7));
@@ -808,7 +808,18 @@ async function refresh(){
   maybeNotify();
 }
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/service-worker.js',{updateViaCache:'none'}).then(reg=>{
+      const activateWaiting=()=>{if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});};
+      activateWaiting();
+      reg.addEventListener('updatefound',()=>{
+        const worker=reg.installing;
+        if(!worker)return;
+        worker.addEventListener('statechange',()=>{if(worker.state==='installed')activateWaiting();});
+      });
+      reg.update().catch(()=>{});
+    }).catch(()=>{});
+  });
 }
 let lastNotifyDate='';
 function maybeNotify(){

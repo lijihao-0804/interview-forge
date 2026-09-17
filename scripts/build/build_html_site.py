@@ -45,6 +45,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 import markdown
 
 from interview_forge.core.paths import ROOT
+from interview_forge.core.problem_catalog import (
+    PROBLEMS as HOT100_PROBLEMS,
+    problem_filename as hot100_problem_filename,
+)
 from scripts.build import build_cache
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
@@ -119,7 +123,6 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/16-多维动态规划/0064-最小路径和.md": ("动态规划演示.html", {"mode": "0064"}),
     "books/hot100/03-题解/12-栈/0020-有效的括号.md": ("栈贪心技巧演示.html", {"mode": "0020"}),
     "books/hot100/03-题解/12-栈/0155-最小栈.md": ("栈贪心技巧演示.html", {"mode": "0155"}),
-    "books/hot100/03-题解/12-栈/0232-用栈实现队列.md": ("栈贪心技巧演示.html", {"mode": "0232"}),
     "books/hot100/03-题解/12-栈/0394-字符串解码.md": ("栈贪心技巧演示.html", {"mode": "0394"}),
     "books/hot100/03-题解/14-贪心/0045-跳跃游戏 II.md": ("栈贪心技巧演示.html", {"mode": "0045"}),
     "books/hot100/03-题解/14-贪心/0055-跳跃游戏.md": ("栈贪心技巧演示.html", {"mode": "0055"}),
@@ -1996,7 +1999,22 @@ def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
     if is_solution:
         # 左栏：同专题题目（同目录文件名即题目清单）
         siblings = []
-        for f in sorted(source.parent.glob("*.md")):
+        # 题目页左栏必须复用运行时/首页共用的 canonical catalog。按文件名排序
+        # 会把题号顺序改成字典序，导致侧栏与首页、专题页的学习顺序不一致。
+        canonical_paths = [
+            source.parent / hot100_problem_filename(problem)
+            for problem in HOT100_PROBLEMS
+            if str(problem["folder"]) == source.parent.name
+        ]
+        ordered_paths = [path for path in canonical_paths if path.exists()]
+        # 保留同专题目录中未登记的兼容页面，但把它们放在 canonical 题目之后，
+        # 避免旧页面或扩展页被静默丢出导航。
+        ordered_paths.extend(
+            path
+            for path in sorted(source.parent.glob("*.md"))
+            if path not in ordered_paths
+        )
+        for f in ordered_paths:
             fm = re.match(r"(\d{4})-(.+)\.md", f.name)
             if fm:
                 href = f.name.replace(".md", ".html")
