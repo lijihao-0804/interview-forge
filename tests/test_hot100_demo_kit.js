@@ -106,7 +106,7 @@ context.window.DemoKit.mount({
   build(ctx) {
     buildCount += 1;
     ctx.step("开始", { n: 1 });
-    ctx.step("比较", { n: 2 });
+    ctx.phase("compare", "比较", { n: 2 }, { duration: 420 });
     ctx.step("更新", { n: 3 });
     ctx.step("完成", { n: 4 });
   },
@@ -120,6 +120,8 @@ const reset = button("↻ 重置");
 const speed4 = button("4×");
 assert(play && reset && speed4, "DemoKit controls missing");
 assert.strictEqual(app.children.find((item) => item.classList.items.has("dk-stage")).style["--dk-stage-height"], "360px");
+assert.strictEqual(context.window.__dk.steps[1].phase, "compare");
+assert.strictEqual(context.window.__dk.steps[1].duration, 420);
 
 play.click();
 assert.strictEqual(timers.size, 1, "play must create exactly one timer");

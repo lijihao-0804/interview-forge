@@ -463,9 +463,119 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
   });
 })();
-</script></head>
+</script><link rel="stylesheet" href="assets/demo-teaching.css" /></head>
 <body>
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>二维动态规划状态转移</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>二维动态规划状态转移</h1><div class="muted">逐格填表，观察当前状态只依赖已经计算完成的方向。</div><div class="toolbar"><select id="mode"><option value="lcs">1143. 最长公共子序列</option><option value="paths">62. 不同路径</option></select><button class="primary" id="step">填下一格</button><button id="reset">重置</button><button id="auto">自动播放</button></div><section class="panel"><div class="table" id="table"></div><div aria-live="polite" class="log" id="log"></div></section></main>
-<script>const $=id=>document.getElementById(id);let s,timer=null,playing=false;function stop(){if(timer){clearTimeout(timer);timer=null}playing=false;$('auto').textContent='自动播放'}function schedule(){if(!playing||timer)return;timer=setTimeout(()=>{timer=null;step();if(finished())stop();else schedule()},600)}function init(){stop();$('auto').textContent='自动播放';if($('mode').value==='lcs'){const a='abcde',b='ace';s={a,b,rows:a.length+1,cols:b.length+1,dp:Array.from({length:a.length+1},()=>Array(b.length+1).fill(0)),r:1,c:1,msg:'dp[i][j] 表示 a 的前 i 个字符与 b 的前 j 个字符的 LCS 长度。第 0 行和第 0 列为 0。'}}else{s={rows:4,cols:5,dp:Array.from({length:4},()=>Array(5).fill(0)),r:1,c:1,msg:'dp[i][j] 表示从左上角走到第 i 行第 j 列的路径数。第 1 行和第 1 列初始化为 1。'};for(let i=1;i<4;i++)s.dp[i][1]=1;for(let j=1;j<5;j++)s.dp[1][j]=1;s.c=2}render()}function finished(){return s.r>=s.rows}function step(){if(finished()){s.msg='填表完成，右下角就是答案。';render();return}if($('mode').value==='lcs'){const same=s.a[s.r-1]===s.b[s.c-1];s.dp[s.r][s.c]=same?s.dp[s.r-1][s.c-1]+1:Math.max(s.dp[s.r-1][s.c],s.dp[s.r][s.c-1]);s.msg=same?`字符 '${s.a[s.r-1]}' 相同：取左上 ${s.dp[s.r-1][s.c-1]} + 1。`:`字符 '${s.a[s.r-1]}' 与 '${s.b[s.c-1]}' 不同：取上方和左方较大值。`}else{s.dp[s.r][s.c]=s.dp[s.r-1][s.c]+s.dp[s.r][s.c-1];s.msg=`dp[${s.r}][${s.c}] = 上方 ${s.dp[s.r-1][s.c]} + 左方 ${s.dp[s.r][s.c-1]} = ${s.dp[s.r][s.c]}。`}s.c++;if(s.c>=s.cols){s.r++;s.c=1;if($('mode').value==='paths'&&s.r===1)s.c=2}render()}function render(){const lcs=$('mode').value==='lcs',cols=s.cols;let cells=[];cells.push('<div class="cell header"></div>');for(let c=0;c<cols;c++)cells.push(`<div class="cell header">${lcs?(c?s.b[c-1]:'∅'):c}</div>`);for(let r=0;r<s.rows;r++){cells.push(`<div class="cell header">${lcs?(r?s.a[r-1]:'∅'):r}</div>`);for(let c=0;c<cols;c++){const done=r<s.r||(r===s.r&&c<s.c),current=r===s.r&&c===s.c&&!finished();let source=false;if(current){if(lcs)source=(r>0&&c>0)&&((s.a[r-1]===s.b[c-1]&&r===s.r-1&&c===s.c-1)||(s.a[r-1]!==s.b[c-1]&&((r===s.r-1&&c===s.c)||(r===s.r&&c===s.c-1))));else source=(r===s.r-1&&c===s.c)||(r===s.r&&c===s.c-1)}cells.push(`<div class="cell ${done?'filled':''} ${current?'current':''} ${source?'source':''}">${s.dp[r][c]}</div>`)}}$('table').style.gridTemplateColumns=`repeat(${cols+1},minmax(48px,1fr))`;$('table').innerHTML=cells.join('');$('log').innerHTML=`<span class="formula">${lcs?'相同：左上 + 1；不同：max(上, 左)':'dp[i][j] = dp[i-1][j] + dp[i][j-1]'}</span><br>${s.msg}`}$('step').onclick=()=>{stop();step()};$('reset').onclick=init;$('mode').onchange=init;$('auto').onclick=()=>{if(playing)stop();else{playing=true;$('auto').textContent='暂停';schedule()}};window.addEventListener('pagehide',stop);init();</script>
+<script>
+const $ = id => document.getElementById(id);
+let s, timer = null, playing = false;
+const phaseNames = { compare: "比较", dependency: "读取依赖", formula: "推导公式", write: "写入单元格", done: "完成" };
+function stop() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  playing = false;
+  $("auto").textContent = "自动播放";
+}
+function finished() { return s.r >= s.rows; }
+function preparePending() {
+  const lcs = $("mode").value === "lcs";
+  const r = s.r, c = s.c;
+  if (lcs) {
+    const same = s.a[r - 1] === s.b[c - 1];
+    const deps = same ? [[r - 1, c - 1]] : [[r - 1, c], [r, c - 1]];
+    const value = same ? s.dp[r - 1][c - 1] + 1 : Math.max(s.dp[r - 1][c], s.dp[r][c - 1]);
+    s.pending = { deps, value, same };
+    s.msg = same
+      ? "比较 '" + s.a[r - 1] + "' 与 '" + s.b[c - 1] + "'：相同，候选值来自左上角。"
+      : "比较 '" + s.a[r - 1] + "' 与 '" + s.b[c - 1] + "'：不同，候选值来自上方和左方。";
+  } else {
+    s.pending = { deps: [[r - 1, c], [r, c - 1]], value: s.dp[r - 1][c] + s.dp[r][c - 1] };
+    s.msg = "定位 dp[" + r + "][" + c + "]：需要读取上方 dp[" + (r - 1) + "][" + c + "] 与左方 dp[" + r + "][" + (c - 1) + "]。";
+  }
+  s.phase = "compare";
+}
+function advanceCell() {
+  s.c++;
+  if (s.c >= s.cols) { s.r++; s.c = 1; }
+  if ($("mode").value === "paths" && s.r === 1) s.c = 2;
+  s.pending = null;
+  s.phase = finished() ? "done" : "compare";
+}
+function step() {
+  if (finished()) { s.phase = "done"; s.msg = "填表完成，右下角就是答案。"; render(); return; }
+  if (!s.pending) {
+    preparePending();
+  } else if (s.phase === "compare") {
+    s.phase = "dependency";
+    s.msg = "先确认依赖单元格已经完成，再进行公式推导。";
+  } else if (s.phase === "dependency") {
+    s.phase = "formula";
+    const p = s.pending;
+    s.msg = $("mode").value === "lcs"
+      ? (p.same ? "相同：dp[" + s.r + "][" + s.c + "] = 左上 " + s.dp[s.r - 1][s.c - 1] + " + 1 = " + p.value + "。" : "不同：dp[" + s.r + "][" + s.c + "] = max(上 " + s.dp[s.r - 1][s.c] + ", 左 " + s.dp[s.r][s.c - 1] + ") = " + p.value + "。")
+      : "dp[" + s.r + "][" + s.c + "] = 上方 " + s.dp[s.r - 1][s.c] + " + 左方 " + s.dp[s.r][s.c - 1] + " = " + p.value + "。";
+  } else if (s.phase === "formula") {
+    s.dp[s.r][s.c] = s.pending.value;
+    s.phase = "write";
+    s.msg = "把结果 " + s.pending.value + " 写入 dp[" + s.r + "][" + s.c + "]，下一步再移动到下一个状态。";
+  } else {
+    advanceCell();
+    if (finished()) s.msg = "填表完成，右下角就是答案。";
+    else s.msg = "移动到下一个状态 dp[" + s.r + "][" + s.c + "]。";
+  }
+  render();
+}
+function schedule() {
+  if (!playing || timer) return;
+  const delay = s.phase === "write" ? 900 : s.phase === "formula" ? 760 : 600;
+  timer = setTimeout(() => {
+    timer = null;
+    step();
+    if (finished()) stop(); else schedule();
+  }, delay);
+}
+function init() {
+  stop();
+  if ($("mode").value === "lcs") {
+    const a = "abcde", b = "ace";
+    s = { a, b, rows: a.length + 1, cols: b.length + 1, dp: Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0)), r: 1, c: 1, phase: "compare", pending: null, msg: "dp[i][j] 表示 a 的前 i 个字符与 b 的前 j 个字符的 LCS 长度。" };
+  } else {
+    s = { rows: 4, cols: 5, dp: Array.from({ length: 4 }, () => Array(5).fill(0)), r: 1, c: 2, phase: "compare", pending: null, msg: "dp[i][j] 表示从左上角走到第 i 行第 j 列的路径数。第 1 行和第 1 列已初始化。" };
+    for (let i = 1; i < 4; i++) s.dp[i][1] = 1;
+    for (let j = 1; j < 5; j++) s.dp[1][j] = 1;
+  }
+  render();
+}
+function render() {
+  const lcs = $("mode").value === "lcs", cols = s.cols, table = $("table");
+  const dep = s.pending ? s.pending.deps : [];
+  const isDep = (r, c) => dep.some(x => x[0] === r && x[1] === c);
+  const cells = ['<div class="cell header"></div>'];
+  for (let c = 0; c < cols; c++) cells.push('<div class="cell header">' + (lcs ? (c ? s.b[c - 1] : "∅") : c) + "</div>");
+  for (let r = 0; r < s.rows; r++) {
+    cells.push('<div class="cell header">' + (lcs ? (r ? s.a[r - 1] : "∅") : r) + "</div>");
+    for (let c = 0; c < cols; c++) {
+      const done = r < s.r || (r === s.r && c < s.c);
+      const current = r === s.r && c === s.c && !finished();
+      const candidate = current && s.pending && (s.phase === "formula" || s.phase === "write");
+      const value = candidate ? s.pending.value : s.dp[r][c];
+      const classes = ["cell", done ? "filled" : "", current ? "is-current" : "", current && isDep(r, c) ? "dependency" : "", candidate ? "is-candidate" : "", current && s.phase === "write" ? "is-write" : ""].filter(Boolean).join(" ");
+      cells.push('<div class="' + classes + '">' + value + "</div>");
+    }
+  }
+  table.style.gridTemplateColumns = "repeat(" + (cols + 1) + ",minmax(48px,1fr))";
+  table.innerHTML = cells.join("");
+  const formula = lcs ? "相同：左上 + 1；不同：max(上, 左)" : "dp[i][j] = dp[i-1][j] + dp[i][j-1]";
+  $("log").innerHTML = '<div class="dp-phase">阶段：' + (phaseNames[s.phase] || s.phase) + "</div><span class=\"formula\">" + formula + "</span><br>" + s.msg;
+}
+$("step").onclick = () => { stop(); step(); };
+$("reset").onclick = init;
+$("mode").onchange = init;
+$("auto").onclick = () => {
+  if (playing) stop();
+  else { playing = true; $("auto").textContent = "暂停"; schedule(); }
+};
+window.addEventListener("pagehide", stop);
+init();
+</script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
 </body></html>

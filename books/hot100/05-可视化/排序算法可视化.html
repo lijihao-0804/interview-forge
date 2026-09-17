@@ -110,6 +110,8 @@ code,pre{font-family:var(--font-mono)!important}
   .bar.sorted { background: #4caf50 !important; }
   .bar.pivot { background: #9c27b0 !important; }
   .bar.active { background: #00bcd4 !important; }
+  .bar.swap-moving { --swap-from: 0px; animation: teachingBarSwap 420ms cubic-bezier(.2,.8,.2,1) both; z-index: 3; }
+  @keyframes teachingBarSwap { 0% { transform: translateX(var(--swap-from)); opacity: .58; } 100% { transform: translateX(0); opacity: 1; } }
 
   /* 消息显示区 */
   .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #f0f4ff; border-bottom: 1px solid #e0e6f0; min-height: 36px; }
@@ -547,7 +549,7 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
   });
 })();
-</script></head>
+</script><link rel="stylesheet" href="assets/demo-teaching.css" /></head>
 <body>
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>排序算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
 <div class="container">
@@ -861,10 +863,10 @@ function buildSteps(sortIdx, rawArr) {
   const arr = rawArr.slice();
   const n = arr.length;
   const steps = [];
-  // 每个 step: { array: [], compares: [i,j], swaps: [i,j], sorted: [i], line: num, type: 'compare'|'swap'|'sorted'|'done' }
+  // 每个 step 都有教学阶段；swap 会拆成准备、移动、完成三个可观察状态。
 
   function push(opts) {
-    steps.push({ array: arr.slice(), compares: opts.compares || [], swaps: opts.swaps || [], pivots: opts.pivots || [], active: opts.active || [], sorted: opts.sorted ? opts.sorted.slice() : [], line: opts.line || 0, msg: opts.msg || '' });
+    steps.push({ array: arr.slice(), compares: opts.compares || [], swaps: opts.swaps || [], pivots: opts.pivots || [], active: opts.active || [], sorted: opts.sorted ? opts.sorted.slice() : [], pair: opts.pair || null, phase: opts.phase || 'update', duration: opts.duration || 0, pause: opts.pause || 0, line: opts.line || 0, msg: opts.msg || '' });
   }
 
   // 记录完整已排序区间（用于绿色显示）
@@ -877,11 +879,14 @@ function buildSteps(sortIdx, rawArr) {
         push({ compares: [], sorted: sortedIndices, line: 4, msg: `——— 第 ${i+1} 轮冒泡 ———` });
         let swapped = false;
         for (let j = 0; j < n - 1 - i; j++) {
-          push({ compares: [j, j+1], sorted: sortedIndices, line: 7, msg: `比较 arr[${j}]=${arr[j]} 和 arr[${j+1}]=${arr[j+1]}` });
+          push({ compares: [j, j+1], phase: 'compare', pause: 120, sorted: sortedIndices, line: 7, msg: `比较 arr[${j}]=${arr[j]} 和 arr[${j+1}]=${arr[j+1]}` });
           if (arr[j] > arr[j+1]) {
+            const beforeLeft = arr[j], beforeRight = arr[j + 1];
+            push({ compares: [j, j + 1], pair: [j, j + 1], phase: 'swap_prepare', pause: 160, sorted: sortedIndices, line: 9, msg: `发现逆序对 ${beforeLeft} > ${beforeRight}：先标记交换位置` });
             [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
             swapped = true;
-            push({ swaps: [j, j+1], sorted: sortedIndices, line: 9, msg: `交换 → arr[${j}]=${arr[j]}, arr[${j+1}]=${arr[j+1]}` });
+            push({ swaps: [j, j+1], pair: [j, j + 1], phase: 'swap_move', duration: 420, sorted: sortedIndices, line: 9, msg: `交换移动：${beforeRight} 向左，${beforeLeft} 向右` });
+            push({ swaps: [j, j+1], pair: [j, j + 1], phase: 'swap_done', pause: 160, sorted: sortedIndices, line: 9, msg: `交换完成：arr[${j}]=${arr[j]}，arr[${j+1}]=${arr[j+1]}` });
           }
         }
         sortedIndices = [n - 1 - i, ...sortedIndices];
@@ -892,7 +897,7 @@ function buildSteps(sortIdx, rawArr) {
         }
       }
       sortedIndices = Array.from({length: n}, (_,i) => i);
-      push({ sorted: sortedIndices, line: 0, msg: '冒泡排序完成！' });
+      push({ phase: 'done', sorted: sortedIndices, line: 0, msg: '冒泡排序完成！' });
       break;
     }
     // ===== 1 - 选择排序 =====
@@ -1219,6 +1224,7 @@ function initSortPanel(idx) {
     if (!state.steps.length || state.steps.length === 0) return;
     const step = state.steps[Math.min(state.stepIdx, state.steps.length - 1)];
     const arrVals = step.array;
+    state.animating = step.phase === 'swap_move';
     const maxVal = Math.max(...arrVals, 1);
     canvas.innerHTML = '';
     const _hotCanvasStyle = getComputedStyle(canvas);
@@ -1228,6 +1234,7 @@ function initSortPanel(idx) {
     const H = Math.max(180, canvas.clientHeight - _hotPadY);
     const barW = Math.max(6, Math.min(40, Math.floor((W - 20) / arrVals.length) - 2));
 
+    const pair = step.pair || [];
     arrVals.forEach((v, i) => {
       const bar = document.createElement('div');
       bar.className = 'bar';
@@ -1239,6 +1246,15 @@ function initSortPanel(idx) {
       if (step.swaps && step.swaps.includes(i)) bar.style.background = '#f44336';
       if (step.pivots && step.pivots.includes(i)) bar.style.background = '#9c27b0';
       if (step.active && step.active.includes(i)) bar.style.background = '#00bcd4';
+      if (step.phase === 'swap_move' && pair.includes(i)) {
+        const other = pair[0] === i ? pair[1] : pair[0];
+        bar.classList.add('swap-moving');
+        bar.style.setProperty('--swap-from', ((other - i) * (barW + 3)) + 'px');
+        bar.addEventListener('animationend', () => {
+          state.animating = false;
+          updateButtons();
+        }, { once: true });
+      }
       const label = document.createElement('span');
       label.className = 'bar-label';
       label.textContent = v;
@@ -1249,7 +1265,7 @@ function initSortPanel(idx) {
     const info = document.getElementById('stepInfo-' + idx);
     if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
     const msgEl = document.getElementById('msg-' + idx);
-    if (msgEl) msgEl.textContent = step.msg || '';
+    if (msgEl) msgEl.textContent = `${step.phase || 'update'} · ${step.msg || ''}`;
 
     // 高亮代码行
     const codeLines = panel.querySelectorAll('.code-line');
@@ -1275,7 +1291,7 @@ function initSortPanel(idx) {
     const atLast = state.stepIdx >= state.steps.length - 1;
     firstBtn.disabled = atFirst;
     prevBtn.disabled = atFirst;
-    nextBtn.disabled = atLast;
+    nextBtn.disabled = atLast || !!state.animating;
     lastBtn.disabled = atLast;
   }
 
@@ -1285,15 +1301,19 @@ function initSortPanel(idx) {
   });
 
   nextBtn.addEventListener('click', () => {
-    if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
+    if (state.animating) return;
+      if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
   });
   prevBtn.addEventListener('click', () => {
+    if (state.animating) return;
     if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
   });
   firstBtn.addEventListener('click', () => {
+    if (state.animating) return;
     state.stepIdx = 0; render(); updateButtons();
   });
   lastBtn.addEventListener('click', () => {
+    if (state.animating) return;
     state.stepIdx = state.steps.length - 1; render(); updateButtons();
   });
   resetBtn.addEventListener('click', resetSteps);
@@ -1305,7 +1325,8 @@ function initSortPanel(idx) {
   function scheduleAuto() {
     if (!state.running || state.timer) return;
     const speed = parseInt(speedSlider.value);
-    const delay = Math.max(20, 120 - speed * 10);
+    const step = state.steps[Math.min(state.stepIdx, state.steps.length - 1)] || {};
+    const delay = Math.max(Math.max(20, 120 - speed * 10), Number(step.duration || 0)) + Number(step.pause || 0);
     state.timer = setTimeout(() => {
       state.timer = null;
       if (state.stepIdx < state.steps.length - 1) {

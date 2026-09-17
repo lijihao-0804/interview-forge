@@ -51,6 +51,7 @@ code,pre{font-family:var(--font-mono)!important}
 <meta content="light dark" name="color-scheme"/>
 <title>二叉树算法演示 · Hot 100</title>
 <script src="assets/demo-kit.js"></script>
+<link rel="stylesheet" href="assets/demo-teaching.css" />
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -571,6 +572,12 @@ function drawTree(view, stage) {
   })(root);
   stage.textContent = "";
   stage.appendChild(svg);
+  if (view.phase) {
+    var phase = document.createElement("div");
+    phase.className = "teaching-phase";
+    phase.textContent = String(view.phase);
+    stage.appendChild(phase);
+  }
   if (view.side) {
     var box = document.createElement("div");
     box.style.cssText = "margin-top:12px;display:flex;gap:8px;flex-wrap:wrap";
@@ -594,22 +601,36 @@ var DEMOS = {
     build: function (ctx) {
       var root = toTree([1, null, 2, 3]);
       var out = [], done = [], stack = [];
-      function go(n) {
-        var path = [];
-        (function sp(x) { while (x) { path.push(x.id); stack.push(x.val === null ? "null" : x.val); x = x.left; } })(n);
-        ctx.step("递归左子树到底，路径 " + path.join("→"), { tree: root, cur: path[path.length - 1], side: { 栈: stack.join(","), 输出: out.join(",") || "空" } });
-        while (stack.length) {
-          var v = stack.pop();
-          if (v === "null") continue;
-          out.push(v); done.push(v);
-          ctx.step("弹出栈顶 " + v + " → 访问（中序：左-根-右），加入输出", { tree: root, done: done, side: { 输出: out.join(",") } });
-          var p = []; (function sp(x) { path.length = 0; })(0);
-          ctx.step("转向它的右子树…", { tree: root, cur: v, done: done, side: { 输出: out.join(",") } });
+      function go(n, path) {
+        if (!n) {
+          ctx.phase("recursive_return", "空子树返回 null，调用栈回到父节点", {
+            tree: root, path: path.slice(), side: { 调用栈: path.join("→") || "空", 输出: out.join(",") || "空" }
+          });
+          return;
         }
+        stack.push(n.val);
+        path.push(n.id);
+        ctx.phase("recursive_enter", "进入节点 " + n.val + "，先递归左子树", {
+          tree: root, cur: n.id, path: path.slice(), side: { 调用栈: stack.join("→"), 输出: out.join(",") || "空" }
+        });
+        go(n.left, path);
+        out.push(n.val); done.push(n.id);
+        ctx.phase("visit", "左子树返回，访问节点 " + n.val + "，加入中序输出", {
+          tree: root, cur: n.id, hl: [n.id], done: done.slice(), path: path.slice(),
+          side: { 调用栈: stack.join("→"), 输出: out.join(",") }
+        });
+        ctx.phase("recursive_enter", "转向节点 " + n.val + " 的右子树", {
+          tree: root, cur: n.id, done: done.slice(), path: path.slice(), side: { 输出: out.join(",") }
+        });
+        go(n.right, path);
+        stack.pop(); path.pop();
+        ctx.phase("recursive_return", "节点 " + n.val + " 的左右都完成，向上返回", {
+          tree: root, done: done.slice(), path: path.slice(), side: { 调用栈: stack.join("→") || "空", 输出: out.join(",") }
+        });
       }
-      ctx.step("中序遍历 = 左子树 → 根 → 右子树，用递归（显式栈）模拟", treeOf([1, null, 2, 3]));
-      go(root);
-      ctx.step("完成！输出 [1,3,2]", { tree: root, done: done, side: { 输出: out.join(",") } });
+      ctx.phase("update", "中序遍历的固定顺序：左子树 → 根 → 右子树", treeOf([1, null, 2, 3]));
+      go(root, []);
+      ctx.phase("done", "完成！输出 [1,3,2]", { tree: root, done: done, side: { 输出: out.join(",") } });
     },
     render: drawTree },
 
@@ -668,20 +689,28 @@ var DEMOS = {
       var level = 0;
       while (queue.length) {
         var n = queue.length, vals = [], next = [];
-        ctx.step("第 " + level + " 层开始：队列里有 " + n + " 个节点 [" + queue.map(function (x) { return x.val; }).join(",") + "]",
+        ctx.phase("dequeue", "第 " + level + " 层开始：准备从队列逐个出队",
           { tree: root, hl: queue.map(function (x) { return x.id; }), side: { 队列: queue.map(function (x) { return x.val; }).join(","), 层: level } });
         for (var i = 0; i < n; i++) {
           var cur = queue.shift();
           vals.push(cur.val); done.push(cur.id);
-          if (cur.left) next.push(cur.left);
-          if (cur.right) next.push(cur.right);
-          ctx.step("出队 " + cur.val + " 加入本层输出；子节点入下一层队列",
-            { tree: root, done: done, cur: cur.id, side: { 本层: vals.join(","), 下一层: next.map(function (x) { return x.val; }).join(",") || "空" } });
+          ctx.phase("dequeue", "出队节点 " + cur.val + "，加入第 " + level + " 层输出",
+            { tree: root, done: done.slice(), cur: cur.id, side: { 本层: vals.join(","), 下一层: next.map(function (x) { return x.val; }).join(",") || "空" } });
+          if (cur.left) {
+            next.push(cur.left);
+            ctx.phase("enqueue", "检查左孩子 " + cur.left.val + "：存在，入队到下一层",
+              { tree: root, done: done.slice(), cur: cur.left.id, hl: [cur.left.id], side: { 队列: next.map(function (x) { return x.val; }).join(",") } });
+          }
+          if (cur.right) {
+            next.push(cur.right);
+            ctx.phase("enqueue", "检查右孩子 " + cur.right.val + "：存在，入队到下一层",
+              { tree: root, done: done.slice(), cur: cur.right.id, hl: [cur.right.id], side: { 队列: next.map(function (x) { return x.val; }).join(",") } });
+          }
         }
         levels.push(vals);
         queue = next; level++;
       }
-      ctx.step("完成！按层输出 [[" + levels.map(function (l) { return l.join(","); }).join("],[") + "]]",
+      ctx.phase("done", "完成！按层输出 [[" + levels.map(function (l) { return l.join(","); }).join("],[") + "]]",
         { tree: root, done: done, side: { 结果: JSON.stringify(levels) } });
     },
     render: drawTree },

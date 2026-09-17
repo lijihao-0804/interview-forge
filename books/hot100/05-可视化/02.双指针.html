@@ -100,6 +100,8 @@ code,pre{font-family:var(--font-mono)!important}
   .bar .bar-label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; }
   .ptr-label { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: bold; white-space: nowrap; }
   .water-on-bar { position: absolute; left: 0; right: 0; border-radius: 0 0 3px 3px; pointer-events: none; }
+  .bar-wrapper.swap-moving { --swap-from: 0px; animation: teachingBarSwap 420ms cubic-bezier(.2,.8,.2,1) both; z-index: 3; }
+  @keyframes teachingBarSwap { 0% { transform: translateX(var(--swap-from)); opacity: .58; } 100% { transform: translateX(0); opacity: 1; } }
 
   .vis-msg { padding: 8px 20px; font-size: 15px; font-weight: 500; color: #333; background: #f0f4ff; border-bottom: 1px solid #e0e6f0; min-height: 36px; }
 
@@ -537,7 +539,7 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
   });
 })();
-</script></head>
+</script><link rel="stylesheet" href="assets/demo-teaching.css" /></head>
 <body>
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>双指针算法可视化 - Java</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
 <div class="container">
@@ -704,6 +706,10 @@ function buildSteps(probIdx, rawArr) {
       sum: opts.sum,
       lMax: opts.lMax,
       rMax: opts.rMax,
+      pair: opts.pair || null,
+      phase: opts.phase || 'update',
+      duration: opts.duration || 0,
+      pause: opts.pause || 0,
       line: opts.line || 0,
       msg: opts.msg || ''
     });
@@ -712,28 +718,34 @@ function buildSteps(probIdx, rawArr) {
   switch (probIdx) {
     // ===== 0 - 移动零 =====
     case 0: {
-      push({ pointers: { l: 0, r: 0 }, line: 2, msg: '初始化左指针 left = 0，右指针 right 开始遍历' });
+      push({ pointers: { l: 0, r: 0 }, phase: 'update', line: 2, msg: '初始化左指针 left = 0，右指针 right 开始遍历' });
       let left = 0;
       for (let right = 0; right < n; right++) {
-        push({ pointers: { l: left, r: right }, highlight: [right], line: 3,
+        push({ pointers: { l: left, r: right }, phase: 'compare', highlight: [right], line: 3,
           msg: `右指针扫描到 nums[${right}] = ${arr[right]}${arr[right] === 0 ? '（零元素，跳过）' : '（非零，准备交换）'}` });
         if (arr[right] !== 0) {
           if (right !== left) {
-            push({ pointers: { l: left, r: right }, swaps: [left, right], highlight: [left, right], line: 5,
-              msg: `交换 nums[${left}] = ${arr[left]} 和 nums[${right}] = ${arr[right]}` });
+            const leftValue = arr[left], rightValue = arr[right];
+            push({ pointers: { l: left, r: right }, pair: [left, right], phase: 'swap_prepare', swaps: [left, right], highlight: [left, right], pause: 160, line: 5,
+              msg: `发现非零值 ${rightValue}：先标记它要填入 nums[${left}]` });
+            [arr[left], arr[right]] = [arr[right], arr[left]];
+            push({ pointers: { l: left, r: right }, pair: [left, right], phase: 'swap_move', swaps: [left, right], duration: 420, line: 5,
+              msg: `交换移动：${rightValue} 向左，${leftValue} 向右` });
+            push({ pointers: { l: left, r: right }, pair: [left, right], phase: 'swap_done', swaps: [left, right], pause: 160, line: 5,
+              msg: `交换完成：nums[${left}] = ${arr[left]}，nums[${right}] = ${arr[right]}` });
           } else {
-            push({ pointers: { l: left, r: right }, highlight: [right], sorted: [right], line: 5,
+            push({ pointers: { l: left, r: right }, phase: 'update', highlight: [right], sorted: [right], line: 5,
               msg: `nums[${right}] 已在正确位置，无需交换` });
           }
-          [arr[left], arr[right]] = [arr[right], arr[left]];
+          if (right === left) [arr[left], arr[right]] = [arr[right], arr[left]];
           left++;
           if (right !== left) {
-            push({ pointers: { l: left, r: right }, sorted: Array.from({length: left}, (_,i) => i), line: 8,
+            push({ pointers: { l: left, r: right }, phase: 'pointer_move', sorted: Array.from({length: left}, (_,i) => i), line: 8,
               msg: `左指针右移到 ${left}，前 ${left} 个元素已处理完成` });
           }
         }
       }
-      push({ sorted: Array.from({length: n}, (_,i) => i), pointers: {}, line: 0,
+      push({ phase: 'done', sorted: Array.from({length: n}, (_,i) => i), pointers: {}, line: 0,
         msg: '✓ 移动零完成！所有非零元素已移到数组前面' });
       break;
     }
@@ -921,6 +933,7 @@ function initPanel(idx) {
     if (!state.steps.length) return;
     const stepIdx = Math.min(state.stepIdx, state.steps.length - 1);
     const step = state.steps[stepIdx];
+    state.animating = step.phase === 'swap_move';
     const arrVals = step.array;
     if (!arrVals || !arrVals.length) return;
     const maxVal = Math.max(...arrVals.map(Math.abs), 1);
@@ -936,9 +949,19 @@ function initPanel(idx) {
     const hasNegative = minVal < 0;
     const midY = hasNegative ? H / 2 : H - 30;
 
+    const pair = step.pair || [];
     arrVals.forEach((v, i) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'bar-wrapper';
+      if (step.phase === 'swap_move' && pair.includes(i)) {
+        const other = pair[0] === i ? pair[1] : pair[0];
+        wrapper.classList.add('swap-moving');
+        wrapper.style.setProperty('--swap-from', ((other - i) * (barW + 3)) + 'px');
+        wrapper.addEventListener('animationend', () => {
+          state.animating = false;
+          updateButtons();
+        }, { once: true });
+      }
 
       const bar = document.createElement('div');
       bar.className = 'bar';
@@ -1048,13 +1071,13 @@ function initPanel(idx) {
     const info = document.getElementById('stepInfo-' + idx);
     if (info) info.textContent = `步骤 ${state.stepIdx} / ${state.steps.length - 1}`;
     const msgEl = document.getElementById('msg-' + idx);
-    if (msgEl) {
-      let msg = step.msg || '';
+      if (msgEl) {
+        let msg = step.msg || '';
       if (step.maxArea != null && step.maxArea > 0) msg += `　<span class="sub-msg">当前最大面积：${step.maxArea}</span>`;
       if (step.waterTotal != null) msg += `　<span class="sub-msg">累计接水：${step.waterTotal}</span>`;
       if (step.lMax != null) msg += `　<span class="sub-msg">leftMax=${step.lMax} rightMax=${step.rMax}</span>`;
       if (step.sum != null) msg += `　<span class="sub-msg">sum=${step.sum}</span>`;
-      msgEl.innerHTML = msg;
+      msgEl.innerHTML = `<span class="teaching-phase">${step.phase || 'update'}</span> ${msg}`;
     }
 
     // Code highlight
@@ -1096,22 +1119,26 @@ function initPanel(idx) {
     const atLast = state.stepIdx >= state.steps.length - 1;
     firstBtn.disabled = atFirst;
     prevBtn.disabled = atFirst;
-    nextBtn.disabled = atLast;
+    nextBtn.disabled = atLast || !!state.animating;
     lastBtn.disabled = atLast;
   }
 
   presetSelect.addEventListener('change', resetSteps);
 
   nextBtn.addEventListener('click', () => {
+    if (state.animating) return;
     if (state.stepIdx < state.steps.length - 1) { state.stepIdx++; render(); updateButtons(); }
   });
   prevBtn.addEventListener('click', () => {
+    if (state.animating) return;
     if (state.stepIdx > 0) { state.stepIdx--; render(); updateButtons(); }
   });
   firstBtn.addEventListener('click', () => {
+    if (state.animating) return;
     state.stepIdx = 0; render(); updateButtons();
   });
   lastBtn.addEventListener('click', () => {
+    if (state.animating) return;
     state.stepIdx = state.steps.length - 1; render(); updateButtons();
   });
   resetBtn.addEventListener('click', resetSteps);
@@ -1123,7 +1150,8 @@ function initPanel(idx) {
   function scheduleAuto() {
     if (!state.running || state.timer) return;
     const speed = parseInt(speedSlider.value);
-    const delay = Math.max(20, 120 - speed * 10);
+    const step = state.steps[Math.min(state.stepIdx, state.steps.length - 1)] || {};
+    const delay = Math.max(Math.max(20, 120 - speed * 10), Number(step.duration || 0)) + Number(step.pause || 0);
     state.timer = setTimeout(() => {
       state.timer = null;
       if (state.stepIdx < state.steps.length - 1) {

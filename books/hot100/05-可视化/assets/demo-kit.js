@@ -83,6 +83,14 @@ color:var(--dk-brand);white-space:nowrap}
 .dk-ptr::after{content:"▼";display:block;text-align:center;font-size:10px;color:var(--dk-brand)}
 .dk-ptr.up::after{content:"▲";transform:rotate(180deg)}
 .dk-note{font-size:12px;color:var(--dk-muted);margin-top:6px}
+.dk-phase{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:4px 9px;border:1px solid var(--dk-line);
+border-radius:999px;color:var(--dk-brand-strong);background:var(--dk-brand-soft);font-size:12px;font-weight:700}
+.dk-phase::before{content:"教学阶段";opacity:.68;font-weight:500}
+.dk-stage.phase-compare{border-color:var(--dk-warn)}
+.dk-stage.phase-swap_prepare{border-color:var(--dk-warn)}
+.dk-stage.phase-swap_move{border-color:var(--dk-brand)}
+.dk-stage.phase-swap_done,.dk-stage.phase-done{border-color:var(--dk-ok)}
+.dk-stage.is-animating{box-shadow:0 0 0 3px color-mix(in srgb,var(--dk-brand) 18%,transparent)}
 `;
 
   // 注入统一样式（一次）
@@ -182,7 +190,16 @@ color:var(--dk-brand);white-space:nowrap}
     var steps = [];
     var ctx = {
       stage: stage, vars: vars, descBox: desc,
-      step: function (d, view) { steps.push({ desc: d, view: view }); },
+      step: function (d, view, meta) {
+        var m = meta || {};
+        if (view && view.phase && !m.phase) m = Object.assign({}, m, { phase: view.phase });
+        steps.push({ desc: d, view: view, phase: m.phase || "update", duration: Number(m.duration || 0), pause: Number(m.pause || 0) });
+      },
+      phase: function (type, d, view, meta) {
+        view = view || {};
+        view.phase = type;
+        ctx.step(d, view, Object.assign({}, meta || {}, { phase: type }));
+      },
       setVar: function (k, v) {
         var n = vars.querySelector("[data-k='" + k + "']");
         if (!n) { n = el("span", "dk-var"); n.dataset.k = k; vars.appendChild(n); }
@@ -194,7 +211,10 @@ color:var(--dk-brand);white-space:nowrap}
 
     var idx = 0, timer = null, playing = false;
 
-    function interval() { return speeds[speedIdx][0] * 900; }
+    function interval() {
+      var current = steps[idx] || {};
+      return Math.max(speeds[speedIdx][0] * 900, Number(current.duration || 0)) + Number(current.pause || 0);
+    }
     function scheduleNext() {
       if (!playing || timer) return;
       timer = setTimeout(function () {
@@ -212,6 +232,9 @@ color:var(--dk-brand);white-space:nowrap}
       idx = Math.max(0, Math.min(steps.length - 1, i));
       window.__dk = { steps: steps, idx: idx, progressEl: progress, stageEl: stage };
       var s = steps[idx];
+      var phase = String(s.phase || "update").replace(/[^a-zA-Z0-9_-]/g, "-");
+      stage.dataset.phase = phase;
+      stage.className = "dk-stage phase-" + phase;
       if (s.desc) desc.textContent = (idx + 1) + ". " + s.desc;
       else desc.textContent = "";
       stage.textContent = "";
@@ -278,5 +301,9 @@ color:var(--dk-brand);white-space:nowrap}
     window.addEventListener("pagehide", stop);
   }
 
-  global.DemoKit = { mount: mount, el: el };
+  global.DemoKit = {
+    mount: mount,
+    el: el,
+    phases: ["compare", "swap_prepare", "swap_move", "swap_done", "pointer_move", "visit", "enqueue", "dequeue", "recursive_enter", "recursive_return", "save_next", "update", "done"]
+  };
 })(window);
