@@ -9,6 +9,13 @@
     ensureVisualCardLinks();
     new MutationObserver(ensureVisualCardLinks).observe(visualCardGrid, { childList: true, subtree: true });
   }
+  // 原生实验室历史上有些把 toolbar 写在 panel 前面；统一移动到演示内容之后，
+  // 让视觉顺序、键盘顺序和“先看状态再操作”保持一致。DemoKit 页面不受影响。
+  document.querySelectorAll('main.shell').forEach((shell) => {
+    const toolbar = [...shell.children].find((item) => item.matches('.toolbar'));
+    const content = [...shell.children].find((item) => item.matches('.panel, .layout'));
+    if (toolbar && content) content.after(toolbar);
+  });
   const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
   const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
   tabLike.forEach((item) => {

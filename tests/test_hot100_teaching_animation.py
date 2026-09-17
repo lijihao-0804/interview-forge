@@ -52,6 +52,29 @@ class Hot100TeachingAnimationTests(unittest.TestCase):
         self.assertIn("current.next 从原来的后继改为 prev", source)
         self.assertIn("edge-changing", source)
 
+    def test_pairwise_linked_list_exposes_each_next_assignment(self):
+        source = self.read("链表演示.html")
+        for assignment in (
+            "first = prev.next", "second = first.next", "next = second.next",
+            "first.next = next", "second.next = first", "prev.next = second", "prev = first",
+        ):
+            self.assertIn('"' + assignment + '"', source)
+        for phase in ("save_next", "swap_prepare", "swap_move", "swap_done", "pointer_move", "done"):
+            self.assertIn('ctx.phase("' + phase + '"', source)
+        self.assertIn("pointerView", source)
+        self.assertIn("当前 next 指向", source)
+
+    def test_native_labs_share_the_same_visual_control_flow(self):
+        build = (ROOT / "scripts" / "build" / "build_html_site.py").read_text(encoding="utf-8-sig")
+        self.assertIn("原生实验室也统一成", build)
+        self.assertIn("body > main.shell > .panel", build)
+        self.assertIn("body > main.shell > .toolbar", build)
+        for name in (
+            "动态规划状态转移.html", "单调栈实验室.html", "滑动窗口与前缀和.html",
+            "网格搜索实验室.html", "困难题核心状态实验室.html", "链表指针实验室.html",
+        ):
+            self.assertIn('class="toolbar"', self.read(name), name)
+
     def test_tree_dfs_and_bfs_steps_are_phase_explicit(self):
         source = self.read("二叉树演示.html")
         self.assertIn('ctx.phase("recursive_enter"', source)

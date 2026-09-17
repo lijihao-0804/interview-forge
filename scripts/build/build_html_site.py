@@ -1038,6 +1038,19 @@ input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, te
 input[type="range"] { accent-color: var(--hot-brand); }
 .controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
 .controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+/* 原生实验室也统一成“舞台/状态说明 → 控制条”。历史页面的 toolbar
+   有些写在 panel 之前，这里用稳定的视觉顺序兜底；新页面应直接按该顺序写 DOM。 */
+body > main.shell { display: flex; flex-direction: column; }
+body > main.shell > .panel,
+body > main.shell > .layout { order: 20; }
+body > main.shell > .toolbar {
+  order: 30;
+  width: 100%;
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+  border-top: 1px solid var(--hot-line);
+  justify-content: flex-start;
+}
 .sort-tabs, .ds-tabs {
   display: flex;
   gap: 7px !important;
@@ -1320,6 +1333,13 @@ VISUAL_RUNTIME_JS = r"""
     ensureVisualCardLinks();
     new MutationObserver(ensureVisualCardLinks).observe(visualCardGrid, { childList: true, subtree: true });
   }
+  // 原生实验室历史上有些把 toolbar 写在 panel 前面；统一移动到演示内容之后，
+  // 让视觉顺序、键盘顺序和“先看状态再操作”保持一致。DemoKit 页面不受影响。
+  document.querySelectorAll('main.shell').forEach((shell) => {
+    const toolbar = [...shell.children].find((item) => item.matches('.toolbar'));
+    const content = [...shell.children].find((item) => item.matches('.panel, .layout'));
+    if (toolbar && content) content.after(toolbar);
+  });
   const tabLike = document.querySelectorAll('.sort-tab, .ds-tab, .code-tab, .preset-btn');
   const syncState = (item) => item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
   tabLike.forEach((item) => {

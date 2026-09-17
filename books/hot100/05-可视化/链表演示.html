@@ -51,6 +51,7 @@ code,pre{font-family:var(--font-mono)!important}
 <meta content="light dark" name="color-scheme"/>
 <title>链表算法演示 · Hot 100</title>
 <script src="assets/demo-kit.js"></script>
+<link rel="stylesheet" href="assets/demo-teaching.css" />
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -194,6 +195,19 @@ input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, te
 input[type="range"] { accent-color: var(--hot-brand); }
 .controls, .toolbar, .input-row, .preset-row, .sort-tabs, .ds-tabs, .op-bar, .btn-group, .legend { flex-wrap: wrap !important; }
 .controls, .toolbar, .input-row, .preset-row, .op-bar, .btn-group { gap: 9px !important; }
+/* 原生实验室也统一成“舞台/状态说明 → 控制条”。历史页面的 toolbar
+   有些写在 panel 之前，这里用稳定的视觉顺序兜底；新页面应直接按该顺序写 DOM。 */
+body > main.shell { display: flex; flex-direction: column; }
+body > main.shell > .panel,
+body > main.shell > .layout { order: 20; }
+body > main.shell > .toolbar {
+  order: 30;
+  width: 100%;
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+  border-top: 1px solid var(--hot-line);
+  justify-content: flex-start;
+}
 .sort-tabs, .ds-tabs {
   display: flex;
   gap: 7px !important;
@@ -506,6 +520,38 @@ function renderRows(view, stage) {
     if (row.tail) line.appendChild(el("span", "dk-note", row.tail));
     stage.appendChild(line);
   });
+  if (view.pointer) {
+    var board = el("div", "pointer-board");
+    board.appendChild(el("div", "pointer-caption", view.pointer.caption || "指针变量与 next 字段"));
+
+    var vars = el("div", "pointer-vars");
+    (view.pointer.vars || []).forEach(function (item) {
+      var chip = el("span", "pointer-var");
+      chip.appendChild(el("b", null, item.name + " = "));
+      chip.appendChild(document.createTextNode(String(item.value)));
+      vars.appendChild(chip);
+    });
+    board.appendChild(vars);
+
+    board.appendChild(el("div", "pointer-caption", "当前 next 指向（橙色表示本步刚修改的字段）"));
+    var edges = el("div", "pointer-edges");
+    (view.pointer.edges || []).forEach(function (edge) {
+      var cls = "pointer-edge" + (edge.changed ? " changed" : "") + (edge.detached ? " detached" : "");
+      edges.appendChild(el("span", cls, edge.from + ".next → " + (edge.to == null ? "null" : edge.to)));
+    });
+    board.appendChild(edges);
+
+    if (view.pointer.assignments && view.pointer.assignments.length) {
+      board.appendChild(el("div", "pointer-caption", "代码执行位置"));
+      var assignments = el("div", "pointer-assignments");
+      view.pointer.assignments.forEach(function (assignment) {
+        var cls = "pointer-assignment" + (assignment.active ? " active" : "");
+        assignments.appendChild(el("span", cls, (assignment.done ? "✓ " : "") + assignment.code));
+      });
+      board.appendChild(assignments);
+    }
+    stage.appendChild(board);
+  }
   if (view.note) {
     var n = el("div", "dk-note", view.note);
     stage.appendChild(n);
@@ -599,18 +645,77 @@ var DEMOS = {
     },
     render: renderRows },
 
-  "0024": { no: "24", title: "两两交换链表中的节点", tag: "链表 · 指针重排",
+  "0024": { no: "24", title: "两两交换链表中的节点", tag: "链表 · 指针重排", stageHeight: 500,
     example: "输入：head = [1,2,3,4,5]　输出：[2,1,4,3,5]",
     build: function (ctx) {
-      var vals = [1, 2, 3, 4, 5];
-      var out = vals.slice();
-      for (var i = 0; i + 1 < out.length; i += 2) {
-        ctx.step("交换第 " + (i + 1) + "、" + (i + 2) + " 个节点（" + out[i] + " ↔ " + out[i + 1] + "）：三个指针临时保存，重接 next",
-          { rows: [row("链表", out, { st: mergeSt(st1(i, "swap"), st1(i + 1, "swap")) })] });
-        var tmp = out[i]; out[i] = out[i + 1]; out[i + 1] = tmp;
-        ctx.step("交换后：" + out.join(" → "), { rows: [row("链表", out, { st: mergeSt(st1(i, "write"), st1(i + 1, "write")) })] });
+      var nodes = ["1", "2", "3", "4", "5"];
+      var edges = { dummy: "1", "1": "2", "2": "3", "3": "4", "4": "5", "5": null };
+      var code = [
+        "first = prev.next",
+        "second = first.next",
+        "next = second.next",
+        "first.next = next",
+        "second.next = first",
+        "prev.next = second",
+        "prev = first"
+      ];
+
+      function pointerView(vars, activeLine, changed, caption) {
+        var seen = {}, reachable = [], cur = "dummy";
+        while (cur != null && !seen[cur]) {
+          seen[cur] = true;
+          reachable.push(cur);
+          cur = edges[cur] == null ? null : String(edges[cur]);
+        }
+        var detached = nodes.filter(function (value) { return !seen[value]; });
+        var rows = [row("从 dummy 出发的可达链", reachable)];
+        if (detached.length) rows.push(row("暂未接回主链", detached, { st: detached.reduce(function (m, value) { m[detached.indexOf(value)] = "swap"; return m; }, {}) }));
+        return {
+          rows: rows,
+          pointer: {
+            caption: caption,
+            vars: Object.keys(vars).map(function (name) { return { name: name, value: vars[name] }; }),
+            edges: ["dummy"].concat(nodes).map(function (from) {
+              return { from: from, to: edges[from], changed: changed.indexOf(from + ".next") >= 0, detached: !seen[from] };
+            }),
+            assignments: code.map(function (line, index) {
+              return { code: line, active: index === activeLine, done: activeLine > index };
+            })
+          }
+        };
       }
-      ctx.step("剩余奇数个节点保持原位 → [2,1,4,3,5]", { rows: [row("链表", out, { st: st1(out.length - 1, "target") })] });
+
+      ctx.phase("update", "初始化：dummy.next 指向 1；prev 站在 dummy，准备处理一对节点。",
+        pointerView({ prev: "dummy", first: "—", second: "—", next: "—" }, -1, [], "先固定 dummy，后面每一轮都只改三条 next 边。"));
+
+      for (var i = 0; i + 1 < nodes.length; i += 2) {
+        var prev = i === 0 ? "dummy" : nodes[i - 1];
+        var first = nodes[i], second = nodes[i + 1], next = edges[second] == null ? null : String(edges[second]);
+        var vars = { prev: prev, first: first, second: second, next: next == null ? "null" : next };
+
+        ctx.phase("save_next", "定位本轮：prev=" + prev + "，first=" + first + "，second=" + second + "；先读取并保存 next=" + (next == null ? "null" : next) + "，此时任何边都不能丢。",
+          pointerView(vars, 2, [], "先读指针，不急着改链：second.next 是后续仍要接回的 next。"));
+
+        edges[first] = next;
+        ctx.phase("swap_prepare", "执行 first.next = next：把 " + first + ".next 从 " + second + " 改为 " + (next == null ? "null" : next) + "，先把 first 与后继链保住。",
+          pointerView(vars, 3, [first + ".next"], "第一条边变化：" + first + ".next → " + (next == null ? "null" : next) + "。节点 " + second + " 暂时脱离 dummy 主链，但还没有丢失。"));
+
+        edges[second] = first;
+        ctx.phase("swap_move", "执行 second.next = first：让 " + second + " 指回 " + first + "，完成这一对节点内部的反向连接。",
+          pointerView(vars, 4, [second + ".next"], "第二条边变化：" + second + ".next → " + first + "；现在 " + second + " → " + first + "，但整对还要接回前缀。"));
+
+        edges[prev] = second;
+        ctx.phase("swap_done", "执行 prev.next = second：让前缀的 " + prev + ".next 指向 " + second + "；本轮得到 " + second + " → " + first + " → " + (next == null ? "null" : next) + "。",
+          pointerView(vars, 5, [prev + ".next"], "第三条边变化：" + prev + ".next → " + second + "。只有这一步完成后，这一对才真正回到主链。"));
+
+        if (i + 3 < nodes.length) {
+          ctx.phase("pointer_move", "窗口右移：执行 prev = first（" + first + "）；下一轮从 " + first + ".next 开始处理 " + nodes[i + 2] + "、" + nodes[i + 3] + "。",
+            pointerView({ prev: first, first: nodes[i + 2], second: nodes[i + 3], next: edges[nodes[i + 3]] == null ? "null" : edges[nodes[i + 3]] }, 6, [], "指针变量前进，但已经完成的 next 边保持不动。"));
+        }
+      }
+
+      ctx.phase("done", "完成：5 没有成对节点，保持原位；沿 dummy.next 读取结果为 2 → 1 → 4 → 3 → 5。",
+        pointerView({ prev: "3", first: "5", second: "null", next: "null" }, -1, [], "奇数长度只让最后一个节点原样挂在尾部，不需要交换。"));
     },
     render: renderRows },
 
@@ -859,6 +964,7 @@ var DEMOS = {
     document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
+      stageHeight: d.stageHeight,
       build: d.build, render: d.render
     });
   }
