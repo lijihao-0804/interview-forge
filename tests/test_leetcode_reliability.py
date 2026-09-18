@@ -55,6 +55,10 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertEqual(by_header.category, "provider_blocked")
         self.assertEqual(by_body.category, "provider_blocked")
         self.assertEqual(ordinary.category, "session_invalid")
+        self.assertIn("LEETCODE_SESSION", by_header.message)
+        self.assertIn("csrftoken", by_header.message)
+        self.assertIn("LEETCODE_SESSION", ordinary.message)
+        self.assertIn("csrftoken", ordinary.message)
 
         with patch.dict(leetcode.server_runtime._values, {
             "_lc_http_get": Mock(side_effect=http_error(403, headers={"cf-mitigated": "challenge"}))

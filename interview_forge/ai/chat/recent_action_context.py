@@ -29,8 +29,8 @@ _BACKGROUND_STATUS_LABELS = {
     "failed": "失败",
 }
 _ERROR_LABELS = {
-    "provider_blocked": "上游拦截",
-    "session_invalid": "会话失效",
+    "provider_blocked": "上游拦截，请同时更新 LEETCODE_SESSION 与 csrftoken 后重试",
+    "session_invalid": "会话失效，请同时更新 LEETCODE_SESSION 与 csrftoken 后重试",
     "provider_rate_limited": "上游限流",
     "provider_unavailable": "上游不可用",
     "network_error": "网络错误",
@@ -74,23 +74,41 @@ def _action_status(row: dict[str, Any]) -> str:
 
 
 class RecentActionContextProvider:
-    """Expose only a tiny status summary, never action arguments or results."""
+    """Expose authoritative action state without arguments, secrets, or results."""
 
     def build(
         self, *, user_db: Path | str, session_id: str, limit: int = 4
     ) -> ContextBlock | None:
         try:
-            rows = ActionRequestStore().list_recent(
+            store = ActionRequestStore()
+            pending_rows = store.list_pending(
+                user_db=user_db, session_id=session_id
+            )
+            rows = store.list_recent(
                 user_db=user_db, session_id=session_id, limit=limit
             )
         except Exception:
             # Recent action context is optional; a stale action table must not
             # make normal chat unavailable.
             return None
-        if not rows:
-            return None
+        bounded_limit = min(max(int(limit), 1), 10)
+        lines = [
+            "当前确认状态："
+            + (
+                "存在仍在等待用户确认的操作。"
+                if pending_rows
+                else "当前没有等待用户确认的操作。"
+            )
+        ]
+        if pending_rows:
+            lines.append("待确认操作：")
+            for row in pending_rows[:bounded_limit]:
+                tool = _TOOL_LABELS.get(str(row.get("tool_name")), "已请求操作")
+                timestamp = _format_action_time(row.get("created_at"))
+                lines.append(f"- {tool}（发起于 {timestamp}）：等待确认")
 
-        lines = []
+        if rows:
+            lines.append("最近已处理或执行中的操作：")
         for row in rows:
             tool = _TOOL_LABELS.get(str(row.get("tool_name")), "已请求操作")
             status = _action_status(row)
@@ -99,7 +117,10 @@ class RecentActionContextProvider:
             )
             lines.append(f"- {tool}（发起于 {timestamp}）：{status}")
         content = (
-            "以下是当前会话最近操作的服务端状态，仅用于回答用户追问；时间均为北京时间。"
+            "以下是当前会话操作的服务端实时状态，仅用于回答用户追问；时间均为北京时间。"
+            "本状态优先于历史聊天文字，当前是否等待确认必须以本状态为准。"
+            "如果本状态写着“当前没有等待用户确认的操作”，不得声称仍有待确认按钮或待确认操作；"
+            "历史助手消息中的“等待确认”不能覆盖这个实时状态。"
             "对于后台同步，只有明确标记为“已完成”才代表数据同步完成；“已发起”或“最终状态未知”不能当作成功。"
             "不要暴露操作 ID、参数、凭据或内部结果，也不要据此重复执行操作。\n"
             + "\n".join(lines)

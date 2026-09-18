@@ -142,8 +142,35 @@ class ChatContextBuilderTests(unittest.TestCase):
         )
         self.assertIsNotNone(block)
         self.assertIn("2026-09-18 15:03", block.content)
-        self.assertIn("失败（上游拦截）", block.content)
+        self.assertIn("失败（上游拦截，请同时更新 LEETCODE_SESSION 与 csrftoken 后重试）", block.content)
         self.assertNotIn("LeetCode 同步：已成功", block.content)
+
+    def test_recent_action_context_exposes_pending_state_as_authoritative(self):
+        action = ActionRequestStore().create(
+            user_db=self.db,
+            session_id=self.session_id,
+            turn_id="pending-sync-turn",
+            user_message_id=1,
+            tool_name="sync_leetcode",
+            arguments={"full": False},
+            confirmation_text="确认同步",
+        )
+        block = RecentActionContextProvider().build(
+            user_db=self.db, session_id=self.session_id
+        )
+        self.assertIsNotNone(block)
+        self.assertIn("当前确认状态：存在仍在等待用户确认的操作", block.content)
+        self.assertIn("LeetCode 同步", block.content)
+        self.assertIn("等待确认", block.content)
+        self.assertNotIn(action["action_id"], block.content)
+
+    def test_recent_action_context_explicitly_clears_stale_pending_claim(self):
+        block = RecentActionContextProvider().build(
+            user_db=self.db, session_id=self.session_id
+        )
+        self.assertIsNotNone(block)
+        self.assertIn("当前确认状态：当前没有等待用户确认的操作", block.content)
+        self.assertIn("历史助手消息中的“等待确认”不能覆盖这个实时状态", block.content)
 
     def test_legacy_sync_context_does_not_claim_completion(self):
         store = ActionRequestStore()

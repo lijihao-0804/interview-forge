@@ -231,14 +231,14 @@ def _classify_leetcode_http_error(exc: urllib.error.HTTPError) -> _LeetCodeHTTPC
     if cloudflare_challenge:
         return _LeetCodeHTTPClassification(
             "provider_blocked",
-            "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请稍后重试；管理员可检查 HTTP 客户端依赖与服务器出口网络。",
+            "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请同时更新 LEETCODE_SESSION 与 csrftoken 后重试；若仍失败，再检查服务器出口网络。",
             HTTPStatus.BAD_GATEWAY,
             False,
         )
     if code in (401, 403):
         return _LeetCodeHTTPClassification(
             "session_invalid",
-            "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+            "LEETCODE_SESSION 或 csrftoken 已过期/无效，请同时更新两者后重试",
             HTTPStatus.UNAUTHORIZED,
             False,
         )
@@ -374,8 +374,8 @@ class LeetCodeSyncError(RuntimeError):
 
 def _safe_sync_error(category: str) -> LeetCodeSyncError:
     messages = {
-        "provider_blocked": "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请稍后重试；管理员可检查 HTTP 客户端依赖与服务器出口网络。",
-        "session_invalid": "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新",
+        "provider_blocked": "检测到力扣 Cloudflare challenge，服务器请求被上游拦截。请同时更新 LEETCODE_SESSION 与 csrftoken 后重试；若仍失败，再检查服务器出口网络。",
+        "session_invalid": "LEETCODE_SESSION 或 csrftoken 已过期/无效，请同时更新两者后重试",
         "provider_rate_limited": "力扣请求较频繁，请稍后重试",
         "provider_unavailable": "力扣服务暂时不可用，请稍后重试",
         "network_error": "连接力扣失败，请检查网络后重试",
@@ -425,7 +425,11 @@ def leetcode_sync(
     except Exception:  # noqa: BLE001
         raise LeetCodeSyncError("network_error", "连接力扣失败，请检查网络后重试", HTTPStatus.BAD_GATEWAY) from None
     if not str(data.get("user_name") or ""):
-        raise LeetCodeSyncError("session_invalid", "LEETCODE_SESSION 已过期或无效，请前往力扣连接页面更新", HTTPStatus.UNAUTHORIZED)
+        raise LeetCodeSyncError(
+            "session_invalid",
+            "LEETCODE_SESSION 或 csrftoken 已过期/无效，请同时更新两者后重试",
+            HTTPStatus.UNAUTHORIZED,
+        )
     if progress is not None:
         progress("已读取力扣题目列表")
 
