@@ -11,6 +11,7 @@ from interview_forge.ai.chat.service import ChatService, MAX_CHAT_BODY_BYTES, no
 from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error, user_db
+from interview_forge.ai.quota import consume_chat_quota
 from interview_forge.runtime.streaming import sse_events
 
 
@@ -149,6 +150,10 @@ async def stream_session(request: Request, session_id: str):
         db_path = user_db(user)
         if chat_service.get_session(user_db=db_path, session_id=session_id) is None:
             return error_response("会话不存在", 404)
+        # Chat has its own atomic daily budget.  It intentionally does not
+        # consume the one-click analysis quota; admins can tune the chat
+        # budget with AI_CHAT_DAILY_LIMIT without changing analysis limits.
+        await asyncio.to_thread(consume_chat_quota, db_path, str(user["role"] if "role" in user.keys() else "user"))
         source = chat_service.stream_reply(
             user_db=db_path,
             session_id=session_id,

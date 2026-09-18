@@ -1,0 +1,30 @@
+name: quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Python tests
+        run: python -m unittest discover -s tests -p "test_*.py"
+      - name: Hot100 structural check
+        run: python tools/check_hot100.py
+      - name: JavaScript syntax checks
+        shell: bash
+        run: |
+          while IFS= read -r file; do node --check "$file"; done < <(find assets pages -type f -name '*.js' -print)
+      - name: Ruff syntax and obvious errors
+        run: ruff check interview_forge scripts tools --output-format concise

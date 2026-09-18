@@ -329,7 +329,10 @@
             });
         }
         panel.querySelector("#fcp-send").onclick = send;
-        panel.querySelector("#fcp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+        panel.querySelector("#fcp-input").addEventListener("keydown", function (e) {
+          if (e.isComposing || e.keyCode === 229) return;
+          if (e.key === "Enter") send();
+        });
         poll();
         chatTimer = setInterval(poll, 3000);
       }

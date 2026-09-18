@@ -369,6 +369,7 @@ class AIConfigStore:
             raise AIConfigError("不支持的 Provider Protocol")
         capability_profile = _validate_capability_profile(capability_profile)
         base_url = validate_base_url(base_url)
+        validate_network_target(base_url)
         _validate_protocol_base_url(protocol, base_url)
         encrypted = encrypt_secret(api_key) if api_key else None
         now, provider_id = _now(), uuid.uuid4().hex
@@ -402,6 +403,7 @@ class AIConfigStore:
         if capability_profile is not None:
             fields.append("capability_profile = ?"); values.append(_validate_capability_profile(capability_profile))
         next_base_url = validate_base_url(current.base_url if base_url is None else base_url)
+        validate_network_target(next_base_url)
         _validate_protocol_base_url(protocol_value, next_base_url)
         if base_url is not None: fields.append("base_url = ?"); values.append(next_base_url)
         if enabled is not None: fields.append("enabled = ?"); values.append(int(bool(enabled)))

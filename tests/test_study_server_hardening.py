@@ -47,8 +47,17 @@ class StudyServerHardeningTests(unittest.TestCase):
     def test_content_completion_uses_content_review_interval(self) -> None:
         with patch.object(server, "valid_content", return_value=True):
             result = server.complete_content("module", "module:01", self.db_path)
+            duplicate = server.complete_content("module", "module:01", self.db_path)
         self.assertEqual(result["round_no"], 1)
+        self.assertEqual(duplicate["round_no"], 1)
         self.assertEqual(result["next_due"], "2026-09-10")
+        connection = sqlite3.connect(self.db_path)
+        try:
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM content_events WHERE content_id = 'module:01' AND action = 'complete'"
+            ).fetchone()[0], 1)
+        finally:
+            connection.close()
 
     def test_legacy_complete_populates_ac_model_and_deduplicates_same_day_round(self) -> None:
         with patch.object(server, "complete_content", return_value={}):

@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import tempfile
 import threading
@@ -103,6 +104,7 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             "token-c": {"id": 3, "username": "charlie", "role": "user", "nickname": "charlie", "lang": "java"},
         }
         self.patches = [
+            patch.dict(os.environ, {"INTERVIEW_FORGE_AI_CONFIG_KEY": "test-master-key"}, clear=False),
             patch.object(server, "ROOT", self.root),
             patch.object(server, "USERS_DIR", self.users_dir),
             patch.object(server, "DB_PATH", self.default_db),
@@ -914,6 +916,7 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self._last_purge_before = server._LAST_SESSION_PURGE
         self._last_seen_before = dict(server._LAST_SEEN_TS)
         self.patches = [
+            patch.dict(os.environ, {"INTERVIEW_FORGE_AI_CONFIG_KEY": "test-master-key"}, clear=False),
             patch.object(server, "ROOT", self.root),
             patch.object(server, "DATA_DIR", self.data_dir),
             patch.object(server, "AUTH_DB_PATH", self.auth_db),

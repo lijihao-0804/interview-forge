@@ -1,6 +1,8 @@
 """Authentication, profile and session routes backed by services."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
@@ -57,12 +59,14 @@ async def login(request: Request):
         if not login_rate_limit_ok(ip):
             raise ValueError("尝试次数过多，请 10 分钟后再试")
         try:
-            user = auth_login(str(payload.get("username", "")).strip(), str(payload.get("password", "")))
+            user = await asyncio.to_thread(
+                auth_login, str(payload.get("username", "")).strip(), str(payload.get("password", ""))
+            )
         except ValueError:
             login_rate_limit_fail(ip)
             raise
         login_rate_limit_clear(ip)
-        token = create_session(int(user["id"]))
+        token = await asyncio.to_thread(create_session, int(user["id"]))
         response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
@@ -78,9 +82,11 @@ async def register(request: Request):
         if not register_rate_limit_ok(ip):
             raise ValueError("注册尝试过于频繁，请稍后再试")
         register_rate_limit_record(ip)
-        user = register_with_code(str(payload.get("username", "")), str(payload.get("password", "")),
-                                  str(payload.get("code", "")))
-        token = create_session(int(user["id"]))
+        user = await asyncio.to_thread(
+            register_with_code, str(payload.get("username", "")), str(payload.get("password", "")),
+            str(payload.get("code", ""))
+        )
+        token = await asyncio.to_thread(create_session, int(user["id"]))
         response = json_response({"ok": True, "username": str(user["username"]), "role": str(user["role"])}, 201)
         response.headers["set-cookie"] = session_cookie(request, token)
         return response
@@ -97,7 +103,7 @@ async def logout(request: Request):
         await read_json(request)
         token = _cookie(request)
         if token:
-            destroy_session(token)
+            await asyncio.to_thread(destroy_session, token)
         response = json_response({"ok": True}, 201)
         response.headers["set-cookie"] = session_cookie(request, "", expire=True)
         return response
@@ -123,9 +129,11 @@ async def profile_set(request: Request):
         return denied
     try:
         payload = await read_json(request, max_length=262144)
-        result = set_profile(str(user["username"]), payload.get("nickname") if "nickname" in payload else None,
-                             payload.get("avatar") if "avatar" in payload else None,
-                             payload.get("lang") if "lang" in payload else None)
+        result = await asyncio.to_thread(
+            set_profile, str(user["username"]), payload.get("nickname") if "nickname" in payload else None,
+            payload.get("avatar") if "avatar" in payload else None,
+            payload.get("lang") if "lang" in payload else None,
+        )
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)
@@ -138,8 +146,10 @@ async def password(request: Request):
         return denied
     try:
         payload = await read_json(request)
-        result = change_own_password(int(user["id"]), str(payload.get("old_password", "")),
-                                     str(payload.get("new_password", "")), keep_token=_cookie(request))
+        result = await asyncio.to_thread(
+            change_own_password, int(user["id"]), str(payload.get("old_password", "")),
+            str(payload.get("new_password", "")), keep_token=_cookie(request),
+        )
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)
@@ -169,9 +179,11 @@ async def feedback(request: Request):
             raise ValueError("提交过于频繁，请稍后再试")
         feedback_rate_limit_record(ip)
         user = current_user(request)
-        result = submit_feedback(str(payload.get("content", "")), str(payload.get("contact", "")),
-                                 str(payload.get("page", "")), request.headers.get("user-agent", ""),
-                                 str(user["username"]) if user is not None else "")
+        result = await asyncio.to_thread(
+            submit_feedback, str(payload.get("content", "")), str(payload.get("contact", "")),
+            str(payload.get("page", "")), request.headers.get("user-agent", ""),
+            str(user["username"]) if user is not None else "",
+        )
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)

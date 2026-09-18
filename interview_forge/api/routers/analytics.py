@@ -1,6 +1,8 @@
 """Read-only learning analytics and deterministic context routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.ai.ai_coach import AIServiceError, ai_capability, get_ai_quota, get_ai_task, get_recent_ai_tasks, submit_ai_feedback
@@ -81,9 +83,13 @@ async def context(request: Request):
         allowed = {"task", "user_request", "target_problem_id", "profile", "budget_tier"}
         if any(key not in allowed for key in payload):
             raise ValueError("请求参数不正确")
-        value = compile_learning_context(
-            analytics_cached(user_db(user)), task=payload.get("task"), user_request=payload.get("user_request", ""),
-            target_problem_id=payload.get("target_problem_id"), profile=payload.get("profile"), budget_tier=payload.get("budget_tier"),
+        value = await asyncio.to_thread(
+            lambda: compile_learning_context(
+                analytics_cached(user_db(user)), task=payload.get("task"),
+                user_request=payload.get("user_request", ""),
+                target_problem_id=payload.get("target_problem_id"), profile=payload.get("profile"),
+                budget_tier=payload.get("budget_tier"),
+            )
         )
         return json_response(value, 201)
     except BaseException as exc:
@@ -99,8 +105,13 @@ async def analyze(request: Request):
         payload = await read_json(request)
         if payload:
             raise ValueError("请求参数不正确")
-        context = compile_learning_context(analytics_cached(user_db(user)), task="learning_diagnosis", budget_tier="small")
-        result = task_manager.submit("ai", user_db(user), context, str(user["username"]), str(user["role"]), effective_ai_daily_limit(user))
+        context = await asyncio.to_thread(
+            lambda: compile_learning_context(analytics_cached(user_db(user)), task="learning_diagnosis", budget_tier="small")
+        )
+        result = await asyncio.to_thread(
+            task_manager.submit, "ai", user_db(user), context, str(user["username"]),
+            str(user["role"]), effective_ai_daily_limit(user)
+        )
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc)
@@ -115,7 +126,9 @@ async def cancel(request: Request, task_id: str):
         payload = await read_json(request)
         if payload:
             raise ValueError("请求参数不正确")
-        value = task_manager.cancel("ai", user_db(user), task_id, str(user["role"]), effective_ai_daily_limit(user))
+        value = await asyncio.to_thread(
+            task_manager.cancel, "ai", user_db(user), task_id, str(user["role"]), effective_ai_daily_limit(user)
+        )
         return json_response(value, 201)
     except BaseException as exc:
         return _handled(exc, write=True)
@@ -130,6 +143,7 @@ async def feedback(request: Request, insight_id: str):
         payload = await read_json(request)
         if set(payload) != {"helpful"} or not isinstance(payload.get("helpful"), bool):
             raise ValueError("反馈参数不正确")
-        return json_response(submit_ai_feedback(user_db(user), insight_id, payload["helpful"]), 201)
+        value = await asyncio.to_thread(submit_ai_feedback, user_db(user), insight_id, payload["helpful"])
+        return json_response(value, 201)
     except BaseException as exc:
         return _handled(exc, write=True)

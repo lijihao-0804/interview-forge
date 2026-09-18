@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS ai_daily_quota (
     reset_offset INTEGER NOT NULL DEFAULT 0 CHECK (reset_offset >= 0),
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ai_chat_daily_quota (
+    day_key TEXT PRIMARY KEY,
+    used INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

@@ -135,7 +135,7 @@ def user_detail(username: str) -> dict[str, Any]:
                     ("study_events", "SELECT COUNT(*) FROM study_events"),
                     ("submissions", "SELECT COUNT(*) FROM submissions"),
                     ("completed", "SELECT COUNT(*) FROM study_events WHERE action = 'complete'"),
-                    ("marked", "SELECT COUNT(*) FROM problem_marks"),
+                    ("marked", "SELECT COUNT(*) FROM marks"),
                 ):
                     try:
                         learning[key] = int(connection.execute(sql).fetchone()[0])

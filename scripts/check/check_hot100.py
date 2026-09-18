@@ -535,6 +535,11 @@ else:
         library_manifest = json.loads(library_manifest_path.read_text(encoding="utf-8"))
         library_modules = library_manifest.get("modules", [])
         library_routes = library_manifest.get("routes", {})
+        library_chapter_count = sum(len(module.get("chapters", [])) for module in library_modules)
+        expected_catalog_label = f"{len(library_modules)} 模块 / {library_chapter_count} 章"
+        for public_doc in (ROOT / "README.md", ROOT / "guide.html"):
+            if public_doc.exists() and expected_catalog_label not in public_doc.read_text(encoding="utf-8", errors="replace"):
+                errors.append(f"公开文档书架数量与 manifest 不一致：{public_doc.relative_to(ROOT)}")
         if len(library_modules) != len(LIBRARY_MODULES) + 1:
             errors.append(f"学习书架模块数量异常：{len(library_modules)}（应为 {len(LIBRARY_MODULES) + 1}）")
         # 逐模块逐章节做“文件存在 + 路由存在 + 路由文件存在”三连查；

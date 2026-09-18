@@ -50,6 +50,7 @@ from pathlib import Path
 
 from interview_forge.core.paths import ROOT
 from scripts.build import build_cache
+from scripts.build.library_catalog import LIBRARY_MODULES
 # 标准库即够：json 序列化面板数据，re 做正文/标题清洗，subprocess 串起
 # 后续 build_library / build_html_site 两个构建脚本，pathlib 统一路径操作。
 
@@ -1087,6 +1088,26 @@ def render_topics() -> None:
         write(ROOT / "books" / "hot100" / "02-专题" / f"{folder}.md", content)
 
 
+def _library_counts() -> tuple[int, int]:
+    """Read the generated catalog so public docs cannot drift from the site."""
+    manifest_path = ROOT / "library" / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        modules = manifest.get("modules")
+        if isinstance(modules, list):
+            return len(modules), sum(
+                len(module.get("chapters", []))
+                for module in modules
+                if isinstance(module, dict) and isinstance(module.get("chapters", []), list)
+            )
+    except (OSError, json.JSONDecodeError, TypeError, AttributeError):
+        pass
+    # A clean checkout can render README before build_library creates the
+    # manifest.  The second render after build_library (see build()) replaces
+    # this temporary fallback with the actual generated counts.
+    return len(LIBRARY_MODULES), 0
+
+
 def render_readme() -> None:
     """生成学习站根目录 README.md（整棵 Markdown 树的总入口）。
 
@@ -1103,9 +1124,11 @@ def render_readme() -> None:
     for folder, category, signal, invariant in CATEGORIES:
         # 导航表行：专题链接（相对根目录的路径）/ 题数 / 识别信号。
         rows.append(f"| [{category}](books/hot100/02-专题/{folder}.md) | {grouped[category]} | {signal} |")
+    library_modules, library_chapters = _library_counts()
+    library_label = f"{library_modules} 模块 / {library_chapters} 章" if library_chapters else f"{library_modules} 模块 / 生成清单章数"
     content = f"""# InterviewForge · LeetCode Hot 100 深度整理版（Java）
 
-面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（37 模块 / 709 章）**。
+面向大厂校招的**在线学习平台**：把 Hot 100 高频题整理成独立题页（题目、核心不变量、完整推导、Java 实现、复杂度与交互演示），并配套 17 个专题框架、算法模板、复习清单，以及覆盖 Java 核心、并发、JVM、数据库、网络、Spring、分布式、RAG/Agent 等校招主线的**学习书架（{library_label}）**。
 
 项目内置**学习记录、间隔重复复习、学习轨迹、限时模拟、力扣提交同步**等能力，形成“学 → 练 → 复盘 → 复习”的完整闭环；学习数据按账号隔离保存在服务端数据库。
 
@@ -1126,13 +1149,13 @@ def render_readme() -> None:
 - [17 个专题框架](books/hot100/02-专题/)（哈希表、双指针、滑动窗口、动态规划…）、[算法模式地图](books/hot100/00-总览/02-算法模式地图.md)、[复习清单](books/hot100/00-总览/03-复习清单.md)、[Java 刷题速查](books/hot100/01-基础/01-Java刷题速查.md)、[算法模板](books/hot100/04-模板/01-Hot100算法模板.md)；
 - 24 个交互可视化演示与 1 个集中导航页覆盖算法和工程专题（哈希表、双指针、链表、锁升级、TCP 握手挥手、ReadView 版本链等），只展示关键状态变化，支持一键播放/分步。
 
-### 2. 学习书架（37 模块 / 709 章）
+### 2. 学习书架（{library_label}）
 
 - 校招主线全覆盖：语言根基、并发、JVM、MySQL、网络、Spring 家族、设计模式、消息队列、分布式、微服务、部署运维、RAG/Agent 等；
 - 新增《小林面试笔记》系列 7 本与《Agent 面经》，覆盖大厂 Agent、RAG、工具调用、大模型工程、LangChain 面试题与图解专栏；
 - Mermaid 流程图渲染（浅色主题、品牌配色）、Pygments 代码高亮（Java/Python 等）、章节内嵌交互演示；
 - 模块页“本模块待复习”区块、章节卡到期徽标、章节页“下次复习”日期、章节级多轮学习记录；
-- [全文搜索](library/search.html)：709 章索引，标题 / 模块名 / 正文命中排序；服务异常时回退到浏览器缓存索引。
+- [全文搜索](library/search.html)：{library_chapters or "当前清单"} 章索引，标题 / 模块名 / 正文命中排序；服务异常时回退到浏览器缓存索引。
 
 ### 3. 学习记录（服务端账号数据库）
 
@@ -1255,7 +1278,7 @@ interview-forge/
 │  └─ InterviewForge-SSH部署与版本更新指南.md
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
-├─ library/                  学习书架生成结果（37 模块 / 709 章）
+├─ library/                  学习书架生成结果（{library_label}）
 ├─ tools/                    生成、校验、服务与维护脚本
 │  ├─ build_hot100.py        全量重建 Hot 100 面板与题解
 │  ├─ build_library.py       学习书架生成器
@@ -1892,6 +1915,9 @@ def build() -> None:
     if library_builder.exists():
         # 用与本次相同的解释器（sys.executable）调用；脚本可缺省，不存在的步骤自动跳过。
         subprocess.run([sys.executable, str(library_builder)], check=True)
+        # build_library has now refreshed manifest.json; render once more so
+        # README uses the same catalog produced by this build.
+        render_readme()
     summary = {
         # 题页总数
         "problem_pages": len(PROBLEMS),

@@ -574,7 +574,13 @@
   memoryButton.addEventListener("click", function () { memoryDialog.showModal(); loadMemories().catch(function (err) { memoryList.textContent = err.message || "读取失败"; }); });
   memoryClose.addEventListener("click", function () { memoryDialog.close(); });
   document.getElementById("composer").addEventListener("submit", sendMessage);
-  input.addEventListener("keydown", function (event) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); document.getElementById("composer").requestSubmit(); } });
+  input.addEventListener("keydown", function (event) {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      document.getElementById("composer").requestSubmit();
+    }
+  });
   stop.addEventListener("click", function () {
     if (state.controller) { state.cancelRequested = true; state.controller.abort(); }
   });

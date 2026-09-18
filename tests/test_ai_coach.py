@@ -572,7 +572,7 @@ class AICoachPersistenceTests(unittest.TestCase):
             }
         finally:
             connection.close()
-        self.assertEqual(tables, {"ai_tasks", "ai_insights", "ai_daily_quota", "ai_trace_events"})
+        self.assertEqual(tables, {"ai_tasks", "ai_insights", "ai_daily_quota", "ai_chat_daily_quota", "ai_trace_events"})
 
     def test_restart_recovery_cancel_and_running_cannot_be_falsely_cancelled(self):
         context = context_for()

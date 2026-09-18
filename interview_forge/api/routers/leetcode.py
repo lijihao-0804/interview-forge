@@ -1,6 +1,8 @@
 """LeetCode credentials, status and synchronization routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
@@ -57,11 +59,14 @@ async def connect(request: Request):
     try:
         payload = await read_json(request)
         db = user_db(user)
-        set_credentials({"leetcode_session": str(payload.get("leetcode_session", "")),
-                         "leetcode_csrf": str(payload.get("leetcode_csrf", ""))}, db)
+        await asyncio.to_thread(
+            set_credentials,
+            {"leetcode_session": str(payload.get("leetcode_session", "")),
+             "leetcode_csrf": str(payload.get("leetcode_csrf", ""))}, db,
+        )
         lc_status_invalidate(db)
         invalidate_dashboard(db)
-        checked = await leetcode_status_async(get_credentials(db))
+        checked = await leetcode_status_async(await asyncio.to_thread(get_credentials, db))
         return json_response({"saved": True, **checked}, 201)
     except BaseException as exc:
         return _handled(exc)
@@ -80,7 +85,7 @@ async def sync(request: Request):
         except (TypeError, ValueError):
             offset = 0
         db = user_db(user)
-        credentials = get_credentials(db)
+        credentials = await asyncio.to_thread(get_credentials, db)
         if not credentials.get("leetcode_session"):
             raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", 409)
         if payload.get("async") in (1, True, "1", "true", "True"):
@@ -114,7 +119,7 @@ async def clear(request: Request):
         return denied
     try:
         db = user_db(user)
-        clear_credentials(db)
+        await asyncio.to_thread(clear_credentials, db)
         lc_status_invalidate(db)
         invalidate_dashboard(db)
         return json_response({"cleared": True}, 201)

@@ -1,6 +1,8 @@
 """Administrator-only management routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import error_response, json_response, read_json, require_admin, service_error
@@ -125,6 +127,7 @@ async def _admin_write(request: Request, operation):
         return denied
     try:
         payload = await _payload(request)
-        return json_response(operation(payload, user), 201)
+        result = await asyncio.to_thread(operation, payload, user)
+        return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)

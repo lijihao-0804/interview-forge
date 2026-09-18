@@ -50,8 +50,14 @@
 (function () {
   var params = new URLSearchParams(location.search);
   var next = params.get("next") || "/cockpit.html";
-  // 只允许站内相对路径，防止开放重定向。
-  if (!next.startsWith("/") || next.startsWith("//")) next = "/library/index.html";
+  // 只允许当前 origin 的站内路径；URL 解析会同时拦截反斜杠绕过。
+  try {
+    var nextUrl = new URL(next, location.origin);
+    if (nextUrl.origin !== location.origin || !nextUrl.pathname.startsWith("/")) throw new Error("external next");
+    next = nextUrl.pathname + nextUrl.search + nextUrl.hash;
+  } catch (_) {
+    next = "/library/index.html";
+  }
   fetch("/api/me", { cache: "no-store" }).then(function (r) {
     if (r.ok) { location.replace(next); }
   }).catch(function () {});

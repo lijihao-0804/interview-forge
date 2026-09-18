@@ -5,6 +5,7 @@ semantics.  The AI coach facade re-exports these symbols for compatibility.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,10 @@ from interview_forge.db.ai_schema import ensure_ai_schema
 from interview_forge.ai.errors import AIServiceError
 
 AI_DAILY_LIMIT = 3
+try:
+    AI_CHAT_DAILY_LIMIT = max(0, min(int(os.environ.get("AI_CHAT_DAILY_LIMIT", "30")), 100))
+except (TypeError, ValueError):
+    AI_CHAT_DAILY_LIMIT = 30
 AI_QUOTA_TIMEZONE = ZoneInfo("Asia/Shanghai")
 
 
@@ -77,6 +82,49 @@ def get_ai_quota(
 ) -> dict[str, Any]:
     with closing(_open_ai_db(db_path)) as connection:
         return _quota_from_connection(connection, role=role, daily_limit=daily_limit, now=now)
+
+
+def consume_chat_quota(
+    db_path: Path,
+    role: str = "user",
+    *,
+    daily_limit: int | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Atomically count one chat request without sharing analysis quota rows."""
+    if role == "admin":
+        return None
+    limit = AI_CHAT_DAILY_LIMIT if daily_limit is None else _validated_daily_limit(daily_limit)
+    day_key, reset_at = _quota_window(now)
+    with closing(_open_ai_db(db_path)) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            "INSERT OR IGNORE INTO ai_chat_daily_quota(day_key, used, updated_at) VALUES (?, 0, ?)",
+            (day_key, _now_iso()),
+        )
+        cursor = connection.execute(
+            "UPDATE ai_chat_daily_quota SET used = used + 1, updated_at = ? "
+            "WHERE day_key = ? AND used < ?",
+            (_now_iso(), day_key, limit),
+        )
+        row = connection.execute(
+            "SELECT used FROM ai_chat_daily_quota WHERE day_key = ?", (day_key,)
+        ).fetchone()
+        if cursor.rowcount != 1:
+            connection.rollback()
+            quota = {
+                "limit": limit,
+                "used": int(row["used"] if row is not None else 0),
+                "remaining": 0,
+                "reset_at": reset_at,
+            }
+            raise AIServiceError(
+                "chat_quota", "今日 AI 对话次数已用完，请明天再试。",
+                status=HTTPStatus.TOO_MANY_REQUESTS, details={"quota": quota},
+            )
+        connection.commit()
+        used = int(row["used"] if row is not None else 0)
+    return {"limit": limit, "used": used, "remaining": max(0, limit - used), "reset_at": reset_at}
 
 
 def _reserve_ai_quota(
@@ -192,5 +240,3 @@ def _open_ai_db(db_path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode = WAL")
     ensure_ai_schema(connection)
     return connection
-
-

@@ -510,23 +510,36 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
     if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
     studied_at, study_date = server_runtime.now_parts()
+    duplicate_round: int | None = None
     with closing(server_runtime.connect(db_path)) as connection:
         # BEGIN IMMEDIATE 立刻拿写锁："取下一轮次 + 插入"同一事务内原子完成，
         # 并发点击也不会开出重复轮次（配合部分唯一索引 uq_content_round 双保险）。
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute(
-            """SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round
-               FROM content_events WHERE content_id = ? AND action = 'complete'""",
-            (content_id,),
+        existing = connection.execute(
+            """SELECT round_no FROM content_events
+               WHERE content_id = ? AND action = 'complete' AND study_date = ?
+               ORDER BY round_no ASC LIMIT 1""",
+            (content_id, study_date),
         ).fetchone()
-        round_no = int(row["next_round"])
-        connection.execute(
-            """INSERT INTO content_events(module_id, content_id, action, studied_at, study_date, round_no)
-               VALUES (?, ?, 'complete', ?, ?, ?)""",
-            (module_id, content_id, studied_at, study_date, round_no),
-        )
+        if existing is not None:
+            duplicate_round = int(existing["round_no"] or 0)
+        if duplicate_round is not None:
+            round_no = duplicate_round
+        else:
+            row = connection.execute(
+                """SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round
+                   FROM content_events WHERE content_id = ? AND action = 'complete'""",
+                (content_id,),
+            ).fetchone()
+            round_no = int(row["next_round"])
+            connection.execute(
+                """INSERT INTO content_events(module_id, content_id, action, studied_at, study_date, round_no)
+                   VALUES (?, ?, 'complete', ?, ?, ?)""",
+                (module_id, content_id, studied_at, study_date, round_no),
+            )
         connection.commit()
-    server_runtime._invalidate_learning_caches(db_path)
+    if duplicate_round is None:
+        server_runtime._invalidate_learning_caches(db_path)
     # next_due：按章节专用间隔表（REVIEW_INTERVALS_CONTENT）推算的到期日，前端展示"下次复习"。
     return {
         "module_id": module_id,
@@ -1090,6 +1103,14 @@ def export_database_snapshot(db_path: Path = DB_PATH) -> bytes:
         destination = sqlite3.connect(temp_path)
         try:
             source.backup(destination)
+            # A full learning-db export must never contain live LeetCode
+            # cookies.  Remove the table from the copy, not the source DB.
+            has_credentials = destination.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'credentials'"
+            ).fetchone()
+            if has_credentials:
+                destination.execute("DELETE FROM credentials")
+            destination.commit()
         finally:
             destination.close()
             source.close()

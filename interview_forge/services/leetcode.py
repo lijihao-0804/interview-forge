@@ -24,6 +24,7 @@ from pathlib import Path
 from interview_forge.core.paths import DB_PATH
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.logging import log_event
+from interview_forge.ai.config_store import decrypt_secret, encrypt_secret
 
 
 LC_STATUS_TTL = 60.0
@@ -117,7 +118,26 @@ def get_credentials(db_path: Path = DB_PATH):
     runtime = server_runtime
     with closing(runtime.connect(db_path)) as connection:
         rows = connection.execute("SELECT key, value FROM credentials").fetchall()
-    return {str(row["key"]): str(row["value"]) for row in rows}
+        result: dict[str, str] = {}
+        legacy: list[tuple[str, str]] = []
+        for row in rows:
+            key = str(row["key"])
+            raw = str(row["value"] or "")
+            if raw.startswith("gAAAA"):
+                value = decrypt_secret(raw)
+            else:
+                value = raw
+                if value:
+                    legacy.append((key, value))
+            result[key] = value
+        if legacy:
+            for key, value in legacy:
+                connection.execute(
+                    "UPDATE credentials SET value = ? WHERE key = ?",
+                    (encrypt_secret(value), key),
+                )
+            connection.commit()
+    return result
 
 
 def set_credentials(pairs: dict[str, str], db_path: Path = DB_PATH) -> None:
@@ -129,10 +149,11 @@ def set_credentials(pairs: dict[str, str], db_path: Path = DB_PATH) -> None:
                 continue
             if not isinstance(value, str):
                 continue
+            encrypted = encrypt_secret(value.strip()) if value.strip() else ""
             connection.execute(
                 """INSERT INTO credentials(key, value, updated_at) VALUES (?, ?, ?)
                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
-                (key, value.strip(), studied_at),
+                (key, encrypted, studied_at),
             )
             connection.commit()
 
