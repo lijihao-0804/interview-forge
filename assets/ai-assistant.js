@@ -503,7 +503,7 @@
     setError("");
     resetStreamDiagnostics();
     state.autoFollow = messages.scrollHeight - messages.scrollTop - messages.clientHeight <= AUTO_FOLLOW_THRESHOLD;
-    input.value = ""; renderMessage({ role: "user", content: text });
+    input.value = ""; var userNode = renderMessage({ role: "user", content: text });
     state.streamFailed = false; state.streamCompleted = false;
     state.controller = new AbortController(); setBusy(true); scheduleScrollBottom();
     try {
@@ -517,6 +517,7 @@
       var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = "";
       function onEvent(name, payload) {
         if (name === "message.start") {
+          setMessageTime(userNode, payload && payload.created_at);
           state.assistantNode = renderAssistantTurn();
           var startedBubble = state.assistantNode.querySelector(".bubble");
           startedBubble._rawText = "";

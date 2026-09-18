@@ -195,6 +195,7 @@ class AIChatContractTests(unittest.TestCase):
         events = parse_sse(streamed.text)
         self.assertEqual([name for name, _ in events], ["message.start", "message.delta", "message.delta", "message.done"])
         self.assertIn("message_id", events[0][1])
+        self.assertIn("created_at", events[0][1])
         self.assertEqual(events[1][1]["delta"], "你好，")
         self.assertEqual(events[-1][1]["message_id"], events[0][1]["message_id"])
         self.assertIn("created_at", events[-1][1])

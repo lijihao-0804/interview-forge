@@ -397,7 +397,7 @@ class ChatService:
     @staticmethod
     def _save_user_message(
         *, user_db: Path, session_id: str, content: str, page_context: PageContext | None = None
-    ) -> int:
+    ) -> dict[str, Any]:
         timestamp = _now()
         metadata = json.dumps(
             {"page_context": page_context.to_dict()} if page_context is not None else {},
@@ -424,7 +424,7 @@ class ChatService:
                 (title, timestamp, session_id),
             )
             connection.commit()
-            return int(cursor.lastrowid)
+            return {"id": int(cursor.lastrowid), "created_at": timestamp}
 
     @staticmethod
     def _delete_failed_user_message(*, user_db: Path, session_id: str, message_id: int) -> None:
@@ -506,6 +506,7 @@ class ChatService:
         model_claimed = False
         claims_released = False
         current_message_id: int | None = None
+        user_created_at: str | None = None
         assistant_saved = False
         assistant_created_at: str | None = None
         durable_turn_state = False
@@ -551,16 +552,21 @@ class ChatService:
 
         try:
             try:
-                current_message_id = self._save_user_message(
+                saved_user = self._save_user_message(
                     user_db=path,
                     session_id=session_id,
                     content=clean_message,
                     page_context=normalized_page_context,
                 )
+                current_message_id = int(saved_user["id"])
+                user_created_at = str(saved_user["created_at"])
             except LookupError:
                 yield _event("error", {"code": "session_not_found", "message": "会话不存在。"})
                 return
-            yield _event("message.start", {"message_id": stream_message_id})
+            start_payload = {"message_id": stream_message_id}
+            if user_created_at:
+                start_payload["created_at"] = user_created_at
+            yield _event("message.start", start_payload)
             try:
                 runtime = self.runtime_loader("chat") if self.runtime_loader is not None else None
                 config = runtime.config if runtime is not None else self.config_loader()
