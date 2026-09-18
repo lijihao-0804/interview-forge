@@ -71,6 +71,7 @@ class AdminObservabilityMetricsTests(unittest.TestCase):
         self.assertEqual(payload["totals"]["5xx_rate"], 0.25)
         self.assertEqual(len(payload["endpoints"]), 1)
         self.assertEqual(payload["endpoints"][0]["route"], "/api/items/{item_id}")
+        self.assertEqual(payload["top_errors"][0]["error_count"], 2)
         self.assertIsNotNone(payload["totals"]["p95_ms"])
 
     def test_observability_buckets_are_complete_iso_and_beijing_day_keys(self):

@@ -189,6 +189,93 @@ def memory_summary(*, username: str = "") -> dict[str, Any]:
     return {"active": active, "superseded": superseded, "by_kind": by_kind, "by_source": by_source, "recent_write_count_7d": recent}
 
 
+def governance_summary() -> dict[str, Any]:
+    """Return aggregate-only feedback and invite-code health.
+
+    This intentionally does not reuse the admin detail lists: the operations
+    dashboard only needs counts and timestamps, not feedback text, contact
+    details, invite codes, or user ids.
+    """
+    today = server_runtime.business_now().date().isoformat()
+    feedback = {"total": 0, "open": 0, "resolved": 0, "last_created_at": None, "last_resolved_at": None}
+    invites = {"total": 0, "unused": 0, "used": 0, "revoked": 0, "expired": 0}
+    with closing(auth.connect_auth()) as connection:
+        for row in connection.execute("SELECT status, COUNT(*) AS count FROM feedback GROUP BY status"):
+            status = str(row["status"])
+            if status in {"open", "resolved"}:
+                feedback[status] = int(row["count"])
+                feedback["total"] += int(row["count"])
+        feedback["last_created_at"] = connection.execute("SELECT created_at FROM feedback ORDER BY id DESC LIMIT 1").fetchone()
+        feedback["last_resolved_at"] = connection.execute("SELECT resolved_at FROM feedback WHERE resolved_at IS NOT NULL ORDER BY resolved_at DESC LIMIT 1").fetchone()
+        feedback["last_created_at"] = feedback["last_created_at"][0] if feedback["last_created_at"] else None
+        feedback["last_resolved_at"] = feedback["last_resolved_at"][0] if feedback["last_resolved_at"] else None
+        for row in connection.execute("SELECT status, COUNT(*) AS count FROM invite_codes GROUP BY status"):
+            status = str(row["status"])
+            if status in {"unused", "used", "revoked"}:
+                invites[status] = int(row["count"])
+                invites["total"] += int(row["count"])
+        invites["expired"] = int(connection.execute(
+            "SELECT COUNT(*) FROM invite_codes WHERE status = 'unused' AND expires_at IS NOT NULL AND expires_at < ?", (today,)
+        ).fetchone()[0])
+    return {"feedback": feedback, "invites": invites}
+
+
+def leetcode_health(*, window: str = "24h") -> dict[str, Any]:
+    """Return safe operational health for retained process-local sync tasks.
+
+    Submission counts and record contents are deliberately excluded. The
+    current LeetCode task registry is process-local, so the response declares
+    that scope instead of implying durable historical coverage.
+    """
+    selected = observability.bounded_window(window)
+    cutoff = datetime.fromisoformat(_cutoff(selected))
+    counts = {"running": 0, "succeeded": 0, "degraded": 0, "failed": 0}
+    categories: dict[str, int] = {}
+    events: list[dict[str, Any]] = []
+    for row in admin_list_sync_tasks():
+        timestamp = row.get("finished_at") or row.get("started_at") or row.get("created_at")
+        try:
+            parsed = datetime.fromisoformat(str(timestamp))
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is not None and parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        if parsed is not None and parsed.astimezone(timezone.utc) < cutoff:
+            continue
+        if row.get("running"):
+            status = "running"
+        elif row.get("partial"):
+            status = "degraded"
+        elif row.get("error_category"):
+            status = "failed"
+        else:
+            status = "succeeded"
+        counts[status] += 1
+        category = str(row.get("error_category") or row.get("degraded_category") or "")
+        if category:
+            categories[category] = categories.get(category, 0) + 1
+        if status != "running":
+            events.append({
+                "status": status,
+                "finished_at": row.get("finished_at"),
+                "duration_ms": _duration_ms(row.get("started_at"), row.get("finished_at")),
+                "error_category": category or None,
+            })
+    events.sort(key=lambda item: str(item.get("finished_at") or ""), reverse=True)
+    def latest(status: str) -> dict[str, Any] | None:
+        return next((item for item in events if item["status"] == status), None)
+    return {
+        "window": selected,
+        "scope": "当前进程保留的同步任务",
+        "counts": counts,
+        "error_categories": categories,
+        "last_success": latest("succeeded"),
+        "last_failure": latest("failed"),
+        "last_partial": latest("degraded"),
+        "recent": events[:20],
+    }
+
+
 def _project_size() -> int:
     total = 0
     try:
@@ -308,6 +395,7 @@ def system_info() -> dict[str, Any]:
             "model": ai["legacy_fallback"].get("model", ""),
         },
         "runtime_metrics": runtime,
+        "governance": governance_summary(),
         "storage": {"project_data_bytes": _project_size(), "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free, **runtime.get("storage", {})},
     }
 
@@ -392,4 +480,4 @@ def diagnostics() -> dict[str, Any]:
     return {"status": overall, "checks": checks}
 
 
-__all__ = ["diagnostics", "list_actions", "list_tasks", "memory_summary", "system_info", "user_detail"]
+__all__ = ["diagnostics", "governance_summary", "leetcode_health", "list_actions", "list_tasks", "memory_summary", "system_info", "user_detail"]

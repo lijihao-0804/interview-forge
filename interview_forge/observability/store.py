@@ -328,9 +328,13 @@ def request_metrics(window: str = "24h") -> dict[str, Any]:
         endpoint_items.append({"method": method, "route": route, **values, "error_count": values["4xx"] + values["5xx"]})
     endpoint_items.sort(key=lambda item: (-item["request_count"], item["route"]))
     slowest = sorted(endpoint_items, key=lambda item: (-(item["p95_ms"] or -1), item["route"]))
+    top_errors = sorted(
+        (item for item in endpoint_items if item["error_count"]),
+        key=lambda item: (-item["error_count"], -item["5xx"], item["route"]),
+    )
     return {
         "window": selected, "granularity": granularity, "series": series,
-        "totals": _aggregate(filtered_rows), "endpoints": endpoint_items[:50], "slowest_endpoints": slowest[:10],
+        "totals": _aggregate(filtered_rows), "endpoints": endpoint_items[:50], "slowest_endpoints": slowest[:10], "top_errors": top_errors[:10],
         "histogram_bounds_ms": list(HISTOGRAM_BOUNDS_MS),
     }
 

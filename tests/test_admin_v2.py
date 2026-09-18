@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from contextlib import closing
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -118,20 +119,75 @@ class AdminV2BackendTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-observability.js").read_text(encoding="utf-8")
-        self.assertIn("../assets/admin-observability.css?v=1", page)
-        self.assertIn("../assets/admin-observability.js?v=2", page)
+        self.assertIn("../assets/admin-observability.css?v=2", page)
+        self.assertIn("../assets/admin-observability.js?v=5", page)
         self.assertIn("data-admin-v2", page)
         self.assertIn("textContent", script)
         self.assertNotIn("innerHTML", script)
+        for control, loader in (
+            ("admin-traffic-window", "loadTraffic"),
+            ("admin-usage-window", "loadUsage"),
+            ("admin-trace-window", "loadTraces"),
+            ("admin-log-level", "loadLogs"),
+        ):
+            self.assertIn(f'bindChangeReload("{control}", {loader})', script)
+        self.assertIn("slowest_endpoints", script)
+        self.assertIn("TTFT P50", page)
+        self.assertIn("admin-traffic-slowest", page)
+        self.assertIn("admin-traffic-top-errors", page)
+        self.assertIn("admin-trace-username", page)
+        self.assertIn("admin-trace-model", page)
+        self.assertIn("admin-trace-status", page)
+        self.assertIn("provider_name", script)
+        self.assertIn("business_key", script)
+        self.assertIn("reasoning_mode", script)
+        self.assertIn("admin-overview-anomalies", page)
 
     def test_operations_ui_is_separate_and_does_not_use_html_injection(self):
         root = Path(__file__).resolve().parents[1]
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-operations.js").read_text(encoding="utf-8")
         self.assertIn("../assets/admin-operations.css?v=2", page)
-        self.assertIn("../assets/admin-operations.js?v=2", page)
+        self.assertIn("../assets/admin-operations.js?v=4", page)
         self.assertIn("data-admin-operations", page)
         self.assertNotIn("innerHTML", script)
+        self.assertIn('bindChangeReload("admin-tools-window", loadTools)', script)
+        self.assertIn('bindChangeReload("admin-users-window", loadUserMetrics)', script)
+        self.assertIn('bindChangeReload("admin-actions-window", loadActions)', script)
+        self.assertIn('"/api/admin/metrics/leetcode?window="', script)
+        self.assertIn("admin-task-counts", page)
+        self.assertIn("admin-tools-series", page)
+        self.assertIn("admin-users-series", page)
+        self.assertIn("admin-leetcode-health-cards", page)
+        self.assertIn("admin-ops-governance-cards", page)
+
+    def test_safe_operational_summaries_are_admin_only_and_exclude_submission_counts(self):
+        self.assertEqual(self.client.get("/api/admin/metrics/leetcode").status_code, 401)
+        now = datetime.now(timezone.utc).isoformat()
+        with patch.object(admin_operations, "admin_list_sync_tasks", return_value=[
+            {"running": False, "partial": False, "error_category": None, "degraded_category": None,
+             "started_at": now, "finished_at": now, "created_at": now},
+            {"running": False, "partial": True, "error_category": "partial", "degraded_category": "provider_blocked",
+             "started_at": now, "finished_at": now, "created_at": now},
+            {"running": False, "partial": False, "error_category": "provider_blocked", "degraded_category": None,
+             "started_at": now, "finished_at": now, "created_at": now},
+        ]):
+            payload = self._admin().get("/api/admin/metrics/leetcode", params={"window": "30d"})
+        self.assertEqual(payload.status_code, 200)
+        body = payload.json()
+        self.assertEqual(body["counts"]["succeeded"], 1)
+        self.assertEqual(body["counts"]["degraded"], 1)
+        self.assertEqual(body["counts"]["failed"], 1)
+        self.assertNotIn("submissions_seen", json.dumps(body))
+        self.assertNotIn("submissions_added", json.dumps(body))
+
+        system = self._admin().get("/api/admin/system/info")
+        self.assertEqual(system.status_code, 200)
+        governance = system.json()["governance"]
+        self.assertIn("feedback", governance)
+        self.assertIn("invites", governance)
+        self.assertNotIn("content", json.dumps(governance))
+        self.assertNotIn("code", json.dumps(governance))
 
     def test_operations_projections_and_diagnostics_are_metadata_only(self):
         db = user_db_path("UserV2")

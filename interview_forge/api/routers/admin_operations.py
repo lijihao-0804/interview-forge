@@ -29,6 +29,11 @@ def admin_actions(request: Request, username: str = Query(default="", max_length
     return _call(request, lambda: service.list_actions(username=username, tool=tool, status=status, window=window, limit=limit))
 
 
+@router.get("/api/admin/metrics/leetcode")
+def admin_leetcode_health(request: Request, window: str = Query(default="24h", max_length=8)):
+    return _call(request, lambda: service.leetcode_health(window=window))
+
+
 @router.get("/api/admin/users/{username}/detail")
 def admin_user_detail(request: Request, username: str):
     return _call(request, lambda: service.user_detail(username))
