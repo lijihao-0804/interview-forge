@@ -321,6 +321,26 @@
     list.querySelectorAll("[data-session]").forEach(function (node) { node.addEventListener("click", function () { selectSession(node.getAttribute("data-session")); }); });
   }
 
+  function formatMessageTime(value) {
+    if (!value) return "";
+    try {
+      return window.InterviewForgeTime
+        ? InterviewForgeTime.formatDateTime(value)
+        : String(value);
+    } catch (_) {
+      return String(value);
+    }
+  }
+
+  function setMessageTime(node, value) {
+    if (!node || !value) return;
+    var time = node.querySelector(".message-time");
+    if (!time) return;
+    time.textContent = formatMessageTime(value);
+    time.hidden = !time.textContent;
+    time.setAttribute("title", time.textContent);
+  }
+
   function renderMessage(item, target) {
     var node = document.createElement("div");
     node.className = "message " + (item.role === "user" ? "user" : "assistant");
@@ -329,7 +349,12 @@
     var bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.innerHTML = item.role === "assistant" ? markdown(item.content) : esc(item.content);
+    var time = document.createElement("div");
+    time.className = "message-time";
+    time.hidden = !item.created_at;
+    time.textContent = formatMessageTime(item.created_at);
     content.appendChild(bubble);
+    content.appendChild(time);
     node.appendChild(content);
     (target || messages).appendChild(node);
     return node;
@@ -346,6 +371,11 @@
     node._toolStatus = toolStatus;
     actionHost(node);
     return node;
+  }
+
+  function ensureAssistantNode() {
+    if (!state.assistantNode) state.assistantNode = renderAssistantTurn();
+    return state.assistantNode;
   }
 
   function updateToolStatus(name, payload) {
@@ -500,10 +530,19 @@
           scheduleStreamRender(bubble);
         }
         else if (name === "tool.start" || name === "tool.done" || name === "tool.error") { updateToolStatus(name, payload || {}); scheduleScrollBottom(); }
-        else if (name === "tool.confirmation_required" && state.assistantNode) { renderActionCard(payload || {}, actionHost(state.assistantNode)); scheduleScrollBottom(); }
+        else if (name === "tool.confirmation_required") {
+          // A confirmation is durable server state.  If a browser misses the
+          // preceding message.start frame, still materialize the card instead
+          // of silently dropping the only actionable event.
+          renderActionCard(payload || {}, actionHost(ensureAssistantNode()));
+          scheduleScrollBottom();
+        }
         else if (name === "message.done") {
           state.streamCompleted = true;
-          if (state.assistantNode) finalizeAssistant(state.assistantNode.querySelector(".bubble"));
+          if (state.assistantNode) {
+            finalizeAssistant(state.assistantNode.querySelector(".bubble"));
+            setMessageTime(state.assistantNode, payload && payload.created_at);
+          }
           status.textContent = "已连接";
         }
         else if (name === "error") { state.streamFailed = true; setError(payload.message || "AI 暂时不可用"); }

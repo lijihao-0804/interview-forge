@@ -457,7 +457,7 @@ class ChatService:
     @staticmethod
     def _save_assistant_message(
         *, user_db: Path, session_id: str, content: str, stream_message_id: str, usage: Mapping[str, Any]
-    ) -> int:
+    ) -> dict[str, Any]:
         if not content.strip():
             raise ValueError("assistant message must contain visible text")
         timestamp = _now()
@@ -477,7 +477,7 @@ class ChatService:
                 (timestamp, session_id),
             )
             connection.commit()
-            return int(cursor.lastrowid)
+            return {"id": int(cursor.lastrowid), "created_at": timestamp}
 
     async def stream_reply(
         self,
@@ -507,6 +507,7 @@ class ChatService:
         claims_released = False
         current_message_id: int | None = None
         assistant_saved = False
+        assistant_created_at: str | None = None
         durable_turn_state = False
         stream_message_id = uuid.uuid4().hex
         answer_parts: list[str] = []
@@ -695,20 +696,24 @@ class ChatService:
                         "tool_run_ids": [],
                         "tooling_unavailable": False,
                     })
-                    self._save_assistant_message(
+                    saved_assistant = self._save_assistant_message(
                         user_db=path,
                         session_id=session_id,
                         content=answer,
                         stream_message_id=stream_message_id,
                         usage=usage_payload,
                     )
+                    assistant_created_at = str(saved_assistant["created_at"])
                     assistant_saved = True
                     await record_chat_trace(
                         status="failed", usage=usage_payload,
                         error_code=explicit_result.error_code,
                     )
                     release_claims()
-                    yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
+                    done_payload = {"message_id": stream_message_id, "usage": usage_payload}
+                    if assistant_created_at:
+                        done_payload["created_at"] = assistant_created_at
+                    yield _event("message.done", done_payload)
                     return
                 tool_context = ToolExecutionContext(
                     user_db=path,
@@ -767,13 +772,14 @@ class ChatService:
                     )
                     return
                 if answer:
-                    self._save_assistant_message(
+                    saved_assistant = self._save_assistant_message(
                         user_db=path,
                         session_id=session_id,
                         content=answer,
                         stream_message_id=stream_message_id,
                         usage=usage_payload,
                     )
+                    assistant_created_at = str(saved_assistant["created_at"])
                     assistant_saved = True
                 else:
                     # A pending confirmation is itself a user-visible turn.
@@ -799,7 +805,10 @@ class ChatService:
                         model=model,
                         trace_recorder=trace_recorder,
                     )
-                yield _event("message.done", {"message_id": stream_message_id, "usage": usage_payload})
+                done_payload = {"message_id": stream_message_id, "usage": usage_payload}
+                if assistant_created_at:
+                    done_payload["created_at"] = assistant_created_at
+                yield _event("message.done", done_payload)
             except asyncio.CancelledError:
                 debug_ai_event("chat_stream_cancelled", session_id=session_id, message_id=stream_message_id)
                 raise

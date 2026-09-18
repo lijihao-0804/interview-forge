@@ -258,6 +258,33 @@ class ActionToolTests(unittest.TestCase):
         self.assertLessEqual(len(raw), 4000)
         self.assertIsInstance(json.loads(raw), dict)
 
+    def test_background_result_is_merged_after_action_is_accepted(self):
+        store = ActionRequestStore()
+        action = store.create(
+            user_db=self.db, session_id="session", turn_id="turn", user_message_id=1,
+            tool_name="sync_leetcode", arguments={"full": False}, confirmation_text="确认",
+        )
+        self.assertTrue(store.claim_pending(user_db=self.db, action_id=action["action_id"])["_claimed"])
+        store.complete(
+            user_db=self.db, action_id=action["action_id"], status="succeeded",
+            error_code=None,
+            result_meta={"result": {"ok": True, "tool": "sync_leetcode", "data": {"task_id": "task-1"}}},
+        )
+        store.update_background_result(
+            user_db=self.db,
+            action_id=action["action_id"],
+            background={
+                "task_id": "task-1", "status": "failed", "partial": False,
+                "error_category": "provider_blocked",
+                "finished_at": "2026-09-18T15:03:18+08:00",
+            },
+        )
+        row = store.get(user_db=self.db, action_id=action["action_id"])
+        self.assertEqual(row["status"], "succeeded")
+        self.assertEqual(row["result_meta"]["result"]["data"]["task_id"], "task-1")
+        self.assertEqual(row["result_meta"]["background"]["status"], "failed")
+        self.assertEqual(row["result_meta"]["background"]["error_category"], "provider_blocked")
+
     def test_same_action_and_arguments_in_one_turn_share_one_pending_request(self):
         store = ActionRequestStore()
         first = store.create(

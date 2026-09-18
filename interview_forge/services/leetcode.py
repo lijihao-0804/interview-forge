@@ -70,6 +70,48 @@ def _safe_log_event(event: str, **fields: object) -> None:
         return
 
 
+def _record_sync_action_background_result(
+    *,
+    db_path: Path,
+    action_id: str,
+    task_id: str,
+    status: str,
+    error_category: str | None,
+    partial: bool,
+    result: dict[str, object] | None,
+    finished_at: str,
+) -> None:
+    """Attach a safe final worker result to the originating chat action."""
+    if not action_id:
+        return
+    try:
+        from interview_forge.ai.actions.store import ActionRequestStore
+
+        background: dict[str, object] = {
+            "task_id": task_id,
+            "status": status,
+            "partial": bool(partial),
+            "finished_at": finished_at,
+        }
+        if error_category:
+            background["error_category"] = str(error_category)
+        if isinstance(result, dict):
+            background["submissions_seen"] = int(result.get("submissions_seen") or 0)
+            background["submissions_added"] = int(result.get("submissions_added") or 0)
+            background["solved_added"] = int(result.get("solved_added") or 0)
+        ActionRequestStore().update_background_result(
+            user_db=db_path,
+            action_id=action_id,
+            background=background,
+        )
+    except Exception:  # noqa: BLE001 - audit enrichment must never affect sync
+        _safe_log_event(
+            "leetcode_sync_action_result_persist_failed",
+            module="leetcode",
+            task_id=task_id,
+        )
+
+
 
 def get_credentials(db_path: Path = DB_PATH):
     runtime = server_runtime
@@ -543,6 +585,7 @@ def start_leetcode_sync_task(
     owner: str = "",
     db_path: Path = DB_PATH,
     offset: int = 0,
+    action_id: str = "",
 ) -> str:
     runtime = server_runtime
     reused_task_id: str | None = None
@@ -574,6 +617,7 @@ def start_leetcode_sync_task(
                 "error_category": None, "partial": False, "degraded_category": None,
                 "owner": owner, "full": bool(full),
                 "offset": _normalize_sync_offset(offset) if full else 0,
+                "action_id": str(action_id or ""),
                 "created_at": runtime.now_iso(),
                 "started_at": None, "finished_at": None,
             }
@@ -640,8 +684,10 @@ def start_leetcode_sync_task(
                     error_category = task.get("error_category")
                     partial = bool(task.get("partial"))
                     degraded_category = task.get("degraded_category")
+                    finished_at = str(task.get("finished_at") or runtime.now_iso())
                     duration_ms = int((time.monotonic() - started_monotonic) * 1000) if started_monotonic is not None else None
                     release_sync_owner(owner)
+                    action_id_value = str(task.get("action_id") or "")
                 if partial:
                     event = "leetcode_sync_partial"
                     event_category = str(degraded_category or "partial")
@@ -659,6 +705,16 @@ def start_leetcode_sync_task(
                 if event_category is not None:
                     fields["error_category"] = event_category
                 _safe_log_event(event, **fields)
+                _record_sync_action_background_result(
+                    db_path=db_path,
+                    action_id=action_id_value,
+                    task_id=task_id,
+                    status="partial" if partial else ("failed" if error_category else "succeeded"),
+                    error_category=str(degraded_category or error_category or "") or None,
+                    partial=partial,
+                    result=result if isinstance(result, dict) else None,
+                    finished_at=finished_at,
+                )
 
     threading.Thread(target=worker, daemon=True).start()
     with SYNC_TASKS_LOCK:

@@ -27,7 +27,11 @@ def sync_leetcode(context: ToolExecutionContext, args: SyncLeetCodeArgs) -> Tool
         raise ToolHandlerError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION")
     owner = str(context.artifacts.get("username") or context.user_db.parent.name)
     task_id = start_leetcode_sync_task(
-        credentials, bool(args.full), owner=owner, db_path=context.user_db
+        credentials,
+        bool(args.full),
+        owner=owner,
+        db_path=context.user_db,
+        action_id=str(context.artifacts.get("action_id") or ""),
     )
     return ToolResult(
         {"task_id": task_id, "status": "started", "full": bool(args.full)},

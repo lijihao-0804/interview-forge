@@ -282,6 +282,12 @@ class ActionRequestStore:
             raise ValueError("invalid action completion status")
         now = _now()
         with closing(server_runtime.connect(Path(user_db))) as connection:
+            existing = connection.execute(
+                "SELECT result_meta_json FROM chat_action_requests WHERE id = ?",
+                (str(action_id),),
+            ).fetchone()
+            merged_meta = _decode_result_meta(existing["result_meta_json"]) if existing else {}
+            merged_meta.update(dict(result_meta))
             connection.execute(
                 """UPDATE chat_action_requests
                    SET status = ?, completed_at = ?, error_code = ?, result_meta_json = ?
@@ -289,7 +295,7 @@ class ActionRequestStore:
                 (
                     status, now, error_code,
                     json.dumps(
-                        _bounded_result_meta(result_meta),
+                        _bounded_result_meta(merged_meta),
                         ensure_ascii=False,
                         separators=(",", ":"),
                     ),
@@ -301,6 +307,49 @@ class ActionRequestStore:
                 "SELECT * FROM chat_action_requests WHERE id = ?", (str(action_id),)
             ).fetchone()
         return _payload(row) if row is not None else None
+
+    def update_background_result(
+        self,
+        *,
+        user_db: Path | str,
+        action_id: str,
+        background: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        """Persist the final result of a task started by a confirmed action.
+
+        Action confirmation and background work have different lifecycles.  A
+        confirmed action may be marked as accepted before its worker finishes;
+        keep the existing action status for compatibility, but merge a safe
+        background result so later chat context can distinguish accepted,
+        running, completed, partial, and failed work.
+        """
+        with closing(server_runtime.connect(Path(user_db))) as connection:
+            row = connection.execute(
+                "SELECT result_meta_json FROM chat_action_requests WHERE id = ?",
+                (str(action_id),),
+            ).fetchone()
+            if row is None:
+                return None
+            merged_meta = _decode_result_meta(row["result_meta_json"])
+            merged_meta["background"] = dict(background)
+            connection.execute(
+                """UPDATE chat_action_requests
+                   SET result_meta_json = ?
+                   WHERE id = ? AND status IN ('executing', 'succeeded', 'failed')""",
+                (
+                    json.dumps(
+                        _bounded_result_meta(merged_meta),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    str(action_id),
+                ),
+            )
+            connection.commit()
+            updated = connection.execute(
+                "SELECT * FROM chat_action_requests WHERE id = ?", (str(action_id),)
+            ).fetchone()
+        return _payload(updated) if updated is not None else None
 
     def expire(self, *, user_db: Path | str, action_id: str) -> bool:
         with closing(server_runtime.connect(Path(user_db))) as connection:

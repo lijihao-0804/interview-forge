@@ -5,6 +5,8 @@ from pathlib import Path
 
 from interview_forge.ai.chat.context_blocks import ContextBlock
 from interview_forge.ai.chat.context_builder import ContextBuilder, SUMMARY_PREFIX
+from interview_forge.ai.chat.recent_action_context import RecentActionContextProvider
+from interview_forge.ai.actions.store import ActionRequestStore
 from interview_forge.ai.chat.token_budget import (
     ChatTokenBudget,
     DEFAULT_CHAT_TOKEN_BUDGET,
@@ -96,6 +98,77 @@ class ChatContextBuilderTests(unittest.TestCase):
         self.assertNotIn("ContextBlock:memory", context_message["content"])
         self.assertNotIn("ContextBlock:learning", messages[0]["content"])
         self.assertEqual(builder.last_build["context_blocks"], ["learning"])
+
+    def test_recent_sync_context_has_beijing_time_and_final_background_status(self):
+        store = ActionRequestStore()
+        action = store.create(
+            user_db=self.db,
+            session_id=self.session_id,
+            turn_id="sync-turn",
+            user_message_id=1,
+            tool_name="sync_leetcode",
+            arguments={"full": False},
+            confirmation_text="确认同步",
+        )
+        self.assertTrue(store.claim_pending(user_db=self.db, action_id=action["action_id"])["_claimed"])
+        store.complete(
+            user_db=self.db,
+            action_id=action["action_id"],
+            status="succeeded",
+            error_code=None,
+            result_meta={"result": {"data": {"task_id": "task-1"}}},
+        )
+        connection = sqlite3.connect(self.db)
+        try:
+            connection.execute(
+                "UPDATE chat_action_requests SET created_at = ? WHERE id = ?",
+                ("2026-09-18T07:03:18+00:00", action["action_id"]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        store.update_background_result(
+            user_db=self.db,
+            action_id=action["action_id"],
+            background={
+                "task_id": "task-1", "status": "failed", "partial": False,
+                "error_category": "provider_blocked",
+                "finished_at": "2026-09-18T07:03:18+00:00",
+            },
+        )
+
+        block = RecentActionContextProvider().build(
+            user_db=self.db, session_id=self.session_id
+        )
+        self.assertIsNotNone(block)
+        self.assertIn("2026-09-18 15:03", block.content)
+        self.assertIn("失败（上游拦截）", block.content)
+        self.assertNotIn("LeetCode 同步：已成功", block.content)
+
+    def test_legacy_sync_context_does_not_claim_completion(self):
+        store = ActionRequestStore()
+        action = store.create(
+            user_db=self.db,
+            session_id=self.session_id,
+            turn_id="legacy-sync-turn",
+            user_message_id=1,
+            tool_name="sync_leetcode",
+            arguments={"full": False},
+            confirmation_text="确认同步",
+        )
+        self.assertTrue(store.claim_pending(user_db=self.db, action_id=action["action_id"])["_claimed"])
+        store.complete(
+            user_db=self.db,
+            action_id=action["action_id"],
+            status="succeeded",
+            error_code=None,
+            result_meta={"result": {"data": {"task_id": "old-task"}}},
+        )
+        block = RecentActionContextProvider().build(
+            user_db=self.db, session_id=self.session_id
+        )
+        self.assertIn("已发起（最终状态未知）", block.content)
+        self.assertNotIn("LeetCode 同步：已成功", block.content)
 
     def test_repeated_current_content_keeps_earlier_turns(self):
         self.add_messages([

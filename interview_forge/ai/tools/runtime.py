@@ -337,6 +337,10 @@ class ToolRuntime:
                 status="error", code="invalid_arguments", started=started,
             )
         try:
+            # The confirmed action id is server-owned metadata for handlers
+            # that launch background work.  It is never model-controlled and
+            # is not included in tool arguments or model-visible results.
+            context.artifacts.setdefault("action_id", str(action_request.get("action_id", "")))
             raw_result = await asyncio.wait_for(
                 self._invoke(spec, context, args_model), timeout=spec.timeout_seconds
             )

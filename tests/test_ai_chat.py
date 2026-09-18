@@ -197,6 +197,7 @@ class AIChatContractTests(unittest.TestCase):
         self.assertIn("message_id", events[0][1])
         self.assertEqual(events[1][1]["delta"], "你好，")
         self.assertEqual(events[-1][1]["message_id"], events[0][1]["message_id"])
+        self.assertIn("created_at", events[-1][1])
         self.assertEqual(events[-1][1]["usage"]["input_tokens"], 18)
         self.assertEqual(events[-1][1]["usage"]["output_tokens"], 7)
 
@@ -206,6 +207,7 @@ class AIChatContractTests(unittest.TestCase):
         self.assertEqual(history.status_code, 200)
         self.assertEqual([item["role"] for item in history.json()["items"]], ["user", "assistant"])
         self.assertEqual(history.json()["items"][1]["content"], "你好，InterviewForge！")
+        self.assertIn("created_at", history.json()["items"][1])
 
         connection = sqlite3.connect(self.users_dir / "ChatAlice" / "hot100-study.db")
         try:

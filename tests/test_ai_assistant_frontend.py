@@ -54,6 +54,13 @@ class AiAssistantFrontendTests(unittest.TestCase):
         self.assertIn("取消", self.source)
         self.assertNotIn("action.arguments", self.source)
 
+    def test_confirmation_event_has_a_fallback_node_and_messages_show_time(self):
+        self.assertIn("function ensureAssistantNode", self.source)
+        self.assertIn("renderActionCard(payload || {}, actionHost(ensureAssistantNode()))", self.source)
+        self.assertIn("function formatMessageTime", self.source)
+        self.assertIn('time.className = "message-time"', self.source)
+        self.assertIn("setMessageTime(state.assistantNode, payload && payload.created_at)", self.source)
+
     def test_page_context_and_failed_turns_reload_persisted_history(self):
         self.assertIn("page_context", self.source)
         self.assertIn("currentPageContext", self.source)
@@ -124,8 +131,8 @@ class AiAssistantFrontendTests(unittest.TestCase):
 
     def test_streaming_cache_title_and_diagnostics_contract(self):
         page = (ROOT / "pages" / "ai-assistant.html").read_text(encoding="utf-8")
-        self.assertIn("ai-assistant.css?v=4", page)
-        self.assertIn("ai-assistant.js?v=8", page)
+        self.assertIn("ai-assistant.css?v=5", page)
+        self.assertIn("ai-assistant.js?v=9", page)
         self.assertIn("function resetStreamDiagnostics", self.source)
         send_block = self.source.split("async function sendMessage", 1)[1].split("try {", 1)[0]
         self.assertIn("resetStreamDiagnostics();", send_block)
