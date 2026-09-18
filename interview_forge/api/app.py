@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import asyncio
+import os
 import time
 import uuid
 
@@ -63,17 +64,32 @@ app = FastAPI(
 )
 
 
+_DEFAULT_ALLOWED_ORIGINS = frozenset({
+    "https://hot100.xyz",
+    "https://www.hot100.xyz",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:8765",
+    "http://127.0.0.1:8765",
+})
+
+
+def _allowed_origins() -> set[str]:
+    """Return a fixed origin allowlist; never derive trust from request Host."""
+    configured = {
+        item.strip().rstrip("/").lower()
+        for item in os.environ.get("INTERVIEW_FORGE_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    }
+    return set(_DEFAULT_ALLOWED_ORIGINS) | configured
+
+
 def _same_origin_request(request) -> bool:
     """Reject cross-site state-changing requests without breaking CLI clients."""
-    origin = (request.headers.get("origin") or "").strip()
+    origin = (request.headers.get("origin") or "").strip().rstrip("/").lower()
     if not origin:
         return True
-    host = (request.headers.get("host") or "").strip()
-    allowed = {
-        "http://localhost", "http://127.0.0.1", "http://localhost:8765", "http://127.0.0.1:8765",
-        f"http://{host}", f"https://{host}",
-    }
-    return origin in allowed
+    return origin in _allowed_origins()
 
 @app.middleware("http")
 async def request_observability(request, call_next):
@@ -86,8 +102,8 @@ async def request_observability(request, call_next):
     )
     started = time.perf_counter()
     request.state.request_id = request_id
-    origin = request.headers.get("origin", "")
-    cors_origins = {"http://localhost", "http://127.0.0.1", "http://localhost:8765", "http://127.0.0.1:8765"}
+    origin = (request.headers.get("origin", "") or "").strip().rstrip("/").lower()
+    cors_origins = _allowed_origins()
     try:
         if request.method == "OPTIONS":
             if origin in cors_origins:
@@ -135,9 +151,9 @@ async def request_observability(request, call_next):
         "base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
     )
     session_token = getattr(request.state, "session_token", "")
-    if session_token:
+    if session_token and response.headers.get("set-cookie") is None:
         from interview_forge.api.support import session_cookie
-        response.headers["Set-Cookie"] = session_cookie(request, session_token)
+        response.headers.append("Set-Cookie", session_cookie(request, session_token))
     if origin in cors_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-CSRFToken"

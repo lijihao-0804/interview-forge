@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from interview_forge.ai.errors import AIServiceError
 from interview_forge.db.ai_schema import ensure_ai_schema
 
 _SCHEMA_DONE: set[str] = set()
 _SCHEMA_LOCK = threading.Lock()
-from interview_forge.ai.errors import AIServiceError
 
 AI_DAILY_LIMIT = 3
 try:

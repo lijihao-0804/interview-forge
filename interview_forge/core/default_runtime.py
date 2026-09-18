@@ -7,6 +7,7 @@ paths, clock and service callbacks without importing an HTTP handler.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import secrets
 import sqlite3
@@ -30,7 +31,7 @@ except Exception:  # pragma: no cover - minimal Python installations
     BUSINESS_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
 
 SESSION_TTL = timedelta(days=30)
-PERMANENT_ADMIN_USERNAME = "2030309470"
+PERMANENT_ADMIN_USERNAME = os.environ.get("INTERVIEW_FORGE_PERMANENT_ADMIN_USERNAME", "").strip()
 AI_DAILY_LIMIT_DEFAULT = 3
 AI_DAILY_LIMIT_MAX = 100
 ROUND_COMPLETE_THRESHOLD = 90

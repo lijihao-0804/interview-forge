@@ -51,6 +51,20 @@ class FastApiRouteContractTests(unittest.TestCase):
         self.assertEqual(self.client.get("/cockpit.html", follow_redirects=False).status_code, 307)
         self.assertEqual(self.client.post("/api/login", content=b"{}", headers={"content-type": "application/json"}).status_code, 400)
 
+    def test_origin_allowlist_does_not_trust_request_host(self):
+        blocked = self.client.post(
+            "/api/login",
+            content=b"{}",
+            headers={"content-type": "application/json", "origin": "https://evil.example", "host": "evil.example"},
+        )
+        self.assertEqual(blocked.status_code, 403)
+        allowed = self.client.post(
+            "/api/login",
+            content=b"{}",
+            headers={"content-type": "application/json", "origin": "https://hot100.xyz", "host": "evil.example"},
+        )
+        self.assertNotEqual(allowed.status_code, 403)
+
     def test_authenticated_domain_success_and_validation_errors(self):
         with patch("interview_forge.api.support.current_user", return_value=USER), \
              patch("interview_forge.api.routers.study.user_db", return_value=self.db_path), \

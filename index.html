@@ -323,6 +323,7 @@ const leetcodeSyncClose=document.getElementById('leetcodeSyncClose');
 const leetcodeSyncDone=document.getElementById('leetcodeSyncDone');
 let leetcodeSyncInFlight=false;
 let pickRequestSerial=0;
+let refreshSerial=0;
 let leetcodeSyncReturnFocus=null;
 function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
@@ -799,10 +800,12 @@ async function updateLcStatus(){
   }
 }
 async function refresh(){
+  const requestSerial=++refreshSerial;
   try{
     const bootstrapResponse=await fetchWithTimeout('/api/bootstrap',{cache:'no-store'});
     if(!bootstrapResponse.ok)throw new Error('database unavailable');
     const boot=await bootstrapResponse.json();
+    if(requestSerial!==refreshSerial)return;
     state.data=boot.dashboard;
     state.daily=boot.daily;
     state.settings=boot.settings;
@@ -811,6 +814,7 @@ async function refresh(){
     document.getElementById('connection').textContent='学习服务已连接';
     document.getElementById('serverNotice').hidden=true;
   }catch(error){
+    if(requestSerial!==refreshSerial)return;
     state.online=false;
     document.getElementById('connection').classList.remove('online');
     document.getElementById('connection').textContent='暂时无法连接学习服务';

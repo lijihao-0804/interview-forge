@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
 from interview_forge.api.support import (
-    client_ip, current_user, error_response, json_response, read_json,
-    require_user, service_error, session_cookie,
+    async_current_user, async_require_user, client_ip, current_user,
+    error_response, json_response, read_json, require_user, service_error, session_cookie,
 )
 from interview_forge.core.rate_limit import (
     login_rate_limit_clear, login_rate_limit_fail, login_rate_limit_ok,
@@ -96,7 +96,7 @@ async def register(request: Request):
 
 @router.post("/api/logout")
 async def logout(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -124,7 +124,7 @@ def profile_get(request: Request):
 
 @router.post("/api/profile")
 async def profile_set(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -141,7 +141,7 @@ async def profile_set(request: Request):
 
 @router.post("/api/password")
 async def password(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -178,7 +178,7 @@ async def feedback(request: Request):
         if not feedback_rate_limit_ok(ip):
             raise ValueError("提交过于频繁，请稍后再试")
         feedback_rate_limit_record(ip)
-        user = current_user(request)
+        user = await async_current_user(request)
         result = await asyncio.to_thread(
             submit_feedback, str(payload.get("content", "")), str(payload.get("contact", "")),
             str(payload.get("page", "")), request.headers.get("user-agent", ""),

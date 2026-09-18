@@ -10,7 +10,7 @@ from interview_forge.ai.actions.service import ActionService
 from interview_forge.ai.chat.service import ChatService, MAX_CHAT_BODY_BYTES, normalize_message
 from interview_forge.ai.chat.page_context import PageContext
 from interview_forge.ai.actions.store import ActionRequestStore
-from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error, user_db
+from interview_forge.api.support import async_require_user, error_response, json_response, read_json, require_user, service_error, user_db
 from interview_forge.ai.quota import consume_chat_quota
 from interview_forge.runtime.streaming import sse_events
 
@@ -26,7 +26,7 @@ def _handled(exc: BaseException, *, write: bool = False):
 
 @router.post("/api/chat/sessions")
 async def create_session(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -106,7 +106,7 @@ def pending_actions(request: Request, session_id: str):
 
 @router.post("/api/chat/actions/{action_id}/confirm")
 async def confirm_action(request: Request, action_id: str):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -123,7 +123,7 @@ async def confirm_action(request: Request, action_id: str):
 
 @router.post("/api/chat/actions/{action_id}/cancel")
 async def cancel_action(request: Request, action_id: str):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -138,7 +138,7 @@ async def cancel_action(request: Request, action_id: str):
 
 @router.post("/api/chat/sessions/{session_id}/stream")
 async def stream_session(request: Request, session_id: str):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -150,6 +150,9 @@ async def stream_session(request: Request, session_id: str):
         db_path = user_db(user)
         if chat_service.get_session(user_db=db_path, session_id=session_id) is None:
             return error_response("会话不存在", 404)
+        # Resolve the runtime before charging: a disabled/unconfigured chat
+        # request must not consume a user's daily budget.
+        await asyncio.to_thread(chat_service.preflight)
         # Chat has its own atomic daily budget.  It intentionally does not
         # consume the one-click analysis quota; admins can tune the chat
         # budget with AI_CHAT_DAILY_LIMIT without changing analysis limits.

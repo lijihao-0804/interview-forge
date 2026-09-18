@@ -6,6 +6,7 @@ responses so domain routers can call the existing services directly.
 """
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
 import sqlite3
@@ -66,6 +67,27 @@ def require_user(request: Request):
 
 def require_admin(request: Request):
     user, response = require_user(request)
+    if response is not None:
+        return None, response
+    if str(user["role"]) != "admin":
+        return None, error_response("需要管理员权限", HTTPStatus.FORBIDDEN)
+    return user, None
+
+
+async def async_current_user(request: Request):
+    """Resolve the session off the event loop for async route handlers."""
+    return await asyncio.to_thread(current_user, request)
+
+
+async def async_require_user(request: Request):
+    user = await async_current_user(request)
+    if user is None:
+        return None, error_response("未登录", HTTPStatus.UNAUTHORIZED)
+    return user, None
+
+
+async def async_require_admin(request: Request):
+    user, response = await async_require_user(request)
     if response is not None:
         return None, response
     if str(user["role"]) != "admin":

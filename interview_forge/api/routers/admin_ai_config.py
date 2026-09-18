@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import error_response, json_response, read_json, require_admin, service_error
+from interview_forge.api.support import async_require_admin, error_response, json_response, read_json, require_admin, service_error
 from interview_forge.services import admin_ai_config as service
 
 router = APIRouter()
@@ -17,7 +17,7 @@ def _call(request: Request, operation):
 
 
 async def _write(request: Request, operation):
-    _, denied = require_admin(request)
+    _, denied = await async_require_admin(request)
     if denied is not None: return denied
     try:
         payload = await read_json(request, max_length=16_384)

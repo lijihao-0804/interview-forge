@@ -9,7 +9,7 @@ import httpx
 
 from interview_forge.ai.config_store import AIConfigError
 from .base import ProviderAdapter, ProviderProbeResult
-from .network import PinnedHTTPTransport
+from .network import PinnedHTTPTransport, pinned_http_clients
 
 
 MAX_RESPONSE_BYTES = 1_000_000
@@ -117,6 +117,10 @@ class OpenAICompatibleAdapter(ProviderAdapter):
             raise AIServiceError("not_configured", "AI 分析依赖尚未安装。") from exc
         from interview_forge.ai.providers.chat_model import build_chat_model_kwargs
         kwargs = build_chat_model_kwargs(config, thinking_mode=thinking_mode)
+        if config.base_url:
+            sync_client, async_client = pinned_http_clients(config.base_url)
+            kwargs["http_client"] = sync_client
+            kwargs["http_async_client"] = async_client
         if config.wire_api not in {"anthropic_messages", "gemini"}:
             kwargs["stream_usage"] = True
         try:

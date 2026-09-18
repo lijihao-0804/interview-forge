@@ -112,6 +112,15 @@ def _make_chat_model_impl(config: AIConfig, *, thinking_mode: str | None = None,
     if thinking_mode not in {None, "enabled", "disabled"}:
         raise ValueError("thinking_mode must be enabled, disabled, or None")
     from interview_forge.ai.providers import get_provider_adapter
+    if config.base_url:
+        # Managed providers validate on save, but ENV-only and legacy callers
+        # can bypass that boundary.  Re-validate immediately before model
+        # construction so every generation path keeps the same SSRF guard.
+        from interview_forge.ai.config_store import AIConfigError, validate_network_target
+        try:
+            validate_network_target(config.base_url)
+        except AIConfigError as exc:
+            raise AIServiceError("unsafe_network_target", "AI 服务配置不可用。") from exc
     try:
         return get_provider_adapter(config.wire_api).make_chat_model(config, thinking_mode=thinking_mode)
     except AIServiceError:

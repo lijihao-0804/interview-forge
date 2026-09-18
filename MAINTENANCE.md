@@ -313,7 +313,8 @@ class Solution {
 
 学习站首页的 HTML、CSS、JavaScript 位于 `tools/templates/dashboard.tpl`，题目数据由 `scripts/build/build_hot100.py` 的 `render_dashboard()` 注入。数据库连接/schema 位于 `interview_forge/db/`，FastAPI/Uvicorn 组装位于 `interview_forge/api/`，旧 `interview_forge/server/study_server.py` 是兼容 handler/facade；学习业务位于 `interview_forge/services/`。题解与可视化的对应关系位于 `scripts/build/build_html_site.py` 的 `VISUAL_EMBEDS`，统一修饰位于 `polish_visual()`。
 
-服务端依赖安装使用固定清单：`python -m pip install -r requirements-server.txt`。`tools/study_server.py` 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 `study_server`，跨模块依赖通过 `interview_forge/core/runtime.py` 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 `AsyncHttpClient`，SQLite/analytics 保持同步。
+服务端依赖安装使用固定清单：`python -m pip install -r requirements-server.txt`。启用 AI 或运行完整测试时，再安装 `requirements-ai.txt`；开发环境直接安装 `requirements-dev.txt`。`INTERVIEW_FORGE_AI_CONFIG_KEY` 必须在服务的私有环境文件中稳定配置，不能写入仓库、命令行历史、日志或 trace；如果缺失或更换，已经加密的 Provider/力扣凭证将无法解密，程序不会静默生成新密钥。`AI_CHAT_DAILY_LIMIT` 控制普通用户的 AI 聊天日额度，默认 30，允许范围 0~100，管理员不受该额度限制。Windows 依赖清单会按平台安装 `tzdata`，Linux 使用系统时区数据库。`tools/study_server.py` 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 `study_server`，跨模块依赖通过 `interview_forge/core/runtime.py` 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 `AsyncHttpClient`，SQLite/analytics 保持同步。
+服务端依赖安装使用固定清单：`python -m pip install -r requirements-server.txt`。启用 AI 或运行完整测试时，再安装 `requirements-ai.txt`；开发环境直接安装 `requirements-dev.txt`。`INTERVIEW_FORGE_AI_CONFIG_KEY` 必须在服务的私有环境文件中稳定配置，不能写入仓库、命令行历史、日志或 trace；如果缺失或更换，已经加密的 Provider/力扣凭证将无法解密，程序不会静默生成新密钥。`AI_CHAT_DAILY_LIMIT` 控制普通用户的 AI 聊天日额度，默认 30，允许范围 0~100，管理员不受该额度限制。`INTERVIEW_FORGE_ALLOWED_ORIGINS` 可用逗号分隔补充受信 Origin，服务不会根据请求的 Host 自动信任来源。Windows 依赖清单会按平台安装 `tzdata`，Linux 使用系统时区数据库。`tools/study_server.py` 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 `study_server`，跨模块依赖通过 `interview_forge/core/runtime.py` 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 `AsyncHttpClient`，SQLite/analytics 保持同步。
 
 ### 学习书架与课程模块
 

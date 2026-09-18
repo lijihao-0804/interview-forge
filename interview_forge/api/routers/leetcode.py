@@ -5,7 +5,7 @@ import asyncio
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
+from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, read_json, require_user, service_error, user_db
 from interview_forge.services.leetcode import (
     LeetCodeSyncError, clear_credentials, get_credentials, lc_status_cached, lc_status_invalidate,
     leetcode_status_async, leetcode_sync_async, release_sync_owner, set_credentials,
@@ -53,7 +53,7 @@ def sync_status(request: Request):
 
 @router.post("/api/leetcode/connect")
 async def connect(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -74,7 +74,7 @@ async def connect(request: Request):
 
 @router.post("/api/leetcode/sync")
 async def sync(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -114,7 +114,7 @@ async def sync(request: Request):
 
 @router.post("/api/leetcode/clear")
 async def clear(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:

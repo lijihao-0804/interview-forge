@@ -9,7 +9,7 @@ from interview_forge.ai.ai_coach import AIServiceError, ai_capability, get_ai_qu
 from interview_forge.analytics.cache import analytics_cached
 from interview_forge.analytics.context_compiler import compile_learning_context
 from interview_forge.analytics.learning_analytics import AnalyticsUnavailableError
-from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error, user_db
+from interview_forge.api.support import async_require_user, error_response, json_response, read_json, require_user, service_error, user_db
 from interview_forge.core.runtime import server_runtime
 from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services.auth import effective_ai_daily_limit
@@ -75,7 +75,7 @@ def task(request: Request, task_id: str):
 
 @router.post("/api/coach/context")
 async def context(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -98,7 +98,7 @@ async def context(request: Request):
 
 @router.post("/api/coach/analyze")
 async def analyze(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -119,7 +119,7 @@ async def analyze(request: Request):
 
 @router.post("/api/coach/tasks/{task_id}/cancel")
 async def cancel(request: Request, task_id: str):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -136,7 +136,7 @@ async def cancel(request: Request, task_id: str):
 
 @router.post("/api/coach/insights/{insight_id}/feedback")
 async def feedback(request: Request, insight_id: str):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:

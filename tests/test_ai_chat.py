@@ -12,6 +12,8 @@ from interview_forge.api.app import app
 from interview_forge.api.routers import chat as chat_router
 from interview_forge.ai.chat.service import ChatService
 from interview_forge.ai.chat.prompts import CHAT_SYSTEM_PROMPT
+from interview_forge.ai.config import AIConfig
+from interview_forge.ai.errors import AIServiceError
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
 from interview_forge.services.auth import create_session, create_user
@@ -217,6 +219,33 @@ class AIChatContractTests(unittest.TestCase):
             self.assertIn("chat_messages", tables)
         finally:
             connection.close()
+
+    def test_unconfigured_chat_is_rejected_before_quota_consumption(self):
+        session = self.client.post("/api/chat/sessions", json={}).json()
+        disabled = AIConfig(
+            False, "", "", "", "", "chat_completions", "", "", False,
+            30.0, 1, 3, "",
+        )
+        service = ChatService(config_loader=lambda: disabled)
+        with patch.object(chat_router, "chat_service", service), \
+             patch.object(chat_router, "consume_chat_quota") as consume:
+            response = self.client.post(
+                f"/api/chat/sessions/{session['id']}/stream",
+                json={"message": "这次不应扣额度"},
+            )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["error_category"], "disabled")
+        consume.assert_not_called()
+
+    def test_preflight_rejects_missing_configuration(self):
+        config = AIConfig(
+            True, "openai-compatible", "", "", "", "chat_completions", "", "", False,
+            30.0, 1, 3, "",
+        )
+        service = ChatService(config_loader=lambda: config)
+        with self.assertRaises(AIServiceError) as raised:
+            service.preflight()
+        self.assertEqual(raised.exception.category, "not_configured")
 
     def test_provider_failure_emits_error_and_never_persists_partial_assistant(self):
         failing = FakeAsyncModel(error=RuntimeError("provider secret detail"))

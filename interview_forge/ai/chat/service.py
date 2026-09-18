@@ -189,6 +189,16 @@ class ChatService:
         self.memory_extractor = memory_extractor or MemoryExtractor()
         self._background_memory_tasks: set[asyncio.Task[Any]] = set()
 
+    def preflight(self) -> AIConfig:
+        """Validate the selected chat runtime before charging the daily quota."""
+        runtime = self.runtime_loader("chat") if self.runtime_loader is not None else None
+        config = runtime.config if runtime is not None else self.config_loader()
+        if not config.enabled:
+            raise AIServiceError("disabled", "AI 聊天暂未启用，请稍后重试。")
+        if not config.configured:
+            raise AIServiceError("not_configured", "AI 聊天尚未完成配置，请稍后重试。")
+        return config
+
     def _schedule_inferred_memory(
         self,
         *,

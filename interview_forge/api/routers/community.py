@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import error_response, json_response, read_json, require_admin, require_user, service_error, user_db
+from interview_forge.api.support import async_require_admin, async_require_user, error_response, json_response, read_json, require_admin, require_user, service_error, user_db
 from interview_forge.services.community import (
     chat_delete, chat_has_older, chat_messages_after, chat_messages_before, chat_rate_limit_ok,
     chat_rate_limit_record, chat_send, search_index_server,
@@ -58,7 +58,7 @@ def chat_messages(request: Request):
 
 @router.post("/api/chat/send")
 async def chat_send_route(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:
@@ -74,7 +74,7 @@ async def chat_send_route(request: Request):
 
 @router.post("/api/admin/chat/delete")
 async def chat_delete_route(request: Request):
-    user, denied = require_admin(request)
+    user, denied = await async_require_admin(request)
     if denied is not None:
         return denied
     try:

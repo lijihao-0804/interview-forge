@@ -6,6 +6,7 @@ legacy patch points such as _messages and model_key.
 from __future__ import annotations
 
 from interview_forge.ai.runtime import facade
+from interview_forge.ai.config import AIConfig
 
 import hashlib
 import json

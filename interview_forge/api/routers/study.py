@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
-from interview_forge.api.support import error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
+from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
 from interview_forge.services.auth import effective_ai_daily_limit
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.observability.logging import log_event
@@ -296,7 +296,7 @@ async def plan_pin(request: Request):
 
 async def _write_json(request: Request, operation):
     from interview_forge.api.support import read_json
-    user, denied = _user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:

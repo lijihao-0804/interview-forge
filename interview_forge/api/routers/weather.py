@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import error_response, json_response, read_json, require_user, service_error
+from interview_forge.api.support import async_require_user, error_response, json_response, read_json, require_user, service_error
 from interview_forge.services.weather import WeatherServiceError, search_weather_locations, set_weather_preference, weather_for_user
 
 router = APIRouter()
@@ -35,7 +35,7 @@ def weather_locations(request: Request):
 
 @router.post("/api/weather/preferences")
 async def weather_preferences(request: Request):
-    user, denied = require_user(request)
+    user, denied = await async_require_user(request)
     if denied is not None:
         return denied
     try:

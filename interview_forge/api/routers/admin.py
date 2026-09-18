@@ -5,7 +5,7 @@ import asyncio
 
 from fastapi import APIRouter, Request
 
-from interview_forge.api.support import error_response, json_response, read_json, require_admin, service_error
+from interview_forge.api.support import async_require_admin, error_response, json_response, read_json, require_admin, service_error
 from interview_forge.services.auth import (
     admin_reset_user_ai_quota, admin_set_user_ai_daily_limit, generate_invite_codes,
     list_invite_codes, list_users, reset_user_nickname, reset_user_password,
@@ -122,7 +122,7 @@ async def feedback_resolve(request: Request):
 
 
 async def _admin_write(request: Request, operation):
-    user, denied = require_admin(request)
+    user, denied = await async_require_admin(request)
     if denied is not None:
         return denied
     try:

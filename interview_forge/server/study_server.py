@@ -22,7 +22,7 @@
 #   marks          标记表：(problem|content, target_id) → mastered / reviewing / weak，主键即二元组
 #   settings       键值配置表：key 为 PRIMARY KEY，value 为字符串（目前仅 daily_goal_rounds）
 #   submissions    力扣提交记录表：ac/wa、语言、耗时/内存、提交时间、来源、力扣提交 ID（lc_id）
-#   credentials    力扣登录凭证表：LEETCODE_SESSION / leetcode_csrf
+#   credentials    力扣登录凭证表：LEETCODE_SESSION / leetcode_csrf 使用项目密钥加密保存
 #
 # 间隔重复模型（简化 FSRS）：
 #   完成第 n 轮后按查表拿到"下次复习间隔天数"，到期日 = 完成时间 + 间隔；
@@ -301,7 +301,7 @@ _RUNTIME_OWNER = (
 server_runtime.bind_provider(lambda: _RUNTIME_OWNER)
 SESSION_COOKIE = "forge_session"
 SESSION_TTL = timedelta(days=30)
-PERMANENT_ADMIN_USERNAME = "2030309470"
+PERMANENT_ADMIN_USERNAME = os.environ.get("INTERVIEW_FORGE_PERMANENT_ADMIN_USERNAME", "").strip()
 AI_DAILY_LIMIT_DEFAULT = AI_DAILY_LIMIT
 AI_DAILY_LIMIT_MAX = 100
 # 用户名同时用作 data/users/ 下的目录名：只允许字母数字下划线连字符（2~32 位），
@@ -348,7 +348,7 @@ def due_after_content(completed_at: str, round_no: int) -> str:
 #   marks          标记表：(target_type, target_id) 为主键，值为 mastered/reviewing/weak；
 #   settings       KV 配置表：key 主键 + value 字符串（当前只有 daily_goal_rounds 每日目标）；
 #   submissions    力扣提交记录：ac/wa、语言、耗时/内存、提交时间、来源、力扣提交 ID lc_id（可空）；
-#   credentials    力扣登录凭证：LEETCODE_SESSION / leetcode_csrf 明文保存在本机。
+#   credentials    力扣登录凭证：LEETCODE_SESSION / leetcode_csrf 使用项目密钥加密保存在本机。
 # 关键索引/约束的意图：
 #   uq_problem_round / uq_content_round 是"仅对 complete 生效"的部分唯一索引：
 #       保证同一对象永远不会出现重复轮次 —— 防并发/防重复插写的最后一道保险；

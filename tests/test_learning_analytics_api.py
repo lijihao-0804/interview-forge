@@ -917,6 +917,7 @@ class RealAuthenticationIsolationTests(unittest.TestCase):
         self._last_seen_before = dict(server._LAST_SEEN_TS)
         self.patches = [
             patch.dict(os.environ, {"INTERVIEW_FORGE_AI_CONFIG_KEY": "test-master-key"}, clear=False),
+            patch.object(server, "PERMANENT_ADMIN_USERNAME", "PermanentAdmin"),
             patch.object(server, "ROOT", self.root),
             patch.object(server, "DATA_DIR", self.data_dir),
             patch.object(server, "AUTH_DB_PATH", self.auth_db),

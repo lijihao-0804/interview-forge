@@ -45,7 +45,7 @@
 | 双网卡 | 有线 `192.168.5.234`（SSH/操作用这个）、WiFi `192.168.5.32`（同一台机器） |
 | 服务 | `python tools/study_server.py --host 0.0.0.0 --port 8765 --quiet`（Start-Process 后台运行） |
 | 访问 | `http://192.168.5.234:8765/`（局域网照常可用，公网走域名后两条通道并存） |
-| 管理员 | 用户名 `2030309470`（密码未入档；**待办：上线后改为强密码**） |
+| 管理员 | 永久管理员用户名由服务环境变量 `INTERVIEW_FORGE_PERMANENT_ADMIN_USERNAME` 配置（密码不入档） |
 | 数据 | `data/auth.db` + `data/users/<用户名>/hot100-study.db`，git 更新不会覆盖 |
 | 仓库 | 对端 HEAD 同步到 `ed865b2`；`origin` 指向 GitHub |
 
