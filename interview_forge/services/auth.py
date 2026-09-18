@@ -25,6 +25,7 @@ from interview_forge.core.runtime import server_runtime
 _LAST_SEEN_TS: dict[int, float] = {}
 _LAST_SEEN_LOCK = threading.Lock()
 _LAST_SEEN_INTERVAL = 60.0
+_SESSION_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 _NICKNAME_MAX = 16
 _NICKNAME_WORDLIST_PATH = DATA_DIR / "nickname_banned_words.txt"
@@ -230,6 +231,16 @@ def connect_auth() -> sqlite3.Connection:
                         connection.execute(statement)
                     except sqlite3.OperationalError:
                         pass
+                # Older databases stored the bearer token itself.  Hash it
+                # in-place once so active sessions survive the migration while
+                # the auth database no longer contains reusable credentials.
+                for row in connection.execute("SELECT token FROM sessions").fetchall():
+                    token = str(row["token"])
+                    if not _SESSION_HASH_RE.fullmatch(token):
+                        connection.execute(
+                            "UPDATE sessions SET token = ? WHERE token = ?",
+                            (_session_digest(token), token),
+                        )
                 reset_invalid_nicknames(connection)
                 connection.execute(
                     "UPDATE users SET role = 'admin' WHERE username = ? AND role <> 'admin'",
@@ -364,14 +375,18 @@ def create_session(user_id: int) -> str:
     with closing(connect_auth()) as connection:
         connection.execute(
             "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-            (token, user_id, runtime.now_iso(), expires),
+            (_session_digest(token), user_id, runtime.now_iso(), expires),
         )
     return token
 
 
 def destroy_session(token: str) -> None:
     with closing(connect_auth()) as connection:
-        connection.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        connection.execute("DELETE FROM sessions WHERE token = ?", (_session_digest(token),))
+
+
+def _session_digest(token: str) -> str:
+    return hashlib.sha256(str(token).encode("utf-8")).hexdigest()
 
 
 def session_user(token: str) -> sqlite3.Row | None:
@@ -390,9 +405,17 @@ def session_user(token: str) -> sqlite3.Row | None:
                      WHERE collision.username COLLATE NOCASE = u.username COLLATE NOCASE
                        AND collision.id <> u.id
                  )""",
-            (token, runtime.now_iso()),
+            (_session_digest(token), runtime.now_iso()),
         ).fetchone()
         if row is not None:
+            # Sliding renewal keeps active users signed in without extending
+            # abandoned sessions.  The HTTP boundary refreshes Max-Age too.
+            now = business_now()
+            renew_before = (now + runtime.SESSION_TTL / 3).isoformat(timespec="seconds")
+            connection.execute(
+                "UPDATE sessions SET expires_at = ? WHERE token = ? AND expires_at <= ?",
+                ((now + runtime.SESSION_TTL).isoformat(timespec="seconds"), _session_digest(token), renew_before),
+            )
             seen_now = runtime.time.time()
             with _LAST_SEEN_LOCK:
                 if seen_now - _LAST_SEEN_TS.get(row["id"], 0) >= _LAST_SEEN_INTERVAL:
@@ -539,14 +562,28 @@ def admin_reset_user_ai_quota(username: str, actor_user_id: int) -> dict[str, ob
             raise ValueError("用户不存在")
         if str(target["role"]) == "admin":
             raise ValueError("不能重置管理员的分析次数")
-        reset = runtime.reset_ai_quota(user_db_path(str(target["username"])), daily_limit=effective_ai_daily_limit(target))
-        connection.execute("BEGIN IMMEDIATE")
-        connection.execute(
-            """INSERT INTO ai_quota_reset_audit(actor_admin_id, target_user_id, reset_at, before_used)
-               VALUES (?, ?, ?, ?)""",
-            (int(actor["id"]), int(target["id"]), runtime.now_iso(), int(reset["before_used"])),
-        )
-        connection.execute("COMMIT")
+        target_db = user_db_path(str(target["username"]))
+        reset = runtime.reset_ai_quota(target_db, daily_limit=effective_ai_daily_limit(target))
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """INSERT INTO ai_quota_reset_audit(actor_admin_id, target_user_id, reset_at, before_used)
+                   VALUES (?, ?, ?, ?)""",
+                (int(actor["id"]), int(target["id"]), runtime.now_iso(), int(reset["before_used"])),
+            )
+            connection.execute("COMMIT")
+        except BaseException:
+            with suppress(sqlite3.Error):
+                connection.execute("ROLLBACK")
+            # SQLite cannot atomically commit two database files; compensate
+            # the user DB if the audit DB write fails so the reset is not
+            # silently applied without its audit record.
+            runtime.restore_ai_quota(
+                target_db,
+                before_reset_offset=int(reset.get("before_reset_offset", 0)),
+                before_row_exists=bool(reset.get("before_row_exists", True)),
+            )
+            raise
     return {"username": username, "reset": True, "quota": reset["quota"]}
 
 
@@ -635,6 +672,7 @@ def change_own_password(user_id: int, old_password: str, new_password: str, keep
             raise ValueError("原密码错误")
         connection.execute("BEGIN IMMEDIATE")
         connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(new_password), user_id))
-        connection.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user_id, keep_token))
+        keep_hash = _session_digest(keep_token) if keep_token else ""
+        connection.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user_id, keep_hash))
         connection.execute("COMMIT")
     return {"changed": True}

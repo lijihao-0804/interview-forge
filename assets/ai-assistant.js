@@ -6,7 +6,7 @@
   var state = {
     sessions: [], current: null, controller: null, assistantNode: null,
     cancelRequested: false, streamFailed: false, streamCompleted: false, pageContext: null,
-    pageContextWaiters: Object.create(null), contextRequestSerial: 0,
+    pageContextWaiters: Object.create(null), contextRequestSerial: 0, sessionLoadSerial: 0,
     autoFollow: true, scrollFrame: null,
     streamDiagnostics: { delta_count: 0, render_count: 0, max_render_ms: 0 }
   };
@@ -404,6 +404,7 @@
   }
 
   async function selectSession(id) {
+    var loadSerial = ++state.sessionLoadSerial;
     if (state.controller) state.controller.abort();
     if (state.assistantNode) cancelStreamRender(state.assistantNode.querySelector(".bubble"));
     state.current = id;
@@ -411,11 +412,13 @@
     setError("");
     renderSessions();
     var payload = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/messages");
+    if (loadSerial !== state.sessionLoadSerial || state.current !== id) return;
     title.textContent = payload.session.title;
     var fragment = document.createDocumentFragment();
     (payload.items || []).forEach(function (item) { renderMessage(item, fragment); });
     messages.replaceChildren(fragment);
     var actions = await api("/api/chat/sessions/" + encodeURIComponent(id) + "/actions?status=pending");
+    if (loadSerial !== state.sessionLoadSerial || state.current !== id) return;
     renderPendingActions(actions.items || []);
     input.disabled = false; send.disabled = false; status.textContent = "已连接";
     try { localStorage.setItem("forge-ai-session", id); } catch (_) { }

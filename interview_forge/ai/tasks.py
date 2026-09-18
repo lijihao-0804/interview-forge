@@ -69,20 +69,34 @@ _AI_CALL_CONDITION = threading.Condition()
 _AI_CALL_ACTIVE = 0
 
 
+def _try_claim_model_slot(limit: int) -> bool:
+    """Non-blocking claim shared by analysis workers and streaming chat."""
+    global _AI_CALL_ACTIVE
+    with _AI_CALL_CONDITION:
+        if _AI_CALL_ACTIVE >= max(1, int(limit)):
+            return False
+        _AI_CALL_ACTIVE += 1
+        return True
+
+
+def _release_model_slot() -> None:
+    global _AI_CALL_ACTIVE
+    with _AI_CALL_CONDITION:
+        _AI_CALL_ACTIVE = max(0, _AI_CALL_ACTIVE - 1)
+        _AI_CALL_CONDITION.notify_all()
+
+
 @contextmanager
 def _ai_call_slot():
     """Enforce the configured global model-call limit across all workers."""
     global _AI_CALL_ACTIVE
-    with _AI_CALL_CONDITION:
-        while _AI_CALL_ACTIVE >= load_ai_config().max_concurrent_requests:
+    while not _try_claim_model_slot(load_ai_config().max_concurrent_requests):
+        with _AI_CALL_CONDITION:
             _AI_CALL_CONDITION.wait(timeout=0.5)
-        _AI_CALL_ACTIVE += 1
     try:
         yield
     finally:
-        with _AI_CALL_CONDITION:
-            _AI_CALL_ACTIVE = max(0, _AI_CALL_ACTIVE - 1)
-            _AI_CALL_CONDITION.notify_all()
+        _release_model_slot()
 
 
 def _worker_loop() -> None:

@@ -49,7 +49,10 @@ def current_user(request: Request):
             token = value
             break
     try:
-        return session_user(token)
+        user = session_user(token)
+        if user is not None:
+            request.state.session_token = token
+        return user
     except sqlite3.Error:
         return None
 
@@ -154,8 +157,16 @@ def service_error(exc: BaseException, *, write: bool = False) -> JSONResponse | 
                               headers={"Retry-After": "1"}, retryable=True)
     if isinstance(exc, PermissionError):
         return error_response(str(exc), HTTPStatus.FORBIDDEN)
-    if isinstance(exc, (KeyError, TypeError, ValueError, json.JSONDecodeError)):
-        return error_response(str(exc), HTTPStatus.BAD_REQUEST)
+    if isinstance(exc, (KeyError, TypeError, json.JSONDecodeError)):
+        # Do not expose field names, SQL fragments, filesystem paths, or
+        # parser internals through the public API.  Detailed diagnostics stay
+        # in the request log with its request_id.
+        return error_response("请求参数不正确", HTTPStatus.BAD_REQUEST)
+    if isinstance(exc, ValueError):
+        # ValueError is also used deliberately for user-facing validation
+        # messages (for example an unknown problem id), so preserve that
+        # established contract after covering generic internal types above.
+        return error_response(str(exc) or "请求参数不正确", HTTPStatus.BAD_REQUEST)
     if isinstance(exc, sqlite3.Error):
         return error_response("数据库写入失败" if write else "数据库读取失败", HTTPStatus.INTERNAL_SERVER_ERROR)
     return None

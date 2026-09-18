@@ -259,6 +259,10 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     """聚合仪表盘全部数据：题目轮次按 AC 自然日推导，同日多次 AC 只计一轮。"""
     today = server_runtime.business_now().date().isoformat()
     with closing(server_runtime.connect(db_path)) as connection:
+        # Keep all dashboard-side study/submission aggregates on one SQLite
+        # read snapshot.  Without an explicit transaction a background sync
+        # can commit between two SELECTs and produce mismatched totals.
+        connection.execute("BEGIN")
         view_rows = connection.execute(
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
                FROM study_events WHERE action = 'view' GROUP BY problem_id"""
@@ -357,6 +361,7 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
         } | {
             str(row["study_date"]) for row in submission_days
         }
+        connection.execute("COMMIT")
     # 把三类按日计数合并进 day_stats：一个日期 → {viewed, rounds, submits} 三元组。
     day_stats: dict[str, dict[str, int]] = {}
     for row in view_days:
@@ -550,15 +555,14 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
     }
 
 
-def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
-    """按 AC 日期统计 Hot100 题目轮次：同一天多次 AC 只算一轮。"""
-    with closing(server_runtime.connect(db_path)) as connection:
-        rows = connection.execute(
-            """SELECT problem_id,
-                      COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
-                      MAX(submitted_at) AS last_completed_at
-               FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
-        ).fetchall()
+def _ac_problem_progress_from_connection(connection) -> dict[int, dict[str, object]]:
+    """Read AC progress using a caller-owned SQLite snapshot."""
+    rows = connection.execute(
+        """SELECT problem_id,
+                  COUNT(DISTINCT date(submitted_at, '+8 hours')) AS rounds,
+                  MAX(submitted_at) AS last_completed_at
+           FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
+    ).fetchall()
     return {
         int(row["problem_id"]): {
             "rounds": int(row["rounds"] or 0),
@@ -568,14 +572,25 @@ def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]
     }
 
 
+def ac_problem_progress(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
+    """按 AC 日期统计 Hot100 题目轮次：同一天多次 AC 只算一轮。"""
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN")
+        result = _ac_problem_progress_from_connection(connection)
+        connection.execute("COMMIT")
+    return result
+
+
 def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]]:
     """每题推荐/计划用状态：AC 决定是否完成，浏览和 AC 共同决定最近活动。"""
-    ac = server_runtime.ac_problem_progress(db_path)
     with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN")
+        ac = _ac_problem_progress_from_connection(connection)
         view_rows = connection.execute(
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
                FROM study_events WHERE action = 'view' GROUP BY problem_id"""
         ).fetchall()
+        connection.execute("COMMIT")
     info: dict[int, dict[str, object]] = {}
     for row in view_rows:
         pid = int(row["problem_id"])
@@ -633,8 +648,12 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
     传 module_id 时只返回该模块的 contents（problems 置空），供书架模块页使用。
     """
     today = server_runtime.business_now().date().isoformat()
-    ac_progress = server_runtime.ac_problem_progress(db_path)
     with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN")
+        # AC progress and chapter completion must come from the same read
+        # snapshot; LeetCode sync may otherwise update submissions between
+        # these two reads and make the due counters disagree.
+        ac_progress = _ac_problem_progress_from_connection(connection)
         # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
         if module_id == "hot100":
             content_rows = [
@@ -661,16 +680,10 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
                    WHERE action = 'complete' AND module_id <> 'hot100'
                    GROUP BY content_id HAVING COUNT(*) > 0"""
             ).fetchall()
-            content_rows += [
-                {
-                    "content_id": f"hot100:{pid:04d}",
-                    "module_id": "hot100",
-                    "rounds": int(progress["rounds"]),
-                    "last_completed_at": progress["last_completed_at"],
-                }
-                for pid, progress in ac_progress.items()
-                if int(progress["rounds"]) > 0
-            ]
+            # Hot100 is already projected into ``problems`` below.  Do not
+            # mirror the same AC rows into ``contents`` on the default page,
+            # otherwise one problem appears twice and inflates due counters.
+        connection.execute("COMMIT")
 
     # 组装题目待复习列表：到期日还没到（> 今天）的跳过，其余带上题名/分类/难度/题解链接。
     problems: list[dict[str, object]] = []

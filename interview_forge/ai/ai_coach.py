@@ -52,6 +52,7 @@ from interview_forge.ai.quota import (
     _today_iso,
     _validated_daily_limit,
     get_ai_quota,
+    restore_ai_quota,
     reset_ai_quota,
 )
 from interview_forge.db.ai_schema import AI_DB_SCHEMA, ensure_ai_schema

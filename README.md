@@ -163,7 +163,7 @@ interview-forge/
 ├─ docs/                     文档与报告
 │  ├─ QA-REPORT.md/.html     发布前校验报告
 │  ├─ MOBILE-UX-REPORT.md    移动端 UX 优化报告
-│  └─ InterviewForge-SSH部署与版本更新指南.md
+│  └─ （私有部署凭据与服务器操作手册不纳入公开仓库）
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
 ├─ library/                  学习书架生成结果（37 模块 / 736 章）

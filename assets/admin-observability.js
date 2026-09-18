@@ -14,6 +14,7 @@
   }
   function request(path) {
     return fetch(path, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
+      if (response.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname)); throw new Error("登录状态已失效"); }
       return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "请求失败"); return data; });
     });
   }

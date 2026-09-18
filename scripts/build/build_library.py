@@ -58,6 +58,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 import markdown
 from interview_forge.core.paths import ROOT as HOT100_ROOT
 from scripts.build import build_cache
+from scripts.build.asset_version import ASSET_VERSION
 from pygments import highlight as pygments_highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name
@@ -95,8 +96,6 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
-ASSET_VERSION = "20260906-boot"
-
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
 
 

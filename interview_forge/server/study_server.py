@@ -1,9 +1,9 @@
 # ============================================================================
-# study_server.py —— Interview Forge后端（纯 Python 标准库 + SQLite 的本地 HTTP 服务）
+# study_server.py —— Interview Forge 后端兼容 facade 与本地启动入口
 #
 # 职责总述（这个文件做了什么）：
 #   1) 静态文件服务：以项目根目录 ROOT 为文档根目录，直接服务网页/题解/题库等静态资源；
-#   2) REST API：提供 /api/* JSON 接口（仪表盘、每日计划、书架、导出、力扣同步等）；
+#   2) REST API：FastAPI/Uvicorn 是默认运行时；本文件保留兼容 HTTP handler；
 #   3) 学习记录：所有学习行为（浏览/完成轮次/提交/标记/设置）持久化到 SQLite 单文件数据库；
 #   4) 力扣同步：读取本机保存的 LEETCODE_SESSION，拉取力扣提交历史写回本地库（只读力扣、写本地）；
 #   5) 认证与多用户：账号存 data/auth.db（scrypt 哈希 + 服务端会话），全站登录后才能访问；
@@ -22,7 +22,7 @@
 #   marks          标记表：(problem|content, target_id) → mastered / reviewing / weak，主键即二元组
 #   settings       键值配置表：key 为 PRIMARY KEY，value 为字符串（目前仅 daily_goal_rounds）
 #   submissions    力扣提交记录表：ac/wa、语言、耗时/内存、提交时间、来源、力扣提交 ID（lc_id）
-#   credentials    力扣登录凭证表：LEETCODE_SESSION / leetcode_csrf，明文保存在本机
+#   credentials    力扣登录凭证表：LEETCODE_SESSION / leetcode_csrf
 #
 # 间隔重复模型（简化 FSRS）：
 #   完成第 n 轮后按查表拿到"下次复习间隔天数"，到期日 = 完成时间 + 间隔；
@@ -39,6 +39,7 @@ from __future__ import annotations
 # urllib.parse   URL 解析/中文路径解码/查询参数解析
 # build_hot100   同目录下的题库构建模块：题目清单（PROBLEM_BY_ID）、力扣 slug 映射、文件名规则
 import argparse
+import getpass
 import hashlib
 import hmac
 import ipaddress
@@ -1582,7 +1583,11 @@ def main() -> None:
     adopted = False
     if args.create_admin:
         if not args.admin_password:
-            parser.error("--create-admin 需要同时提供 --admin-password")
+            if not sys.stdin.isatty():
+                parser.error("非交互环境请显式提供 --admin-password，交互环境会安全提示输入")
+            args.admin_password = getpass.getpass("管理员初始密码（不会回显）：")
+            if not args.admin_password:
+                parser.error("管理员初始密码不能为空")
         admin = ensure_admin(args.create_admin, args.admin_password)
         print(f"管理员账号就绪：{admin['username']}")
         legacy, target = DB_PATH, user_db_path(str(admin["username"]))

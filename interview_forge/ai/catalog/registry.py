@@ -22,6 +22,7 @@ _CAPABILITY_KEYS = (
     "reasoning_modes",
     "reasoning_efforts",
     "reasoning_budget",
+    "context_window",
 )
 _REASONING_MODES = ("off", "auto", "effort", "budget")
 
@@ -106,6 +107,7 @@ def _protocol_baseline(protocol: str) -> dict[str, Any]:
             "reasoning_modes": ["auto"],
             "reasoning_efforts": [],
             "reasoning_budget": False,
+            "context_window": None,
         }
     if value == "anthropic_messages":
         return {
@@ -116,6 +118,7 @@ def _protocol_baseline(protocol: str) -> dict[str, Any]:
             "reasoning_modes": ["auto"],
             "reasoning_efforts": [],
             "reasoning_budget": False,
+            "context_window": None,
         }
     if value == "gemini":
         return {
@@ -126,6 +129,7 @@ def _protocol_baseline(protocol: str) -> dict[str, Any]:
             "reasoning_modes": ["auto"],
             "reasoning_efforts": [],
             "reasoning_budget": False,
+            "context_window": None,
         }
     return {
         "streaming": False,
@@ -135,6 +139,7 @@ def _protocol_baseline(protocol: str) -> dict[str, Any]:
         "reasoning_modes": ["auto"],
         "reasoning_efforts": [],
         "reasoning_budget": False,
+        "context_window": None,
     }
 
 
@@ -160,6 +165,11 @@ def _normalize_capabilities(value: Mapping[str, Any] | None) -> dict[str, Any]:
     efforts = result.get("reasoning_efforts")
     result["reasoning_efforts"] = list(dict.fromkeys(item for item in efforts if isinstance(item, str))) if isinstance(efforts, list) else []
     result["reasoning_budget"] = bool(result["reasoning_budget"])
+    try:
+        context_window = int(result.get("context_window")) if result.get("context_window") is not None else None
+    except (TypeError, ValueError):
+        context_window = None
+    result["context_window"] = context_window if context_window and context_window > 0 else None
     if not result["reasoning"]:
         result["reasoning_modes"] = ["auto"]
         result["reasoning_efforts"] = []
@@ -178,6 +188,12 @@ def _intersect(model_caps: Mapping[str, Any], protocol_caps: Mapping[str, Any]) 
         result["reasoning_modes"].insert(0, "auto")
     result["reasoning_efforts"] = [effort for effort in result["reasoning_efforts"] if effort in protocol["reasoning_efforts"]]
     result["reasoning_budget"] = bool(result["reasoning_budget"] and protocol["reasoning_budget"])
+    model_window = result.get("context_window")
+    protocol_window = protocol.get("context_window")
+    if isinstance(model_window, int) and model_window > 0 and isinstance(protocol_window, int) and protocol_window > 0:
+        result["context_window"] = min(model_window, protocol_window)
+    elif isinstance(protocol_window, int) and protocol_window > 0:
+        result["context_window"] = protocol_window
     if not result["reasoning"]:
         result["reasoning_modes"] = ["auto"]
         result["reasoning_efforts"] = []

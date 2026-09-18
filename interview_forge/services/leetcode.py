@@ -537,12 +537,41 @@ def leetcode_sync(
         offset = next_offset
 
     with closing(runtime.connect(db_path)) as connection:
+        # Serialize the read/merge/write sequence with the background sync
+        # writer.  This also lets us repair an older synthetic AC row in the
+        # same transaction when a real submission is found later.
+        connection.execute("BEGIN IMMEDIATE")
         existing_lc = {
             int(row["lc_id"])
             for row in connection.execute("SELECT lc_id FROM submissions WHERE lc_id IS NOT NULL").fetchall()
         }
+        synthetic_rows = {
+            int(row["problem_id"]): row
+            for row in connection.execute(
+                "SELECT id, problem_id, submitted_at FROM submissions "
+                "WHERE status = 'ac' AND source = 'sync' AND lc_id IS NULL"
+            ).fetchall()
+        }
         rows: list[tuple[object, ...]] = []
         for item in collected:
+            synthetic = synthetic_rows.get(int(item["pid"])) if item["status"] == "ac" else None
+            if synthetic is not None:
+                # A previous stat_status_pairs fallback had no real timestamp.
+                # Replace it once a real submission arrives; otherwise retain
+                # the earlier factual row and avoid creating a duplicate AC.
+                if str(item["submitted_at"]) < str(synthetic["submitted_at"]):
+                    candidate_lc = item["lc_id"]
+                    if candidate_lc is None or candidate_lc not in existing_lc:
+                        connection.execute(
+                            """UPDATE submissions SET lang = ?, runtime_ms = ?, memory_kb = ?,
+                                      submitted_at = ?, source = 'sync', lc_id = ? WHERE id = ?""",
+                            (item["lang"], item["runtime_ms"], item["memory_kb"],
+                             item["submitted_at"], candidate_lc, synthetic["id"]),
+                        )
+                        if candidate_lc is not None:
+                            existing_lc.add(int(candidate_lc))
+                synthetic_rows.pop(int(item["pid"]), None)
+                continue
             if item["lc_id"] is not None and item["lc_id"] in existing_lc:
                 continue
             if item["lc_id"] is not None:
@@ -555,32 +584,26 @@ def leetcode_sync(
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", rows,
             )
         results["submissions_added"] = len(rows)
-        connection.commit()
-        if progress is not None:
-            progress("提交记录已写入本地数据库")
-        earliest_ac: dict[int, str] = {}
-        for pid in slug_to_id.values():
+        for pair in data.get("stat_status_pairs", []):
+            if pair.get("status") != "ac":
+                continue
+            pid = slug_to_id.get(str(pair.get("stat", {}).get("question__title_slug") or ""))
+            if pid is None:
+                continue
             found = connection.execute(
                 "SELECT 1 FROM submissions WHERE problem_id = ? AND status = 'ac' LIMIT 1", (pid,)
             ).fetchone()
             if found:
                 results["solved_existing"] = int(results["solved_existing"]) + 1
                 continue
-            times = [item["submitted_at"] for item in collected if item["pid"] == pid and item["status"] == "ac"]
-            if times:
-                earliest_ac[pid] = min(times)
-        for pair in data.get("stat_status_pairs", []):
-            if pair.get("status") != "ac":
-                continue
-            pid = slug_to_id.get(str(pair.get("stat", {}).get("question__title_slug") or ""))
-            if pid is None or pid not in earliest_ac:
-                continue
             connection.execute(
                 """INSERT INTO submissions(problem_id, status, lang, submitted_at, source, lc_id)
-                   VALUES (?, 'ac', '', ?, 'sync', NULL)""", (pid, earliest_ac[pid]),
+                   VALUES (?, 'ac', '', ?, 'sync', NULL)""", (pid, runtime.now_parts()[0]),
             )
             results["solved_added"] = int(results["solved_added"]) + 1
         connection.commit()
+        if progress is not None:
+            progress("提交记录已写入本地数据库")
     results["sync_errors"] = fetch_errors
     if partial_error_category is not None:
         results["partial"] = True

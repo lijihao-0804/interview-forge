@@ -1,6 +1,6 @@
 # InterviewForge：Cloudflare Tunnel 公网部署进度与后续计划
 
-> **归档说明（2026-09-08）**：本文记录早期 Cloudflare Tunnel 方案及迁移过程，不是当前部署手册。生产站点现运行在 VPS（nginx + systemd），请以 [InterviewForge SSH 部署与版本更新指南](InterviewForge-SSH部署与版本更新指南.md) 为准；除故障回溯外，不应照本文重新启用旧局域网入口。
+> **归档说明（2026-09-08）**：本文记录早期 Cloudflare Tunnel 方案及迁移过程，不是当前部署手册。生产站点现运行在 VPS（nginx + systemd）；当前运维手册保存在仓库之外，不纳入公开项目；除故障回溯外，不应照本文重新启用旧局域网入口。
 
 > 状态更新（2026-09-05 下午）：**公网已上线并完成安全增强部署**。
 > https://hot100.xyz 已验证：登录门禁 307、API 401、HTTP→HTTPS 301、www 可用、
@@ -51,7 +51,7 @@
 
 ### 已知坑与对策（重要）
 
-1. **对端 `git pull` 会挂起/被重置** → 用 `docs/InterviewForge-SSH部署与版本更新指南.md` 第 7.2 节的
+1. **对端 `git pull` 会挂起/被重置** → 按仓库外部的私有运维手册中对应的版本更新步骤
    **git bundle 离线更新**（本机 `git bundle create` → `scp` → 对端 `git pull <bundle>`）。
 2. **SSH 多行 pwsh 脚本偶发卡死** → 拆成单行命令（`ssh ljh@$peer "cmd1; cmd2"`），单行稳定。
 3. 对端 Windows 没有服务化管理 → `study_server.py` 重启后需要手动启动（或后续注册开机自启）。

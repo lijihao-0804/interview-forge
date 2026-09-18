@@ -1,6 +1,6 @@
 # Hot100 笔记维护与扩展规范
 
-[返回学习面板](README.md) · [新增题目模板](books/hot100/04-模板/04-新增题目页面模板.md) · [校验报告](docs/QA-REPORT.md) · 过程文档见 `报告/`（增强实现记录为 `报告\增强实现记录.md`）
+[返回学习面板](README.md) · [新增题目模板](books/hot100/04-模板/04-新增题目页面模板.md) · [校验报告](docs/QA-REPORT.md) · 过程文档统一放在 `docs/`；部署凭据和服务器操作手册不放在本仓库
 
 本文档是本目录的维护标准。目标是让维护者不需要阅读全部 Python 代码，也能安全修改内容、增加题目、增加可视化，并维护线上按账号隔离保存学习记录的学习站。
 
@@ -78,7 +78,10 @@
 
 ### `interview_forge/server/study_server.py`：HTTP 服务与兼容 facade
 
-它使用 Python 标准库提供静态页面和 JSON API，并按当前账号调用 `interview_forge/services/`、`interview_forge/db/` 与 `interview_forge/analytics/`；本地开发时才按启动脚本的监听配置运行：
+FastAPI/Uvicorn 是正式运行时；该文件负责启动入口并保留旧版标准库
+handler 的兼容导出。正式路由、鉴权和业务调用分别位于
+`interview_forge/api/`、`interview_forge/services/`、`interview_forge/db/` 与
+`interview_forge/analytics/`；本地开发时才按启动脚本的监听配置运行：
 
 - 打开题解页时写入一条 `view`；同题 60 秒内重复刷新不会反复记账。
 - Hot 100 面板不再落手动 `complete`：题目轮次由 `submissions.status='ac'` 按自然日去重推导；书架章节仍可点“完成一轮”写入 `complete`。

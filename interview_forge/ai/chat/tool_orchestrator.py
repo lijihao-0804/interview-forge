@@ -154,11 +154,17 @@ class ToolOrchestrator:
         finally:
             close = getattr(iterator, "aclose", None)
             if callable(close):
-                await close()
+                try:
+                    await close()
+                except (Exception, GeneratorExit):
+                    pass
             else:
                 close = getattr(iterator, "close", None)
                 if callable(close):
-                    await asyncio.to_thread(close)
+                    try:
+                        await asyncio.to_thread(close)
+                    except (Exception, GeneratorExit):
+                        pass
             self._round_result = _RoundResult(
                 "".join(text_parts), tuple(accumulator.finish()), round_usage
             )

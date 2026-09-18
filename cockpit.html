@@ -986,16 +986,19 @@ color:#fff;background:var(--brand);font-weight:700;cursor:pointer}
 
   function pollAiTask(taskId) {
     if (!taskId) return;
+    var deadline = Date.now() + 180000;
     if (aiPollTimer) clearTimeout(aiPollTimer);
     api("/api/coach/tasks/" + encodeURIComponent(taskId)).then(function (res) {
       if (!res) return;
       renderAiTask(res.data);
-      if (res.data.status === "queued" || res.data.status === "running") {
+      if ((res.data.status === "queued" || res.data.status === "running") && Date.now() < deadline) {
         aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1200);
+      } else if (res.data.status === "queued" || res.data.status === "running") {
+        document.getElementById("ai-hint").textContent = "任务等待时间较长，请稍后刷新分析状态。";
       } else loadAiRecent(false);
     }).catch(function () {
       document.getElementById("ai-hint").textContent = "状态读取暂时失败，稍后自动重试。";
-      aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1800);
+      if (Date.now() < deadline) aiPollTimer = setTimeout(function () { pollAiTask(taskId); }, 1800);
     });
   }
 

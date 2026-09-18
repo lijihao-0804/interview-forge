@@ -33,6 +33,7 @@ SUPPORTED_PROTOCOLS = {"openai_chat", "openai_responses", "anthropic_messages", 
 SUPPORTED_CAPABILITY_PROFILES = set(CAPABILITY_PROFILES)
 _MAX_PROVIDER_NAME = 96
 _MAX_MODEL_ID = 160
+_KDF_SALT = b"interview-forge-ai-config-v2"
 
 
 class AIConfigError(ValueError):
@@ -145,9 +146,21 @@ def _cipher() -> Fernet:
         key = raw.encode("ascii")
         Fernet(key)
     except Exception:
-        # Permit a deployment secret stored as an ordinary env string while
-        # still deriving a stable authenticated-encryption key from it.
-        key = base64.urlsafe_b64encode(hashlib.sha256(raw.encode("utf-8")).digest())
+        # Ordinary deployment secrets use a deliberately slow password KDF.
+        # The old SHA-256 derivation remains available in _legacy_cipher so
+        # existing encrypted providers can be read and replaced safely.
+        digest = hashlib.scrypt(
+            raw.encode("utf-8"), salt=_KDF_SALT, n=1 << 14, r=8, p=1, dklen=32
+        )
+        key = base64.urlsafe_b64encode(digest)
+    return Fernet(key)
+
+
+def _legacy_cipher() -> Fernet:
+    raw = os.environ.get("INTERVIEW_FORGE_AI_CONFIG_KEY", "").strip()
+    if not raw:
+        raise AISecretUnavailable("AI 配置主密钥未设置")
+    key = base64.urlsafe_b64encode(hashlib.sha256(raw.encode("utf-8")).digest())
     return Fernet(key)
 
 
@@ -160,9 +173,16 @@ def encrypt_secret(secret: str) -> str:
 def decrypt_secret(ciphertext: str) -> str:
     if not ciphertext:
         return ""
+    encoded = str(ciphertext).encode("ascii")
     try:
-        return _cipher().decrypt(str(ciphertext).encode("ascii")).decode("utf-8")
-    except (AISecretUnavailable, InvalidToken, UnicodeError, ValueError) as exc:
+        return _cipher().decrypt(encoded).decode("utf-8")
+    except InvalidToken:
+        # Compatibility path for secrets encrypted before the KDF was added.
+        try:
+            return _legacy_cipher().decrypt(encoded).decode("utf-8")
+        except (AISecretUnavailable, InvalidToken, UnicodeError, ValueError) as exc:
+            raise AISecretUnavailable("AI 配置主密钥不可用") from exc
+    except (AISecretUnavailable, UnicodeError, ValueError) as exc:
         raise AISecretUnavailable("AI 配置主密钥不可用") from exc
 
 
@@ -170,8 +190,8 @@ def key_hint(secret: str) -> str:
     secret = str(secret or "")
     if not secret:
         return ""
-    suffix = secret[-3:] if len(secret) >= 3 else secret
-    return f"{secret[:3] if len(secret) >= 3 else ''}••••{suffix}"
+    suffix = secret[-4:] if len(secret) >= 4 else secret
+    return f"••••{suffix}"
 
 
 @dataclass(frozen=True)

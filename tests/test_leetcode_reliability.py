@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 import urllib.error
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -211,6 +212,61 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertFalse(second["partial"])
         self.assertEqual(requested_urls[0].split("offset=", 1)[1].split("&", 1)[0], "0")
         self.assertEqual(requested_urls[-1].split("offset=", 1)[1].split("&", 1)[0], "50")
+
+    def test_real_submission_replaces_older_synthetic_solved_row(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "learning.db"
+            calls = {"submissions": 0}
+
+            def fake_fetch(url, headers, *args, **kwargs):
+                if "problems/all" in url:
+                    return {
+                        "user_name": "alice",
+                        "stat_status_pairs": [{
+                            "status": "ac",
+                            "stat": {"question__title_slug": "two-sum"},
+                        }],
+                    }
+                calls["submissions"] += 1
+                if calls["submissions"] == 1:
+                    return {"submissions_dump": [], "has_next": False}
+                return {
+                    "submissions_dump": [{
+                        "id": 9001,
+                        "title": "两数之和",
+                        "status_display": "Accepted",
+                        "is_pending": "Not Pending",
+                        "timestamp": "1780000000",
+                        "lang": "python3",
+                    }],
+                    "has_next": False,
+                }
+
+            with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
+                first = leetcode.leetcode_sync(
+                    {"leetcode_session": "session-secret"}, db_path=db_path, full=False
+                )
+                with closing(leetcode.server_runtime.connect(db_path)) as connection:
+                    synthetic = connection.execute(
+                        "SELECT source, lc_id, submitted_at FROM submissions WHERE problem_id = 1"
+                    ).fetchone()
+                second = leetcode.leetcode_sync(
+                    {"leetcode_session": "session-secret"}, db_path=db_path, full=False
+                )
+                with closing(leetcode.server_runtime.connect(db_path)) as connection:
+                    rows = connection.execute(
+                        "SELECT source, lc_id, submitted_at FROM submissions WHERE problem_id = 1"
+                    ).fetchall()
+
+        self.assertEqual(first["solved_added"], 1)
+        self.assertEqual(synthetic["source"], "sync")
+        self.assertIsNone(synthetic["lc_id"])
+        self.assertLess("2026-05-29T04:26:40+08:00", synthetic["submitted_at"])
+        self.assertEqual(second["submissions_added"], 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source"], "sync")
+        self.assertEqual(rows[0]["lc_id"], 9001)
+        self.assertNotEqual(rows[0]["submitted_at"], "")
 
 
 class LeetCodeTaskReliabilityTests(unittest.TestCase):

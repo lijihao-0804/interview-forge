@@ -12,7 +12,7 @@ import time
 import uuid
 
 from fastapi import FastAPI
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from interview_forge.api.routers.health import router as health_router
 from interview_forge.api.routers.auth import router as auth_router
@@ -62,6 +62,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+def _same_origin_request(request) -> bool:
+    """Reject cross-site state-changing requests without breaking CLI clients."""
+    origin = (request.headers.get("origin") or "").strip()
+    if not origin:
+        return True
+    host = (request.headers.get("host") or "").strip()
+    allowed = {
+        "http://localhost", "http://127.0.0.1", "http://localhost:8765", "http://127.0.0.1:8765",
+        f"http://{host}", f"https://{host}",
+    }
+    return origin in allowed
+
 @app.middleware("http")
 async def request_observability(request, call_next):
     """Add a bounded request id and structured, credential-free access log."""
@@ -86,6 +99,8 @@ async def request_observability(request, call_next):
                 })
             else:
                 response = Response(status_code=405)
+        elif request.method in {"POST", "PUT", "PATCH", "DELETE"} and not _same_origin_request(request):
+            response = JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
         else:
             response = await call_next(request)
     except Exception as exc:
@@ -111,6 +126,18 @@ async def request_observability(request, call_next):
         raise
     elapsed = round((time.perf_counter() - started) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    response.headers.setdefault(
+        "Content-Security-Policy-Report-Only",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; "
+        "font-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
+    )
+    session_token = getattr(request.state, "session_token", "")
+    if session_token:
+        from interview_forge.api.support import session_cookie
+        response.headers["Set-Cookie"] = session_cookie(request, session_token)
     if origin in cors_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-CSRFToken"

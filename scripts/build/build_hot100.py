@@ -50,6 +50,7 @@ from pathlib import Path
 
 from interview_forge.core.paths import ROOT
 from scripts.build import build_cache
+from scripts.build.asset_version import ASSET_VERSION
 from scripts.build.library_catalog import LIBRARY_MODULES
 # 标准库即够：json 序列化面板数据，re 做正文/标题清洗，subprocess 串起
 # 后续 build_library / build_html_site 两个构建脚本，pathlib 统一路径操作。
@@ -1275,7 +1276,7 @@ interview-forge/
 ├─ docs/                     文档与报告
 │  ├─ QA-REPORT.md/.html     发布前校验报告
 │  ├─ MOBILE-UX-REPORT.md    移动端 UX 优化报告
-│  └─ InterviewForge-SSH部署与版本更新指南.md
+│  └─ （私有部署凭据与服务器操作手册不纳入公开仓库）
 ├─ assets/                   公共样式、脚本与图标（生成结果）
 ├─ data/                     SQLite 学习记录（首次启动自动创建，不入库）
 ├─ library/                  学习书架生成结果（{library_label}）
@@ -1826,7 +1827,6 @@ def render_dashboard() -> None:
     输入：tools/templates/dashboard.tpl 模板 + PROBLEMS；输出：根目录 index.html。
     """
     # 资源版本号：改动前端模板/JS/CSS 后递增，用于让浏览器强制刷新静态资源缓存。
-    dashboard_asset_version = "20260830-enhance"
     data = []
     for p in PROBLEMS:
         data.append({
@@ -1850,7 +1850,7 @@ def render_dashboard() -> None:
         .replace("__HOT100_PROBLEMS__", json_data)
         .replace("__PROBLEM_COUNT__", str(len(PROBLEMS)))
         .replace("__TOPIC_COUNT__", str(len(topics)))
-        .replace("__ASSET_VERSION__", dashboard_asset_version)
+        .replace("__ASSET_VERSION__", ASSET_VERSION)
     )
     write(ROOT / "index.html", page)
 

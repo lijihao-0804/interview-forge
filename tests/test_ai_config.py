@@ -53,7 +53,7 @@ class AIConfigStoreTests(unittest.TestCase):
         store.ensure_schema()
         provider = store.create_provider(name="Local", vendor="custom", protocol="openai_chat", base_url="https://example.com/v1", api_key="sk-real-secret")
         self.assertEqual(store.provider_secret(provider.id), "sk-real-secret")
-        self.assertIn("sk-••••ret", provider.key_hint)
+        self.assertEqual(provider.key_hint, "••••cret")
         self.assertNotIn("sk-real-secret", self.db.read_bytes().decode("latin1"))
         os.environ["INTERVIEW_FORGE_AI_CONFIG_KEY"] = "wrong-key"
         with self.assertRaises(AISecretUnavailable):

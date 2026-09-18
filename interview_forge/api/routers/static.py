@@ -72,7 +72,18 @@ def _security_headers(path: str) -> dict[str, str]:
         cache = "public, max-age=604800"
     else:
         cache = "no-store"
-    return {"Cache-Control": cache, "X-Content-Type-Options": "nosniff", "X-Frame-Options": "SAMEORIGIN"}
+    return {
+        "Cache-Control": cache,
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Content-Security-Policy-Report-Only": (
+            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; "
+            "font-src 'self' data:; connect-src 'self'; object-src 'none'; "
+            "base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+        ),
+    }
 
 
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
@@ -100,6 +111,16 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         if script.rsplit("/", 1)[-1].split("?", 1)[0].encode() not in body
     ).encode()
     widget = style_html + script_html
+    icon_html = b""
+    if b"rel=\"icon\"" not in body and b"rel='icon'" not in body:
+        icon_html = (
+            b'<link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">'
+            b'<link rel="apple-touch-icon" href="/assets/icons/icon.svg">'
+        )
+    head_marker = b"</head>"
+    head_index = body.lower().find(head_marker)
+    if head_index >= 0 and icon_html:
+        body = body[:head_index] + icon_html + body[head_index:]
     marker = b"</body>"
     index = body.lower().rfind(marker)
     return body[:index] + widget + body[index:] if index >= 0 else body + widget

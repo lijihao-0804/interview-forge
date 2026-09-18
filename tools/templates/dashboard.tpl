@@ -290,7 +290,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   </section>
   <section class="track-section" aria-labelledby="trackTitle">
     <div class="track-head"><h2 id="trackTitle">学习轨迹</h2><span id="heatmapDetail" class="track-sub">近 365 天活跃热力图，点击格子看当日明细</span></div>
-    <div id="heatmap" class="heatmap" role="grid" aria-rowcount="7" aria-label="近 365 天学习活跃热力图"></div>
+    <div id="heatmap" class="heatmap" role="list" aria-label="近 365 天学习活跃热力图"></div>
 <div class="hm-legend" aria-hidden="true"><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日力扣提交次数（0 / 1 / 2–4 / 5–9 / 10+）</span></div>
     <div class="track-head" style="margin-top:20px"><h3 id="trendTitle">近 14 天趋势</h3><span class="track-sub">每日看题与完成轮次</span></div>
     <div id="trend" class="trend-chart"></div>
@@ -322,12 +322,18 @@ const leetcodeSyncConnect=document.getElementById('leetcodeSyncConnect');
 const leetcodeSyncClose=document.getElementById('leetcodeSyncClose');
 const leetcodeSyncDone=document.getElementById('leetcodeSyncDone');
 let leetcodeSyncInFlight=false;
+let pickRequestSerial=0;
 let leetcodeSyncReturnFocus=null;
 function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
   const request=Object.assign({},options||{},{signal:controller.signal});
   const timer=setTimeout(()=>controller.abort(),timeout);
-  return fetch(input,request).finally(()=>clearTimeout(timer));
+  return fetch(input,request).then(response=>{
+    if(response.status===401){
+      location.replace('/pages/login.html?next='+encodeURIComponent(location.pathname+location.search));
+    }
+    return response;
+  }).finally(()=>clearTimeout(timer));
 }
 function updateOnlineControls(){
   document.querySelectorAll('[data-online-action]').forEach(control=>{control.disabled=!state.online});
@@ -523,13 +529,16 @@ function renderReview(){
   reviewList.innerHTML=(items.length?items.map(item=>`<div class="review-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-badge">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="review-empty">今日没有到期的题目，可以学新题或复习其他内容。</div>')+contentsBlock;
 }
 async function loadPick(randomize){
+  const requestSerial=++pickRequestSerial;
   try{
     const response=await fetchWithTimeout(`/api/plan${randomize?'?count=3&random=1':''}`,{cache:'no-store'});
     if(!response.ok)throw new Error('pick failed');
     const plan=await response.json();
+    if(requestSerial!==pickRequestSerial)return;
     const reasonLabels={due:'待复习',weak:'薄弱',new:'新题',fresh:'未学习',low:'轮数较少',pinned:'已排期',relearn:'需重学'};
     pickCard.innerHTML=plan.items.length?plan.items.map(item=>`<div class="plan-item"><a href="${esc(item.note)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${item.id}. ${esc(item.title)}</a><span class="pick-meta"><span class="pill">${esc(item.category)}</span><span class="difficulty-${item.difficulty}">${item.difficulty}</span></span><span class="plan-reason ${item.reason}">${reasonLabels[item.reason]||item.reason}</span></div>`).join(''):'<div class="review-empty">暂无计划项，先完成几轮复习吧。</div>';
   }catch(_){
+    if(requestSerial!==pickRequestSerial)return;
     pickCard.innerHTML='<div class="review-empty">计划加载失败，请稍后刷新重试</div>';
   }
 }
@@ -570,7 +579,7 @@ function renderHeatmap(){
     const submits=Number(day.submits||0);
     const level=submits===0?0:submits===1?1:submits<=4?2:submits<=9?3:4;
     const detail=`提交 ${submits} 次${Number(day.viewed||0)?` · 看 ${day.viewed} 题`:''}${Number(day.rounds||0)?` · 完成 ${day.rounds} 轮`:''}`;
-    return `<span class="hm-cell level-${level}" data-date="${esc(day.date)}" data-viewed="${esc(day.viewed)}" data-rounds="${esc(day.rounds)}" data-submits="${esc(submits)}" title="${esc(day.date)}：${esc(detail)}" tabindex="0" role="gridcell" aria-label="${esc(day.date)} ${esc(detail)}"></span>`;
+    return `<span class="hm-cell level-${level}" data-date="${esc(day.date)}" data-viewed="${esc(day.viewed)}" data-rounds="${esc(day.rounds)}" data-submits="${esc(submits)}" title="${esc(day.date)}：${esc(detail)}" tabindex="0" role="listitem" aria-label="${esc(day.date)} ${esc(detail)}"></span>`;
   }).join('')).join('');
   el.innerHTML=monthRow.join('')+rows;
   el.querySelectorAll('.hm-cell[data-date]').forEach(cell=>{
@@ -707,7 +716,7 @@ function render(){updateSummary();renderReview();renderWeak();renderHeatmap();re
 document.getElementById('pickAgain').addEventListener('click',()=>loadPick(true));
 document.querySelectorAll('[data-export]').forEach(button=>button.addEventListener('click',()=>exportData(button.dataset.export)));
 document.getElementById('goalInput').addEventListener('change',saveGoal);
-let mockState=null;let mockTimerId=null;
+let mockState=null;let mockTimerId=null;let mockInFlight=false;
 function mockTick(){
   if(!mockState)return;
   const left=mockState.deadline-Date.now();
@@ -716,6 +725,8 @@ function mockTick(){
   document.getElementById('mockTimer').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 async function mockStart(){
+  if(mockInFlight)return;
+  mockInFlight=true;
   if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId)}
   const count=Number(document.getElementById('mockCount').value);
   const minutes=Number(document.getElementById('mockMinutes').value);
@@ -731,6 +742,7 @@ async function mockStart(){
     document.getElementById('mockReport').innerHTML='';
     mockTimerId=setInterval(mockTick,1000);mockTick();mockRender();
   }catch(error){document.getElementById('mockStatus').textContent=`组卷失败：${error.message}`}
+  finally{mockInFlight=false}
 }
 function mockRender(){
   if(!mockState)return;

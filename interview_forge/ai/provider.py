@@ -111,7 +111,10 @@ async def stream_chat_chunks(model: Any, messages: list[Any]) -> AsyncIterator[t
         finally:
             close = getattr(iterator, "aclose", None)
             if callable(close):
-                await close()
+                try:
+                    await close()
+                except (Exception, GeneratorExit):
+                    pass
         return
 
     stream = getattr(model, "stream", None)
@@ -135,7 +138,10 @@ async def stream_chat_chunks(model: Any, messages: list[Any]) -> AsyncIterator[t
     finally:
         close = getattr(iterator, "close", None)
         if callable(close):
-            await asyncio.to_thread(close)
+            try:
+                await asyncio.to_thread(close)
+            except (Exception, GeneratorExit):
+                pass
 
 
 def _chat_chunk(chunk: Any) -> tuple[str, dict[str, int]]:

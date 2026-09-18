@@ -11,6 +11,7 @@ from interview_forge.ai.chat.token_budget import (
     ChatTokenBudget,
     DEFAULT_CHAT_TOKEN_BUDGET,
     DEFAULT_TOKEN_ESTIMATOR,
+    budget_for_context_window,
 )
 from interview_forge.core import default_runtime
 from interview_forge.core.runtime import server_runtime
@@ -52,6 +53,16 @@ class ChatContextBuilderTests(unittest.TestCase):
             connection.commit()
         finally:
             connection.close()
+
+    def test_known_small_context_window_reduces_flexible_prompt_slots(self):
+        budget = budget_for_context_window(4096)
+        self.assertLessEqual(budget.max_request_tokens, 4096)
+        self.assertLess(budget.recent_tokens, DEFAULT_CHAT_TOKEN_BUDGET.recent_tokens)
+        self.assertLess(budget.summary_tokens, DEFAULT_CHAT_TOKEN_BUDGET.summary_tokens)
+
+    def test_unknown_context_window_keeps_legacy_budget(self):
+        self.assertEqual(budget_for_context_window(None), DEFAULT_CHAT_TOKEN_BUDGET)
+        self.assertEqual(budget_for_context_window("unknown"), DEFAULT_CHAT_TOKEN_BUDGET)
 
     def summary_row(self):
         connection = sqlite3.connect(self.db)
@@ -95,9 +106,12 @@ class ChatContextBuilderTests(unittest.TestCase):
         context_message = next(item for item in messages if "ContextBlock:" in item["content"])
         self.assertEqual(context_message["role"], "user")
         self.assertIn("ContextBlock:learning", context_message["content"])
-        self.assertNotIn("ContextBlock:memory", context_message["content"])
+        # Untrusted context now has its own budget slot instead of competing
+        # with the system prompt.  Priority still determines ordering, while
+        # lower-priority memory may be admitted when that separate slot fits.
+        self.assertIn("ContextBlock:memory", context_message["content"])
         self.assertNotIn("ContextBlock:learning", messages[0]["content"])
-        self.assertEqual(builder.last_build["context_blocks"], ["learning"])
+        self.assertEqual(builder.last_build["context_blocks"], ["learning", "memory"])
 
     def test_recent_sync_context_has_beijing_time_and_final_background_status(self):
         store = ActionRequestStore()

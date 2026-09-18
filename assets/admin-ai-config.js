@@ -23,6 +23,7 @@
   function api(path, options) {
     return fetch(path, Object.assign({ headers: { "Content-Type": "application/json" }, cache: "no-store" }, options || {}))
       .then(function (response) {
+        if (response.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname)); throw new Error("登录状态已失效"); }
         return response.json().then(function (data) {
           if (!response.ok) throw new Error(data.error || "请求失败");
           return data;

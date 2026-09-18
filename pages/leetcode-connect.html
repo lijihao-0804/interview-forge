@@ -124,6 +124,7 @@ function saveLeetcodeSyncCursor(full,data){
 }
 async function api(path,options){
   const response=await fetchWithTimeout(path,options||{});
+  if(response.status===401){location.replace('/pages/login.html?next='+encodeURIComponent(location.pathname));throw new Error('登录状态已失效');}
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||('请求失败 HTTP '+response.status));
   return data;
@@ -167,7 +168,8 @@ async function runSync(full){
     const taskId=start.task_id;
     if(!taskId){throw new Error('同步任务未正常创建');}
     syncBox.textContent='同步任务已启动…';
-    while(true){
+    const deadline=Date.now()+180000;
+    while(Date.now()<deadline){
       await new Promise(resolve=>setTimeout(resolve,1000));
       const st=await api('/api/leetcode/sync/status?task_id='+encodeURIComponent(taskId));
       const logs=(st.logs||[]).map(item=>`[${(item.at||'').slice(11,19)||item.at||''}] ${item.text}`).join('\n');
@@ -187,6 +189,7 @@ async function runSync(full){
         return;
       }
     }
+    const timeout=new Error('同步任务等待超时');timeout.category='sync_timeout';throw timeout;
   }catch(error){syncBox.textContent+='\n同步失败：'+error.message;showStatus(false,'同步失败：'+error.message);}
   finally{setSyncBusy(false);}
 }

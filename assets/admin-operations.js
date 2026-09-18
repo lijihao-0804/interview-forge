@@ -2,7 +2,7 @@
   "use strict";
   function $(id) { return document.getElementById(id); }
   function text(node, value) { node.textContent = value == null || value === "" ? "—" : String(value); }
-  function request(path, options) { return fetch(path, Object.assign({ credentials: "same-origin", cache: "no-store" }, options || {})).then(function (response) { return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "请求失败"); return data; }); }); }
+  function request(path, options) { return fetch(path, Object.assign({ credentials: "same-origin", cache: "no-store" }, options || {})).then(function (response) { if (response.status === 401) { location.replace("/pages/login.html?next=" + encodeURIComponent(location.pathname)); throw new Error("登录状态已失效"); } return response.json().then(function (data) { if (!response.ok) throw new Error(data.error || "请求失败"); return data; }); }); }
   function fmtMs(value) { return value == null ? "—" : Math.round(Number(value)) + " ms"; }
   function fmtTime(value) { return value == null || value === "" ? "—" : (window.InterviewForgeTime ? InterviewForgeTime.formatDateTime(value) : String(value)); }
   function fmtBytes(value) { var number = Number(value); if (!Number.isFinite(number) || number <= 0) return "—"; var units = ["B", "KB", "MB", "GB"]; var index = 0; while (number >= 1024 && index < units.length - 1) { number /= 1024; index += 1; } return number.toFixed(index ? 1 : 0) + " " + units[index]; }

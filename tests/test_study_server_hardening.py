@@ -77,6 +77,13 @@ class StudyServerHardeningTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_daily_default_projects_hot100_once_as_a_problem(self) -> None:
+        with patch.object(server, "business_now", return_value=datetime(2026, 9, 10)):
+            server.complete_round(1, self.db_path)
+            daily = server.daily_data(self.db_path)
+        self.assertEqual([item["id"] for item in daily["problems"]], [1])
+        self.assertNotIn("hot100:0001", {item["content_id"] for item in daily["contents"]})
+
     def test_legacy_event_type_completes_are_backfilled_once_by_shanghai_day(self) -> None:
         # Build the pre-AC schema directly, including duplicate events that
         # fall on one Shanghai business day despite different source offsets.

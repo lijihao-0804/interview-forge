@@ -36,6 +36,7 @@ from interview_forge.ai.memory import (
     memory_worthy,
 )
 from interview_forge.ai.provider import stream_chat_chunks
+from interview_forge.ai.tasks import _release_model_slot, _try_claim_model_slot
 from interview_forge.core.runtime import server_runtime
 from interview_forge.ai.tools.policy import ToolPolicy
 from interview_forge.ai.tools.registry import ToolRegistry, build_default_tool_registry
@@ -158,19 +159,11 @@ def _release_session(db_path: Path, session_id: str) -> None:
 
 
 def _try_claim_model(config: AIConfig) -> bool:
-    global _ACTIVE_MODEL_CALLS
-    limit = max(1, int(config.max_concurrent_requests))
-    with _ACTIVE_MODEL_CALLS_LOCK:
-        if _ACTIVE_MODEL_CALLS >= limit:
-            return False
-        _ACTIVE_MODEL_CALLS += 1
-    return True
+    return _try_claim_model_slot(config.max_concurrent_requests)
 
 
 def _release_model() -> None:
-    global _ACTIVE_MODEL_CALLS
-    with _ACTIVE_MODEL_CALLS_LOCK:
-        _ACTIVE_MODEL_CALLS = max(0, _ACTIVE_MODEL_CALLS - 1)
+    _release_model_slot()
 
 
 class ChatService:
@@ -674,7 +667,12 @@ class ChatService:
                         max_tokens=1_800,
                         trusted=False,
                     ))
-                context_builder = ContextBuilder(context_blocks=context_blocks)
+                from interview_forge.ai.chat.token_budget import budget_for_context_window
+                context_budget = budget_for_context_window(
+                    (getattr(runtime, "capabilities", {}) or {}).get("context_window")
+                    if runtime is not None else None
+                )
+                context_builder = ContextBuilder(budget=context_budget, context_blocks=context_blocks)
                 messages = await asyncio.to_thread(
                     context_builder.build,
                     user_db=path,
@@ -818,7 +816,9 @@ class ChatService:
             except asyncio.CancelledError:
                 debug_ai_event("chat_stream_cancelled", session_id=session_id, message_id=stream_message_id)
                 raise
-            except BaseException as exc:
+            except GeneratorExit:
+                raise
+            except Exception as exc:
                 code, safe_message = _safe_provider_error(exc)
                 debug_ai_event("chat_stream_failed", session_id=session_id, message_id=stream_message_id, code=code)
                 if trace_recorder is not None:

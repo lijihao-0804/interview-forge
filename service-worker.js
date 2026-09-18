@@ -1,9 +1,16 @@
 /* Hot 100 学习站缓存兜底（在线优先；动态 API 一律走网络） */
-const VERSION = "hot100-v8-20260916";
+// Bump with every deploy that changes shell/runtime assets. Navigation is
+// network-first below, so clients can self-upgrade without manual cache clear.
+const VERSION = "hot100-v9-20260919";
 const STATIC_PREFIX = ["/cockpit.html", "/index.html", "/pages/", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(["./cockpit.html", "./index.html", "./pages/history.html"])));
+  const precache = ["./cockpit.html", "./index.html", "./pages/history.html"];
+  event.waitUntil(
+    caches.open(VERSION).then((cache) =>
+      Promise.all(precache.map((url) => cache.add(url).catch(() => undefined)))
+    )
+  );
   self.skipWaiting();
 });
 

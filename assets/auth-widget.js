@@ -207,6 +207,20 @@
           else if (scrollMode === "prepend") msgs.scrollTop = Math.max(0, msgs.scrollHeight - oldHeight + oldTop);
           else if (scrollMode === "preserve") msgs.scrollTop = oldTop;
         }
+        function appendNewMessages(items, nearBottom, previousLatestId) {
+          var additions = (items || []).filter(function (m) {
+            return m && Number(m.id) > Number(previousLatestId);
+          }).sort(function (a, b) { return Number(a.id) - Number(b.id); });
+          if (!additions.length) return;
+          if (msgs.children.length === 1 && msgs.firstElementChild &&
+              msgs.firstElementChild.textContent === "还没有人发言，来抢沙发！") {
+            msgs.textContent = "";
+          }
+          var previous = chatState.messages.filter(function (m) { return Number(m.id) <= Number(previousLatestId); }).pop();
+          var previousTime = previous ? new Date(previous.created_at).getTime() : null;
+          additions.forEach(function (m) { previousTime = appendMessageNode(m, previousTime); });
+          if (nearBottom) msgs.scrollTop = msgs.scrollHeight;
+        }
         function setOlderState(message, isError) {
           var button = panel.querySelector("#fcp-load-older");
           var state = panel.querySelector("#fcp-older-state");
@@ -273,9 +287,16 @@
               if (!d) return;
               var nearBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 90;
               var oldTop = msgs.scrollTop;
+              var previousLatestId = chatState.latestId;
+              var previousLength = chatState.messages.length;
               var changed = mergeMessages(d.items);
               if (isInit) chatState.hasOlder = d.has_older === true;
-              if (changed || isInit) renderMessages(isInit || nearBottom ? "bottom" : "preserve", 0, oldTop);
+              var canAppend = !isInit && previousLatestId >= 0 &&
+                chatState.messages.length >= previousLength &&
+                chatState.messages.length <= 2000 &&
+                (d.items || []).some(function (m) { return m && Number(m.id) > previousLatestId; });
+              if (changed && canAppend) appendNewMessages(d.items, nearBottom, previousLatestId);
+              else if (changed || isInit) renderMessages(isInit || nearBottom ? "bottom" : "preserve", 0, oldTop);
               setOlderState(chatState.hasOlder ? "" : "没有更早消息了", false);
             })
             .catch(function () {

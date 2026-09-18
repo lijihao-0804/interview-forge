@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
@@ -15,6 +16,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from interview_forge.db.ai_schema import ensure_ai_schema
+
+_SCHEMA_DONE: set[str] = set()
+_SCHEMA_LOCK = threading.Lock()
 from interview_forge.ai.errors import AIServiceError
 
 AI_DAILY_LIMIT = 3
@@ -32,11 +36,13 @@ def _validated_daily_limit(daily_limit: int | None) -> int:
     return value
 
 def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    # Quota rows are displayed and reset in the application's business
+    # timezone, independent of the VPS host timezone.
+    return datetime.now(timezone.utc).astimezone(AI_QUOTA_TIMEZONE).isoformat(timespec="seconds")
 
 
 def _today_iso() -> str:
-    return datetime.now().astimezone().date().isoformat()
+    return datetime.now(timezone.utc).astimezone(AI_QUOTA_TIMEZONE).date().isoformat()
 
 
 def _quota_window(now: datetime | None = None) -> tuple[str, str]:
@@ -80,6 +86,12 @@ def get_ai_quota(
     db_path: Path, role: str = "user", *, daily_limit: int | None = None,
     now: datetime | None = None
 ) -> dict[str, Any]:
+    if not Path(db_path).is_file():
+        day_key, reset_at = _quota_window(now)
+        if role == "admin":
+            return {"limit": None, "used": 0, "remaining": None, "reset_at": reset_at}
+        limit = _validated_daily_limit(daily_limit)
+        return {"limit": limit, "used": 0, "remaining": limit, "reset_at": reset_at}
     with closing(_open_ai_db(db_path)) as connection:
         return _quota_from_connection(connection, role=role, daily_limit=daily_limit, now=now)
 
@@ -219,6 +231,9 @@ def reset_ai_quota(
     with closing(_open_ai_db(db_path)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         before = _quota_from_connection(connection, daily_limit=daily_limit, now=now)
+        before_row = connection.execute(
+            "SELECT reset_offset FROM ai_daily_quota WHERE day_key = ?", (day_key,)
+        ).fetchone()
         connection.execute(
             """INSERT INTO ai_daily_quota(day_key, used, reserved, reset_offset, updated_at)
                VALUES (?, 0, 0, 0, ?)
@@ -228,7 +243,33 @@ def reset_ai_quota(
             (day_key, _now_iso()),
         )
         connection.execute("COMMIT")
-    return {"before_used": before["used"], "quota": get_ai_quota(db_path, daily_limit=daily_limit, now=now)}
+    return {
+        "before_used": before["used"],
+        "before_reset_offset": int(before_row["reset_offset"]) if before_row else 0,
+        "before_row_exists": before_row is not None,
+        "quota": get_ai_quota(db_path, daily_limit=daily_limit, now=now),
+    }
+
+
+def restore_ai_quota(
+    db_path: Path, *, before_reset_offset: int = 0, before_row_exists: bool = True,
+    now: datetime | None = None,
+) -> None:
+    """Best-effort compensation when the cross-database audit write fails."""
+    day_key, _ = _quota_window(now)
+    with closing(_open_ai_db(db_path)) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        if before_row_exists:
+            connection.execute(
+                "UPDATE ai_daily_quota SET reset_offset = ?, updated_at = ? WHERE day_key = ?",
+                (max(0, int(before_reset_offset)), _now_iso(), day_key),
+            )
+        else:
+            connection.execute(
+                "DELETE FROM ai_daily_quota WHERE day_key = ? AND used = 0 AND reserved = 0 AND reset_offset = 0",
+                (day_key,),
+            )
+        connection.execute("COMMIT")
 
 
 def _open_ai_db(db_path: Path) -> sqlite3.Connection:
@@ -238,5 +279,10 @@ def _open_ai_db(db_path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
-    ensure_ai_schema(connection)
+    schema_key = str(db_path.resolve())
+    if schema_key not in _SCHEMA_DONE:
+        with _SCHEMA_LOCK:
+            if schema_key not in _SCHEMA_DONE:
+                ensure_ai_schema(connection)
+                _SCHEMA_DONE.add(schema_key)
     return connection

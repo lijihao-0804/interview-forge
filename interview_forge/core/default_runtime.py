@@ -144,6 +144,7 @@ connect_auth = _load_service_function("interview_forge.services.auth", "connect_
 validate_nickname = _load_service_function("interview_forge.services.auth", "validate_nickname")
 get_ai_quota = _load_service_function("interview_forge.ai.quota", "get_ai_quota")
 reset_ai_quota = _load_service_function("interview_forge.ai.quota", "reset_ai_quota")
+restore_ai_quota = _load_service_function("interview_forge.ai.quota", "restore_ai_quota")
 get_weather_preference = _load_service_function("interview_forge.services.weather", "get_weather_preference")
 _fetch_weather = _load_service_function("interview_forge.services.weather", "_fetch_weather")
 _rank_weather_location = _load_service_function("interview_forge.services.weather", "_rank_weather_location")
