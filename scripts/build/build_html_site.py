@@ -228,6 +228,7 @@ SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff
 
 :root {
   color-scheme: light dark;  --page-bg: #eef0f8;
+  --visual-bg: #f4f6fb;
   --surface: #ffffff;
   --surface-soft: #f3f5fb;
   --surface-softer: #fbfcff;
@@ -250,6 +251,7 @@ SITE_CSS = r"""@font-face{font-family:"Inter";src:url("fonts/Inter-Variable.woff
     --page-bg: #0f131b;
     --surface: #181e29;
     --surface-soft: #141a24;
+    --visual-bg: #0f131b;
     --surface-softer: #1b222e;
     --text: #eaf0fa;
     --text-strong: #f6f8ff;
@@ -416,7 +418,7 @@ a:hover { text-decoration: underline; }
   min-height: 360px;
   margin: 0;
   overflow: hidden;
-  background: var(--surface-soft);
+  background: var(--visual-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-3);
 }
@@ -478,6 +480,7 @@ body{overflow-x:clip}
 /* ===== 手动主题切换（theme-toggle.js 设置 data-theme） ===== */
 html[data-theme="dark"]{color-scheme:dark;
     --page-bg: #0f131b;
+    --visual-bg: #0f131b;
     --surface: #181e29;
     --surface-soft: #141a24;
     --surface-softer: #1b222e;
@@ -494,7 +497,7 @@ html[data-theme="dark"]{color-scheme:dark;
     --inline-code-bg: #272751;
     --shadow: 0 18px 48px rgba(0, 0, 0, .24);
   }
-html[data-theme="light"]{color-scheme:light;--page-bg:#f4f6fb;--surface:#ffffff;--surface-soft:#f8f9fd;--surface-softer:#fbfcff;--text:#182235;--text-strong:#111a2c;--muted:#66748a;--line:#dfe4ee;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#157a52;--warning:#a85b00;--inline-code:#443fb0;--inline-code-bg:#f0efff;--shadow:0 16px 44px rgba(33,45,73,.08)}
+html[data-theme="light"]{color-scheme:light;--page-bg:#f4f6fb;--visual-bg:#f4f6fb;--surface:#ffffff;--surface-soft:#f8f9fd;--surface-softer:#fbfcff;--text:#182235;--text-strong:#111a2c;--muted:#66748a;--line:#dfe4ee;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#157a52;--warning:#a85b00;--inline-code:#443fb0;--inline-code-bg:#f0efff;--shadow:0 16px 44px rgba(33,45,73,.08)}
 
 /* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
 .read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
