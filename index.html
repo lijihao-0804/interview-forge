@@ -323,7 +323,6 @@ const leetcodeSyncClose=document.getElementById('leetcodeSyncClose');
 const leetcodeSyncDone=document.getElementById('leetcodeSyncDone');
 let leetcodeSyncInFlight=false;
 let pickRequestSerial=0;
-let refreshSerial=0;
 let leetcodeSyncReturnFocus=null;
 function fetchWithTimeout(input,options,timeout=12000){
   const controller=new AbortController();
@@ -443,8 +442,7 @@ async function runLeetcodeIncrementalSync(){
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})
     });
     if(!start.task_id)throw new Error('task unavailable');
-    const deadline=Date.now()+180000;
-    while(Date.now()<deadline){
+    while(true){
       await new Promise(resolve=>setTimeout(resolve,1000));
       const task=await leetcodeSyncRequest('/api/leetcode/sync/status?task_id='+encodeURIComponent(start.task_id),{cache:'no-store'});
       if(task.running)continue;
@@ -465,7 +463,6 @@ async function runLeetcodeIncrementalSync(){
       openLeetcodeSyncModal('success','同步完成',leetcodeSyncSummary(result));
       return;
     }
-    const timeout=new Error('同步任务等待超时');timeout.category='sync_timeout';throw timeout;
   }catch(error){
     showLeetcodeSyncError(error);
   }finally{
@@ -800,12 +797,10 @@ async function updateLcStatus(){
   }
 }
 async function refresh(){
-  const requestSerial=++refreshSerial;
   try{
     const bootstrapResponse=await fetchWithTimeout('/api/bootstrap',{cache:'no-store'});
     if(!bootstrapResponse.ok)throw new Error('database unavailable');
     const boot=await bootstrapResponse.json();
-    if(requestSerial!==refreshSerial)return;
     state.data=boot.dashboard;
     state.daily=boot.daily;
     state.settings=boot.settings;
@@ -814,7 +809,6 @@ async function refresh(){
     document.getElementById('connection').textContent='学习服务已连接';
     document.getElementById('serverNotice').hidden=true;
   }catch(error){
-    if(requestSerial!==refreshSerial)return;
     state.online=false;
     document.getElementById('connection').classList.remove('online');
     document.getElementById('connection').textContent='暂时无法连接学习服务';

@@ -440,6 +440,39 @@ for source_rel, (visual_name, query) in VISUAL_EMBEDS.items():
     visual_text = visual_path.read_text(encoding="utf-8-sig")
     if f'"{mode}": {{' not in visual_text and f"'{mode}':" not in visual_text:
         errors.append(f"演示绑定的 mode 在目标页里不存在（会静默回落到第一道题）：{source_rel} -> {visual_name}?mode={mode}")
+
+
+# ============================================================================
+# ⑥ 代码围栏语言标注（books/hot100/*.md 章节源）
+#   阅读页的语法高亮由 Pygments 按围栏的语言标注生成：```java 出彩色，``` 出
+#   纯白。章节里混着两类围栏——真代码和“执行轨迹 / ASCII 树 / 控制台输出”，后者
+#   本来就不该上色。于是坏味道只有一种：写了代码却忘了标语言，同一页里有的彩
+#   有的白。这里只对“明显是代码”的无标注围栏报错（行尾 ; 或 ) {），轨迹类不受
+#   影响。另：历史源里出现过开栏 ```java 连同方法签名一起丢失的情况，残留的单
+#   个 ``` 会把后面的正文整段吞进代码块，这条断言同样会把它揪出来。
+# ============================================================================
+CODE_SMELL = re.compile(r"(;|\)\s*\{)\s*$")
+for chapter in sorted((ROOT / "books" / "hot100").glob("*.md")):
+    chapter_lines = chapter.read_text(encoding="utf-8-sig").splitlines()
+    fence_open: tuple[int, str] | None = None  # (行号, info)
+    body: list[str] = []
+    for lineno, raw in enumerate(chapter_lines, 1):
+        fence = re.match(r"^\s*(`{3,})(.*)$", raw)
+        if not fence:
+            if fence_open is not None:
+                body.append(raw)
+            continue
+        info = fence.group(2).strip()
+        if fence_open is None:
+            fence_open, body = (lineno, info), []
+            continue
+        if info:  # 带 info 的围栏只能是开栏，说明上一个没闭合
+            continue
+        if not fence_open[1] and sum(1 for b in body if CODE_SMELL.search(b)) >= 2:
+            errors.append(f"代码围栏缺少语言标注（阅读页会没有高亮）：{chapter.relative_to(ROOT)} 第 {fence_open[0]} 行")
+        fence_open = None
+
+
 # 控件可访问性：搜索/分类/状态三个控件必须配 <label for>（点击文字即聚焦，
 # 屏幕阅读器才能读出控件用途）；状态下拉还必须有 value="due"（待复习）选项，
 # 否则复习筛选功能不完整。

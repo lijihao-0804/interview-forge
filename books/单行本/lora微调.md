@@ -57,12 +57,12 @@
 ##### 4. SFT（有监督微调）
  通过提供**人工标注**的数据，进一步训练**预训练模型**，让模型能够更加精准地处理**特定领域**的任务
  - 人工标注的数据
-```
+```text
 如：分类系统
 {"image_path": "path/image1.jpg", "label": "SpongeBobSquarePants"}
 {"image_path": "path/image2.jpg", "label": "PatrickStar"}
 ```
-```
+```text
 如：对话系统
 {
     "instruction": "请问你是谁",
@@ -182,13 +182,13 @@ huggingface-cli download --resume-download deepseek-ai/DeepSeek-R1-Distill-Qwen-
 ##### 7. 可视化页面上加载模型测试，检验是否加载成功
 - 注意：这里的路径是模型文件夹内部的**模型特定快照的唯一哈希值**，而不是整个模型文件夹
 ![[1.png]]
-```
+```text
 /root/autodl-tmp/Hugging-Face/hub/models--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B/snapshots/530ca3e1ad39d440e182c2e4317aa40f012512fa
 ```
 ##### 8. 准备用于训练的数据集，添加到指定位置
 - **README_zh** 中详细介绍了如何配置和描述你的自定义数据集
 - 按照格式准备用于微调的数据集 **magic_conch.json**，数据示例：
-```
+```json
 [
   {
     "instruction": "请问你是谁",
@@ -203,9 +203,9 @@ huggingface-cli download --resume-download deepseek-ai/DeepSeek-R1-Distill-Qwen-
 ]
 ```
 - 修改 **dataset_info.json** 文件，添加如下配置：
-```
+```json
 "magic_conch": {
-"file_name": "magic_conch.json"
+  "file_name": "magic_conch.json"
 },
 ```
 - 将数据集 magic_conch.json 放到 LLama-Factory 的 **data 目录** 下
@@ -240,7 +240,7 @@ huggingface-cli download --resume-download deepseek-ai/DeepSeek-R1-Distill-Qwen-
 ##### 11. 导出合并后的模型
 - 为什么要合并：因为 LoRA 只是通过**低秩矩阵**调整原始模型的部分权重，而**不直接修改原模型的权重**。合并步骤将 LoRA 权重与原始模型权重融合生成一个完整的模型
 - 先创建目录，用于存放导出后的模型
-```
+```bash
 mkdir -p Models/deepseek-r1-1.5b-merged
 ```
 - 在页面上配置导出路径，导出即可
@@ -304,7 +304,7 @@ async def generate_text(prompt: str):
 
 ```
 - 进入包含 `main.py` 文件的目录，然后运行以下命令来启动 FastAPI 应用
-```
+```bash
 uvicorn main:app --reload --host 0.0.0.0
 ```
 	- `main` 是 Python 文件名（要注意不包含 `.py` 扩展名）
@@ -313,12 +313,12 @@ uvicorn main:app --reload --host 0.0.0.0
 	- `host 0.0.0.0`：将 FastAPI 应用绑定到所有可用的网络接口，这样我们的本机就可以通过内网穿透访问该服务
 - 配置端口转发，使得本机可以访问该服务 [SSH隧道](https://www.autodl.com/docs/ssh_proxy/)
 - 浏览器输入以下 url，测试服务是否启动成功
-```
+```text
 http://localhost:8000/docs
 ```
 ![[Pasted image 20250223232930.png]]
 - 或者你也可以通过 postMan 来测试
-```
+```text
 http://localhost:8000/generate?prompt=你是谁？
 ```
 ![[Pasted image 20250223232958.png]]
@@ -357,7 +357,7 @@ public class ChatServiceImpl implements ChatService {
 ##### 3. 本机启动 Demo 前后端工程，测试对话效果
 ###### 3.1 启动前端工程
 - 前端项目地址：
-```
+```text
 https://github.com/huangyf2013320506/magic_conch_frontend.git
 ```
 - 执行：
@@ -369,7 +369,7 @@ npm run dev
 ```
 ###### 3.2 启动后端工程
 - 后端项目地址：
-```
+```text
 https://github.com/huangyf2013320506/magic_conch_backend.git
 ```
 - 执行：

@@ -702,13 +702,13 @@ SFT虽然重要并且有效，但是同时我们也不能放养式的SFT，还�
 ##### 4. 训练流程示例（伪代码）
 
 
-```
+```python
 for batch in training_data:
-outputs = policy_model.generate(batch.inputs)
-rewards = reward_model(outputs, batch.inputs)
-loss = ppo_loss(policy_model, outputs, rewards, kl_coeff)
-loss.backward()
-optimizer.step()
+    outputs = policy_model.generate(batch.inputs)
+    rewards = reward_model(outputs, batch.inputs)
+    loss = ppo_loss(policy_model, outputs, rewards, kl_coeff)
+    loss.backward()
+    optimizer.step()
 ```
 ##### 5. 部署与在线反馈
 
@@ -721,19 +721,24 @@ optimizer.step()
 我们使用自定义数据集，格式类似以下结构：
 
 
-```
+```python
 dataset = load_dataset("csv", data_files="data/custom_train.csv")
 print(dataset["train"][0])
 ```
 **示例样本：**
 
 
-- `1 { 2 "prompt": "` 写一首关于春天的诗 `", 3 "response": "` 春风拂面，百花齐放，燕子呢喃，绿意盎然。 `" 4 }`
+```json
+{
+  "prompt": "写一首关于春天的诗",
+  "response": "春风拂面，百花齐放，燕子呢喃，绿意盎然。"
+}
+```
 
 这样，每条数据包含 `prompt`  和 `response`  字段。 这里选择一个基础的语言模型，并加上 Value Head，用于 PPO 训练。
 
 
-```
+```python
 model_name = "distilgpt2"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name)
@@ -741,12 +746,12 @@ model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name)
 **设置训练参数：**
 
 
-```
+```python
 config = PPOConfig(
-batch_size=16,
-learning_rate=1.41e-5,
-log_with="tensorboard",
-project_kwargs={"logging_dir": "./logs"},
+    batch_size=16,
+    learning_rate=1.41e-5,
+    log_with="tensorboard",
+    project_kwargs={"logging_dir": "./logs"},
 )
 ```
 奖励模型用于对模型输出打分。在 Notebook 中，奖励函数采用了一个简单的打分逻辑（例如基于长 度、关键字等规则），你也可以换成训练好的 Reward Model。
@@ -754,45 +759,39 @@ project_kwargs={"logging_dir": "./logs"},
 **示例自定义奖励函数：**
 
 
-```
+```python
 def compute_reward(text):
-# 简单示例：鼓励长文本
-return len(text.split()) / 50.0
+    # 简单示例：鼓励长文本
+    return len(text.split()) / 50.0
 ```
 在实际应用中，可以加载预训练的 Reward Model，例如基于 `BERT`  或 `RoBERTa` ，对输出进行更 细致的质量判断。
 
 **训练流程如下：**
 
 
-```
-1ppo_trainer = PPOTrainer(
-```
-
-```
-config=config,
-model=model,
-tokenizer=tokenizer,
-dataset=dataset["train"]
+```python
+ppo_trainer = PPOTrainer(
+    config=config,
+    model=model,
+    tokenizer=tokenizer,
+    dataset=dataset["train"]
 )
 for batch in dataset["train"]:
-query = batch["prompt"]
-response = model.generate(**tokenizer(query, return_tensors="pt"))
-response_text = tokenizer.decode(response[0], skip_special_tokens=True)
+    query = batch["prompt"]
+    response = model.generate(**tokenizer(query, return_tensors="pt"))
+    response_text = tokenizer.decode(response[0], skip_special_tokens=True)
 
-reward = compute_reward(response_text)
+    reward = compute_reward(response_text)
+    ppo_trainer.step([query], [response_text], [reward])
 ```
-- 14
-
-- `15 ppo_trainer.step([query], [response_text], [reward])`
 
 **训练过程中，模型会不断优化，使得生成结果更符合奖励模型的偏好。**
 
 训练完成后，可以直接使用模型进行推理：
 
 
-- `1 prompt = "` 请写一段关于人工智能的励志短文 `"`
-
-```
+```python
+prompt = "请写一段关于人工智能的励志短文"
 inputs = tokenizer(prompt, return_tensors="pt")
 outputs = model.generate(**inputs, max_new_tokens=100)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
@@ -847,9 +846,9 @@ LoRA 通过对权重更新做低秩分解，实现参数的高效表达。
 传统微调需调整整个 Transformer 权重，而 LoRA 只冻结原模型参数，避免全量反向传播开销。
 
 
-```
+```python
 for param in model.parameters():
-param.requires_grad = False # 冻结所有参数
+    param.requires_grad = False  # 冻结所有参数
 ```
 这样可以显著降低训练计算和显存需求。
 
@@ -894,11 +893,11 @@ _Q_ = _XWQ_ , _K_ = _XWK_ , _V_ = _XWV_ LoRA 不直接训练原始权重 _WQ_  �
 **3.只训练低秩矩阵参数**
 
 
-```
-1optimizer = torch.optim.AdamW([
-2    {'params': model.lora_A.parameters()},
-3    {'params': model.lora_B.parameters()}
-4], lr=1e-4)
+```python
+optimizer = torch.optim.AdamW([
+    {'params': model.lora_A.parameters()},
+    {'params': model.lora_B.parameters()}
+], lr=1e-4)
 ```
 
 仅训练 _A_  和 _B_ ，冻结原模型所有参数，显著降低计算量。
@@ -922,8 +921,8 @@ _Q_ = _XWQ_ , _K_ = _XWK_ , _V_ = _XWV_ LoRA 不直接训练原始权重 _WQ_  �
 - 合并权重：适合单一任务高效推理，避免额外计算。
 
 
-```
-1model.W_Q.weight.data += model.B.weight @ model.A.weight
+```python
+model.W_Q.weight.data += model.B.weight @ model.A.weight
 ```
 
 其中需要注意的实现细节如下：
@@ -1050,15 +1049,43 @@ QLoRA 基于以下两大技术点：
 - 这种量化支持混合精度推理和训练，有效缓解硬件瓶颈。
 
 
-`1 # 1.` 加载 `4-bit` 量化模型 `2 model = AutoModelForCausalLM.from_pretrained( 3 "huggingface/llama-7b", 4 load_in_4bit=True, 5 device_map="auto", 6 quantization_config={ 7 "bnb_4bit_compute_dtype": "float16", 8 "bnb_4bit_use_double_quant": True, 9 "bnb_4bit_quant_type": "nf4" 10 } 11 )`
+```python
+# 1. 加载 4-bit 量化模型
+model = AutoModelForCausalLM.from_pretrained(
+    "huggingface/llama-7b",
+    load_in_4bit=True,
+    device_map="auto",
+    quantization_config={
+        "bnb_4bit_compute_dtype": "float16",
+        "bnb_4bit_use_double_quant": True,
+        "bnb_4bit_quant_type": "nf4"
+    }
+)
+```
 
 2. 低秩增量微调（LoRA） 在量化模型基础上，继续使用 LoRA 低秩矩阵 A,B 对权重增量进行微调。 由于只微调小量参数，训练过程的显存开销更小。
 
-`1 # 2.` 配置 `LoRA` 微调 `2 lora_config = LoraConfig( 3 r=8, 4 lora_alpha=16, 5 lora_dropout=0.1, 6 bias="none", 7 task_type="CAUSAL_LM" 8 ) 9 model = get_peft_model(model, lora_config)`
+```python
+# 2. 配置 LoRA 微调
+lora_config = LoraConfig(
+    r=8,
+    lora_alpha=16,
+    lora_dropout=0.1,
+    bias="none",
+    task_type="CAUSAL_LM"
+)
+model = get_peft_model(model, lora_config)
+```
 
 3. 分页优化（Paged Optimizer） 引入分页优化机制，将优化器状态和梯度按页（page）分块管理，避免一次性加载全部数据到显 存。 通过分页技术，训练过程中显存占用更加均衡且可控，进一步降低显存峰值，提升训练大模型的稳 定性和效率。
 
-`1 # 3.` 配置分页优化器 `2 optimizer = PagedAdamW( 3 model.parameters(), 4 lr=2e-5 5 )`
+```python
+# 3. 配置分页优化器
+optimizer = PagedAdamW(
+    model.parameters(),
+    lr=2e-5
+)
+```
 
 结合这几点，QLoRA 能在极低显存下完成超大模型微调，且训练效果接近全精度微调。
 
@@ -1303,7 +1330,15 @@ ReAct Prompt（Reason + Act）是一种将 推理过程与行动决策结合在�
 通过这种结构化方式，模型可以逐步完成复杂任务。例如在一个信息检索场景中，Agent 的执行过程 可能如下：
 
 
-`1 Thought:` 需要查找关于某个公司的信息 `2 Action: Search[` 公司名称 `] 3 4 Observation:` 返回公司简介 `5 6 Thought:` 已经获得基础信息，现在需要总结 `7 Action: Final Answer`
+```text
+Thought: 需要查找关于某个公司的信息
+Action: Search[公司名称]
+
+Observation: 返回公司简介
+
+Thought: 已经获得基础信息，现在需要总结
+Action: Final Answer
+```
 
 这种模式使得模型不仅能够思考问题，还能够主动决定下一步操作，从而形成 “思考—行动—反馈— 再思考” 的循环。
 
@@ -1323,11 +1358,20 @@ ReAct Prompt 的优势在于能够显著提升 Agent 在复杂任务中的表现
 
 例如：
 
-1 可用工具： `2 3 Tool: Search 4` 描述 : 用于搜索互联网信息 5 输入 : 查询关键词 6 输出 : 搜索结果摘要
+```text
+可用工具：
+
+Tool: Search
+描述: 用于搜索互联网信息
+输入: 查询关键词
+输出: 搜索结果摘要
+```
 
 在这种设计下，模型在推理过程中可以根据任务需要选择合适的工具，并按照规定格式生成调用指 令。例如：
 
-`1 Action: Search["` 最新人工智能政策 `"]`
+```text
+Action: Search["最新人工智能政策"]
+```
 
 系统接收到这一指令后会执行对应工具，并将结果返回给模型继续推理。 Tool Prompt 的出现，使得大模型能够突破自身知识截止时间的限制，并通过外部工具获取实时信息 或执行计算任务。这也是现代 Agent 系统能够完成复杂任务的重要原因之一。
 
@@ -1377,7 +1421,21 @@ Prompt 模板设计本质上是一种 将 Prompt 工程化、模块化的技术�
 
 为了让 Prompt 模板能够适用于不同任务输入，开发者通常会采用 参数化（Parameterization） 的 方式来构建 Prompt。所谓参数化，就是在 Prompt 中预留变量位置，在实际调用时再填入具体内容。 例如，一个简单的 Prompt 模板可以设计为：
 
-1 你是一名专业客服。 2 3 用户问题： `4 {user_question} 5 6` 请根据以下知识库内容回答用户问题： `7 8 {knowledge_context} 9 10` 请使用简洁语言回答，并以 `JSON` 格式输出： `11 { 12 "answer": "" 13 }`
+```text
+你是一名专业客服。
+
+用户问题：
+{user_question}
+
+请根据以下知识库内容回答用户问题：
+
+{knowledge_context}
+
+请使用简洁语言回答，并以 JSON 格式输出：
+{
+  "answer": ""
+}
+```
 
 在系统运行时， `{user_question}`  和 `{knowledge_context}`  会被替换为真实数据，从而生 成最终 Prompt。
 
@@ -1475,11 +1533,29 @@ Jailbreak（越狱攻击）是另一种常见的 Prompt 攻击方式，其目标
 
 在大多数 AI 系统中，最常用的结构化输出格式是 JSON（JavaScript Object Notation）。JSON 具 有结构清晰、易于解析的特点，几乎所有编程语言都能够方便地处理这种格式。 在 Prompt 中，可以通过明确的指令要求模型按照 JSON 格式输出结果。例如：
 
-1 请分析以下用户问题，并返回 `JSON` 结果： 2 3 用户问题： `4 {user_question} 5 6` 输出格式： `7 { 8 "intent": "", 9 "confidence": "", 10 "reply": "" 11 }`
+```text
+请分析以下用户问题，并返回 JSON 结果：
+
+用户问题：
+{user_question}
+
+输出格式：
+{
+  "intent": "",
+  "confidence": "",
+  "reply": ""
+}
+```
 
 在这种设计下，模型通常会按照指定结构生成结果，例如：
 
-`1 { 2 "intent": "` 退款咨询 `", 3 "confidence": 0.92, 4 "reply": "` 您可以在订单页面申请退款，我可以为您提供详细步骤。 `" 5 }`
+```json
+{
+  "intent": "退款咨询",
+  "confidence": 0.92,
+  "reply": "您可以在订单页面申请退款，我可以为您提供详细步骤。"
+}
+```
 
 这种方式可以让系统轻松提取字段，例如 `intent`  或 `reply` ，从而驱动后续业务逻辑。 不过，在实际应用中，大模型有时仍然可能生成额外解释文字或格式错误。因此，在设计 Prompt 时 通常需要明确说明 只输出 JSON，不要包含其他文本。
 
@@ -1487,7 +1563,16 @@ Jailbreak（越狱攻击）是另一种常见的 Prompt 攻击方式，其目标
 
 为了进一步提升结构化输出的稳定性，一些系统会在 Prompt 中加入 Schema（结构约束）。 Schema 的作用是明确规定输出数据的字段类型、字段含义以及可能的取值范围。 例如：
 
-1 请根据用户问题判断意图，并按照以下 `Schema` 返回结果： `2 3 Schema` ： `4 { 5 "intent": "string` ，用户意图 `", 6 "confidence": "number` ，范围 `0-1", 7 "need_human_support": "boolean" 8 }`
+```text
+请根据用户问题判断意图，并按照以下 Schema 返回结果：
+
+Schema：
+{
+  "intent": "string，用户意图",
+  "confidence": "number，范围 0-1",
+  "need_human_support": "boolean"
+}
+```
 
 通过这种方式，可以让模型更清楚地理解每个字段的含义，从而减少输出错误。 在一些高级应用中，系统甚至会使用 JSON Schema 或函数调用（Function Calling）机制 来强制模 型按照指定结构输出。这样不仅可以减少解析错误，还可以让模型更容易与程序系统集成。 Schema 约束在 AI Agent、数据抽取系统以及信息结构化任务 中非常常见，例如从文本中提取人物、 时间、地点等信息。
 
@@ -1558,15 +1643,17 @@ Fine-tuning 的核心思想是：在预训练模型的基础上，使用特定�
 **从整体流程来看，RAG 的基本架构可以表示为：**
 
 
-- `1 User Query`
-
-- 2 ↓
-
-- `3 Query Embedding 4` ↓
-
-- `5 Vector Retrieval 6` ↓ `7 Context Construction 8` ↓
-
-- `9 LLM Generation`
+```text
+User Query
+    ↓
+Query Embedding
+    ↓
+Vector Retrieval
+    ↓
+Context Construction
+    ↓
+LLM Generation
+```
 
 在这个流程中，每一个环节都承担着不同的职责，并且都会直接影响最终生成结果的质量。理解这些 模块的工作方式，是设计高质量 RAG 系统的关键。
 
@@ -2338,18 +2425,19 @@ Agentic RAG 是近年来出现的一种新型架构，它将 AI Agent 与 RAG �
 
 **典型的 Agent 架构流程如下：**
 
-|代码块|
-|---|
-|`User Input`<br>1|
-|↓<br>2|
-|`LLM Reasoning`<br>3|
-|↓<br>4|
-|`Tool Selection`<br>5|
-|↓<br>6|
-|`Tool Execution`<br>7|
-
-
-8 ↓ `9 Observation 10` ↓ `11 Final Answer`
+```text
+User Input
+    ↓
+LLM Reasoning
+    ↓
+Tool Selection
+    ↓
+Tool Execution
+    ↓
+Observation
+    ↓
+Final Answer
+```
 
 这一流程看似简单，但实际上构成了绝大多数 Agent 系统的核心运行逻辑。下面我们逐步解释每一个 环节在系统中的作用。
 
@@ -2552,12 +2640,21 @@ Tool Schema 本质上是一种结构化描述，用于告诉模型：
 
 定义工具调用所需要的参数，例如订单号、用户 ID 等。 例如，一个订单查询工具的结构可以表示为：
 
-`1 { 2 "name": "query_order", 3 "description": "` 查询订单状态 `", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "order_id": { 8 "type": "string", 9 "description": "` 订单编号 `" 10 } 11 },`
-
-```
-12"required": ["order_id"]
-13  }
-14}
+```json
+{
+  "name": "query_order",
+  "description": "查询订单状态",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "order_id": {
+        "type": "string",
+        "description": "订单编号"
+      }
+    },
+    "required": ["order_id"]
+  }
+}
 ```
 
 当模型需要查询订单时，就可以按照这个结构生成调用请求。 Tool Schema 的设计非常重要，因为它直接影响模型能否正确理解工具的用途。如果描述不清晰，模 型可能会选择错误的工具，或者生成错误的参数。
@@ -2629,13 +2726,33 @@ Tool Schema 本质上是一种结构化描述，用于告诉模型：
 
 下面是一个简单的函数定义示例：
 
-`1 { 2 "name": "query_order", 3 "description": "` 查询订单状态 `", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "order_id": { 8 "type": "string",`
-
-`9 "description": "` 订单编号 `" 10 } 11 }, 12 "required": ["order_id"] 13 } 14 }`
+```json
+{
+  "name": "query_order",
+  "description": "查询订单状态",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "order_id": {
+        "type": "string",
+        "description": "订单编号"
+      }
+    },
+    "required": ["order_id"]
+  }
+}
+```
 
 当用户询问订单状态时，大语言模型可能会生成如下函数调用请求：
 
-`1 { 2 "name": "query_order", 3 "arguments": { 4 "order_id": "10234" 5 } 6 }`
+```json
+{
+  "name": "query_order",
+  "arguments": {
+    "order_id": "10234"
+  }
+}
+```
 
 系统接收到这个请求后，就可以执行对应的函数逻辑，例如查询数据库并返回订单状态。
 
@@ -2856,14 +2973,13 @@ Skills 可以包含三种类型的内容，每种在不同时间加载：
 内容类型：指令。Skill 的 YAML 前置信息提供发现信息：
 
 
-```
-1---name: pdf-processing
-```
-
-```
-2description: Extract text and tables from PDF files, fill forms, merge
-documents. Use when working with PDF files or when the user mentions PDFs,
-forms, or document extraction.---
+```yaml
+---
+name: pdf-processing
+description: Extract text and tables from PDF files, fill forms, merge
+  documents. Use when working with PDF files or when the user mentions PDFs,
+  forms, or document extraction.
+---
 ```
 
 Agent在启动时加载此元数据并将其包含在系统提示中。这种轻量级方法意味着您可以安装许多 Skills  而不会产生上下文开销；Agent 只知道每个 Skill 的存在及其使用时机。
@@ -2873,16 +2989,21 @@ Agent在启动时加载此元数据并将其包含在系统提示中。这种轻
 内容类型：指令。SKILL.md 的主体包含程序性知识：工作流程、最佳实践和指导：
 
 
+````markdown
+# PDF Processing
+
+## Quick start
+
+Use pdfplumber to extract text from PDFs:
+
+```python
+import pdfplumber
+with pdfplumber.open("document.pdf") as pdf:
+    text = pdf.pages[0].extract_text()
 ```
-1# PDF Processing
-2## Quick startUse pdfplumber to extract text from PDFs:
-3```python
-4import pdfplumber
-5with pdfplumber.open("document.pdf") as pdf:
-6    text = pdf.pages[0].extract_text()
-7```
-8For advanced form filling, see [FORMS.md](FORMS.md).
-```
+
+For advanced form filling, see [FORMS.md](FORMS.md).
+````
 
 当您的请求与某个 Skill 的描述匹配时，Agent 通过 bash 从文件系统读取 SKILL.md。只有在此时，这 些内容才会进入上下文窗口。
 
@@ -2891,7 +3012,14 @@ Agent在启动时加载此元数据并将其包含在系统提示中。这种轻
 内容类型：指令、代码和资源。Skills 可以捆绑额外的材料：
 
 
-`1 pdf-skill/ 2` ├── `SKILL.md (main instructions) 3` ├── `FORMS.md (form-filling guide) 4` ├── `REFERENCE.md (detailed API reference) 5` └── `scripts/ 6` └── `fill_form.py (utility script)`
+```text
+pdf-skill/
+├── SKILL.md (main instructions)
+├── FORMS.md (form-filling guide)
+├── REFERENCE.md (detailed API reference)
+└── scripts/
+    └── fill_form.py (utility script)
+```
 
 指令：额外的 markdown 文件（FORMS.md、REFERENCE.md），包含专门的指导和工作流程 代码：可执行脚本（fill_form.py、validate.py），Agent 通过 bash 运行；脚本提供确定性操作而不 消耗上下文
 
@@ -3495,16 +3623,18 @@ AI 内容生产系统
 让大模型在推理过程中，根据任务需要，自动选择并调用外部工具，从而扩展自身能力。 在现代 AI Agent 架构中，Tool Calling 已经成为连接 LLM 与真实世界系统 的关键桥梁。 一个典型的 Tool Calling 流程通常如下：
 
 
-- `1 User Input 2` ↓ `3 LLM Reasoning 4` ↓ `5 Tool Selection 6` ↓ `7 Tool Execution 8` ↓
-
-```
-9Result Returned to LLM
-```
-
-10 ↓
-
-```
-11Final Response
+```text
+User Input
+    ↓
+LLM Reasoning
+    ↓
+Tool Selection
+    ↓
+Tool Execution
+    ↓
+Result Returned to LLM
+    ↓
+Final Response
 ```
 
 在这个过程中，大模型不仅负责理解用户意图，还需要判断是否需要调用工具，并决定调用哪个工具 以及传递哪些参数。
@@ -3540,9 +3670,9 @@ AI 内容生产系统
 **例如：**
 
 
-```
-1Get the current weather of a city.
-2Use this tool when the user asks about weather.
+```text
+Get the current weather of a city.
+Use this tool when the user asks about weather.
 ```
 
 描述越清晰，大模型在推理时选择正确工具的概率就越高。
@@ -3552,12 +3682,9 @@ AI 内容生产系统
 工具的输入参数定义，包括参数名称、数据类型以及含义说明。例如：
 
 
-```
-1city: string
-```
-
-```
-2unit: celsius | fahrenheit
+```text
+city: string
+unit: celsius | fahrenheit
 ```
 
 这些参数会在模型决定调用工具时，由模型自动生成对应的参数值。
@@ -3568,7 +3695,26 @@ AI 内容生产系统
 
 一个典型的 Tool Schema 示例：
 
-`1 { 2 "name": "get_weather", 3 "description": "Get the current weather of a city", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "city": { 8 "type": "string", 9 "description": "The name of the city" 10 }, 11 "unit": { 12 "type": "string", 13 "enum": ["celsius", "fahrenheit"] 14 } 15 }, 16 "required": ["city"] 17 } 18 }`
+```json
+{
+  "name": "get_weather",
+  "description": "Get the current weather of a city",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "description": "The name of the city"
+      },
+      "unit": {
+        "type": "string",
+        "enum": ["celsius", "fahrenheit"]
+      }
+    },
+    "required": ["city"]
+  }
+}
+```
 
 该 Schema 向大模型清晰地描述了以下信息：
 
@@ -3650,9 +3796,21 @@ AI 内容生产系统
 
 一个典型的 Function Calling 流程如下：
 
-`1 User Input 2` ↓ `3 LLM Reasoning 4` ↓ `5 Function Selection`
-
-6 ↓ `7 Generate Function Arguments 8` ↓ `9 Function Execution 10` ↓ `11 Return Result to LLM 12` ↓ `13 Final Response`
+```text
+User Input
+    ↓
+LLM Reasoning
+    ↓
+Function Selection
+    ↓
+Generate Function Arguments
+    ↓
+Function Execution
+    ↓
+Return Result to LLM
+    ↓
+Final Response
+```
 
 在这个过程中，模型不仅需要判断是否需要调用函数，还需要自动生成符合 Schema 的参数结构。
 
@@ -3667,11 +3825,8 @@ AI 内容生产系统
 函数名称用于标识工具，例如：
 
 
-```
-1get_weather
-```
-
-```
+```text
+get_weather
 search_web
 query_order
 ```
@@ -3690,7 +3845,7 @@ query_order
 **例如：**
 
 
-```
+```text
 Get the weather information of a city.
 Use this function when the user asks about weather.
 ```
@@ -3698,7 +3853,18 @@ Use this function when the user asks about weather.
 
 参数通常使用 JSON Schema 描述，例如：
 
-`1 { 2 "type": "object", 3 "properties": { 4 "city": { 5 "type": "string", 6 "description": "Name of the city" 7 } 8 }, 9 "required": ["city"] 10 }`
+```json
+{
+  "type": "object",
+  "properties": {
+    "city": {
+      "type": "string",
+      "description": "Name of the city"
+    }
+  },
+  "required": ["city"]
+}
+```
 
 
 ![](images/agent面经.pdf-0192-00.png)
@@ -3710,9 +3876,20 @@ Use this function when the user asks about weather.
 
 模型可能会生成如下函数调用：
 
-`1 { 2 "name": "get_weather", 3 "arguments": { 4 "city": "Shanghai" 5 } 6 }` 系统随后执行该函数，并返回天气数据。 随后模型会基于返回结果生成最终回答，例如：
+```json
+{
+  "name": "get_weather",
+  "arguments": {
+    "city": "Shanghai"
+  }
+}
+```
 
-1 上海当前气温为 `18°C` ，天气多云。
+系统随后执行该函数，并返回天气数据。 随后模型会基于返回结果生成最终回答，例如：
+
+```text
+上海当前气温为 18°C，天气多云。
+```
 
 这种机制使得模型可以在推理过程中动态调用系统能力，而不是仅依赖训练数据中的知识。
 
@@ -3721,9 +3898,9 @@ Use this function when the user asks about weather.
 在没有 Function Calling 的情况下，开发者通常依赖 Prompt Engineering 让模型“模拟调用函数”。 例如通过 Prompt 让模型输出如下结构：
 
 
-```
-1Action: get_weather
-2Input: Beijing
+```text
+Action: get_weather
+Input: Beijing
 ```
 
 然后由系统解析该文本并执行函数。
@@ -3757,12 +3934,9 @@ Function Calling 则通过 Schema 约束，让模型输出严格结构化的调�
 例如：
 
 
-```
-1function: get_weather
-```
-
-```
-2arguments: { city: "Beijing" }
+```text
+function: get_weather
+arguments: { city: "Beijing" }
 ```
 
 **2. 匹配函数**
@@ -3774,8 +3948,8 @@ Function Calling 则通过 Schema 约束，让模型输出严格结构化的调�
 调用实际代码或 API，例如：
 
 
-```
-1weather_service.get_weather(city="Beijing")
+```text
+weather_service.get_weather(city="Beijing")
 ```
 
 **4. 返回执行结果**
@@ -3783,18 +3957,11 @@ Function Calling 则通过 Schema 约束，让模型输出严格结构化的调�
 函数执行结果返回给模型，例如：
 
 
-- 1
-
-```
+```json
 {
-```
-
-```
-"temperature": "20°C",
-"condition": "Sunny"
-```
-```
-4}
+  "temperature": "20°C",
+  "condition": "Sunny"
+}
 ```
 
 5. 模型继续推理
@@ -3807,7 +3974,7 @@ Function Calling 是构建 AI Agent 的关键能力之一，其价值主要体�
 
 其次，它提供了结构化的执行方式。 由于所有函数都通过 Schema 描述，因此调用过程是可控、可验证的，这对于生产级系统尤为重要。 最后，它使得 Agent 系统具备自动化任务执行能力。 模型不仅能够理解用户需求，还能够自动决定使用哪些工具，并组合完成任务。 例如在一个智能客服 Agent 中，模型可能会依次调用：
 
-`1 query_order` → `check_logistics` → `send_message`
+`query_order` → `check_logistics` → `send_message`
 
 通过多次函数调用，Agent 可以完成完整业务流程。
 
@@ -3899,7 +4066,19 @@ MCP（Model Context Protocol）是一种用于连接 大模型与外部系统 �
 从系统设计角度来看，MCP 通常位于 LLM 与外部系统之间，充当一个能力协调层。 一个典型的 MCP 架构如下：
 
 
-`1 User 2` ↓ `3 AI Agent 4` ↓ `5 LLM Reasoning 6` ↓ `7 MCP Client 8` ↓ `9 MCP Server 10` ↓ `11 Tools / Data / Services`
+```text
+User
+    ↓
+AI Agent
+    ↓
+LLM Reasoning
+    ↓
+MCP Client
+    ↓
+MCP Server
+    ↓
+Tools / Data / Services
+```
 
 在这一架构中，各组件承担不同职责。
 
@@ -4013,13 +4192,12 @@ Function Calling 和 模型上下文协议（MCP） 都涉及模型与外部功�
 因此，一个成熟的 MCP Server 通常不仅仅是一个简单的工具接口，而是一个完整的 能力管理平台。 从系统设计角度来看，MCP Server 通常包含三个核心模块：
 
 
-- `1 MCP Server`
-
-- 2 ├── `Tool Registry`
-
-- 3 ├── `Context Provider`
-
-- 4 └── `Resource Provider`
+```text
+MCP Server
+├── Tool Registry
+├── Context Provider
+└── Resource Provider
+```
 
 这三个模块分别负责 工具管理、上下文提供以及资源访问。
 
@@ -4057,7 +4235,21 @@ Tool Registry 主要承担以下职责。
 
 例如：
 
-`1 { 2 "name": "search_documents", 3 "description": "Search documents in the knowledge base", 4 "parameters": { 5 "type": "object", 6 "properties": { 7 "query": { 8 "type": "string" 9 } 10 }, 11 "required": ["query"] 12 } 13 }`
+```json
+{
+  "name": "search_documents",
+  "description": "Search documents in the knowledge base",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string"
+      }
+    },
+    "required": ["query"]
+  }
+}
+```
 
 **第二，工具发现。**
 
@@ -4381,7 +4573,13 @@ Conversation History 指的是系统在一次会话中保存的所有历史对�
 这些信息会按照时间顺序保存，并在新的推理过程中作为上下文输入到大语言模型中。 一个典型的对话历史结构可以表示为：
 
 
-`1 System:` 你是一个智能客服助手 `2 User:` 我的订单为什么还没有发货？ `3 Assistant:` 请提供订单号，我帮您查询 `4 User:` 订单号是 `348923 5 Assistant:` 正在查询订单状态
+```text
+System: 你是一个智能客服助手
+User: 我的订单为什么还没有发货？
+Assistant: 请提供订单号，我帮您查询
+User: 订单号是 348923
+Assistant: 正在查询订单状态
+```
 
 在下一轮推理时，这些历史信息都会被重新放入 Prompt 中，使模型能够理解当前对话所处的语境。 通过这种方式，Agent 可以完成很多基础能力，例如：
 
@@ -4399,7 +4597,14 @@ Conversation History 指的是系统在一次会话中保存的所有历史对�
 
 在复杂任务中，用户往往会逐步提供信息，例如： 第一轮：提出需求 第二轮：补充约束条件 第三轮：要求执行任务 通过对话历史，Agent 能够持续理解任务目标。 在工程实现中，Conversation History 一般以消息列表（Message List）的形式存储，例如：
 
-`1 [ 2 {"role": "system", "content": "..."}, 3 {"role": "user", "content": "..."}, 4 {"role": "assistant", "content": "..."}, 5 {"role": "user", "content": "..."} 6 ]`
+```json
+[
+  {"role": "system", "content": "..."},
+  {"role": "user", "content": "..."},
+  {"role": "assistant", "content": "..."},
+  {"role": "user", "content": "..."}
+]
+```
 
 这种结构几乎成为了现代 LLM API 的标准输入格式。例如在 OpenAI、LangChain、LangGraph 等框 架中，都会使用类似的数据结构管理对话状态。 不过，随着对话轮数不断增加，Conversation History 会逐渐变得非常长，从而带来两个问题： 第一是 Token 成本上升。 每一轮推理都需要重新输入全部历史内容，Token 消耗会迅速增长。 第二是 上下文窗口限制。 大语言模型通常存在最大 Context Window，如果历史对话过多，就会超出模型输入限制。 因此，在实际 Agent 系统中，短期记忆往往需要配合一些策略进行管理，例如：
 
@@ -4631,7 +4836,19 @@ Summarization 是另一种重要的上下文管理方法。与简单删除历史
 
 一个典型的 Agent 系统架构通常可以抽象为如下结构：
 
-`1 Client 2` ↓ `3 API Gateway 4` ↓ `5 Agent Service 6` ↓ `7 LLM Service 8` ↓ `9 Tool Layer 10` ↓ `11 External Systems`
+```text
+Client
+    ↓
+API Gateway
+    ↓
+Agent Service
+    ↓
+LLM Service
+    ↓
+Tool Layer
+    ↓
+External Systems
+```
 
 这个架构基本覆盖了绝大多数 AI Agent 系统的工程实现方式。
 

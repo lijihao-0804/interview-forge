@@ -756,10 +756,14 @@ def mermaid_figure(source: str) -> str:
 
 
 # 全局代码围栏匹配正则(跨函数复用)：捕获围栏语言(info 组)与围栏源码
-# (source 组)，兼容 ``` 与 ~~~、允许围栏行带缩进；详见 render_markdown 的
+# (source 组)，允许围栏行带缩进；详见 render_markdown 的
 # “围栏 → 占位符 → 还原”机制。
+# fence 组反向引用保证开栏与收栏的反引号数量一致：这样 ```` 包着 ```python 的
+# 嵌套写法(正文里举 SKILL.md 之类 Markdown 例子时会用到)才能整块吃进来，
+# 否则内层围栏会被当成开栏，占位符掉进代码里换不回来，构建直接报错。
 FENCE_BLOCK = re.compile(
-    r"(?ms)^[ \t]*```([^\n`]*)\r?\n(?P<source>.*?)^[ \t]*```[ \t]*\r?\n?"
+    r"(?ms)^[ \t]*(?P<fence>`{3,})(?P<info>[^\n`]*)\r?\n"
+    r"(?P<source>.*?)^[ \t]*(?P=fence)[ \t]*\r?\n?"
 )
 
 
@@ -804,7 +808,7 @@ def render_markdown(text: str) -> str:
     # protect_fence 是 FENCE_BLOCK.sub 的回调：mermaid 围栏进 figures 表，
     # 其余代码进 code_blocks 表，正文里只留一个 @@MMD n@@ / @@CODE n@@ 占位。
     def protect_fence(match: re.Match[str]) -> str:
-        info = match.group(1).strip()
+        info = match.group("info").strip()
         lang = info.split(None, 1)[0] if info else ""
         source = match.group("source")
         if lang == "mermaid":
