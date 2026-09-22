@@ -155,14 +155,14 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/02-双指针/0011-盛最多水的容器.md": ("02.双指针.html", {"panel": "1"}),
     "books/hot100/03-题解/02-双指针/0015-三数之和.md": ("02.双指针.html", {"panel": "2"}),
     "books/hot100/03-题解/02-双指针/0042-接雨水.md": ("02.双指针.html", {"panel": "3"}),
-    "books/hot100/03-题解/03-滑动窗口/0003-无重复字符的最长子串.md": ("滑动窗口与前缀和.html", {"mode": "window"}),
-    "books/hot100/03-题解/04-子串/0076-最小覆盖子串.md": ("困难题核心状态实验室.html", {"mode": "min-window"}),
-    "books/hot100/03-题解/04-子串/0239-滑动窗口最大值.md": ("困难题核心状态实验室.html", {"mode": "window-max"}),
-    "books/hot100/03-题解/04-子串/0560-和为 K 的子数组.md": ("滑动窗口与前缀和.html", {"mode": "prefix"}),
-    "books/hot100/03-题解/05-普通数组/0041-缺失的第一个正数.md": ("困难题核心状态实验室.html", {"mode": "first-missing"}),
-    "books/hot100/03-题解/07-链表/0023-合并 K 个升序链表.md": ("困难题核心状态实验室.html", {"mode": "merge-k"}),
-    "books/hot100/03-题解/07-链表/0025-K 个一组翻转链表.md": ("困难题核心状态实验室.html", {"mode": "reverse-k"}),
-    "books/hot100/03-题解/07-链表/0206-反转链表.md": ("链表指针实验室.html", {}),
+    "books/hot100/03-题解/03-滑动窗口/0003-无重复字符的最长子串.md": ("滑动窗口与前缀和.html", {"mode": "0003"}),
+    "books/hot100/03-题解/04-子串/0076-最小覆盖子串.md": ("滑动窗口与前缀和.html", {"mode": "0076"}),
+    "books/hot100/03-题解/04-子串/0239-滑动窗口最大值.md": ("困难题核心状态实验室.html", {"mode": "0239"}),
+    "books/hot100/03-题解/04-子串/0560-和为 K 的子数组.md": ("滑动窗口与前缀和.html", {"mode": "0560"}),
+    "books/hot100/03-题解/05-普通数组/0041-缺失的第一个正数.md": ("困难题核心状态实验室.html", {"mode": "0041"}),
+    "books/hot100/03-题解/07-链表/0023-合并 K 个升序链表.md": ("困难题核心状态实验室.html", {"mode": "0023"}),
+    "books/hot100/03-题解/07-链表/0025-K 个一组翻转链表.md": ("链表指针实验室.html", {"mode": "0025"}),
+    "books/hot100/03-题解/07-链表/0206-反转链表.md": ("链表指针实验室.html", {"mode": "0206"}),
     "books/hot100/03-题解/08-二叉树/0094-二叉树的中序遍历.md": ("二叉树演示.html", {"mode": "0094"}),
     "books/hot100/03-题解/08-二叉树/0098-验证二叉搜索树.md": ("二叉树演示.html", {"mode": "0098"}),
     "books/hot100/03-题解/08-二叉树/0101-对称二叉树.md": ("二叉树演示.html", {"mode": "0101"}),
@@ -177,10 +177,10 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/08-二叉树/0236-二叉树的最近公共祖先.md": ("二叉树演示.html", {"mode": "0236"}),
     "books/hot100/03-题解/08-二叉树/0437-路径总和 III.md": ("二叉树演示.html", {"mode": "0437"}),
     "books/hot100/03-题解/08-二叉树/0543-二叉树的直径.md": ("二叉树演示.html", {"mode": "0543"}),
-    "books/hot100/03-题解/08-二叉树/0124-二叉树中的最大路径和.md": ("困难题核心状态实验室.html", {"mode": "max-path"}),
-    "books/hot100/03-题解/09-图论/0200-岛屿数量.md": ("网格搜索实验室.html", {"mode": "dfs"}),
+    "books/hot100/03-题解/08-二叉树/0124-二叉树中的最大路径和.md": ("困难题核心状态实验室.html", {"mode": "0124"}),
+    "books/hot100/03-题解/09-图论/0200-岛屿数量.md": ("网格搜索实验室.html", {"mode": "0200"}),
     "books/hot100/03-题解/09-图论/0208-实现 Trie.md": ("树形查找算法可视化.html", {"panel": "4"}),
-    "books/hot100/03-题解/09-图论/0994-腐烂的橘子.md": ("网格搜索实验室.html", {"mode": "bfs"}),
+    "books/hot100/03-题解/09-图论/0994-腐烂的橘子.md": ("网格搜索实验室.html", {"mode": "0994"}),
     "books/hot100/03-题解/10-回溯/0046-全排列.md": ("10-回溯.html", {"panel": "0"}),
     "books/hot100/03-题解/10-回溯/0078-子集.md": ("10-回溯.html", {"panel": "1"}),
     "books/hot100/03-题解/10-回溯/0017-电话号码的字母组合.md": ("10-回溯.html", {"panel": "2"}),
@@ -189,15 +189,15 @@ VISUAL_EMBEDS: dict[str, tuple[str, dict[str, str]]] = {
     "books/hot100/03-题解/10-回溯/0079-单词搜索.md": ("10-回溯.html", {"panel": "5"}),
     "books/hot100/03-题解/10-回溯/0051-N 皇后.md": ("10-回溯.html", {"panel": "6"}),
     "books/hot100/03-题解/11-二分查找/0035-搜索插入位置.md": ("查找算法可视化.html", {"panel": "1"}),
-    "books/hot100/03-题解/11-二分查找/0004-寻找两个正序数组的中位数.md": ("困难题核心状态实验室.html", {"mode": "median-two"}),
-    "books/hot100/03-题解/12-栈/0084-柱状图中最大的矩形.md": ("困难题核心状态实验室.html", {"mode": "histogram"}),
-    "books/hot100/03-题解/12-栈/0739-每日温度.md": ("单调栈实验室.html", {}),
-    "books/hot100/03-题解/13-堆/0295-数据流的中位数.md": ("困难题核心状态实验室.html", {"mode": "median-stream"}),
-    "books/hot100/03-题解/15-动态规划/0032-最长有效括号.md": ("困难题核心状态实验室.html", {"mode": "valid-parentheses"}),
+    "books/hot100/03-题解/11-二分查找/0004-寻找两个正序数组的中位数.md": ("困难题核心状态实验室.html", {"mode": "0004"}),
+    "books/hot100/03-题解/12-栈/0084-柱状图中最大的矩形.md": ("单调栈实验室.html", {"mode": "0084"}),
+    "books/hot100/03-题解/12-栈/0739-每日温度.md": ("单调栈实验室.html", {"mode": "0739"}),
+    "books/hot100/03-题解/13-堆/0295-数据流的中位数.md": ("困难题核心状态实验室.html", {"mode": "0295"}),
+    "books/hot100/03-题解/15-动态规划/0032-最长有效括号.md": ("困难题核心状态实验室.html", {"mode": "0032"}),
     "books/hot100/03-题解/15-动态规划/0416-分割等和子集.md": ("15-动态规划-0-1 背包问题：倒序遍历演示.html", {}),
-    "books/hot100/03-题解/16-多维动态规划/0062-不同路径.md": ("动态规划状态转移.html", {"mode": "paths"}),
-    "books/hot100/03-题解/16-多维动态规划/0072-编辑距离.md": ("困难题核心状态实验室.html", {"mode": "edit-distance"}),
-    "books/hot100/03-题解/16-多维动态规划/1143-最长公共子序列.md": ("动态规划状态转移.html", {"mode": "lcs"}),
+    "books/hot100/03-题解/16-多维动态规划/0062-不同路径.md": ("动态规划状态转移.html", {"mode": "0062"}),
+    "books/hot100/03-题解/16-多维动态规划/0072-编辑距离.md": ("动态规划状态转移.html", {"mode": "0072"}),
+    "books/hot100/03-题解/16-多维动态规划/1143-最长公共子序列.md": ("动态规划状态转移.html", {"mode": "1143"}),
 }
 
 
@@ -815,6 +815,16 @@ readerVisualFrames.forEach((frame) => {
     return bar;
   }
   document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
+  /* 演示页 iframe 也带语言切换：它写 localStorage（同源，触发本页 storage 事件），
+     并 postMessage 过来，由这里补上服务端持久化，两边保持同一个偏好。 */
+  window.addEventListener('storage', (e) => {
+    if (!e || e.key === null || e.key === 'forge-lang') applyLang(getLang());
+  });
+  window.addEventListener('message', (e) => {
+    if (e && e.data && e.data.type === 'forge-lang' && e.data.lang && e.data.lang !== getLang()) {
+      setLang(e.data.lang, true);
+    }
+  });
   fetch('/api/me', { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {

@@ -380,7 +380,10 @@ transition:none!important;transform:none!important}}
     wrap.textContent = "";
     wrap.classList.add("dk-wrap");
 
-    var code = normalizeCode(cfg.code);
+    /* 右侧代码窗格默认关闭：演示页只留动画，代码看题解正文即可，挤在右边反而
+       抢注意力。cfg.code 仍原样保留（行号高亮协议、多语言数组都还在），想恢复
+       只要给某个 demo 显式写上 showCode: true。 */
+    var code = cfg.showCode ? normalizeCode(cfg.code) : null;
     var compare = cfg.compare && typeof cfg.compare.build === "function" ? cfg.compare : null;
     var invariants = (cfg.invariants || []).filter(function (x) { return x && typeof x.test === "function"; });
 

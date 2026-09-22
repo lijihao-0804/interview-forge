@@ -77,7 +77,7 @@
 </div>
 
         </details>
-        <p><a href="index.html" target="_blank" rel="noopener noreferrer">返回学习面板</a> · <a href="books/hot100/04-模板/04-新增题目页面模板.html" target="_blank" rel="noopener noreferrer">新增题目模板</a> · <a href="docs/QA-REPORT.html" target="_blank" rel="noopener noreferrer">校验报告</a> · 过程文档见 <code>报告/</code>（增强实现记录为 <code>报告\增强实现记录.md</code>）</p>
+        <p><a href="index.html" target="_blank" rel="noopener noreferrer">返回学习面板</a> · <a href="books/hot100/04-模板/04-新增题目页面模板.html" target="_blank" rel="noopener noreferrer">新增题目模板</a> · <a href="docs/QA-REPORT.html" target="_blank" rel="noopener noreferrer">校验报告</a> · 过程文档统一放在 <code>docs/</code>；部署凭据和服务器操作手册不放在本仓库</p>
 <p>本文档是本目录的维护标准。目标是让维护者不需要阅读全部 Python 代码，也能安全修改内容、增加题目、增加可视化，并维护线上按账号隔离保存学习记录的学习站。</p>
 <h2 id="0">0. 本地开发与线上入口</h2>
 <p>正式使用请访问 <a href="https://hot100.xyz/" target="_blank" rel="noopener noreferrer">https://hot100.xyz/</a>；不要把本地启动脚本当作线上入口。本地开发或线上故障应急维护时，才使用根目录的 <code>启动学习站.cmd</code> 启动本地服务，命令窗口需要保持开启；结束后按 <code>Ctrl+C</code> 停止。</p>
@@ -166,7 +166,10 @@
 <h3 id="scriptscheckcheck_hot100py"><code>scripts/check/check_hot100.py</code>：发布前检查</h3>
 <p>它检查题号重复、必需章节、代码围栏、本地链接、HTML 结构、Markdown 残留、公式残留以及 JavaScript 语法。检查失败时不要发布，先处理所有 <code>ERROR</code>。</p>
 <h3 id="interview_forgeserverstudy_serverpyhttp-facade"><code>interview_forge/server/study_server.py</code>：HTTP 服务与兼容 facade</h3>
-<p>FastAPI/Uvicorn 是正式运行时；该文件负责启动入口并保留旧版标准库 handler 的兼容导出。正式路由、鉴权和业务调用分别位于 <code>interview_forge/api/</code>、<code>interview_forge/services/</code>、<code>interview_forge/db/</code> 与 <code>interview_forge/analytics/</code>；本地开发时才按启动脚本的监听配置运行：</p>
+<p>FastAPI/Uvicorn 是正式运行时；该文件负责启动入口并保留旧版标准库
+handler 的兼容导出。正式路由、鉴权和业务调用分别位于
+<code>interview_forge/api/</code>、<code>interview_forge/services/</code>、<code>interview_forge/db/</code> 与
+<code>interview_forge/analytics/</code>；本地开发时才按启动脚本的监听配置运行：</p>
 <ul>
 <li>打开题解页时写入一条 <code>view</code>；同题 60 秒内重复刷新不会反复记账。</li>
 <li>Hot 100 面板不再落手动 <code>complete</code>：题目轮次由 <code>submissions.status='ac'</code> 按自然日去重推导；书架章节仍可点“完成一轮”写入 <code>complete</code>。</li>
@@ -363,7 +366,8 @@ facade，修改这些职责时不要复制 queue、cache 或 provider 单例。<
 </ul>
 <p><code>assets/site.css</code> 和 <code>assets/site.js</code> 是生成结果。修改公共样式时，应修改生成器中的常量，再运行 <code>scripts/build/build_html_site.py</code>。只改 <code>assets/</code> 会在下次构建时被覆盖。</p>
 <p>学习站首页的 HTML、CSS、JavaScript 位于 <code>tools/templates/dashboard.tpl</code>，题目数据由 <code>scripts/build/build_hot100.py</code> 的 <code>render_dashboard()</code> 注入。数据库连接/schema 位于 <code>interview_forge/db/</code>，FastAPI/Uvicorn 组装位于 <code>interview_forge/api/</code>，旧 <code>interview_forge/server/study_server.py</code> 是兼容 handler/facade；学习业务位于 <code>interview_forge/services/</code>。题解与可视化的对应关系位于 <code>scripts/build/build_html_site.py</code> 的 <code>VISUAL_EMBEDS</code>，统一修饰位于 <code>polish_visual()</code>。</p>
-<p>服务端依赖安装使用固定清单：<code>python -m pip install -r requirements-server.txt</code>。<code>tools/study_server.py</code> 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 <code>study_server</code>，跨模块依赖通过 <code>interview_forge/core/runtime.py</code> 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 <code>AsyncHttpClient</code>，SQLite/analytics 保持同步。</p>
+<p>服务端依赖安装使用固定清单：<code>python -m pip install -r requirements-server.txt</code>。启用 AI 或运行完整测试时，再安装 <code>requirements-ai.txt</code>；开发环境直接安装 <code>requirements-dev.txt</code>。<code>INTERVIEW_FORGE_AI_CONFIG_KEY</code> 必须在服务的私有环境文件中稳定配置，不能写入仓库、命令行历史、日志或 trace；如果缺失或更换，已经加密的 Provider/力扣凭证将无法解密，程序不会静默生成新密钥。<code>AI_CHAT_DAILY_LIMIT</code> 控制普通用户的 AI 聊天日额度，默认 30，允许范围 0~100，管理员不受该额度限制。Windows 依赖清单会按平台安装 <code>tzdata</code>，Linux 使用系统时区数据库。<code>tools/study_server.py</code> 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 <code>study_server</code>，跨模块依赖通过 <code>interview_forge/core/runtime.py</code> 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 <code>AsyncHttpClient</code>，SQLite/analytics 保持同步。
+服务端依赖安装使用固定清单：<code>python -m pip install -r requirements-server.txt</code>。启用 AI 或运行完整测试时，再安装 <code>requirements-ai.txt</code>；开发环境直接安装 <code>requirements-dev.txt</code>。<code>INTERVIEW_FORGE_AI_CONFIG_KEY</code> 必须在服务的私有环境文件中稳定配置，不能写入仓库、命令行历史、日志或 trace；如果缺失或更换，已经加密的 Provider/力扣凭证将无法解密，程序不会静默生成新密钥。<code>AI_CHAT_DAILY_LIMIT</code> 控制普通用户的 AI 聊天日额度，默认 30，允许范围 0~100，管理员不受该额度限制。<code>INTERVIEW_FORGE_ALLOWED_ORIGINS</code> 可用逗号分隔补充受信 Origin，服务不会根据请求的 Host 自动信任来源。Windows 依赖清单会按平台安装 <code>tzdata</code>，Linux 使用系统时区数据库。<code>tools/study_server.py</code> 仍是本地和部署脚本的兼容入口，默认启动 FastAPI/Uvicorn；不要在业务模块重新导入 <code>study_server</code>，跨模块依赖通过 <code>interview_forge/core/runtime.py</code> 在组装层绑定。外部 HTTP 可使用 FastAPI lifespan 管理的 <code>AsyncHttpClient</code>，SQLite/analytics 保持同步。</p>
 <h3 id="_9">学习书架与课程模块</h3>
 <p>学习书架生成器是 <code>scripts/build/build_library.py</code>，课程登记表是 <code>scripts/build/library_catalog.py</code>。当前只收录明确登记的 Markdown，不会递归发布临时文件、demo README、数据库、密码文本或其他私人附件。</p>
 <p><code>Hot 100 算法刷题精讲</code> 是书架里的特殊模块：它不拆 Markdown，而是由 <code>scripts/build/build_hot100.py</code> 的题目目录生成，每道题指向 <code>03-题解/</code> 下已有的题解页。题目轮次由 AC 记录自动推导并反映到书架进度；不要在 <code>scripts/build/library_catalog.py</code> 里为它登记 <code>source</code>。</p>

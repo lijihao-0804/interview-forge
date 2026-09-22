@@ -425,6 +425,21 @@ for key in VISUAL_EMBEDS:
 missing_hard_visuals = sorted(int(problem["id"]) for problem in PROBLEMS if problem["difficulty"] == "困难" and int(problem["id"]) not in bound_problem_ids)
 if missing_hard_visuals:
     errors.append(f"困难题缺少题解内嵌演示：{', '.join(map(str, missing_hard_visuals))}")
+# mode 必须真的能在目标演示页里选中：可视化页的挂载脚本在 mode 认不出来时会
+# 静默回落到第一道题，于是“124 的内嵌演示放的是 239”这种错配不会报任何错，
+# 只有人眼看见才发现。演示页改题号（如迁到 DemoKit 后 key 从 max-path 变成
+# 0124）时，这里就必须跟着改，所以在发布前把两边对死。
+for source_rel, (visual_name, query) in VISUAL_EMBEDS.items():
+    mode = query.get("mode")
+    if not mode:
+        continue
+    visual_path = ROOT / "books" / "hot100" / "05-可视化" / visual_name
+    if not visual_path.exists():
+        errors.append(f"演示绑定指向不存在的可视化页：{source_rel} -> {visual_name}")
+        continue
+    visual_text = visual_path.read_text(encoding="utf-8-sig")
+    if f'"{mode}": {{' not in visual_text and f"'{mode}':" not in visual_text:
+        errors.append(f"演示绑定的 mode 在目标页里不存在（会静默回落到第一道题）：{source_rel} -> {visual_name}?mode={mode}")
 # 控件可访问性：搜索/分类/状态三个控件必须配 <label for>（点击文字即聚焦，
 # 屏幕阅读器才能读出控件用途）；状态下拉还必须有 value="due"（待复习）选项，
 # 否则复习筛选功能不完整。
