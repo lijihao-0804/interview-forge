@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<html lang="zh-CN"><head>
+<html lang="zh-CN">
+<head>
 <style id="hot100-visual-theme">
 /* ===== 演示页统一主题层（demo-kit 同源令牌，元素级归一化，不改各页逻辑） ===== */
 :root{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
@@ -45,8 +46,11 @@ code,pre{font-family:var(--font-mono)!important}
   if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
 })();
 </script>
-<meta content="light dark" name="color-scheme"/><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>二维动态规划状态转移</title>
-<style>:root{color-scheme:light dark;--bg:#f6f7fb;--panel:#fff;--text:#172033;--muted:#68758a;--line:#d9e0eb;--brand:#5755d9;--soft:#ededff;--source:#178158}@media(prefers-color-scheme:dark){:root{--bg:#10131a;--panel:#191e28;--text:#eef2ff;--muted:#9ca8ba;--line:#343d4d;--brand:#aaa8ff;--soft:#292953;--source:#76d9a9}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}.shell{max-width:940px;margin:auto;padding:24px}a{color:var(--brand)}h1{margin:0}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}button,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px}button{cursor:pointer}.primary{background:var(--brand);color:var(--bg)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;overflow:auto}.table{display:grid;gap:5px;min-width:480px}.cell{height:48px;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;position:relative}.header{border-color:transparent;color:var(--muted)}.filled{background:var(--soft)}.current{outline:3px solid color-mix(in srgb,var(--brand) 55%,transparent);font-weight:700}.source{color:var(--source);border-color:var(--source)}.log{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);min-height:70px}.formula{font-family:ui-monospace,Consolas,monospace;color:var(--brand)}.muted{color:var(--muted)}</style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>二维动态规划状态转移 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -476,119 +480,534 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
     if (e.data && e.data.type === "forge-theme") apply(e.data.theme);
   });
 })();
-</script><link rel="stylesheet" href="assets/demo-teaching.css" /></head>
+</script></head>
 <body>
-<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>二维动态规划状态转移</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>二维动态规划状态转移</h1><div class="muted">逐格填表，观察当前状态只依赖已经计算完成的方向。</div><div class="toolbar"><select id="mode"><option value="lcs">1143. 最长公共子序列</option><option value="paths">62. 不同路径</option></select><button class="primary" id="step">填下一格</button><button id="reset">重置</button><button id="auto">自动播放</button></div><section class="panel"><div class="table" id="table"></div><div aria-live="polite" class="log" id="log"></div></section></main>
+<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>二维动态规划状态转移 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
+<div id="app"></div>
 <script>
-const $ = id => document.getElementById(id);
-let s, timer = null, playing = false;
-const phaseNames = { compare: "比较", dependency: "读取依赖", formula: "推导公式", write: "写入单元格", done: "完成" };
-function stop() {
-  if (timer) { clearTimeout(timer); timer = null; }
-  playing = false;
-  $("auto").textContent = "自动播放";
-}
-function finished() { return s.r >= s.rows; }
-function preparePending() {
-  const lcs = $("mode").value === "lcs";
-  const r = s.r, c = s.c;
-  if (lcs) {
-    const same = s.a[r - 1] === s.b[c - 1];
-    const deps = same ? [[r - 1, c - 1]] : [[r - 1, c], [r, c - 1]];
-    const value = same ? s.dp[r - 1][c - 1] + 1 : Math.max(s.dp[r - 1][c], s.dp[r][c - 1]);
-    s.pending = { deps, value, same };
-    s.msg = same
-      ? "比较 '" + s.a[r - 1] + "' 与 '" + s.b[c - 1] + "'：相同，候选值来自左上角。"
-      : "比较 '" + s.a[r - 1] + "' 与 '" + s.b[c - 1] + "'：不同，候选值来自上方和左方。";
-  } else {
-    s.pending = { deps: [[r - 1, c], [r, c - 1]], value: s.dp[r - 1][c] + s.dp[r][c - 1] };
-    s.msg = "定位 dp[" + r + "][" + c + "]：需要读取上方 dp[" + (r - 1) + "][" + c + "] 与左方 dp[" + r + "][" + (c - 1) + "]。";
+/* ===== 二维 DP 状态转移：1143 / 72 / 62。逐格填表，先亮依赖、再写结果 ===== */
+var el = DemoKit.el;
+
+function renderTable(view, stage) {
+  stage.textContent = "";
+
+  if (view.vars && view.vars.length) {
+    var vb = el("div", "dk-vars");
+    view.vars.forEach(function (v) {
+      var sp = el("span", "dk-var");
+      sp.appendChild(el("b", null, v[0] + "："));
+      sp.appendChild(document.createTextNode(String(v[1])));
+      vb.appendChild(sp);
+    });
+    stage.appendChild(vb);
   }
-  s.phase = "compare";
-}
-function advanceCell() {
-  s.c++;
-  if (s.c >= s.cols) { s.r++; s.c = 1; }
-  if ($("mode").value === "paths" && s.r === 1) s.c = 2;
-  s.pending = null;
-  s.phase = finished() ? "done" : "compare";
-}
-function step() {
-  if (finished()) { s.phase = "done"; s.msg = "填表完成，右下角就是答案。"; render(); return; }
-  if (!s.pending) {
-    preparePending();
-  } else if (s.phase === "compare") {
-    s.phase = "dependency";
-    s.msg = "先确认依赖单元格已经完成，再进行公式推导。";
-  } else if (s.phase === "dependency") {
-    s.phase = "formula";
-    const p = s.pending;
-    s.msg = $("mode").value === "lcs"
-      ? (p.same ? "相同：dp[" + s.r + "][" + s.c + "] = 左上 " + s.dp[s.r - 1][s.c - 1] + " + 1 = " + p.value + "。" : "不同：dp[" + s.r + "][" + s.c + "] = max(上 " + s.dp[s.r - 1][s.c] + ", 左 " + s.dp[s.r][s.c - 1] + ") = " + p.value + "。")
-      : "dp[" + s.r + "][" + s.c + "] = 上方 " + s.dp[s.r - 1][s.c] + " + 左方 " + s.dp[s.r][s.c - 1] + " = " + p.value + "。";
-  } else if (s.phase === "formula") {
-    s.dp[s.r][s.c] = s.pending.value;
-    s.phase = "write";
-    s.msg = "把结果 " + s.pending.value + " 写入 dp[" + s.r + "][" + s.c + "]，下一步再移动到下一个状态。";
-  } else {
-    advanceCell();
-    if (finished()) s.msg = "填表完成，右下角就是答案。";
-    else s.msg = "移动到下一个状态 dp[" + s.r + "][" + s.c + "]。";
+
+  var tbl = el("table");
+  tbl.style.cssText = "border-collapse:separate;border-spacing:5px;margin:4px 0";
+
+  var head = el("tr");
+  head.appendChild(el("td", null, ""));
+  (view.colHead || []).forEach(function (h) {
+    var th = el("td", "dk-var", String(h));
+    th.style.cssText = "text-align:center;min-width:44px";
+    head.appendChild(th);
+  });
+  tbl.appendChild(head);
+
+  (view.g || []).forEach(function (rowVals, r) {
+    var tr = el("tr");
+    var rh = el("td", "dk-var", String((view.rowHead || [])[r]));
+    rh.style.cssText = "text-align:center;min-width:44px";
+    tr.appendChild(rh);
+    rowVals.forEach(function (v, c) {
+      var st = (view.st && view.st[r] && view.st[r][c]) || "";
+      var td = el("td", "dk-cell" + (st ? " " + st : ""), String(v));
+      td.style.cssText = "min-width:44px;text-align:center";
+      tr.appendChild(td);
+    });
+    tbl.appendChild(tr);
+  });
+  stage.appendChild(tbl);
+
+  if (view.formula) {
+    var f = el("div", "dk-var", view.formula);
+    f.style.cssText = "display:inline-block;margin-top:10px;font-family:var(--font-mono)";
+    stage.appendChild(f);
   }
-  render();
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
 }
-function schedule() {
-  if (!playing || timer) return;
-  const delay = s.phase === "write" ? 900 : s.phase === "formula" ? 760 : 600;
-  timer = setTimeout(() => {
-    timer = null;
-    step();
-    if (finished()) stop(); else schedule();
-  }, delay);
+
+function blank(rows, cols, v) {
+  var m = [], r, c;
+  for (r = 0; r < rows; r++) { m.push([]); for (c = 0; c < cols; c++) m[r].push(v === undefined ? null : v); }
+  return m;
 }
-function init() {
-  stop();
-  if ($("mode").value === "lcs") {
-    const a = "abcde", b = "ace";
-    s = { a, b, rows: a.length + 1, cols: b.length + 1, dp: Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0)), r: 1, c: 1, phase: "compare", pending: null, msg: "dp[i][j] 表示 a 的前 i 个字符与 b 的前 j 个字符的 LCS 长度。" };
-  } else {
-    s = { rows: 4, cols: 5, dp: Array.from({ length: 4 }, () => Array(5).fill(0)), r: 1, c: 2, phase: "compare", pending: null, msg: "dp[i][j] 表示从左上角走到第 i 行第 j 列的路径数。第 1 行和第 1 列已初始化。" };
-    for (let i = 1; i < 4; i++) s.dp[i][1] = 1;
-    for (let j = 1; j < 5; j++) s.dp[1][j] = 1;
+function copy2(g) {
+  var m = [], r;
+  for (r = 0; r < g.length; r++) m.push(g[r].slice());
+  return m;
+}
+
+var DEMOS = {
+
+  "1143": {
+    no: "1143", title: "最长公共子序列", tag: "二维 DP · 相同取左上，不同取上/左较大者",
+    example: "输入：两个字符串 a、b　输出：最长公共「子序列」的长度（可以不连续，但必须保持相对顺序）",
+    sizes: [
+      { label: "a=abcde, b=ace（入门表，LCS=3）", a: "abcde", b: "ace" },
+      { label: "a=abcbdab, b=bdcaba（经典大表，LCS=4）", a: "abcbdab", b: "bdcaba" },
+      { label: "a=oxcpqrsvwf, b=shmtulqrypy（几乎不重合，LCS=2）", a: "oxcpqrsvwf", b: "shmtulqrypy" }
+    ],
+    defaultSize: 0,
+    stageHeight: 520,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int[][] dp = new int[m + 1][n + 1];   // dp[i][j]：a 前 i 个 与 b 前 j 个 的 LCS 长度",
+          "for (int i = 1; i <= m; i++) {",
+          "    for (int j = 1; j <= n; j++) {",
+          "        if (a.charAt(i - 1) == b.charAt(j - 1))",
+          "            dp[i][j] = dp[i - 1][j - 1] + 1;              // 末尾字符相同 → 左上 + 1",
+          "        else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);  // 不同 → 丢掉其中一个",
+          "    } } return dp[m][n];"
+        ],
+        cpp: [
+          "vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));  // dp[i][j]：前 i 与前 j 的 LCS",
+          "for (int i = 1; i <= m; ++i) {",
+          "    for (int j = 1; j <= n; ++j) {",
+          "        if (a[i - 1] == b[j - 1])",
+          "            dp[i][j] = dp[i - 1][j - 1] + 1;              // 末尾字符相同 → 左上 + 1",
+          "        else dp[i][j] = max(dp[i - 1][j], dp[i][j - 1]);  // 不同 → 丢掉其中一个",
+          "    } } return dp[m][n];"
+        ],
+        python: [
+          "dp = [[0] * (n + 1) for _ in range(m + 1)]   # dp[i][j]：前 i 个 与 前 j 个 的 LCS",
+          "for i in range(1, m + 1):",
+          "    for j in range(1, n + 1):",
+          "        if a[i - 1] == b[j - 1]:",
+          "            dp[i][j] = dp[i - 1][j - 1] + 1               # 末尾字符相同 → 左上 + 1",
+          "        else: dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])  # 不同 → 丢掉其中一个",
+          "return dp[m][n]"
+        ],
+        go: [
+          "dp := make([][]int, m+1);  for i := range dp { dp[i] = make([]int, n+1) }",
+          "for i := 1; i <= m; i++ {",
+          "    for j := 1; j <= n; j++ {",
+          "        if a[i-1] == b[j-1] {",
+          "            dp[i][j] = dp[i-1][j-1] + 1                   // 末尾字符相同 → 左上 + 1",
+          "        } else if dp[i-1][j] > dp[i][j-1] { dp[i][j] = dp[i-1][j] } else { dp[i][j] = dp[i][j-1] }",
+          "    } };  return dp[m][n]"
+        ],
+        c: [
+          "int dp[MAXM][MAXN] = {{0}};   /* dp[i][j]：a 前 i 个 与 b 前 j 个 的 LCS 长度 */",
+          "for (int i = 1; i <= m; i++) {",
+          "    for (int j = 1; j <= n; j++) {",
+          "        if (a[i - 1] == b[j - 1])",
+          "            dp[i][j] = dp[i - 1][j - 1] + 1;              /* 相同 → 左上 + 1 */",
+          "        else dp[i][j] = dp[i-1][j] > dp[i][j-1] ? dp[i-1][j] : dp[i][j-1];",
+          "    } } return dp[m][n];"
+        ]
+      }
+    },
+    invariants: [
+      { label: "每格都不小于它的上方和左方", test: function (v) {
+          var r, c;
+          for (r = 1; r <= v.filledR; r++) for (c = 1; c < v.cols; c++) {
+            if (r === v.filledR && c > v.filledC) break;
+            if (v.dp[r][c] < v.dp[r - 1][c] || v.dp[r][c] < v.dp[r][c - 1]) return false;
+          }
+          return "表格沿右下方向单调不减 —— 多考虑一个字符不可能让 LCS 变短";
+        } },
+      { label: "相邻两格最多差 1", test: function (v) {
+          var r, c;
+          for (r = 1; r <= v.filledR; r++) for (c = 1; c < v.cols; c++) {
+            if (r === v.filledR && c > v.filledC) break;
+            if (v.dp[r][c] - v.dp[r - 1][c - 1] > 1) return false;
+          }
+          return "一次只多看一个字符，LCS 至多 +1";
+        } }
+    ],
+    build: function (ctx, size) {
+      var a = (size && size.a) || "abcde";
+      var b = (size && size.b) || "ace";
+      var m = a.length, n = b.length;
+      var dp = blank(m + 1, n + 1, 0);
+      var colHead = ["∅"], rowHead = ["∅"], i, j;
+      for (j = 0; j < n; j++) colHead.push(b[j]);
+      for (i = 0; i < m; i++) rowHead.push(a[i]);
+      var filledR = 0, filledC = n;
+
+      function V(cur, deps, kind, formula, note) {
+        var st = blank(m + 1, n + 1, ""), r, c;
+        for (r = 0; r <= m; r++) for (c = 0; c <= n; c++) {
+          if (r === 0 || c === 0) st[r][c] = "done";
+          else if (r > filledR || (r === filledR && c > filledC)) st[r][c] = "dim";
+        }
+        (deps || []).forEach(function (d) { st[d[0]][d[1]] = "cmp"; });
+        if (cur) st[cur[0]][cur[1]] = kind || "hot";
+        return {
+          g: copy2(dp), st: st, colHead: colHead, rowHead: rowHead,
+          formula: formula, note: note,
+          dp: copy2(dp), cols: n + 1, filledR: filledR, filledC: filledC,
+          vars: [["a", a], ["b", b],
+                 ["当前格", cur ? "dp[" + cur[0] + "][" + cur[1] + "]" : "—"],
+                 ["右下角", dp[m][n]]]
+        };
+      }
+
+      ctx.step("dp[i][j] = a 的前 i 个字符 与 b 的前 j 个字符 的 LCS 长度。第 0 行第 0 列是空串，全为 0",
+        V(null, null, null, "dp[i][j] = 相同 ? 左上+1 : max(上, 左)",
+          "表格比字符串多一行一列，就是为了让“空串”这一行天然成立，省掉一堆边界判断"), { line: 1 });
+
+      for (i = 1; i <= m; i++) {
+        for (j = 1; j <= n; j++) {
+          var same = a[i - 1] === b[j - 1];
+          var deps = same ? [[i - 1, j - 1]] : [[i - 1, j], [i, j - 1]];
+          filledR = i; filledC = j - 1;
+          ctx.step(
+            same
+              ? "dp[" + i + "][" + j + "]：'" + a[i - 1] + "' == '" + b[j - 1] + "' → 只看左上 dp[" + (i - 1) + "][" + (j - 1) + "] = " + dp[i - 1][j - 1]
+              : "dp[" + i + "][" + j + "]：'" + a[i - 1] + "' ≠ '" + b[j - 1] + "' → 看上方 " + dp[i - 1][j] + " 和左方 " + dp[i][j - 1],
+            V([i, j], deps, "hot",
+              same ? "dp[i][j] = dp[i-1][j-1] + 1" : "dp[i][j] = max(dp[i-1][j], dp[i][j-1])",
+              same ? "两个末尾字符配成一对，剩下的部分就是左上角那个子问题"
+                   : "末尾字符对不上，必须丢掉其中一个串的末尾字符，哪边留下的 LCS 长就用哪边"),
+            { line: same ? 5 : 6 });
+
+          dp[i][j] = same ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+          filledC = j;
+          ctx.step("写入 dp[" + i + "][" + j + "] = " + dp[i][j],
+            V([i, j], null, dp[i][j] > dp[i - 1][j - 1] ? "write" : "hot",
+              same ? "dp[i][j] = dp[i-1][j-1] + 1" : "dp[i][j] = max(dp[i-1][j], dp[i][j-1])", null),
+            { line: same ? 5 : 6 });
+        }
+      }
+
+      ctx.step("填表完成！右下角 dp[" + m + "][" + n + "] = " + dp[m][n] + " 就是 LCS 长度",
+        V([m, n], null, "target", "dp[i][j] = 相同 ? 左上+1 : max(上, 左)",
+          "整张表 " + (m * n) + " 个格子，每格 O(1) → 时间 O(m·n)"), { line: 7 });
+    },
+    render: renderTable
+  },
+
+  "0072": {
+    no: "72", title: "编辑距离", tag: "二维 DP · 三个方向同时竞争",
+    example: "输入：单词 a、b　输出：把 a 变成 b 最少需要几次「插入 / 删除 / 替换」",
+    sizes: [
+      { label: "horse → ros（答案 3）", a: "horse", b: "ros" },
+      { label: "intention → execution（答案 5，大表）", a: "intention", b: "execution" },
+      { label: "sea → eat（答案 2）", a: "sea", b: "eat" }
+    ],
+    defaultSize: 0,
+    stageHeight: 520,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int[][] dp = new int[m + 1][n + 1];",
+          "for (int i = 0; i <= m; i++) dp[i][0] = i;   // 把 a 的前 i 个字符全删掉",
+          "for (int j = 0; j <= n; j++) dp[0][j] = j;   // 往空串里插入 b 的前 j 个字符",
+          "for (int i = 1; i <= m; i++) for (int j = 1; j <= n; j++) {",
+          "    if (a.charAt(i - 1) == b.charAt(j - 1)) dp[i][j] = dp[i - 1][j - 1];  // 白嫖左上",
+          "    else dp[i][j] = 1 + Math.min(dp[i - 1][j - 1],        // 替换",
+          "                       Math.min(dp[i - 1][j], dp[i][j - 1]));  // 删除 / 插入",
+          "} return dp[m][n];"
+        ],
+        cpp: [
+          "vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));",
+          "for (int i = 0; i <= m; ++i) dp[i][0] = i;   // 把 a 的前 i 个字符全删掉",
+          "for (int j = 0; j <= n; ++j) dp[0][j] = j;   // 往空串里插入 b 的前 j 个字符",
+          "for (int i = 1; i <= m; ++i) for (int j = 1; j <= n; ++j) {",
+          "    if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1];           // 白嫖左上",
+          "    else dp[i][j] = 1 + min(dp[i - 1][j - 1],             // 替换",
+          "                       min(dp[i - 1][j], dp[i][j - 1]));  // 删除 / 插入",
+          "} return dp[m][n];"
+        ],
+        python: [
+          "dp = [[0] * (n + 1) for _ in range(m + 1)]",
+          "for i in range(m + 1): dp[i][0] = i          # 把 a 的前 i 个字符全删掉",
+          "for j in range(n + 1): dp[0][j] = j          # 往空串里插入 b 的前 j 个字符",
+          "for i, j in product(range(1, m + 1), range(1, n + 1)):",
+          "    if a[i - 1] == b[j - 1]: dp[i][j] = dp[i - 1][j - 1]             # 白嫖左上",
+          "    else: dp[i][j] = 1 + min(dp[i - 1][j - 1],           # 替换",
+          "                             dp[i - 1][j], dp[i][j - 1])  # 删除 / 插入",
+          "return dp[m][n]"
+        ],
+        go: [
+          "dp := make([][]int, m+1);  for i := range dp { dp[i] = make([]int, n+1) }",
+          "for i := 0; i <= m; i++ { dp[i][0] = i }     // 把 a 的前 i 个字符全删掉",
+          "for j := 0; j <= n; j++ { dp[0][j] = j }     // 往空串里插入 b 的前 j 个字符",
+          "for i := 1; i <= m; i++ { for j := 1; j <= n; j++ {",
+          "    if a[i-1] == b[j-1] { dp[i][j] = dp[i-1][j-1]                    // 白嫖左上",
+          "    } else { dp[i][j] = 1 + min3(dp[i-1][j-1],           // 替换",
+          "                            dp[i-1][j], dp[i][j-1]) }    // 删除 / 插入",
+          "} };  return dp[m][n]"
+        ],
+        c: [
+          "int dp[MAXM][MAXN];",
+          "for (int i = 0; i <= m; i++) dp[i][0] = i;   /* 把 a 的前 i 个字符全删掉 */",
+          "for (int j = 0; j <= n; j++) dp[0][j] = j;   /* 往空串里插入 b 的前 j 个字符 */",
+          "for (int i = 1; i <= m; i++) for (int j = 1; j <= n; j++) {",
+          "    if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1];  /* 白嫖左上 */",
+          "    else dp[i][j] = 1 + min3(dp[i - 1][j - 1],           /* 替换 */",
+          "                       dp[i - 1][j], dp[i][j - 1]);      /* 删除 / 插入 */",
+          "} return dp[m][n];"
+        ]
+      }
+    },
+    invariants: [
+      { label: "编辑距离 ≤ 两串长度的较大值", test: function (v) {
+          return v.cur <= Math.max(v.m, v.n)
+            ? "当前格 " + v.cur + " ≤ max(" + v.m + ", " + v.n + ")：最坏也就是全删再全插"
+            : false;
+        } },
+      { label: "相邻格最多差 1", test: function (v) {
+          var r, c;
+          for (r = 1; r <= v.filledR; r++) for (c = 1; c < v.cols; c++) {
+            if (r === v.filledR && c > v.filledC) break;
+            if (Math.abs(v.dp[r][c] - v.dp[r - 1][c]) > 1) return false;
+            if (Math.abs(v.dp[r][c] - v.dp[r][c - 1]) > 1) return false;
+          }
+          return "多看一个字符最多多花一次操作";
+        } }
+    ],
+    build: function (ctx, size) {
+      var a = (size && size.a) || "horse";
+      var b = (size && size.b) || "ros";
+      var m = a.length, n = b.length;
+      var dp = blank(m + 1, n + 1, 0);
+      var colHead = ["∅"], rowHead = ["∅"], i, j;
+      for (j = 0; j < n; j++) colHead.push(b[j]);
+      for (i = 0; i < m; i++) rowHead.push(a[i]);
+      for (i = 0; i <= m; i++) dp[i][0] = i;
+      for (j = 0; j <= n; j++) dp[0][j] = j;
+      var filledR = 0, filledC = n;
+
+      function V(cur, deps, kind, formula, note) {
+        var st = blank(m + 1, n + 1, ""), r, c;
+        for (r = 0; r <= m; r++) for (c = 0; c <= n; c++) {
+          if (r === 0 || c === 0) st[r][c] = "done";
+          else if (r > filledR || (r === filledR && c > filledC)) st[r][c] = "dim";
+        }
+        (deps || []).forEach(function (d) { st[d[0]][d[1]] = "cmp"; });
+        if (cur) st[cur[0]][cur[1]] = kind || "hot";
+        return {
+          g: copy2(dp), st: st, colHead: colHead, rowHead: rowHead,
+          formula: formula, note: note,
+          dp: copy2(dp), cols: n + 1, m: m, n: n,
+          cur: cur ? dp[cur[0]][cur[1]] : 0,
+          filledR: filledR, filledC: filledC,
+          vars: [["a", a], ["b", b],
+                 ["当前格", cur ? "dp[" + cur[0] + "][" + cur[1] + "]" : "—"],
+                 ["右下角", dp[m][n]]]
+        };
+      }
+
+      ctx.step("第 0 列 = 把 a 的前 i 个字符全删掉（i 次）；第 0 行 = 往空串里插入 b 的前 j 个字符（j 次）",
+        V(null, null, null, "dp[i][j] = 相同 ? 左上 : 1 + min(左上, 上, 左)",
+          "这一圈边界不是“填 0”，而是真实的代价 —— 写错它整张表就全错"), { line: 2 });
+
+      for (i = 1; i <= m; i++) {
+        for (j = 1; j <= n; j++) {
+          var same = a[i - 1] === b[j - 1];
+          var deps = same ? [[i - 1, j - 1]] : [[i - 1, j - 1], [i - 1, j], [i, j - 1]];
+          filledR = i; filledC = j - 1;
+          if (same) {
+            ctx.step("dp[" + i + "][" + j + "]：'" + a[i - 1] + "' == '" + b[j - 1] + "' → 这一对字符不用动，直接抄左上 " + dp[i - 1][j - 1],
+              V([i, j], deps, "hot", "dp[i][j] = dp[i-1][j-1]",
+                "相等时千万别再 +1 —— 不需要任何操作"), { line: 5 });
+            dp[i][j] = dp[i - 1][j - 1];
+          } else {
+            var rep = dp[i - 1][j - 1], del = dp[i - 1][j], ins = dp[i][j - 1];
+            var best = Math.min(rep, Math.min(del, ins));
+            ctx.step("dp[" + i + "][" + j + "]：'" + a[i - 1] + "' ≠ '" + b[j - 1] + "' → 替换 " + rep + " / 删除 " + del + " / 插入 " + ins + "，取最小 " + best + " 再 +1",
+              V([i, j], deps, "hot", "dp[i][j] = 1 + min(左上, 上, 左)",
+                "左上=替换，上=删掉 a 的这个字符，左=往 a 里插入 b 的这个字符"), { line: 6 });
+            dp[i][j] = best + 1;
+          }
+          filledC = j;
+          ctx.step("写入 dp[" + i + "][" + j + "] = " + dp[i][j],
+            V([i, j], null, "write", same ? "dp[i][j] = dp[i-1][j-1]" : "dp[i][j] = 1 + min(左上, 上, 左)", null),
+            { line: same ? 5 : 7 });
+        }
+      }
+
+      ctx.step("填表完成！把 \"" + a + "\" 变成 \"" + b + "\" 最少需要 " + dp[m][n] + " 次操作",
+        V([m, n], null, "target", "dp[i][j] = 相同 ? 左上 : 1 + min(左上, 上, 左)",
+          "时间 O(m·n)，空间可以压成两行滚动数组"), { line: 8 });
+    },
+    render: renderTable
+  },
+
+  "0062": {
+    no: "62", title: "不同路径", tag: "二维 DP · 只能从上方或左方来",
+    example: "输入：m×n 网格，机器人从左上走到右下，每次只能向右或向下　输出：不同路径总数",
+    sizes: [
+      { label: "3 × 4（答案 10）", m: 3, n: 4 },
+      { label: "4 × 6（答案 56）", m: 4, n: 6 },
+      { label: "3 × 7（答案 28）", m: 3, n: 7 }
+    ],
+    defaultSize: 0,
+    stageHeight: 480,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int[][] dp = new int[m][n];",
+          "for (int i = 0; i < m; i++) dp[i][0] = 1;    // 第一列：只能一路向下，1 条路",
+          "for (int j = 0; j < n; j++) dp[0][j] = 1;    // 第一行：只能一路向右，1 条路",
+          "for (int i = 1; i < m; i++) for (int j = 1; j < n; j++)",
+          "    dp[i][j] = dp[i - 1][j] + dp[i][j - 1];  // 只能从上方或左方走过来",
+          "return dp[m - 1][n - 1];"
+        ],
+        cpp: [
+          "vector<vector<int>> dp(m, vector<int>(n, 0));",
+          "for (int i = 0; i < m; ++i) dp[i][0] = 1;    // 第一列：只能一路向下，1 条路",
+          "for (int j = 0; j < n; ++j) dp[0][j] = 1;    // 第一行：只能一路向右，1 条路",
+          "for (int i = 1; i < m; ++i) for (int j = 1; j < n; ++j)",
+          "    dp[i][j] = dp[i - 1][j] + dp[i][j - 1];  // 只能从上方或左方走过来",
+          "return dp[m - 1][n - 1];"
+        ],
+        python: [
+          "dp = [[0] * n for _ in range(m)]",
+          "for i in range(m): dp[i][0] = 1              # 第一列：只能一路向下，1 条路",
+          "for j in range(n): dp[0][j] = 1              # 第一行：只能一路向右，1 条路",
+          "for i, j in product(range(1, m), range(1, n)):",
+          "    dp[i][j] = dp[i - 1][j] + dp[i][j - 1]   # 只能从上方或左方走过来",
+          "return dp[m - 1][n - 1]"
+        ],
+        go: [
+          "dp := make([][]int, m);  for i := range dp { dp[i] = make([]int, n) }",
+          "for i := 0; i < m; i++ { dp[i][0] = 1 }      // 第一列：只能一路向下，1 条路",
+          "for j := 0; j < n; j++ { dp[0][j] = 1 }      // 第一行：只能一路向右，1 条路",
+          "for i := 1; i < m; i++ { for j := 1; j < n; j++ {",
+          "    dp[i][j] = dp[i-1][j] + dp[i][j-1] } }   // 只能从上方或左方走过来",
+          "return dp[m-1][n-1]"
+        ],
+        c: [
+          "int dp[MAXM][MAXN] = {{0}};",
+          "for (int i = 0; i < m; i++) dp[i][0] = 1;    /* 第一列：只能一路向下 */",
+          "for (int j = 0; j < n; j++) dp[0][j] = 1;    /* 第一行：只能一路向右 */",
+          "for (int i = 1; i < m; i++) for (int j = 1; j < n; j++)",
+          "    dp[i][j] = dp[i - 1][j] + dp[i][j - 1];  /* 只能从上方或左方走过来 */",
+          "return dp[m - 1][n - 1];"
+        ]
+      }
+    },
+    invariants: [
+      { label: "每格 = 上 + 左", test: function (v) {
+          var r, c;
+          for (r = 1; r <= v.filledR; r++) for (c = 1; c < v.cols; c++) {
+            if (r === v.filledR && c > v.filledC) break;
+            if (v.dp[r][c] !== v.dp[r - 1][c] + v.dp[r][c - 1]) return false;
+          }
+          return "已填区域每一格都等于上方 + 左方";
+        } },
+      { label: "路径数就是组合数 C(i+j, i)", test: function (v) {
+          if (!v.cur) return "尚未开始填表";
+          if (!v.curWritten) return "dp[" + v.cur[0] + "][" + v.cur[1] + "] 还没写入，等下一拍再对账";
+          function C(a, b) { var r = 1, t; for (t = 1; t <= b; t++) r = r * (a - b + t) / t; return Math.round(r); }
+          return v.cur[2] === C(v.cur[0] + v.cur[1], v.cur[0])
+            ? "dp[" + v.cur[0] + "][" + v.cur[1] + "] = " + v.cur[2] + " = C(" + (v.cur[0] + v.cur[1]) + ", " + v.cur[0] + ")"
+            : false;
+        } }
+    ],
+    build: function (ctx, size) {
+      var m = (size && size.m) || 3;
+      var n = (size && size.n) || 4;
+      var dp = blank(m, n, 0);
+      var colHead = [], rowHead = [], i, j;
+      for (j = 0; j < n; j++) colHead.push(j);
+      for (i = 0; i < m; i++) rowHead.push(i);
+      for (i = 0; i < m; i++) dp[i][0] = 1;
+      for (j = 0; j < n; j++) dp[0][j] = 1;
+      var filledR = 0, filledC = n - 1;
+
+      function V(cur, deps, kind, note) {
+        var st = blank(m, n, ""), r, c;
+        for (r = 0; r < m; r++) for (c = 0; c < n; c++) {
+          if (r === 0 || c === 0) st[r][c] = "done";
+          else if (r > filledR || (r === filledR && c > filledC)) st[r][c] = "dim";
+        }
+        (deps || []).forEach(function (d) { st[d[0]][d[1]] = "cmp"; });
+        if (cur) st[cur[0]][cur[1]] = kind || "hot";
+        return {
+          g: copy2(dp), st: st, colHead: colHead, rowHead: rowHead,
+          formula: "dp[i][j] = dp[i-1][j] + dp[i][j-1]", note: note,
+          dp: copy2(dp), cols: n, filledR: filledR, filledC: filledC,
+          cur: cur ? [cur[0], cur[1], dp[cur[0]][cur[1]]] : null,
+          /* 「亮依赖格」那一拍当前格还没写，此时它的值不该拿去和组合数对账。 */
+          curWritten: !!cur && kind !== "hot",
+          vars: [["网格", m + " × " + n],
+                 ["当前格", cur ? "dp[" + cur[0] + "][" + cur[1] + "]" : "—"],
+                 ["右下角", dp[m - 1][n - 1]]]
+        };
+      }
+
+      ctx.step("第一行、第一列都只有一种走法（一路向右 / 一路向下），先全部填 1",
+        V(null, null, null, "边界不填 1 的话，后面每一格都会算成 0"), { line: 2 });
+
+      for (i = 1; i < m; i++) {
+        for (j = 1; j < n; j++) {
+          filledR = i; filledC = j - 1;
+          ctx.step("dp[" + i + "][" + j + "]：只能从上方 dp[" + (i - 1) + "][" + j + "]=" + dp[i - 1][j] + " 或左方 dp[" + i + "][" + (j - 1) + "]=" + dp[i][j - 1] + " 走过来",
+            V([i, j], [[i - 1, j], [i, j - 1]], "hot",
+              "两条来路互不重叠，所以是相加而不是取最大"), { line: 5 });
+          dp[i][j] = dp[i - 1][j] + dp[i][j - 1];
+          filledC = j;
+          ctx.step("写入 dp[" + i + "][" + j + "] = " + dp[i - 1][j] + " + " + dp[i][j - 1] + " = " + dp[i][j],
+            V([i, j], null, "write", null), { line: 5 });
+        }
+      }
+
+      ctx.step("填表完成！从左上到右下共 " + dp[m - 1][n - 1] + " 条不同路径",
+        V([m - 1, n - 1], null, "target",
+          "整张表就是一个杨辉三角斜着放 —— dp[i][j] = C(i+j, i)"), { line: 6 });
+    },
+    render: renderTable
   }
-  render();
-}
-function render() {
-  const lcs = $("mode").value === "lcs", cols = s.cols, table = $("table");
-  const dep = s.pending ? s.pending.deps : [];
-  const isDep = (r, c) => dep.some(x => x[0] === r && x[1] === c);
-  const cells = ['<div class="cell header"></div>'];
-  for (let c = 0; c < cols; c++) cells.push('<div class="cell header">' + (lcs ? (c ? s.b[c - 1] : "∅") : c) + "</div>");
-  for (let r = 0; r < s.rows; r++) {
-    cells.push('<div class="cell header">' + (lcs ? (r ? s.a[r - 1] : "∅") : r) + "</div>");
-    for (let c = 0; c < cols; c++) {
-      const done = r < s.r || (r === s.r && c < s.c);
-      const current = r === s.r && c === s.c && !finished();
-      const candidate = current && s.pending && (s.phase === "formula" || s.phase === "write");
-      const value = candidate ? s.pending.value : s.dp[r][c];
-      const classes = ["cell", done ? "filled" : "", current ? "is-current" : "", current && isDep(r, c) ? "dependency" : "", candidate ? "is-candidate" : "", current && s.phase === "write" ? "is-write" : ""].filter(Boolean).join(" ");
-      cells.push('<div class="' + classes + '">' + value + "</div>");
-    }
-  }
-  table.style.gridTemplateColumns = "repeat(" + (cols + 1) + ",minmax(48px,1fr))";
-  table.innerHTML = cells.join("");
-  const formula = lcs ? "相同：左上 + 1；不同：max(上, 左)" : "dp[i][j] = dp[i-1][j] + dp[i][j-1]";
-  $("log").innerHTML = '<div class="dp-phase">阶段：' + (phaseNames[s.phase] || s.phase) + "</div><span class=\"formula\">" + formula + "</span><br>" + s.msg;
-}
-$("step").onclick = () => { stop(); step(); };
-$("reset").onclick = init;
-$("mode").onchange = init;
-$("auto").onclick = () => {
-  if (playing) stop();
-  else { playing = true; $("auto").textContent = "暂停"; schedule(); }
 };
-window.addEventListener("pagehide", stop);
-init();
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 500,
+      code: d.code, invariants: d.invariants, compare: d.compare,
+      build: d.build, render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
-</body></html>
+</body>
+</html>

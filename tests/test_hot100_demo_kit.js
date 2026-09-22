@@ -45,6 +45,8 @@ class FakeElement {
     (this.listeners.click || []).forEach((callback) => callback({ target: this }));
   }
   querySelector() { return null; }
+  setAttribute(name, value) { (this.attrs ||= {})[name] = String(value); }
+  getAttribute(name) { return (this.attrs || {})[name] ?? null; }
 }
 
 const created = [];
@@ -150,4 +152,73 @@ assert.strictEqual(timers.size, 1);
 (windowListeners.pagehide || []).forEach((callback) => callback());
 assert.strictEqual(timers.size, 0, "pagehide must stop playback");
 
-console.log(JSON.stringify({ ok: true, build_count: buildCount, timers_remaining: timers.size, autoplay_delays: delays }));
+/* ── 增强层：代码行同步 / 不变量条 / 反例对照 ───────────────────────────── */
+created.length = 0;
+let compareBuilds = 0;
+context.window.DemoKit.mount({
+  no: "3",
+  title: "增强层冒烟",
+  code: ["int left = 0;", "for (int r = 0; r < n; r++) {", "  left = max(left, last[c] + 1);", "}"],
+  invariants: [
+    { label: "窗口内无重复", test: (view) => view.ok === true },
+    { label: "窗口长度", test: (view) => `${view.len}` },
+  ],
+  compare: {
+    label: "错误写法",
+    build(ctx) {
+      compareBuilds += 1;
+      ctx.step("错误：left 回退", { len: 9, ok: false });
+      ctx.step("错误：答案偏大", { len: 9, ok: false });
+    },
+    render(view, stage) { stage.appendChild(new FakeElement("span")); },
+  },
+  build(ctx) {
+    ctx.step("初始化", { len: 0, ok: true }, { line: 1 });
+    ctx.step("右端扩张", { len: 1, ok: true }, { line: 2 });
+    ctx.step("左端跳过重复", { len: 2, ok: false }, { line: [2, 3] });
+  },
+  render(view, stage) { stage.appendChild(new FakeElement("span")); },
+});
+
+const byClass = (name) => created.filter((item) => item.classList.items.has(name));
+const has = (item, name) => item.classList.items.has(name);
+
+// 1) 代码窗格：每行一个节点，并按 meta.line 高亮（1 基）。
+const lines = byClass("dk-code-line");
+assert.strictEqual(lines.length, 4, "code pane must render one node per line");
+assert.deepStrictEqual(lines.map((item) => has(item, "on")), [true, false, false, false],
+  "step 1 must highlight only line 1");
+
+// 2) 不变量条：布尔 -> ok/bad，字符串 -> 作为补充说明。
+const chips = byClass("dk-inv");
+assert.strictEqual(chips.length, 2, "one chip per invariant");
+assert(has(chips[0], "ok") && !has(chips[0], "bad"), "true invariant must render as ok");
+
+// 3) 前进后代码高亮与不变量同步更新；line 支持数组。
+const next = created.filter((item) => item.tagName === "BUTTON").find((item) => item.textContent === "下一步 ▶");
+next.click();
+next.click();
+assert.deepStrictEqual(lines.map((item) => has(item, "on")), [false, true, true, false],
+  "array line meta must highlight several lines");
+assert(has(chips[0], "bad"), "false invariant must flip the chip to bad");
+
+// 4) 反例对照：与主线同时构建，勾选后才接入布局。
+assert.strictEqual(compareBuilds, 1, "compare branch must be built alongside the main one");
+const main = byClass("dk-main")[0];
+assert(main && has(main, "has-code"), "code pane must switch the grid on");
+assert(!has(main, "is-compare"), "compare column stays off until toggled");
+const toggle = byClass("dk-toggle")[0];
+const checkbox = toggle.children.find((item) => item.tagName === "INPUT");
+checkbox.checked = true;
+checkbox.onchange();
+assert(has(main, "is-compare"), "toggling must open the compare column");
+
+console.log(JSON.stringify({
+  ok: true,
+  build_count: buildCount,
+  timers_remaining: timers.size,
+  autoplay_delays: delays,
+  code_lines: lines.length,
+  invariants: chips.length,
+  compare_builds: compareBuilds,
+}));

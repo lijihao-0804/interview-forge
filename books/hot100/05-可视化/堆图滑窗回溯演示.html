@@ -499,6 +499,8 @@ function cells(vals, st, ptrs) {
   });
   return wrap;
 }
+function mergeSt(a, b) { var m = {}; for (var k in a) m[k] = a[k]; for (var k in b) m[k] = b[k]; return m; }
+function st1(i, s) { var m = {}; m[i] = s; return m; }
 function row(name, vals, extra) {
   var r = { name: name, vals: vals.slice() };
   if (extra) for (var k in extra) r[k] = extra[k];
@@ -529,53 +531,183 @@ var DEMOS = {
 
   "0215": { no: "215", title: "数组中的第K个最大元素", tag: "堆 · 快速选择",
     example: "输入：nums = [3,2,1,5,6,4]，k = 2　输出：5",
+    code: {
+      title: "快速选择（平均 O(n)）",
+      langs: {
+        java: [
+          "int lo = 0, hi = nums.length - 1, target = k - 1;  // 降序第 k 大落在下标 k-1",
+          "while (true) {",
+          "    int pivot = nums[lo], i = lo, j = hi;   // 取区间首元素当基准",
+          "    while (i < j) {                         // i 往右找小的，j 往左找大的",
+          "        while (i < j && nums[j] <= pivot) j--;",
+          "        while (i < j && nums[i] >= pivot) i++;",
+          "        if (i < j) { int t = nums[i]; nums[i] = nums[j]; nums[j] = t; }",
+          "    }",
+          "    nums[lo] = nums[i]; nums[i] = pivot;    // 基准归位：左边都 ≥ 它",
+          "    if (i == target) return nums[i];        // 正好第 k 位 → 直接就是答案",
+          "    if (i < target) lo = i + 1;             // 答案在右半，左半整块丢掉",
+          "    else hi = i - 1; }                      // 答案在左半（只进一侧，平均 O(n)）"
+        ],
+        cpp: [
+          "int lo = 0, hi = nums.size() - 1, target = k - 1;  // 降序第 k 大落在下标 k-1",
+          "while (true) {",
+          "    int pivot = nums[lo], i = lo, j = hi;   // 取区间首元素当基准",
+          "    while (i < j) {                         // i 往右找小的，j 往左找大的",
+          "        while (i < j && nums[j] <= pivot) j--;",
+          "        while (i < j && nums[i] >= pivot) i++;",
+          "        if (i < j) swap(nums[i], nums[j]);",
+          "    }",
+          "    nums[lo] = nums[i]; nums[i] = pivot;    // 基准归位：左边都 ≥ 它",
+          "    if (i == target) return nums[i];        // 正好第 k 位 → 直接就是答案",
+          "    if (i < target) lo = i + 1;             // 答案在右半，左半整块丢掉",
+          "    else hi = i - 1; }                      // 答案在左半（只进一侧，平均 O(n)）"
+        ],
+        python: [
+          "lo, hi, target = 0, len(nums) - 1, k - 1   # 降序第 k 大落在下标 k-1",
+          "while True:",
+          "    pivot, i, j = nums[lo], lo, hi         # 取区间首元素当基准",
+          "    while i < j:                           # i 往右找小的，j 往左找大的",
+          "        while i < j and nums[j] <= pivot: j -= 1",
+          "        while i < j and nums[i] >= pivot: i += 1",
+          "        if i < j: nums[i], nums[j] = nums[j], nums[i]",
+          "",
+          "    nums[lo], nums[i] = nums[i], pivot     # 基准归位：左边都 ≥ 它",
+          "    if i == target: return nums[i]         # 正好第 k 位 → 直接就是答案",
+          "    if i < target: lo = i + 1              # 答案在右半，左半整块丢掉",
+          "    else: hi = i - 1                       # 答案在左半（只进一侧，平均 O(n)）"
+        ],
+        go: [
+          "lo, hi, target := 0, len(nums)-1, k-1      // 降序第 k 大落在下标 k-1",
+          "for {",
+          "    pivot, i, j := nums[lo], lo, hi        // 取区间首元素当基准",
+          "    for i < j {                            // i 往右找小的，j 往左找大的",
+          "        for i < j && nums[j] <= pivot { j-- }",
+          "        for i < j && nums[i] >= pivot { i++ }",
+          "        if i < j { nums[i], nums[j] = nums[j], nums[i] }",
+          "    }",
+          "    nums[lo], nums[i] = nums[i], pivot     // 基准归位：左边都 ≥ 它",
+          "    if i == target { return nums[i] }      // 正好第 k 位 → 直接就是答案",
+          "    if i < target { lo = i + 1             // 答案在右半，左半整块丢掉",
+          "    } else { hi = i - 1 } }                // 答案在左半（只进一侧，平均 O(n)）"
+        ],
+        c: [
+          "int lo = 0, hi = n - 1, target = k - 1;    /* 降序第 k 大落在下标 k-1 */",
+          "while (1) {",
+          "    int pivot = nums[lo], i = lo, j = hi;  /* 取区间首元素当基准 */",
+          "    while (i < j) {                        /* i 往右找小的，j 往左找大的 */",
+          "        while (i < j && nums[j] <= pivot) j--;",
+          "        while (i < j && nums[i] >= pivot) i++;",
+          "        if (i < j) { int t = nums[i]; nums[i] = nums[j]; nums[j] = t; }",
+          "    }",
+          "    nums[lo] = nums[i]; nums[i] = pivot;   /* 基准归位：左边都 ≥ 它 */",
+          "    if (i == target) return nums[i];       /* 正好第 k 位 → 直接就是答案 */",
+          "    if (i < target) lo = i + 1;            /* 答案在右半，左半整块丢掉 */",
+          "    else hi = i - 1; }                     /* 答案在左半（只进一侧，平均 O(n)）*/"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [3, 2, 1, 5, 6, 4];
       var k = 2;
       var targetIdx = k - 1;    // 降序第 k-1（升序排后第 n-k）
-      ctx.step("快速选择：partition 后若基准落在第 k 位直接得到答案；平均 O(n)，不必全排序", { rows: [row("nums", nums)] });
+      ctx.step("快速选择：partition 后若基准落在第 k 位直接得到答案；平均 O(n)，不必全排序", { line: 1, rows: [row("nums", nums)] });
       var lo = 0, hi = nums.length - 1;
       function partition(lo, hi) {
         var pivot = nums[lo];
         var i = lo, j = hi;
-        ctx.step("基准 pivot = " + pivot + "（区间 [" + lo + "," + hi + "]），i/j 相向移动", { rows: [
+        ctx.step("基准 pivot = " + pivot + "（区间 [" + lo + "," + hi + "]），i/j 相向移动", { line: 3, rows: [
           row("nums", nums, { st: st1(lo, "hot"), ptrs: [{ i: lo, label: "pivot", c: "c4" }, { i: i, label: "i", c: "c1" }, { i: j, label: "j", c: "c2" }] }) ] });
         while (i < j) {
           while (i < j && nums[j] <= pivot) j--;
           while (i < j && nums[i] >= pivot) i++;
           if (i < j) {
             var t = nums[i]; nums[i] = nums[j]; nums[j] = t;
-            ctx.step("i=" + i + " j=" + j + "：逆序对交换", { rows: [
+            ctx.step("i=" + i + " j=" + j + "：逆序对交换", { line: 7, rows: [
               row("nums", nums, { st: mergeSt(st1(i, "swap"), st1(j, "swap")), ptrs: [{ i: lo, label: "pivot", c: "c4" }, { i: i, label: "i", c: "c1" }, { i: j, label: "j", c: "c2" }] }) ] });
           }
         }
         nums[lo] = nums[i]; nums[i] = pivot;
-        ctx.step("基准归位到下标 " + i + "（左边都 ≥ " + pivot + "，右边都 ≤）", { rows: [
+        ctx.step("基准归位到下标 " + i + "（左边都 ≥ " + pivot + "，右边都 ≤）", { line: 9, rows: [
           row("nums", nums, { st: mergeSt(st1(i, "target"), st1(lo, "dim")), ptrs: [{ i: i, label: "第k位?", c: "c3" }] }) ] });
         return i;
       }
       for (var guard = 0; guard < 10; guard++) {
         var pos = partition(lo, hi);
         if (pos === targetIdx) {
-          ctx.step("基准下标 " + pos + " == 目标 " + targetIdx + " → 第 " + k + " 大 = " + nums[pos] + " ✓", { rows: [
+          ctx.step("基准下标 " + pos + " == 目标 " + targetIdx + " → 第 " + k + " 大 = " + nums[pos] + " ✓", { line: 10, rows: [
             row("nums", nums, { st: st1(pos, "target") }) ] });
           return;
         }
-        if (pos < targetIdx) { lo = pos + 1; ctx.step("基准在 " + pos + " < 目标 " + targetIdx + " → 右半继续", { rows: [row("nums", nums, { st: st1(lo, "hot") })] }); }
-        else { hi = pos - 1; ctx.step("基准在 " + pos + " > 目标 " + targetIdx + " → 左半继续", { rows: [row("nums", nums, { st: st1(hi, "hot") })] }); }
+        if (pos < targetIdx) { lo = pos + 1; ctx.step("基准在 " + pos + " < 目标 " + targetIdx + " → 右半继续", { line: 11, rows: [row("nums", nums, { st: st1(lo, "hot") })] }); }
+        else { hi = pos - 1; ctx.step("基准在 " + pos + " > 目标 " + targetIdx + " → 左半继续", { line: 12, rows: [row("nums", nums, { st: st1(hi, "hot") })] }); }
       }
     },
     render: renderRows },
 
   "0347": { no: "347", title: "前 K 个高频元素", tag: "堆 · 计数 + 桶排序",
     example: "输入：nums = [1,1,1,2,2,3]，k = 2　输出：[1,2]",
+    code: {
+      title: "计数 + 桶排序（O(n)）",
+      langs: {
+        java: [
+          "Map<Integer, Integer> cnt = new HashMap<>();",
+          "for (int v : nums) cnt.merge(v, 1, Integer::sum);    // ① 统计频次，O(n)",
+          "List<Integer>[] bucket = new List[nums.length + 1];  // ② 桶下标就是频次",
+          "for (var e : cnt.entrySet()) {",
+          "    int f = e.getValue();",
+          "    if (bucket[f] == null) bucket[f] = new ArrayList<>();  bucket[f].add(e.getKey()); }",
+          "for (int f = nums.length; f >= 1 && ans.size() < k; f--)   // ③ 从高频往低频取",
+          "    if (bucket[f] != null) ans.addAll(bucket[f]);    // 整体 O(n)，比堆的 O(n log k) 还省"
+        ],
+        cpp: [
+          "unordered_map<int, int> cnt;",
+          "for (int v : nums) cnt[v]++;                         // ① 统计频次，O(n)",
+          "vector<vector<int>> bucket(nums.size() + 1);         // ② 桶下标就是频次",
+          "for (auto& e : cnt) {",
+          "    int f = e.second;",
+          "    bucket[f].push_back(e.first); }",
+          "for (int f = nums.size(); f >= 1 && (int)ans.size() < k; f--)  // ③ 从高频往低频取",
+          "    for (int v : bucket[f]) ans.push_back(v);        // 整体 O(n)，比堆的 O(n log k) 还省"
+        ],
+        python: [
+          "cnt = {}",
+          "for v in nums: cnt[v] = cnt.get(v, 0) + 1            # ① 统计频次，O(n)",
+          "bucket = [[] for _ in range(len(nums) + 1)]          # ② 桶下标就是频次",
+          "for key, f in cnt.items():",
+          "    # 频次 f 的数字，全部丢进第 f 号桶",
+          "    bucket[f].append(key)",
+          "for f in range(len(nums), 0, -1):                    # ③ 从高频往低频取",
+          "    ans += bucket[f];  ans = ans[:k]                 # 整体 O(n)，比堆的 O(n log k) 还省"
+        ],
+        go: [
+          "cnt := map[int]int{}",
+          "for _, v := range nums { cnt[v]++ }                  // ① 统计频次，O(n)",
+          "bucket := make([][]int, len(nums)+1)                 // ② 桶下标就是频次",
+          "for key, f := range cnt {",
+          "    // 频次 f 的数字，全部丢进第 f 号桶",
+          "    bucket[f] = append(bucket[f], key) }",
+          "for f := len(nums); f >= 1 && len(ans) < k; f-- {    // ③ 从高频往低频取",
+          "    ans = append(ans, bucket[f]...) }                // 整体 O(n)，比堆的 O(n log k) 还省"
+        ],
+        c: [
+          "int cnt[MAXV] = {0};",
+          "for (int i = 0; i < n; i++) cnt[nums[i]]++;          /* ① 统计频次，O(n) */",
+          "int bucket[MAXN][MAXN], bn[MAXN] = {0};              /* ② 桶下标就是频次 */",
+          "for (int v = 0; v < MAXV; v++) {",
+          "    int f = cnt[v];  if (f == 0) continue;",
+          "    bucket[f][bn[f]++] = v; }",
+          "for (int f = n; f >= 1 && *sz < k; f--)              /* ③ 从高频往低频取 */",
+          "    for (int t = 0; t < bn[f]; t++) ans[(*sz)++] = bucket[f][t];  /* 整体 O(n) */"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [1, 1, 1, 2, 2, 3], k = 2;
       var count = {};
-      ctx.step("第一步：哈希表统计每个数字的出现频率", { rows: [row("nums", nums)] });
+      ctx.step("第一步：哈希表统计每个数字的出现频率", { line: 1, rows: [row("nums", nums)] });
       nums.forEach(function (x) {
         count[x] = (count[x] || 0) + 1;
-        ctx.step("统计 " + x + "：出现 " + count[x] + " 次", { rows: [row("nums", nums, { st: st1(nums.indexOf(x), "hot") })], note: "频率表：" + JSON.stringify(count) });
+        ctx.step("统计 " + x + "：出现 " + count[x] + " 次", { line: 2, rows: [row("nums", nums, { st: st1(nums.indexOf(x), "hot") })], note: "频率表：" + JSON.stringify(count) });
       });
       var buckets = [];
       Object.keys(count).forEach(function (num) {
@@ -583,24 +715,79 @@ var DEMOS = {
         if (!buckets[f]) buckets[f] = [];
         buckets[f].push(parseInt(num, 10));
       });
-      ctx.step("第二步：按频率建桶（桶下标 = 频率），从高频往低频收集前 k 个", { rows: [
+      ctx.step("第二步：按频率建桶（桶下标 = 频率），从高频往低频收集前 k 个", { line: 3, rows: [
         row("数字", Object.keys(count).map(Number)), row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
       var result = [];
       for (var f = buckets.length - 1; f >= 0 && result.length < k; f--) {
         if (buckets[f]) {
           result = result.concat(buckets[f].slice(0, k - result.length));
-          ctx.step("频率 " + f + " 的桶里有 " + JSON.stringify(buckets[f]) + " → 收集，当前结果 [" + result.join(",") + "]", { rows: [
+          ctx.step("频率 " + f + " 的桶里有 " + JSON.stringify(buckets[f]) + " → 收集，当前结果 [" + result.join(",") + "]", { line: 7, rows: [
             row("数字", Object.keys(count).map(Number), { st: (function () { var m = {}; Object.keys(count).forEach(function (n) { if (count[n] === f) m[count[n]] = "hot"; }); return m; })() }),
             row("频率", Object.keys(count).map(function (n) { return count[n]; })) ] });
         }
       }
-      ctx.step("完成！前 " + k + " 个高频元素 = [" + result.join(",") + "]（桶排序 O(n)，比堆更省）", { rows: [
+      ctx.step("完成！前 " + k + " 个高频元素 = [" + result.join(",") + "]（桶排序 O(n)，比堆更省）", { line: 8, rows: [
         row("结果", result, { st: st1(result.length - 1, "target") }) ] });
     },
     render: renderRows },
 
   "0207": { no: "207", title: "课程表", tag: "图 · 拓扑排序（Kahn）",
     example: "输入：numCourses = 4，prerequisites = [[1,0],[2,1],[3,2]]　输出：true（修课链 0→1→2→3）",
+    code: {
+      title: "拓扑排序",
+      langs: {
+        java: [
+          "for (int[] e : pre) { g[e[1]].add(e[0]); indeg[e[0]]++; }  // 建图 + 入度",
+          "Deque<Integer> q = new ArrayDeque<>();",
+          "for (int i = 0; i < n; i++) if (indeg[i] == 0) q.add(i);   // 无前置课先入队",
+          "int done = 0;",
+          "while (!q.isEmpty()) {",
+          "    int u = q.poll();  done++;      // 学完一门",
+          "    for (int v : g[u]) if (--indeg[v] == 0) q.add(v);      // 解锁后继",
+          "}  return done == n;                // 全学完才无环"
+        ],
+        cpp: [
+          "for (auto& e : pre) { g[e[1]].push_back(e[0]); indeg[e[0]]++; }  // 建图 + 入度",
+          "queue<int> q;",
+          "for (int i = 0; i < n; i++) if (indeg[i] == 0) q.push(i);  // 无前置课先入队",
+          "int done = 0;",
+          "while (!q.empty()) {",
+          "    int u = q.front();  q.pop();  done++;   // 学完一门",
+          "    for (int v : g[u]) if (--indeg[v] == 0) q.push(v);     // 解锁后继",
+          "}  return done == n;                // 全学完才无环"
+        ],
+        python: [
+          "for a, b in pre: g[b].append(a); indeg[a] += 1      # 建图 + 入度",
+          "q = deque()",
+          "for i in range(n):  q.append(i) if indeg[i] == 0 else None   # 无前置课先入队",
+          "done = 0",
+          "while q:",
+          "    u = q.popleft();  done += 1     # 学完一门",
+          "    for v in g[u]:  indeg[v] -= 1;  q.append(v) if indeg[v] == 0 else None  # 解锁后继",
+          "return done == n                    # 全学完才无环"
+        ],
+        go: [
+          "for _, e := range pre { g[e[1]] = append(g[e[1]], e[0]); indeg[e[0]]++ }  // 建图 + 入度",
+          "q := []int{}",
+          "for i := 0; i < n; i++ { if indeg[i] == 0 { q = append(q, i) } }  // 无前置课先入队",
+          "done := 0",
+          "for len(q) > 0 {",
+          "    u := q[0];  q = q[1:];  done++  // 学完一门",
+          "    for _, v := range g[u] { indeg[v]--; if indeg[v] == 0 { q = append(q, v) } }  // 解锁后继",
+          "};  return done == n                // 全学完才无环"
+        ],
+        c: [
+          "for (int i = 0; i < m; i++) { add(g, pre[i][1], pre[i][0]); indeg[pre[i][0]]++; }  /* 建图 + 入度 */",
+          "int q[N], head = 0, tail = 0;",
+          "for (int i = 0; i < n; i++) if (indeg[i] == 0) q[tail++] = i;  /* 无前置课先入队 */",
+          "int done = 0;",
+          "while (head < tail) {",
+          "    int u = q[head++];  done++;     /* 学完一门 */",
+          "    for (Node* p = g[u]; p; p = p->next) if (--indeg[p->v] == 0) q[tail++] = p->v;  /* 解锁后继 */",
+          "}  return done == n;                /* 全学完才无环 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var n = 4;
       var prereq = [[1, 0], [2, 1], [3, 2]];
@@ -610,25 +797,75 @@ var DEMOS = {
       var queue = [];
       for (var i = 0; i < n; i++) if (indeg[i] === 0) queue.push(i);
       ctx.step("构建邻接表与入度表；入度为 0 的课程可以立刻修（队列 [" + queue.join(",") + "]）",
-        { rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; queue.forEach(function (q) { m[q] = "hot"; }); return m; })() })], note: "入度：" + JSON.stringify(indeg) + "（依赖几门课）" });
+        { line: 3, rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; queue.forEach(function (q) { m[q] = "hot"; }); return m; })() })], note: "入度：" + JSON.stringify(indeg) + "（依赖几门课）" });
       var taken = 0, order = [];
       while (queue.length) {
         var cur = queue.shift();
         taken++; order.push(cur);
         ctx.step("修课程 " + cur + "（已修 " + taken + "/" + n + "）；它解锁的后继课程入度 -1",
-          { rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; m[cur] = "write"; return m; })() })], note: "已修顺序：" + order.join(" → ") });
+          { line: 6, rows: [row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; m[cur] = "write"; return m; })() })], note: "已修顺序：" + order.join(" → ") });
         adj[cur].forEach(function (next) {
           indeg[next]--;
-          if (indeg[next] === 0) { queue.push(next); ctx.step("课程 " + next + " 的先修全部完成 → 入度归 0，入队", { rows: [row("课程", [0, 1, 2, 3], { st: st1(next, "hot") })] }); }
+          if (indeg[next] === 0) { queue.push(next); ctx.step("课程 " + next + " 的先修全部完成 → 入度归 0，入队", { line: 7, rows: [row("课程", [0, 1, 2, 3], { st: st1(next, "hot") })] }); }
         });
       }
-      ctx.step(taken === n ? "全部 " + n + " 门课修完 → 无环，可以完成 ✓" : "只修了 " + taken + " 门 → 有环！返回 false", { rows: [
+      ctx.step(taken === n ? "全部 " + n + " 门课修完 → 无环，可以完成 ✓" : "只修了 " + taken + " 门 → 有环！返回 false", { line: 8, rows: [
         row("课程", [0, 1, 2, 3], { st: (function () { var m = {}; for (var k = 0; k < taken; k++) m[order[k]] = "done"; return m; })() }) ] });
     },
     render: renderRows },
 
   "0438": { no: "438", title: "找到字符串中所有字母异位词", tag: "滑窗 · 定长窗口计数",
     example: "输入：s = \"cbaebabacd\"，p = \"abc\"　输出：[0, 6]",
+    code: {
+      title: "定长滑窗 + 计数比对",
+      langs: {
+        java: [
+          "int[] need = new int[26], win = new int[26];",
+          "for (char c : p.toCharArray()) need[c - 'a']++;     // 目标词频",
+          "for (int i = 0; i < s.length(); i++) {",
+          "    win[s.charAt(i) - 'a']++;                       // 右端进窗",
+          "    if (i >= p.length()) win[s.charAt(i - p.length()) - 'a']--;  // 左端出窗",
+          "    if (i >= p.length() - 1 && Arrays.equals(win, need)) ans.add(i - p.length() + 1);",
+          "}"
+        ],
+        cpp: [
+          "vector<int> need(26, 0), win(26, 0);",
+          "for (char c : p) need[c - 'a']++;                   // 目标词频",
+          "for (int i = 0; i < (int)s.size(); i++) {",
+          "    win[s[i] - 'a']++;                              // 右端进窗",
+          "    if (i >= (int)p.size()) win[s[i - p.size()] - 'a']--;        // 左端出窗",
+          "    if (i >= (int)p.size() - 1 && win == need) ans.push_back(i - p.size() + 1);",
+          "}"
+        ],
+        python: [
+          "need, win = [0] * 26, [0] * 26",
+          "for c in p: need[ord(c) - 97] += 1                  # 目标词频",
+          "for i, ch in enumerate(s):",
+          "    win[ord(ch) - 97] += 1                          # 右端进窗",
+          "    if i >= len(p): win[ord(s[i - len(p)]) - 97] -= 1            # 左端出窗",
+          "    if i >= len(p) - 1 and win == need: ans.append(i - len(p) + 1)",
+          "# 窗口定长，只需比对两张词频表"
+        ],
+        go: [
+          "var need, win [26]int",
+          "for _, c := range p { need[c-'a']++ }               // 目标词频",
+          "for i := 0; i < len(s); i++ {",
+          "    win[s[i]-'a']++                                 // 右端进窗",
+          "    if i >= len(p) { win[s[i-len(p)]-'a']-- }                    // 左端出窗",
+          "    if i >= len(p)-1 && win == need { ans = append(ans, i-len(p)+1) }",
+          "}"
+        ],
+        c: [
+          "int need[26] = {0}, win[26] = {0};",
+          "for (int i = 0; p[i]; i++) need[p[i] - 'a']++;      /* 目标词频 */",
+          "for (int i = 0; s[i]; i++) {",
+          "    win[s[i] - 'a']++;                              /* 右端进窗 */",
+          "    if (i >= plen) win[s[i - plen] - 'a']--;                     /* 左端出窗 */",
+          "    if (i >= plen - 1 && same(win, need)) ans[cnt++] = i - plen + 1;",
+          "}"
+        ]
+      }
+    },
     build: function (ctx) {
       var s = "cbaebabacd", p = "abc";
       var need = {}, win = {};
@@ -637,7 +874,7 @@ var DEMOS = {
       var keys = Object.keys(need);
       function winStr() { return s.slice(Math.max(0, right - wlen), right); }
       ctx.step("窗口长度固定为 p 的长度 " + wlen + "：right 扩张，窗口超长收缩 left；窗口内计数与 need 完全一致即命中",
-        { rows: [row("s", s.split(""), { st: st1(0, "hot") })], note: "need: a=1, b=1, c=1" });
+        { line: 2, rows: [row("s", s.split(""), { st: st1(0, "hot") })], note: "need: a=1, b=1, c=1" });
       for (right = 0; right < s.length; right++) {
         var ch = s[right];
         if (need[ch] !== undefined) {
@@ -652,19 +889,74 @@ var DEMOS = {
         }
         var l = Math.max(0, left);
         ctx.step("right=" + right + "（'" + ch + "'）：窗口 \"" + s.slice(Math.max(0, left), right + 1) + "\"，满足条件的字符种数 " + valid + "/" + keys.length,
-          { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = Math.max(0, left); k <= right; k++) m[k] = k === right ? "hot" : "cmp"; return m; })() })], note: "窗口 \"" + s.slice(Math.max(0, left), right + 1) + "\" · valid " + valid + "/" + keys.length });
+          { line: 4, rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = Math.max(0, left); k <= right; k++) m[k] = k === right ? "hot" : "cmp"; return m; })() })], note: "窗口 \"" + s.slice(Math.max(0, left), right + 1) + "\" · valid " + valid + "/" + keys.length });
         if (valid === keys.length) {
           result.push(left);
           ctx.step("✓ 窗口 \"" + s.slice(left, right + 1) + "\" 是 \"" + p + "\" 的异位词 → 记录起始下标 " + left,
-            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = left; k <= right; k++) m[k] = "target"; return m; })() })], note: "命中下标 " + left } );
+            { line: 6, rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = left; k <= right; k++) m[k] = "target"; return m; })() })], note: "命中下标 " + left } );
         }
       }
-      ctx.step("完成！所有异位词起始下标 = [" + result.join(", ") + "]", { rows: [row("结果", result.map(function (x) { return "s[" + x + "]"; }), { st: st1(result.length - 1, "target") })] });
+      ctx.step("完成！所有异位词起始下标 = [" + result.join(", ") + "]", { line: 6, rows: [row("结果", result.map(function (x) { return "s[" + x + "]"; }), { st: st1(result.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0131": { no: "131", title: "分割回文串", tag: "回溯 · 决策树 + 剪枝",
     example: "输入：s = \"aab\"　输出：[[\"a\",\"a\",\"b\"],[\"aa\",\"b\"]]",
+    code: {
+      title: "回溯 + 回文剪枝",
+      langs: {
+        java: [
+          "void dfs(int start) {",
+          "    if (start == s.length()) { ans.add(new ArrayList<>(path)); return; }",
+          "    for (int end = start; end < s.length(); end++) {",
+          "        if (!isPal(s, start, end)) continue;   // 不是回文，这刀不能切",
+          "        path.add(s.substring(start, end + 1)); // 选：切下这一段",
+          "        dfs(end + 1);                          // 递归处理剩下的后缀",
+          "        path.remove(path.size() - 1);          // 撤销：换个切点再试",
+          "    } }"
+        ],
+        cpp: [
+          "void dfs(int start) {",
+          "    if (start == (int)s.size()) { ans.push_back(path); return; }",
+          "    for (int end = start; end < (int)s.size(); end++) {",
+          "        if (!isPal(s, start, end)) continue;   // 不是回文，这刀不能切",
+          "        path.push_back(s.substr(start, end - start + 1));  // 选：切下这一段",
+          "        dfs(end + 1);                          // 递归处理剩下的后缀",
+          "        path.pop_back();                       // 撤销：换个切点再试",
+          "    } }"
+        ],
+        python: [
+          "def dfs(start):",
+          "    if start == len(s): ans.append(path[:]); return",
+          "    for end in range(start, len(s)):",
+          "        if not is_pal(s, start, end): continue  # 不是回文，这刀不能切",
+          "        path.append(s[start:end + 1])          # 选：切下这一段",
+          "        dfs(end + 1)                           # 递归处理剩下的后缀",
+          "        path.pop()                             # 撤销：换个切点再试",
+          ""
+        ],
+        go: [
+          "func dfs(start int) {",
+          "    if start == len(s) { ans = append(ans, append([]string{}, path...)); return }",
+          "    for end := start; end < len(s); end++ {",
+          "        if !isPal(s, start, end) { continue }  // 不是回文，这刀不能切",
+          "        path = append(path, s[start:end+1])    // 选：切下这一段",
+          "        dfs(end + 1)                           // 递归处理剩下的后缀",
+          "        path = path[:len(path)-1]              // 撤销：换个切点再试",
+          "    } }"
+        ],
+        c: [
+          "void dfs(int start) {",
+          "    if (start == slen) { record(); return; }",
+          "    for (int end = start; end < slen; end++) {",
+          "        if (!is_pal(s, start, end)) continue;  /* 不是回文，这刀不能切 */",
+          "        push_seg(start, end);                  /* 选：切下这一段 */",
+          "        dfs(end + 1);                          /* 递归处理剩下的后缀 */",
+          "        pop_seg();                             /* 撤销：换个切点再试 */",
+          "    } }"
+        ]
+      }
+    },
     build: function (ctx) {
       var s = "aab";
       var path = [], results = [];
@@ -673,29 +965,29 @@ var DEMOS = {
       function backtrack(start) {
         if (start === s.length) {
           results.push(path.slice());
-          ctx.step("✓ 到达叶子：切分方案 " + JSON.stringify(path.slice()), { rows: [
+          ctx.step("✓ 到达叶子：切分方案 " + JSON.stringify(path.slice()), { line: 2, rows: [
             row("路径", path.slice(), { st: st1(path.length - 1, "target") }) ], note: "已收集方案数：" + results.length });
           return;
         }
         for (var end = start + 1; end <= s.length; end++) {
           var piece = s.slice(start, end);
           if (!isPal(start, end - 1)) {
-            ctx.step("剪枝：\"" + piece + "\" 不是回文 → 整个分支丢弃", { rows: [
+            ctx.step("剪枝：\"" + piece + "\" 不是回文 → 整个分支丢弃", { line: 4, rows: [
               row("已选路径", path.slice().concat([piece + "✗"]), { st: st1(path.length, "swap") }) ], note: "当前路径：" + JSON.stringify(path) });
             continue;
           }
           path.push(piece);
-          ctx.step("选择 \"" + piece + "\"（是回文 ✓）→ 递归剩余 \"" + s.slice(end) + "\"", { rows: [
+          ctx.step("选择 \"" + piece + "\"（是回文 ✓）→ 递归剩余 \"" + s.slice(end) + "\"", { line: 5, rows: [
             row("已选路径", path.slice(), { st: st1(path.length - 1, "hot") }) ], note: "当前路径：" + JSON.stringify(path) });
           backtrack(end);
           path.pop();
-          ctx.step("撤销 \"" + piece + "\"，尝试下一切分点", { rows: [
+          ctx.step("撤销 \"" + piece + "\"，尝试下一切分点", { line: 7, rows: [
             row("已选路径", path.slice(), { st: st1(path.length - 1, "dim") }) ], note: "当前路径：" + JSON.stringify(path) });
         }
       }
-      ctx.step("回溯 = 决策树遍历：每层决定“下一个切分点”，非回文前缀直接剪枝", { rows: [row("s", s.split(""), { st: null })] });
+      ctx.step("回溯 = 决策树遍历：每层决定“下一个切分点”，非回文前缀直接剪枝", { line: 3, rows: [row("s", s.split(""), { st: null })] });
       backtrack(0);
-      ctx.step("完成！共 " + results.length + " 种切分方案：" + JSON.stringify(results), { rows: [
+      ctx.step("完成！共 " + results.length + " 种切分方案：" + JSON.stringify(results), { line: 2, rows: [
         row("结果数", [results.length], { st: st1(0, "target") }) ] });
     },
     render: renderRows }
@@ -728,10 +1020,13 @@ var DEMOS = {
     document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
+      code: d.code,
+      stageHeight: d.stageHeight,
       sizes: d.sizes, defaultSize: d.defaultSize,
       build: d.build, render: d.render
     });
   }
+  sel.onchange = function () { mountDemo(sel.value); };
   var want = params.get("mode");
   if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
   else mountDemo(keys[0]);

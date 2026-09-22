@@ -175,6 +175,16 @@ readerVisualFrames.forEach((frame) => {
     return bar;
   }
   document.addEventListener('forge-lang-change', (e) => applyLang(e.detail.lang));
+  /* 演示页 iframe 也带语言切换：它写 localStorage（同源，触发本页 storage 事件），
+     并 postMessage 过来，由这里补上服务端持久化，两边保持同一个偏好。 */
+  window.addEventListener('storage', (e) => {
+    if (!e || e.key === null || e.key === 'forge-lang') applyLang(getLang());
+  });
+  window.addEventListener('message', (e) => {
+    if (e && e.data && e.data.type === 'forge-lang' && e.data.lang && e.data.lang !== getLang()) {
+      setLang(e.data.lang, true);
+    }
+  });
   fetch('/api/me', { cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
     .then((me) => {

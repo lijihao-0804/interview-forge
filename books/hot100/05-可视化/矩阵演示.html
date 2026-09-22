@@ -485,145 +485,724 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 <nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>矩阵演示 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
 <div id="app"></div>
 <script>
-/* ===== 矩阵演示：4 道题 ===== */
+/* ===== 矩阵演示：4 道题。题例一律打边界，动画逐格推进 ===== */
 var el = DemoKit.el;
 
-function renderGrid(view, stage) {
-  var g = view.grid, st = view.st || {};
-  var tbl = el("table");
-  tbl.style.cssText = "border-collapse:separate;border-spacing:6px";
-  for (var r = 0; r < g.length; r++) {
-    var tr = el("tr");
-    for (var c = 0; c < g[r].length; c++) {
-      var cell = el("td", "dk-cell" + ((st[r] && st[r][c]) ? " " + st[r][c] : ""), String(g[r][c]));
-      cell.style.minWidth = "44px"; cell.style.textAlign = "center"; cell.style.padding = "9px 7px";
-      tr.appendChild(cell);
-    }
-    tbl.appendChild(tr);
-  }
-  stage.textContent = "";
-  stage.appendChild(tbl);
-  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
-}
-function stOf(fn) {
-  var m = [];
-  return m;
-}
 function makeSt(rows, cols, fn) {
   var m = [];
   for (var r = 0; r < rows; r++) { m.push([]); for (var c = 0; c < cols; c++) m[r].push(fn ? fn(r, c) : null); }
   return m;
 }
+function clone(g) {
+  var m = [];
+  for (var r = 0; r < g.length; r++) m.push(g[r].slice());
+  return m;
+}
+
+function renderGrid(view, stage) {
+  var g = view.grid, st = view.st || [];
+  stage.textContent = "";
+  var box = el("div");
+  box.style.cssText = "display:flex;flex-direction:column;gap:10px;align-items:flex-start";
+
+  if (view.vars && view.vars.length) {
+    var vb = el("div", "dk-vars");
+    vb.style.cssText = "margin:0";
+    view.vars.forEach(function (v) {
+      var s = el("span", "dk-var");
+      s.appendChild(el("b", null, v[0] + "："));
+      s.appendChild(document.createTextNode(String(v[1])));
+      vb.appendChild(s);
+    });
+    box.appendChild(vb);
+  }
+
+  var tbl = el("table");
+  tbl.style.cssText = "border-collapse:separate;border-spacing:6px";
+  if (view.axes) {
+    var head = el("tr");
+    head.appendChild(el("td"));
+    for (var c0 = 0; c0 < g[0].length; c0++) {
+      var th = el("td", null, "c" + c0);
+      th.style.cssText = "font-size:11px;color:var(--dk-muted);text-align:center";
+      head.appendChild(th);
+    }
+    tbl.appendChild(head);
+  }
+  for (var r = 0; r < g.length; r++) {
+    var tr = el("tr");
+    if (view.axes) {
+      var rh = el("td", null, "r" + r);
+      rh.style.cssText = "font-size:11px;color:var(--dk-muted);padding-right:2px";
+      tr.appendChild(rh);
+    }
+    for (var c = 0; c < g[r].length; c++) {
+      var cls = (st[r] && st[r][c]) ? " " + st[r][c] : "";
+      var cell = el("td", "dk-cell" + cls, String(g[r][c]));
+      cell.style.cssText = "min-width:44px;text-align:center;padding:9px 7px";
+      // 只有元素两两不同的题（48 旋转）才挂 key，否则重复值会让 FLIP 认错身份。
+      if (view.keyed) cell.setAttribute("data-key", "v" + g[r][c]);
+      tr.appendChild(cell);
+    }
+    tbl.appendChild(tr);
+  }
+  box.appendChild(tbl);
+
+  if (view.out) {
+    var ob = el("div");
+    ob.style.cssText = "display:flex;gap:5px;align-items:center;flex-wrap:wrap";
+    var lab = el("span", null, "输出");
+    lab.style.cssText = "font-size:12px;color:var(--dk-muted);margin-right:2px";
+    ob.appendChild(lab);
+    if (!view.out.length) {
+      var em = el("span", null, "（还是空的）");
+      em.style.cssText = "font-size:12px;color:var(--dk-muted)";
+      ob.appendChild(em);
+    }
+    view.out.forEach(function (v, i) {
+      var chip = el("span", "dk-cell" + (i === view.out.length - 1 ? " hot" : " done"), String(v));
+      chip.style.cssText = "min-width:0;padding:4px 8px;font-size:12px";
+      ob.appendChild(chip);
+    });
+    box.appendChild(ob);
+  }
+  if (view.note) box.appendChild(el("div", "dk-note", view.note));
+  stage.appendChild(box);
+}
+
+/* ---------- 73 的三组输入：默认那组首行、首列自己就含 0 ---------- */
+var M73 = {
+  edge:  [[1, 0, 3, 4], [5, 6, 7, 8], [0, 9, 10, 11], [12, 13, 14, 0]],
+  inner: [[1, 2, 3, 4], [5, 0, 7, 8], [9, 10, 0, 12], [13, 14, 15, 16]],
+  col:   [[1, 2, 3, 4], [0, 6, 7, 8], [9, 10, 11, 12]]
+};
+function expect73(orig) {
+  var M = orig.length, N = orig[0].length, zr = {}, zc = {}, r, c;
+  for (r = 0; r < M; r++) for (c = 0; c < N; c++) if (orig[r][c] === 0) { zr[r] = 1; zc[c] = 1; }
+  var e = [];
+  for (r = 0; r < M; r++) { e.push([]); for (c = 0; c < N; c++) e[r].push((zr[r] || zc[c]) ? 0 : orig[r][c]); }
+  return e;
+}
+function sameGrid(a, b) {
+  for (var r = 0; r < a.length; r++) for (var c = 0; c < a[r].length; c++) if (a[r][c] !== b[r][c]) return false;
+  return true;
+}
+
+/* ---------- 240 的矩阵：行内递增、列内递增 ---------- */
+var G240 = [[1, 4, 7, 11, 15], [2, 5, 8, 12, 19], [3, 6, 9, 16, 22], [10, 13, 14, 17, 24], [18, 21, 23, 26, 30]];
 
 var DEMOS = {
 
-  "0048": { no: "48", title: "旋转图像", tag: "矩阵 · 原地旋转（转置 + 行翻转）",
-    example: "输入：matrix = [[1,2,3],[4,5,6],[7,8,9]]　输出：顺时针旋转 90°",
-    sizes: [{ label: "3×3（示例 1）", n: 3 }, { label: "4×4（更深）", n: 4 }],
+  "0048": {
+    no: "48", title: "旋转图像", tag: "矩阵 · 原地旋转（转置 + 行翻转）",
+    example: "输入：n×n 矩阵，值 1..n²　输出：原地顺时针旋转 90°，额外空间 O(1)",
+    sizes: [
+      { label: "4×4（默认，偶数阶）", n: 4 },
+      { label: "5×5（奇数阶，有正中心）", n: 5 },
+      { label: "3×3（示例 1）", n: 3 }
+    ],
     defaultSize: 0,
+    stageHeight: 500,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "// ① 沿主对角线转置",
+          "for (int r = 0; r < n; r++)",
+          "    for (int c = r + 1; c < n; c++) {",
+          "        int t = g[r][c]; g[r][c] = g[c][r]; g[c][r] = t; }",
+          "// ② 每一行左右翻转",
+          "for (int[] row : g) reverse(row);"
+        ],
+        cpp: [
+          "// ① 沿主对角线转置",
+          "for (int r = 0; r < n; r++)",
+          "    for (int c = r + 1; c < n; c++)",
+          "        swap(g[r][c], g[c][r]);",
+          "// ② 每一行左右翻转",
+          "for (auto& row : g) reverse(row.begin(), row.end());"
+        ],
+        python: [
+          "# ① 沿主对角线转置",
+          "for r in range(n):",
+          "    for c in range(r + 1, n):",
+          "        g[r][c], g[c][r] = g[c][r], g[r][c]",
+          "# ② 每一行左右翻转",
+          "for row in g: row.reverse()"
+        ],
+        go: [
+          "// ① 沿主对角线转置",
+          "for r := 0; r < n; r++ {",
+          "    for c := r + 1; c < n; c++ {",
+          "        g[r][c], g[c][r] = g[c][r], g[r][c] } }",
+          "// ② 每一行左右翻转",
+          "for _, row := range g { reverse(row) }"
+        ],
+        c: [
+          "/* ① 沿主对角线转置 */",
+          "for (int r = 0; r < n; r++)",
+          "    for (int c = r + 1; c < n; c++) {",
+          "        int t = g[r][c]; g[r][c] = g[c][r]; g[c][r] = t; }",
+          "/* ② 每一行左右翻转 */",
+          "for (int r = 0; r < n; r++) reverse(g[r], n);"
+        ]
+      }
+    },
+    invariants: [
+      { label: "元素集合始终不变", test: function (v) {
+          var f = [].concat.apply([], v.grid).sort(function (a, b) { return a - b; });
+          for (var i = 0; i < f.length; i++) if (f[i] !== i + 1) return false;
+          return "仍是 1.." + f.length + " 的一个排列，没有元素被覆盖";
+        } },
+      { label: "目标：已等于旋转结果", test: function (v) {
+          return sameGrid(v.grid, v.want) ? "两步都做完了" : false;
+        } }
+    ],
+    compare: {
+      label: "错误写法：只转置，忘了翻转每一行",
+      build: function (ctx, size) {
+        var n = (size && size.n) || 4, r, c, v = 1, g = [];
+        for (r = 0; r < n; r++) { g.push([]); for (c = 0; c < n; c++) g[r].push(v++); }
+        ctx.step("同一个矩阵，只执行第 ① 步转置", { grid: clone(g), st: makeSt(n, n) });
+        for (r = 0; r < n; r++) for (c = r + 1; c < n; c++) { var t = g[r][c]; g[r][c] = g[c][r]; g[c][r] = t; }
+        ctx.step("✗ 转置完就收手，得到的是沿主对角线的镜像。第一行成了原第一列「自上而下」，而顺时针旋转要的是「自下而上」——整整差一次左右翻转。",
+          { grid: clone(g), st: makeSt(n, n, function (rr) { return rr === 0 ? "swap" : "dim"; }) });
+      }
+    },
     build: function (ctx, size) {
-      var n = (size && size.n) || 3;
-      var g = [];
-      var v = 1;
-      for (var r = 0; r < n; r++) { g.push([]); for (var c = 0; c < n; c++) g[r].push(v++); }
-      ctx.step("n = " + n + "。顺时针旋转 = 先转置（沿主轴翻转）再每行左右翻转", { grid: g });
-      for (var r = 0; r < n; r++) {
-        for (var c = r + 1; c < n; c++) {
-          var t = g[r][c]; g[r][c] = g[c][r]; g[c][r] = t;
+      var n = (size && size.n) || 4, r, c, v = 1, g = [];
+      for (r = 0; r < n; r++) { g.push([]); for (c = 0; c < n; c++) g[r].push(v++); }
+      var orig = clone(g), want = [];
+      for (r = 0; r < n; r++) { want.push([]); for (c = 0; c < n; c++) want[r].push(orig[n - 1 - c][r]); }
+
+      function V(st, note) {
+        return { grid: clone(g), st: st || makeSt(n, n), note: note, keyed: true, want: want, n: n };
+      }
+      function diag(rr, cc) { return rr === cc ? "cmp" : null; }
+
+      ctx.step("顺时针转 90° 可以拆成两步：① 沿主对角线转置，② 每行左右翻转。全程只做交换，不开新矩阵。",
+        V(makeSt(n, n, diag), "黄色是主对角线——转置时它上面的 " + n + " 个元素原地不动。"), { line: 1 });
+
+      for (r = 0; r < n; r++) {
+        for (c = r + 1; c < n; c++) {
+          var st = makeSt(n, n, diag);
+          st[r][c] = "swap"; st[c][r] = "swap";
+          var a = g[r][c], b = g[c][r];
+          ctx.step("转置：g[" + r + "][" + c + "] = " + a + "　↔　g[" + c + "][" + r + "] = " + b,
+            V(st, "对角线两侧的对称位置互换，一共换 n(n−1)/2 = " + (n * (n - 1) / 2) + " 次。"), { line: [2, 3, 4] });
+          g[r][c] = b; g[c][r] = a;
+          var st2 = makeSt(n, n, diag);
+          st2[r][c] = "write"; st2[c][r] = "write";
+          ctx.step("换好了：" + b + " 到了 (" + r + "," + c + ")，" + a + " 到了 (" + c + "," + r + ")", V(st2), { line: 4 });
         }
       }
-      var stT = makeSt(n, n, function (r, c) { return r === c ? "write" : r < c ? "hot" : null; });
-      ctx.step("① 转置完成：g[r][c] ↔ g[c][r]（沿对角线镜像）", { grid: g, st: stT });
-      for (var r = 0; r < n; r++) {
+      ctx.step("① 转置结束。现在 g[r][c] 装的是原来的 g[c][r] —— 注意这还不是旋转，只是镜像。",
+        V(makeSt(n, n, function () { return "done"; }), "第一行 [" + g[0].join(",") + "] 是原第一列自上而下，方向恰好反了。"), { line: 4 });
+
+      for (r = 0; r < n; r++) {
+        var cur = r;
+        var stH = makeSt(n, n, function (rr) { return rr === cur ? "hot" : (rr < cur ? "done" : null); });
+        ctx.step("② 翻转第 " + r + " 行：[" + g[r].join(",") + "] → [" + g[r].slice().reverse().join(",") + "]", V(stH), { line: [5, 6] });
         g[r].reverse();
+        var stW = makeSt(n, n, function (rr) { return rr === cur ? "write" : (rr < cur ? "done" : null); });
+        ctx.step("第 " + r + " 行就位", V(stW), { line: 6 });
       }
-      var stR = makeSt(n, n, function (r, c) { return "write"; });
-      ctx.step("② 每行左右翻转完成 → 顺时针旋转 90° ✓", { grid: g, st: stR });
-      ctx.step("验证：原第一列 [" + [1, 4, 7].slice(0, n).join(",") + "] 变成第一行 ✓（n = " + n + " 同理）", { grid: g, st: makeSt(n, n, function (r, c) { return "done"; }) });
-    },
-    render: renderGrid },
 
-  "0054": { no: "54", title: "螺旋矩阵", tag: "矩阵 · 边界收缩",
-    example: "输入：matrix = [[1,2,3],[4,5,6],[7,8,9]]　输出：[1,2,3,6,9,8,7,4,5]",
-    sizes: [{ label: "3×3（示例 1）", rows: 3, cols: 3 }, { label: "3×4（更深）", rows: 3, cols: 4 }, { label: "4×4", rows: 4, cols: 4 }],
+      var col0 = [];
+      for (r = n - 1; r >= 0; r--) col0.push(orig[r][0]);
+      ctx.step("完成！校验：原来的第一列自下而上是 [" + col0.join(",") + "]，现在的第一行正是 [" + g[0].join(",") + "] ✓",
+        V(makeSt(n, n, function () { return "done"; }), "全程只用了一个临时变量，额外空间 O(1)。"), { line: 6 });
+    },
+    render: renderGrid
+  },
+
+  "0054": {
+    no: "54", title: "螺旋矩阵", tag: "矩阵 · 四边界收缩",
+    example: "输入：4×5 非方阵（默认）　输出：顺时针螺旋取出全部 20 个数。另备 1×6 单行，专门打两个 if 守卫",
+    sizes: [
+      { label: "4×5（非方阵，默认）", rows: 4, cols: 5 },
+      { label: "5×3（竖长）", rows: 5, cols: 3 },
+      { label: "1×6（单行陷阱）", rows: 1, cols: 6 },
+      { label: "3×3（示例 1）", rows: 3, cols: 3 }
+    ],
     defaultSize: 0,
+    stageHeight: 520,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int t = 0, b = R - 1, l = 0, r = C - 1;",
+          "while (t <= b && l <= r) {",
+          "    for (int c = l; c <= r; c++) out.add(g[t][c]);   t++;",
+          "    for (int i = t; i <= b; i++) out.add(g[i][r]);   r--;",
+          "    if (t <= b) { for (int c = r; c >= l; c--) out.add(g[b][c]); b--; }",
+          "    if (l <= r) { for (int i = b; i >= t; i--) out.add(g[i][l]); l++; }",
+          "}"
+        ],
+        cpp: [
+          "int t = 0, b = R - 1, l = 0, r = C - 1;",
+          "while (t <= b && l <= r) {",
+          "    for (int c = l; c <= r; c++) out.push_back(g[t][c]);   t++;",
+          "    for (int i = t; i <= b; i++) out.push_back(g[i][r]);   r--;",
+          "    if (t <= b) { for (int c = r; c >= l; c--) out.push_back(g[b][c]); b--; }",
+          "    if (l <= r) { for (int i = b; i >= t; i--) out.push_back(g[i][l]); l++; }",
+          "}"
+        ],
+        python: [
+          "t, b, l, r = 0, R - 1, 0, C - 1",
+          "while t <= b and l <= r:",
+          "    out += g[t][l:r + 1];                        t += 1",
+          "    out += [g[i][r] for i in range(t, b + 1)];   r -= 1",
+          "    if t <= b: out += g[b][l:r + 1][::-1];       b -= 1",
+          "    if l <= r: out += [g[i][l] for i in range(b, t - 1, -1)]; l += 1",
+          "return out"
+        ],
+        go: [
+          "t, b, l, r := 0, R-1, 0, C-1",
+          "for t <= b && l <= r {",
+          "    for c := l; c <= r; c++ { out = append(out, g[t][c]) }; t++",
+          "    for i := t; i <= b; i++ { out = append(out, g[i][r]) }; r--",
+          "    if t <= b { for c := r; c >= l; c-- { out = append(out, g[b][c]) }; b-- }",
+          "    if l <= r { for i := b; i >= t; i-- { out = append(out, g[i][l]) }; l++ }",
+          "}"
+        ],
+        c: [
+          "int t = 0, b = R - 1, l = 0, r = C - 1, k = 0;",
+          "while (t <= b && l <= r) {",
+          "    for (int c = l; c <= r; c++) out[k++] = g[t][c];   t++;",
+          "    for (int i = t; i <= b; i++) out[k++] = g[i][r];   r--;",
+          "    if (t <= b) { for (int c = r; c >= l; c--) out[k++] = g[b][c]; b--; }",
+          "    if (l <= r) { for (int i = b; i >= t; i--) out[k++] = g[i][l]; l++; }",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "输出里没有重复", test: function (v) {
+          var seen = {};
+          for (var i = 0; i < v.out.length; i++) { if (seen[v.out[i]]) return false; seen[v.out[i]] = 1; }
+          return "已输出 " + v.out.length + " 个，互不相同";
+        } },
+      { label: "矩形外的格子一定都已输出", test: function (v) {
+          var out = 0;
+          for (var a = 0; a < v.taken.length; a++) for (var d = 0; d < v.taken[a].length; d++) {
+            var inside = (a >= v.t && a <= v.b && d >= v.l && d <= v.r);
+            if (inside) continue;
+            out++;
+            if (!v.taken[a][d]) return false;
+          }
+          return "矩形外 " + out + " 格已全部取走";
+        } }
+    ],
+    compare: {
+      label: "错误写法：去掉 if (t <= b) 和 if (l <= r) 两个守卫",
+      build: function (ctx) {
+        var C = 6, g = [[1, 2, 3, 4, 5, 6]], out = [];
+        var t = 0, b = 0, l = 0, r = C - 1;
+        function W(cur, note) {
+          var st = makeSt(1, C, function (rr, cc) { return (cur != null && cc === cur) ? "hot" : null; });
+          return { grid: g, st: st, out: out.slice(), note: note, axes: true };
+        }
+        ctx.step("反例固定用 1×6 单行矩阵——只有这种退化形状才暴露问题", W(null, "正确答案显然是 1,2,3,4,5,6。"));
+        for (var c = l; c <= r; c++) out.push(g[t][c]);
+        t++;
+        ctx.step("上边沿向右扫完 6 个数，t 变成 1（此时 t 已经大于 b = 0，这一行其实空了）", W(5, "到这里为止都还是对的。"));
+        r--;
+        ctx.step("右边沿：i 从 1 到 0，一个都没取，但 r 照样自减成 4", W(null, "空循环不影响，边界还是往里收了。"));
+        for (var c2 = r; c2 >= l; c2--) out.push(g[b][c2]);
+        b--;
+        ctx.step("✗ 没有 if (t <= b) 拦着，下边沿又把第 0 行从右往左扫了一遍 —— 5,4,3,2,1 全是重复输出", W(0, "同一行被取了两次。"));
+        ctx.step("✗ 最终输出 [" + out.join(",") + "]，" + out.length + " 个数里有 5 个重复。两个 if 不是可有可无的防御，而是退化形状下的正确性保证。",
+          { grid: g, st: makeSt(1, C, function () { return "swap"; }), out: out.slice(), axes: true });
+      }
+    },
     build: function (ctx, size) {
-      var R = (size && size.rows) || 3, C = (size && size.cols) || 3;
-      var g = [], v = 1;
-      for (var r = 0; r < R; r++) { g.push([]); for (var c = 0; c < C; c++) g[r].push(v++); }
-      var top = 0, bottom = R - 1, left = 0, right = C - 1;
-      var order = [];
-      ctx.step("四个边界 l/r/t/b，按 右→下→左→上 顺时针绕圈，绕完收缩边界", { grid: g });
+      var R = (size && size.rows) || 4, C = (size && size.cols) || 5;
+      var g = [], v = 1, r, c;
+      for (r = 0; r < R; r++) { g.push([]); for (c = 0; c < C; c++) g[r].push(v++); }
+      var t = 0, b = R - 1, l = 0, rr = C - 1, out = [], total = R * C;
+      var taken = makeSt(R, C, function () { return false; });
+
+      function V(cur, note) {
+        var st = makeSt(R, C, function (a, d) {
+          if (cur && cur[0] === a && cur[1] === d) return "hot";
+          if (taken[a][d]) return "done";
+          if (a < t || a > b || d < l || d > rr) return "dim";
+          return null;
+        });
+        return {
+          grid: g, st: st, out: out.slice(), axes: true, note: note,
+          t: t, b: b, l: l, r: rr, total: total, taken: clone(taken),
+          vars: [["t", t], ["b", b], ["l", l], ["r", rr], ["已取", out.length + " / " + total]]
+        };
+      }
+
+      ctx.step("四个边界 t / b / l / r 圈出「还没取走」的矩形。每绕一圈，四条边各向内收缩一格。",
+        V(null, "灰掉的格子是已经被边界排除在外的区域。"), { line: 1 });
+
       var guard = 0;
-      while (top <= bottom && left <= right && guard++ < 50) {
-        for (var c = left; c <= right; c++) order.push(g[top][c]);
-        top++;
-        ctx.step("上边界向右扫 → " + order.join(","), { grid: g, st: (function () { var m = makeSt(R, C); for (var c = left; c < right + 1 && c < C; c++) if (c <= right) { try { if (g[top - 1] && c < C) m[top - 1][c] = "write"; } catch (e) {} } return m; })() });
-        for (var r = top; r <= bottom; r++) order.push(g[r][right]);
-        right--;
-        ctx.step("右边界向下扫 → " + order.join(","), { grid: g, st: (function () { var m = makeSt(R, C); for (var rr = top; rr <= bottom; rr++) if (right + 1 < C) m[rr][right + 1] = "write"; return m; })() });
-        if (top <= bottom) {
-          for (var c = right; c >= left; c--) order.push(g[bottom][c]);
-          bottom--;
-          ctx.step("下边界向左扫 → " + order.join(","), { grid: g, st: (function () { var m = makeSt(R, C); for (var c = left; c <= right + 1 && c < C; c++) if (bottom + 1 < R) m[bottom + 1][c] = "write"; return m; })() });
+      while (t <= b && l <= rr && guard++ < 80) {
+        for (c = l; c <= rr; c++) {
+          out.push(g[t][c]); taken[t][c] = true;
+          ctx.step("→ 上边沿向右：取 g[" + t + "][" + c + "] = " + g[t][c], V([t, c]), { line: 3 });
         }
-        if (left <= right) {
-          for (var r = bottom; r >= top; r--) order.push(g[r][left]);
-          left++;
-          ctx.step("左边界向上扫 → " + order.join(","), { grid: g, st: (function () { var m = makeSt(R, C); for (var rr = top; rr <= bottom + 1 && rr < R; rr++) if (left - 1 >= 0) m[rr][left - 1] = "write"; return m; })() });
+        t++;
+        ctx.step("上边沿扫完 → t++ = " + t, V(null, "第 " + (t - 1) + " 行整行出局，矩形从上方缩了一格。"), { line: 3 });
+
+        for (var i = t; i <= b; i++) {
+          out.push(g[i][rr]); taken[i][rr] = true;
+          ctx.step("↓ 右边沿向下：取 g[" + i + "][" + rr + "] = " + g[i][rr], V([i, rr]), { line: 4 });
+        }
+        rr--;
+        ctx.step("右边沿扫完 → r-- = " + rr, V(null, rr < l ? "列已经收空了，循环快结束了。" : "第 " + (rr + 1) + " 列整列出局。"), { line: 4 });
+
+        if (t <= b) {
+          for (var c2 = rr; c2 >= l; c2--) {
+            out.push(g[b][c2]); taken[b][c2] = true;
+            ctx.step("← 下边沿向左：取 g[" + b + "][" + c2 + "] = " + g[b][c2], V([b, c2]), { line: 5 });
+          }
+          b--;
+          ctx.step("下边沿扫完 → b-- = " + b, V(null, "if (t <= b) 这个守卫是保命符：单行矩阵走到这里 t 已经大于 b，跳过才不会把同一行再取一遍。"), { line: 5 });
+        } else {
+          ctx.step("t(" + t + ") > b(" + b + ") → 跳过下边沿", V(null, "上边沿刚刚已经把这唯一一行取完了，再走一次就是重复输出。勾上「并排看反例」能看到去掉守卫的后果。"), { line: 5 });
+        }
+
+        if (l <= rr) {
+          for (var i2 = b; i2 >= t; i2--) {
+            out.push(g[i2][l]); taken[i2][l] = true;
+            ctx.step("↑ 左边沿向上：取 g[" + i2 + "][" + l + "] = " + g[i2][l], V([i2, l]), { line: 6 });
+          }
+          l++;
+          ctx.step("左边沿扫完 → l++ = " + l, V(null, "一圈结束，回到 while 重新判断边界。"), { line: 6 });
+        } else {
+          ctx.step("l(" + l + ") > r(" + rr + ") → 跳过左边沿", V(null, "同理，单列矩阵靠这个守卫才不会重复输出。"), { line: 6 });
         }
       }
-      ctx.step("完成！螺旋顺序 = [" + order.join(",") + "]", { grid: g, st: makeSt(R, C, function () { return "done"; }) });
+      ctx.step("完成！共取出 " + out.length + " 个数：[" + out.join(",") + "]",
+        V(null, "矩形已经收成空集，每个格子恰好出现一次 ✓"), { line: 7 });
     },
-    render: renderGrid },
+    render: renderGrid
+  },
 
-  "0073": { no: "73", title: "矩阵置零", tag: "矩阵 · 首行首列做标记",
-    example: "输入：matrix = [[1,1,1],[1,0,1],[1,1,1]]　输出：[[1,0,1],[0,0,0],[1,0,1]]",
-    build: function (ctx) {
-      var g = [[1, 1, 1], [1, 0, 1], [1, 1, 1]];
-      var M = g.length, N = g[0].length;
-      var firstRowZero = false, firstColZero = false;
-      for (var c = 0; c < N; c++) if (g[0][c] === 0) firstRowZero = true;
-      for (var r = 0; r < M; r++) if (g[r][0] === 0) firstColZero = true;
-      ctx.step("用第一行/第一列做标记位（O(1) 额外空间）。先记下首行首列自身是否含 0", { grid: g });
-      for (var r = 1; r < M; r++) for (var c = 1; c < N; c++) {
-        if (g[r][c] === 0) { g[0][c] = 0; g[r][0] = 0; }
+  "0073": {
+    no: "73", title: "矩阵置零", tag: "矩阵 · 拿首行首列当标记位",
+    example: "输入（默认那组）：4×4，0 分别落在第 0 行、第 0 列和内部　输出：所在行列全部清零，只剩 7 一个幸存者",
+    sizes: [
+      { label: "4×4（首行、首列自己也含 0 —— 真正的坑）", key: "edge" },
+      { label: "4×4（0 全在内部）", key: "inner" },
+      { label: "3×4（只有首列含 0）", key: "col" }
+    ],
+    defaultSize: 0,
+    stageHeight: 520,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "boolean r0 = false, c0 = false;",
+          "for (int c = 0; c < N; c++) if (g[0][c] == 0) r0 = true;",
+          "for (int r = 0; r < M; r++) if (g[r][0] == 0) c0 = true;",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[r][c] == 0) { g[0][c] = 0; g[r][0] = 0; }",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[0][c] == 0 || g[r][0] == 0) g[r][c] = 0;",
+          "if (r0) for (int c = 0; c < N; c++) g[0][c] = 0;",
+          "if (c0) for (int r = 0; r < M; r++) g[r][0] = 0;"
+        ],
+        cpp: [
+          "bool r0 = false, c0 = false;",
+          "for (int c = 0; c < N; c++) if (g[0][c] == 0) r0 = true;",
+          "for (int r = 0; r < M; r++) if (g[r][0] == 0) c0 = true;",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[r][c] == 0) { g[0][c] = 0; g[r][0] = 0; }",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[0][c] == 0 || g[r][0] == 0) g[r][c] = 0;",
+          "if (r0) for (int c = 0; c < N; c++) g[0][c] = 0;",
+          "if (c0) for (int r = 0; r < M; r++) g[r][0] = 0;"
+        ],
+        python: [
+          "r0 = c0 = False",
+          "for c in range(N):  r0 |= g[0][c] == 0",
+          "for r in range(M):  c0 |= g[r][0] == 0",
+          "for r, c in product(range(1, M), range(1, N)):",
+          "    if g[r][c] == 0: g[0][c] = g[r][0] = 0",
+          "for r, c in product(range(1, M), range(1, N)):",
+          "    if g[0][c] == 0 or g[r][0] == 0: g[r][c] = 0",
+          "if r0: g[0] = [0] * N",
+          "if c0: g[:] = [[0] + row[1:] for row in g]"
+        ],
+        go: [
+          "r0, c0 := false, false",
+          "for c := 0; c < N; c++ { if g[0][c] == 0 { r0 = true } }",
+          "for r := 0; r < M; r++ { if g[r][0] == 0 { c0 = true } }",
+          "for r := 1; r < M; r++ { for c := 1; c < N; c++ {",
+          "    if g[r][c] == 0 { g[0][c], g[r][0] = 0, 0 } } }",
+          "for r := 1; r < M; r++ { for c := 1; c < N; c++ {",
+          "    if g[0][c] == 0 || g[r][0] == 0 { g[r][c] = 0 } } }",
+          "if r0 { for c := 0; c < N; c++ { g[0][c] = 0 } }",
+          "if c0 { for r := 0; r < M; r++ { g[r][0] = 0 } }"
+        ],
+        c: [
+          "int r0 = 0, c0 = 0;",
+          "for (int c = 0; c < N; c++) if (g[0][c] == 0) r0 = 1;",
+          "for (int r = 0; r < M; r++) if (g[r][0] == 0) c0 = 1;",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[r][c] == 0) { g[0][c] = 0; g[r][0] = 0; }",
+          "for (int r = 1; r < M; r++) for (int c = 1; c < N; c++)",
+          "    if (g[0][c] == 0 || g[r][0] == 0) g[r][c] = 0;",
+          "if (r0) for (int c = 0; c < N; c++) g[0][c] = 0;",
+          "if (c0) for (int r = 0; r < M; r++) g[r][0] = 0;"
+        ]
       }
-      ctx.step("扫描内部：凡 0，就在其第一行/第一列打标记", { grid: g, st: (function () { var m = makeSt(M, N, function (r, c) { return (r === 0 || c === 0) ? "cmp" : null; }); return m; })() });
-      for (var r = 1; r < M; r++) for (var c = 1; c < N; c++) {
-        if (g[0][c] === 0 || g[r][0] === 0) g[r][c] = 0;
-      }
-      ctx.step("按标记清零内部", { grid: g });
-      if (firstRowZero) for (var c = 0; c < N; c++) g[0][c] = 0;
-      if (firstColZero) for (var r = 0; r < M; r++) g[r][0] = 0;
-      ctx.step("最后处理首行首列自身 → 完成", { grid: g, st: makeSt(M, N, function () { return "done"; }) });
     },
-    render: renderGrid },
+    invariants: [
+      { label: "只置零，从不写入别的值", test: function (v) {
+          for (var r = 0; r < v.grid.length; r++) for (var c = 0; c < v.grid[r].length; c++) {
+            if (v.grid[r][c] !== 0 && v.grid[r][c] !== v.orig[r][c]) return false;
+          }
+          return "所有格子要么保持原值，要么变成 0";
+        } },
+      { label: "目标：已等于正确答案", test: function (v) {
+          return sameGrid(v.grid, v.want) ? "完全一致" : false;
+        } }
+    ],
+    compare: {
+      label: "错误写法：扫到 0 就立刻清掉整行整列",
+      build: function (ctx, size) {
+        var key = (size && size.key) || "edge";
+        var g = clone(M73[key]), M = g.length, N = g[0].length, r, c, i;
+        ctx.step("同一个矩阵，改成「边扫边清」：遇到 0 马上把它那一行那一列抹平", { grid: clone(g), st: makeSt(M, N) });
+        var hits = 0;
+        for (r = 0; r < M; r++) for (c = 0; c < N; c++) {
+          if (g[r][c] === 0) {
+            hits++;
+            for (i = 0; i < N; i++) g[r][i] = 0;
+            for (i = 0; i < M; i++) g[i][c] = 0;
+            var st = makeSt(M, N, function (a, d) { return (a === r || d === c) ? "swap" : null; });
+            ctx.step("在 (" + r + "," + c + ") 看到 0 → 立刻清空第 " + r + " 行和第 " + c + " 列（这是第 " + hits + " 次触发）",
+              { grid: clone(g), st: st });
+          }
+        }
+        var zeros = 0;
+        for (r = 0; r < M; r++) for (c = 0; c < N; c++) if (g[r][c] === 0) zeros++;
+        ctx.step("✗ 被抹平的格子有 " + zeros + " / " + (M * N) + " 个。刚写下的 0 在后面的扫描里又被当成「原始 0」，一路级联，最后整个矩阵几乎全灭。所以标记和清零必须分成两趟。",
+          { grid: clone(g), st: makeSt(M, N, function () { return "swap"; }) });
+      }
+    },
+    build: function (ctx, size) {
+      var key = (size && size.key) || "edge";
+      var g = clone(M73[key]), orig = clone(M73[key]), want = expect73(orig);
+      var M = g.length, N = g[0].length, r, c;
+      var r0 = false, c0 = false;
 
-  "0240": { no: "240", title: "搜索二维矩阵 II", tag: "矩阵 · 右上角阶梯搜索",
-    example: "输入：matrix（5×5 见视图），target = 5　输出：true",
-    build: function (ctx) {
-      var g = [[1, 4, 7, 11, 15], [2, 5, 8, 12, 19], [3, 6, 9, 16, 22], [10, 13, 14, 17, 24], [18, 21, 23, 26, 30]];
-      var target = 5;
-      var r = 0, c = g[0].length - 1;
-      ctx.step("从右上角出发：当前值 > target 删一列，< target 删一行——每一步都排除整行/列", { grid: g, st: makeSt(g.length, g[0].length, function (r, c) { return "dim"; }) });
+      function V(st, note) {
+        return { grid: clone(g), st: st || makeSt(M, N), note: note, orig: orig, want: want };
+      }
+
+      ctx.step("O(1) 空间的思路：借第 0 行和第 0 列当标记板。但它们本身也可能含 0，所以第一件事是把这两个事实先记下来。",
+        V(makeSt(M, N, function (a, d) { return (a === 0 || d === 0) ? "cmp" : null; }),
+          "黄色区域马上就要被当成草稿纸涂改，原始信息必须先抢救出来。"), { line: 1 });
+
+      for (c = 0; c < N; c++) {
+        if (g[0][c] === 0) r0 = true;
+        var stA = makeSt(M, N);
+        stA[0][c] = g[0][c] === 0 ? "swap" : "hot";
+        ctx.step("查首行 g[0][" + c + "] = " + g[0][c] + (g[0][c] === 0 ? " → 是 0，r0 = true" : ""),
+          V(stA, "r0 = " + r0), { line: 2 });
+      }
+      for (r = 0; r < M; r++) {
+        if (g[r][0] === 0) c0 = true;
+        var stB = makeSt(M, N);
+        stB[r][0] = g[r][0] === 0 ? "swap" : "hot";
+        ctx.step("查首列 g[" + r + "][0] = " + g[r][0] + (g[r][0] === 0 ? " → 是 0，c0 = true" : ""),
+          V(stB, "r0 = " + r0 + "　c0 = " + c0), { line: 3 });
+      }
+      ctx.step("两个标志位到手：r0 = " + r0 + "，c0 = " + c0 + "。现在可以放心涂改首行首列了。",
+        V(makeSt(M, N, function (a, d) { return (a === 0 || d === 0) ? "cmp" : null; }),
+          r0 || c0 ? "这组输入首行/首列自己就含 0 —— 忘了记标志的写法会在最后一步翻车。" : "这组输入首行首列都干净。"), { line: [2, 3] });
+
+      for (r = 1; r < M; r++) for (c = 1; c < N; c++) {
+        var hit = g[r][c] === 0;
+        var stC = makeSt(M, N, function (a, d) { return (a === 0 || d === 0) ? "cmp" : null; });
+        stC[r][c] = hit ? "swap" : "hot";
+        if (hit) { stC[0][c] = "write"; stC[r][0] = "write"; g[0][c] = 0; g[r][0] = 0; }
+        ctx.step("第一趟扫内部：g[" + r + "][" + c + "] = " + (hit ? 0 : g[r][c]) +
+          (hit ? " 是 0 → 已在 g[0][" + c + "] 和 g[" + r + "][0] 打下标记" : " 不是 0，跳过"),
+          V(stC, hit ? "标记只写在首行首列，内部一个格子都不动。" : null), { line: [4, 5] });
+      }
+      ctx.step("第一趟结束。首行首列现在是一张「哪些行、哪些列该清零」的地图。",
+        V(makeSt(M, N, function (a, d) { return (a === 0 || d === 0) ? ((a === 0 ? g[0][d] : g[a][0]) === 0 ? "swap" : "cmp") : null; }),
+          "红色标记 = 该行/该列要清零。"), { line: 5 });
+
+      for (r = 1; r < M; r++) for (c = 1; c < N; c++) {
+        var kill = (g[0][c] === 0 || g[r][0] === 0);
+        var stD = makeSt(M, N, function (a, d) { return (a === 0 || d === 0) ? "cmp" : null; });
+        stD[r][c] = kill ? "write" : "hot";
+        if (kill) { stD[0][c] = "swap"; stD[r][0] = "swap"; }
+        if (kill) g[r][c] = 0;
+        ctx.step("第二趟按标记清零：g[" + r + "][" + c + "] " + (kill ? "→ 0（行标记 " + g[r][0] + "，列标记 " + g[0][c] + "）" : "保留 " + g[r][c] + "（两个标记都不是 0）"),
+          V(stD), { line: [6, 7] });
+      }
+
+      if (r0) {
+        for (c = 0; c < N; c++) g[0][c] = 0;
+        ctx.step("r0 = true → 首行自己含 0，整行清掉", V(makeSt(M, N, function (a) { return a === 0 ? "write" : null; }),
+          "这一步必须放在最后：早清了，标记地图就没了。"), { line: 8 });
+      } else {
+        ctx.step("r0 = false → 首行本来就不含 0，原样保留", V(makeSt(M, N, function (a) { return a === 0 ? "done" : null; })), { line: 8 });
+      }
+      if (c0) {
+        for (r = 0; r < M; r++) g[r][0] = 0;
+        ctx.step("c0 = true → 首列自己含 0，整列清掉", V(makeSt(M, N, function (a, d) { return d === 0 ? "write" : null; })), { line: 9 });
+      } else {
+        ctx.step("c0 = false → 首列本来就不含 0，原样保留", V(makeSt(M, N, function (a, d) { return d === 0 ? "done" : null; })), { line: 9 });
+      }
+
+      var alive = [];
+      for (r = 0; r < M; r++) for (c = 0; c < N; c++) if (g[r][c] !== 0) alive.push(g[r][c]);
+      ctx.step("完成！幸存下来的是 " + (alive.length ? "[" + alive.join(",") + "]" : "（一个都没有）") +
+        "——它们所在的行和列都不含任何原始 0。全程只用了 r0 / c0 两个布尔量，额外空间 O(1)。",
+        V(makeSt(M, N, function (a, d) { return g[a][d] === 0 ? "done" : "target"; })), { line: 9 });
+    },
+    render: renderGrid
+  },
+
+  "0240": {
+    no: "240", title: "搜索二维矩阵 II", tag: "矩阵 · 右上角阶梯搜索",
+    example: "输入：5×5（每行递增、每列递增），target = 18　输出：true，且只用 9 步就走到左下角",
+    sizes: [
+      { label: "target = 18（最长阶梯，命中左下角）", t: 18 },
+      { label: "target = 20（不存在，一路走到越界）", t: 20 },
+      { label: "target = 14（命中矩阵中部）", t: 14 }
+    ],
+    defaultSize: 0,
+    stageHeight: 500,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int r = 0, c = N - 1;            // 从右上角出发",
+          "while (r < M && c >= 0) {",
+          "    if (g[r][c] == target) return true;",
+          "    if (g[r][c] > target) c--;   // 整列都太大，砍掉这一列",
+          "    else r++;                    // 整行都太小，砍掉这一行",
+          "}",
+          "return false;"
+        ],
+        cpp: [
+          "int r = 0, c = N - 1;            // 从右上角出发",
+          "while (r < M && c >= 0) {",
+          "    if (g[r][c] == target) return true;",
+          "    if (g[r][c] > target) c--;   // 整列都太大，砍掉这一列",
+          "    else r++;                    // 整行都太小，砍掉这一行",
+          "}",
+          "return false;"
+        ],
+        python: [
+          "r, c = 0, N - 1                  # 从右上角出发",
+          "while r < M and c >= 0:",
+          "    if g[r][c] == target: return True",
+          "    if g[r][c] > target: c -= 1  # 整列都太大，砍掉这一列",
+          "    else: r += 1                 # 整行都太小，砍掉这一行",
+          "# 走出边界，说明候选区空了",
+          "return False"
+        ],
+        go: [
+          "r, c := 0, N-1                   // 从右上角出发",
+          "for r < M && c >= 0 {",
+          "    if g[r][c] == target { return true }",
+          "    if g[r][c] > target { c--    // 整列都太大，砍掉这一列",
+          "    } else { r++ }               // 整行都太小，砍掉这一行",
+          "}",
+          "return false"
+        ],
+        c: [
+          "int r = 0, c = N - 1;            /* 从右上角出发 */",
+          "while (r < M && c >= 0) {",
+          "    if (g[r][c] == target) return 1;",
+          "    if (g[r][c] > target) c--;   /* 整列都太大，砍掉这一列 */",
+          "    else r++;                    /* 整行都太小，砍掉这一行 */",
+          "}",
+          "return 0;"
+        ]
+      }
+    },
+    invariants: [
+      { label: "target 若存在，必仍在候选区里", test: function (v) {
+          var M = v.grid.length, N = v.grid[0].length, r, c, inMatrix = false, inRect = false;
+          for (r = 0; r < M; r++) for (c = 0; c < N; c++) if (v.grid[r][c] === v.target) {
+            inMatrix = true;
+            if (r >= v.r && c <= v.c) inRect = true;
+          }
+          if (!inMatrix) return "target 根本不在矩阵里，候选区里自然也没有";
+          return inRect ? "target 还在剩下的 " + v.remain + " 个候选格中" : false;
+        } },
+      { label: "每步至少砍掉一整行或一整列", test: function (v) {
+          if (v.cut == null) return "起点：" + v.remain + " 个候选格";
+          return v.cut > 0 ? "本步一次排除了 " + v.cut + " 个格子" : false;
+        } }
+    ],
+    compare: {
+      label: "错误写法：从左上角出发",
+      build: function (ctx, size) {
+        var target = (size && size.t) || 18, M = G240.length, N = G240[0].length;
+        function W(st, note) { return { grid: G240, st: st, axes: true, note: note }; }
+        var s0 = makeSt(M, N);
+        s0[0][0] = "hot";
+        ctx.step("换个起点试试：从左上角 (0,0) 出发找 " + target, W(s0, "左上角是整个矩阵的最小值。"));
+        var s1 = makeSt(M, N);
+        s1[0][0] = "hot"; s1[0][1] = "cmp"; s1[1][0] = "cmp";
+        ctx.step("g[0][0] = 1 < " + target + "。往右值变大，往下值也变大 —— 两个方向都可能藏着 target。",
+          W(s1, "没有任何一行或一列能被排除。"));
+        ctx.step("✗ 左上角两个方向同向，信息量为零，只能退化成 O(M×N) 暴力。右上角（或左下角）才是拐点：向左变小、向下变大，一次比较必定砍掉一整行或一整列。",
+          W(makeSt(M, N, function () { return "dim"; }), "选对起点，O(M+N) 就够了。"));
+      }
+    },
+    build: function (ctx, size) {
+      var target = (size && size.t) || 18;
+      var g = G240, M = g.length, N = g[0].length;
+      var r = 0, c = N - 1, cut = null;
+
+      function V(cls, note) {
+        var remain = (r < M && c >= 0) ? (M - r) * (c + 1) : 0;
+        var st = makeSt(M, N, function (a, d) {
+          if (a === r && d === c) return cls || "hot";
+          if (a < r || d > c) return "dim";
+          return null;
+        });
+        return {
+          grid: g, st: st, axes: true, note: note, target: target, r: r, c: c, remain: remain, cut: cut,
+          vars: [["target", target], ["当前", "(" + r + "," + c + ")"], ["候选格", remain]]
+        };
+      }
+
+      ctx.step("从右上角 (0," + (N - 1) + ") 出发。这个角很特殊：往左走值变小，往下走值变大 —— 每次比较都能整行或整列地排除。",
+        V("hot", "灰掉的区域是已经被排除的部分，现在还一个都没有。"), { line: 1 });
+
       var steps = 0;
-      while (r < g.length && c >= 0 && steps++ < 30) {
+      while (r < M && c >= 0 && steps++ < 40) {
         var val = g[r][c];
-        var stM = makeSt(g.length, g[0].length, function () { return "dim"; });
-        stM[r][c] = "hot";
         if (val === target) {
-          stM[r][c] = "target";
-          ctx.step("(" + r + "," + c + ") = " + val + " → 找到 " + target + " ✓", { grid: g, st: stM });
+          ctx.step("g[" + r + "][" + c + "] = " + val + " = target → 找到了 ✓　总共只看了 " + steps + " 个格子，矩阵里有 " + (M * N) + " 个。",
+            V("target", "路径像一条阶梯，长度不超过 M + N = " + (M + N) + "。"), { line: 3 });
           return;
         }
-        ctx.step("(" + r + "," + c + ") = " + val + (val > target ? " > " : " < ") + target + " → " + (val > target ? "左移 c--" : "下移 r++"),
-          { grid: g, st: stM });
-        if (val > target) c--; else r++;
+        if (val > target) {
+          cut = M - r;
+          ctx.step("g[" + r + "][" + c + "] = " + val + " > " + target + " → 列内从上往下递增，所以它已经是第 " + c + " 列剩余部分里最小的一个；最小的都超标，整列作废：c--",
+            V("cmp", "第 " + c + " 列还在候选区的 " + cut + " 个格子一次性出局。"), { line: 4 });
+          c--;
+        } else {
+          cut = c + 1;
+          ctx.step("g[" + r + "][" + c + "] = " + val + " < " + target + " → 它是第 " + r + " 行里最大的一个（右端），还比 target 小，整行作废：r++",
+            V("cmp", "第 " + r + " 行剩下的 " + cut + " 个格子一次性出局。"), { line: 5 });
+          r++;
+        }
       }
-      ctx.step("越界 → 未找到", { grid: g, st: makeSt(g.length, g[0].length, function () { return "dim"; }) });
+      ctx.step("走出了矩阵边界 → 候选区已经空了，" + target + " 不存在，返回 false。",
+        V("swap", "一共只走了 " + steps + " 步，从没回头。"), { line: 7 });
     },
-    render: renderGrid }
+    render: renderGrid
+  }
 };
 
 (function () {
@@ -654,9 +1233,12 @@ var DEMOS = {
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
       sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 480,
+      code: d.code, invariants: d.invariants, compare: d.compare,
       build: d.build, render: d.render
     });
   }
+  sel.onchange = function () { mountDemo(sel.value); };
   var want = params.get("mode");
   if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
   else mountDemo(keys[0]);

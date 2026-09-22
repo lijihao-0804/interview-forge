@@ -514,21 +514,32 @@ function height(n) { return n ? 1 + Math.max(height(n.left), height(n.right)) : 
 /* 树渲染：SVG。view = { tree, hl:[id], done:[id], cur:id, side:{标题:内容}, path:[id] } */
 function drawTree(view, stage) {
   var root = view.tree;
+  // 增量建树的题目（105/108）一开始树还是空的，给个占位，别让舞台一片空白。
+  if (!root) {
+    stage.textContent = "";
+    var empty = document.createElement("div");
+    empty.style.cssText = "height:100%;display:flex;align-items:center;justify-content:center;color:var(--dk-muted);font-size:13px";
+    empty.textContent = "树还是空的 —— 下一步就会长出第一个节点";
+    stage.appendChild(empty);
+    return;
+  }
   var H = height(root) || 1;
-  var W = Math.max(560, stage.clientWidth || 640);
-  var rowH = Math.min(74, 340 / H);
+  // 宽度按节点数给足，否则四层以上的树会把节点挤成一团（viewBox 会自动缩放回容器）。
+  var N = countNodes(root);
+  var W = Math.max(560, stage.clientWidth || 640, N * 48 + 90);
+  var rowH = Math.min(74, 360 / H);
   var pos = {};
   var col = 0;
   (function assign(n, d) {
     if (!n) return;
     assign(n.left, d + 1);
-    pos[n.id] = { x: 46 + (col++) * ((W - 90) / Math.max(1, countNodes(root) - 1) || 60), y: 40 + d * rowH };
+    pos[n.id] = { x: 46 + (col++) * ((W - 90) / Math.max(1, N - 1) || 60), y: 40 + d * rowH };
     assign(n.right, d + 1);
   })(root, 0);
   function countNodes(n) { return n ? 1 + countNodes(n.left) + countNodes(n.right) : 0; }
   var svgNS = "http://www.w3.org/2000/svg";
   var svg = document.createElementNS(svgNS, "svg");
-  var Ht = 40 + H * rowH + 46;
+  var Ht = 40 + (H - 1) * rowH + 62;   // 最后一行只需留住节点半径和标签，不必再空一整行
   svg.setAttribute("width", "100%"); svg.setAttribute("height", Ht);
   svg.setAttribute("viewBox", "0 0 " + W + " " + Ht);
   var hl = view.hl || [], done = view.done || [], path = view.path || [];
@@ -608,398 +619,1480 @@ function treeOf(arr) { return { tree: toTree(arr) }; }
 var el = DemoKit.el;   // 页面级别名：drawTree 里使用 kit 的 DOM 构造器
 
 /* ===== 14 个题的演示定义 ===== */
+/* ===== 题例数据：一律用四层以上的树，浅树看不出算法在做什么 ===== */
+var T94  = [6, 3, 8, 2, 5, 7, 9, 1];                       // 四层 BST，中序恰好升序
+var T98  = [8, 4, 12, 2, 6, 9, 14, null, null, 5, 11];     // 11 > 祖先 8：局部合法、全局非法
+var T101 = [1, 2, 2, 3, 4, 4, 3, 5, 6, 7, 8, 8, 7, 6, 5];  // 满四层对称树
+var T102 = [1, 2, 3, 4, 5, 6, 7, 8, null, null, 9, 10];    // 每层 1/2/4/3 个，层宽不等
+var T104 = [3, 9, 20, null, null, 15, 7, null, null, 6, 2];// 左 2 层右 4 层，极不平衡
+var P105 = [1, 2, 4, 5, 8, 9, 3, 6, 7];                    // 前序
+var I105 = [4, 2, 8, 5, 9, 1, 6, 3, 7];                    // 中序
+var N108 = [-10, -6, -3, 0, 3, 5, 9, 12];                  // 8 个元素 → 四层平衡 BST
+var T114 = [1, 2, 5, 3, 4, null, 6, 7, 8];                 // 四层，展开中间态才有看头
+var T199 = [1, 2, 3, null, 5, null, 4, 6];                 // 最底层的 6 是左孩子
+var T226 = [5, 3, 8, 2, 4, 7, 9, 1];                       // 四层 BST：翻转后中序由升序变降序
+var T230 = [8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7];           // 11 节点四层 BST
+var T236 = [3, 5, 1, 6, 2, 0, 8, null, null, 7, 4];
+var T437 = [10, 5, -3, 3, 2, null, 11, 3, -2, null, 1];
+var T543 = [1, 2, 3, 4, 5, null, null, 6, null, null, 7, 8, null, null, 9]; // 直径不经过根
+
 var DEMOS = {
-  "0094": { no: "94", title: "二叉树的中序遍历", tag: "二叉树 · 递归",
-    example: "输入：root = [1,null,2,3]　输出：[1,3,2]",
+  /* ── 94 中序遍历 ─────────────────────────────────────────────────────────
+     题例换成四层 BST，中序结果恰好是 1..9 的升序，方便当场验证"BST 中序 = 升序"。 */
+  "0094": {
+    no: "94", title: "二叉树的中序遍历", tag: "二叉树 · 递归",
+    example: "输入：root = [6,3,8,2,5,7,9,1]（四层 BST）　输出：[1,2,3,5,6,7,8,9]",
+    code: {
+      title: "递归写法",
+      langs: {
+        java: [
+          "void inorder(TreeNode n) {",
+          "    if (n == null) return;",
+          "    inorder(n.left);         // 左",
+          "    out.add(n.val);          // 根",
+          "    inorder(n.right);        // 右",
+          "}"
+        ],
+        cpp: [
+          "void inorder(TreeNode* n) {",
+          "  if (n == nullptr) return;",
+          "  inorder(n->left);      // 左",
+          "  out.push_back(n->val); // 根",
+          "  inorder(n->right);     // 右",
+          "}"
+        ],
+        python: [
+          "def inorder(n):",
+          "    if n is None: return",
+          "    inorder(n.left)          # 左",
+          "    out.append(n.val)        # 根",
+          "    inorder(n.right)         # 右",
+          "# 递归返回，就是回到父节点"
+        ],
+        go: [
+          "func inorder(n *TreeNode) {",
+          "    if n == nil { return }",
+          "    inorder(n.Left)          // 左",
+          "    out = append(out, n.Val) // 根",
+          "    inorder(n.Right)         // 右",
+          "}"
+        ],
+        c: [
+          "void inorder(struct TreeNode* n) {",
+          "    if (n == NULL) return;",
+          "    inorder(n->left);        /* 左 */",
+          "    out[k++] = n->val;       /* 根 */",
+          "    inorder(n->right);       /* 右 */",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "输出始终升序（BST 性质）", test: function (v) { return v.out.every(function (x, i) { return i === 0 || v.out[i - 1] < x; }); } },
+      { label: "已输出", test: function (v) { return v.out.length + " / 8 个节点"; } }
+    ],
+    compare: {
+      label: "写错顺序：先根后左（其实是前序）",
+      build: function (ctx) {
+        var root = toTree(T94), out = [], done = [];
+        (function go(n) {
+          if (!n) return;
+          out.push(n.val); done.push(n.id);
+          ctx.step("先访问 " + n.val + " 再下潜 → 输出 " + out.join(","),
+            { tree: root, cur: n.id, done: done.slice(), out: out.slice(), side: { 输出: out.join(",") } });
+          go(n.left); go(n.right);
+        })(root);
+        ctx.step("输出 " + out.join(",") + "：不是升序，说明这不是中序", { tree: root, done: done, out: out, side: { 输出: out.join(",") } });
+      }
+    },
     build: function (ctx) {
-      var root = toTree([1, null, 2, 3]);
-      var out = [], done = [], stack = [];
-      function go(n, path) {
-        if (!n) {
-          ctx.phase("recursive_return", "空子树返回 null，调用栈回到父节点", {
-            tree: root, path: path.slice(), side: { 调用栈: path.join("→") || "空", 输出: out.join(",") || "空" }
-          });
+      var root = toTree(T94), out = [], done = [], stack = [];
+      function V(extra) {
+        var v = { tree: root, done: done.slice(), out: out.slice(),
+          side: { 调用栈: stack.join("→") || "空", 输出: out.join(",") || "空" } };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("中序 = 左 → 根 → 右。这是一棵 BST，所以输出必然是升序，可以当场验算", V(), { line: 1 });
+      (function go(n) {
+        stack.push(n.val);
+        ctx.phase("recursive_enter", "进入 " + n.val + "：" + (n.left ? "左边还有 " + n.left.val + "，先下潜" : "左边是空的，马上就能访问自己"),
+          V({ cur: n.id }), { line: 3 });
+        if (n.left) go(n.left);
+        out.push(n.val); done.push(n.id);
+        ctx.phase("visit", "左子树彻底结束 → 现在才轮到 " + n.val + "，写入输出", V({ cur: n.id, hl: [n.id] }), { line: 4 });
+        if (n.right) {
+          ctx.phase("recursive_enter", "轮到 " + n.val + " 的右子树（" + n.right.val + "）", V({ cur: n.id }), { line: 5 });
+          go(n.right);
+        }
+        stack.pop();
+        ctx.phase("recursive_return", n.val + " 的左右都完成，回到父节点", V(), { line: 6 });
+      })(root);
+      ctx.phase("done", "完成！输出 " + out.join(",") + " —— 严格升序，印证了 BST 的中序性质", V({ done: done }), { line: 6 });
+    },
+    render: drawTree
+  },
+
+  /* ── 98 验证 BST ─────────────────────────────────────────────────────────
+     关键坑：只比较父子是不够的。这里的 11 相对父节点 6 合法，却大于祖先 8。 */
+  "0098": {
+    no: "98", title: "验证二叉搜索树", tag: "二叉树 · 递归 + 值域",
+    example: "输入：root = [8,4,12,2,6,9,14,null,null,5,11]　输出：false（11 > 祖先 8）",
+    code: {
+      title: "值域递归",
+      langs: {
+        java: [
+          "boolean valid(TreeNode n, long lo, long hi) {",
+          "    if (n == null) return true;",
+          "    if (n.val <= lo || n.val >= hi)",
+          "        return false;          // 越界即失败",
+          "    return valid(n.left,  lo, n.val)",
+          "        && valid(n.right, n.val, hi);",
+          "}"
+        ],
+        cpp: [
+          "bool valid(TreeNode* n, long lo, long hi) {",
+          "  if (n == nullptr) return true;",
+          "  if (n->val <= lo || n->val >= hi)",
+          "    return false;          // 越界即失败",
+          "  return valid(n->left,  lo, n->val)",
+          "      && valid(n->right, n->val, hi);",
+          "}"
+        ],
+        python: [
+          "def valid(n, lo, hi):",
+          "    if n is None: return True",
+          "    if not (lo < n.val < hi):",
+          "        return False           # 越界即失败",
+          "    return (valid(n.left,  lo, n.val)",
+          "            and valid(n.right, n.val, hi))",
+          "# lo/hi 就是这棵子树的合法值域"
+        ],
+        go: [
+          "func valid(n *TreeNode, lo, hi int) bool {",
+          "    if n == nil { return true }",
+          "    if n.Val <= lo || n.Val >= hi {",
+          "        return false }         // 越界即失败",
+          "    return valid(n.Left,  lo, n.Val) &&",
+          "           valid(n.Right, n.Val, hi)",
+          "}"
+        ],
+        c: [
+          "int valid(struct TreeNode* n, long lo, long hi) {",
+          "    if (n == NULL) return 1;",
+          "    if (n->val <= lo || n->val >= hi)",
+          "        return 0;              /* 越界即失败 */",
+          "    return valid(n->left,  lo, n->val)",
+          "        && valid(n->right, n->val, hi);",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "当前允许区间", test: function (v) { return v.range || "(-∞, +∞)"; } },
+      { label: "到目前为止合法", test: function (v) { return v.ok !== false; } }
+    ],
+    compare: {
+      label: "错误写法：只比较父子三个值",
+      build: function (ctx) {
+        var root = toTree(T98), checked = [];
+        (function go(n) {
+          if (!n) return;
+          var okL = !n.left || n.left.val < n.val, okR = !n.right || n.right.val > n.val;
+          checked.push(n.id);
+          ctx.step("节点 " + n.val + "：左 " + (n.left ? n.left.val : "—") + " < " + n.val + " < 右 " + (n.right ? n.right.val : "—") + " → " + (okL && okR ? "看着没问题" : "不合法"),
+            { tree: root, cur: n.id, done: checked.slice(), ok: okL && okR, side: { 判定: okL && okR ? "通过" : "失败" } });
+          go(n.left); go(n.right);
+        })(root);
+        ctx.step("每个父子三元组都通过 → 错误地得出 true。漏掉了 11 与祖先 8 的关系",
+          { tree: root, done: checked, ok: true, side: { 错误结论: "true" } });
+      }
+    },
+    build: function (ctx) {
+      var root = toTree(T98), bad = null;
+      function fmt(x) { return x === -Infinity ? "-∞" : x === Infinity ? "+∞" : String(x); }
+      ctx.step("每个节点都背着一个开区间：往左走收紧上界，往右走抬高下界。只看父子是不够的", { tree: root, ok: true, range: "(-∞, +∞)" }, { line: 1 });
+      (function go(n, lo, hi) {
+        if (!n || bad) return;
+        var rng = "(" + fmt(lo) + ", " + fmt(hi) + ")";
+        ctx.step("检查 " + n.val + "：它必须落在 " + rng + " 内",
+          { tree: root, cur: n.id, hl: [n.id], ok: true, range: rng, side: { 节点: n.val, 允许区间: rng } }, { line: 3 });
+        if (!(lo < n.val && n.val < hi)) {
+          bad = n;
+          ctx.step("✗ " + n.val + " 不在 " + rng + " 内 —— 它虽然大于父节点，却大于祖先 8，不是 BST",
+            { tree: root, cur: n.id, hl: [n.id], ok: false, range: rng, side: { 结论: "false" } }, { line: 4 });
           return;
         }
-        stack.push(n.val);
-        path.push(n.id);
-        ctx.phase("recursive_enter", "进入节点 " + n.val + "，先递归左子树", {
-          tree: root, cur: n.id, path: path.slice(), side: { 调用栈: stack.join("→"), 输出: out.join(",") || "空" }
-        });
-        go(n.left, path);
-        out.push(n.val); done.push(n.id);
-        ctx.phase("visit", "左子树返回，访问节点 " + n.val + "，加入中序输出", {
-          tree: root, cur: n.id, hl: [n.id], done: done.slice(), path: path.slice(),
-          side: { 调用栈: stack.join("→"), 输出: out.join(",") }
-        });
-        ctx.phase("recursive_enter", "转向节点 " + n.val + " 的右子树", {
-          tree: root, cur: n.id, done: done.slice(), path: path.slice(), side: { 输出: out.join(",") }
-        });
-        go(n.right, path);
-        stack.pop(); path.pop();
-        ctx.phase("recursive_return", "节点 " + n.val + " 的左右都完成，向上返回", {
-          tree: root, done: done.slice(), path: path.slice(), side: { 调用栈: stack.join("→") || "空", 输出: out.join(",") }
-        });
-      }
-      ctx.phase("update", "中序遍历的固定顺序：左子树 → 根 → 右子树", treeOf([1, null, 2, 3]));
-      go(root, []);
-      ctx.phase("done", "完成！输出 [1,3,2]", { tree: root, done: done, side: { 输出: out.join(",") } });
-    },
-    render: drawTree },
-
-  "0098": { no: "98", title: "验证二叉搜索树", tag: "二叉树 · 递归 + 值域",
-    example: "输入：root = [5,1,4,null,null,3,6]　输出：false（4 < 5 违反左子树约束）",
-    build: function (ctx) {
-      var root = toTree([5, 1, 4, null, null, 3, 6]);
-      var ok = true;
-      function go(n, lo, hi, path) {
-        if (!n) { ctx.step("空子树，直接通过", { tree: root, side: { 路径: path || "—" } }); return; }
-        ctx.step("检查节点 " + n.val + " 是否在开区间 (" + lo + ", " + hi + ") 内",
-          { tree: root, cur: n.id, hl: [n.id], side: { 下界: lo, 上界: hi } });
-        if (!(lo < n.val && n.val < hi)) {
-          ok = false;
-          ctx.step("❌ " + n.val + " 不在 (" + lo + ", " + hi + ") 内 → 不是 BST！", { tree: root, hl: [n.id], side: { 结论: "false" } });
-          throw { done: true };
+        if (n.left) {
+          ctx.step("往左走：" + n.left.val + " 的上界收紧为 " + n.val, { tree: root, cur: n.id, ok: true, range: rng }, { line: 5 });
+          go(n.left, lo, n.val);
         }
-        go(n.left, lo, n.val, path + "→" + n.val + "L");
-        go(n.right, n.val, hi, path + "→" + n.val + "R");
-      }
-      ctx.step("每个节点带 (下界, 上界) 约束：左子树上界=父值，右子树下界=父值", treeOf([5, 1, 4, null, null, 3, 6]));
-      try { go(root, -Infinity, Infinity, ""); } catch (e) { if (!e.done) throw e; }
-      if (ok) ctx.step("全部通过 → 是合法 BST", { tree: root, done: [1, 2, 4, 5, 3, 6], side: { 结论: "true" } });
+        if (n.right && !bad) {
+          ctx.step("往右走：" + n.right.val + " 的下界抬高为 " + n.val + "（上界仍是 " + fmt(hi) + "）",
+            { tree: root, cur: n.id, ok: true, range: rng }, { line: 6 });
+          go(n.right, n.val, hi);
+        }
+      })(root, -Infinity, Infinity);
+      ctx.step("结论：false。勾上「并排看反例」，可以看到只比父子的写法会误判为 true",
+        { tree: root, hl: bad ? [bad.id] : [], ok: false, range: "—", side: { 答案: "false" } }, { line: 4 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0101": { no: "101", title: "对称二叉树", tag: "二叉树 · 镜像递归",
-    example: "输入：root = [1,2,2,3,4,4,3]　输出：true",
+  /* ── 101 对称二叉树 ──────────────────────────────────────────────────────
+     主线用满四层的对称树；反例用"左右子树形状相同但不是镜像"的经典错例。 */
+  "0101": {
+    no: "101", title: "对称二叉树", tag: "二叉树 · 镜像递归",
+    example: "输入：root = [1,2,2,3,4,4,3,5,6,7,8,8,7,6,5]（满四层）　输出：true",
+    code: {
+      title: "成对递归",
+      langs: {
+        java: [
+          "boolean mirror(TreeNode a, TreeNode b) {",
+          "    if (a == null && b == null) return true;",
+          "    if (a == null || b == null) return false;",
+          "    if (a.val != b.val) return false;",
+          "    return mirror(a.left,  b.right)",
+          "        && mirror(a.right, b.left);",
+          "}"
+        ],
+        cpp: [
+          "bool mirror(TreeNode* a, TreeNode* b) {",
+          "  if (!a && !b) return true;",
+          "  if (!a || !b) return false;",
+          "  if (a->val != b->val) return false;",
+          "  return mirror(a->left,  b->right)",
+          "      && mirror(a->right, b->left);",
+          "}"
+        ],
+        python: [
+          "def mirror(a, b):",
+          "    if a is None and b is None: return True",
+          "    if a is None or b is None: return False",
+          "    if a.val != b.val: return False",
+          "    return (mirror(a.left,  b.right)",
+          "            and mirror(a.right, b.left))",
+          "# 外侧配外侧，内侧配内侧"
+        ],
+        go: [
+          "func mirror(a, b *TreeNode) bool {",
+          "    if a == nil && b == nil { return true }",
+          "    if a == nil || b == nil { return false }",
+          "    if a.Val != b.Val { return false }",
+          "    return mirror(a.Left,  b.Right) &&",
+          "           mirror(a.Right, b.Left)",
+          "}"
+        ],
+        c: [
+          "int mirror(struct TreeNode* a, struct TreeNode* b) {",
+          "    if (!a && !b) return 1;",
+          "    if (!a || !b) return 0;",
+          "    if (a->val != b->val) return 0;",
+          "    return mirror(a->left,  b->right)",
+          "        && mirror(a->right, b->left);",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "已比对的镜像对", test: function (v) { return (v.pairs || 0) + " 对"; } },
+      { label: "全部相等", test: function (v) { return v.ok !== false; } }
+    ],
+    compare: {
+      label: "反例：左右形状相同、却不是镜像",
+      build: function (ctx) {
+        var root = toTree([1, 2, 2, null, 3, null, 3]);
+        ctx.step("这棵树左右子树长得一模一样（都是「只有右孩子」）", { tree: root, ok: true, pairs: 0 });
+        ctx.step("但镜像要求的是 左.右 对 右.左：左边的 3 在右侧，右边的左侧是空", { tree: root, hl: ["1", "2"], ok: true, pairs: 1 });
+        ctx.step("✗ 3 与 null 对不上 → 不对称。可见「左右子树相同」并不等于「对称」",
+          { tree: root, hl: ["3"], ok: false, pairs: 1, side: { 结论: "false" } });
+      }
+    },
     build: function (ctx) {
-      var root = toTree([1, 2, 2, 3, 4, 4, 3]);
-      var ok = true, checked = [];
-      function mirror(a, b) {
-        if (!a && !b) { ctx.step("两边都为空 → 对称 ✓", { tree: root, side: { 检查过: checked.join(",") || "—" } }); return; }
+      var root = toTree(T101), pairs = 0, ok = true;
+      ctx.step("对称不是「左右子树相同」，而是「左右子树互为镜像」：要拿 左.左 比 右.右、左.右 比 右.左",
+        { tree: root, ok: true, pairs: 0 }, { line: 1 });
+      (function mirror(a, b, depth) {
+        if (!ok) return;
+        if (!a && !b) return;
         if (!a || !b || a.val !== b.val) {
           ok = false;
-          ctx.step("❌ " + (a ? a.val : "null") + " 与 " + (b ? b.val : "null") + " 不对称", { tree: root, hl: [a && a.id, b && b.id].filter(Boolean), side: { 结论: "false" } });
-          throw { done: true };
+          ctx.step("✗ " + (a ? a.val : "null") + " 与 " + (b ? b.val : "null") + " 对不上",
+            { tree: root, hl: [a && a.id, b && b.id].filter(Boolean), ok: false, pairs: pairs }, { line: 4 });
+          return;
         }
-        checked.push(a.val, b.val);
-        ctx.step("比较镜像位置：" + a.val + " 与 " + b.val + " 相等 ✓，继续比较 (左.左, 右.右) 和 (左.右, 右.左)",
-          { tree: root, hl: [a.id, b.id], side: { 已比较: checked.join(",") } });
-        mirror(a.left, b.right);
-        mirror(a.right, b.left);
-      }
-      ctx.step("对称 = 每个节点的左子树与右子树互为镜像（比较 双左vs双右 + 双右vs双左）", treeOf([1, 2, 2, 3, 4, 4, 3]));
-      mirror(root.left, root.right);
-      ctx.step("所有镜像位置相等 → 对称 ✓", { tree: root, done: checked, side: { 结论: "true" } });
+        pairs++;
+        ctx.step("第 " + depth + " 层镜像对：" + a.val + " ↔ " + b.val + " 相等 ✓",
+          { tree: root, hl: [a.id, b.id], ok: true, pairs: pairs, side: { 镜像对: a.val + " ↔ " + b.val, 层: depth } }, { line: 4 });
+        ctx.step("交叉往下：(" + a.val + ".左, " + b.val + ".右) 和 (" + a.val + ".右, " + b.val + ".左)",
+          { tree: root, hl: [a.id, b.id], ok: true, pairs: pairs }, { line: 5 });
+        mirror(a.left, b.right, depth + 1);
+        mirror(a.right, b.left, depth + 1);
+      })(root.left, root.right, 1);
+      ctx.step("全部 " + pairs + " 对镜像位置都相等 → 对称 ✓", { tree: root, ok: true, pairs: pairs, side: { 答案: "true" } }, { line: 6 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0102": { no: "102", title: "二叉树的层序遍历", tag: "二叉树 · BFS 队列",
-    example: "输入：root = [3,9,20,null,null,15,7]　输出：[[3],[9,20],[15,7]]",
+  /* ── 102 层序遍历 ────────────────────────────────────────────────────────
+     四层且每层节点数不同（1/2/4/3），能看清「先量住本层长度再循环」为什么必要。 */
+  "0102": {
+    no: "102", title: "二叉树的层序遍历", tag: "二叉树 · BFS 队列",
+    example: "输入：root = [1,2,3,4,5,6,7,8,null,null,9,10]　输出：[[1],[2,3],[4,5,6,7],[8,9,10]]",
+    code: {
+      title: "队列分层",
+      langs: {
+        java: [
+          "Deque<TreeNode> q = new ArrayDeque<>(); q.add(root);",
+          "while (!q.isEmpty()) {",
+          "    int n = q.size();   // 先量住本层长度",
+          "    List<Integer> level = new ArrayList<>();",
+          "    for (int i = 0; i < n; i++) {",
+          "        TreeNode cur = q.poll();",
+          "        level.add(cur.val);",
+          "        if (cur.left  != null) q.add(cur.left);",
+          "        if (cur.right != null) q.add(cur.right);",
+          "    }",
+          "    ans.add(level);",
+          "}"
+        ],
+        cpp: [
+          "queue<TreeNode*> q{{root}};",
+          "while (!q.empty()) {",
+          "  int n = q.size();   // 先量住本层长度",
+          "  vector<int> level;",
+          "  for (int i = 0; i < n; i++) {",
+          "    auto cur = q.front(); q.pop();",
+          "    level.push_back(cur->val);",
+          "    if (cur->left)  q.push(cur->left);",
+          "    if (cur->right) q.push(cur->right);",
+          "  }",
+          "  ans.push_back(level);",
+          "}"
+        ],
+        python: [
+          "q = deque([root])",
+          "while q:",
+          "    n = len(q)          # 先量住本层长度",
+          "    level = []",
+          "    for _ in range(n):",
+          "        cur = q.popleft()",
+          "        level.append(cur.val)",
+          "        if cur.left:  q.append(cur.left)",
+          "        if cur.right: q.append(cur.right)",
+          "    # 本层的 n 个节点走完了",
+          "    ans.append(level)",
+          "# 队列空了，层序结束"
+        ],
+        go: [
+          "q := []*TreeNode{root}",
+          "for len(q) > 0 {",
+          "    n := len(q)         // 先量住本层长度",
+          "    level := []int{}",
+          "    for i := 0; i < n; i++ {",
+          "        cur := q[0]; q = q[1:]",
+          "        level = append(level, cur.Val)",
+          "        if cur.Left  != nil { q = append(q, cur.Left) }",
+          "        if cur.Right != nil { q = append(q, cur.Right) }",
+          "    }",
+          "    ans = append(ans, level)",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* q[N]; int head = 0, tail = 0; q[tail++] = root;",
+          "while (head < tail) {",
+          "    int n = tail - head;  /* 先量住本层长度 */",
+          "    int level[N], m = 0;",
+          "    for (int i = 0; i < n; i++) {",
+          "        struct TreeNode* cur = q[head++];",
+          "        level[m++] = cur->val;",
+          "        if (cur->left)  q[tail++] = cur->left;",
+          "        if (cur->right) q[tail++] = cur->right;",
+          "    }",
+          "    push_level(ans, level, m);",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "队列里只可能有相邻两层", test: function (v) { return v.depths ? v.depths.length <= 2 : true; } },
+      { label: "队列", test: function (v) { return v.queue && v.queue.length ? v.queue.join(", ") : "空"; } }
+    ],
     build: function (ctx) {
-      var root = toTree([3, 9, 20, null, null, 15, 7]);
-      var queue = [root], done = [], levels = [];
+      var root = toTree(T102), queue = [{ n: root, d: 0 }], done = [], levels = [];
       var level = 0;
+      function V(extra) {
+        var v = {
+          tree: root, done: done.slice(),
+          queue: queue.map(function (x) { return x.n.val; }),
+          depths: queue.map(function (x) { return x.d; }).filter(function (d, i, a) { return a.indexOf(d) === i; }),
+          side: { 队列: queue.map(function (x) { return x.n.val; }).join(",") || "空", 已完成层: JSON.stringify(levels) }
+        };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("BFS 的关键一招：进入每层前先把队列当前长度存下来，这样才知道本层到哪里结束", V(), { line: 3 });
       while (queue.length) {
-        var n = queue.length, vals = [], next = [];
-        ctx.phase("dequeue", "第 " + level + " 层开始：准备从队列逐个出队",
-          { tree: root, hl: queue.map(function (x) { return x.id; }), side: { 队列: queue.map(function (x) { return x.val; }).join(","), 层: level } });
-        for (var i = 0; i < n; i++) {
+        var n = queue.length, vals = [], i;
+        ctx.phase("dequeue", "第 " + level + " 层开始：此刻队列里正好是本层的 " + n + " 个节点",
+          V({ hl: queue.map(function (x) { return x.n.id; }) }), { line: 3 });
+        for (i = 0; i < n; i++) {
           var cur = queue.shift();
-          vals.push(cur.val); done.push(cur.id);
-          ctx.phase("dequeue", "出队节点 " + cur.val + "，加入第 " + level + " 层输出",
-            { tree: root, done: done.slice(), cur: cur.id, side: { 本层: vals.join(","), 下一层: next.map(function (x) { return x.val; }).join(",") || "空" } });
-          if (cur.left) {
-            next.push(cur.left);
-            ctx.phase("enqueue", "检查左孩子 " + cur.left.val + "：存在，入队到下一层",
-              { tree: root, done: done.slice(), cur: cur.left.id, hl: [cur.left.id], side: { 队列: next.map(function (x) { return x.val; }).join(",") } });
+          vals.push(cur.n.val); done.push(cur.n.id);
+          ctx.phase("dequeue", "出队 " + cur.n.val + " → 本层收集 [" + vals.join(",") + "]",
+            V({ cur: cur.n.id, side: { 本层: vals.join(","), 队列: queue.map(function (x) { return x.n.val; }).join(",") || "空" } }), { line: 7 });
+          if (cur.n.left) {
+            queue.push({ n: cur.n.left, d: cur.d + 1 });
+            ctx.phase("enqueue", cur.n.val + " 的左孩子 " + cur.n.left.val + " 入队，排到下一层去",
+              V({ cur: cur.n.left.id, hl: [cur.n.left.id] }), { line: 8 });
           }
-          if (cur.right) {
-            next.push(cur.right);
-            ctx.phase("enqueue", "检查右孩子 " + cur.right.val + "：存在，入队到下一层",
-              { tree: root, done: done.slice(), cur: cur.right.id, hl: [cur.right.id], side: { 队列: next.map(function (x) { return x.val; }).join(",") } });
+          if (cur.n.right) {
+            queue.push({ n: cur.n.right, d: cur.d + 1 });
+            ctx.phase("enqueue", cur.n.val + " 的右孩子 " + cur.n.right.val + " 入队",
+              V({ cur: cur.n.right.id, hl: [cur.n.right.id] }), { line: 9 });
           }
         }
         levels.push(vals);
-        queue = next; level++;
+        ctx.step("第 " + level + " 层收尾：[" + vals.join(",") + "]，队列里剩下的整好是下一层", V(), { line: 11 });
+        level++;
       }
-      ctx.phase("done", "完成！按层输出 [[" + levels.map(function (l) { return l.join(","); }).join("],[") + "]]",
-        { tree: root, done: done, side: { 结果: JSON.stringify(levels) } });
+      ctx.phase("done", "完成！" + JSON.stringify(levels), V({ done: done, side: { 结果: JSON.stringify(levels) } }), { line: 12 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0104": { no: "104", title: "二叉树的最大深度", tag: "二叉树 · 后序递归",
-    example: "输入：root = [3,9,20,null,null,15,7]　输出：3",
-    build: function (ctx) {
-      var root = toTree([3, 9, 20, null, null, 15, 7]);
-      var best = 0, visited = [];
-      function go(n, d) {
-        if (!n) { ctx.step("到达空节点，深度 0，回溯", { tree: root, side: { 当前深度: d, 最大: best } }); return; }
-        visited.push(n.id);
-        ctx.step("进入节点 " + n.val + "，深度 " + d, { tree: root, cur: n.id, hl: [n.id], side: { 当前深度: d, 最大: best } });
-        go(n.left, d + 1);
-        go(n.right, d + 1);
-        best = Math.max(best, d);
-        ctx.step("节点 " + n.val + " 子树的最大深度 = " + d + "，回传", { tree: root, done: visited.slice(), side: { 最大深度: best } });
+  /* ── 104 最大深度 ────────────────────────────────────────────────────────
+     左右极不平衡（左 2 层、右 4 层），能看出 max 真的在起作用。 */
+  "0104": {
+    no: "104", title: "二叉树的最大深度", tag: "二叉树 · 后序递归",
+    example: "输入：root = [3,9,20,null,null,15,7,null,null,6,2]　输出：4（左边只有 2 层，右边 4 层）",
+    code: {
+      title: "后序回传",
+      langs: {
+        java: [
+          "int depth(TreeNode n) {",
+          "    if (n == null) return 0;",
+          "    int L = depth(n.left);",
+          "    int R = depth(n.right);",
+          "    return Math.max(L, R) + 1;",
+          "}"
+        ],
+        cpp: [
+          "int depth(TreeNode* n) {",
+          "  if (n == nullptr) return 0;",
+          "  int L = depth(n->left);",
+          "  int R = depth(n->right);",
+          "  return max(L, R) + 1;",
+          "}"
+        ],
+        python: [
+          "def depth(n):",
+          "    if n is None: return 0",
+          "    L = depth(n.left)",
+          "    R = depth(n.right)",
+          "    return max(L, R) + 1",
+          "# 深度在回溯时自底向上拼出来"
+        ],
+        go: [
+          "func depth(n *TreeNode) int {",
+          "    if n == nil { return 0 }",
+          "    L := depth(n.Left)",
+          "    R := depth(n.Right)",
+          "    return max(L, R) + 1",
+          "}"
+        ],
+        c: [
+          "int depth(struct TreeNode* n) {",
+          "    if (n == NULL) return 0;",
+          "    int L = depth(n->left);",
+          "    int R = depth(n->right);",
+          "    return (L > R ? L : R) + 1;",
+          "}"
+        ]
       }
-      ctx.step("最大深度 = 左右子树深度的 max + 1，自底向上回传", treeOf([3, 9, 20, null, null, 15, 7]));
-      go(root, 1);
-      ctx.step("完成！最大深度 = 3（3 → 20 → 15）", { tree: root, done: [1, 3, 5], side: { 答案: 3 } });
     },
-    render: drawTree },
-
-  "0105": { no: "105", title: "从前序与中序遍历序列构造二叉树", tag: "二叉树 · 分治",
-    example: "输入：preorder = [3,9,20,15,7]，inorder = [9,3,15,20,7]",
+    invariants: [
+      { label: "已回传的子树深度", test: function (v) { return v.known || "还没有"; } },
+      /* 下潜途中本来就什么都没定下来，那不是「违反」，而是这道题的节奏。
+         所以这一栏只报状态，不报红。 */
+      { label: "答案只在回溯那一拍产生", test: function (v) {
+          return v.settled === false
+            ? "正在下潜：这一拍不会有任何深度定案"
+            : "已回溯：上面列出的深度都不会再变了";
+        } }
+    ],
     build: function (ctx) {
-      var pre = [3, 9, 20, 15, 7], ino = [9, 3, 15, 20, 7];
+      var root = toTree(T104), got = {}, done = [];
+      function known() {
+        var ks = Object.keys(got);
+        return ks.length ? ks.map(function (k) { return k + "→" + got[k]; }).join("  ") : "还没有";
+      }
+      ctx.step("深度不是「往下数」数出来的，而是自底向上回传：先拿到左右两个数，再 max + 1", { tree: root, settled: true, known: known() }, { line: 1 });
+      var answer = (function go(n) {
+        ctx.phase("recursive_enter", "下潜到 " + n.val + "，先问它的左子树有多深",
+          { tree: root, cur: n.id, done: done.slice(), settled: false, known: known() }, { line: 3 });
+        var L = n.left ? go(n.left) : 0;
+        if (!n.left) ctx.step(n.val + " 没有左孩子 → 左边深度 0", { tree: root, cur: n.id, done: done.slice(), settled: false, known: known() }, { line: 2 });
+        var R = n.right ? go(n.right) : 0;
+        if (!n.right) ctx.step(n.val + " 没有右孩子 → 右边深度 0", { tree: root, cur: n.id, done: done.slice(), settled: false, known: known() }, { line: 2 });
+        var d = Math.max(L, R) + 1;
+        got[n.val] = d; done.push(n.id);
+        ctx.phase("recursive_return", n.val + " 回传：max(左 " + L + ", 右 " + R + ") + 1 = " + d,
+          { tree: root, cur: n.id, hl: [n.id], done: done.slice(), settled: true, known: known(), side: { 左: L, 右: R, 回传: d } }, { line: 5 });
+        return d;
+      })(root);
+      ctx.phase("done", "完成！最大深度 = " + answer + "。注意左子树只贡献了 2，答案完全由右边这条长链决定",
+        { tree: root, done: done, settled: true, known: known(), side: { 答案: answer } }, { line: 5 });
+    },
+    render: drawTree
+  },
+
+  /* ── 105 前序 + 中序建树 ─────────────────────────────────────────────────
+     旧版把最终树一次性画出来、全程只是高亮，等于没演示构造过程。
+     这里改成真正的增量建树：每一步渲染的都是"此刻已经接好的那部分树"。 */
+  "0105": {
+    no: "105", title: "从前序与中序遍历序列构造二叉树", tag: "二叉树 · 分治",
+    example: "preorder = [1,2,4,5,8,9,3,6,7]，inorder = [4,2,8,5,9,1,6,3,7]（四层）",
+    code: {
+      title: "分治建树",
+      langs: {
+        java: [
+          "TreeNode build(int preL, int preR,",
+          "               int inL,  int inR) {",
+          "    if (preL > preR) return null;",
+          "    int rootVal = pre[preL];",
+          "    int k = idx.get(rootVal);        // 在中序里定位",
+          "    int leftSize = k - inL;",
+          "    TreeNode node = new TreeNode(rootVal);",
+          "    node.left  = build(preL+1, preL+leftSize,",
+          "                       inL, k-1);",
+          "    node.right = build(preL+leftSize+1, preR,",
+          "                       k+1, inR);",
+          "    return node;",
+          "}"
+        ],
+        cpp: [
+          "TreeNode* build(int preL, int preR,",
+          "                int inL,  int inR) {",
+          "    if (preL > preR) return nullptr;",
+          "    int rootVal = pre[preL];",
+          "    int k = idx[rootVal];            // 在中序里定位",
+          "    int leftSize = k - inL;",
+          "    auto node = new TreeNode(rootVal);",
+          "    node->left  = build(preL+1, preL+leftSize,",
+          "                        inL, k-1);",
+          "    node->right = build(preL+leftSize+1, preR,",
+          "                        k+1, inR);",
+          "    return node;",
+          "}"
+        ],
+        python: [
+          "def build(preL, preR,",
+          "          inL,  inR):",
+          "    if preL > preR: return None",
+          "    root_val = pre[preL]",
+          "    k = idx[root_val]                # 在中序里定位",
+          "    left_size = k - inL",
+          "    node = TreeNode(root_val)",
+          "    node.left  = build(preL+1, preL+left_size,",
+          "                       inL, k-1)",
+          "    node.right = build(preL+left_size+1, preR,",
+          "                       k+1, inR)",
+          "    return node",
+          "# 前序给根，中序给左右子树的分界"
+        ],
+        go: [
+          "func build(preL, preR,",
+          "           inL, inR int) *TreeNode {",
+          "    if preL > preR { return nil }",
+          "    rootVal := pre[preL]",
+          "    k := idx[rootVal]                // 在中序里定位",
+          "    leftSize := k - inL",
+          "    node := &TreeNode{Val: rootVal}",
+          "    node.Left  = build(preL+1, preL+leftSize,",
+          "                       inL, k-1)",
+          "    node.Right = build(preL+leftSize+1, preR,",
+          "                       k+1, inR)",
+          "    return node",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* build(int preL, int preR,",
+          "                       int inL,  int inR) {",
+          "    if (preL > preR) return NULL;",
+          "    int rootVal = pre[preL];",
+          "    int k = idx[rootVal];            /* 在中序里定位 */",
+          "    int leftSize = k - inL;",
+          "    struct TreeNode* node = new_node(rootVal);",
+          "    node->left  = build(preL+1, preL+leftSize,",
+          "                        inL, k-1);",
+          "    node->right = build(preL+leftSize+1, preR,",
+          "                        k+1, inR);",
+          "    return node;",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "前序段", test: function (v) { return v.preSeg || "—"; } },
+      { label: "中序段", test: function (v) { return v.inSeg || "—"; } },
+      { label: "已建节点数", test: function (v) { return (v.built || 0) + " / 9"; } }
+    ],
+    build: function (ctx) {
+      var pre = P105, ino = I105;
       var idx = {}; ino.forEach(function (v, i) { idx[v] = i; });
-      var built = [];
-      var tree = null;
-      function build(preL, preR, inL, inR) {
-        if (preL > preR) { ctx.step("区间为空，返回 null", { tree: tree, side: { 前序: pre.slice(preL, preR + 1).join(","), 中序: ino.slice(inL, inR + 1).join(",") } }); return null; }
-        var rootVal = pre[preL];
-        var inRoot = idx[rootVal], leftSize = inRoot - inL;
-        ctx.step("前序第一个 " + rootVal + " 是根；在中序中定位到 " + inRoot + "，左子树规模 " + leftSize,
-          { tree: tree, side: { 前序段: pre.slice(preL, preR + 1).join(","), 中序段: ino.slice(inL, inR + 1).join(",") } });
-        var node = { val: rootVal, id: "n" + rootVal, left: null, right: null };
-        built.push(node);
-        attach(node);
-        tree = tree || node;
-        ctx.step("创建节点 " + rootVal + "，递归构建左右子树", { tree: tree, hl: [node.id] });
-        node.left = build(preL + 1, preL + leftSize, inL, inRoot - 1);
-        node.right = build(preL + leftSize + 1, preR, inRoot + 1, inR);
-        return node;
+      var tree = null, built = 0, seq = 0;
+      function V(extra) {
+        var v = { tree: tree, built: built };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
       }
-      function attach(n) { }
-      // 用一个固定的示例树来渲染（与输入一致）
-      var render_tree = toTree([3, 9, 20, null, null, 15, 7]);
-      var base_build = build;
-      build = function (a, b, c, d) {
-        var before = built.length;
-        var node = base_build(a, b, c, d);
-        return node;
-      };
-      // 渲染时始终用固定示例树
-      var viewTree = toTree([3, 9, 20, null, null, 15, 7]);
-      var origStep = ctx.step;
-      ctx.step = function (d, view) { view = view || {}; view.tree = viewTree; origStep(d, view); };
-      build(0, pre.length - 1, 0, ino.length - 1);
-      ctx.step("构造完成！", { tree: viewTree, done: [1, 3, 5, 6, 7] });
+      ctx.step("前序的第一个一定是根；到中序里找到它，左边那截就是左子树、右边那截就是右子树",
+        V({ preSeg: pre.join(","), inSeg: ino.join(",") }), { line: 1 });
+      (function go(preL, preR, inL, inR, attach) {
+        var preSeg = pre.slice(preL, preR + 1).join(",") || "空";
+        var inSeg = ino.slice(inL, inR + 1).join(",") || "空";
+        if (preL > preR) return;   // 空段没有信息量，不单独占一步
+        var rootVal = pre[preL], k = idx[rootVal], leftSize = k - inL;
+        ctx.step("前序段 [" + preSeg + "] 的头是 " + rootVal + " → 它是这段的根",
+          V({ preSeg: preSeg, inSeg: inSeg }), { line: 4 });
+        ctx.step("在中序段 [" + inSeg + "] 里定位 " + rootVal + "：左边 " + leftSize + " 个归左子树，右边 " + (inR - k) + " 个归右子树",
+          V({ preSeg: preSeg, inSeg: inSeg }), { line: 6 });
+        var node = { val: rootVal, id: "b" + (seq++), left: null, right: null };
+        built++;
+        if (!tree) tree = node; else attach(node);
+        ctx.phase("visit", "把 " + rootVal + " 真正接上去（现在树上有 " + built + " 个节点）",
+          V({ cur: node.id, hl: [node.id], preSeg: preSeg, inSeg: inSeg }), { line: 7 });
+        go(preL + 1, preL + leftSize, inL, k - 1, function (c) { node.left = c; });
+        go(preL + leftSize + 1, preR, k + 1, inR, function (c) { node.right = c; });
+        ctx.phase("recursive_return", rootVal + " 的左右子树都接完了，向上返回",
+          V({ cur: node.id, preSeg: preSeg, inSeg: inSeg }), { line: 12 });
+      })(0, pre.length - 1, 0, ino.length - 1, function () {});
+      ctx.phase("done", "构造完成！整棵四层树是一个节点一个节点长出来的", V({ preSeg: pre.join(","), inSeg: ino.join(",") }), { line: 12 });
     },
-    render: drawTree },
-
-  "0108": { no: "108", title: "将有序数组转换为二叉搜索树", tag: "二叉树 · 二分构造",
-    example: "输入：nums = [-10,-3,0,5,9]　输出：[0,-3,9,-10,null,5]",
+    render: drawTree
+  }
+  ,
+  /* ── 108 有序数组 → 平衡 BST ────────────────────────────────────────────
+     同样改成真实增量构造：树是随着递归一个个长出来的，而不是一开始就画好。 */
+  "0108": {
+    no: "108", title: "将有序数组转换为二叉搜索树", tag: "二叉树 · 二分构造",
+    example: "输入：nums = [-10,-6,-3,0,3,5,9,12]（8 个）　输出：一棵四层的平衡 BST",
+    code: {
+      title: "取中点当根",
+      langs: {
+        java: [
+          "TreeNode build(int l, int r) {",
+          "    if (l > r) return null;",
+          "    int mid = (l + r) / 2;",
+          "    TreeNode node = new TreeNode(nums[mid]);",
+          "    node.left  = build(l, mid - 1);",
+          "    node.right = build(mid + 1, r);",
+          "    return node;",
+          "}"
+        ],
+        cpp: [
+          "TreeNode* build(int l, int r) {",
+          "  if (l > r) return nullptr;",
+          "  int mid = (l + r) / 2;",
+          "  auto node = new TreeNode(nums[mid]);",
+          "  node->left  = build(l, mid - 1);",
+          "  node->right = build(mid + 1, r);",
+          "  return node;",
+          "}"
+        ],
+        python: [
+          "def build(l, r):",
+          "    if l > r: return None",
+          "    mid = (l + r) // 2",
+          "    node = TreeNode(nums[mid])",
+          "    node.left  = build(l, mid - 1)",
+          "    node.right = build(mid + 1, r)",
+          "    return node",
+          "# 每次取中点，左右各半，天然平衡"
+        ],
+        go: [
+          "func build(l, r int) *TreeNode {",
+          "    if l > r { return nil }",
+          "    mid := (l + r) / 2",
+          "    node := &TreeNode{Val: nums[mid]}",
+          "    node.Left  = build(l, mid-1)",
+          "    node.Right = build(mid+1, r)",
+          "    return node",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* build(int l, int r) {",
+          "    if (l > r) return NULL;",
+          "    int mid = (l + r) / 2;",
+          "    struct TreeNode* node = new_node(nums[mid]);",
+          "    node->left  = build(l, mid - 1);",
+          "    node->right = build(mid + 1, r);",
+          "    return node;",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "当前区间", test: function (v) { return v.seg || "—"; } },
+      { label: "左右规模差 ≤ 1（这就是平衡的来源）", test: function (v) { return v.balanced !== false; } },
+      { label: "已建节点", test: function (v) { return (v.built || 0) + " / 8"; } }
+    ],
     build: function (ctx) {
-      var nums = [-10, -3, 0, 5, 9];
-      var tree = toTree([0, -3, 9, -10, null, 5, null]);
-      var nodeIdByValue = {};
-      var allNodeIds = [];
-      (function indexTree(n) {
-        if (!n) return;
-        nodeIdByValue[String(n.val)] = n.id;
-        allNodeIds.push(n.id);
-        indexTree(n.left);
-        indexTree(n.right);
-      })(tree);
-      function build(l, r) {
-        if (l > r) { ctx.step("区间空 [" + l + "," + r + "]，返回 null", { tree: tree, side: { 区间: "[" + l + "," + r + "]" } }); return null; }
+      var nums = N108, tree = null, built = 0, seq = 0;
+      function V(extra) {
+        var v = { tree: tree, built: built, balanced: true };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("有序数组每次取正中间那个当根，左右两半各自递归 —— 规模每次对半砍，树自然就是平衡的",
+        V({ seg: "[" + nums.join(",") + "]" }), { line: 1 });
+      (function go(l, r, attach) {
+        var seg = l > r ? "空" : "[" + nums.slice(l, r + 1).join(",") + "]";
+        if (l > r) return;         // 空区间不单独占一步
         var mid = (l + r) >> 1;
-        ctx.step("取中点 " + nums[mid] + "（下标 " + mid + "）作为子树根 → 保证左右平衡",
-          { tree: tree, hl: [nodeIdByValue[String(nums[mid])]], side: { 区间: "[" + l + "," + r + "]", 中点: nums[mid] } });
-        build(l, mid - 1);
-        build(mid + 1, r);
-      }
-      ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", { tree: tree });
-      build(0, nums.length - 1);
-      ctx.step("完成！高度平衡的 BST 构造完毕", { tree: tree, done: allNodeIds });
+        var leftN = mid - l, rightN = r - mid;
+        ctx.step("区间 " + seg + " 取中点 " + nums[mid] + "：左边留 " + leftN + " 个，右边留 " + rightN + " 个，差不超过 1",
+          V({ seg: seg, balanced: Math.abs(leftN - rightN) <= 1 }), { line: 3 });
+        var node = { val: nums[mid], id: "s" + (seq++), left: null, right: null };
+        built++;
+        if (!tree) tree = node; else attach(node);
+        ctx.phase("visit", "把 " + nums[mid] + " 接上去（树上已有 " + built + " 个节点）",
+          V({ cur: node.id, hl: [node.id], seg: seg }), { line: 4 });
+        go(l, mid - 1, function (c) { node.left = c; });
+        go(mid + 1, r, function (c) { node.right = c; });
+      })(0, nums.length - 1, function () {});
+      ctx.phase("done", "构造完成！中序读出来仍是原数组，且高度只有 4 —— 换成「总拿第一个当根」就会退化成 8 层的链",
+        V({ seg: "[" + nums.join(",") + "]" }), { line: 7 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0114": { no: "114", title: "二叉树展开为链表", tag: "二叉树 · 前序重排",
-    example: "输入：root = [1,2,5,3,4,null,6]",
-    build: function (ctx) {
-      var root = toTree([1, 2, 5, 3, 4, null, 6]);
-      var order = [];
-      function pre(n) {
-        if (!n) return;
-        order.push(n.id);
-        pre(n.left); pre(n.right);
+  /* ── 114 展开为链表 ─────────────────────────────────────────────────────
+     旧版在两棵写死的树之间切换。这里真的在同一棵树上做指针手术，
+     中间态（半展开）才是这道题真正难懂的地方。 */
+  "0114": {
+    no: "114", title: "二叉树展开为链表", tag: "二叉树 · 前序重排",
+    example: "输入：root = [1,2,5,3,4,null,6,7,8]　输出：按前序 1→2→3→7→8→4→5→6 的右倾链",
+    code: {
+      title: "找前驱 · 原地展开",
+      langs: {
+        java: [
+          "TreeNode cur = root;",
+          "while (cur != null) {",
+          "    if (cur.left != null) {",
+          "        TreeNode p = cur.left;",
+          "        while (p.right != null) p = p.right; // 左子树最右",
+          "        p.right = cur.right;     // 接上原右子树",
+          "        cur.right = cur.left;    // 左子树搬到右边",
+          "        cur.left = null;",
+          "    }",
+          "    cur = cur.right;",
+          "}"
+        ],
+        cpp: [
+          "TreeNode* cur = root;",
+          "while (cur) {",
+          "  if (cur->left) {",
+          "    TreeNode* p = cur->left;",
+          "    while (p->right) p = p->right; // 左子树最右",
+          "    p->right = cur->right;   // 接上原右子树",
+          "    cur->right = cur->left;  // 左子树搬到右边",
+          "    cur->left = nullptr;",
+          "  }",
+          "  cur = cur->right;",
+          "}"
+        ],
+        python: [
+          "cur = root",
+          "while cur:",
+          "    if cur.left:",
+          "        p = cur.left",
+          "        while p.right: p = p.right   # 左子树最右",
+          "        p.right = cur.right          # 接上原右子树",
+          "        cur.right = cur.left         # 左子树搬到右边",
+          "        cur.left = None",
+          "    # 这一节处理完了",
+          "    cur = cur.right",
+          "# 全程只用 O(1) 额外空间"
+        ],
+        go: [
+          "cur := root",
+          "for cur != nil {",
+          "    if cur.Left != nil {",
+          "        p := cur.Left",
+          "        for p.Right != nil { p = p.Right } // 左子树最右",
+          "        p.Right = cur.Right      // 接上原右子树",
+          "        cur.Right = cur.Left     // 左子树搬到右边",
+          "        cur.Left = nil",
+          "    }",
+          "    cur = cur.Right",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* cur = root;",
+          "while (cur) {",
+          "    if (cur->left) {",
+          "        struct TreeNode* p = cur->left;",
+          "        while (p->right) p = p->right; /* 左子树最右 */",
+          "        p->right = cur->right;   /* 接上原右子树 */",
+          "        cur->right = cur->left;  /* 左子树搬到右边 */",
+          "        cur->left = NULL;",
+          "    }",
+          "    cur = cur->right;",
+          "}"
+        ]
       }
-      pre(root);
-      ctx.step("展开后按前序遍历串成单链（right 当 next，left 置空）", treeOf([1, 2, 5, 3, 4, null, 6]));
-      var flat = toTree([1, null, 2, null, 3, null, 4, null, 5, null, 6]);
-      var shown = [];
-      for (var i = 0; i < order.length; i++) {
-        shown.push(order[i]);
-        ctx.step("按前序接入第 " + (i + 1) + " 个节点 " + order[i],
-          { tree: flat, done: shown, cur: order[i], side: { 已接入: shown.length + "/" + order.length } });
-      }
-      ctx.step("完成！整棵树变成一条右倾链表", { tree: flat, done: shown });
     },
-    render: drawTree },
-
-  "0199": { no: "199", title: "二叉树的右视图", tag: "二叉树 · BFS 每层最后一个",
-    example: "输入：root = [1,2,3,null,5,null,4]　输出：[1,3,4]",
+    invariants: [
+      { label: "已成链的前缀", test: function (v) { return v.chain || "—"; } },
+      /* 整条右链要到最后才全部压平，中途还有左孩子是正常的。
+         真正的不变量是「已经走过的那一段」再也没有左孩子。 */
+      { label: "已压平的那段链上不再有左孩子", test: function (v) {
+          return "链头起 " + v.leftClean + " 个节点已经只剩 right 指针";
+        } }
+    ],
     build: function (ctx) {
-      var root = toTree([1, 2, 3, null, 5, null, 4]);
-      var queue = [root], right = [], done = [];
-      var level = 0;
+      var root = toTree(T114);
+      var expected = [];
+      (function pre(n) { if (!n) return; expected.push(n.val); pre(n.left); pre(n.right); })(root);
+      function chainOf() {
+        var out = [], n = root;
+        while (n) { out.push(n.val); n = n.right; }
+        return out;
+      }
+      function leftClean() {
+        var n = root, cnt = 0;
+        while (n && !n.left) { cnt++; if (!n.right) break; n = n.right; }
+        return cnt;
+      }
+      function V(extra) {
+        var v = { tree: root, chain: chainOf().join(" → "), leftClean: leftClean() };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("目标：把整棵树压成一条只用 right 的链，顺序正好是前序 " + expected.join(",") + "。就地改指针，不新建节点",
+        V(), { line: 1 });
+      var cur = root;
+      while (cur) {
+        if (cur.left) {
+          ctx.phase("pointer_move", "当前在 " + cur.val + "，它还有左子树 " + cur.left.val + " —— 需要把左边整个搬到右边",
+            V({ cur: cur.id, hl: [cur.left.id] }), { line: 3 });
+          var p = cur.left;
+          ctx.step("先在左子树里一路向右，找到前序里紧挨着原右子树的那个节点", V({ cur: cur.id, hl: [p.id] }), { line: 5 });
+          while (p.right) {
+            p = p.right;
+            ctx.phase("pointer_move", "继续向右走到 " + p.val, V({ cur: cur.id, hl: [p.id] }), { line: 5 });
+          }
+          ctx.step("找到前驱 " + p.val + "：把 " + cur.val + " 原来的右子树 " + (cur.right ? cur.right.val : "null") + " 挂到它下面",
+            V({ cur: cur.id, hl: [p.id] }), { line: 6 });
+          p.right = cur.right;
+          ctx.phase("update", "现在把左子树 " + cur.left.val + " 整体搬到 " + cur.val + " 的右边",
+            V({ cur: cur.id, hl: [cur.left.id] }), { line: 7 });
+          cur.right = cur.left;
+          cur.left = null;
+          ctx.phase("update", cur.val + " 的左指针清空 —— 这一段已经是链了",
+            V({ cur: cur.id }), { line: 8 });
+        } else {
+          ctx.step(cur.val + " 没有左子树，不用动，直接往下走", V({ cur: cur.id }), { line: 10 });
+        }
+        cur = cur.right;
+      }
+      ctx.phase("done", "完成！整棵树变成 " + chainOf().join(" → ") + "，与前序完全一致", V(), { line: 11 });
+    },
+    render: drawTree
+  },
+
+  /* ── 199 右视图 ─────────────────────────────────────────────────────────
+     特意让最底层唯一的节点 6 是个"左孩子"：右视图并不是一路向右走。 */
+  "0199": {
+    no: "199", title: "二叉树的右视图", tag: "二叉树 · BFS 每层最后一个",
+    example: "输入：root = [1,2,3,null,5,null,4,6]　输出：[1,3,4,6]（6 是左孩子，却能被看见）",
+    code: {
+      title: "每层最后一个",
+      langs: {
+        java: [
+          "while (!q.isEmpty()) {",
+          "    int n = q.size();",
+          "    for (int i = 0; i < n; i++) {",
+          "        TreeNode cur = q.poll();",
+          "        if (i == n - 1)              // 本层最后一个",
+          "            ans.add(cur.val);",
+          "        if (cur.left  != null) q.add(cur.left);",
+          "        if (cur.right != null) q.add(cur.right);",
+          "    }",
+          "}"
+        ],
+        cpp: [
+          "while (!q.empty()) {",
+          "  int n = q.size();",
+          "  for (int i = 0; i < n; i++) {",
+          "    auto cur = q.front(); q.pop();",
+          "    if (i == n - 1)          // 本层最后一个",
+          "      ans.push_back(cur->val);",
+          "    if (cur->left)  q.push(cur->left);",
+          "    if (cur->right) q.push(cur->right);",
+          "  }",
+          "}"
+        ],
+        python: [
+          "while q:",
+          "    n = len(q)",
+          "    for i in range(n):",
+          "        cur = q.popleft()",
+          "        if i == n - 1:               # 本层最后一个",
+          "            ans.append(cur.val)",
+          "        if cur.left:  q.append(cur.left)",
+          "        if cur.right: q.append(cur.right)",
+          "    # 下一层已经整层躺在队列里了",
+          "# 右视图 = 每层最后一个"
+        ],
+        go: [
+          "for len(q) > 0 {",
+          "    n := len(q)",
+          "    for i := 0; i < n; i++ {",
+          "        cur := q[0]; q = q[1:]",
+          "        if i == n-1 {                // 本层最后一个",
+          "            ans = append(ans, cur.Val) }",
+          "        if cur.Left  != nil { q = append(q, cur.Left) }",
+          "        if cur.Right != nil { q = append(q, cur.Right) }",
+          "    }",
+          "}"
+        ],
+        c: [
+          "while (head < tail) {",
+          "    int n = tail - head;",
+          "    for (int i = 0; i < n; i++) {",
+          "        struct TreeNode* cur = q[head++];",
+          "        if (i == n - 1)              /* 本层最后一个 */",
+          "            ans[m++] = cur->val;",
+          "        if (cur->left)  q[tail++] = cur->left;",
+          "        if (cur->right) q[tail++] = cur->right;",
+          "    }",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "右视图", test: function (v) { return (v.right && v.right.length ? v.right.join(",") : "—"); } },
+      { label: "每层恰好贡献一个", test: function (v) { return v.right ? v.right.length === v.levelsDone : true; } }
+    ],
+    compare: {
+      label: "错误写法：从根一路走 right",
+      build: function (ctx) {
+        var root = toTree(T199), got = [], path = [], n = root;
+        ctx.step("直觉写法：从根出发，一直走右孩子", { tree: root, cur: root.id, right: [], levelsDone: 0 });
+        while (n) {
+          got.push(n.val); path.push(n.id);
+          ctx.step("走到 " + n.val + "，记下来 → [" + got.join(",") + "]",
+            { tree: root, cur: n.id, path: path.slice(), done: path.slice(), right: got.slice(), levelsDone: got.length });
+          n = n.right;
+        }
+        ctx.step("走到头得到 [" + got.join(",") + "]，漏掉了第 3 层的 6 —— 右链断了，但那一层其实还有节点",
+          { tree: root, path: path, done: path, right: got, levelsDone: got.length, side: { 错误结论: "[" + got.join(",") + "]" } });
+      }
+    },
+    build: function (ctx) {
+      var root = toTree(T199), queue = [root], right = [], done = [], level = 0;
+      ctx.step("右视图 = 每一层最靠右的那个节点。所以要按层扫，而不是顺着 right 指针走",
+        { tree: root, right: [], levelsDone: 0 }, { line: 1 });
       while (queue.length) {
-        var n = queue.length;
-        ctx.step("第 " + level + " 层有 " + n + " 个节点，最右边的就是右视图答案",
-          { tree: root, hl: queue.map(function (x) { return x.id; }), side: { 右视图: right.join(",") } });
-        for (var i = 0; i < n; i++) {
+        var n = queue.length, i;
+        ctx.step("第 " + level + " 层共 " + n + " 个节点，其中最后出队的那个就是答案",
+          { tree: root, hl: queue.map(function (x) { return x.id; }), done: done.slice(), right: right.slice(), levelsDone: level }, { line: 2 });
+        for (i = 0; i < n; i++) {
           var cur = queue.shift();
           done.push(cur.id);
           if (i === n - 1) {
             right.push(cur.val);
-            ctx.step(cur.val + " 是本层最后一个 → 加入右视图", { tree: root, cur: cur.id, done: done, side: { 右视图: right.join(",") } });
+            ctx.phase("visit", cur.val + " 是本层最后一个 → 计入右视图 [" + right.join(",") + "]",
+              { tree: root, cur: cur.id, hl: [cur.id], done: done.slice(), right: right.slice(), levelsDone: level + 1 }, { line: 6 });
           } else {
-            ctx.step(cur.val + " 不是本层最后，跳过（但仍扩展子节点）", { tree: root, cur: cur.id, done: done });
+            ctx.step(cur.val + " 不是本层最后一个，被挡住了；但它的孩子仍要入队",
+              { tree: root, cur: cur.id, done: done.slice(), right: right.slice(), levelsDone: level }, { line: 4 });
           }
           if (cur.left) queue.push(cur.left);
           if (cur.right) queue.push(cur.right);
         }
         level++;
       }
-      ctx.step("完成！右视图 = [" + right.join(",") + "]（站在右侧能看到的节点）", { tree: root, done: done, side: { 答案: "[" + right.join(",") + "]" } });
+      ctx.phase("done", "完成！右视图 = [" + right.join(",") + "]。最后一个 6 其实是左孩子 —— 它那层只有它，自然就被看见了",
+        { tree: root, done: done, right: right, levelsDone: level, side: { 答案: "[" + right.join(",") + "]" } }, { line: 10 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0226": { no: "226", title: "翻转二叉树", tag: "二叉树 · 递归交换",
-    example: "输入：root = [4,2,7,1,3,6,9]　输出：[4,7,2,9,6,3,1]",
+  /* ── 226 翻转二叉树 ─────────────────────────────────────────────────────
+     旧版每步都重建原树、最后用写死的数组冒充结果。这里在真树上交换，
+     每一帧看到的都是此刻的真实状态（配合 FLIP，子树会真的滑过去）。 */
+  "0226": {
+    no: "226", title: "翻转二叉树", tag: "二叉树 · 递归交换",
+    example: "输入：root = [5,3,8,2,4,7,9,1]（四层 BST）　输出：整棵镜像，中序由升序翻成降序",
+    code: {
+      title: "先交换再下潜",
+      langs: {
+        java: [
+          "TreeNode invert(TreeNode n) {",
+          "    if (n == null) return null;",
+          "    TreeNode t = n.left; n.left = n.right; n.right = t;",
+          "    invert(n.left);",
+          "    invert(n.right);",
+          "    return n;",
+          "}"
+        ],
+        cpp: [
+          "TreeNode* invert(TreeNode* n) {",
+          "  if (n == nullptr) return nullptr;",
+          "  swap(n->left, n->right);",
+          "  invert(n->left);",
+          "  invert(n->right);",
+          "  return n;",
+          "}"
+        ],
+        python: [
+          "def invert(n):",
+          "    if n is None: return None",
+          "    n.left, n.right = n.right, n.left",
+          "    invert(n.left)",
+          "    invert(n.right)",
+          "    return n",
+          "# 先换后潜、先潜后换都对，换两次才错"
+        ],
+        go: [
+          "func invert(n *TreeNode) *TreeNode {",
+          "    if n == nil { return nil }",
+          "    n.Left, n.Right = n.Right, n.Left",
+          "    invert(n.Left)",
+          "    invert(n.Right)",
+          "    return n",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* invert(struct TreeNode* n) {",
+          "    if (n == NULL) return NULL;",
+          "    struct TreeNode* t = n->left; n->left = n->right; n->right = t;",
+          "    invert(n->left);",
+          "    invert(n->right);",
+          "    return n;",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "已交换的节点", test: function (v) { return (v.swapped && v.swapped.length ? v.swapped.join(",") : "—"); } },
+      { label: "当前中序", test: function (v) { return v.inorder || "—"; } }
+    ],
     build: function (ctx) {
-      var root = toTree([4, 2, 7, 1, 3, 6, 9]);
-      var flipped = [];
-      function swapView() {
-        var mirror = toTree([4, 7, 2, 9, 6, 3, 1]);
-        return mirror;
+      var root = toTree(T226), swapped = [], done = [];
+      function inorderOf() {
+        var out = [];
+        (function go(n) { if (!n) return; go(n.left); out.push(n.val); go(n.right); })(root);
+        return out.join(",");
       }
-      function go(n, doneIds) {
+      function V(extra) {
+        var v = { tree: root, swapped: swapped.slice(), done: done.slice(), inorder: inorderOf() };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("翻转 = 每个节点把左右孩子对调一次。盯住下面那条「当前中序」：它现在是升序，翻完会变成完全倒过来的降序",
+        V(), { line: 1 });
+      (function go(n) {
         if (!n) return;
-        var before = toTree([4, 2, 7, 1, 3, 6, 9]);
-        ctx.step("进入节点 " + n.val + "：交换左右子树",
-          { tree: before, cur: n.id, side: { 已翻转: flipped.join(",") || "—" } });
-        var tmp = n.left; n.left = n.right; n.right = tmp;
-        flipped.push(n.val);
-        ctx.step("节点 " + n.val + " 的左右已交换，继续递归子节点",
-          { tree: swapView(), hl: doneIds.map(String), side: { 已翻转: flipped.join(",") } });
-        go(n.left, doneIds); go(n.right, doneIds);
-      }
-      go(root, [2, 7]);
-      ctx.step("完成！整棵树镜像翻转 → [4,7,2,9,6,3,1]", { tree: swapView(), done: [1, 7, 2, 9, 6, 3, 1] });
-    },
-    render: drawTree },
-
-  "0230": { no: "230", title: "二叉搜索树中第 K 小的元素", tag: "二叉树 · 中序计数",
-    example: "输入：root = [5,3,6,2,4,null,null,1]，k = 3　输出：3",
-    sizes: [{ label: "k = 1", k: 1 }, { label: "k = 3（示例 1）", k: 3 }, { label: "k = 4", k: 4 }],
-    defaultSize: 1,
-    build: function (ctx, size) {
-      var k = (size && size.k) || 3;
-      var root = toTree([5, 3, 6, 2, 4, null, null, 1]);
-      var count = 0, answer = null, visited = [];
-      ctx.step("BST 的中序遍历就是升序序列 → 第 " + k + " 个被访问的就是第 " + k + " 小", { tree: root, side: { k: k } });
-      function go(n) {
-        if (!n || answer !== null) return;
+        ctx.phase("swap_prepare", "进入 " + n.val + "：准备对调它的左 " + (n.left ? n.left.val : "null") + " 和右 " + (n.right ? n.right.val : "null"),
+          V({ cur: n.id, hl: [n.left && n.left.id, n.right && n.right.id].filter(Boolean) }), { line: 3 });
+        var t = n.left; n.left = n.right; n.right = t;
+        swapped.push(n.val); done.push(n.id);
+        ctx.phase("swap_done", n.val + " 的左右已对调，整棵子树跟着一起搬了过去",
+          V({ cur: n.id, hl: [n.id] }), { line: 3 });
         go(n.left);
+        go(n.right);
+      })(root);
+      ctx.phase("done", "完成！" + swapped.length + " 个节点各交换一次，中序从升序变成了 " + inorderOf(),
+        V({ done: done, side: { 答案: "整棵镜像" } }), { line: 6 });
+    },
+    render: drawTree
+  },
+
+  /* ── 230 BST 第 K 小 ────────────────────────────────────────────────────
+     换成 11 节点的四层 BST，k 可切换，能看出"中序第 k 个"与树形无关。 */
+  "0230": {
+    no: "230", title: "二叉搜索树中第 K 小的元素", tag: "二叉树 · 中序计数",
+    example: "输入：root = [8,4,12,2,6,10,14,1,3,5,7]（四层，中序 1,2,3,4,5,6,7,8,10,12,14）",
+    sizes: [{ label: "k = 6（中间）", k: 6 }, { label: "k = 1（最快命中）", k: 1 }, { label: "k = 11（走遍全树）", k: 11 }],
+    defaultSize: 0,
+    code: {
+      title: "中序 + 计数",
+      langs: {
+        java: [
+          "void go(TreeNode n) {",
+          "    if (n == null || found) return;",
+          "    go(n.left);",
+          "    if (++cnt == k) { ans = n.val; found = true; return; }",
+          "    go(n.right);",
+          "}"
+        ],
+        cpp: [
+          "void go(TreeNode* n) {",
+          "  if (!n || found) return;",
+          "  go(n->left);",
+          "  if (++cnt == k) { ans = n->val; found = true; return; }",
+          "  go(n->right);",
+          "}"
+        ],
+        python: [
+          "def go(n):",
+          "    if n is None or found: return",
+          "    go(n.left)",
+          "    cnt += 1;  ans, found = (n.val, True) if cnt == k else (ans, found)",
+          "    go(n.right)",
+          "# 中序天然升序，数到第 k 个就停"
+        ],
+        go: [
+          "func walk(n *TreeNode) {",
+          "    if n == nil || found { return }",
+          "    walk(n.Left)",
+          "    if cnt++; cnt == k { ans = n.Val; found = true; return }",
+          "    walk(n.Right)",
+          "}"
+        ],
+        c: [
+          "void go(struct TreeNode* n) {",
+          "    if (n == NULL || found) return;",
+          "    go(n->left);",
+          "    if (++cnt == k) { ans = n->val; found = 1; return; }",
+          "    go(n->right);",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "已数到第几个", test: function (v) { return (v.count || 0) + " / k = " + v.k; } },
+      { label: "已访问序列始终升序", test: function (v) { return (v.seq || []).every(function (x, i) { return i === 0 || v.seq[i - 1] < x; }); } }
+    ],
+    build: function (ctx, size) {
+      var k = (size && size.k) || 1;
+      var root = toTree(T230), count = 0, answer = null, visited = [], seq = [];
+      ctx.step("BST 的中序就是升序。所以不用排序，中序走到第 " + k + " 个停下就行",
+        { tree: root, count: 0, k: k, seq: [] }, { line: 1 });
+      (function go(n) {
+        if (!n || answer !== null) return;
+        if (n.left) {
+          ctx.phase("recursive_enter", "在 " + n.val + " 这里先往左，更小的还在左边",
+            { tree: root, cur: n.id, done: visited.slice(), count: count, k: k, seq: seq.slice() }, { line: 3 });
+          go(n.left);
+        }
         if (answer !== null) return;
-        count++; visited.push(n.id);
+        count++; visited.push(n.id); seq.push(n.val);
         if (count === k) {
           answer = n.val;
-          ctx.step("第 " + count + " 个访问 " + n.val + " → 就是第 " + k + " 小！", { tree: root, hl: [n.id], done: visited, side: { 答案: n.val } });
+          ctx.phase("visit", "第 " + count + " 个访问到的是 " + n.val + " —— 正好是第 " + k + " 小，可以直接收工",
+            { tree: root, cur: n.id, hl: [n.id], done: visited.slice(), count: count, k: k, seq: seq.slice(), side: { 答案: n.val } }, { line: 4 });
           return;
         }
-        ctx.step("第 " + count + " 个访问 " + n.val + "（还不是第 " + k + " 小），继续", { tree: root, done: visited, side: { 计数: count, k: k } });
-        go(n.right);
-      }
-      go(root);
-      ctx.step("完成！第 " + k + " 小 = " + answer, { tree: root, done: visited, side: { 答案: answer } });
+        ctx.phase("visit", "第 " + count + " 个是 " + n.val + "，还没到第 " + k + " 个，继续",
+          { tree: root, cur: n.id, done: visited.slice(), count: count, k: k, seq: seq.slice(), side: { 已访问: seq.join(",") } }, { line: 4 });
+        if (n.right) go(n.right);
+      })(root);
+      ctx.phase("done", "完成！第 " + k + " 小 = " + answer + "。只走了 " + count + " 个节点，剩下的整片右边根本没碰",
+        { tree: root, done: visited, count: count, k: k, seq: seq, side: { 答案: answer } }, { line: 4 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0236": { no: "236", title: "二叉树的最近公共祖先", tag: "二叉树 · 后序递归",
-    example: "输入：root = [3,5,1,6,2,0,8,null,null,7,4]，p = 5，q = 1　输出：3",
-    sizes: [{ label: "p=5, q=1（示例 1）", p: 5, q: 1 }, { label: "p=5, q=4", p: 5, q: 4 }, { label: "p=6, q=2", p: 6, q: 2 }],
-    defaultSize: 1,
+  /* ── 236 最近公共祖先 ───────────────────────────────────────────────────
+     保留原来的四层题例（已经够复杂），补上代码同步与不变量。 */
+  "0236": {
+    no: "236", title: "二叉树的最近公共祖先", tag: "二叉树 · 后序递归",
+    example: "root = [3,5,1,6,2,0,8,null,null,7,4]（四层）。可切换 p/q —— 特别看「p=5, q=4」那组：祖先自己就是答案",
+    sizes: [{ label: "p=7, q=0（跨两棵子树）", p: 7, q: 0 }, { label: "p=5, q=4（祖先就是答案）", p: 5, q: 4 }, { label: "p=5, q=1（示例 1）", p: 5, q: 1 }],
+    defaultSize: 0,
+    code: {
+      title: "后序上报",
+      langs: {
+        java: [
+          "TreeNode lca(TreeNode n, TreeNode p, TreeNode q) {",
+          "    if (n == null || n == p || n == q) return n;",
+          "    TreeNode L = lca(n.left,  p, q);",
+          "    TreeNode R = lca(n.right, p, q);",
+          "    if (L != null && R != null) return n;  // 两边各中一个",
+          "    return L != null ? L : R;              // 把非空的往上传",
+          "}"
+        ],
+        cpp: [
+          "TreeNode* lca(TreeNode* n, p, q) {",
+          "  if (!n || n == p || n == q) return n;",
+          "  auto L = lca(n->left,  p, q);",
+          "  auto R = lca(n->right, p, q);",
+          "  if (L && R) return n;   // 两边各中一个",
+          "  return L ? L : R;       // 把非空的往上传",
+          "}"
+        ],
+        python: [
+          "def lca(n, p, q):",
+          "    if n is None or n is p or n is q: return n",
+          "    L = lca(n.left,  p, q)",
+          "    R = lca(n.right, p, q)",
+          "    if L and R: return n                   # 两边各中一个",
+          "    return L or R                          # 把非空的往上传",
+          "# 第一个两边都中的节点就是答案"
+        ],
+        go: [
+          "func lca(n, p, q *TreeNode) *TreeNode {",
+          "    if n == nil || n == p || n == q { return n }",
+          "    L := lca(n.Left,  p, q)",
+          "    R := lca(n.Right, p, q)",
+          "    if L != nil && R != nil { return n }   // 两边各中一个",
+          "    if L != nil { return L };  return R    // 把非空的往上传",
+          "}"
+        ],
+        c: [
+          "struct TreeNode* lca(struct TreeNode* n, T* p, T* q) {",
+          "    if (!n || n == p || n == q) return n;",
+          "    struct TreeNode* L = lca(n->left,  p, q);",
+          "    struct TreeNode* R = lca(n->right, p, q);",
+          "    if (L && R) return n;                  /* 两边各中一个 */",
+          "    return L ? L : R;                      /* 把非空的往上传 */",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "答案", test: function (v) { return v.answer == null ? "还没确定" : String(v.answer); } },
+      { label: "当前节点的左右回传", test: function (v) { return v.lr || "—"; } }
+    ],
     build: function (ctx, size) {
-      var P = (size && size.p) || 5, Q = (size && size.q) || 1;
-      var root = toTree([3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]);
-      var answer = null;
-      function go(n) {
-        if (!n) { ctx.step("空节点，返回 null", { tree: root, side: { p: P, q: Q } }); return null; }
+      var P = size ? size.p : 5, Q = size ? size.q : 1;
+      var root = toTree(T236), answer = null, done = [];
+      ctx.step("后序上报：每个节点问左右两边「你那边有没有找到 " + P + " 或 " + Q + "」。两边都回话的最低节点就是答案",
+        { tree: root, answer: null }, { line: 1 });
+      (function go(n) {
+        if (!n) return null;
         if (n.val === P || n.val === Q) {
-          ctx.step("命中目标 " + n.val + "，向上报告", { tree: root, hl: [n.id], side: { p: P, q: Q } });
+          done.push(n.id);
+          ctx.phase("visit", "在 " + n.val + " 处命中目标，立刻向上报告 " + n.val,
+            { tree: root, cur: n.id, hl: [n.id], done: done.slice(), answer: answer, lr: "命中自身" }, { line: 2 });
           return n.val;
         }
-        ctx.step("检查节点 " + n.val + "：递归左右子树找 p=" + P + " 和 q=" + Q, { tree: root, cur: n.id });
-        var l = go(n.left), r = go(n.right);
-        if (l !== null && r !== null) {
-          if (answer === null) {
-            answer = n.val;
-            ctx.step("左右各找到一个 → " + n.val + " 就是最近公共祖先！", { tree: root, hl: [n.id], side: { 答案: n.val } });
-          }
+        ctx.phase("recursive_enter", "节点 " + n.val + " 自己不是目标，分头问左右两边",
+          { tree: root, cur: n.id, done: done.slice(), answer: answer }, { line: 3 });
+        var L = go(n.left), R = go(n.right);
+        var lr = "左 " + (L === null ? "null" : L) + " / 右 " + (R === null ? "null" : R);
+        if (L !== null && R !== null) {
+          if (answer === null) answer = n.val;
+          ctx.phase("done", "节点 " + n.val + "：左右各带回一个 → 它就是最近公共祖先！",
+            { tree: root, cur: n.id, hl: [n.id], done: done.slice(), answer: answer, lr: lr, side: { 答案: n.val } }, { line: 5 });
           return n.val;
         }
-        ctx.step("节点 " + n.val + "：左右结果 [" + (l === null ? "null" : l) + ", " + (r === null ? "null" : r) + "]，向上传递非空的", { tree: root, cur: n.id });
-        return l !== null ? l : r;
-      }
-      ctx.step("后序递归：左右找 p 和 q；两边都找到的最低节点就是 LCA", treeOf([3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]));
-      go(root);
-      ctx.step("完成！最近公共祖先 = " + answer, { tree: root, side: { 答案: answer } });
+        ctx.phase("recursive_return", "节点 " + n.val + "：" + lr + " → 把非空的那个继续往上传",
+          { tree: root, cur: n.id, done: done.slice(), answer: answer, lr: lr }, { line: 6 });
+        return L !== null ? L : R;
+      })(root);
+      ctx.phase("done", "完成！LCA(" + P + ", " + Q + ") = " + answer,
+        { tree: root, done: done, answer: answer, lr: "—", side: { 答案: answer } }, { line: 5 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0437": { no: "437", title: "路径总和 III", tag: "二叉树 · 前缀和 + 回溯",
+  /* ── 437 路径总和 III ───────────────────────────────────────────────────
+     旧版第一步引用了不存在的变量 tree，整个演示直接构建失败。 */
+  "0437": {
+    no: "437", title: "路径总和 III", tag: "二叉树 · 前缀和 + 回溯",
     example: "输入：root = [10,5,-3,3,2,null,11,3,-2,null,1]，targetSum = 8　输出：3",
+    code: {
+      title: "前缀和 + 回溯",
+      langs: {
+        java: [
+          "void go(TreeNode n, long cur) {",
+          "    if (n == null) return;",
+          "    cur += n.val;",
+          "    cnt += freq.getOrDefault(cur - target, 0); // 历史前缀凑出的路径",
+          "    freq.merge(cur, 1, Integer::sum);          // 登记自己",
+          "    go(n.left, cur);",
+          "    go(n.right, cur);",
+          "    freq.merge(cur, -1, Integer::sum);         // 回溯必须撤销",
+          "}"
+        ],
+        cpp: [
+          "void go(TreeNode* n, long cur) {",
+          "  if (!n) return;",
+          "  cur += n->val;",
+          "  cnt += freq[cur - target];  // 历史前缀凑出的路径",
+          "  freq[cur]++;                // 登记自己",
+          "  go(n->left, cur);",
+          "  go(n->right, cur);",
+          "  freq[cur]--;                // 回溯必须撤销",
+          "}"
+        ],
+        python: [
+          "def go(n, cur):",
+          "    if n is None: return",
+          "    cur += n.val",
+          "    cnt += freq[cur - target]       # 历史前缀凑出的路径",
+          "    freq[cur] += 1                  # 登记自己",
+          "    go(n.left, cur)",
+          "    go(n.right, cur)",
+          "    freq[cur] -= 1                  # 回溯必须撤销",
+          "# freq 只记录当前这条根→n 的路径"
+        ],
+        go: [
+          "func walk(n *TreeNode, cur int) {",
+          "    if n == nil { return }",
+          "    cur += n.Val",
+          "    cnt += freq[cur-target]         // 历史前缀凑出的路径",
+          "    freq[cur]++                     // 登记自己",
+          "    walk(n.Left, cur)",
+          "    walk(n.Right, cur)",
+          "    freq[cur]--                     // 回溯必须撤销",
+          "}"
+        ],
+        c: [
+          "void go(struct TreeNode* n, long cur) {",
+          "    if (n == NULL) return;",
+          "    cur += n->val;",
+          "    cnt += map_get(freq, cur - target); /* 历史前缀凑出的路径 */",
+          "    map_add(freq, cur, 1);              /* 登记自己 */",
+          "    go(n->left, cur);",
+          "    go(n->right, cur);",
+          "    map_add(freq, cur, -1);             /* 回溯必须撤销 */",
+          "}"
+        ]
+      }
+    },
+    invariants: [
+      { label: "根到当前的前缀和", test: function (v) { return String(v.cur); } },
+      { label: "已找到路径数", test: function (v) { return String(v.count); } },
+      { label: "表里只记当前这条根链", test: function (v) { return v.tableOk !== false; } }
+    ],
     build: function (ctx) {
-      var root = toTree([10, 5, -3, 3, 2, null, 11, 3, -2, null, 1]);
-      var target = 8, count = 0;
-      var prefix = { 0: 1 }, cur = 0;
-      var order = [];
-      function go(n) {
-        if (!n) { ctx.step("空节点，返回", { tree: root, side: { 路径和: cur, 计数: count } }); return; }
-        cur += n.val; order.push(n.id);
-        var need = cur - target;
-        var hit = prefix[need] || 0;
-        var before = prefix[cur] || 0;
+      var root = toTree(T437), target = 8, count = 0;
+      var freq = { 0: 1 }, cur = 0, chain = [], order = [];
+      function tableStr() {
+        return Object.keys(freq).filter(function (k) { return freq[k] > 0; })
+          .map(function (k) { return k + "×" + freq[k]; }).join("  ");
+      }
+      function V(extra) {
+        var v = { tree: root, cur: cur, count: count, tableOk: true, done: order.slice(),
+          side: { 根链: chain.join("→") || "空", 前缀和: cur, 前缀表: tableStr(), 已找到: count } };
+        Object.keys(extra || {}).forEach(function (k) { v[k] = extra[k]; });
+        return v;
+      }
+      ctx.step("任意一段路径的和 = 当前前缀和 − 某个祖先的前缀和。所以只要查「历史上有几个前缀等于 cur − 8」",
+        V(), { line: 1 });
+      (function go(n) {
+        if (!n) return;
+        cur += n.val; chain.push(n.val); order.push(n.id);
+        var need = cur - target, hit = freq[need] || 0;
         count += hit;
-        ctx.step("到达 " + n.val + "：前缀和 = " + cur + "，需要历史前缀 " + need + "（出现 " + hit + " 次）→ 找到 " + hit + " 条路径",
-          { tree: root, cur: n.id, hl: [n.id], side: { 路径和: cur, 命中: hit, 计数: count } });
-        prefix[cur] = (prefix[cur] || 0) + 1;
-        ctx.step("登记当前前缀和 " + cur + "，继续向下（回溯时要撤销）", { tree: root, done: order.slice(), side: { 前缀表: JSON.stringify(prefix) } });
+        ctx.phase("visit", "到达 " + n.val + "：前缀和 = " + cur + "，要找历史前缀 " + need + "，表里有 " + hit + " 个" + (hit ? " → 命中 " + hit + " 条路径！" : ""),
+          V({ cur2: n.id, cur: cur, count: count, curId: n.id, hl: [n.id] }), { line: 4 });
+        freq[cur] = (freq[cur] || 0) + 1;
+        ctx.step("把自己的前缀和 " + cur + " 登记进表，供下面的子孙查询", V({ curId: n.id, cur: cur }), { line: 5 });
         go(n.left); go(n.right);
-        prefix[cur] -= 1; cur -= n.val; order.pop();
-        ctx.step("回溯离开 " + n.val + "：撤销前缀登记（防止跨分支误配）", { tree: root, side: { 路径和: cur, 计数: count } });
-      }
-      ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", { tree: tree });
-      go(root);
-      ctx.step("完成！和为 " + target + " 的路径共 " + count + " 条", { tree: root, side: { 答案: count } });
+        freq[cur] -= 1; cur -= n.val; chain.pop(); order.pop();
+        ctx.phase("recursive_return", "离开 " + n.val + "：把登记撤销 —— 否则另一条分支会错配上这条链的前缀",
+          V({ cur: cur }), { line: 8 });
+      })(root);
+      ctx.phase("done", "完成！和为 " + target + " 的路径共 " + count + " 条", V({ side: { 答案: count } }), { line: 9 });
     },
-    render: drawTree },
+    render: drawTree
+  },
 
-  "0543": { no: "543", title: "二叉树的直径", tag: "二叉树 · 后序递归",
-    example: "输入：root = [1,2,3,4,5]　输出：3（路径 4→2→1→3 或 5→2→1→3）",
-    build: function (ctx) {
-      var root = toTree([1, 2, 3, 4, 5]);
-      var best = 0, bestPair = [2, 3];
-      function go(n, d) {
-        if (!n) { ctx.step("空节点，深度 0", { tree: root, side: { 最大直径: best } }); return 0; }
-        ctx.step("进入 " + n.val, { tree: root, cur: n.id });
-        var L = go(n.left, d + 1), R = go(n.right, d + 1);
-        var through = L + R + 1;
-        if (through > best) { best = through; bestPair = [n.left ? n.left.val : "—", n.right ? n.right.val : "—"]; }
-        ctx.step(n.val + "：左深 " + L + " + 右深 " + R + " + 1 = 经过它的路径长 " + through + "（历史最大 " + best + "）",
-          { tree: root, cur: n.id, side: { 左深: L, 右深: R, 最大直径: best } });
-        return Math.max(L, R) + 1;
+  /* ── 543 二叉树的直径 ───────────────────────────────────────────────────
+     这是本页改动最关键的一题：旧例 [1,2,3,4,5] 的直径恰好穿过根，
+     完全掩盖了这道题的难点。新例的最长路径在节点 2 处取得，不经过根。 */
+  "0543": {
+    no: "543", title: "二叉树的直径", tag: "二叉树 · 后序递归",
+    example: "输入：root = [1,2,3,4,5,null,null,6,null,null,7,8,null,null,9]　输出：6（路径 8→6→4→2→5→7→9，不经过根）",
+    code: {
+      title: "边算深度边更新答案",
+      langs: {
+        java: [
+          "int depth(TreeNode n) {",
+          "    if (n == null) return 0;",
+          "    int L = depth(n.left);",
+          "    int R = depth(n.right);",
+          "    best = Math.max(best, L + R);   // 经过 n 的路径",
+          "    return Math.max(L, R) + 1;      // 往上只能选一边",
+          "}"
+        ],
+        cpp: [
+          "int depth(TreeNode* n) {",
+          "  if (!n) return 0;",
+          "  int L = depth(n->left);",
+          "  int R = depth(n->right);",
+          "  best = max(best, L + R);  // 经过 n 的路径",
+          "  return max(L, R) + 1;     // 往上只能选一边",
+          "}"
+        ],
+        python: [
+          "def depth(n):",
+          "    if n is None: return 0",
+          "    L = depth(n.left)",
+          "    R = depth(n.right)",
+          "    best = max(best, L + R)         # 经过 n 的路径",
+          "    return max(L, R) + 1            # 往上只能选一边",
+          "# 直径 = 某个节点左右深度之和的最大值"
+        ],
+        go: [
+          "func depth(n *TreeNode) int {",
+          "    if n == nil { return 0 }",
+          "    L := depth(n.Left)",
+          "    R := depth(n.Right)",
+          "    best = max(best, L+R)           // 经过 n 的路径",
+          "    return max(L, R) + 1            // 往上只能选一边",
+          "}"
+        ],
+        c: [
+          "int depth(struct TreeNode* n) {",
+          "    if (n == NULL) return 0;",
+          "    int L = depth(n->left);",
+          "    int R = depth(n->right);",
+          "    if (L + R > best) best = L + R; /* 经过 n 的路径 */",
+          "    return (L > R ? L : R) + 1;     /* 往上只能选一边 */",
+          "}"
+        ]
       }
-      ctx.step("直径 = 某节点左右子树深度之和最大值；后序遍历自底向上统计", treeOf([1, 2, 3, 4, 5]));
-      go(root, 0);
-      ctx.step("完成！最大直径 = " + best + "（节点 " + bestPair[0] + " → " + bestPair[1] + "，经过它们的公共祖先）",
-        { tree: root, side: { 答案: best } });
     },
-    render: drawTree }
+    invariants: [
+      { label: "历史最大直径", test: function (v) { return String(v.best); } },
+      { label: "取得最大值的节点", test: function (v) { return v.at == null ? "还没确定" : "节点 " + v.at; } }
+    ],
+    compare: {
+      label: "错误写法：只算根的左深 + 右深",
+      build: function (ctx) {
+        var root = toTree(T543);
+        function depth(n) { return n ? 1 + Math.max(depth(n.left), depth(n.right)) : 0; }
+        var L = depth(root.left), R = depth(root.right);
+        ctx.step("直觉写法：直径一定穿过根吧？那就算根的左右深度之和", { tree: root, cur: root.id, best: 0, at: null });
+        ctx.step("根的左子树深 " + L + "，右子树深 " + R, { tree: root, hl: [root.left.id, root.right.id], best: 0, at: null });
+        ctx.step("✗ 得到 " + (L + R) + "，但真实答案是 6 —— 最长的那条路径整个藏在左子树里，根本没经过根",
+          { tree: root, cur: root.id, best: L + R, at: root.val, side: { 错误结论: L + R } });
+      }
+    },
+    build: function (ctx) {
+      var root = toTree(T543), best = 0, at = null, done = [];
+      ctx.step("直径 = 某个节点的「左深 + 右深」的最大值。注意这个节点不一定是根 —— 本题就不是",
+        { tree: root, best: 0, at: null }, { line: 1 });
+      (function go(n) {
+        if (!n) return 0;
+        ctx.phase("recursive_enter", "下潜到 " + n.val, { tree: root, cur: n.id, done: done.slice(), best: best, at: at }, { line: 1 });
+        var L = go(n.left), R = go(n.right);
+        var through = L + R;
+        var improved = through > best;
+        if (improved) { best = through; at = n.val; }
+        done.push(n.id);
+        ctx.phase(improved ? "done" : "recursive_return",
+          n.val + "：左深 " + L + " + 右深 " + R + " = " + through + " 条边" + (improved ? " → 刷新最大直径为 " + best + "！" : "（没超过 " + best + "）"),
+          { tree: root, cur: n.id, hl: improved ? [n.id] : [], done: done.slice(), best: best, at: at, side: { 左深: L, 右深: R, 经过它: through, 最大: best } }, { line: 5 });
+        ctx.step(n.val + " 向上只能带一边的深度：max(" + L + ", " + R + ") + 1 = " + (Math.max(L, R) + 1),
+          { tree: root, cur: n.id, done: done.slice(), best: best, at: at }, { line: 6 });
+        return Math.max(L, R) + 1;
+      })(root);
+      ctx.phase("done", "完成！最大直径 = " + best + " 条边，在节点 " + at + " 处取得，整条路径没有经过根节点 1",
+        { tree: root, done: done, best: best, at: at, side: { 答案: best } }, { line: 5 });
+    },
+    render: drawTree
+  }
 };
 
 </script>
@@ -1033,6 +2126,8 @@ var DEMOS = {
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
       sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 520,
+      code: d.code, invariants: d.invariants, compare: d.compare,
       build: d.build, render: d.render
     });
   }

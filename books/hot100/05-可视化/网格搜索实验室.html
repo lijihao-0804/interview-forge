@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<html lang="zh-CN"><head>
+<html lang="zh-CN">
+<head>
 <style id="hot100-visual-theme">
 /* ===== 演示页统一主题层（demo-kit 同源令牌，元素级归一化，不改各页逻辑） ===== */
 :root{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
@@ -45,8 +46,11 @@ code,pre{font-family:var(--font-mono)!important}
   if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
 })();
 </script>
-<meta content="light dark" name="color-scheme"/><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>网格搜索实验室</title>
-<style>:root{color-scheme:light dark;--bg:#f6f7fb;--panel:#fff;--text:#172033;--muted:#68758a;--line:#d9e0eb;--brand:#5755d9;--soft:#ededff;--wall:#465066;--visit:#1c9566}@media(prefers-color-scheme:dark){:root{--bg:#10131a;--panel:#191e28;--text:#eef2ff;--muted:#9ca8ba;--line:#343d4d;--brand:#aaa8ff;--soft:#292953;--wall:#667087;--visit:#72d6a6}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}.shell{max-width:900px;margin:auto;padding:24px}a{color:var(--brand)}h1{margin:0}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}button,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px}button{cursor:pointer}.primary{background:var(--brand);color:var(--bg)}.layout{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:20px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.cell{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;font-weight:700}.wall{background:var(--wall);color:white}.frontier{background:var(--soft);outline:3px solid color-mix(in srgb,var(--brand) 55%,transparent)}.visited{background:color-mix(in srgb,var(--visit) 25%,transparent);color:var(--visit)}.current{background:var(--brand);color:var(--bg)}.queue{display:flex;gap:7px;flex-wrap:wrap;min-height:42px}.token{padding:5px 8px;border:1px solid var(--line);border-radius:8px}.log{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);min-height:70px}.muted{color:var(--muted)}@media(max-width:700px){.layout{grid-template-columns:1fr}}</style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>网格搜索实验室 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -478,7 +482,621 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 })();
 </script></head>
 <body>
-<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>网格搜索实验室</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>网格搜索实验室</h1><div class="muted">比较 DFS 的“深入再回退”和 BFS 的“按距离扩散”；两者都必须在加入容器时立即标记。</div><div class="toolbar"><select id="mode"><option value="bfs">BFS：队列</option><option value="dfs">DFS：栈</option></select><button class="primary" id="step">访问下一格</button><button id="reset">重置</button><button id="auto">自动播放</button></div><div class="layout"><section class="panel"><div class="grid" id="grid"></div></section><section class="panel"><h2 id="containerTitle">队列</h2><div class="queue" id="container"></div><p>已访问：<strong id="count">0</strong> 格</p><div aria-live="polite" class="log" id="log"></div></section></div></main>
-<script>const maze=['......','.###..','...#..','.#....','...##.','......'].map(r=>[...r]),R=6,C=6,$=id=>document.getElementById(id);let s,timer,playing=false;const dirs=[[1,0],[-1,0],[0,1],[0,-1]];const key=(r,c)=>r+','+c;function stop(){if(timer){clearTimeout(timer);timer=null}playing=false;$('auto').textContent='自动播放'}function schedule(){if(!playing||timer)return;timer=setTimeout(()=>{timer=null;step();if(s.bag.length)schedule();else stop()},600)}function init(){stop();s={bag:[[0,0]],seen:new Set(['0,0']),current:null,visited:[],msg:'起点 (0,0) 已加入容器并立即标记。'};render()}function step(){if(!s.bag.length){s.msg='搜索结束：所有从起点可达的格子都已访问。';render();return}const mode=$('mode').value;s.current=mode==='bfs'?s.bag.shift():s.bag.pop();s.visited.push(key(...s.current));const [r,c]=s.current,added=[];for(const[dR,dC]of dirs){const nr=r+dR,nc=c+dC,k=key(nr,nc);if(nr>=0&&nr<R&&nc>=0&&nc<C&&maze[nr][nc]!== '#'&&!s.seen.has(k)){s.seen.add(k);s.bag.push([nr,nc]);added.push(`(${nr},${nc})`)}}s.msg=`访问 (${r},${c})；新加入：${added.join('、')||'无'}。注意加入时就标记，防止重复入队/入栈。`;render()}function render(){$('containerTitle').textContent=$('mode').value==='bfs'?'队列（先入先出）':'栈（后入先出）';$('grid').innerHTML=maze.flatMap((row,r)=>row.map((v,c)=>{const k=key(r,c),cls=v==='#'?'wall':s.current&&s.current[0]===r&&s.current[1]===c?'current':s.visited.includes(k)?'visited':s.bag.some(p=>p[0]===r&&p[1]===c)?'frontier':'';return `<div class="cell ${cls}" aria-label="${r},${c}">${v==='#'?'墙':r+','+c}</div>`})).join('');$('container').innerHTML=s.bag.map(p=>`<span class="token">(${p[0]},${p[1]})</span>`).join('')||'<span class="muted">空</span>';$('count').textContent=s.visited.length;$('log').textContent=s.msg}$('step').onclick=step;$('reset').onclick=init;$('mode').onchange=init;$('auto').onclick=()=>{if(playing){stop()}else{playing=true;$('auto').textContent='暂停';schedule()}};window.addEventListener('pagehide',stop);init();</script>
+<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>网格搜索实验室 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 网格搜索实验室：200 / 994 / 79。三道题共用一套网格渲染，逐格推进 ===== */
+var el = DemoKit.el;
+
+var DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+var DIRNAME = ["上", "下", "左", "右"];
+
+function makeSt(rows, cols, fn) {
+  var m = [];
+  for (var r = 0; r < rows; r++) { m.push([]); for (var c = 0; c < cols; c++) m[r].push(fn ? fn(r, c) : null); }
+  return m;
+}
+function clone(g) {
+  var m = [];
+  for (var r = 0; r < g.length; r++) m.push(g[r].slice());
+  return m;
+}
+function rc(r, c) { return "(" + r + "," + c + ")"; }
+
+function renderGrid(view, stage) {
+  var g = view.grid, st = view.st || [];
+  stage.textContent = "";
+  var box = el("div");
+  box.style.cssText = "display:flex;flex-direction:column;gap:10px;align-items:flex-start";
+
+  if (view.vars && view.vars.length) {
+    var vb = el("div", "dk-vars");
+    vb.style.cssText = "margin:0";
+    view.vars.forEach(function (v) {
+      var s = el("span", "dk-var");
+      s.appendChild(el("b", null, v[0] + "："));
+      s.appendChild(document.createTextNode(String(v[1])));
+      vb.appendChild(s);
+    });
+    box.appendChild(vb);
+  }
+
+  var tbl = el("table");
+  tbl.style.cssText = "border-collapse:separate;border-spacing:6px";
+  if (view.axes) {
+    var head = el("tr");
+    head.appendChild(el("td"));
+    for (var c0 = 0; c0 < g[0].length; c0++) {
+      var th = el("td", null, "c" + c0);
+      th.style.cssText = "font-size:11px;color:var(--dk-muted);text-align:center";
+      head.appendChild(th);
+    }
+    tbl.appendChild(head);
+  }
+  for (var r = 0; r < g.length; r++) {
+    var tr = el("tr");
+    if (view.axes) {
+      var rh = el("td", null, "r" + r);
+      rh.style.cssText = "font-size:11px;color:var(--dk-muted);padding-right:2px";
+      tr.appendChild(rh);
+    }
+    for (var c = 0; c < g[r].length; c++) {
+      var cls = (st[r] && st[r][c]) ? " " + st[r][c] : "";
+      var cell = el("td", "dk-cell" + cls, String(g[r][c]));
+      cell.style.cssText = "min-width:40px;text-align:center;padding:8px 6px";
+      tr.appendChild(cell);
+    }
+    tbl.appendChild(tr);
+  }
+  box.appendChild(tbl);
+
+  if (view.out) {
+    var ob = el("div");
+    ob.style.cssText = "display:flex;gap:5px;align-items:center;flex-wrap:wrap";
+    var lab = el("span", null, view.outLabel || "输出");
+    lab.style.cssText = "font-size:12px;color:var(--dk-muted);margin-right:2px";
+    ob.appendChild(lab);
+    if (!view.out.length) {
+      var em = el("span", null, "（还是空的）");
+      em.style.cssText = "font-size:12px;color:var(--dk-muted)";
+      ob.appendChild(em);
+    }
+    view.out.forEach(function (v, i) {
+      var chip = el("span", "dk-cell" + (i === view.out.length - 1 ? " cmp" : " target"), String(v));
+      chip.style.cssText = "min-width:0;padding:4px 8px;font-size:12px";
+      ob.appendChild(chip);
+    });
+    box.appendChild(ob);
+  }
+  if (view.note) box.appendChild(el("div", "dk-note", view.note));
+  stage.appendChild(box);
+}
+
+/* ---------- 200 的三组网格 ---------- */
+var G200 = [
+  { label: "5×5（默认：斜着挨着不算一座岛）", g: [
+    [1, 1, 0, 0, 1],
+    [1, 0, 0, 1, 1],
+    [0, 0, 1, 0, 0],
+    [0, 1, 1, 0, 1],
+    [1, 0, 0, 0, 1]] },
+  { label: "环形岛（当中的湖不算新岛）", g: [
+    [1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1]] },
+  { label: "示例 2（3 座岛）", g: [
+    [1, 1, 0, 0, 0],
+    [1, 1, 0, 0, 0],
+    [0, 0, 1, 0, 0],
+    [0, 0, 0, 1, 1]] }
+];
+
+/* ---------- 994 的三组网格 ---------- */
+var G994 = [
+  { label: "4×5 双起点（默认：5 分钟烂完）", g: [
+    [2, 1, 1, 0, 1],
+    [1, 1, 0, 1, 1],
+    [0, 1, 1, 1, 0],
+    [0, 0, 1, 1, 2]] },
+  { label: "有橘子被围死 → 返回 -1", g: [
+    [2, 1, 1, 0, 1],
+    [1, 1, 0, 1, 1],
+    [0, 1, 1, 1, 0],
+    [1, 0, 1, 1, 2]] },
+  { label: "示例 1（3×3，4 分钟）", g: [
+    [2, 1, 1],
+    [1, 1, 0],
+    [0, 1, 1]] }
+];
+
+/* ---------- 79 的棋盘与三个单词 ---------- */
+var B79 = [["A", "B", "C", "E"], ["S", "F", "C", "S"], ["A", "D", "E", "E"]];
+
+var DEMOS = {
+
+  "0200": {
+    no: "200", title: "岛屿数量", tag: "网格 · DFS 沉岛（连通块计数）",
+    example: "输入：'1' 陆地 / '0' 水的网格　输出：四连通的陆地块数。斜着挨着的两块算两座岛",
+    sizes: G200,
+    defaultSize: 0,
+    stageHeight: 460,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "for (int r = 0; r < m; r++) for (int c = 0; c < n; c++)",
+          "    if (g[r][c] == '1') { count++; dfs(g, r, c); }",
+          "void dfs(char[][] g, int r, int c) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!='1') return;",
+          "    g[r][c] = '0';   // 沉没：等价于标记已访问",
+          "    dfs(g,r+1,c); dfs(g,r-1,c); dfs(g,r,c+1); dfs(g,r,c-1); }"
+        ],
+        cpp: [
+          "for (int r = 0; r < m; ++r) for (int c = 0; c < n; ++c)",
+          "    if (g[r][c] == '1') { ++count; dfs(g, r, c); }",
+          "void dfs(vector<vector<char>>& g, int r, int c) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!='1') return;",
+          "    g[r][c] = '0';   // 沉没：等价于标记已访问",
+          "    dfs(g,r+1,c); dfs(g,r-1,c); dfs(g,r,c+1); dfs(g,r,c-1); }"
+        ],
+        python: [
+          "for r, c in product(range(m), range(n)):",
+          "    if g[r][c] == '1': count += 1; dfs(r, c)",
+          "def dfs(r, c):",
+          "    if not (0 <= r < m and 0 <= c < n) or g[r][c] != '1': return",
+          "    g[r][c] = '0'    # 沉没：等价于标记已访问",
+          "    dfs(r+1,c); dfs(r-1,c); dfs(r,c+1); dfs(r,c-1)"
+        ],
+        go: [
+          "for r := 0; r < m; r++ { for c := 0; c < n; c++ {",
+          "    if g[r][c] == '1' { count++; dfs(g, r, c) } } }",
+          "func dfs(g [][]byte, r, c int) {",
+          "    if r<0||r>=m||c<0||c>=n||g[r][c]!='1' { return }",
+          "    g[r][c] = '0'    // 沉没：等价于标记已访问",
+          "    dfs(g,r+1,c); dfs(g,r-1,c); dfs(g,r,c+1); dfs(g,r,c-1) }"
+        ],
+        c: [
+          "for (int r = 0; r < m; r++) for (int c = 0; c < n; c++)",
+          "    if (g[r][c] == '1') { count++; dfs(g, r, c); }",
+          "void dfs(char** g, int r, int c) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!='1') return;",
+          "    g[r][c] = '0';   /* 沉没：等价于标记已访问 */",
+          "    dfs(g,r+1,c); dfs(g,r-1,c); dfs(g,r,c+1); dfs(g,r,c-1); }"
+        ]
+      }
+    },
+    invariants: [
+      { label: "沉过的格子不会被二次计数", test: function (v) {
+          return v.sunk === v.landTotal - v.remain
+            ? "已沉 " + v.sunk + " 格，剩 " + v.remain + " 格没访问，加起来正好是陆地总数 " + v.landTotal
+            : false;
+        } },
+      /* 新岛是「先记数、再下潜」，所以刚记完数的那一拍 count 会比 sunk 多 1，
+         这一拍是合法的，不变量必须把它算进去，不能假装它不存在。 */
+      { label: "岛数 ≤ 已沉格数 + 1（刚记数还没下潜的那一拍差 1）", test: function (v) {
+          if (v.count > v.sunk + 1) return false;
+          return v.count === v.sunk + 1
+            ? "第 " + v.count + " 座岛刚记上数，它的第一格马上就沉"
+            : "每座岛至少占 1 格，" + v.count + " ≤ " + v.sunk;
+        } }
+    ],
+    build: function (ctx, size) {
+      var raw = (size && size.g) || G200[0].g;
+      var m = raw.length, n = raw[0].length;
+      var g = clone(raw), disp = clone(raw);
+      var owner = makeSt(m, n);
+      var count = 0, sunk = 0, landTotal = 0, r, c;
+      for (r = 0; r < m; r++) for (c = 0; c < n; c++) if (raw[r][c] === 1) landTotal++;
+
+      function st(over) {
+        var s = makeSt(m, n, function (rr, cc) {
+          if (raw[rr][cc] === 0) return "dim";
+          return g[rr][cc] === 0 ? "done" : null;
+        });
+        if (over) for (var i = 0; i < over.length; i++) s[over[i][0]][over[i][1]] = over[i][2];
+        return s;
+      }
+      function V(over, note, cur) {
+        var o = (over || []).slice();
+        if (cur) for (var i = 0; i < cur.length; i++) o.unshift([cur[i][0], cur[i][1], "target"]);
+        return {
+          grid: clone(disp), st: st(o), note: note, axes: true,
+          vars: [["岛屿数 count", count], ["已沉没", sunk + " / " + landTotal]],
+          count: count, sunk: sunk, remain: landTotal - sunk, landTotal: landTotal
+        };
+      }
+
+      ctx.step("四连通：只有上下左右算相邻，斜着挨着的两块陆地是两座岛。做法是逐格扫描，一撞见没沉的陆地就把整座岛一次性沉掉，沉几次就有几座岛。",
+        V(null, "灰色是水，白格是还没访问过的陆地，一共 " + landTotal + " 格。"), { line: 1 });
+
+      for (r = 0; r < m; r++) for (c = 0; c < n; c++) {
+        if (g[r][c] !== 1) continue;
+        count++;
+        var letter = "ABCDEFGHIJ".charAt(count - 1);
+        var cur = [];
+        var diag = [];
+        for (var d = 0; d < 4; d++) {
+          var dr = r + (d < 2 ? -1 : 1), dc = c + (d % 2 === 0 ? -1 : 1);
+          if (dr >= 0 && dr < m && dc >= 0 && dc < n && raw[dr][dc] === 1 && g[dr][dc] === 0) diag.push(rc(dr, dc));
+        }
+        ctx.step("扫描到 " + rc(r, c) + " 还是没沉的陆地 → 第 " + count + " 座岛（记作 " + letter + "），count = " + count + "，从这里下潜。",
+          V([[r, c, "cmp"]], diag.length
+            ? "注意：" + diag.join("、") + " 只是斜对角挨着它，四连通不认斜线，所以那边的岛不能把它并进去。"
+            : "接下来把和它四连通的陆地全部标成 " + letter + "。"), { line: 2 });
+
+        var stack = [[r, c]];
+        while (stack.length) {
+          var p = stack.pop(), pr = p[0], pc = p[1];
+          if (pr < 0 || pr >= m || pc < 0 || pc >= n || g[pr][pc] !== 1) continue;
+          g[pr][pc] = 0; disp[pr][pc] = letter; sunk++; cur.push([pr, pc]);
+          var pushed = [];
+          for (var k = 0; k < 4; k++) {
+            var nr = pr + DIRS[k][0], nc = pc + DIRS[k][1];
+            if (nr >= 0 && nr < m && nc >= 0 && nc < n && g[nr][nc] === 1) { stack.push([nr, nc]); pushed.push(DIRNAME[k] + rc(nr, nc)); }
+          }
+          ctx.step("沉没 " + rc(pr, pc) + "，标成 " + letter + "。" + (pushed.length
+            ? "四周还有陆地：" + pushed.join("、") + " → 压栈继续下潜。"
+            : "四周没有新的陆地了，栈里往回退。"),
+            V([[pr, pc, "cmp"]], "栈里还有 " + stack.length + " 个格子待处理。", cur), { line: pushed.length ? 6 : 5 });
+        }
+        ctx.step("岛 " + letter + " 沉完了，一共 " + cur.length + " 格。回到外层扫描，继续往后找下一块没沉的陆地。",
+          V(null, "已经确认 " + count + " 座岛。", cur), { line: 1 });
+      }
+
+      ctx.step("整张图扫完，" + landTotal + " 格陆地被分成了 " + count + " 座岛 → 返回 " + count + "。",
+        V(null, "每个字母是一座岛。" + (count > 1 ? "对照一下：字母不同但斜着挨着的格子，就是四连通拒绝合并的地方。" : "")), { line: 2 });
+    },
+    render: renderGrid
+  },
+
+  "0994": {
+    no: "994", title: "腐烂的橘子", tag: "网格 · 多源 BFS（按层记分钟）",
+    example: "输入：0 空格 / 1 新鲜 / 2 腐烂　输出：全部腐烂所需分钟数；有橘子永远烂不到则返回 -1",
+    sizes: G994,
+    defaultSize: 0,
+    stageHeight: 440,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "int fresh = countFresh(g), minute = 0;   // q 先装上全部烂橘子（多源）",
+          "while (!q.isEmpty() && fresh > 0) {",
+          "    minute++;",
+          "    for (int k = q.size(); k > 0; k--) {   // 只处理这一分钟的批次",
+          "        int[] p = q.poll();",
+          "        for (int[] nb : neighbors(p)) {",
+          "            if (g[nb[0]][nb[1]] == 1) { g[nb[0]][nb[1]] = 2; fresh--; q.add(nb); } } } }",
+          "return fresh == 0 ? minute : -1;   // 还剩新鲜的 → 永远烂不到"
+        ],
+        cpp: [
+          "int fresh = countFresh(g), minute = 0;   // q 先装上全部烂橘子（多源）",
+          "while (!q.empty() && fresh > 0) {",
+          "    minute++;",
+          "    for (int k = q.size(); k > 0; --k) {   // 只处理这一分钟的批次",
+          "        auto [r, c] = q.front(); q.pop();",
+          "        for (auto [nr, nc] : neighbors(r, c)) {",
+          "            if (g[nr][nc] == 1) { g[nr][nc] = 2; --fresh; q.push({nr, nc}); } } } }",
+          "return fresh == 0 ? minute : -1;   // 还剩新鲜的 → 永远烂不到"
+        ],
+        python: [
+          "fresh, minute = count_fresh(g), 0        # q 先装上全部烂橘子（多源）",
+          "while q and fresh > 0:",
+          "    minute += 1",
+          "    for _ in range(len(q)):              # 只处理这一分钟的批次",
+          "        r, c = q.popleft()",
+          "        for nr, nc in neighbors(r, c):",
+          "            if g[nr][nc] == 1: g[nr][nc] = 2; fresh -= 1; q.append((nr, nc))",
+          "return minute if fresh == 0 else -1      # 还剩新鲜的 → 永远烂不到"
+        ],
+        go: [
+          "fresh, minute := countFresh(g), 0   // q 先装上全部烂橘子（多源）",
+          "for len(q) > 0 && fresh > 0 {",
+          "    minute++",
+          "    for k := len(q); k > 0; k-- {   // 只处理这一分钟的批次",
+          "        p := q[0]; q = q[1:]",
+          "        for _, nb := range neighbors(p) {",
+          "            if g[nb[0]][nb[1]] == 1 { g[nb[0]][nb[1]] = 2; fresh--; q = append(q, nb) } } } }",
+          "if fresh == 0 { return minute }; return -1   // 还剩新鲜的 → 永远烂不到"
+        ],
+        c: [
+          "int fresh = countFresh(g), minute = 0;   /* q 先装上全部烂橘子（多源） */",
+          "while (head < tail && fresh > 0) {",
+          "    minute++;",
+          "    for (int k = tail - head; k > 0; k--) {   /* 只处理这一分钟的批次 */",
+          "        int r = q[head][0], c = q[head][1]; head++;",
+          "        for (int d = 0; d < 4; d++) { int nr = r + DR[d], nc = c + DC[d];",
+          "            if (ok(nr,nc) && g[nr][nc] == 1) { g[nr][nc] = 2; fresh--; q[tail][0]=nr; q[tail++][1]=nc; } } }",
+          "return fresh == 0 ? minute : -1;   /* 还剩新鲜的 → 永远烂不到 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "新鲜数只减不增", test: function (v) {
+          return "还剩 " + v.fresh + " 个新鲜橘子（初始 " + v.fresh0 + " 个）";
+        } },
+      { label: "同一分钟腐烂的橘子层号相同", test: function (v) {
+          return "第 " + v.minute + " 分钟这一批共 " + v.batch + " 个，它们离最近的起点都是 " + v.minute + " 步";
+        } }
+    ],
+    build: function (ctx, size) {
+      var raw = (size && size.g) || G994[0].g;
+      var m = raw.length, n = raw[0].length;
+      var g = clone(raw);
+      var age = makeSt(m, n);
+      var fresh = 0, q = [], minute = 0, batch = 0, r, c;
+      for (r = 0; r < m; r++) for (c = 0; c < n; c++) {
+        if (g[r][c] === 1) fresh++;
+        else if (g[r][c] === 2) { q.push([r, c]); age[r][c] = 0; }
+      }
+      var fresh0 = fresh, sources = q.length;
+
+      function st(over) {
+        var s = makeSt(m, n, function (rr, cc) {
+          if (raw[rr][cc] === 0) return "dim";
+          if (g[rr][cc] !== 2) return null;
+          return age[rr][cc] === minute ? "cmp" : "swap";
+        });
+        if (over) for (var i = 0; i < over.length; i++) s[over[i][0]][over[i][1]] = over[i][2];
+        return s;
+      }
+      function V(over, note) {
+        return {
+          grid: clone(g), st: st(over), note: note, axes: true,
+          vars: [["分钟 minute", minute], ["队列长度", q.length], ["剩余新鲜", fresh]],
+          fresh: fresh, fresh0: fresh0, minute: minute, batch: batch
+        };
+      }
+
+      ctx.step("多源 BFS：先把所有烂橘子一起塞进队列当第 0 层。这里有 " + sources + " 个起点、" + fresh0 + " 个新鲜橘子。" +
+        (sources > 1 ? "两个起点同时扩散，所以答案不是从某一个点量出来的距离，而是所有点的最短距离取最大。" : ""),
+        V(null, "红色是腐烂，白色是新鲜，灰色是空格。"), { line: 1 });
+
+      while (q.length && fresh > 0) {
+        minute++;
+        var size0 = q.length;
+        batch = 0;
+        ctx.step("第 " + minute + " 分钟：先把队列当前长度 " + size0 + " 记下来，这一轮只弹这么多个。" +
+          "不记长度就会把这一分钟新烂的橘子也算进这一分钟，层就串了。",
+          V(null, "待扩散的 " + size0 + " 个橘子是上一分钟刚烂的那一批。"), { line: 4 });
+        for (var k = 0; k < size0; k++) {
+          var p = q.shift(), pr = p[0], pc = p[1];
+          var got = [];
+          for (var d = 0; d < 4; d++) {
+            var nr = pr + DIRS[d][0], nc = pc + DIRS[d][1];
+            if (nr >= 0 && nr < m && nc >= 0 && nc < n && g[nr][nc] === 1) {
+              g[nr][nc] = 2; age[nr][nc] = minute; fresh--; batch++;
+              q.push([nr, nc]); got.push(DIRNAME[d] + rc(nr, nc));
+            }
+          }
+          ctx.step(rc(pr, pc) + (got.length
+            ? " 向外传染：" + got.join("、") + " 变烂并入队，剩余新鲜 " + fresh + "。"
+            : " 四周已经没有新鲜橘子了，出队但不产生新节点。"),
+            V([[pr, pc, "target"]], "橙色是第 " + minute + " 分钟新烂的。"), { line: got.length ? 7 : 6 });
+        }
+      }
+
+      if (fresh === 0) {
+        ctx.step("新鲜数归零，循环结束 → 返回 " + minute + "。最后一个烂掉的橘子离它最近的起点正好 " + minute + " 步。",
+          V(null, "整张图从 " + sources + " 个起点同时扩散，一共用了 " + minute + " 分钟。"), { line: 8 });
+      } else {
+        var left = [];
+        for (r = 0; r < m; r++) for (c = 0; c < n; c++) if (g[r][c] === 1) left.push([r, c, "cmp"]);
+        ctx.step("队列空了，但还剩 " + fresh + " 个新鲜橘子（" + left.map(function (x) { return rc(x[0], x[1]); }).join("、") +
+          "）——它们四周全是空格，腐烂永远传不过去 → 返回 -1。",
+          V(left, "这就是为什么循环退出后一定要再查一次 fresh，不能直接返回 minute。"), { line: 8 });
+      }
+    },
+    render: renderGrid
+  },
+
+  "0079": {
+    no: "79", title: "单词搜索", tag: "网格 · DFS + 回溯（走过的格子要还回去）",
+    example: "输入：字母棋盘 + 目标单词　输出：能否沿上下左右连成该单词，同一个格子不能重复使用",
+    sizes: [
+      { label: "ABCCED（一路顺下去）", word: "ABCCED" },
+      { label: "SEE（默认：要回溯两次才找到）", word: "SEE" },
+      { label: "ABCB（反例：B 不能用两次）", word: "ABCB" }
+    ],
+    defaultSize: 1,
+    stageHeight: 420,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "for (int r = 0; r < m; r++) for (int c = 0; c < n; c++)",
+          "    if (dfs(g, word, r, c, 0)) return true;   // 逐格试起点",
+          "return false;",
+          "boolean dfs(char[][] g, String w, int r, int c, int k) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!=w.charAt(k)) return false;",
+          "    if (k == w.length() - 1) return true;   // 最后一个字符也对上了",
+          "    char save = g[r][c]; g[r][c] = '#';     // 占位：本格已在路径里",
+          "    boolean ok = dfs(g,w,r-1,c,k+1)||dfs(g,w,r+1,c,k+1)||dfs(g,w,r,c-1,k+1)||dfs(g,w,r,c+1,k+1);",
+          "    g[r][c] = save; return ok; }            // 回溯：把格子还回去"
+        ],
+        cpp: [
+          "for (int r = 0; r < m; ++r) for (int c = 0; c < n; ++c)",
+          "    if (dfs(g, word, r, c, 0)) return true;   // 逐格试起点",
+          "return false;",
+          "bool dfs(vector<vector<char>>& g, string& w, int r, int c, int k) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!=w[k]) return false;",
+          "    if (k == (int)w.size() - 1) return true;   // 最后一个字符也对上了",
+          "    char save = g[r][c]; g[r][c] = '#';     // 占位：本格已在路径里",
+          "    bool ok = dfs(g,w,r-1,c,k+1)||dfs(g,w,r+1,c,k+1)||dfs(g,w,r,c-1,k+1)||dfs(g,w,r,c+1,k+1);",
+          "    g[r][c] = save; return ok; }            // 回溯：把格子还回去"
+        ],
+        python: [
+          "for r, c in product(range(m), range(n)):",
+          "    if dfs(r, c, 0): return True             # 逐格试起点",
+          "return False",
+          "def dfs(r, c, k):",
+          "    if not (0 <= r < m and 0 <= c < n) or g[r][c] != w[k]: return False",
+          "    if k == len(w) - 1: return True          # 最后一个字符也对上了",
+          "    save, g[r][c] = g[r][c], '#'             # 占位：本格已在路径里",
+          "    ok = dfs(r-1,c,k+1) or dfs(r+1,c,k+1) or dfs(r,c-1,k+1) or dfs(r,c+1,k+1)",
+          "    g[r][c] = save; return ok                # 回溯：把格子还回去"
+        ],
+        go: [
+          "for r := 0; r < m; r++ { for c := 0; c < n; c++ {",
+          "    if dfs(g, word, r, c, 0) { return true } } }   // 逐格试起点",
+          "return false",
+          "func dfs(g [][]byte, w string, r, c, k int) bool {",
+          "    if r<0||r>=m||c<0||c>=n||g[r][c]!=w[k] { return false }",
+          "    if k == len(w)-1 { return true }        // 最后一个字符也对上了",
+          "    save := g[r][c]; g[r][c] = '#'          // 占位：本格已在路径里",
+          "    ok := dfs(g,w,r-1,c,k+1) || dfs(g,w,r+1,c,k+1) || dfs(g,w,r,c-1,k+1) || dfs(g,w,r,c+1,k+1)",
+          "    g[r][c] = save; return ok }             // 回溯：把格子还回去"
+        ],
+        c: [
+          "for (int r = 0; r < m; r++) for (int c = 0; c < n; c++)",
+          "    if (dfs(g, word, r, c, 0)) return 1;      /* 逐格试起点 */",
+          "return 0;",
+          "int dfs(char** g, const char* w, int r, int c, int k) {",
+          "    if (r<0||r>=m||c<0||c>=n||g[r][c]!=w[k]) return 0;",
+          "    if (w[k+1] == '\\0') return 1;            /* 最后一个字符也对上了 */",
+          "    char save = g[r][c]; g[r][c] = '#';     /* 占位：本格已在路径里 */",
+          "    int ok = dfs(g,w,r-1,c,k+1)||dfs(g,w,r+1,c,k+1)||dfs(g,w,r,c-1,k+1)||dfs(g,w,r,c+1,k+1);",
+          "    g[r][c] = save; return ok; }            /* 回溯：把格子还回去 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "路径长度 = 已匹配的字符数", test: function (v) {
+          return v.path.length === v.k
+            ? "路径里 " + v.k + " 个格子，正好对上 " + v.word.substring(0, v.k) + "（目标 " + v.word + "）"
+            : false;
+        } },
+      { label: "路径上没有重复格子", test: function (v) {
+          var seen = {};
+          for (var i = 0; i < v.path.length; i++) {
+            var key = v.path[i][0] + "," + v.path[i][1];
+            if (seen[key]) return false;
+            seen[key] = 1;
+          }
+          return "同一个格子只在路径里出现一次";
+        } }
+    ],
+    build: function (ctx, size) {
+      var word = (size && size.word) || "SEE";
+      var board = B79, m = board.length, n = board[0].length;
+      var used = makeSt(m, n, function () { return false; });
+      var path = [], r, c;
+
+      function st(over) {
+        var s = makeSt(m, n, function (rr, cc) { return used[rr][cc] ? "target" : null; });
+        if (over) for (var i = 0; i < over.length; i++) s[over[i][0]][over[i][1]] = over[i][2];
+        return s;
+      }
+      function V(over, note) {
+        return {
+          grid: clone(board), st: st(over), note: note, axes: true,
+          out: path.map(function (p) { return board[p[0]][p[1]]; }),
+          outLabel: "当前路径",
+          vars: [["目标单词", word], ["已匹配", path.length + " / " + word.length]],
+          path: path.map(function (p) { return p.slice(); }), k: path.length, word: word
+        };
+      }
+
+      function dfs(pr, pc, k) {
+        if (pr < 0 || pr >= m || pc < 0 || pc >= n) return false;
+        var need = word.charAt(k);
+        if (used[pr][pc] && board[pr][pc] === need) {
+          ctx.step(rc(pr, pc) + " 的字母是 '" + board[pr][pc] + "'，正好是要找的 '" + need +
+            "'，可它已经在当前路径里了 —— 同一个格子不能用第二次（代码里它被占位成 '#'，所以比不上）→ 这条路作废。",
+            V([[pr, pc, "swap"]], "这正是 g[r][c] = '#' 那一行存在的意义。"), { line: 5 });
+          return false;
+        }
+        if (board[pr][pc] !== need) {
+          ctx.step(rc(pr, pc) + " 是 '" + board[pr][pc] + "'，要找的是 '" + need + "' → 对不上，立刻返回 false。" +
+            (used[pr][pc] ? "（它本来也已经在路径里了。）" : ""),
+            V([[pr, pc, "swap"]], "越界和字母对不上共用同一个守卫条件。"), { line: 5 });
+          return false;
+        }
+        used[pr][pc] = true; path.push([pr, pc]);
+        if (k === word.length - 1) {
+          ctx.step(rc(pr, pc) + " = '" + need + "' 是单词的最后一个字符 → 整条路径拼出了 " + word + "，一路返回 true。",
+            V([[pr, pc, "cmp"]], "答案：true。"), { line: 6 });
+          return true;
+        }
+        ctx.step(rc(pr, pc) + " = '" + need + "' 对上第 " + (k + 1) + " 个字符，压进路径并占位成 '#'，接着往四周找 '" +
+          word.charAt(k + 1) + "'。",
+          V([[pr, pc, "cmp"]], "绿色是当前路径上的格子。"), { line: 7 });
+        for (var d = 0; d < 4; d++) {
+          if (dfs(pr + DIRS[d][0], pc + DIRS[d][1], k + 1)) return true;
+        }
+        used[pr][pc] = false; path.pop();
+        ctx.step(rc(pr, pc) + " 的四个方向都没找到 '" + word.charAt(k + 1) +
+          "' → 回溯：把它从路径里摘掉、把 '#' 还原成 '" + board[pr][pc] + "'。不还原的话，别的路径就再也走不了这格了。",
+          V([[pr, pc, "swap"]], "回溯的本质就是「进来做的改动，出去时原样撤销」。"), { line: 9 });
+        return false;
+      }
+
+      var starts = [];
+      for (r = 0; r < m; r++) for (c = 0; c < n; c++) if (board[r][c] === word.charAt(0)) starts.push([r, c]);
+
+      ctx.step("要在棋盘里连出 " + word + "。首字母 '" + word.charAt(0) + "' 出现在 " +
+        starts.map(function (p) { return rc(p[0], p[1]); }).join("、") + "，只有这些格子值得当起点。",
+        V(starts.map(function (p) { return [p[0], p[1], "cmp"]; }), "外层循环其实会扫全部格子，这里把对不上首字母的直接略过。"), { line: 1 });
+
+      var ok = false;
+      for (var i = 0; i < starts.length && !ok; i++) {
+        ctx.step("从 " + rc(starts[i][0], starts[i][1]) + " 起手，k = 0。",
+          V([[starts[i][0], starts[i][1], "cmp"]], "第 " + (i + 1) + " / " + starts.length + " 个候选起点。"), { line: 2 });
+        ok = dfs(starts[i][0], starts[i][1], 0);
+      }
+
+      if (ok) {
+        ctx.step("找到了：" + word + " 在棋盘上确实连得出来 → 返回 true。",
+          V(null, "绿色格子按顺序读出来就是目标单词。"), { line: 2 });
+      } else {
+        ctx.step("所有起点都试过、所有分支都回溯回来了 → " + word + " 连不出来，返回 false。",
+          V(null, "路径已经空了，棋盘也被回溯还原成了最初的样子。"), { line: 3 });
+      }
+    },
+    render: renderGrid
+  }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 460,
+      code: d.code, invariants: d.invariants, compare: d.compare,
+      build: d.build, render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
-</body></html>
+</body>
+</html>

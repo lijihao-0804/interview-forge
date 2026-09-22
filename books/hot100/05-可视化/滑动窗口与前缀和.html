@@ -46,13 +46,11 @@ code,pre{font-family:var(--font-mono)!important}
   if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
 })();
 </script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <meta content="light dark" name="color-scheme"/>
-<meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>
-<title>滑动窗口与前缀和实验室</title>
-<style>
-:root{color-scheme:light dark;--bg:#f6f7fb;--panel:#fff;--text:#172033;--muted:#68758a;--line:#d9e0eb;--brand:#5755d9;--soft:#ededff;--hit:#15835a} @media(prefers-color-scheme:dark){:root{--bg:#10131a;--panel:#191e28;--text:#eef2ff;--muted:#9ca8ba;--line:#343d4d;--brand:#aaa8ff;--soft:#292953;--hit:#7cdaa9}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,"Microsoft YaHei",sans-serif}.shell{max-width:980px;margin:auto;padding:24px}h1{margin:0 0 4px}.muted{color:var(--muted)}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}button,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px}button{cursor:pointer}button.primary{background:var(--brand);color:var(--bg);border-color:var(--brand)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}.cells{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.cell{width:58px;min-height:62px;border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;position:relative;font-size:20px}.cell small{position:absolute;top:2px;left:6px;color:var(--muted);font-size:11px}.cell.in{background:var(--soft);border-color:var(--brand)}.cell.current{outline:3px solid color-mix(in srgb,var(--brand) 45%,transparent)}.state{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.stat{border-left:3px solid var(--brand);padding:8px 12px;background:var(--soft);border-radius:6px}.stat b{display:block;font-size:18px}.log{min-height:64px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}.hit{color:var(--hit);font-weight:700}.map{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.pair{padding:5px 8px;border:1px solid var(--line);border-radius:8px}a{color:var(--brand)}
-</style>
+<title>滑动窗口与前缀和实验室 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -484,20 +482,553 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 })();
 </script></head>
 <body>
-<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>滑动窗口与前缀和实验室</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>滑动窗口与前缀和实验室</h1><div class="muted">同样是“连续区间”，一个维护窗口，一个查询历史前缀。</div>
-<div class="toolbar"><select id="mode"><option value="window">3. 无重复字符的最长子串</option><option value="prefix">560. 和为 K 的子数组</option></select><button class="primary" id="step">下一步</button><button id="reset">重置</button><button id="auto">自动播放</button></div>
-<section class="panel"><h2 id="title"></h2><div class="cells" id="cells"></div><div class="state" id="state"></div><div class="map" id="map"></div><div aria-live="polite" class="log" id="log"></div></section>
-</main><script>
-const $=id=>document.getElementById(id);let timer=null,playing=false,ctx;
-function stopAuto(){if(timer){clearTimeout(timer);timer=null}playing=false;$('auto').textContent='自动播放'}
-function finished(){return $('mode').value==='window'?ctx.i>=ctx.s.length-1:ctx.i>=ctx.nums.length-1}
-function scheduleAuto(){if(!playing||timer)return;timer=setTimeout(()=>{timer=null;next();if(finished())stopAuto();else scheduleAuto()},900)}
-function init(){stopAuto();if($('mode').value==='window')ctx={i:-1,left:0,best:0,last:new Map(),s:[...'abcabcbb'],msg:'窗口为空。右端将逐个纳入字符。'};else ctx={i:-1,prefix:0,ans:0,k:2,nums:[1,1,1],count:new Map([[0,1]]),msg:'先放入前缀和 0 一次，表示从下标 0 开始的子数组。'};render()}
-function next(){if($('mode').value==='window')nextWindow();else nextPrefix();render()}
-function nextWindow(){if(ctx.i>=ctx.s.length-1){ctx.msg='演示完成：最长无重复子串长度为 '+ctx.best;return}ctx.i++;const ch=ctx.s[ctx.i],old=ctx.left;if(ctx.last.has(ch)&&ctx.last.get(ch)>=ctx.left)ctx.left=ctx.last.get(ch)+1;ctx.last.set(ch,ctx.i);ctx.best=Math.max(ctx.best,ctx.i-ctx.left+1);ctx.msg=old===ctx.left?`纳入 '${ch}'，窗口仍无重复。`:`'${ch}' 在窗口中重复，left 从 ${old} 跳到 ${ctx.left}。`}
-function nextPrefix(){if(ctx.i>=ctx.nums.length-1){ctx.msg='演示完成：共有 '+ctx.ans+' 个子数组和为 '+ctx.k;return}ctx.i++;const x=ctx.nums[ctx.i];ctx.prefix+=x;const need=ctx.prefix-ctx.k,found=ctx.count.get(need)||0;ctx.ans+=found;ctx.count.set(ctx.prefix,(ctx.count.get(ctx.prefix)||0)+1);ctx.msg=`prefix=${ctx.prefix}，查找历史前缀 ${need}，出现 ${found} 次，因此新增 ${found} 个答案。`}
-function render(){const isW=$('mode').value==='window';$('title').textContent=isW?'窗口不变量：s[left..right] 内无重复':'前缀关系：prefix[j] - prefix[i] = k';const arr=isW?ctx.s:ctx.nums;$('cells').innerHTML=arr.map((v,i)=>`<div class="cell ${isW&&i>=ctx.left&&i<=ctx.i?'in':''} ${i===ctx.i?'current':''}"><small>${i}</small>${v}</div>`).join('');if(isW){$('state').innerHTML=`<div class="stat">left<b>${ctx.left}</b></div><div class="stat">right<b>${Math.max(ctx.i,0)}</b></div><div class="stat">当前长度<b>${ctx.i<0?0:ctx.i-ctx.left+1}</b></div><div class="stat">历史最大<b>${ctx.best}</b></div>`;$('map').innerHTML=[...ctx.last].map(([k,v])=>`<span class="pair">${k} → ${v}</span>`).join('')}else{$('state').innerHTML=`<div class="stat">当前下标<b>${Math.max(ctx.i,0)}</b></div><div class="stat">当前前缀和<b>${ctx.prefix}</b></div><div class="stat">目标 k<b>${ctx.k}</b></div><div class="stat">答案数<b>${ctx.ans}</b></div>`;$('map').innerHTML=[...ctx.count].map(([k,v])=>`<span class="pair">前缀 ${k}：${v} 次</span>`).join('')}$('log').innerHTML=ctx.msg.replace(/新增 [1-9]\d* 个答案/,'<span class="hit">$&</span>')}
-$('step').onclick=()=>{stopAuto();next()};$('reset').onclick=init;$('mode').onchange=init;$('auto').onclick=()=>{if(playing){stopAuto()}else{playing=true;$('auto').textContent='暂停';scheduleAuto()}};window.addEventListener('pagehide',stopAuto);init();
+<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>滑动窗口与前缀和实验室 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 滑动窗口与前缀和实验室：3 / 560 / 76。共用一套「一排格子 + 辅助表」渲染 ===== */
+var el = DemoKit.el;
+
+function renderWin(view, stage) {
+  stage.textContent = "";
+
+  if (view.vars && view.vars.length) {
+    var vb = el("div", "dk-vars");
+    view.vars.forEach(function (v) {
+      var s = el("span", "dk-var");
+      s.appendChild(el("b", null, v[0] + "："));
+      s.appendChild(document.createTextNode(String(v[1])));
+      vb.appendChild(s);
+    });
+    stage.appendChild(vb);
+  }
+
+  var line = el("div");
+  line.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 4px;padding-top:44px";
+  (view.vals || []).forEach(function (v, i) {
+    var st = (view.st && view.st[i]) || "";
+    var cell = el("div", "dk-cell" + (st ? " " + st : ""), String(v));
+    cell.appendChild(el("span", "idx", String(i)));
+    (view.ptrs || []).forEach(function (p) {
+      if (p.i === i) cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+    });
+    line.appendChild(cell);
+  });
+  stage.appendChild(line);
+
+  if (view.pairs) {
+    var pw = el("div");
+    pw.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px";
+    pw.appendChild(el("span", "dk-var", view.pairsTitle || "辅助表"));
+    if (!view.pairs.length) pw.appendChild(el("span", "dk-note", "（空）"));
+    view.pairs.forEach(function (p) {
+      var chip = el("div", "dk-cell" + (p[2] ? " " + p[2] : ""), p[0] + " → " + p[1]);
+      chip.style.fontSize = "13px";
+      pw.appendChild(chip);
+    });
+    stage.appendChild(pw);
+  }
+
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
+}
+
+function pairsOf(map, hotKey) {
+  return Object.keys(map).map(function (k) {
+    return [k, map[k], String(k) === String(hotKey) ? "hot" : ""];
+  });
+}
+
+var DEMOS = {
+
+  "0003": {
+    no: "3", title: "无重复字符的最长子串", tag: "滑动窗口 · left 只进不退",
+    example: "输入：字符串 s　输出：最长的、内部没有重复字符的子串长度",
+    sizes: [
+      { label: "abbacd（第二个 a：left 不能被拉回）", s: "abbacd" },
+      { label: "tmmzuxt（末尾 t 的旧位置早已出窗）", s: "tmmzuxt" },
+      { label: "abcabcbb（基础款）", s: "abcabcbb" }
+    ],
+    defaultSize: 0,
+    stageHeight: 420,
+    code: {
+      title: "哈希表记录“最后出现的下标”",
+      langs: {
+        java: [
+          "int left = 0, best = 0;",
+          "Map<Character, Integer> last = new HashMap<>();  // 字符 → 最后出现的下标",
+          "for (int r = 0; r < s.length(); r++) {",
+          "    char c = s.charAt(r);",
+          "    if (last.containsKey(c)) left = Math.max(left, last.get(c) + 1);  // 只进不退",
+          "    last.put(c, r);",
+          "    best = Math.max(best, r - left + 1); }   // 窗口 [left, r] 内保证无重复"
+        ],
+        cpp: [
+          "int left = 0, best = 0;",
+          "unordered_map<char, int> last;                  // 字符 → 最后出现的下标",
+          "for (int r = 0; r < (int)s.size(); ++r) {",
+          "    char c = s[r];",
+          "    if (last.count(c)) left = max(left, last[c] + 1);   // 只进不退",
+          "    last[c] = r;",
+          "    best = max(best, r - left + 1); }        // 窗口 [left, r] 内保证无重复"
+        ],
+        python: [
+          "left = best = 0",
+          "last = {}                                    # 字符 → 最后出现的下标",
+          "for r in range(len(s)):",
+          "    c = s[r]",
+          "    if c in last: left = max(left, last[c] + 1)         # 只进不退",
+          "    last[c] = r",
+          "    best = max(best, r - left + 1)           # 窗口 [left, r] 内保证无重复"
+        ],
+        go: [
+          "left, best := 0, 0",
+          "last := map[byte]int{}                       // 字符 → 最后出现的下标",
+          "for r := 0; r < len(s); r++ {",
+          "    c := s[r]",
+          "    if p, ok := last[c]; ok && p+1 > left { left = p + 1 }   // 只进不退",
+          "    last[c] = r",
+          "    if r-left+1 > best { best = r - left + 1 } }   // 窗口内保证无重复"
+        ],
+        c: [
+          "int left = 0, best = 0, last[128];",
+          "memset(last, -1, sizeof(last));              /* 字符 → 最后出现的下标 */",
+          "for (int r = 0; s[r]; r++) {",
+          "    char c = s[r];",
+          "    if (last[(int)c] >= left) left = last[(int)c] + 1;  /* 只进不退 */",
+          "    last[(int)c] = r;",
+          "    if (r - left + 1 > best) best = r - left + 1; }  /* 窗口内保证无重复 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "left 单调不减", test: function (v) {
+          return v.left >= v.prevLeft
+            ? "上一帧 left=" + v.prevLeft + "，现在 left=" + v.left + "，只会往右"
+            : false;
+        } },
+      /* 「纳入右端字符」和「收左端」是分开的两拍，中间那一拍窗口里本来就允许有一对
+         重复 —— 而且只能是刚进来的那个字符。把这一拍写清楚，比假装它不存在更诚实。 */
+      { label: "窗口内无重复 —— 只有刚纳入的右端字符可能撞车（下一拍就收 left）", test: function (v) {
+          var seen = {}, i, dup = 0;
+          for (i = v.left; i <= v.right; i++) {
+            if (seen[v.vals[i]]) {
+              dup++;
+              if (v.vals[i] !== v.vals[v.right]) return false;  // 撞车的不是新字符 → 真出错了
+            }
+            seen[v.vals[i]] = 1;
+          }
+          if (dup > 1) return false;
+          if (v.right < v.left) return "窗口为空";
+          return dup
+            ? "刚纳入的 '" + v.vals[v.right] + "' 与窗口里的旧位置撞车，下一拍 left 会跳过去"
+            : "s[" + v.left + ".." + v.right + "] 共 " + (v.right - v.left + 1) + " 个字符，两两不同";
+        } }
+    ],
+    build: function (ctx, size) {
+      var s = (size && size.s) || "abbacd";
+      var arr = s.split("");
+      var last = {}, left = 0, best = 0, bestL = 0, prevLeft = 0;
+
+      function V(r, hotKind, note) {
+        var st = {}, i;
+        for (i = 0; i < arr.length; i++) {
+          if (i > r) st[i] = "dim";
+          else if (i < left) st[i] = "done";
+          else st[i] = "hot";
+        }
+        if (r >= 0 && hotKind) st[r] = hotKind;
+        var ptrs = [];
+        if (r >= 0) {
+          ptrs.push({ i: left, label: "left", c: "c3" });
+          ptrs.push({ i: r, label: "right", c: "c1" });
+        }
+        return {
+          vals: arr, st: st, ptrs: ptrs, note: note,
+          left: left, right: r, prevLeft: prevLeft,
+          vars: [["left", left], ["right", r < 0 ? "—" : r],
+                 ["当前长度", r < 0 ? 0 : r - left + 1], ["历史最长", best]],
+          pairs: pairsOf(last, r >= 0 ? arr[r] : null),
+          pairsTitle: "last（字符 → 最后下标）"
+        };
+      }
+
+      ctx.step("窗口为空。right 逐个纳入字符，left 只会前进 —— 这是本题唯一容易写错的地方",
+        V(-1, null, "s = \"" + s + "\""), { line: 1 });
+
+      for (var r = 0; r < arr.length; r++) {
+        var c = arr[r];
+        var prev = Object.prototype.hasOwnProperty.call(last, c) ? last[c] : -1;
+        prevLeft = left;
+        ctx.step("right=" + r + "：纳入 '" + c + "'", V(r, "cmp", null), { line: 4 });
+
+        if (prev >= left) {
+          left = prev + 1;
+          ctx.step("'" + c + "' 上次出现在 " + prev + "，还在窗口里 → left 跳到 " + left,
+            V(r, "swap", "重复字符必须被挤出去"), { line: 5 });
+        } else if (prev >= 0) {
+          ctx.step("'" + c + "' 上次出现在 " + prev + "，但 left 已经是 " + left + " —— 旧位置早出窗了，left 不倒退",
+            V(r, "cmp", "写成 left = last[c] + 1 就会在这里把窗口拉回去，答案偏大"), { line: 5 });
+        }
+
+        last[c] = r;
+        var len = r - left + 1;
+        if (len > best) {
+          best = len; bestL = left;
+          ctx.step("窗口 [" + left + ", " + r + "] 长度 " + len + " → 刷新最长记录",
+            V(r, "target", null), { line: 7 });
+        } else {
+          ctx.step("窗口 [" + left + ", " + r + "] 长度 " + len + " ≤ 历史最长 " + best,
+            V(r, "hot", null), { line: 7 });
+        }
+      }
+
+      prevLeft = left;
+      ctx.step("完成！最长无重复子串 = \"" + s.slice(bestL, bestL + best) + "\"，长度 " + best,
+        V(arr.length - 1, "target", "整趟只有 left、right 各走一遍 → O(n)"), { line: 7 });
+    },
+    render: renderWin
+  },
+
+  "0560": {
+    no: "560", title: "和为 K 的子数组", tag: "前缀和 · 历史频次表",
+    example: "输入：整数数组 nums（可含负数）与目标 k　输出：和恰好为 k 的连续子数组个数",
+    sizes: [
+      { label: "[3,4,7,2,-3,1,4,2] k=7（含负数，前缀会回头）", nums: [3, 4, 7, 2, -3, 1, 4, 2], k: 7 },
+      { label: "[1,2,3,-3,1,1,1] k=3（同一前缀值出现多次）", nums: [1, 2, 3, -3, 1, 1, 1], k: 3 },
+      { label: "[1,1,1] k=2（基础款）", nums: [1, 1, 1], k: 2 }
+    ],
+    defaultSize: 0,
+    stageHeight: 430,
+    code: {
+      title: "前缀和 + 出现次数哈希表",
+      langs: {
+        java: [
+          "Map<Integer, Integer> cnt = new HashMap<>();",
+          "cnt.put(0, 1);        // 前缀和 0 出现 1 次：代表“从下标 0 开始”的子数组",
+          "int prefix = 0, ans = 0;",
+          "for (int x : nums) {",
+          "    prefix += x;                              // prefix = nums[0..i] 的和",
+          "    ans += cnt.getOrDefault(prefix - k, 0);   // 有几个旧前缀满足 prefix-旧=k",
+          "    cnt.merge(prefix, 1, Integer::sum); }     // 再把当前前缀记进表里"
+        ],
+        cpp: [
+          "unordered_map<int, int> cnt;",
+          "cnt[0] = 1;           // 前缀和 0 出现 1 次：代表“从下标 0 开始”的子数组",
+          "int prefix = 0, ans = 0;",
+          "for (int x : nums) {",
+          "    prefix += x;                              // prefix = nums[0..i] 的和",
+          "    if (cnt.count(prefix - k)) ans += cnt[prefix - k];  // 旧前缀出现几次",
+          "    cnt[prefix]++; }                          // 再把当前前缀记进表里"
+        ],
+        python: [
+          "cnt = defaultdict(int)",
+          "cnt[0] = 1            # 前缀和 0 出现 1 次：代表“从下标 0 开始”的子数组",
+          "prefix = ans = 0",
+          "for x in nums:",
+          "    prefix += x                               # prefix = nums[0..i] 的和",
+          "    ans += cnt[prefix - k]                    # 有几个旧前缀满足 prefix-旧=k",
+          "    cnt[prefix] += 1                          # 再把当前前缀记进表里"
+        ],
+        go: [
+          "cnt := map[int]int{}",
+          "cnt[0] = 1            // 前缀和 0 出现 1 次：代表“从下标 0 开始”的子数组",
+          "prefix, ans := 0, 0",
+          "for _, x := range nums {",
+          "    prefix += x                               // prefix = nums[0..i] 的和",
+          "    ans += cnt[prefix-k]                      // 有几个旧前缀满足 prefix-旧=k",
+          "    cnt[prefix]++ }                           // 再把当前前缀记进表里"
+        ],
+        c: [
+          "HashMap *cnt = map_new();",
+          "map_put(cnt, 0, 1);   /* 前缀和 0 出现 1 次：代表“从下标 0 开始”的子数组 */",
+          "int prefix = 0, ans = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    prefix += nums[i];                        /* prefix = nums[0..i] 的和 */",
+          "    ans += map_get(cnt, prefix - k);          /* 旧前缀出现几次 */",
+          "    map_put(cnt, prefix, map_get(cnt, prefix) + 1); }  /* 记进表里 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "表里的次数总和 = 已处理的前缀个数", test: function (v) {
+          var sum = 0, kk;
+          for (kk in v.cnt) sum += v.cnt[kk];
+          return sum === v.done + 1
+            ? "已处理 " + v.done + " 个元素 + 初始的 0 → 表里共 " + sum + " 次"
+            : false;
+        } },
+      { label: "答案只会增加", test: function (v) {
+          return v.ans >= v.prevAns ? "上一帧 " + v.prevAns + " → 现在 " + v.ans : false;
+        } }
+    ],
+    build: function (ctx, size) {
+      var nums = (size && size.nums) || [3, 4, 7, 2, -3, 1, 4, 2];
+      var k = (size && size.k) || 7;
+      var cnt = { 0: 1 }, prefix = 0, ans = 0, prevAns = 0, done = 0;
+
+      function V(i, kind, hotKey, note) {
+        var st = {}, j;
+        for (j = 0; j < nums.length; j++) {
+          if (j > i) st[j] = "dim";
+          else if (j === i) st[j] = kind || "hot";
+          else st[j] = "done";
+        }
+        return {
+          vals: nums, st: st, note: note,
+          ptrs: i >= 0 ? [{ i: i, label: "i", c: "c1" }] : [],
+          /* cnt 每一帧都要拍快照：直接挂引用的话，后面的 cnt[prefix]++ 会把已经
+             录好的旧帧一起改掉，回看时看到的全是最终结果。 */
+          cnt: (function () { var c = {}, kk; for (kk in cnt) c[kk] = cnt[kk]; return c; })(),
+          ans: ans, prevAns: prevAns, done: done,
+          vars: [["i", i < 0 ? "—" : i], ["prefix", prefix], ["k", k], ["答案数", ans]],
+          pairs: pairsOf(cnt, hotKey),
+          pairsTitle: "cnt（前缀和 → 出现次数）"
+        };
+      }
+
+      ctx.step("先把前缀和 0 记 1 次 —— 它代表“从下标 0 开始”的那一类子数组，漏了它会少算",
+        V(-1, null, 0, "nums = [" + nums.join(", ") + "]，k = " + k), { line: 2 });
+
+      for (var i = 0; i < nums.length; i++) {
+        prevAns = ans;
+        prefix += nums[i];
+        ctx.step("i=" + i + "：prefix += " + nums[i] + " → prefix = " + prefix,
+          V(i, "hot", null, "prefix 是 nums[0.." + i + "] 的和"), { line: 5 });
+
+        var need = prefix - k;
+        var found = Object.prototype.hasOwnProperty.call(cnt, need) ? cnt[need] : 0;
+        ans += found;
+        ctx.step("查历史前缀 " + need + "（= prefix − k）：出现 " + found + " 次 → 答案 +" + found + " = " + ans,
+          V(i, found ? "target" : "cmp", need,
+            found ? "每一次旧前缀 " + need + " 都对应一个以 i=" + i + " 结尾、和为 " + k + " 的子数组"
+                  : "没有旧前缀等于 " + need + "，这一轮不贡献答案"), { line: 6 });
+
+        cnt[prefix] = (Object.prototype.hasOwnProperty.call(cnt, prefix) ? cnt[prefix] : 0) + 1;
+        done = i + 1;
+        ctx.step("把当前前缀 " + prefix + " 记进表：现在出现 " + cnt[prefix] + " 次",
+          V(i, "write", prefix,
+            cnt[prefix] > 1 ? "同一个前缀值出现多次 —— 正是因为数组里有负数，前缀和会回头" : null), { line: 7 });
+      }
+
+      prevAns = ans;
+      ctx.step("完成！和为 " + k + " 的子数组共 " + ans + " 个（单遍 O(n)，不需要枚举区间）",
+        V(nums.length - 1, "target", null, null), { line: 6 });
+    },
+    render: renderWin
+  },
+
+  "0076": {
+    no: "76", title: "最小覆盖子串", tag: "滑动窗口 · 缺口计数 + 收缩",
+    example: "输入：s 与 t　输出：s 中涵盖 t 全部字符（含重复次数）的最短子串",
+    sizes: [
+      { label: "s=ADOBECODEBANC, t=ABC（经典）", s: "ADOBECODEBANC", t: "ABC" },
+      { label: "s=AAABBC, t=ABB（t 里有重复字符）", s: "AAABBC", t: "ABB" },
+      { label: "s=AB, t=ABC（无解）", s: "AB", t: "ABC" }
+    ],
+    defaultSize: 0,
+    stageHeight: 460,
+    code: {
+      title: "need 计数 + miss 缺口",
+      langs: {
+        java: [
+          "int[] need = new int[128];  for (char c : t.toCharArray()) need[c]++;",
+          "int miss = t.length(), left = 0, bestL = 0, bestLen = Integer.MAX_VALUE;",
+          "for (int r = 0; r < s.length(); r++) {",
+          "    if (need[s.charAt(r)]-- > 0) miss--;        // 右端字符是“还缺的” → 缺口 −1",
+          "    while (miss == 0) {                         // 已覆盖 → 试着收左端",
+          "        if (r - left + 1 < bestLen) { bestLen = r - left + 1; bestL = left; }",
+          "        if (++need[s.charAt(left++)] > 0) miss++;  // 吐出的是必需字符 → 破功",
+          "    }",
+          "} return bestLen == Integer.MAX_VALUE ? \"\" : s.substring(bestL, bestL + bestLen);"
+        ],
+        cpp: [
+          "vector<int> need(128, 0);  for (char c : t) need[c]++;",
+          "int miss = t.size(), left = 0, bestL = 0, bestLen = INT_MAX;",
+          "for (int r = 0; r < (int)s.size(); ++r) {",
+          "    if (need[s[r]]-- > 0) --miss;               // 右端字符是“还缺的” → 缺口 −1",
+          "    while (miss == 0) {                         // 已覆盖 → 试着收左端",
+          "        if (r - left + 1 < bestLen) { bestLen = r - left + 1; bestL = left; }",
+          "        if (++need[s[left++]] > 0) ++miss;      // 吐出的是必需字符 → 破功",
+          "    }",
+          "} return bestLen == INT_MAX ? \"\" : s.substr(bestL, bestLen);"
+        ],
+        python: [
+          "need = Counter(t)",
+          "miss, left, best_l, best_len = len(t), 0, 0, inf",
+          "for r, c in enumerate(s):",
+          "    need[c] -= 1;  miss -= 1 if need[c] >= 0 else 0   # 右端字符是“还缺的”",
+          "    while miss == 0:                            # 已覆盖 → 试着收左端",
+          "        if r - left + 1 < best_len: best_len, best_l = r - left + 1, left",
+          "        need[s[left]] += 1;  miss += 1 if need[s[left]] > 0 else 0;  left += 1",
+          "",
+          "return \"\" if best_len == inf else s[best_l:best_l + best_len]"
+        ],
+        go: [
+          "need := [128]int{};  for i := 0; i < len(t); i++ { need[t[i]]++ }",
+          "miss, left, bestL, bestLen := len(t), 0, 0, math.MaxInt32",
+          "for r := 0; r < len(s); r++ {",
+          "    if need[s[r]] > 0 { miss-- };  need[s[r]]--   // 右端字符是“还缺的”",
+          "    for miss == 0 {                             // 已覆盖 → 试着收左端",
+          "        if r-left+1 < bestLen { bestLen, bestL = r-left+1, left }",
+          "        need[s[left]]++;  if need[s[left]] > 0 { miss++ };  left++",
+          "    }",
+          "} ; if bestLen == math.MaxInt32 { return \"\" };  return s[bestL : bestL+bestLen]"
+        ],
+        c: [
+          "int need[128] = {0};  for (int i = 0; t[i]; i++) need[(int)t[i]]++;",
+          "int miss = strlen(t), left = 0, bestL = 0, bestLen = INT_MAX;",
+          "for (int r = 0; s[r]; r++) {",
+          "    if (need[(int)s[r]]-- > 0) miss--;          /* 右端字符是“还缺的” */",
+          "    while (miss == 0) {                         /* 已覆盖 → 试着收左端 */",
+          "        if (r - left + 1 < bestLen) { bestLen = r - left + 1; bestL = left; }",
+          "        if (++need[(int)s[left++]] > 0) miss++; /* 吐出的是必需字符 → 破功 */",
+          "    }",
+          "} /* bestLen == INT_MAX 说明无解，返回空串 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "miss 永远 ≥ 0", test: function (v) {
+          return v.miss >= 0 ? "还缺 " + v.miss + " 个必需字符" : false;
+        } },
+      { label: "miss == 0 时窗口真的覆盖了 t", test: function (v) {
+          if (v.miss !== 0) return "尚未覆盖，跳过校验";
+          var have = {}, i, c;
+          for (i = v.left; i <= v.right; i++) {
+            c = v.vals[i];
+            have[c] = (have[c] || 0) + 1;
+          }
+          for (c in v.tNeed) if ((have[c] || 0) < v.tNeed[c]) return false;
+          return "s[" + v.left + ".." + v.right + "] 已包含 t 的全部字符";
+        } }
+    ],
+    build: function (ctx, size) {
+      var s = (size && size.s) || "ADOBECODEBANC";
+      var t = (size && size.t) || "ABC";
+      var arr = s.split("");
+      var need = {}, tNeed = {}, i;
+      for (i = 0; i < t.length; i++) {
+        need[t[i]] = (need[t[i]] || 0) + 1;
+        tNeed[t[i]] = (tNeed[t[i]] || 0) + 1;
+      }
+      var miss = t.length, left = 0, bestL = 0, bestLen = Infinity;
+
+      function V(r, kind, hotKey, note) {
+        var st = {}, j;
+        for (j = 0; j < arr.length; j++) {
+          if (j > r) st[j] = "dim";
+          else if (j < left) st[j] = "done";
+          else st[j] = "hot";
+        }
+        if (r >= 0 && kind) st[r] = kind;
+        if (bestLen !== Infinity) for (j = bestL; j < bestL + bestLen; j++) if (st[j] === "done") st[j] = "write";
+        var ptrs = [];
+        if (r >= 0) {
+          ptrs.push({ i: Math.min(left, arr.length - 1), label: "left", c: "c3" });
+          ptrs.push({ i: r, label: "right", c: "c1" });
+        }
+        var shown = {};
+        for (var key in tNeed) shown[key] = need[key];
+        return {
+          vals: arr, st: st, ptrs: ptrs, note: note,
+          left: left, right: r, miss: miss, tNeed: tNeed,
+          vars: [["left", left], ["right", r < 0 ? "—" : r], ["缺口 miss", miss],
+                 ["最短长度", bestLen === Infinity ? "∞" : bestLen]],
+          pairs: pairsOf(shown, hotKey),
+          pairsTitle: "need（>0 表示还缺，<0 表示窗口里多了）"
+        };
+      }
+
+      ctx.step("need 记下 t 里每个字符还缺几个；miss = 还缺的字符总数 " + t.length,
+        V(-1, null, null, "s = \"" + s + "\"，t = \"" + t + "\""), { line: 2 });
+
+      for (var r = 0; r < arr.length; r++) {
+        var c = arr[r];
+        var was = need[c] || 0;
+        need[c] = was - 1;
+        if (was > 0) {
+          miss--;
+          ctx.step("right=" + r + " 纳入 '" + c + "'：它是还缺的字符 → miss 降到 " + miss,
+            V(r, "cmp", c, null), { line: 4 });
+        } else {
+          ctx.step("right=" + r + " 纳入 '" + c + "'：t 不需要它（或已经够了）→ miss 不变",
+            V(r, "hot", tNeed[c] ? c : null, null), { line: 4 });
+        }
+
+        while (miss === 0) {
+          var len = r - left + 1;
+          if (len < bestLen) {
+            bestLen = len; bestL = left;
+            ctx.step("miss=0 → 窗口已覆盖 t，长度 " + len + " 刷新最短记录 \"" + s.slice(bestL, bestL + bestLen) + "\"",
+              V(r, "target", null, null), { line: 6 });
+          } else {
+            ctx.step("miss=0，但长度 " + len + " ≥ 已知最短 " + bestLen + " → 只收缩不记录",
+              V(r, "hot", null, null), { line: 6 });
+          }
+          var lc = arr[left];
+          need[lc] = (need[lc] || 0) + 1;
+          left++;
+          if (need[lc] > 0) {
+            miss++;
+            ctx.step("吐出左端 '" + lc + "'：它是 t 的必需字符 → miss 回到 " + miss + "，窗口不再覆盖",
+              V(r, "swap", lc, "所以最短窗口的左右两端一定都是 t 里的字符"), { line: 7 });
+          } else {
+            ctx.step("吐出左端 '" + lc + "'：窗口里本来就多余 → miss 仍为 0，继续收缩",
+              V(r, "done", tNeed[lc] ? lc : null, null), { line: 7 });
+          }
+        }
+      }
+
+      if (bestLen === Infinity) {
+        ctx.step("扫完整个 s，miss 从未归零 → 无解，返回空串",
+          V(arr.length - 1, "swap", null, "s 里根本凑不齐 t 的全部字符"), { line: 9 });
+      } else {
+        ctx.step("完成！最小覆盖子串 = \"" + s.slice(bestL, bestL + bestLen) + "\"（下标 " + bestL + " 起，长 " + bestLen + "）",
+          V(arr.length - 1, "target", null, "left、right 各只走一遍 → O(|s| + |t|)"), { line: 9 });
+      }
+    },
+    render: renderWin
+  }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 440,
+      code: d.code, invariants: d.invariants, compare: d.compare,
+      build: d.build, render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
-</body></html>
+</body>
+</html>

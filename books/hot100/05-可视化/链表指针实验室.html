@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<html lang="zh-CN"><head>
+<html lang="zh-CN">
+<head>
 <style id="hot100-visual-theme">
 /* ===== 演示页统一主题层（demo-kit 同源令牌，元素级归一化，不改各页逻辑） ===== */
 :root{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
@@ -45,9 +46,11 @@ code,pre{font-family:var(--font-mono)!important}
   if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
 })();
 </script>
-<meta content="light dark" name="color-scheme"/><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>链表指针实验室</title><link rel="stylesheet" href="assets/demo-teaching.css" />
-<link rel="stylesheet" href="assets/demo-teaching.css" />
-<style>:root{color-scheme:light dark;--bg:#f6f7fb;--panel:#fff;--text:#172033;--muted:#68758a;--line:#d9e0eb;--brand:#5755d9;--prev:#178158;--next:#c56b00}@media(prefers-color-scheme:dark){:root{--bg:#10131a;--panel:#191e28;--text:#eef2ff;--muted:#9ca8ba;--line:#343d4d;--brand:#aaa8ff;--prev:#73d7a6;--next:#ffc477}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 system-ui,"Microsoft YaHei",sans-serif}.shell{max-width:980px;margin:auto;padding:24px}a{color:var(--brand)}h1{margin:0}.toolbar{display:flex;gap:10px;margin:20px 0;flex-wrap:wrap}button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;cursor:pointer}.primary{background:var(--brand);color:var(--bg)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;overflow:hidden}.lane{min-height:170px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}.node{width:78px;height:58px;border:2px solid var(--line);border-radius:11px;display:grid;place-items:center;font-size:22px;position:relative;background:var(--panel)}.node.swap-moving{animation:edgePulse 420ms ease both}.arrow{font-size:25px;color:var(--muted)}.label{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:700}.label.top{bottom:66px;color:var(--brand)}.label.bottom{top:66px;color:var(--prev)}.saved{outline:3px solid color-mix(in srgb,var(--next) 55%,transparent)}.legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted)}.link-map{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.link-chip{padding:4px 8px;border:1px solid var(--line);border-radius:8px;color:var(--muted);font:12px ui-monospace,Consolas,monospace}.status{border-top:1px solid var(--line);padding-top:14px;margin-top:8px;min-height:70px}.code{font-family:ui-monospace,Consolas,monospace;background:color-mix(in srgb,var(--panel) 80%,var(--line));padding:12px;border-radius:9px;white-space:pre-wrap}.active{color:var(--brand);font-weight:700}</style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>链表指针实验室 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -479,70 +482,658 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 })();
 </script></head>
 <body>
-<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>链表指针实验室</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>链表反转：三指针实验室</h1><div>修改 <code>current.next</code> 前，为什么必须先保存 <code>next</code>？逐步观察链表如何断开并重新连接。</div><div class="toolbar"><button class="primary" id="step">下一步</button><button id="reset">重置</button></div><section class="panel"><div class="lane" id="lane"></div><div class="link-map" id="linkMap" aria-label="next 指针关系"></div><div id="phase" class="status" aria-live="polite"></div><div class="legend"><span style="color:var(--brand)">current：待处理节点</span><span style="color:var(--prev)">prev：已反转链表头</span><span style="color:var(--next)">橙色轮廓：已保存的 next</span></div><div class="status"><div class="code" id="code"></div><p aria-live="polite" id="message"></p></div></section></main>
+<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>链表指针实验室 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
+<div id="app"></div>
 <script>
-const values = [1, 2, 3, 4];
-const $ = id => document.getElementById(id);
-let state;
-function init() {
-  state = { prev: -1, current: 0, next: null, phase: "save_next", links: [1, 2, 3, null], done: false };
-  render();
-}
-function phaseText() {
-  return { save_next: "保存后继", swap_prepare: "准备重接", swap_move: "边重接", pointer_move: "指针前进", done: "完成" }[state.phase] || "更新";
-}
-function step() {
-  if (state.done) return;
-  if (state.phase === "save_next") {
-    state.next = state.links[state.current];
-    state.phase = "swap_prepare";
-  } else if (state.phase === "swap_prepare") {
-    state.links[state.current] = state.prev === -1 ? null : state.prev;
-    state.phase = "swap_move";
-  } else if (state.phase === "swap_move") {
-    state.phase = "pointer_move";
-  } else {
-    state.prev = state.current;
-    state.current = state.next;
-    state.next = null;
-    if (state.current === null) { state.done = true; state.phase = "done"; }
-    else state.phase = "save_next";
+/* ===== 链表指针实验室：206 / 92 / 25 · 统一框架 =====
+ * 三道题共用一套「真实指针模型」：节点只有 val 与 next，动画里看到的每一条箭头
+ * 都直接读自 nxt 字段，不做任何美化重排；这样「先存 next 再改写」才有说服力。
+ *
+ * 视图模型：view = {
+ *   vars:  [[名字, 值], ...]                      顶部变量条
+ *   rows:  [{ name, nodes:[{v, st, ptrs:[{label,c}]}], tail }]
+ *   edges: [{ from, to, changed, dimmed }]        next 字段表（本步改写的标橙）
+ *   note:  "..."                                  一句话提示
+ * }
+ * 状态色：hot 当前 / cmp 比较中 / swap 待换 / write 刚写入 / done 完成 / dim 弱化
+ * 指针色：c1 cur / c2 prev·pre·groupPrev / c3 next·groupNext / c4 kth
+ */
+var el = DemoKit.el;
+
+/* ---------- 渲染 ---------- */
+function renderLink(view, stage) {
+  stage.textContent = "";
+
+  if (view.vars && view.vars.length) {
+    var bar = el("div", "dk-vars");
+    view.vars.forEach(function (kv) {
+      bar.appendChild(el("span", "dk-var", kv[0] + " = " + kv[1]));
+    });
+    stage.appendChild(bar);
   }
-  render();
+
+  (view.rows || []).forEach(function (r) {
+    var line = el("div");
+    line.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:6px 0 2px;padding-top:42px";
+    line.appendChild(el("span", "dk-var", r.name));
+    if (!r.nodes || !r.nodes.length) {
+      line.appendChild(el("span", "dk-var", r.tail || "null"));
+      stage.appendChild(line);
+      return;
+    }
+    r.nodes.forEach(function (nd) {
+      var cell = el("div", "dk-cell" + (nd.st ? " " + nd.st : ""), String(nd.v));
+      (nd.ptrs || []).forEach(function (p) {
+        cell.appendChild(el("span", "dk-ptr " + (p.c || "c1"), p.label));
+      });
+      line.appendChild(cell);
+      line.appendChild(el("span", "dk-arrow" + (nd.changed ? " edge-changing" : ""), "→"));
+    });
+    line.appendChild(el("span", "dk-var", r.tail || "null"));
+    stage.appendChild(line);
+  });
+
+  if (view.edges && view.edges.length) {
+    stage.appendChild(el("div", "dk-note", "next 字段表（橙色 = 本步刚改写的那条边）"));
+    var map = el("div", "dk-cells");
+    map.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px";
+    view.edges.forEach(function (e) {
+      var chip = el("span", "dk-var" + (e.changed ? " edge-changing" : ""), e.from + ".next → " + e.to);
+      if (e.dimmed) chip.style.opacity = ".45";
+      map.appendChild(chip);
+    });
+    stage.appendChild(map);
+  }
+
+  if (view.note) stage.appendChild(el("div", "dk-note", view.note));
 }
-function render() {
-  const labels = i => `${state.current === i ? '<span class="label top">current</span>' : ''}${state.prev === i ? '<span class="label bottom">prev</span>' : ''}`;
-  let order = [], seen = new Set(), x = state.prev;
-  if (x !== -1) while (x !== null && !seen.has(x)) { order.push(x); seen.add(x); x = state.links[x]; }
-  x = state.current;
-  while (x !== null && !seen.has(x)) { order.push(x); seen.add(x); x = state.links[x]; }
-  $("lane").dataset.phase = state.phase;
-  const motion = state.phase === "swap_move" ? " swap-moving" : "";
-  $("lane").innerHTML = `<div class="teaching-phase">${phaseText()}</div>` + order.map((i, k) => {
-    const cls = ["node", state.next === i ? "saved is-target" : "", state.current === i ? "is-current" : "", motion].filter(Boolean).join(" ");
-    const arrow = k < order.length - 1 ? `<span class="arrow ${state.phase === "swap_move" && i === state.current ? "edge-changing" : ""}">→</span>` : "";
-    return `<div class="${cls}">${labels(i)}${values[i]}</div>${arrow}`;
-  }).join("") + (order.length ? '<span class="arrow">→ null</span>' : '');
-  $("linkMap").innerHTML = values.map((value, i) => {
-    const target = state.links[i] === null ? "null" : values[state.links[i]];
-    const active = i === state.current && state.phase !== "done";
-    return `<span class="link-chip ${active ? "is-current" : ""} ${active && state.phase === "swap_move" ? "edge-changing" : ""}">${value}.next → ${target}</span>`;
-  }).join("");
-  const codePhase = { save_next: 0, swap_prepare: 1, swap_move: 1, pointer_move: 2 }[state.phase];
-  const lines = ["next = current.next;", "current.next = prev;", "prev = current; current = next;"];
-  $("code").innerHTML = lines.map((line, i) => `<span class="${!state.done && codePhase === i ? "active" : ""}">${line}</span>`).join("\n");
-  const msgs = {
-    save_next: "先保存 current.next；否则改写 next 后会丢失尚未处理的链表。",
-    swap_prepare: "现在已经知道 next，准备把 current.next 指向已经反转的 prev。",
-    swap_move: "边发生变化：current.next 从原来的后继改为 prev，旧边被安全替换。",
-    pointer_move: "边改好后再整体前进：prev 接住 current，current 接住刚才保存的 next。"
-  };
-  $("message").textContent = state.done ? "完成：新头节点是 4，反转结果为 4 → 3 → 2 → 1。" : msgs[state.phase];
-  $("phase").textContent = `当前阶段：${phaseText()}（每次只执行一个原子动作）`;
+
+/* ---------- 真实指针模型 ---------- */
+/* id 0 固定是 dummy 哨兵；真实节点 id 为 1..n，与原始下标一一对应。 */
+function makeList(vals) {
+  var L = { val: { 0: "dummy" }, nxt: {}, n: vals.length };
+  vals.forEach(function (v, i) {
+    L.val[i + 1] = v;
+    L.nxt[i + 1] = i + 2 <= vals.length ? i + 2 : null;
+  });
+  L.nxt[0] = vals.length ? 1 : null;
+  return L;
 }
-$("step").onclick = step;
-$("reset").onclick = init;
-init();
+/* 沿 nxt 走，遇到 stop 或 null 停；带步数护栏，成环也不会挂死。 */
+function chain(L, start, stop) {
+  var out = [], x = start, guard = 0;
+  while (x !== null && x !== undefined && x !== stop && guard++ <= L.n + 2) {
+    out.push(x);
+    x = L.nxt[x];
+  }
+  return out;
+}
+/* 从 dummy 出发能否在 n+2 步内正常走到 null（没有环、没有自指）。 */
+function walkOk(L) {
+  var x = 0, c = 0;
+  while (x !== null && x !== undefined) {
+    x = L.nxt[x];
+    if (++c > L.n + 2) return false;
+  }
+  return true;
+}
+function labOf(L, id) { return id === null || id === undefined ? "null" : String(L.val[id]); }
+function valsOf(L, ids) { return ids.map(function (id) { return L.val[id]; }); }
+
+/* 造一行：head 出发的链，附带指针/状态标注 */
+function rowOf(L, name, head, opt) {
+  opt = opt || {};
+  var ids = head === null || head === undefined ? [] : chain(L, head, opt.stop);
+  var nodes = ids.map(function (id) {
+    var nd = { v: L.val[id], st: (opt.st && opt.st[id]) || "" };
+    if (opt.ptr && opt.ptr[id]) nd.ptrs = opt.ptr[id];
+    if (opt.changed === id) nd.changed = true;
+    return nd;
+  });
+  return { name: name, nodes: nodes, tail: opt.tail || (opt.stop !== undefined && opt.stop !== null ? labOf(L, opt.stop) : "null") };
+}
+/* next 字段表：只列真实节点，dummy 单独放在最前 */
+function edgesOf(L, changed, dimmed) {
+  var out = [{ from: "dummy", to: labOf(L, L.nxt[0]), changed: changed === 0 }];
+  for (var id = 1; id <= L.n; id++) {
+    out.push({
+      from: String(L.val[id]),
+      to: labOf(L, L.nxt[id]),
+      changed: changed === id,
+      dimmed: !!(dimmed && dimmed[id])
+    });
+  }
+  return out;
+}
+/* 指针标注表：{id: [{label, c}]}，同一节点可以挂多个指针 */
+function ptrs(pairs) {
+  var m = {};
+  pairs.forEach(function (p) {
+    if (p[0] === null || p[0] === undefined) return;
+    (m[p[0]] = m[p[0]] || []).push({ label: p[1], c: p[2] });
+  });
+  return m;
+}
+
+var DEMOS = {
+
+  "0206": {
+    no: "206", title: "反转链表", tag: "链表 · 三指针原地反转",
+    example: "输入：head = [1,2,3,4,5]　输出：[5,4,3,2,1]　要求 O(1) 额外空间",
+    sizes: [
+      { label: "1→2→3→4→5（默认）", vals: [1, 2, 3, 4, 5] },
+      { label: "只有两个节点：1→2（最小非平凡）", vals: [1, 2] },
+      { label: "1→2→3→4→5→6→7（看指针节奏）", vals: [1, 2, 3, 4, 5, 6, 7] }
+    ],
+    defaultSize: 0,
+    stageHeight: 470,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "ListNode prev = null, cur = head;",
+          "while (cur != null) {",
+          "    ListNode next = cur.next;      // ① 先存后继，否则改写后丢失剩余链表",
+          "    cur.next = prev;               // ② 断旧边、接新边",
+          "    prev = cur;                    // ③ prev 前进到刚反转好的节点",
+          "    cur = next;                    // ④ cur 前进到之前保存的后继",
+          "} return prev;"
+        ],
+        cpp: [
+          "ListNode *prev = nullptr, *cur = head;",
+          "while (cur != nullptr) {",
+          "    ListNode *next = cur->next;    // ① 先存后继，否则改写后丢失剩余链表",
+          "    cur->next = prev;              // ② 断旧边、接新边",
+          "    prev = cur;                    // ③ prev 前进到刚反转好的节点",
+          "    cur = next;                    // ④ cur 前进到之前保存的后继",
+          "} return prev;"
+        ],
+        python: [
+          "prev, cur = None, head",
+          "while cur:",
+          "    nxt = cur.next                 # ① 先存后继，否则改写后丢失剩余链表",
+          "    cur.next = prev                # ② 断旧边、接新边",
+          "    prev = cur                     # ③ prev 前进到刚反转好的节点",
+          "    cur = nxt                      # ④ cur 前进到之前保存的后继",
+          "return prev"
+        ],
+        go: [
+          "var prev *ListNode = nil;  cur := head",
+          "for cur != nil {",
+          "    next := cur.Next               // ① 先存后继，否则改写后丢失剩余链表",
+          "    cur.Next = prev                // ② 断旧边、接新边",
+          "    prev = cur                     // ③ prev 前进到刚反转好的节点",
+          "    cur = next                     // ④ cur 前进到之前保存的后继",
+          "};  return prev"
+        ],
+        c: [
+          "struct ListNode *prev = NULL, *cur = head;",
+          "while (cur != NULL) {",
+          "    struct ListNode *next = cur->next; /* ① 先存后继，否则丢失剩余链表 */",
+          "    cur->next = prev;                  /* ② 断旧边、接新边 */",
+          "    prev = cur;                        /* ③ prev 前进到刚反转好的节点 */",
+          "    cur = next;                        /* ④ cur 前进到之前保存的后继 */",
+          "} return prev;"
+        ]
+      }
+    },
+    invariants: [
+      { label: "已反转段 + 待处理段 = 原链表全部节点", test: function (v) {
+          if (v.revVals.length + v.restVals.length !== v.total) return false;
+          return "已反转 " + v.revVals.length + " 个 + 待处理 " + v.restVals.length + " 个 = " + v.total + " 个，一个都没丢";
+        } },
+      { label: "已反转段恰好是原链表前缀的逆序", test: function (v) {
+          var want = v.origVals.slice(0, v.revVals.length).slice().reverse().join(",");
+          if (want !== v.revVals.join(",")) return false;
+          return v.revVals.length ? "[" + v.revVals.join(",") + "] 就是前 " + v.revVals.length + " 个节点倒过来" : "还没反转任何节点";
+        } }
+    ],
+    build: function (ctx, size) {
+      var cfg = size || this.sizes[this.defaultSize || 0];
+      var vals = cfg.vals;
+      var L = makeList(vals);
+      var prevPtr = null, curPtr = L.nxt[0], nextPtr = null;
+      var revHead = null, restHead = L.nxt[0];
+
+      function V(changed, note, hot) {
+        var st = {};
+        if (hot !== null && hot !== undefined) st[hot] = "hot";
+        if (nextPtr !== null && nextPtr !== undefined) st[nextPtr] = "target";
+        var P = ptrs([[prevPtr, "prev", "c2"], [curPtr, "cur", "c1"], [nextPtr, "next", "c3"]]);
+        var revVals = revHead === null ? [] : valsOf(L, chain(L, revHead));
+        var restVals = restHead === null ? [] : valsOf(L, chain(L, restHead));
+        return {
+          vars: [["prev", labOf(L, prevPtr)], ["cur", labOf(L, curPtr)], ["next", labOf(L, nextPtr)]],
+          rows: [
+            rowOf(L, "已反转", revHead, { st: st, ptr: P, changed: changed }),
+            rowOf(L, "待处理", restHead, { st: st, ptr: P, changed: changed })
+          ],
+          edges: edgesOf(L, changed),
+          note: note,
+          revVals: revVals, restVals: restVals, origVals: vals, total: vals.length
+        };
+      }
+
+      ctx.step("起手：prev = null（反转后的新尾巴就指向它），cur = 头节点",
+        V(null, "整条链还没动，prev 段是空的"), { line: 1 });
+
+      while (curPtr !== null) {
+        var curId = curPtr;
+        var nxtId = L.nxt[curId];
+
+        nextPtr = nxtId;
+        ctx.phase("save_next", "① next = cur.next → 先把 " + labOf(L, nxtId) + " 存起来",
+          V(null, "这一步什么都没改，只是备份。少了它，下一行改写 cur.next 就再也找不回后面的节点了", curId),
+          { line: 3 });
+
+        ctx.phase("swap_prepare", "② 准备改写：cur(" + L.val[curId] + ").next 当前指向 " + labOf(L, nxtId) + "，要改成 prev(" + labOf(L, prevPtr) + ")",
+          V(null, "后继已经在 next 里了，现在可以放心断开这条边", curId),
+          { line: 4 });
+
+        L.nxt[curId] = prevPtr;
+        revHead = curId;
+        restHead = nxtId;
+        ctx.phase("swap_move", "② 边发生变化：current.next 从原来的后继改为 prev",
+          V(curId, L.val[curId] + " 归入已反转段；剩下的链靠刚才存的 next 继续拿着", curId),
+          { line: 4 });
+
+        prevPtr = curId;
+        curPtr = nxtId;
+        nextPtr = null;
+        ctx.phase("pointer_move", "③④ prev = cur，cur = next → 两个指针整体右移一格",
+          V(null, "边改好了才移动指针；顺序反过来就会把 prev 弄丢"),
+          { line: 5 });
+      }
+
+      ctx.phase("done", "cur 走到 null，循环结束 → 新头是 " + labOf(L, revHead) + "，结果 " + valsOf(L, chain(L, revHead)).join(" → "),
+        V(null, "返回 prev（不是 cur！cur 此刻已经是 null）"),
+        { line: 7 });
+    },
+    render: renderLink },
+
+  "0092": {
+    no: "92", title: "反转链表 II", tag: "链表 · 一趟头插法反转区间",
+    example: "输入：head = [1,2,3,4,5]，left = 2，right = 4　输出：[1,4,3,2,5]　只遍历一趟",
+    sizes: [
+      { label: "[1,2,3,4,5]　left=2, right=4（默认）", vals: [1, 2, 3, 4, 5], left: 2, right: 4 },
+      { label: "[1,2,3,4,5,6,7]　left=3, right=7（反转到尾）", vals: [1, 2, 3, 4, 5, 6, 7], left: 3, right: 7 },
+      { label: "[3,5]　left=1, right=2（含头节点，dummy 救场）", vals: [3, 5], left: 1, right: 2 }
+    ],
+    defaultSize: 0,
+    stageHeight: 470,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0, head), pre = dummy;",
+          "for (int i = 1; i < left; i++) pre = pre.next;   // pre 停在 left-1，之后不动",
+          "ListNode cur = pre.next;                         // cur 是段的原始头，会沉到段尾",
+          "for (int i = left; i < right; i++) {             // 头插 right-left 次",
+          "    ListNode next = cur.next;                    // 摘下 cur 后面那个节点",
+          "    cur.next = next.next;                        // cur 跨过它，直接接后面",
+          "    next.next = pre.next;  pre.next = next;      // 把它插到 pre 之后（头插）",
+          "} return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0, head), *pre = &dummy;",
+          "for (int i = 1; i < left; i++) pre = pre->next;  // pre 停在 left-1，之后不动",
+          "ListNode *cur = pre->next;                       // cur 是段的原始头，会沉到段尾",
+          "for (int i = left; i < right; i++) {             // 头插 right-left 次",
+          "    ListNode *next = cur->next;                  // 摘下 cur 后面那个节点",
+          "    cur->next = next->next;                      // cur 跨过它，直接接后面",
+          "    next->next = pre->next;  pre->next = next;   // 把它插到 pre 之后（头插）",
+          "} return dummy.next;"
+        ],
+        python: [
+          "dummy = ListNode(0, head); pre = dummy",
+          "for _ in range(left - 1): pre = pre.next         # pre 停在 left-1，之后不动",
+          "cur = pre.next                                   # cur 是段的原始头，会沉到段尾",
+          "for _ in range(right - left):                    # 头插 right-left 次",
+          "    nxt = cur.next                               # 摘下 cur 后面那个节点",
+          "    cur.next = nxt.next                          # cur 跨过它，直接接后面",
+          "    nxt.next = pre.next; pre.next = nxt          # 把它插到 pre 之后（头插）",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{Next: head};  pre := dummy",
+          "for i := 1; i < left; i++ { pre = pre.Next }     // pre 停在 left-1，之后不动",
+          "cur := pre.Next                                  // cur 是段的原始头，会沉到段尾",
+          "for i := left; i < right; i++ {                  // 头插 right-left 次",
+          "    next := cur.Next                             // 摘下 cur 后面那个节点",
+          "    cur.Next = next.Next                         // cur 跨过它，直接接后面",
+          "    next.Next = pre.Next;  pre.Next = next       // 把它插到 pre 之后（头插）",
+          "};  return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0, head}, *pre = &dummy;",
+          "for (int i = 1; i < left; i++) pre = pre->next;  /* pre 停在 left-1，之后不动 */",
+          "struct ListNode *cur = pre->next;                /* cur 是段的原始头，会沉到段尾 */",
+          "for (int i = left; i < right; i++) {             /* 头插 right-left 次 */",
+          "    struct ListNode *next = cur->next;           /* 摘下 cur 后面那个节点 */",
+          "    cur->next = next->next;                      /* cur 跨过它，直接接后面 */",
+          "    next->next = pre->next;  pre->next = next;   /* 把它插到 pre 之后（头插） */",
+          "} return dummy.next;"
+        ]
+      }
+    },
+    invariants: [
+      { label: "区间外的节点从未被改写（只有 pre 和区间内的边会动）", test: function (v) {
+          if (!v.outsideOk) return false;
+          return "位置 1.." + (v.left - 2 >= 1 ? v.left - 2 : 0) + " 与 " + (v.right + 1) + ".." + v.total + " 的 next 仍是原值";
+        } },
+      { label: "没有节点丢失：链上的 + next 攥着的 = 全部节点，且不成环", test: function (v) {
+          if (!v.walkOk || v.walkVals.length + v.held !== v.total) return false;
+          return "dummy 段 " + v.walkVals.join(" → ") + (v.held ? "，另有 1 个被 next 摘在手里" : "") + "，合计 " + v.total + " 个";
+        } }
+    ],
+    build: function (ctx, size) {
+      var cfg = size || this.sizes[this.defaultSize || 0];
+      var vals = cfg.vals, left = cfg.left, right = cfg.right;
+      var L = makeList(vals);
+      /* 真正一步都不会动的节点：位置 ≤ left-2 和 ≥ right+1。
+         位置 left-1 就是 pre，它的 next 每次头插都要改，不能算进去。 */
+      var frozen = {};
+      for (var id = 1; id <= L.n; id++) if (id <= left - 2 || id > right) frozen[id] = L.nxt[id];
+
+      var pre = 0, cur = null, next = null;
+
+      function V(changed, note, hot) {
+        var st = {}, dim = {};
+        for (var id = 1; id <= L.n; id++) {
+          if (id <= left - 2 || id > right) { st[id] = "dim"; dim[id] = true; }
+        }
+        if (hot !== null && hot !== undefined) st[hot] = "hot";
+        if (next !== null && next !== undefined) st[next] = "target";
+        var P = ptrs([[pre, "pre", "c2"], [cur, "cur", "c1"], [next, "next", "c3"]]);
+        var walk = chain(L, 0).slice(1);
+        var ok = true;
+        for (var j in frozen) if (L.nxt[j] !== frozen[j]) ok = false;
+        /* 头插途中，被摘下的节点只被 next 变量拿着，此刻从 dummy 走不到它 */
+        var onChain = {};
+        walk.forEach(function (id) { onChain[id] = true; });
+        var held = next !== null && next !== undefined && !onChain[next] ? 1 : 0;
+        var rows = [rowOf(L, "链表", 0, { st: st, ptr: P, changed: changed })];
+        if (held) rows.push(rowOf(L, "next 手里", next, { st: st, ptr: P, changed: changed, stop: L.nxt[next] }));
+        return {
+          vars: [["left", left], ["right", right], ["pre", labOf(L, pre)], ["cur", labOf(L, cur)], ["next", labOf(L, next)]],
+          rows: rows,
+          edges: edgesOf(L, changed, dim),
+          note: note,
+          outsideOk: ok, walkOk: walkOk(L), walkVals: valsOf(L, walk), held: held,
+          left: left, right: right, total: vals.length
+        };
+      }
+
+      ctx.step("挂一个 dummy 哨兵在头节点之前：left 可能就是 1，头节点也要能被换掉",
+        V(null, "有了 dummy，「反转区间包含头节点」就不用写特判"), { line: 1 });
+
+      for (var i = 1; i < left; i++) {
+        pre = L.nxt[pre];
+        ctx.phase("pointer_move", "pre 前进到 " + labOf(L, pre) + "（还没到 left-1 = 位置 " + (left - 1) + "）",
+          V(null, "只是走位，一条边都没改"), { line: 2 });
+      }
+      ctx.step("pre 停在位置 " + (left - 1) + "（" + labOf(L, pre) + "），从现在起它固定不动，永远是区间的左锚点",
+        V(null, "后面每次头插都插到 pre 的正后方"), { line: 2 });
+
+      cur = L.nxt[pre];
+      ctx.step("cur = pre.next = " + labOf(L, cur) + "：它是区间的原始头，反转完会沉到区间尾",
+        V(null, "cur 这个指针自始至终盯着同一个节点，动的是它前后的边", cur), { line: 3 });
+
+      for (var t = 0; t < right - left; t++) {
+        next = L.nxt[cur];
+        ctx.phase("save_next", "第 " + (t + 1) + "/" + (right - left) + " 次头插：next = cur.next = " + labOf(L, next) + "，先把要搬的节点抓住",
+          V(null, "要搬的是 " + labOf(L, next) + "，把它挪到 pre 正后方就等于往前顶了一格"), { line: 5 });
+
+        L.nxt[cur] = L.nxt[next];
+        ctx.phase("swap_move", "cur.next = next.next → " + labOf(L, cur) + " 跨过 " + labOf(L, next) + "，直接接上 " + labOf(L, L.nxt[cur]),
+          V(cur, labOf(L, next) + " 被摘了下来，但 next 指针还拿着它，没丢", cur), { line: 6 });
+
+        var moved = next;
+        L.nxt[moved] = L.nxt[pre];
+        ctx.phase("swap_prepare", "next.next = pre.next → " + labOf(L, moved) + " 先接上当前的段头 " + labOf(L, L.nxt[moved]),
+          V(moved, "先让新节点接好后面，再让 pre 认它，中途一刻都不断链", moved), { line: 7 });
+
+        L.nxt[pre] = moved;
+        ctx.phase("swap_done", "pre.next = next → " + labOf(L, moved) + " 成为区间的新段头",
+          V(pre, "头插完成：" + labOf(L, moved) + " 往前跳到了最前面，区间内其余节点顺序不变", moved), { line: 7 });
+
+        next = null;
+      }
+
+      ctx.phase("done", "头插了 " + (right - left) + " 次，区间 [" + left + "," + right + "] 反转完成 → " + valsOf(L, chain(L, 0).slice(1)).join(" → "),
+        V(null, "cur 果然沉到了区间尾；返回 dummy.next 而不是 head，因为头节点可能已经换人"), { line: 8 });
+    },
+    render: renderLink },
+
+  "0025": {
+    no: "25", title: "K 个一组翻转链表", tag: "链表 · 分组三指针 + 组间缝合（困难）",
+    example: "输入：head = [1,2,3,4,5]，k = 2　输出：[2,1,4,3,5]　不足 k 个的尾部保持原序",
+    sizes: [
+      { label: "[1,2,3,4,5]　k=2（默认：尾部剩 1 个）", vals: [1, 2, 3, 4, 5], k: 2 },
+      { label: "[1,2,3,4,5]　k=3（尾部剩 2 个不翻）", vals: [1, 2, 3, 4, 5], k: 3 },
+      { label: "[1,2,3,4,5,6,7,8]　k=4（两组整除）", vals: [1, 2, 3, 4, 5, 6, 7, 8], k: 4 }
+    ],
+    defaultSize: 0,
+    stageHeight: 620,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0, head), groupPrev = dummy;",
+          "while (true) {",
+          "    ListNode kth = advance(groupPrev, k);          // 从 groupPrev 向前数 k 步",
+          "    if (kth == null) break;                        // 不足 k 个 → 原样保留，收工",
+          "    ListNode groupNext = kth.next, prev = groupNext, cur = groupPrev.next;",
+          "    while (cur != groupNext) {                     // 组内三指针反转",
+          "        ListNode next = cur.next;  cur.next = prev;  prev = cur;  cur = next;",
+          "    }",
+          "    ListNode tail = groupPrev.next;  groupPrev.next = kth;  groupPrev = tail;",
+          "} return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0, head), *groupPrev = &dummy;",
+          "while (true) {",
+          "    ListNode *kth = advance(groupPrev, k);         // 从 groupPrev 向前数 k 步",
+          "    if (kth == nullptr) break;                     // 不足 k 个 → 原样保留，收工",
+          "    ListNode *groupNext = kth->next, *prev = groupNext, *cur = groupPrev->next;",
+          "    while (cur != groupNext) {                     // 组内三指针反转",
+          "        ListNode *next = cur->next;  cur->next = prev;  prev = cur;  cur = next;",
+          "    }",
+          "    ListNode *tail = groupPrev->next;  groupPrev->next = kth;  groupPrev = tail;",
+          "} return dummy.next;"
+        ],
+        python: [
+          "dummy = ListNode(0, head); group_prev = dummy",
+          "while True:",
+          "    kth = advance(group_prev, k)                   # 从 group_prev 向前数 k 步",
+          "    if kth is None: break                          # 不足 k 个 → 原样保留，收工",
+          "    group_next = kth.next; prev = group_next; cur = group_prev.next",
+          "    while cur is not group_next:                   # 组内三指针反转",
+          "        nxt = cur.next; cur.next = prev; prev = cur; cur = nxt",
+          "",
+          "    tail = group_prev.next; group_prev.next = kth; group_prev = tail",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{Next: head};  groupPrev := dummy",
+          "for {",
+          "    kth := advance(groupPrev, k)                   // 从 groupPrev 向前数 k 步",
+          "    if kth == nil { break }                        // 不足 k 个 → 原样保留，收工",
+          "    groupNext := kth.Next;  prev := groupNext;  cur := groupPrev.Next",
+          "    for cur != groupNext {                         // 组内三指针反转",
+          "        next := cur.Next;  cur.Next = prev;  prev = cur;  cur = next",
+          "    }",
+          "    tail := groupPrev.Next;  groupPrev.Next = kth;  groupPrev = tail",
+          "};  return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0, head}, *groupPrev = &dummy;",
+          "while (1) {",
+          "    struct ListNode *kth = advance(groupPrev, k);  /* 从 groupPrev 向前数 k 步 */",
+          "    if (kth == NULL) break;                        /* 不足 k 个 → 原样保留 */",
+          "    struct ListNode *groupNext = kth->next, *prev = groupNext, *cur = groupPrev->next;",
+          "    while (cur != groupNext) {                     /* 组内三指针反转 */",
+          "        struct ListNode *next = cur->next;  cur->next = prev;  prev = cur;  cur = next;",
+          "    }",
+          "    struct ListNode *tail = groupPrev->next;  groupPrev->next = kth;  groupPrev = tail;",
+          "} return dummy.next;"
+        ]
+      }
+    },
+    invariants: [
+      { label: "组内反转永远不越过 groupNext（右边界当 null 用）", test: function (v) {
+          if (v.segLen > v.k) return false;
+          return v.inner
+            ? "本组已翻 " + v.segLen + " 个，上限 k = " + v.k
+            : "不在组内循环中，段长 0 ≤ k = " + v.k;
+        } },
+      { label: "任何时刻都不成环：从 dummy 出发能走到 null", test: function (v) {
+          if (!v.walkOk) return false;
+          return "dummy 段当前是 " + (v.walkVals.length ? v.walkVals.join(" → ") : "空") + "，能正常终止";
+        } }
+    ],
+    build: function (ctx, size) {
+      var cfg = size || this.sizes[this.defaultSize || 0];
+      var vals = cfg.vals, k = cfg.k;
+      var L = makeList(vals);
+      var groupPrev = 0, kth = null, groupNext = null, prev = null, cur = null, next = null;
+      var inner = null, gNo = 0;
+
+      function V(changed, note, hot) {
+        var st = {};
+        if (hot !== null && hot !== undefined) st[hot] = "hot";
+        if (next !== null && next !== undefined) st[next] = "target";
+        if (kth !== null && kth !== undefined && !st[kth]) st[kth] = "cmp";
+        var P = ptrs([
+          [groupPrev, "groupPrev", "c2"], [kth, "kth", "c4"],
+          [groupNext, "groupNext", "c3"], [prev, "prev", "c2"],
+          [cur, "cur", "c1"], [next, "next", "c3"]
+        ]);
+        var rows;
+        if (inner) {
+          rows = [
+            rowOf(L, "已定型", 0, { st: st, ptr: P, changed: changed, stop: inner.oldHead }),
+            rowOf(L, "本组反转中", prev, { st: st, ptr: P, changed: changed, stop: groupNext })
+          ];
+          /* cur 指向的节点此刻谁都不指着它，只有 cur 变量拿着——必须单独画出来 */
+          if (cur !== null && cur !== undefined && cur !== groupNext) {
+            rows.push(rowOf(L, "待翻转（cur 段）", cur, { st: st, ptr: P, changed: changed, stop: groupNext }));
+          }
+          rows.push(rowOf(L, "组后未动", groupNext, { st: st, ptr: P, changed: changed }));
+        } else {
+          rows = [rowOf(L, "链表", 0, { st: st, ptr: P, changed: changed })];
+        }
+        var walk = chain(L, 0).slice(1);
+        var segLen = inner && prev !== groupNext ? chain(L, prev, groupNext).length : 0;
+        return {
+          vars: [["k", k], ["groupPrev", labOf(L, groupPrev)], ["kth", labOf(L, kth)],
+                 ["groupNext", labOf(L, groupNext)], ["cur", labOf(L, cur)]],
+          rows: rows, edges: edgesOf(L, changed), note: note,
+          k: k, segLen: segLen, inner: !!inner,
+          walkOk: walkOk(L), walkVals: valsOf(L, walk)
+        };
+      }
+
+      ctx.step("dummy 哨兵 + groupPrev：groupPrev 永远停在「上一组的最后一个节点」，负责把两组缝起来",
+        V(null, "第 1 组的 groupPrev 就是 dummy"), { line: 1 });
+
+      while (true) {
+        gNo++;
+        var probe = groupPrev, enough = true;
+        for (var s = 0; s < k; s++) {
+          probe = L.nxt[probe];
+          if (probe === null || probe === undefined) { enough = false; break; }
+        }
+        if (!enough) {
+          kth = null; groupNext = null; prev = null; cur = null;
+          ctx.phase("done", "从 " + labOf(L, groupPrev) + " 往前数不满 " + k + " 个 → 剩下的尾巴原样保留，算法结束",
+            V(null, "最终结果 " + valsOf(L, chain(L, 0).slice(1)).join(" → ")), { line: 4 });
+          break;
+        }
+        kth = probe;
+        ctx.step("第 " + gNo + " 组：从 groupPrev 数 " + k + " 步，组尾 kth = " + labOf(L, kth),
+          V(null, "数得到 kth 才动手；数不到就一个都不翻，这是本题最容易写错的地方"), { line: 3 });
+
+        groupNext = L.nxt[kth];
+        prev = groupNext;
+        cur = L.nxt[groupPrev];
+        var oldHead = cur;
+        inner = { oldHead: oldHead };
+        ctx.step("groupNext = kth.next = " + labOf(L, groupNext) + "；组内反转时把 prev 初始化成它，相当于拿它当「null」",
+          V(null, "这样组内最后一个节点自然就接上了组后的链，不用再补一刀"), { line: 5 });
+
+        while (cur !== groupNext) {
+          next = L.nxt[cur];
+          ctx.phase("save_next", "存 next = " + labOf(L, next) + "，然后把 " + labOf(L, cur) + ".next 指向 " + labOf(L, prev),
+            V(null, "和 206 完全一样的三指针，只是终点从 null 换成了 groupNext", cur), { line: 7 });
+
+          L.nxt[cur] = prev;
+          prev = cur;
+          cur = next;
+          next = null;
+          ctx.phase("swap_move", "组内一条边翻转完成，prev/cur 各前进一格",
+            V(prev, "本组已翻 " + chain(L, prev, groupNext).length + "/" + k + " 个", prev), { line: 7 });
+        }
+
+        inner = null;
+        var tail = L.nxt[groupPrev];
+        L.nxt[groupPrev] = kth;
+        ctx.phase("swap_done", "缝合：groupPrev.next = kth → " + labOf(L, groupPrev) + " 接上本组新头 " + labOf(L, kth),
+          V(groupPrev, "本组的旧头 " + labOf(L, tail) + " 已经沉到组尾，它就是下一组的 groupPrev", kth), { line: 9 });
+
+        groupPrev = tail;
+        kth = null; groupNext = null; prev = null; cur = null;
+        ctx.phase("pointer_move", "groupPrev 移到 " + labOf(L, groupPrev) + "，准备处理下一组",
+          V(null, "当前整链 " + valsOf(L, chain(L, 0).slice(1)).join(" → ")), { line: 9 });
+      }
+
+      ctx.step("返回 dummy.next = " + labOf(L, L.nxt[0]) + "：头节点早在第 1 组就被换掉了",
+        V(null, "结果 " + valsOf(L, chain(L, 0).slice(1)).join(" → ")), { line: 10 });
+    },
+    render: renderLink }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      code: d.code, invariants: d.invariants,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight,
+      build: function (ctx, size) { return d.build.call(d, ctx, size); },
+      render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
 </script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
-</body></html>
+</body>
+</html>

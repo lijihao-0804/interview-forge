@@ -571,6 +571,61 @@ var DEMOS = {
 
   "0002": { no: "2", title: "两数相加", tag: "链表 · 逐位加法 + 进位",
     example: "输入：l1 = [9,9,9,9,9,9,9]，l2 = [9,9,9,9]　输出：[8,9,9,9,0,0,0,1]",
+    code: {
+      title: "逐位相加带进位",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0), cur = dummy;",
+          "int carry = 0;",
+          "while (a != null || b != null || carry != 0) {     // 有一方没走完或还有进位",
+          "    int sum = (a != null ? a.val : 0) + (b != null ? b.val : 0) + carry;",
+          "    carry = sum / 10;",
+          "    cur.next = new ListNode(sum % 10);  cur = cur.next;  // 挂上本位",
+          "    if (a != null) a = a.next;  if (b != null) b = b.next;",
+          "}  return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0), *cur = &dummy;",
+          "int carry = 0;",
+          "while (a || b || carry) {                          // 有一方没走完或还有进位",
+          "    int sum = (a ? a->val : 0) + (b ? b->val : 0) + carry;",
+          "    carry = sum / 10;",
+          "    cur->next = new ListNode(sum % 10);  cur = cur->next;   // 挂上本位",
+          "    if (a) a = a->next;  if (b) b = b->next;",
+          "}  return dummy.next;"
+        ],
+        python: [
+          "dummy = cur = ListNode(0)",
+          "carry = 0",
+          "while a or b or carry:                             # 有一方没走完或还有进位",
+          "    s = (a.val if a else 0) + (b.val if b else 0) + carry",
+          "    carry = s // 10",
+          "    cur.next = ListNode(s % 10);  cur = cur.next        # 挂上本位",
+          "    a = a.next if a else None;  b = b.next if b else None",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{};  cur := dummy",
+          "carry := 0",
+          "for a != nil || b != nil || carry != 0 {           // 有一方没走完或还有进位",
+          "    sum := carry;  if a != nil { sum += a.Val };  if b != nil { sum += b.Val }",
+          "    carry = sum / 10",
+          "    cur.Next = &ListNode{Val: sum % 10};  cur = cur.Next    // 挂上本位",
+          "    if a != nil { a = a.Next };  if b != nil { b = b.Next }",
+          "};  return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0}, *cur = &dummy;",
+          "int carry = 0;",
+          "while (a || b || carry) {                          /* 有一方没走完或还有进位 */",
+          "    int sum = (a ? a->val : 0) + (b ? b->val : 0) + carry;",
+          "    carry = sum / 10;",
+          "    cur->next = new_node(sum % 10);  cur = cur->next;       /* 挂上本位 */",
+          "    if (a) a = a->next;  if (b) b = b->next;",
+          "}  return dummy.next;"
+        ]
+      }
+    },
     build: function (ctx) {
       var a = [9, 9, 9, 9, 9, 9, 9], b = [9, 9, 9, 9];
       var carry = 0, out = [];
@@ -579,7 +634,7 @@ var DEMOS = {
         var x = i < a.length ? a[i] : 0, y = i < b.length ? b[i] : 0;
         var sum = x + y + carry;
         ctx.step("第 " + i + " 位：" + x + " + " + y + " + 进位 " + carry + " = " + sum + " → 写入 " + (sum % 10) + "，新进位 " + Math.floor(sum / 10),
-          { rows: [
+          { line: 4, rows: [
             row("l1", a, { st: i < a.length ? st1(i, "hot") : null, ptrs: [{ i: i, label: "p1", c: "c1" }] }),
             row("l2", b, { st: i < b.length ? st1(i, "hot") : null, ptrs: [{ i: i, label: "p2", c: "c2" }] }),
             row("输出", out.concat([sum % 10]), { st: st1(out.length, "write") })
@@ -589,50 +644,160 @@ var DEMOS = {
       }
       if (carry) {
         out.push(carry);
-        ctx.step("最高位还有进位 " + carry + " → 追加节点", { rows: [row("输出", out, { st: st1(out.length - 1, "write") })] });
+        ctx.step("最高位还有进位 " + carry + " → 追加节点", { line: 3, rows: [row("输出", out, { st: st1(out.length - 1, "write") })] });
       }
-      ctx.step("完成！结果 [8,9,9,9,0,0,0,1]", { rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
+      ctx.step("完成！结果 [8,9,9,9,0,0,0,1]", { line: 8, rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0019": { no: "19", title: "删除链表的倒数第 N 个结点", tag: "链表 · 快慢双指针",
     example: "输入：head = [1,2,3,4,5]，n = 2　输出：[1,2,3,5]",
+    code: {
+      title: "快慢指针差 N 步",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0, head);",
+          "ListNode fast = dummy, slow = dummy;",
+          "for (int i = 0; i < n; i++) fast = fast.next;   // fast 先走 n 步",
+          "while (fast.next != null) {                     // 两指针同步走",
+          "    fast = fast.next;  slow = slow.next;        // 差值恒为 n",
+          "}",
+          "slow.next = slow.next.next;                     // slow 正好停在待删前驱",
+          "return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0);  dummy.next = head;",
+          "ListNode *fast = &dummy, *slow = &dummy;",
+          "for (int i = 0; i < n; i++) fast = fast->next;  // fast 先走 n 步",
+          "while (fast->next) {                            // 两指针同步走",
+          "    fast = fast->next;  slow = slow->next;      // 差值恒为 n",
+          "}",
+          "slow->next = slow->next->next;                  // slow 正好停在待删前驱",
+          "return dummy.next;"
+        ],
+        python: [
+          "dummy = ListNode(0, head)",
+          "fast = slow = dummy",
+          "for _ in range(n): fast = fast.next             # fast 先走 n 步",
+          "while fast.next:                                # 两指针同步走",
+          "    fast = fast.next;  slow = slow.next         # 差值恒为 n",
+          "",
+          "slow.next = slow.next.next                      # slow 正好停在待删前驱",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{Next: head}",
+          "fast, slow := dummy, dummy",
+          "for i := 0; i < n; i++ { fast = fast.Next }     // fast 先走 n 步",
+          "for fast.Next != nil {                          // 两指针同步走",
+          "    fast = fast.Next;  slow = slow.Next         // 差值恒为 n",
+          "}",
+          "slow.Next = slow.Next.Next                      // slow 正好停在待删前驱",
+          "return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0, head};",
+          "struct ListNode *fast = &dummy, *slow = &dummy;",
+          "for (int i = 0; i < n; i++) fast = fast->next;  /* fast 先走 n 步 */",
+          "while (fast->next) {                            /* 两指针同步走 */",
+          "    fast = fast->next;  slow = slow->next;      /* 差值恒为 n */",
+          "}",
+          "slow->next = slow->next->next;                  /* slow 正好停在待删前驱 */",
+          "return dummy.next;"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [1, 2, 3, 4, 5], n = 2;
       var dummy = -1;
       var fast = 0, slow = 0;
       ctx.step("哑头节点 -1 起步；fast 先走 n+1 = 3 步（保持 fast 与 slow 间距 n+1）",
-        { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], st: st1(0, "dim") })] });
+        { line: 1, rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], st: st1(0, "dim") })] });
       fast = 3;
       for (var k = 1; k <= 3; k++) {
         ctx.step("fast 先行第 " + k + " 步 → 位置 " + k,
-          { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(0, "dim"), st1(k, "hot")) })] });
+          { line: 3, rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(0, "dim"), st1(k, "hot")) })] });
       }
       while (fast < vals.length + 1) {
-        ctx.step("fast、slow 同速前进…", { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] })] });
+        ctx.step("fast、slow 同速前进…", { line: 5, rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] })] });
         fast++; slow++;
       }
       ctx.step("fast 到尾，slow 停在被删节点（" + vals[slow] + "）的前驱 → 删除下一节点",
-        { rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }], st: mergeSt(st1(0, "dim"), st1(slow + 1, "swap")) })] });
+        { line: 4, rows: [row("链表", [dummy].concat(vals), { ptrs: [{ i: slow, label: "slow", c: "c1" }], st: mergeSt(st1(0, "dim"), st1(slow + 1, "swap")) })] });
       vals.splice(slow, 1);
-      ctx.step("删除完成 → [1,2,3,5]", { rows: [row("链表", [dummy].concat(vals), { st: mergeSt(st1(0, "dim"), st1(slow, "write")) })] });
+      ctx.step("删除完成 → [1,2,3,5]", { line: 7, rows: [row("链表", [dummy].concat(vals), { st: mergeSt(st1(0, "dim"), st1(slow, "write")) })] });
     },
     render: renderRows },
 
   "0021": { no: "21", title: "合并两个有序链表", tag: "链表 · 双指针归并",
     example: "输入：l1 = [1,2,4]，l2 = [1,3,4]　输出：[1,1,2,3,4,4]",
+    code: {
+      title: "归并两条有序链",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0), cur = dummy;",
+          "while (a != null && b != null) {",
+          "    if (a.val <= b.val) { cur.next = a;  a = a.next; }   // 取小的接上",
+          "    else { cur.next = b;  b = b.next; }",
+          "    cur = cur.next;",
+          "}",
+          "cur.next = (a != null) ? a : b;    // 剩下的整条挂上去",
+          "return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0), *cur = &dummy;",
+          "while (a && b) {",
+          "    if (a->val <= b->val) { cur->next = a;  a = a->next; }  // 取小的接上",
+          "    else { cur->next = b;  b = b->next; }",
+          "    cur = cur->next;",
+          "}",
+          "cur->next = a ? a : b;             // 剩下的整条挂上去",
+          "return dummy.next;"
+        ],
+        python: [
+          "dummy = cur = ListNode(0)",
+          "while a and b:",
+          "    if a.val <= b.val: cur.next = a;  a = a.next        # 取小的接上",
+          "    else: cur.next = b;  b = b.next",
+          "    cur = cur.next",
+          "",
+          "cur.next = a if a else b           # 剩下的整条挂上去",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{};  cur := dummy",
+          "for a != nil && b != nil {",
+          "    if a.Val <= b.Val { cur.Next = a;  a = a.Next       // 取小的接上",
+          "    } else { cur.Next = b;  b = b.Next }",
+          "    cur = cur.Next",
+          "}",
+          "if a != nil { cur.Next = a } else { cur.Next = b }  // 剩下的整条挂上去",
+          "return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0}, *cur = &dummy;",
+          "while (a && b) {",
+          "    if (a->val <= b->val) { cur->next = a;  a = a->next; } /* 取小的接上 */",
+          "    else { cur->next = b;  b = b->next; }",
+          "    cur = cur->next;",
+          "}",
+          "cur->next = a ? a : b;             /* 剩下的整条挂上去 */",
+          "return dummy.next;"
+        ]
+      }
+    },
     build: function (ctx) {
       var a = [1, 2, 4], b = [1, 3, 4];
       var i = 0, j = 0, out = [];
       while (i < a.length && j < b.length) {
         if (a[i] <= b[j]) {
-          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l1 的 " + a[i], { rows: [
+          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l1 的 " + a[i], { line: 3, rows: [
             row("l1", a, { st: st1(i, "hot"), ptrs: [{ i: i, label: "p1", c: "c1" }] }),
             row("l2", b, { st: st1(j, "dim"), ptrs: [{ i: j, label: "p2", c: "c2" }] }),
             row("输出", out.concat([a[i]]), { st: st1(out.length, "write") })] });
           out.push(a[i++]);
         } else {
-          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l2 的 " + b[j], { rows: [
+          ctx.step("比较 " + a[i] + " vs " + b[j] + "：取 l2 的 " + b[j], { line: 4, rows: [
             row("l1", a, { st: st1(i, "dim"), ptrs: [{ i: i, label: "p1", c: "c1" }] }),
             row("l2", b, { st: st1(j, "hot"), ptrs: [{ i: j, label: "p2", c: "c2" }] }),
             row("输出", out.concat([b[j]]), { st: st1(out.length, "write") })] });
@@ -641,12 +806,67 @@ var DEMOS = {
       }
       while (i < a.length) { out.push(a[i++]); }
       while (j < b.length) { out.push(b[j++]); }
-      ctx.step("某链取空 → 另一链剩余直接接上", { rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
+      ctx.step("某链取空 → 另一链剩余直接接上", { line: 7, rows: [row("输出", out, { st: st1(out.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0024": { no: "24", title: "两两交换链表中的节点", tag: "链表 · 指针重排", stageHeight: 500,
     example: "输入：head = [1,2,3,4,5]　输出：[2,1,4,3,5]",
+    code: {
+      title: "三指针换位",
+      langs: {
+        java: [
+          "ListNode dummy = new ListNode(0, head), pre = dummy;",
+          "while (pre.next != null && pre.next.next != null) {",
+          "    ListNode a = pre.next, b = a.next;   // 取出待交换的一对",
+          "    a.next = b.next;                     // ① a 指向 b 的后继",
+          "    b.next = a;                          // ② b 反过来指 a",
+          "    pre.next = b;                        // ③ 前驱改指 b",
+          "    pre = a;                             // a 成了新的前驱",
+          "}  return dummy.next;"
+        ],
+        cpp: [
+          "ListNode dummy(0);  dummy.next = head;  ListNode* pre = &dummy;",
+          "while (pre->next && pre->next->next) {",
+          "    ListNode *a = pre->next, *b = a->next;  // 取出待交换的一对",
+          "    a->next = b->next;                   // ① a 指向 b 的后继",
+          "    b->next = a;                         // ② b 反过来指 a",
+          "    pre->next = b;                       // ③ 前驱改指 b",
+          "    pre = a;                             // a 成了新的前驱",
+          "}  return dummy.next;"
+        ],
+        python: [
+          "dummy = pre = ListNode(0, head)",
+          "while pre.next and pre.next.next:",
+          "    a, b = pre.next, pre.next.next       # 取出待交换的一对",
+          "    a.next = b.next                      # ① a 指向 b 的后继",
+          "    b.next = a                           # ② b 反过来指 a",
+          "    pre.next = b                         # ③ 前驱改指 b",
+          "    pre = a                              # a 成了新的前驱",
+          "return dummy.next"
+        ],
+        go: [
+          "dummy := &ListNode{Next: head};  pre := dummy",
+          "for pre.Next != nil && pre.Next.Next != nil {",
+          "    a, b := pre.Next, pre.Next.Next      // 取出待交换的一对",
+          "    a.Next = b.Next                      // ① a 指向 b 的后继",
+          "    b.Next = a                           // ② b 反过来指 a",
+          "    pre.Next = b                         // ③ 前驱改指 b",
+          "    pre = a                              // a 成了新的前驱",
+          "};  return dummy.Next"
+        ],
+        c: [
+          "struct ListNode dummy = {0, head}, *pre = &dummy;",
+          "while (pre->next && pre->next->next) {",
+          "    struct ListNode *a = pre->next, *b = a->next;  /* 取出待交换的一对 */",
+          "    a->next = b->next;                   /* ① a 指向 b 的后继 */",
+          "    b->next = a;                         /* ② b 反过来指 a */",
+          "    pre->next = b;                       /* ③ 前驱改指 b */",
+          "    pre = a;                             /* a 成了新的前驱 */",
+          "}  return dummy.next;"
+        ]
+      }
+    },
     build: function (ctx) {
       var nodes = ["1", "2", "3", "4", "5"];
       var edges = { dummy: "1", "1": "2", "2": "3", "3": "4", "4": "5", "5": null };
@@ -686,7 +906,7 @@ var DEMOS = {
       }
 
       ctx.phase("update", "初始化：dummy.next 指向 1；prev 站在 dummy，准备处理一对节点。",
-        pointerView({ prev: "dummy", first: "—", second: "—", next: "—" }, -1, [], "先固定 dummy，后面每一轮都只改三条 next 边。"));
+        pointerView({ prev: "dummy", first: "—", second: "—", next: "—" }, -1, [], "先固定 dummy，后面每一轮都只改三条 next 边。"), { line: 1 });
 
       for (var i = 0; i + 1 < nodes.length; i += 2) {
         var prev = i === 0 ? "dummy" : nodes[i - 1];
@@ -694,53 +914,108 @@ var DEMOS = {
         var vars = { prev: prev, first: first, second: second, next: next == null ? "null" : next };
 
         ctx.phase("save_next", "定位本轮：prev=" + prev + "，first=" + first + "，second=" + second + "；先读取并保存 next=" + (next == null ? "null" : next) + "，此时任何边都不能丢。",
-          pointerView(vars, 2, [], "先读指针，不急着改链：second.next 是后续仍要接回的 next。"));
+          pointerView(vars, 2, [], "先读指针，不急着改链：second.next 是后续仍要接回的 next。"), { line: 3 });
 
         edges[first] = next;
         ctx.phase("swap_prepare", "执行 first.next = next：把 " + first + ".next 从 " + second + " 改为 " + (next == null ? "null" : next) + "，先把 first 与后继链保住。",
-          pointerView(vars, 3, [first + ".next"], "第一条边变化：" + first + ".next → " + (next == null ? "null" : next) + "。节点 " + second + " 暂时脱离 dummy 主链，但还没有丢失。"));
+          pointerView(vars, 3, [first + ".next"], "第一条边变化：" + first + ".next → " + (next == null ? "null" : next) + "。节点 " + second + " 暂时脱离 dummy 主链，但还没有丢失。"), { line: 4 });
 
         edges[second] = first;
         ctx.phase("swap_move", "执行 second.next = first：让 " + second + " 指回 " + first + "，完成这一对节点内部的反向连接。",
-          pointerView(vars, 4, [second + ".next"], "第二条边变化：" + second + ".next → " + first + "；现在 " + second + " → " + first + "，但整对还要接回前缀。"));
+          pointerView(vars, 4, [second + ".next"], "第二条边变化：" + second + ".next → " + first + "；现在 " + second + " → " + first + "，但整对还要接回前缀。"), { line: 5 });
 
         edges[prev] = second;
         ctx.phase("swap_done", "执行 prev.next = second：让前缀的 " + prev + ".next 指向 " + second + "；本轮得到 " + second + " → " + first + " → " + (next == null ? "null" : next) + "。",
-          pointerView(vars, 5, [prev + ".next"], "第三条边变化：" + prev + ".next → " + second + "。只有这一步完成后，这一对才真正回到主链。"));
+          pointerView(vars, 5, [prev + ".next"], "第三条边变化：" + prev + ".next → " + second + "。只有这一步完成后，这一对才真正回到主链。"), { line: 6 });
 
         if (i + 3 < nodes.length) {
           ctx.phase("pointer_move", "窗口右移：执行 prev = first（" + first + "）；下一轮从 " + first + ".next 开始处理 " + nodes[i + 2] + "、" + nodes[i + 3] + "。",
-            pointerView({ prev: first, first: nodes[i + 2], second: nodes[i + 3], next: edges[nodes[i + 3]] == null ? "null" : edges[nodes[i + 3]] }, 6, [], "指针变量前进，但已经完成的 next 边保持不动。"));
+            pointerView({ prev: first, first: nodes[i + 2], second: nodes[i + 3], next: edges[nodes[i + 3]] == null ? "null" : edges[nodes[i + 3]] }, 6, [], "指针变量前进，但已经完成的 next 边保持不动。"), { line: 7 });
         }
       }
 
       ctx.phase("done", "完成：5 没有成对节点，保持原位；沿 dummy.next 读取结果为 2 → 1 → 4 → 3 → 5。",
-        pointerView({ prev: "3", first: "5", second: "null", next: "null" }, -1, [], "奇数长度只让最后一个节点原样挂在尾部，不需要交换。"));
+        pointerView({ prev: "3", first: "5", second: "null", next: "null" }, -1, [], "奇数长度只让最后一个节点原样挂在尾部，不需要交换。"), { line: 8 });
     },
     render: renderRows },
 
   "0138": { no: "138", title: "随机链表的复制", tag: "链表 · 哈希映射",
     example: "输入：head = [[7,null],[13,0],[11,4],[10,2],[1,0]]",
+    code: {
+      title: "交织复制",
+      langs: {
+        java: [
+          "for (Node p = head; p != null; p = p.next.next) {      // ① 每个节点后插克隆",
+          "    Node cp = new Node(p.val);  cp.next = p.next;  p.next = cp;",
+          "}",
+          "for (Node p = head; p != null; p = p.next.next)        // ② random 就在原节点的下一个",
+          "    if (p.random != null) p.next.random = p.random.next;",
+          "Node dummy = new Node(0), t = dummy;",
+          "for (Node p = head; p != null; p = p.next) {           // ③ 拆成两条链",
+          "    t.next = p.next;  t = t.next;  p.next = t.next; }"
+        ],
+        cpp: [
+          "for (Node* p = head; p; p = p->next->next) {           // ① 每个节点后插克隆",
+          "    Node* cp = new Node(p->val);  cp->next = p->next;  p->next = cp;",
+          "}",
+          "for (Node* p = head; p; p = p->next->next)             // ② random 就在原节点的下一个",
+          "    if (p->random) p->next->random = p->random->next;",
+          "Node dummy(0), *t = &dummy;",
+          "for (Node* p = head; p; p = p->next) {                 // ③ 拆成两条链",
+          "    t->next = p->next;  t = t->next;  p->next = t->next; }"
+        ],
+        python: [
+          "p = head",
+          "while p: cp = Node(p.val); cp.next = p.next; p.next = cp; p = cp.next  # ① 每个节点后插克隆",
+          "p = head",
+          "while p:                                               # ② random 就在原节点的下一个",
+          "    if p.random: p.next.random = p.random.next",
+          "    p = p.next.next",
+          "dummy = t = Node(0);  p = head",
+          "while p: t.next = p.next; t = t.next; p.next = t.next; p = p.next     # ③ 拆成两条链"
+        ],
+        go: [
+          "for p := head; p != nil; p = p.Next.Next {             // ① 每个节点后插克隆",
+          "    cp := &Node{Val: p.Val, Next: p.Next};  p.Next = cp",
+          "}",
+          "for p := head; p != nil; p = p.Next.Next {             // ② random 就在原节点的下一个",
+          "    if p.Random != nil { p.Next.Random = p.Random.Next } }",
+          "dummy := &Node{};  t := dummy",
+          "for p := head; p != nil; p = p.Next {                  // ③ 拆成两条链",
+          "    t.Next = p.Next;  t = t.Next;  p.Next = t.Next }"
+        ],
+        c: [
+          "for (Node* p = head; p; p = p->next->next) {           /* ① 每个节点后插克隆 */",
+          "    Node* cp = new_node(p->val);  cp->next = p->next;  p->next = cp;",
+          "}",
+          "for (Node* p = head; p; p = p->next->next)             /* ② random 就在原节点的下一个 */",
+          "    if (p->random) p->next->random = p->random->next;",
+          "Node dummy = {0}, *t = &dummy;",
+          "for (Node* p = head; p; p = p->next) {                 /* ③ 拆成两条链 */",
+          "    t->next = p->next;  t = t->next;  p->next = t->next; }"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [7, 13, 11, 10, 1], random = [null, 0, 4, 2, 0];
       var clones = [];
-      ctx.step("第一遍：只复制 next，建立 原节点 → 新节点 的哈希映射", { rows: [
+      ctx.step("第一遍：只复制 next，建立 原节点 → 新节点 的哈希映射", { line: 1, rows: [
         row("原链表", vals, { dimAll: true }),
         row("新链表", vals.map(function () { return "·"; }), { st: null }) ] });
       vals.forEach(function (v, i) {
         clones.push(v + "'");
-        ctx.step("复制节点 " + v + " → " + v + "'（映射表记下对应关系）", { rows: [
+        ctx.step("复制节点 " + v + " → " + v + "'（映射表记下对应关系）", { line: 2, rows: [
           row("原链表", vals, { st: st1(i, "hot") }),
           row("新链表", clones.concat(vals.slice(i + 1).map(function () { return "·"; })), { st: st1(i, "write") })] });
       });
       for (var i = 0; i < vals.length; i++) {
         var r = random[i];
         ctx.step("补 random 指针：" + vals[i] + "' → " + (r === null ? "null" : vals[r] + "'"),
-          { rows: [
+          { line: 5, rows: [
             row("原链表", vals, { st: st1(i, "cmp") }),
             row("新链表", vals, { st: st1(i, "write") })], note: "random 指针映射：" + vals.map(function (v, k) { return v + "→" + (random[k] === null ? "null" : vals[random[k]] + "'"); }).join("；") });
       }
-      ctx.step("完成！映射表让 random 指针一步定位，时间 O(n)、空间 O(n)", { rows: [
+      ctx.step("完成！映射表让 random 指针一步定位，时间 O(n)、空间 O(n)", { line: 8, rows: [
         row("原链表", vals),
         row("新链表", vals.map(function (v) { return v + "'"; }), { st: st1(vals.length - 1, "target") })], note: "进阶：原地插入克隆法可以做到 O(1) 空间" });
     },
@@ -748,11 +1023,61 @@ var DEMOS = {
 
   "0141": { no: "141", title: "环形链表", tag: "链表 · Floyd 快慢指针",
     example: "输入：head = [3,2,0,-4]，pos = 1（尾部连接到下标 1）　输出：true",
+    code: {
+      title: "快慢指针",
+      langs: {
+        java: [
+          "ListNode slow = head, fast = head;",
+          "while (fast != null && fast.next != null) {",
+          "    slow = slow.next;          // 慢指针一次一步",
+          "    fast = fast.next.next;     // 快指针一次两步",
+          "    if (slow == fast) return true;   // 有环必相遇",
+          "}",
+          "return false;                  // 快指针跑到 null → 无环"
+        ],
+        cpp: [
+          "ListNode *slow = head, *fast = head;",
+          "while (fast && fast->next) {",
+          "    slow = slow->next;         // 慢指针一次一步",
+          "    fast = fast->next->next;   // 快指针一次两步",
+          "    if (slow == fast) return true;   // 有环必相遇",
+          "}",
+          "return false;                  // 快指针跑到 null → 无环"
+        ],
+        python: [
+          "slow = fast = head",
+          "while fast and fast.next:",
+          "    slow = slow.next           # 慢指针一次一步",
+          "    fast = fast.next.next      # 快指针一次两步",
+          "    if slow is fast: return True     # 有环必相遇",
+          "",
+          "return False                   # 快指针跑到 null → 无环"
+        ],
+        go: [
+          "slow, fast := head, head",
+          "for fast != nil && fast.Next != nil {",
+          "    slow = slow.Next           // 慢指针一次一步",
+          "    fast = fast.Next.Next      // 快指针一次两步",
+          "    if slow == fast { return true }  // 有环必相遇",
+          "}",
+          "return false                   // 快指针跑到 null → 无环"
+        ],
+        c: [
+          "struct ListNode *slow = head, *fast = head;",
+          "while (fast && fast->next) {",
+          "    slow = slow->next;         /* 慢指针一次一步 */",
+          "    fast = fast->next->next;   /* 快指针一次两步 */",
+          "    if (slow == fast) return 1;      /* 有环必相遇 */",
+          "}",
+          "return 0;                      /* 快指针跑到 null → 无环 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [3, 2, 0, -4];
       var pos = 1;
       var slow = 0, fast = 0, met = false, stepNo = 0;
-      ctx.step("Floyd 判圈：slow 每次走 1 步、fast 走 2 步；有环则必在环内相遇", { rows: [
+      ctx.step("Floyd 判圈：slow 每次走 1 步、fast 走 2 步；有环则必在环内相遇", { line: 2, rows: [
         row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ 尾部连回下标 " + pos }) ] });
       for (var s = 0; s < 12 && !met; s++) {
         slow = (slow + 1) % vals.length;
@@ -760,46 +1085,156 @@ var DEMOS = {
         stepNo++;
         met = slow === fast;
         ctx.step("第 " + stepNo + " 轮：slow=" + vals[slow] + "，fast=" + vals[fast] + (met ? " → 相遇！有环 ✓" : ""),
-          { rows: [row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(slow, met ? "target" : "hot"), met ? {} : st1(fast, "cmp")), tail: "⟲ " + pos }) ] });
+          { line: 4, rows: [row("链表(有环 " + pos + ")", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], st: mergeSt(st1(slow, met ? "target" : "hot"), met ? {} : st1(fast, "cmp")), tail: "⟲ " + pos }) ] });
       }
-      ctx.step("结论：有环。原理：进入环后 fast 每轮追近 1 步，必然追上", { rows: [
+      ctx.step("结论：有环。原理：进入环后 fast 每轮追近 1 步，必然追上", { line: 5, rows: [
         row("链表(有环 " + pos + ")", vals, { st: st1(slow, "target"), tail: "⟲ " + pos }) ] });
     },
     render: renderRows },
 
   "0142": { no: "142", title: "环形链表 II", tag: "链表 · Floyd 两阶段",
     example: "输入：head = [3,2,0,-4]，pos = 1　输出：返回环的入口节点 2",
+    code: {
+      title: "相遇后回到表头",
+      langs: {
+        java: [
+          "ListNode slow = head, fast = head;",
+          "while (fast != null && fast.next != null) {",
+          "    slow = slow.next;  fast = fast.next.next;",
+          "    if (slow == fast) {              // 第一次相遇",
+          "        ListNode p = head;           // 一个从头走",
+          "        while (p != slow) { p = p.next;  slow = slow.next; }  // 一个从相遇点走",
+          "        return p;                    // 再相遇处就是入环口",
+          "    } }  return null;"
+        ],
+        cpp: [
+          "ListNode *slow = head, *fast = head;",
+          "while (fast && fast->next) {",
+          "    slow = slow->next;  fast = fast->next->next;",
+          "    if (slow == fast) {              // 第一次相遇",
+          "        ListNode* p = head;          // 一个从头走",
+          "        while (p != slow) { p = p->next;  slow = slow->next; }  // 一个从相遇点走",
+          "        return p;                    // 再相遇处就是入环口",
+          "    } }  return nullptr;"
+        ],
+        python: [
+          "slow = fast = head",
+          "while fast and fast.next:",
+          "    slow = slow.next;  fast = fast.next.next",
+          "    if slow is fast:                 # 第一次相遇",
+          "        p = head                     # 一个从头走",
+          "        while p is not slow: p = p.next;  slow = slow.next      # 一个从相遇点走",
+          "        return p                     # 再相遇处就是入环口",
+          "return None"
+        ],
+        go: [
+          "slow, fast := head, head",
+          "for fast != nil && fast.Next != nil {",
+          "    slow, fast = slow.Next, fast.Next.Next",
+          "    if slow == fast {                // 第一次相遇",
+          "        p := head                    // 一个从头走",
+          "        for p != slow { p = p.Next;  slow = slow.Next }         // 一个从相遇点走",
+          "        return p                     // 再相遇处就是入环口",
+          "    } };  return nil"
+        ],
+        c: [
+          "struct ListNode *slow = head, *fast = head;",
+          "while (fast && fast->next) {",
+          "    slow = slow->next;  fast = fast->next->next;",
+          "    if (slow == fast) {              /* 第一次相遇 */",
+          "        struct ListNode* p = head;   /* 一个从头走 */",
+          "        while (p != slow) { p = p->next;  slow = slow->next; }  /* 一个从相遇点走 */",
+          "        return p;                    /* 再相遇处就是入环口 */",
+          "    } }  return NULL;"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [3, 2, 0, -4], pos = 1;
       var slow = 0, fast = 0;
-      ctx.step("阶段一：slow/fast 判圈，直到相遇", { rows: [
+      ctx.step("阶段一：slow/fast 判圈，直到相遇", { line: 2, rows: [
         row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
       var met = -1;
       for (var s = 0; s < 12; s++) {
         slow = (slow + 1) % vals.length;
         fast = (fast + 2) % vals.length;
         if (slow === fast) { met = slow; break; }
-        ctx.step("追击中：slow=" + vals[slow] + "，fast=" + vals[fast], { rows: [
+        ctx.step("追击中：slow=" + vals[slow] + "，fast=" + vals[fast], { line: 3, rows: [
           row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }], tail: "⟲ " + pos }) ] });
       }
       ctx.step("相遇于 " + vals[met] + "。数学结论：头到入口 = 入口到相遇点（模环长）",
-        { rows: [row("链表", vals, { ptrs: [{ i: met, label: "相遇", c: "c4" }], tail: "⟲ " + pos }) ] });
+        { line: 4, rows: [row("链表", vals, { ptrs: [{ i: met, label: "相遇", c: "c4" }], tail: "⟲ " + pos }) ] });
       slow = 0;
       var ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
       while (slow !== met) {
-        ctx.step("两指针同速前进：slow=" + vals[slow] + "，meet=" + vals[met], { rows: [
+        ctx.step("两指针同速前进：slow=" + vals[slow] + "，meet=" + vals[met], { line: 6, rows: [
           row("链表", vals, { ptrs: ptrs2.slice(), tail: "⟲ " + pos }) ] });
         slow = (slow + 1) % vals.length;
         met = (met + 1) % vals.length;
         ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: met, label: "meet", c: "c4" }];
       }
-      ctx.step("两指针在 " + vals[met] + " 相会 → 这就是环的入口 ✓", { rows: [
+      ctx.step("两指针在 " + vals[met] + " 相会 → 这就是环的入口 ✓", { line: 7, rows: [
         row("链表", vals, { st: st1(met, "target"), ptrs: ptrs2.slice(), tail: "⟲ " + pos }) ] });
     },
     render: renderRows },
 
   "0146": { no: "146", title: "LRU 缓存", tag: "链表 · 双向链表 + 哈希",
     example: "容量 capacity = 2；操作 [put,put,get,put,get,put,get,get,put]，见步骤",
+    code: {
+      title: "哈希 + 双向链表",
+      langs: {
+        java: [
+          "int get(int key) {",
+          "    if (!map.containsKey(key)) return -1;",
+          "    moveToHead(map.get(key));      // 命中 → 提到最前面",
+          "    return map.get(key).val; }",
+          "void put(int key, int val) {",
+          "    if (map.containsKey(key)) { map.get(key).val = val;  moveToHead(map.get(key)); return; }",
+          "    addToHead(new Node(key, val));",
+          "    if (map.size() > cap) removeTail();   // 超容 → 淘汰队尾 }"
+        ],
+        cpp: [
+          "int get(int key) {",
+          "    if (!mp.count(key)) return -1;",
+          "    moveToHead(mp[key]);           // 命中 → 提到最前面",
+          "    return mp[key]->val; }",
+          "void put(int key, int val) {",
+          "    if (mp.count(key)) { mp[key]->val = val;  moveToHead(mp[key]);  return; }",
+          "    addToHead(new Node(key, val));",
+          "    if ((int)mp.size() > cap) removeTail();   // 超容 → 淘汰队尾 }"
+        ],
+        python: [
+          "def get(self, key):",
+          "    if key not in self.mp: return -1",
+          "    self.move_to_head(self.mp[key])  # 命中 → 提到最前面",
+          "    return self.mp[key].val",
+          "def put(self, key, val):",
+          "    if key in self.mp: self.mp[key].val = val; self.move_to_head(self.mp[key]); return",
+          "    self.add_to_head(Node(key, val))",
+          "    if len(self.mp) > self.cap: self.remove_tail()   # 超容 → 淘汰队尾"
+        ],
+        go: [
+          "func (c *LRU) Get(key int) int {",
+          "    n, ok := c.mp[key];  if !ok { return -1 }",
+          "    c.moveToHead(n)                // 命中 → 提到最前面",
+          "    return n.val }",
+          "func (c *LRU) Put(key, val int) {",
+          "    if n, ok := c.mp[key]; ok { n.val = val;  c.moveToHead(n);  return }",
+          "    c.addToHead(&Node{key: key, val: val})",
+          "    if len(c.mp) > c.cap { c.removeTail() }   // 超容 → 淘汰队尾 }"
+        ],
+        c: [
+          "int get(LRU* c, int key) {",
+          "    Node* n = find(c, key);  if (!n) return -1;",
+          "    move_to_head(c, n);            /* 命中 → 提到最前面 */",
+          "    return n->val; }",
+          "void put(LRU* c, int key, int val) {",
+          "    Node* n = find(c, key);  if (n) { n->val = val;  move_to_head(c, n);  return; }",
+          "    add_to_head(c, new_node(key, val));",
+          "    if (c->size > c->cap) remove_tail(c);     /* 超容 → 淘汰队尾 */ }"
+        ]
+      }
+    },
     build: function (ctx) {
       var cap = 2;
       var list = [];                       // 头=最新，尾=最旧
@@ -823,29 +1258,79 @@ var DEMOS = {
             var evicted = list.pop();
             delete map[evicted.k];
             list.unshift({ k: k, v: v }); map[k] = 1;
-            ctx.step("put(" + k + "," + v + ")：缓存满 → 淘汰最久未用的 " + evicted.k + "，新节点插头部", view("put(" + k + "," + v + ") 淘汰 " + evicted.k, opIdx));
+            ctx.step("put(" + k + "," + v + ")：缓存满 → 淘汰最久未用的 " + evicted.k + "，新节点插头部", view("put(" + k + "," + v + ") 淘汰 " + evicted.k, opIdx), { line: 8 });
             return;
           }
           list.unshift({ k: k, v: v }); map[k] = 1;
-          ctx.step("put(" + k + "," + v + ")：插入头部", view("put(" + k + "," + v + ")", opIdx));
+          ctx.step("put(" + k + "," + v + ")：插入头部", view("put(" + k + "," + v + ")", opIdx), { line: 7 });
         } else {
           var gk = op[1];
           if (map[gk] === undefined) {
-            ctx.step("get(" + gk + ")：未命中 → -1", view("get(" + gk + ") 未命中", opIdx));
+            ctx.step("get(" + gk + ")：未命中 → -1", view("get(" + gk + ") 未命中", opIdx), { line: 2 });
           } else {
             var idx = list.map(function (e) { return e.k; }).indexOf(gk);
             var entry = list.splice(idx, 1)[0];
             list.unshift(entry);
-            ctx.step("get(" + gk + ") 命中 → " + entry.v + "，节点移到头部（最新）", view("get(" + gk + ")=" + entry.v + "，移到头部", opIdx));
+            ctx.step("get(" + gk + ") 命中 → " + entry.v + "，节点移到头部（最新）", view("get(" + gk + ")=" + entry.v + "，移到头部", opIdx), { line: 3 });
           }
         }
       });
-      ctx.step("全部操作完成。双向链表 O(1) 移动/淘汰 + 哈希表 O(1) 定位", view("结束", seq.length - 1));
+      ctx.step("全部操作完成。双向链表 O(1) 移动/淘汰 + 哈希表 O(1) 定位", view("结束", seq.length - 1), { line: 1 });
     },
     render: renderRows },
 
   "0148": { no: "148", title: "排序链表", tag: "链表 · 归并排序",
     example: "输入：head = [-1,5,3,4,0]　输出：[-1,0,3,4,5]",
+    code: {
+      title: "归并排序链表",
+      langs: {
+        java: [
+          "ListNode sortList(ListNode head) {",
+          "    if (head == null || head.next == null) return head;",
+          "    ListNode slow = head, fast = head.next;",
+          "    while (fast != null && fast.next != null) { slow = slow.next;  fast = fast.next.next; }",
+          "    ListNode mid = slow.next;  slow.next = null;     // 快慢指针断成两半",
+          "    return merge(sortList(head), sortList(mid));     // 分别排好再归并",
+          "}"
+        ],
+        cpp: [
+          "ListNode* sortList(ListNode* head) {",
+          "    if (!head || !head->next) return head;",
+          "    ListNode *slow = head, *fast = head->next;",
+          "    while (fast && fast->next) { slow = slow->next;  fast = fast->next->next; }",
+          "    ListNode* mid = slow->next;  slow->next = nullptr;  // 快慢指针断成两半",
+          "    return merge(sortList(head), sortList(mid));     // 分别排好再归并",
+          "}"
+        ],
+        python: [
+          "def sort_list(head):",
+          "    if not head or not head.next: return head",
+          "    slow, fast = head, head.next",
+          "    while fast and fast.next: slow = slow.next;  fast = fast.next.next",
+          "    mid = slow.next;  slow.next = None               # 快慢指针断成两半",
+          "    return merge(sort_list(head), sort_list(mid))    # 分别排好再归并",
+          "# 链表没有随机访问，归并比快排合适"
+        ],
+        go: [
+          "func sortList(head *ListNode) *ListNode {",
+          "    if head == nil || head.Next == nil { return head }",
+          "    slow, fast := head, head.Next",
+          "    for fast != nil && fast.Next != nil { slow = slow.Next;  fast = fast.Next.Next }",
+          "    mid := slow.Next;  slow.Next = nil               // 快慢指针断成两半",
+          "    return merge(sortList(head), sortList(mid))      // 分别排好再归并",
+          "}"
+        ],
+        c: [
+          "struct ListNode* sort_list(struct ListNode* head) {",
+          "    if (!head || !head->next) return head;",
+          "    struct ListNode *slow = head, *fast = head->next;",
+          "    while (fast && fast->next) { slow = slow->next;  fast = fast->next->next; }",
+          "    struct ListNode* mid = slow->next;  slow->next = NULL;  /* 快慢指针断成两半 */",
+          "    return merge(sort_list(head), sort_list(mid));   /* 分别排好再归并 */",
+          "}"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [-1, 5, 3, 4, 0];
       function mergeView(l, r, merged, hi) {
@@ -854,38 +1339,83 @@ var DEMOS = {
           row("右半", r, { ptrs: [{ i: 0, label: "R", c: "c2" }] }),
           row("合并中", merged.concat(hi !== undefined ? [hi] : []), { st: hi !== undefined ? st1(merged.length, "write") : null }) ] };
       }
-      ctx.step("归并排序：快慢指针找中点 → 递归拆半 → 有序合并", { rows: [row("链表", vals)] });
+      ctx.step("归并排序：快慢指针找中点 → 递归拆半 → 有序合并", { line: 1, rows: [row("链表", vals)] });
       var mid = 2;
       var left = vals.slice(0, mid), right = vals.slice(mid);
-      ctx.step("找中点拆半：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []));
+      ctx.step("找中点拆半：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []), { line: 5 });
       left.sort(function (a, b) { return a - b; }); right.sort(function (a, b) { return a - b; });
-      ctx.step("两半分别递归排序完成（子问题规模减半）：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []));
+      ctx.step("两半分别递归排序完成（子问题规模减半）：左 [" + left.join(",") + "]，右 [" + right.join(",") + "]", mergeView(left, right, []), { line: 6 });
       var merged = [], i = 0, j = 0;
       while (i < left.length && j < right.length) {
         if (left[i] <= right[j]) {
           merged.push(left[i]);
-          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + left[i], mergeView(left, right, merged, merged.length - 1));
+          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + left[i], mergeView(left, right, merged, merged.length - 1), { line: 6 });
           i++;
         } else {
           merged.push(right[j]);
-          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + right[j], mergeView(left, right, merged, merged.length - 1));
+          ctx.step("比较 " + left[i] + " vs " + right[j] + " → 取 " + right[j], mergeView(left, right, merged, merged.length - 1), { line: 6 });
           j++;
         }
       }
       while (i < left.length) merged.push(left[i++]);
       while (j < right.length) merged.push(right[j++]);
-      ctx.step("合并完成 → [-1,0,3,4,5]", { rows: [row("结果", merged, { st: st1(merged.length - 1, "target") })] });
+      ctx.step("合并完成 → [-1,0,3,4,5]", { line: 6, rows: [row("结果", merged, { st: st1(merged.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0160": { no: "160", title: "相交链表", tag: "链表 · 双指针走位",
     example: "listA = [4,1,8,4,5]，listB = [5,6,1,8,4,5]，从 8 开始相交　输出：8",
+    code: {
+      title: "双指针换轨",
+      langs: {
+        java: [
+          "ListNode pa = headA, pb = headB;",
+          "while (pa != pb) {                     // 相等时要么是交点，要么同时为 null",
+          "    pa = (pa == null) ? headB : pa.next;   // 走完 A 换到 B",
+          "    pb = (pb == null) ? headA : pb.next;   // 走完 B 换到 A",
+          "}",
+          "return pa;   // 两条路径长度都是 lenA + lenB，必然同时到达"
+        ],
+        cpp: [
+          "ListNode *pa = headA, *pb = headB;",
+          "while (pa != pb) {                     // 相等时要么是交点，要么同时为 null",
+          "    pa = pa ? pa->next : headB;            // 走完 A 换到 B",
+          "    pb = pb ? pb->next : headA;            // 走完 B 换到 A",
+          "}",
+          "return pa;   // 两条路径长度都是 lenA + lenB，必然同时到达"
+        ],
+        python: [
+          "pa, pb = head_a, head_b",
+          "while pa is not pb:                    # 相等时要么是交点，要么同时为 None",
+          "    pa = head_b if pa is None else pa.next # 走完 A 换到 B",
+          "    pb = head_a if pb is None else pb.next # 走完 B 换到 A",
+          "",
+          "return pa   # 两条路径长度都是 lenA + lenB，必然同时到达"
+        ],
+        go: [
+          "pa, pb := headA, headB",
+          "for pa != pb {                         // 相等时要么是交点，要么同时为 nil",
+          "    if pa == nil { pa = headB } else { pa = pa.Next }   // 走完 A 换到 B",
+          "    if pb == nil { pb = headA } else { pb = pb.Next }   // 走完 B 换到 A",
+          "}",
+          "return pa   // 两条路径长度都是 lenA + lenB，必然同时到达"
+        ],
+        c: [
+          "struct ListNode *pa = headA, *pb = headB;",
+          "while (pa != pb) {                     /* 相等时要么是交点，要么同时为 NULL */",
+          "    pa = pa ? pa->next : headB;            /* 走完 A 换到 B */",
+          "    pb = pb ? pb->next : headA;            /* 走完 B 换到 A */",
+          "}",
+          "return pa;  /* 两条路径长度都是 lenA + lenB，必然同时到达 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var common = [8, 4, 5];
       var aHead = [4, 1], bHead = [5, 6, 1];
       var pa = 0, pb = 0, swap = false;
       ctx.step("技巧：pA 走完 A 就走 B，pB 走完 B 就走 A——两指针走过的总长度相同，必然在交点相遇",
-        { rows: [row("A 独有", aHead), row("公共尾", common), row("B 独有", bHead)] });
+        { line: 1, rows: [row("A 独有", aHead), row("公共尾", common), row("B 独有", bHead)] });
       var routeA = aHead.concat(common), routeB = bHead.concat(common);
       var la = aHead.length, lb = bHead.length;
       for (var s = 0; s < 12; s++) {
@@ -895,10 +1425,10 @@ var DEMOS = {
           row("A 路径", routeA, { st: st1(pa, "hot"), ptrs: [{ i: pa, label: "pA", c: "c1" }] }),
           row("B 路径", routeB, { st: st1(pb, "hot"), ptrs: [{ i: pb, label: "pB", c: "c2" }] }) ] };
         if (va === vb) {
-          ctx.step("pA=" + va + " 与 pB=" + vb + " 相同 → 相交节点是 " + va + " ✓", rowView);
+          ctx.step("pA=" + va + " 与 pB=" + vb + " 相同 → 相交节点是 " + va + " ✓", rowView, { line: 6 });
           break;
         }
-        ctx.step("pA=" + va + "，pB=" + vb + "：不等，各走一步（走完自己就切到对方）", rowView);
+        ctx.step("pA=" + va + "，pB=" + vb + "：不等，各走一步（走完自己就切到对方）", rowView, { line: 3 });
         pa = (pa + 1) % 12; pb = (pb + 1) % 12;
         if (pa > 11 || pb > 11) break;
       }
@@ -907,30 +1437,85 @@ var DEMOS = {
 
   "0234": { no: "234", title: "回文链表", tag: "链表 · 找中 + 反转 + 比较",
     example: "输入：head = [1,2,3,2,1]　输出：true",
+    code: {
+      title: "折半 + 反转后半",
+      langs: {
+        java: [
+          "ListNode slow = head, fast = head;",
+          "while (fast.next != null && fast.next.next != null) { slow = slow.next;  fast = fast.next.next; }",
+          "ListNode second = reverse(slow.next);   // 反转后半段",
+          "ListNode p = head, q = second;",
+          "while (q != null) {                     // 前后对撞比对",
+          "    if (p.val != q.val) return false;",
+          "    p = p.next;  q = q.next; }",
+          "return true;"
+        ],
+        cpp: [
+          "ListNode *slow = head, *fast = head;",
+          "while (fast->next && fast->next->next) { slow = slow->next;  fast = fast->next->next; }",
+          "ListNode* second = reverse(slow->next); // 反转后半段",
+          "ListNode *p = head, *q = second;",
+          "while (q) {                             // 前后对撞比对",
+          "    if (p->val != q->val) return false;",
+          "    p = p->next;  q = q->next; }",
+          "return true;"
+        ],
+        python: [
+          "slow = fast = head",
+          "while fast.next and fast.next.next: slow = slow.next;  fast = fast.next.next",
+          "second = reverse(slow.next)             # 反转后半段",
+          "p, q = head, second",
+          "while q:                                # 前后对撞比对",
+          "    if p.val != q.val: return False",
+          "    p, q = p.next, q.next",
+          "return True"
+        ],
+        go: [
+          "slow, fast := head, head",
+          "for fast.Next != nil && fast.Next.Next != nil { slow = slow.Next;  fast = fast.Next.Next }",
+          "second := reverse(slow.Next)            // 反转后半段",
+          "p, q := head, second",
+          "for q != nil {                          // 前后对撞比对",
+          "    if p.Val != q.Val { return false }",
+          "    p, q = p.Next, q.Next }",
+          "return true"
+        ],
+        c: [
+          "struct ListNode *slow = head, *fast = head;",
+          "while (fast->next && fast->next->next) { slow = slow->next;  fast = fast->next->next; }",
+          "struct ListNode* second = reverse(slow->next);  /* 反转后半段 */",
+          "struct ListNode *p = head, *q = second;",
+          "while (q) {                             /* 前后对撞比对 */",
+          "    if (p->val != q->val) return 0;",
+          "    p = p->next;  q = q->next; }",
+          "return 1;"
+        ]
+      }
+    },
     build: function (ctx) {
       var vals = [1, 2, 3, 2, 1];
       var half = 2;
-      ctx.step("第一步：快慢指针找中点（fast 每次 2 步）", { rows: [
+      ctx.step("第一步：快慢指针找中点（fast 每次 2 步）", { line: 2, rows: [
         row("链表", vals, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
       var slow = 0, fast = 0;
       for (var s = 0; s < 3; s++) {
         slow++; fast += 2;
-        ctx.step("slow=" + vals[slow] + "，fast=" + (fast < vals.length ? vals[fast] : "到尾") + " → 中点定位完成", { rows: [
+        ctx.step("slow=" + vals[slow] + "，fast=" + (fast < vals.length ? vals[fast] : "到尾") + " → 中点定位完成", { line: 2, rows: [
           row("链表", vals, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: Math.min(fast, vals.length - 1), label: "fast", c: "c2" }] }) ] });
       }
       var second = vals.slice(slow).reverse();
-      ctx.step("第二步：反转后半段 → [" + second.join(",") + "]（原地反转，O(1) 空间）", { rows: [
+      ctx.step("第二步：反转后半段 → [" + second.join(",") + "]（原地反转，O(1) 空间）", { line: 3, rows: [
         row("前半", vals.slice(0, slow)),
         row("后半(反转)", second, { st: st1(0, "write") }) ] });
       var ok = true;
       for (var k = 0; k < second.length; k++) {
         var equal = vals[k] === second[k];
-        ctx.step("比较 " + vals[k] + " vs " + second[k] + "：" + (equal ? "相等 ✓" : "不等 ✗"), { rows: [
+        ctx.step("比较 " + vals[k] + " vs " + second[k] + "：" + (equal ? "相等 ✓" : "不等 ✗"), { line: 6, rows: [
           row("前半", vals.slice(0, slow), { st: st1(k, "cmp") }),
           row("后半(反转)", second, { st: st1(k, equal ? "done" : "swap") }) ] });
         if (!equal) ok = false;
       }
-      ctx.step(ok ? "全部相等 → 是回文链表 ✓" : "不相等 → 不是回文", { rows: [
+      ctx.step(ok ? "全部相等 → 是回文链表 ✓" : "不相等 → 不是回文", { line: 8, rows: [
         row("结论", ok ? ["是回文"] : ["不是回文"], { st: st1(0, "target") }) ] });
     },
     render: renderRows }
@@ -964,10 +1549,13 @@ var DEMOS = {
     document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
+      code: d.code,
+      sizes: d.sizes, defaultSize: d.defaultSize,
       stageHeight: d.stageHeight,
       build: d.build, render: d.render
     });
   }
+  sel.onchange = function () { mountDemo(sel.value); };
   var want = params.get("mode");
   if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
   else mountDemo(keys[0]);

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<html lang="zh-CN"><head>
+<html lang="zh-CN">
+<head>
 <style id="hot100-visual-theme">
 /* ===== 演示页统一主题层（demo-kit 同源令牌，元素级归一化，不改各页逻辑） ===== */
 :root{--dk-bg:#f4f6fb;--dk-panel:#ffffff;--dk-soft:#f6f7fb;--dk-text:#1b2434;--dk-muted:#68758c;
@@ -45,8 +46,11 @@ code,pre{font-family:var(--font-mono)!important}
   if (params.has('panel')) document.documentElement.classList.add('hot100-single-panel');
 })();
 </script>
-<meta content="light dark" name="color-scheme"/><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>单调栈实验室</title>
-<style>:root{color-scheme:light dark;--bg:#f6f7fb;--panel:#fff;--text:#172033;--muted:#68758a;--line:#d9e0eb;--brand:#5755d9;--soft:#ededff;--done:#178158}@media(prefers-color-scheme:dark){:root{--bg:#10131a;--panel:#191e28;--text:#eef2ff;--muted:#9ca8ba;--line:#343d4d;--brand:#aaa8ff;--soft:#292953;--done:#75d9a8}}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}.shell{max-width:980px;margin:auto;padding:24px}a{color:var(--brand)}h1{margin:0}.toolbar{display:flex;gap:10px;margin:20px 0}button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;cursor:pointer}.primary{background:var(--brand);color:var(--bg)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}.bars{height:260px;display:flex;align-items:end;gap:10px;padding-top:35px}.col{flex:1;height:100%;display:flex;align-items:end;position:relative}.bar{width:100%;background:var(--soft);border-top:3px solid var(--brand);display:grid;place-items:center;min-width:34px}.col.current .bar{background:color-mix(in srgb,var(--brand) 35%,transparent)}.idx{position:absolute;bottom:-28px;width:100%;text-align:center;color:var(--muted)}.answer{position:absolute;top:-27px;width:100%;text-align:center;color:var(--done);font-weight:700}.stack{display:flex;align-items:end;gap:8px;min-height:80px;margin-top:45px;border-bottom:2px solid var(--line);padding:8px}.token{padding:7px 10px;border:1px solid var(--line);border-radius:8px}.log{margin-top:16px;min-height:70px}.muted{color:var(--muted)}</style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>单调栈实验室 · Hot 100</title>
+<script src="assets/demo-kit.js"></script>
 <style id="hot100-polish">
 :root {
   color-scheme: light dark;
@@ -478,7 +482,381 @@ html.hot100-embedded .ds-tabs { margin-top: 0 !important; }
 })();
 </script></head>
 <body>
-<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>单调栈实验室</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav><main class="shell"><a href="index.html" target="_blank" rel="noopener noreferrer">← 可视化中心</a><h1>739. 每日温度：单调栈实验室</h1><div class="muted">栈里保存“还没等到更高温度”的下标，且温度从栈底到栈顶递减。</div><div class="toolbar"><button class="primary" id="step">处理下一天</button><button id="reset">重置</button><button id="auto">自动播放</button></div><section class="panel"><div class="bars" id="bars"></div><h2>未结算下标栈</h2><div class="stack" id="stack"></div><div aria-live="polite" class="log" id="log"></div></section></main>
-<script>const temps=[73,74,75,71,69,72,76,73],$=id=>document.getElementById(id);let s,timer=null,playing=false;function stop(){if(timer){clearTimeout(timer);timer=null}playing=false;$('auto').textContent='自动播放'}function schedule(){if(!playing||timer)return;timer=setTimeout(()=>{timer=null;step();if(s.i>=temps.length-1)stop();else schedule()},800)}function init(){stop();$('auto').textContent='自动播放';s={i:-1,stack:[],ans:Array(temps.length).fill(0),msg:'栈为空，准备从第 0 天开始。'};render()}function step(){if(s.i>=temps.length-1){s.msg='完成。栈中剩余下标右侧没有更高温度，答案保持 0。';render();return}s.i++;const resolved=[];while(s.stack.length&&temps[s.i]>temps[s.stack.at(-1)]){const j=s.stack.pop();s.ans[j]=s.i-j;resolved.push(`${j} → 等 ${s.ans[j]} 天`)}s.stack.push(s.i);s.msg=`第 ${s.i} 天温度 ${temps[s.i]}。${resolved.length?'弹栈并结算：'+resolved.join('；'):'没有比栈顶更高，直接入栈。'}`;render()}function render(){const min=68;$('bars').innerHTML=temps.map((t,i)=>`<div class="col ${i===s.i?'current':''}"><div class="answer">${i<s.i||s.ans[i]?s.ans[i]:''}</div><div class="bar" style="height:${40+(t-min)*17}px">${t}°</div><div class="idx">${i}</div></div>`).join('');$('stack').innerHTML=s.stack.map(i=>`<span class="token">下标 ${i} / ${temps[i]}°</span>`).join('')||'<span class="muted">空</span>';$('log').textContent=s.msg}$('step').onclick=()=>{stop();step()};$('reset').onclick=init;$('auto').onclick=()=>{if(playing)stop();else{playing=true;$('auto').textContent='暂停';schedule()}};window.addEventListener('pagehide',stop);init();</script>
+<nav aria-label="学习导航" class="hot100-topnav" data-hot100-nav=""><strong>单调栈实验室 · Hot 100</strong><span class="hot100-links"><a href="../../../index.html" target="_blank" rel="noopener noreferrer">学习面板</a><a href="index.html" target="_blank" rel="noopener noreferrer">可视化中心</a></span></nav>
+<div id="app"></div>
+<script>
+/* ===== 单调栈实验室：739 / 84。柱状图 + 下标栈，逐根结算 ===== */
+var el = DemoKit.el;
+
+function renderBars(view, stage) {
+  stage.textContent = "";
+  var box = el("div");
+  box.style.cssText = "display:flex;flex-direction:column;gap:10px;align-items:flex-start";
+
+  if (view.vars && view.vars.length) {
+    var vb = el("div", "dk-vars");
+    vb.style.cssText = "margin:0";
+    view.vars.forEach(function (v) {
+      var s = el("span", "dk-var");
+      s.appendChild(el("b", null, v[0] + "："));
+      s.appendChild(document.createTextNode(String(v[1])));
+      vb.appendChild(s);
+    });
+    box.appendChild(vb);
+  }
+
+  var maxV = 1;
+  view.bars.forEach(function (b) { if (b.v > maxV) maxV = b.v; });
+  var row = el("div");
+  row.style.cssText = "display:flex;gap:6px;align-items:flex-end";
+  view.bars.forEach(function (b, i) {
+    var col = el("div");
+    col.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:3px";
+    var bar = el("div", "dk-cell" + (b.cls ? " " + b.cls : ""), String(b.v));
+    bar.style.cssText = "width:36px;min-width:0;box-sizing:border-box;display:flex;align-items:flex-start;" +
+      "justify-content:center;padding:4px 0;font-size:13px;height:" + Math.round(22 + 108 * b.v / maxV) + "px";
+    col.appendChild(bar);
+    var idx = el("div", null, String(i));
+    idx.style.cssText = "font-size:11px;color:var(--dk-muted)";
+    col.appendChild(idx);
+    var lb = el("div", null, b.label || " ");
+    lb.style.cssText = "font-size:11px;color:var(--dk-brand);white-space:nowrap";
+    col.appendChild(lb);
+    row.appendChild(col);
+  });
+  box.appendChild(row);
+
+  if (view.stack) {
+    var sb = el("div");
+    sb.style.cssText = "display:flex;gap:5px;align-items:center;flex-wrap:wrap";
+    var lab = el("span", null, view.stackLabel || "栈（下标，左边是栈底）");
+    lab.style.cssText = "font-size:12px;color:var(--dk-muted);margin-right:2px";
+    sb.appendChild(lab);
+    if (!view.stack.length) {
+      var em = el("span", null, "（空）");
+      em.style.cssText = "font-size:12px;color:var(--dk-muted)";
+      sb.appendChild(em);
+    }
+    view.stack.forEach(function (v, i) {
+      var chip = el("span", "dk-cell" + (i === view.stack.length - 1 ? " cmp" : " target"), String(v));
+      chip.style.cssText = "min-width:0;padding:4px 9px;font-size:12px";
+      sb.appendChild(chip);
+    });
+    box.appendChild(sb);
+  }
+
+  if (view.note) box.appendChild(el("div", "dk-note", view.note));
+  stage.appendChild(box);
+}
+
+var DEMOS = {
+
+  "0739": {
+    no: "739", title: "每日温度", tag: "单调栈 · 下一个更大元素（栈内温度递减）",
+    example: "输入：每天的温度　输出：每天还要等几天才会遇到更高的温度，等不到就是 0",
+    sizes: [
+      { label: "长降温段（默认：一次弹 5 根）", t: [89, 62, 70, 58, 47, 47, 46, 76, 100, 70] },
+      { label: "示例 1（教科书那组）", t: [73, 74, 75, 71, 69, 72, 76, 73] },
+      { label: "连续同温（相等不算「更高」）", t: [75, 75, 75, 73, 76] }
+    ],
+    defaultSize: 0,
+    stageHeight: 400,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "Deque<Integer> st = new ArrayDeque<>();   // 栈里放「还没等到更高温度」的下标",
+          "for (int i = 0; i < n; i++) {",
+          "    while (!st.isEmpty() && T[i] > T[st.peek()]) {   // 严格大于才结算",
+          "        int j = st.pop(); ans[j] = i - j; }",
+          "    st.push(i); }   // 自己也进去排队",
+          "// 留在栈里的下标 ans 保持 0：后面再没有更高的温度"
+        ],
+        cpp: [
+          "stack<int> st;   // 栈里放「还没等到更高温度」的下标",
+          "for (int i = 0; i < n; ++i) {",
+          "    while (!st.empty() && T[i] > T[st.top()]) {   // 严格大于才结算",
+          "        int j = st.top(); st.pop(); ans[j] = i - j; }",
+          "    st.push(i); }   // 自己也进去排队",
+          "// 留在栈里的下标 ans 保持 0：后面再没有更高的温度"
+        ],
+        python: [
+          "st = []   # 栈里放「还没等到更高温度」的下标",
+          "for i in range(n):",
+          "    while st and T[i] > T[st[-1]]:   # 严格大于才结算",
+          "        j = st.pop(); ans[j] = i - j",
+          "    st.append(i)   # 自己也进去排队",
+          "# 留在栈里的下标 ans 保持 0：后面再没有更高的温度"
+        ],
+        go: [
+          "st := []int{}   // 栈里放「还没等到更高温度」的下标",
+          "for i := 0; i < n; i++ {",
+          "    for len(st) > 0 && T[i] > T[st[len(st)-1]] {   // 严格大于才结算",
+          "        j := st[len(st)-1]; st = st[:len(st)-1]; ans[j] = i - j }",
+          "    st = append(st, i) }   // 自己也进去排队",
+          "// 留在栈里的下标 ans 保持 0：后面再没有更高的温度"
+        ],
+        c: [
+          "int st[N], top = 0;   /* 栈里放「还没等到更高温度」的下标 */",
+          "for (int i = 0; i < n; i++) {",
+          "    while (top > 0 && T[i] > T[st[top-1]]) {   /* 严格大于才结算 */",
+          "        int j = st[--top]; ans[j] = i - j; }",
+          "    st[top++] = i; }   /* 自己也进去排队 */",
+          "/* 留在栈里的下标 ans 保持 0：后面再没有更高的温度 */"
+        ]
+      }
+    },
+    invariants: [
+      { label: "栈里的温度从栈底到栈顶不升（相等能共存）", test: function (v) {
+          for (var i = 1; i < v.stack.length; i++) {
+            if (v.t[v.stack[i - 1]] < v.t[v.stack[i]]) return false;
+          }
+          return v.stack.length < 2 ? "栈里不到两个元素，天然成立"
+            : v.stack.map(function (j) { return v.t[j]; }).join(" ≥ ") + "（出栈条件是严格大于，所以相等的会一起留在栈里）";
+        } },
+      { label: "每个下标最多进栈一次、出栈一次", test: function (v) {
+          return "已入栈 " + v.pushes + " 次、已出栈 " + v.pops + " 次，总计 O(n)";
+        } }
+    ],
+    build: function (ctx, size) {
+      var T = ((size && size.t) || [89, 62, 70, 58, 47, 47, 46, 76, 100, 70]).slice();
+      var n = T.length, ans = [], st = [], pushes = 0, pops = 0, i;
+      for (i = 0; i < n; i++) ans.push(0);
+      var resolved = [];
+      for (i = 0; i < n; i++) resolved.push(false);
+
+      function bars(cur, hot) {
+        return T.map(function (v, idx) {
+          var cls = null;
+          if (hot && hot.indexOf(idx) >= 0) cls = "swap";
+          else if (idx === cur) cls = "cmp";
+          else if (st.indexOf(idx) >= 0) cls = "target";
+          else if (resolved[idx]) cls = "done";
+          return { v: v, cls: cls, label: resolved[idx] ? "+" + ans[idx] + " 天" : "" };
+        });
+      }
+      function V(cur, hot, note) {
+        return {
+          bars: bars(cur, hot), stack: st.slice(), note: note,
+          vars: [["i", cur < 0 ? "—" : cur], ["栈深", st.length], ["已结算", resolved.filter(Boolean).length + " / " + n]],
+          t: T, pushes: pushes, pops: pops
+        };
+      }
+
+      ctx.step("栈里只放「还没等到更高温度」的下标，从栈底到栈顶温度严格递减。每来一天，就把栈里所有比它低的日子一次性结算掉。",
+        V(-1, null, "蓝色＝还在栈里排队，灰色＝已结算，红色＝这一步刚被弹出。"), { line: 1 });
+
+      for (i = 0; i < n; i++) {
+        var popped = [];
+        while (st.length && T[i] > T[st[st.length - 1]]) {
+          var j = st.pop();
+          ans[j] = i - j; resolved[j] = true; pops++; popped.push(j);
+          ctx.step("第 " + i + " 天 " + T[i] + "° > 栈顶第 " + j + " 天的 " + T[j] + "° → 第 " + j +
+            " 天终于等到了，ans[" + j + "] = " + i + " − " + j + " = " + ans[j] + "，出栈。",
+            V(i, [j], popped.length > 1
+              ? "这是本轮第 " + popped.length + " 个被弹出的：一根高柱子能一次结算掉整段降温。"
+              : "严格大于才结算——相等不算「更高的温度」。"), { line: 4 });
+        }
+        st.push(i); pushes++;
+        ctx.step("第 " + i + " 天 " + T[i] + "° 入栈等待。" + (popped.length
+          ? "刚刚一口气结算了 " + popped.length + " 天（" + popped.join("、") + "）。"
+          : (st.length > 1 ? "它比栈顶的 " + T[st[st.length - 2]] + "° 低（或相等），弹不动任何人，自己排到最上面。" : "栈是空的，它是第一个排队的。")),
+          V(i, null, "栈里温度：" + (st.map(function (k) { return T[k] + "°"; }).join(" ≥ ") || "（空）")), { line: 5 });
+      }
+
+      var left = st.slice();
+      ctx.step("遍历结束，栈里还剩 " + left.length + " 天（下标 " + left.join("、") + "）。它们后面再没有更高的温度，ans 保持 0。最终答案：[" + ans.join(", ") + "]",
+        V(-1, null, "每根柱子下面的 +n 天就是答案；没有标注的就是 0。"), { line: 6 });
+    },
+    render: renderBars
+  },
+
+  "0084": {
+    no: "84", title: "柱状图中最大的矩形", tag: "单调栈 · 左右第一个更矮的（栈内高度递增）",
+    example: "输入：柱状图高度　输出：能勾出的最大矩形面积。每根柱子当一次「矩形的高」，宽度由左右第一个更矮的柱子夹定",
+    sizes: [
+      { label: "8 根（默认：答案出在最矮的那根）", h: [6, 7, 5, 2, 4, 5, 9, 3] },
+      { label: "示例 1（答案 10）", h: [2, 1, 5, 6, 2, 3] },
+      { label: "全递增（没有哨兵就一根都结算不了）", h: [1, 2, 3, 4, 5] }
+    ],
+    defaultSize: 0,
+    stageHeight: 400,
+    code: {
+      title: "对照代码",
+      langs: {
+        java: [
+          "Deque<Integer> st = new ArrayDeque<>(); int best = 0;",
+          "for (int i = 0; i <= n; i++) {          // i == n 时用高度 0 当哨兵",
+          "    int h = (i == n) ? 0 : H[i];",
+          "    while (!st.isEmpty() && h < H[st.peek()]) {",
+          "        int j = st.pop();                 // j 的高度就是矩形的高",
+          "        int left = st.isEmpty() ? -1 : st.peek();   // 左边第一个更矮的",
+          "        best = Math.max(best, H[j] * (i - left - 1)); }",
+          "    st.push(i); }"
+        ],
+        cpp: [
+          "stack<int> st; int best = 0;",
+          "for (int i = 0; i <= n; ++i) {          // i == n 时用高度 0 当哨兵",
+          "    int h = (i == n) ? 0 : H[i];",
+          "    while (!st.empty() && h < H[st.top()]) {",
+          "        int j = st.top(); st.pop();       // j 的高度就是矩形的高",
+          "        int left = st.empty() ? -1 : st.top();   // 左边第一个更矮的",
+          "        best = max(best, H[j] * (i - left - 1)); }",
+          "    st.push(i); }"
+        ],
+        python: [
+          "st, best = [], 0",
+          "for i in range(n + 1):                  # i == n 时用高度 0 当哨兵",
+          "    h = 0 if i == n else H[i]",
+          "    while st and h < H[st[-1]]:",
+          "        j = st.pop()                      # j 的高度就是矩形的高",
+          "        left = st[-1] if st else -1       # 左边第一个更矮的",
+          "        best = max(best, H[j] * (i - left - 1))",
+          "    st.append(i)"
+        ],
+        go: [
+          "st, best := []int{}, 0",
+          "for i := 0; i <= n; i++ {               // i == n 时用高度 0 当哨兵",
+          "    h := 0; if i < n { h = H[i] }",
+          "    for len(st) > 0 && h < H[st[len(st)-1]] {",
+          "        j := st[len(st)-1]; st = st[:len(st)-1]   // j 的高度就是矩形的高",
+          "        left := -1; if len(st) > 0 { left = st[len(st)-1] }   // 左边第一个更矮的",
+          "        if a := H[j] * (i - left - 1); a > best { best = a } }",
+          "    st = append(st, i) }"
+        ],
+        c: [
+          "int st[N], top = 0, best = 0;",
+          "for (int i = 0; i <= n; i++) {          /* i == n 时用高度 0 当哨兵 */",
+          "    int h = (i == n) ? 0 : H[i];",
+          "    while (top > 0 && h < H[st[top-1]]) {",
+          "        int j = st[--top];                /* j 的高度就是矩形的高 */",
+          "        int left = (top > 0) ? st[top-1] : -1;   /* 左边第一个更矮的 */",
+          "        int a = H[j] * (i - left - 1); if (a > best) best = a; }",
+          "    st[top++] = i; }"
+        ]
+      }
+    },
+    invariants: [
+      { label: "栈里的高度从栈底到栈顶不降（相等能共存）", test: function (v) {
+          for (var i = 1; i < v.stack.length; i++) {
+            if (v.h[v.stack[i - 1]] > v.h[v.stack[i]]) return false;
+          }
+          return v.stack.length < 2 ? "栈里不到两个元素，天然成立"
+            : v.stack.map(function (j) { return v.h[j]; }).join(" ≤ ") + "（出栈条件是严格小于，等高的柱子会一起留着，最后那根仍会量到完整宽度）";
+        } },
+      { label: "已算出的面积都不超过 best", test: function (v) {
+          return v.lastArea <= v.best
+            ? "刚算出 " + v.lastArea + "，当前最大 " + v.best
+            : false;
+        } }
+    ],
+    build: function (ctx, size) {
+      var H = ((size && size.h) || [6, 7, 5, 2, 4, 5, 9, 3]).slice();
+      var n = H.length, st = [], best = 0, bestSpan = null, lastArea = 0, i;
+
+      function bars(cur, j, span, seen) {
+        return H.map(function (v, idx) {
+          var cls = null;
+          if (idx === j) cls = "swap";
+          else if (span && idx >= span[0] && idx <= span[1]) cls = "write";
+          else if (idx === cur) cls = "cmp";
+          else if (st.indexOf(idx) >= 0) cls = "target";
+          else if (idx < seen) cls = "done";
+          return { v: v, cls: cls, label: idx === j ? "高 " + v : "" };
+        });
+      }
+      function V(cur, j, span, note) {
+        var seen = cur < 0 ? n : cur;
+        return {
+          bars: bars(cur, j, span, seen), stack: st.slice(), note: note,
+          stackLabel: "栈（下标，高度递增）",
+          vars: [["i", cur < 0 ? "—" : (cur >= n ? "n（哨兵）" : cur)], ["栈深", st.length], ["当前最大面积", best]],
+          h: H, best: best, lastArea: lastArea
+        };
+      }
+
+      ctx.step("每根柱子都当一次「矩形的高」。它能往左右伸多远，由左右两边第一个比它矮的柱子夹定。单调栈让高度从栈底到栈顶递增，于是一旦来了更矮的，栈顶那根的右边界就确定了。",
+        V(-1, -1, null, "蓝色＝还在栈里（右边界未定），灰色＝已结算。"), { line: 1 });
+
+      for (i = 0; i <= n; i++) {
+        var h = (i === n) ? 0 : H[i];
+        if (i === n) {
+          ctx.step("数组走完了，补一根高度 0 的哨兵。它比谁都矮，能把栈里剩下的 " + st.length + " 根全部逼出来结算。" +
+            (st.length ? "没有这一步，" + st.join("、") + " 号柱子的面积就永远算不到。" : ""),
+            V(n, -1, null, "哨兵不真的存在，它只负责清栈。"), { line: 2 });
+        }
+        while (st.length && h < H[st[st.length - 1]]) {
+          var j = st.pop();
+          var leftIdx = st.length ? st[st.length - 1] : -1;
+          var w = i - leftIdx - 1;
+          lastArea = H[j] * w;
+          var span = [leftIdx + 1, i - 1];
+          var isBest = lastArea > best;
+          if (isBest) { best = lastArea; bestSpan = span; }
+          ctx.step("弹出 " + j + " 号（高 " + H[j] + "）。左边第一个更矮的是 " +
+            (leftIdx < 0 ? "——（栈空，说明左边全比它高，能一直伸到 0）" : leftIdx + " 号（高 " + H[leftIdx] + "）") +
+            "，右边第一个更矮的是 " + (i === n ? "哨兵" : i + " 号（高 " + H[i] + "）") +
+            " → 宽 = " + i + " − " + leftIdx + " − 1 = " + w + "，面积 = " + H[j] + " × " + w + " = " + lastArea + "。" +
+            (isBest ? " 刷新最大值！" : " 没超过当前的 " + best + "。"),
+            V(i === n ? n : i, j, span, "绿色是这个矩形横跨的 " + w + " 根柱子——注意它们全都不低于 " + H[j] + "。"),
+            { line: 7 });
+        }
+        if (i < n) {
+          st.push(i);
+          ctx.step(i + " 号（高 " + H[i] + "）入栈。" + (st.length > 1
+            ? "它不低于下面那根（" + H[st[st.length - 2]] + "），栈的不降性保住了。"
+            : "栈空了，它是新的栈底。") + " 它的右边界还不知道，先挂着。",
+            V(i, -1, null, "栈内高度：" + st.map(function (k) { return H[k]; }).join(" ≤ ")), { line: 8 });
+        }
+      }
+
+      ctx.step("栈清空，答案是 " + best + "（由 " + bestSpan[0] + "～" + bestSpan[1] + " 号这 " +
+        (bestSpan[1] - bestSpan[0] + 1) + " 根柱子围出来）。每根柱子只进出栈一次，总复杂度 O(n)。",
+        V(-1, -1, bestSpan, "绿色就是最大矩形覆盖的范围。"), { line: 7 });
+    },
+    render: renderBars
+  }
+};
+
+(function () {
+  var params = new URLSearchParams(location.search);
+  var keys = Object.keys(DEMOS);
+  var bar = document.createElement("div");
+  bar.className = "dk-bar";
+  bar.style.marginBottom = "14px";
+  var label = document.createElement("span");
+  label.className = "dk-var";
+  label.textContent = "选择题目";
+  bar.appendChild(label);
+  var sel = document.createElement("select");
+  sel.className = "dk-select";
+  keys.forEach(function (k) {
+    var d = DEMOS[k];
+    var o = document.createElement("option");
+    o.value = k;
+    o.textContent = (d.no ? d.no + ". " : "") + d.title;
+    sel.appendChild(o);
+  });
+  bar.appendChild(sel);
+  if (params.get("embed") === "1") bar.style.display = "none";
+  document.getElementById("app").parentNode.insertBefore(bar, document.getElementById("app"));
+  function mountDemo(key) {
+    var d = DEMOS[key];
+    document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
+    DemoKit.mount({
+      no: d.no, title: d.title, tag: d.tag, example: d.example,
+      sizes: d.sizes, defaultSize: d.defaultSize,
+      stageHeight: d.stageHeight || 400,
+      code: d.code, invariants: d.invariants, compare: d.compare,
+      build: d.build, render: d.render
+    });
+  }
+  sel.onchange = function () { mountDemo(sel.value); };
+  var want = params.get("mode");
+  if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
+  else mountDemo(keys[0]);
+})();
+</script>
 <script id="hot100-a11y" src="assets/embed-runtime.js"></script>
-</body></html>
+</body>
+</html>

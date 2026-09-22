@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -51,19 +53,25 @@ class Hot100DemoRuntimeTests(unittest.TestCase):
         self.assertIn('var edges = document.createElementNS(svgNS, "g");', source)
         self.assertNotIn('var edges = el("g");', source)
 
-    def test_binary_tree_demos_pass_renderer_view_shape_and_stable_ids(self):
+    def test_binary_tree_demos_use_identity_stable_node_ids(self):
         source = (VISUAL_DIR / "二叉树演示.html").read_text(encoding="utf-8-sig")
-        self.assertIn(
-            'ctx.step("有序数组 → 平衡 BST：每次取区间中点做根，左右各半递归", { tree: tree });',
-            source,
+        # 节点 id 一旦按值生成，重复值就会让 FLIP 认错身份；改用自增序号。
+        self.assertNotIn("nodeIdByValue", source)
+        self.assertIn('id: "s" + (seq++)', source)
+        self.assertIn('id: "b" + (seq++)', source)
+
+    def test_demo_kit_pages_pass_headless_structure_check(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        result = subprocess.run(
+            [node, str(ROOT / "tests" / "test_hot100_demo_pages.js")],
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
-        self.assertIn(
-            'ctx.step("前缀和 + 回溯：路径和 = cur − 历史前缀 = target 时命中；map 记录历史前缀出现次数", { tree: tree });',
-            source,
-        )
-        self.assertIn("nodeIdByValue[String(nums[mid])]", source)
-        self.assertNotIn("hl: [String(mid + 1)]", source)
-        self.assertNotIn("done: [2, 4, 1, 6, 3]", source)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ALL OK", result.stdout)
 
     def test_native_visual_pages_use_single_timeout_and_pagehide_cleanup(self):
         native_pages = (
@@ -71,15 +79,11 @@ class Hot100DemoRuntimeTests(unittest.TestCase):
             "02.双指针.html",
             "10-回溯.html",
             "TCP握手挥手可视化.html",
-            "动态规划状态转移.html",
-            "单调栈实验室.html",
             "排序算法可视化.html",
             "数据结构操作可视化.html",
             "树形查找算法可视化.html",
             "查找算法可视化.html",
             "锁升级可视化.html",
-            "网格搜索实验室.html",
-            "滑动窗口与前缀和.html",
         )
         for name in native_pages:
             source = (VISUAL_DIR / name).read_text(encoding="utf-8-sig")

@@ -554,27 +554,77 @@ var DEMOS = {
 
   "0020": { no: "20", title: "有效的括号", tag: "栈 · 匹配消除",
     example: "输入：s = \"{[()]}\"　输出：true（嵌套三层，栈逐步弹消）",
+    code: {
+      title: "栈配对",
+      langs: {
+        java: [
+          "Deque<Character> st = new ArrayDeque<>();",
+          "for (char c : s.toCharArray()) {",
+          "    if (c == '(' || c == '[' || c == '{') st.push(c);   // 左括号入栈",
+          "    else {",
+          "        if (st.isEmpty() || !match(st.pop(), c)) return false;  // 栈顶必须配得上",
+          "    } }",
+          "return st.isEmpty();    // 还有剩 → 有左括号没闭合"
+        ],
+        cpp: [
+          "stack<char> st;",
+          "for (char c : s) {",
+          "    if (c == '(' || c == '[' || c == '{') st.push(c);   // 左括号入栈",
+          "    else {",
+          "        if (st.empty() || !match(st.top(), c)) return false;  st.pop();  // 栈顶必须配得上",
+          "    } }",
+          "return st.empty();      // 还有剩 → 有左括号没闭合"
+        ],
+        python: [
+          "st = []",
+          "for c in s:",
+          "    if c in '([{': st.append(c)                         # 左括号入栈",
+          "    else:",
+          "        if not st or not match(st.pop(), c): return False     # 栈顶必须配得上",
+          "",
+          "return not st           # 还有剩 → 有左括号没闭合"
+        ],
+        go: [
+          "st := []byte{}",
+          "for i := 0; i < len(s); i++ {",
+          "    if c := s[i]; c == '(' || c == '[' || c == '{' { st = append(st, c)   // 左括号入栈",
+          "    } else {",
+          "        if len(st) == 0 || !match(st[len(st)-1], c) { return false };  st = st[:len(st)-1]",
+          "    } }",
+          "return len(st) == 0     // 还有剩 → 有左括号没闭合"
+        ],
+        c: [
+          "char st[N];  int top = 0;",
+          "for (int i = 0; s[i]; i++) {",
+          "    char c = s[i];",
+          "    if (c == '(' || c == '[' || c == '{') st[top++] = c;   /* 左括号入栈 */",
+          "    else if (!top || !match(st[--top], c)) return 0;       /* 栈顶必须配得上 */",
+          "}",
+          "return top == 0;        /* 还有剩 → 有左括号没闭合 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var s = "{[()]}";
       var pairs = { ")": "(", "]": "[", "}": "{" };
       var stack = [];
-      ctx.step("左括号入栈；右括号必须与栈顶配对消除", { rows: [] });
+      ctx.step("左括号入栈；右括号必须与栈顶配对消除", { line: 1, rows: [] });
       for (var i = 0; i < s.length; i++) {
         var ch = s[i];
         if (pairs[ch]) {
           stack.push(ch);
           ctx.step("'" + ch + "' 是左括号 → 入栈。栈（底→顶）：" + stack.join(" "),
-            { stackView: { vals: stack.slice() } });
+            { line: 3, stackView: { vals: stack.slice() } });
         } else {
           var top = stack.pop();
           var ok = top === pairs[ch];
           ctx.step("'" + ch + "' 是右括号 → 期望栈顶 '" + pairs[ch] + "'，实际 '" + (top || "空") + "' " + (ok ? "✓ 消除" : "✗ 不匹配！"),
-            { stackView: { vals: stack.slice(), err: !ok } });
-          if (!ok) { ctx.step("不匹配 → false", { stackView: { vals: stack, err: true } }); return; }
+            { line: 5, stackView: { vals: stack.slice(), err: !ok } });
+          if (!ok) { ctx.step("不匹配 → false", { line: 5, stackView: { vals: stack, err: true } }); return; }
         }
       }
-      if (stack.length) ctx.step("遍历结束但栈里还剩 " + stack.join(" ") + " → false", { stackView: { vals: stack, err: true } });
-      else ctx.step("栈空 → 全部匹配 ✓ true", { stackView: { vals: ["✓"] } });
+      if (stack.length) ctx.step("遍历结束但栈里还剩 " + stack.join(" ") + " → false", { line: 7, stackView: { vals: stack, err: true } });
+      else ctx.step("栈空 → 全部匹配 ✓ true", { line: 7, stackView: { vals: ["✓"] } });
     },
     render: function (view, stage) {
       var sv = view.stackView || {};
@@ -593,21 +643,66 @@ var DEMOS = {
 
   "0155": { no: "155", title: "最小栈", tag: "栈 · 辅助最小值",
     example: "push(-2), push(0), push(-3), getMin()=-3, pop(), top()=0, getMin()=-2",
+    code: {
+      title: "辅助栈同步压最小值",
+      langs: {
+        java: [
+          "void push(int v) {",
+          "    data.push(v);",
+          "    min.push(min.isEmpty() ? v : Math.min(v, min.peek()));  // 同步压当前最小",
+          "}",
+          "void pop() { data.pop();  min.pop(); }   // 两个栈一起弹，高度永远一致",
+          "int getMin() { return min.peek(); }      // O(1) 取最小"
+        ],
+        cpp: [
+          "void push(int v) {",
+          "    data.push(v);",
+          "    min_.push(min_.empty() ? v : min(v, min_.top()));       // 同步压当前最小",
+          "}",
+          "void pop() { data.pop();  min_.pop(); }  // 两个栈一起弹，高度永远一致",
+          "int getMin() { return min_.top(); }      // O(1) 取最小"
+        ],
+        python: [
+          "def push(self, v):",
+          "    self.data.append(v)",
+          "    self.min.append(v if not self.min else min(v, self.min[-1]))  # 同步压当前最小",
+          "",
+          "def pop(self): self.data.pop();  self.min.pop()   # 两个栈一起弹，高度永远一致",
+          "def get_min(self): return self.min[-1]            # O(1) 取最小"
+        ],
+        go: [
+          "func (s *MinStack) Push(v int) {",
+          "    s.data = append(s.data, v)",
+          "    m := v;  if n := len(s.min); n > 0 && s.min[n-1] < v { m = s.min[n-1] }  // 同步压当前最小",
+          "    s.min = append(s.min, m) }",
+          "func (s *MinStack) Pop() { s.data = s.data[:len(s.data)-1];  s.min = s.min[:len(s.min)-1] }",
+          "func (s *MinStack) GetMin() int { return s.min[len(s.min)-1] }  // O(1) 取最小"
+        ],
+        c: [
+          "void push(MinStack* s, int v) {",
+          "    s->data[s->top] = v;",
+          "    s->min[s->top] = (s->top == 0 || v < s->min[s->top-1]) ? v : s->min[s->top-1];",
+          "    s->top++; }",
+          "void pop(MinStack* s) { s->top--; }      /* 两个栈一起弹，高度永远一致 */",
+          "int get_min(MinStack* s) { return s->min[s->top-1]; }   /* O(1) 取最小 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var stack = [], mins = [];
-      function v(opDesc, m) {
+      function v(opDesc, m, ln) {
         var minV = mins.length ? mins[mins.length - 1] : "—";
-        ctx.step(opDesc, { stackView: { vals: stack.slice() }, minV: minV, op: m });
+        ctx.step(opDesc, { stackView: { vals: stack.slice() }, minV: minV, op: m }, { line: ln || null });
       }
       function push(x) {
         stack.push(x);
         mins.push(Math.min(x, mins.length ? mins[mins.length - 1] : x));
-        v("push(" + x + ")：同步更新辅助最小栈", "push " + x);
+        v("push(" + x + ")：同步更新辅助最小栈", "push " + x, 3);
       }
-      function pop() { stack.pop(); mins.pop(); v("pop()：主栈与最小栈同时弹出", "pop"); }
-      function top() { v("top() = " + stack[stack.length - 1], "top"); }
-      function getMin() { v("getMin() = " + mins[mins.length - 1] + "（O(1) 直接读栈顶）", "getMin"); }
-      ctx.step("双栈：主栈存值，辅助栈存“到这一层为止的最小值”", { stackView: { vals: [] }, minV: "—", op: "初始化" });
+      function pop() { stack.pop(); mins.pop(); v("pop()：主栈与最小栈同时弹出", "pop", 5); }
+      function top() { v("top() = " + stack[stack.length - 1], "top", 2); }
+      function getMin() { v("getMin() = " + mins[mins.length - 1] + "（O(1) 直接读栈顶）", "getMin", 6); }
+      ctx.step("双栈：主栈存值，辅助栈存“到这一层为止的最小值”", { line: 1, stackView: { vals: [] }, minV: "—", op: "初始化" });
       push(-2); push(0); push(-3); getMin(); pop(); top(); getMin();
     },
     render: function (view, stage) {
@@ -631,6 +726,56 @@ var DEMOS = {
 
   "0232": { no: "232", title: "用栈实现队列", tag: "栈 · 双栈倒手",
     example: "push(1), push(2), peek()=1, pop()=1, empty()=false",
+    code: {
+      title: "双栈倒腾",
+      langs: {
+        java: [
+          "void push(int v) { in.push(v); }         // 进队只往 in 栈压",
+          "int pop() {",
+          "    if (out.isEmpty())                   // out 空了才倒一次",
+          "        while (!in.isEmpty()) out.push(in.pop());   // 倒过去顺序正好反转",
+          "    return out.pop();                    // out 栈顶就是队头",
+          "}",
+          "// 每个元素最多进出各一次 → 均摊 O(1)"
+        ],
+        cpp: [
+          "void push(int v) { in.push(v); }         // 进队只往 in 栈压",
+          "int pop() {",
+          "    if (out.empty())                     // out 空了才倒一次",
+          "        while (!in.empty()) { out.push(in.top());  in.pop(); }  // 倒过去顺序正好反转",
+          "    int v = out.top();  out.pop();  return v;   // out 栈顶就是队头",
+          "}",
+          "// 每个元素最多进出各一次 → 均摊 O(1)"
+        ],
+        python: [
+          "def push(self, v): self.in_.append(v)    # 进队只往 in 栈压",
+          "def pop(self):",
+          "    if not self.out:                     # out 空了才倒一次",
+          "        while self.in_: self.out.append(self.in_.pop())        # 倒过去顺序正好反转",
+          "    return self.out.pop()                # out 栈顶就是队头",
+          "",
+          "# 每个元素最多进出各一次 → 均摊 O(1)"
+        ],
+        go: [
+          "func (q *Queue) Push(v int) { q.in = append(q.in, v) }   // 进队只往 in 栈压",
+          "func (q *Queue) Pop() int {",
+          "    if len(q.out) == 0 {                 // out 空了才倒一次",
+          "        for n := len(q.in); n > 0; n = len(q.in) { q.out = append(q.out, q.in[n-1]);  q.in = q.in[:n-1] } }",
+          "    v := q.out[len(q.out)-1];  q.out = q.out[:len(q.out)-1];  return v   // out 栈顶就是队头",
+          "}",
+          "// 每个元素最多进出各一次 → 均摊 O(1)"
+        ],
+        c: [
+          "void push(Queue* q, int v) { q->in[q->it++] = v; }       /* 进队只往 in 栈压 */",
+          "int pop(Queue* q) {",
+          "    if (q->ot == 0)                      /* out 空了才倒一次 */",
+          "        while (q->it) q->out[q->ot++] = q->in[--q->it];    /* 倒过去顺序正好反转 */",
+          "    return q->out[--q->ot];              /* out 栈顶就是队头 */",
+          "}",
+          "/* 每个元素最多进出各一次 → 均摊 O(1) */"
+        ]
+      }
+    },
     build: function (ctx) {
       var inS = [], outS = [];
       function view(opDesc) {
@@ -641,30 +786,80 @@ var DEMOS = {
       function shift() {
         if (!outS.length) { while (inS.length) outS.push(inS.pop()); }
       }
-      ctx.step("push(1)：直接入 in 栈", view("push(1)"));
+      ctx.step("push(1)：直接入 in 栈", view("push(1)"), { line: 1 });
       inS.push(1);
-      ctx.step("push(2)：直接入 in 栈", view("push(2)"));
+      ctx.step("push(2)：直接入 in 栈", view("push(2)"), { line: 1 });
       inS.push(2);
-      ctx.step("peek()：out 空时把 in 全部倒入 out（顺序翻转一次，就是队列序）", view("peek 触发倒手"));
+      ctx.step("peek()：out 空时把 in 全部倒入 out（顺序翻转一次，就是队列序）", view("peek 触发倒手"), { line: 4 });
       shift();
-      ctx.step("倒手后 out = [2,1]，peek = " + outS[outS.length - 1] + "（先进先出 ✓）", view("倒手完成"));
-      ctx.step("pop() = " + outS.pop() + "（从 out 弹出）", view("pop"));
-      ctx.step("empty() = " + ((inS.length + outS.length) === 0), view("empty"));
+      ctx.step("倒手后 out = [2,1]，peek = " + outS[outS.length - 1] + "（先进先出 ✓）", view("倒手完成"), { line: 5 });
+      ctx.step("pop() = " + outS.pop() + "（从 out 弹出）", view("pop"), { line: 5 });
+      ctx.step("empty() = " + ((inS.length + outS.length) === 0), view("empty"), { line: 7 });
       inS.push(3);
-      ctx.step("push(3)：in 里还有旧元素也不影响——out 非空时先消费 out", view("push(3)"));
+      ctx.step("push(3)：in 里还有旧元素也不影响——out 非空时先消费 out", view("push(3)"), { line: 1 });
       shift();
-      ctx.step("pop() = " + outS.pop() + " ✓", view("pop"));
+      ctx.step("pop() = " + outS.pop() + " ✓", view("pop"), { line: 5 });
       var empty = (inS.length + outS.length) === 0;
-      ctx.step("empty() = " + empty, view("empty"));
+      ctx.step("empty() = " + empty, view("empty"), { line: 7 });
     },
     render: renderRows },
 
   "0394": { no: "394", title: "字符串解码", tag: "栈 · 双栈表达式",
     example: "输入：s = \"3[a2[c]]\"　输出：\"accaccacc\"",
+    code: {
+      title: "双栈解码",
+      langs: {
+        java: [
+          "for (char c : s.toCharArray()) {",
+          "    if (Character.isDigit(c)) num = num * 10 + (c - '0');   // 数字可能多位",
+          "    else if (c == '[') { numSt.push(num);  strSt.push(cur);  num = 0;  cur = \"\"; }",
+          "    else if (c == ']') {",
+          "        cur = strSt.pop() + cur.repeat(numSt.pop());        // 出栈拼回上一层",
+          "    } else cur += c;",
+          "}"
+        ],
+        cpp: [
+          "for (char c : s) {",
+          "    if (isdigit(c)) num = num * 10 + (c - '0');             // 数字可能多位",
+          "    else if (c == '[') { numSt.push(num);  strSt.push(cur);  num = 0;  cur = \"\"; }",
+          "    else if (c == ']') {",
+          "        string t;  for (int i = 0; i < numSt.top(); i++) t += cur;   // 出栈拼回上一层",
+          "        cur = strSt.top() + t;  numSt.pop();  strSt.pop();",
+          "    } else cur += c; }"
+        ],
+        python: [
+          "for c in s:",
+          "    if c.isdigit(): num = num * 10 + int(c)                 # 数字可能多位",
+          "    elif c == '[': num_st.append(num);  str_st.append(cur);  num, cur = 0, ''",
+          "    elif c == ']':",
+          "        cur = str_st.pop() + cur * num_st.pop()             # 出栈拼回上一层",
+          "    else: cur += c",
+          ""
+        ],
+        go: [
+          "for _, c := range s {",
+          "    if c >= '0' && c <= '9' { num = num*10 + int(c-'0')     // 数字可能多位",
+          "    } else if c == '[' { numSt = append(numSt, num);  strSt = append(strSt, cur);  num, cur = 0, \"\"",
+          "    } else if c == ']' {",
+          "        cur = strSt[len(strSt)-1] + strings.Repeat(cur, numSt[len(numSt)-1])  // 出栈拼回上一层",
+          "        numSt = numSt[:len(numSt)-1];  strSt = strSt[:len(strSt)-1]",
+          "    } else { cur += string(c) } }"
+        ],
+        c: [
+          "for (int i = 0; s[i]; i++) {",
+          "    char c = s[i];",
+          "    if (isdigit(c)) num = num * 10 + (c - '0');             /* 数字可能多位 */",
+          "    else if (c == '[') { num_st[t] = num;  strcpy(str_st[t++], cur);  num = 0;  cur[0] = 0; }",
+          "    else if (c == ']') { repeat(cur, num_st[--t]);  prepend(cur, str_st[t]); }  /* 出栈拼回上一层 */",
+          "    else append_char(cur, c);",
+          "}"
+        ]
+      }
+    },
     build: function (ctx) {
       var s = "3[a2[c]]";
       var numStack = [], strStack = [], cur = "";
-      ctx.step("双栈：数字栈存重复次数，字符串栈存“上一层已完成的结果”", { rows: [] });
+      ctx.step("双栈：数字栈存重复次数，字符串栈存“上一层已完成的结果”", { line: 1, rows: [] });
       for (var i = 0; i < s.length; i++) {
         var ch = s[i];
         if (ch >= "0" && ch <= "9") {
@@ -672,17 +867,17 @@ var DEMOS = {
           while (i + 1 < s.length && s[i + 1] >= "0" && s[i + 1] <= "9") num += s[++i];
           numStack.push(parseInt(num, 10));
           strStack.push(cur); cur = "";
-          ctx.step("数字 " + num + " → 压数字栈；当前串 \"" + cur + "\" 压字符串栈（进入新一层）", { rows: [] });
+          ctx.step("数字 " + num + " → 压数字栈；当前串 \"" + cur + "\" 压字符串栈（进入新一层）", { line: 3, rows: [] });
         } else if (ch === "]") {
           var times = numStack.pop(), prev = strStack.pop();
           cur = prev + cur.repeat(times);
-          ctx.step("] 出栈：重复 \"" + cur.split(prev).pop() + "\" × " + times + "，拼回外层 → \"" + cur + "\"", { rows: [] });
+          ctx.step("] 出栈：重复 \"" + cur.split(prev).pop() + "\" × " + times + "，拼回外层 → \"" + cur + "\"", { line: 5, rows: [] });
         } else {
           cur += ch;
-          ctx.step("字母 '" + ch + "' → 当前串=\"" + cur + "\"", { rows: [] });
+          ctx.step("字母 '" + ch + "' → 当前串=\"" + cur + "\"", { line: 6, rows: [] });
         }
       }
-      ctx.step("完成！解码结果 = \"" + cur + "\"", { rows: [] });
+      ctx.step("完成！解码结果 = \"" + cur + "\"", { line: 7, rows: [] });
     },
     render: function (view, stage) {
       var box = el("div", "dk-cells");
@@ -693,23 +888,73 @@ var DEMOS = {
 
   "0045": { no: "45", title: "跳跃游戏 II", tag: "贪心 · 边界扩展",
     example: "输入：nums = [2,3,1,1,4]　输出：2（两次跳跃到末尾）",
+    code: {
+      title: "按层跳（BFS 思路）",
+      langs: {
+        java: [
+          "int end = 0, far = 0, steps = 0;",
+          "for (int i = 0; i < n - 1; i++) {",
+          "    far = Math.max(far, i + nums[i]);   // 这一层能摸到的最远处",
+          "    if (i == end) {                     // 走到本层边界",
+          "        steps++;                        // 必须再跳一步",
+          "        end = far;                      // 下一层的边界就是 far",
+          "    } }  return steps;"
+        ],
+        cpp: [
+          "int end = 0, far = 0, steps = 0;",
+          "for (int i = 0; i < n - 1; i++) {",
+          "    far = max(far, i + nums[i]);        // 这一层能摸到的最远处",
+          "    if (i == end) {                     // 走到本层边界",
+          "        steps++;                        // 必须再跳一步",
+          "        end = far;                      // 下一层的边界就是 far",
+          "    } }  return steps;"
+        ],
+        python: [
+          "end = far = steps = 0",
+          "for i in range(n - 1):",
+          "    far = max(far, i + nums[i])         # 这一层能摸到的最远处",
+          "    if i == end:                        # 走到本层边界",
+          "        steps += 1                      # 必须再跳一步",
+          "        end = far                       # 下一层的边界就是 far",
+          "return steps"
+        ],
+        go: [
+          "end, far, steps := 0, 0, 0",
+          "for i := 0; i < n-1; i++ {",
+          "    far = max(far, i+nums[i])           // 这一层能摸到的最远处",
+          "    if i == end {                       // 走到本层边界",
+          "        steps++                         // 必须再跳一步",
+          "        end = far                       // 下一层的边界就是 far",
+          "    } };  return steps"
+        ],
+        c: [
+          "int end = 0, far = 0, steps = 0;",
+          "for (int i = 0; i < n - 1; i++) {",
+          "    if (i + nums[i] > far) far = i + nums[i];   /* 这一层能摸到的最远处 */",
+          "    if (i == end) {                     /* 走到本层边界 */",
+          "        steps++;                        /* 必须再跳一步 */",
+          "        end = far;                      /* 下一层的边界就是 far */",
+          "    } }  return steps;"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [2, 3, 1, 1, 4];
       var end = 0, farthest = 0, jumps = 0;
-      ctx.step("贪心：当前边界内挑“能跳最远”的下一跳；到边界就跳数 +1", { rows: [row("nums", nums)] });
+      ctx.step("贪心：当前边界内挑“能跳最远”的下一跳；到边界就跳数 +1", { line: 1, rows: [row("nums", nums)] });
       for (var i = 0; i < nums.length - 1; i++) {
         farthest = Math.max(farthest, i + nums[i]);
         if (i === end) {
           jumps++;
           end = farthest;
           ctx.step("到达边界 " + i + "：最远可达 " + end + " → 第 " + jumps + " 跳，边界推到 " + end,
-            { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(end, "target")) })] });
+            { line: 5, rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(end, "target")) })] });
         } else {
-          ctx.step("i=" + i + "（可跳 " + nums[i] + "）：更新最远可达 = " + farthest, { rows: [
+          ctx.step("i=" + i + "（可跳 " + nums[i] + "）：更新最远可达 = " + farthest, { line: 3, rows: [
             row("nums", nums, { st: mergeSt(st1(i, "cmp"), st1(Math.min(farthest, nums.length - 1), "hot")) }) ] });
         }
       }
-      ctx.step("完成！最少跳跃次数 = " + jumps, { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+      ctx.step("完成！最少跳跃次数 = " + jumps, { line: 7, rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
     },
     render: renderRows },
 
@@ -717,170 +962,535 @@ var DEMOS = {
     example: "输入：nums = [2,3,1,1,4]　输出：true（反例 [3,2,1,0,4] → false）",
     sizes: [{ label: "示例 1：[2,3,1,1,4]", arr: [2, 3, 1, 1, 4] }, { label: "反例：[3,2,1,0,4]", arr: [3, 2, 1, 0, 4] }],
     defaultSize: 0,
+    code: {
+      title: "维护最远可达",
+      langs: {
+        java: [
+          "int far = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (i > far) return false;          // 这一格根本够不着 → 卡死",
+          "    far = Math.max(far, i + nums[i]);   // 刷新能到的最远处",
+          "}",
+          "return true;"
+        ],
+        cpp: [
+          "int far = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (i > far) return false;          // 这一格根本够不着 → 卡死",
+          "    far = max(far, i + nums[i]);        // 刷新能到的最远处",
+          "}",
+          "return true;"
+        ],
+        python: [
+          "far = 0",
+          "for i in range(n):",
+          "    if i > far: return False            # 这一格根本够不着 → 卡死",
+          "    far = max(far, i + nums[i])         # 刷新能到的最远处",
+          "",
+          "return True"
+        ],
+        go: [
+          "far := 0",
+          "for i := 0; i < n; i++ {",
+          "    if i > far { return false }         // 这一格根本够不着 → 卡死",
+          "    far = max(far, i+nums[i])           // 刷新能到的最远处",
+          "}",
+          "return true"
+        ],
+        c: [
+          "int far = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (i > far) return 0;              /* 这一格根本够不着 → 卡死 */",
+          "    if (i + nums[i] > far) far = i + nums[i];   /* 刷新能到的最远处 */",
+          "}",
+          "return 1;"
+        ]
+      }
+    },
     build: function (ctx, size) {
       var nums = (size && size.arr) || [2, 3, 1, 1, 4];
       var farthest = 0;
       for (var i = 0; i < nums.length; i++) {
         if (i > farthest) {
-          ctx.step("i=" + i + " 超出最远可达 " + farthest + " → 卡死 ❌ false", { rows: [row("nums", nums, { st: st1(i, "swap") })] });
+          ctx.step("i=" + i + " 超出最远可达 " + farthest + " → 卡死 ❌ false", { line: 3, rows: [row("nums", nums, { st: st1(i, "swap") })] });
           return;
         }
         farthest = Math.max(farthest, i + nums[i]);
         ctx.step("i=" + i + "（跳 " + nums[i] + "）→ 最远可达 " + farthest + (farthest >= nums.length - 1 ? " ≥ 末尾 ✓" : ""),
-          { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(Math.min(farthest, nums.length - 1), "target")) })] });
+          { line: 4, rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(Math.min(farthest, nums.length - 1), "target")) })] });
       }
-      ctx.step("完成！最远可达覆盖末尾 → true", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+      ctx.step("完成！最远可达覆盖末尾 → true", { line: 6, rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0121": { no: "121", title: "买卖股票的最佳时机", tag: "贪心 · 一次遍历",
     example: "输入：prices = [7,1,5,3,6,4]　输出：5（1 买入 6 卖出）",
+    code: {
+      title: "维护历史最低价",
+      langs: {
+        java: [
+          "int low = Integer.MAX_VALUE, best = 0;",
+          "for (int p : prices) {",
+          "    low = Math.min(low, p);             // 到今天为止的最低买入价",
+          "    best = Math.max(best, p - low);     // 今天卖能赚多少",
+          "}",
+          "return best;"
+        ],
+        cpp: [
+          "int low = INT_MAX, best = 0;",
+          "for (int p : prices) {",
+          "    low = min(low, p);                  // 到今天为止的最低买入价",
+          "    best = max(best, p - low);          // 今天卖能赚多少",
+          "}",
+          "return best;"
+        ],
+        python: [
+          "low, best = float('inf'), 0",
+          "for p in prices:",
+          "    low = min(low, p)                   # 到今天为止的最低买入价",
+          "    best = max(best, p - low)           # 今天卖能赚多少",
+          "",
+          "return best"
+        ],
+        go: [
+          "low, best := math.MaxInt32, 0",
+          "for _, p := range prices {",
+          "    low = min(low, p)                   // 到今天为止的最低买入价",
+          "    best = max(best, p-low)             // 今天卖能赚多少",
+          "}",
+          "return best"
+        ],
+        c: [
+          "int low = INT_MAX, best = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (prices[i] < low) low = prices[i];       /* 到今天为止的最低买入价 */",
+          "    if (prices[i] - low > best) best = prices[i] - low;  /* 今天卖能赚多少 */",
+          "}",
+          "return best;"
+        ]
+      }
+    },
     build: function (ctx) {
       var prices = [7, 1, 5, 3, 6, 4];
       var minP = prices[0], best = 0;
-      ctx.step("贪心：边扫边记历史最低价，今天的价 − 历史最低 = 今天卖出的最优", { rows: [row("prices", prices, { st: st1(0, "hot") })] });
+      ctx.step("贪心：边扫边记历史最低价，今天的价 − 历史最低 = 今天卖出的最优", { line: 1, rows: [row("prices", prices, { st: st1(0, "hot") })] });
       for (var i = 1; i < prices.length; i++) {
         var profit = prices[i] - minP;
         best = Math.max(best, profit);
         var oldMin = minP;
         minP = Math.min(minP, prices[i]);
         ctx.step("i=" + i + "（价 " + prices[i] + "）：若今天卖 → 利润 " + profit + "；历史最低 " + oldMin + "→" + minP + "；最优利润 " + best,
-          { rows: [row("prices", prices, { st: mergeSt(st1(i, "hot"), st1(i - 1, minP === prices[i] ? "write" : "dim")) })] });
+          { line: 4, rows: [row("prices", prices, { st: mergeSt(st1(i, "hot"), st1(i - 1, minP === prices[i] ? "write" : "dim")) })] });
       }
-      ctx.step("完成！最大利润 = " + best + "（最低点 1 买入，6 卖出）", { rows: [row("prices", prices, { st: mergeSt(st1(1, "target"), st1(4, "target")) })] });
+      ctx.step("完成！最大利润 = " + best + "（最低点 1 买入，6 卖出）", { line: 6, rows: [row("prices", prices, { st: mergeSt(st1(1, "target"), st1(4, "target")) })] });
     },
     render: renderRows },
 
   "0763": { no: "763", title: "划分字母区间", tag: "贪心 · 最远边界",
     example: "输入：s = \"ababcbacadefegdehijhklij\"　输出：[9,7,8]",
+    code: {
+      title: "字母最后出现位置",
+      langs: {
+        java: [
+          "for (int i = 0; i < n; i++) last[s.charAt(i) - 'a'] = i;  // ① 每个字母最后出现的下标",
+          "int start = 0, end = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    end = Math.max(end, last[s.charAt(i) - 'a']);   // ② 片段必须延伸到这里",
+          "    if (i == end) {                                 // 摸到边界 → 可以切",
+          "        ans.add(end - start + 1);  start = i + 1;",
+          "    } }"
+        ],
+        cpp: [
+          "for (int i = 0; i < n; i++) last[s[i] - 'a'] = i;         // ① 每个字母最后出现的下标",
+          "int start = 0, end = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    end = max(end, last[s[i] - 'a']);               // ② 片段必须延伸到这里",
+          "    if (i == end) {                                 // 摸到边界 → 可以切",
+          "        ans.push_back(end - start + 1);  start = i + 1;",
+          "    } }"
+        ],
+        python: [
+          "last = {c: i for i, c in enumerate(s)}                    # ① 每个字母最后出现的下标",
+          "start = end = 0",
+          "for i, c in enumerate(s):",
+          "    end = max(end, last[c])                         # ② 片段必须延伸到这里",
+          "    if i == end:                                    # 摸到边界 → 可以切",
+          "        ans.append(end - start + 1);  start = i + 1",
+          "# 每个字母只能待在一个片段里"
+        ],
+        go: [
+          "for i := 0; i < n; i++ { last[s[i]-'a'] = i }             // ① 每个字母最后出现的下标",
+          "start, end := 0, 0",
+          "for i := 0; i < n; i++ {",
+          "    end = max(end, last[s[i]-'a'])                  // ② 片段必须延伸到这里",
+          "    if i == end {                                   // 摸到边界 → 可以切",
+          "        ans = append(ans, end-start+1);  start = i + 1",
+          "    } }"
+        ],
+        c: [
+          "for (int i = 0; i < n; i++) last[s[i] - 'a'] = i;         /* ① 每个字母最后出现的下标 */",
+          "int start = 0, end = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (last[s[i] - 'a'] > end) end = last[s[i] - 'a'];  /* ② 片段必须延伸到这里 */",
+          "    if (i == end) {                                 /* 摸到边界 → 可以切 */",
+          "        ans[cnt++] = end - start + 1;  start = i + 1;",
+          "    } }"
+        ]
+      }
+    },
     build: function (ctx) {
       var s = "ababcbacadefegdehijhklij";
       var last = {};
       for (var i = 0; i < s.length; i++) last[s[i]] = i;
-      ctx.step("先记下每个字母最后出现的位置", { rows: [row("s", s.split(""), { st: null })], note: "a 最后在 8，b 在 6，c 在 7…" });
+      ctx.step("先记下每个字母最后出现的位置", { line: 1, rows: [row("s", s.split(""), { st: null })], note: "a 最后在 8，b 在 6，c 在 7…" });
       var parts = [], start = 0, end = 0;
       for (var i = 0; i < s.length; i++) {
         end = Math.max(end, last[s[i]]);
         if (i === end) {
           parts.push(end - start + 1);
           ctx.step("i=" + i + " 到达当前片段最远边界 → 切一段，长度 " + (end - start + 1),
-            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= end; k++) m[k] = "target"; return m; })() })], note: "片段长度：" + JSON.stringify(parts) });
+            { line: 6, rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= end; k++) m[k] = "target"; return m; })() })], note: "片段长度：" + JSON.stringify(parts) });
           start = i + 1;
         } else {
           ctx.step("i=" + i + "（'" + s[i] + "' 最远到 " + last[s[i]] + "）→ 扩展片段边界到 " + Math.max(end, last[s[i]]),
-            { rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= Math.max(end, last[s[i]]); k++) m[k] = "hot"; return m; })() })] });
+            { line: 4, rows: [row("s", s.split(""), { st: (function () { var m = {}; for (var k = start; k <= Math.max(end, last[s[i]]); k++) m[k] = "hot"; return m; })() })] });
           end = Math.max(end, last[s[i]]);
         }
       }
-      ctx.step("完成！划分为 " + JSON.stringify(parts), { rows: [row("结果", parts, { st: st1(parts.length - 1, "target") })] });
+      ctx.step("完成！划分为 " + JSON.stringify(parts), { line: 7, rows: [row("结果", parts, { st: st1(parts.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0031": { no: "31", title: "下一个排列", tag: "技巧 · 原地重排",
     example: "输入：nums = [1,5,8,4,7,6,5,3,1]　输出：[1,5,8,5,1,3,4,6,7]",
+    code: {
+      title: "找降序点再交换反转",
+      langs: {
+        java: [
+          "int i = n - 2;",
+          "while (i >= 0 && nums[i] >= nums[i + 1]) i--;   // ① 从右找第一个降序位",
+          "if (i >= 0) {",
+          "    int j = n - 1;",
+          "    while (nums[j] <= nums[i]) j--;             // ② 右边找刚好比它大的",
+          "    swap(nums, i, j);                           // ③ 交换",
+          "}",
+          "reverse(nums, i + 1, n - 1);                    // ④ 后缀降序翻成升序"
+        ],
+        cpp: [
+          "int i = n - 2;",
+          "while (i >= 0 && nums[i] >= nums[i + 1]) i--;   // ① 从右找第一个降序位",
+          "if (i >= 0) {",
+          "    int j = n - 1;",
+          "    while (nums[j] <= nums[i]) j--;             // ② 右边找刚好比它大的",
+          "    swap(nums[i], nums[j]);                     // ③ 交换",
+          "}",
+          "reverse(nums.begin() + i + 1, nums.end());      // ④ 后缀降序翻成升序"
+        ],
+        python: [
+          "i = n - 2",
+          "while i >= 0 and nums[i] >= nums[i + 1]: i -= 1 # ① 从右找第一个降序位",
+          "if i >= 0:",
+          "    j = n - 1",
+          "    while nums[j] <= nums[i]: j -= 1            # ② 右边找刚好比它大的",
+          "    nums[i], nums[j] = nums[j], nums[i]         # ③ 交换",
+          "",
+          "nums[i + 1:] = reversed(nums[i + 1:])           # ④ 后缀降序翻成升序"
+        ],
+        go: [
+          "i := n - 2",
+          "for i >= 0 && nums[i] >= nums[i+1] { i-- }      // ① 从右找第一个降序位",
+          "if i >= 0 {",
+          "    j := n - 1",
+          "    for nums[j] <= nums[i] { j-- }              // ② 右边找刚好比它大的",
+          "    nums[i], nums[j] = nums[j], nums[i]         // ③ 交换",
+          "}",
+          "reverse(nums, i+1, n-1)                         // ④ 后缀降序翻成升序"
+        ],
+        c: [
+          "int i = n - 2;",
+          "while (i >= 0 && nums[i] >= nums[i + 1]) i--;   /* ① 从右找第一个降序位 */",
+          "if (i >= 0) {",
+          "    int j = n - 1;",
+          "    while (nums[j] <= nums[i]) j--;             /* ② 右边找刚好比它大的 */",
+          "    swap(&nums[i], &nums[j]);                   /* ③ 交换 */",
+          "}",
+          "reverse(nums, i + 1, n - 1);                    /* ④ 后缀降序翻成升序 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [1, 5, 8, 4, 7, 6, 5, 3, 1];
-      ctx.step("第一步：从右往左找第一个“下降点”（nums[i] < nums[i+1]）", { rows: [row("nums", nums)] });
+      ctx.step("第一步：从右往左找第一个“下降点”（nums[i] < nums[i+1]）", { line: 2, rows: [row("nums", nums)] });
       var i = nums.length - 2;
       while (i >= 0 && nums[i] >= nums[i + 1]) i--;
-      ctx.step("下降点 i=" + i + "（" + nums[i] + " < " + nums[i + 1] + "）", { rows: [row("nums", nums, { st: st1(i, "hot") })] });
+      ctx.step("下降点 i=" + i + "（" + nums[i] + " < " + nums[i + 1] + "）", { line: 2, rows: [row("nums", nums, { st: st1(i, "hot") })] });
       if (i >= 0) {
         var j = nums.length - 1;
         while (nums[j] <= nums[i]) j--;
-        ctx.step("第二步：从右往左找第一个大于 " + nums[i] + " 的数 → " + nums[j] + "（j=" + j + "），交换", { rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(j, "swap")) })] });
+        ctx.step("第二步：从右往左找第一个大于 " + nums[i] + " 的数 → " + nums[j] + "（j=" + j + "），交换", { line: 5, rows: [row("nums", nums, { st: mergeSt(st1(i, "hot"), st1(j, "swap")) })] });
         var t = nums[i]; nums[i] = nums[j]; nums[j] = t;
-        ctx.step("交换后：" + nums.join(", "), { rows: [row("nums", nums, { st: mergeSt(st1(i, "write"), st1(j, "write")) })] });
+        ctx.step("交换后：" + nums.join(", "), { line: 6, rows: [row("nums", nums, { st: mergeSt(st1(i, "write"), st1(j, "write")) })] });
       }
       var l = i + 1, r = nums.length - 1;
-      ctx.step("第三步：i 之后仍为降序 → 反转成升序（得到最小后缀）", { rows: [row("nums", nums, { st: (function () { var m = {}; for (var k = l; k <= r; k++) m[k] = "cmp"; return m; })() })] });
+      ctx.step("第三步：i 之后仍为降序 → 反转成升序（得到最小后缀）", { line: 8, rows: [row("nums", nums, { st: (function () { var m = {}; for (var k = l; k <= r; k++) m[k] = "cmp"; return m; })() })] });
       while (l < r) { var tt = nums[l]; nums[l] = nums[r]; nums[r] = tt; l++; r--; }
-      ctx.step("完成！下一个排列 = " + nums.join(", "), { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+      ctx.step("完成！下一个排列 = " + nums.join(", "), { line: 8, rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0075": { no: "75", title: "颜色分类", tag: "技巧 · 荷兰国旗三指针",
     example: "输入：nums = [2,0,2,1,1,0]　输出：[0,0,1,1,2,2]（原地单遍）",
+    code: {
+      title: "三路划分",
+      langs: {
+        java: [
+          "int lo = 0, i = 0, hi = n - 1;",
+          "while (i <= hi) {",
+          "    if (nums[i] == 0) swap(nums, lo++, i++);    // 0 甩到左区，i 可以前进",
+          "    else if (nums[i] == 2) swap(nums, i, hi--); // 2 甩到右区，换来的还没看过",
+          "    else i++;                                   // 1 留在中间",
+          "}"
+        ],
+        cpp: [
+          "int lo = 0, i = 0, hi = n - 1;",
+          "while (i <= hi) {",
+          "    if (nums[i] == 0) swap(nums[lo++], nums[i++]);   // 0 甩到左区，i 可以前进",
+          "    else if (nums[i] == 2) swap(nums[i], nums[hi--]);// 2 甩到右区，换来的还没看过",
+          "    else i++;                                   // 1 留在中间",
+          "}"
+        ],
+        python: [
+          "lo, i, hi = 0, 0, n - 1",
+          "while i <= hi:",
+          "    if nums[i] == 0: nums[lo], nums[i] = nums[i], nums[lo];  lo += 1;  i += 1",
+          "    elif nums[i] == 2: nums[i], nums[hi] = nums[hi], nums[i];  hi -= 1",
+          "    else: i += 1                                # 1 留在中间",
+          "# 换来的元素没看过，所以 i 不能动"
+        ],
+        go: [
+          "lo, i, hi := 0, 0, n-1",
+          "for i <= hi {",
+          "    if nums[i] == 0 { nums[lo], nums[i] = nums[i], nums[lo];  lo++;  i++    // 0 甩到左区",
+          "    } else if nums[i] == 2 { nums[i], nums[hi] = nums[hi], nums[i];  hi--   // 2 甩到右区",
+          "    } else { i++ }                              // 1 留在中间",
+          "}"
+        ],
+        c: [
+          "int lo = 0, i = 0, hi = n - 1;",
+          "while (i <= hi) {",
+          "    if (nums[i] == 0) swap(&nums[lo++], &nums[i++]);   /* 0 甩到左区 */",
+          "    else if (nums[i] == 2) swap(&nums[i], &nums[hi--]);/* 2 甩到右区，换来的还没看过 */",
+          "    else i++;                                   /* 1 留在中间 */",
+          "}"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [2, 0, 2, 1, 1, 0];
       var low = 0, mid = 0, high = nums.length - 1;
-      ctx.step("三指针：low 管 0 的边界，mid 扫描，high 管 2 的边界", { rows: [row("nums", nums, { ptrs: [{ i: 0, label: "low", c: "c3" }, { i: 0, label: "mid", c: "c1" }, { i: 5, label: "high", c: "c2" }] })] });
+      ctx.step("三指针：low 管 0 的边界，mid 扫描，high 管 2 的边界", { line: 1, rows: [row("nums", nums, { ptrs: [{ i: 0, label: "low", c: "c3" }, { i: 0, label: "mid", c: "c1" }, { i: 5, label: "high", c: "c2" }] })] });
       while (mid <= high) {
         if (nums[mid] === 0) {
           var t = nums[low]; nums[low] = nums[mid]; nums[mid] = t;
-          ctx.step("mid=" + mid + " 是 0 → 换到 low 头部，low++ mid++", { rows: [row("nums", nums, { st: mergeSt(st1(low, "write"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          ctx.step("mid=" + mid + " 是 0 → 换到 low 头部，low++ mid++", { line: 3, rows: [row("nums", nums, { st: mergeSt(st1(low, "write"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
           low++; mid++;
         } else if (nums[mid] === 2) {
           var t2 = nums[mid]; nums[mid] = nums[high]; nums[high] = t2;
-          ctx.step("mid=" + mid + " 是 2 → 换到 high 尾部，high--（mid 不动：换来的还没看）", { rows: [row("nums", nums, { st: mergeSt(st1(high, "swap"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          ctx.step("mid=" + mid + " 是 2 → 换到 high 尾部，high--（mid 不动：换来的还没看）", { line: 4, rows: [row("nums", nums, { st: mergeSt(st1(high, "swap"), st1(mid, "hot")), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
           high--;
         } else {
-          ctx.step("mid=" + mid + " 是 1 → 正确位置，mid++", { rows: [row("nums", nums, { st: st1(mid, "hot"), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
+          ctx.step("mid=" + mid + " 是 1 → 正确位置，mid++", { line: 5, rows: [row("nums", nums, { st: st1(mid, "hot"), ptrs: [{ i: low, label: "low", c: "c3" }, { i: mid, label: "mid", c: "c1" }, { i: high, label: "high", c: "c2" }] })] });
           mid++;
         }
       }
-      ctx.step("完成！[0,0,1,1,2,2] 单遍原地排序 ✓", { rows: [row("nums", nums, { st: st1(2, "target") })] });
+      ctx.step("完成！[0,0,1,1,2,2] 单遍原地排序 ✓", { line: 6, rows: [row("nums", nums, { st: st1(2, "target") })] });
     },
     render: renderRows },
 
   "0136": { no: "136", title: "只出现一次的数字", tag: "技巧 · 异或折叠",
     example: "输入：nums = [4,1,2,1,2]　输出：4",
+    code: {
+      title: "异或消消乐",
+      langs: {
+        java: [
+          "int x = 0;",
+          "for (int v : nums) x ^= v;   // 相同的数异或两次自动抵消",
+          "return x;                    // 剩下的就是只出现一次的那个"
+        ],
+        cpp: [
+          "int x = 0;",
+          "for (int v : nums) x ^= v;   // 相同的数异或两次自动抵消",
+          "return x;                    // 剩下的就是只出现一次的那个"
+        ],
+        python: [
+          "x = 0",
+          "for v in nums: x ^= v        # 相同的数异或两次自动抵消",
+          "return x                     # 剩下的就是只出现一次的那个"
+        ],
+        go: [
+          "x := 0",
+          "for _, v := range nums { x ^= v }   // 相同的数异或两次自动抵消",
+          "return x                     // 剩下的就是只出现一次的那个"
+        ],
+        c: [
+          "int x = 0;",
+          "for (int i = 0; i < n; i++) x ^= nums[i];   /* 相同的数异或两次自动抵消 */",
+          "return x;                    /* 剩下的就是只出现一次的那个 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [4, 1, 2, 1, 2];
       var x = 0;
-      ctx.step("异或三大性质：x^x=0、x^0=x、交换律 → 成对的全部消掉，只剩出现一次的", { rows: [row("nums", nums)] });
+      ctx.step("异或三大性质：x^x=0、x^0=x、交换律 → 成对的全部消掉，只剩出现一次的", { line: 1, rows: [row("nums", nums)] });
       for (var i = 0; i < nums.length; i++) {
         x ^= nums[i];
-        ctx.step("ans ^= " + nums[i] + " → " + x + "（二进制逐位异或）", { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "当前 ans 的二进制： " + x.toString(2).padStart(3, "0") });
+        ctx.step("ans ^= " + nums[i] + " → " + x + "（二进制逐位异或）", { line: 2, rows: [row("nums", nums, { st: st1(i, "hot") })], note: "当前 ans 的二进制： " + x.toString(2).padStart(3, "0") });
       }
-      ctx.step("完成！只出现一次的数字 = " + x + "，O(n) 时间 O(1) 空间", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+      ctx.step("完成！只出现一次的数字 = " + x + "，O(n) 时间 O(1) 空间", { line: 3, rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0169": { no: "169", title: "多数元素", tag: "技巧 · 摩尔投票",
     example: "输入：nums = [2,2,1,1,1,2,2]　输出：2",
+    code: {
+      title: "摩尔投票",
+      langs: {
+        java: [
+          "int cand = nums[0], cnt = 0;",
+          "for (int v : nums) {",
+          "    if (cnt == 0) cand = v;         // 票数归零 → 换人当候选",
+          "    cnt += (v == cand) ? 1 : -1;    // 同票 +1，异票 -1（同归于尽）",
+          "}",
+          "return cand;   // 超过半数的那个一定活到最后"
+        ],
+        cpp: [
+          "int cand = nums[0], cnt = 0;",
+          "for (int v : nums) {",
+          "    if (cnt == 0) cand = v;         // 票数归零 → 换人当候选",
+          "    cnt += (v == cand) ? 1 : -1;    // 同票 +1，异票 -1（同归于尽）",
+          "}",
+          "return cand;   // 超过半数的那个一定活到最后"
+        ],
+        python: [
+          "cand, cnt = nums[0], 0",
+          "for v in nums:",
+          "    if cnt == 0: cand = v           # 票数归零 → 换人当候选",
+          "    cnt += 1 if v == cand else -1   # 同票 +1，异票 -1（同归于尽）",
+          "",
+          "return cand   # 超过半数的那个一定活到最后"
+        ],
+        go: [
+          "cand, cnt := nums[0], 0",
+          "for _, v := range nums {",
+          "    if cnt == 0 { cand = v }        // 票数归零 → 换人当候选",
+          "    if v == cand { cnt++ } else { cnt-- }   // 同票 +1，异票 -1（同归于尽）",
+          "}",
+          "return cand   // 超过半数的那个一定活到最后"
+        ],
+        c: [
+          "int cand = nums[0], cnt = 0;",
+          "for (int i = 0; i < n; i++) {",
+          "    if (cnt == 0) cand = nums[i];   /* 票数归零 → 换人当候选 */",
+          "    cnt += (nums[i] == cand) ? 1 : -1;  /* 同票 +1，异票 -1（同归于尽） */",
+          "}",
+          "return cand;  /* 超过半数的那个一定活到最后 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [2, 2, 1, 1, 1, 2, 2];
       var cand = null, count = 0;
-      ctx.step("摩尔投票：不同的数互相抵消，剩下的必然是多数（出现次数 > n/2）", { rows: [row("nums", nums)] });
+      ctx.step("摩尔投票：不同的数互相抵消，剩下的必然是多数（出现次数 > n/2）", { line: 1, rows: [row("nums", nums)] });
       for (var i = 0; i < nums.length; i++) {
         if (count === 0) {
           cand = nums[i]; count = 1;
-          ctx.step("计数为 0 → 换候选人 " + cand, { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
+          ctx.step("计数为 0 → 换候选人 " + cand, { line: 3, rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
         } else if (nums[i] === cand) {
           count++;
-          ctx.step(nums[i] + " 与候选人相同 → 计数 +1", { rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
+          ctx.step(nums[i] + " 与候选人相同 → 计数 +1", { line: 4, rows: [row("nums", nums, { st: st1(i, "hot") })], note: "候选人: " + cand + "，计数: " + count });
         } else {
           count--;
-          ctx.step(nums[i] + " 与候选人不同 → 计数 -1", { rows: [row("nums", nums, { st: st1(i, "dim") })], note: "候选人: " + cand + "，计数: " + count });
+          ctx.step(nums[i] + " 与候选人不同 → 计数 -1", { line: 4, rows: [row("nums", nums, { st: st1(i, "dim") })], note: "候选人: " + cand + "，计数: " + count });
         }
       }
-      ctx.step("完成！抵消结束后剩下的候选人 = " + cand + "（多数元素）", { rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
+      ctx.step("完成！抵消结束后剩下的候选人 = " + cand + "（多数元素）", { line: 6, rows: [row("nums", nums, { st: st1(nums.length - 1, "target") })] });
     },
     render: renderRows },
 
   "0287": { no: "287", title: "寻找重复数", tag: "技巧 · Floyd 快慢指针（数组版）",
     example: "输入：nums = [1,3,4,2,2]　输出：2",
+    code: {
+      title: "下标当指针找环",
+      langs: {
+        java: [
+          "int slow = nums[0], fast = nums[nums[0]];",
+          "while (slow != fast) {                    // 把 i → nums[i] 看成链表",
+          "    slow = nums[slow];  fast = nums[nums[fast]];   // 快慢指针找相遇点",
+          "}",
+          "slow = 0;",
+          "while (slow != fast) { slow = nums[slow];  fast = nums[fast]; }  // 回到起点同步走",
+          "return slow;   // 入环口就是重复的那个数"
+        ],
+        cpp: [
+          "int slow = nums[0], fast = nums[nums[0]];",
+          "while (slow != fast) {                    // 把 i → nums[i] 看成链表",
+          "    slow = nums[slow];  fast = nums[nums[fast]];   // 快慢指针找相遇点",
+          "}",
+          "slow = 0;",
+          "while (slow != fast) { slow = nums[slow];  fast = nums[fast]; }  // 回到起点同步走",
+          "return slow;   // 入环口就是重复的那个数"
+        ],
+        python: [
+          "slow, fast = nums[0], nums[nums[0]]",
+          "while slow != fast:                       # 把 i → nums[i] 看成链表",
+          "    slow = nums[slow];  fast = nums[nums[fast]]    # 快慢指针找相遇点",
+          "",
+          "slow = 0",
+          "while slow != fast: slow = nums[slow];  fast = nums[fast]        # 回到起点同步走",
+          "return slow   # 入环口就是重复的那个数"
+        ],
+        go: [
+          "slow, fast := nums[0], nums[nums[0]]",
+          "for slow != fast {                        // 把 i → nums[i] 看成链表",
+          "    slow, fast = nums[slow], nums[nums[fast]]      // 快慢指针找相遇点",
+          "}",
+          "slow = 0",
+          "for slow != fast { slow, fast = nums[slow], nums[fast] }         // 回到起点同步走",
+          "return slow   // 入环口就是重复的那个数"
+        ],
+        c: [
+          "int slow = nums[0], fast = nums[nums[0]];",
+          "while (slow != fast) {                    /* 把 i → nums[i] 看成链表 */",
+          "    slow = nums[slow];  fast = nums[nums[fast]];   /* 快慢指针找相遇点 */",
+          "}",
+          "slow = 0;",
+          "while (slow != fast) { slow = nums[slow];  fast = nums[fast]; }  /* 回到起点同步走 */",
+          "return slow;  /* 入环口就是重复的那个数 */"
+        ]
+      }
+    },
     build: function (ctx) {
       var nums = [1, 3, 4, 2, 2];
       var slow = 0, fast = 0;
-      ctx.step("把数组看成链表：i → nums[i]。有重复值 = 有环；找环入口 = 找重复值", { rows: [
+      ctx.step("把数组看成链表：i → nums[i]。有重复值 = 有环；找环入口 = 找重复值", { line: 1, rows: [
         row("nums", nums, { ptrs: [{ i: 0, label: "slow", c: "c1" }, { i: 0, label: "fast", c: "c2" }] }) ] });
       for (var s = 0; s < 12; s++) {
         slow = nums[slow];
         fast = nums[nums[fast]];
-        if (slow === fast) { ctx.step("阶段一相遇于 " + nums[slow] + "（环内）", { rows: [
+        if (slow === fast) { ctx.step("阶段一相遇于 " + nums[slow] + "（环内）", { line: 2, rows: [
           row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] }); break; }
-        ctx.step("slow 在 " + slow + "，fast 在 " + fast, { rows: [
+        ctx.step("slow 在 " + slow + "，fast 在 " + fast, { line: 3, rows: [
           row("nums", nums, { ptrs: [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }] }) ] });
       }
       slow = 0;
       var ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }];
       while (slow !== fast) {
-        ctx.step("阶段二：同速前进", { rows: [row("nums", nums, { ptrs: ptrs2.slice() }) ] });
+        ctx.step("阶段二：同速前进", { line: 6, rows: [row("nums", nums, { ptrs: ptrs2.slice() }) ] });
         slow = nums[slow]; fast = nums[fast];
         ptrs2 = [{ i: slow, label: "slow", c: "c1" }, { i: fast, label: "fast", c: "c2" }];
       }
-      ctx.step("阶段二相遇于下标 " + slow + " → 重复数字 = nums[" + slow + "] = " + nums[slow] + " ✓", { rows: [
+      ctx.step("阶段二相遇于下标 " + slow + " → 重复数字 = nums[" + slow + "] = " + nums[slow] + " ✓", { line: 7, rows: [
         row("nums", nums, { st: st1(slow, "target") }) ] });
     },
     render: renderRows }
@@ -913,10 +1523,13 @@ var DEMOS = {
     document.title = (d.no ? d.no + ". " : "") + d.title + " · 动画演示";
     DemoKit.mount({
       no: d.no, title: d.title, tag: d.tag, example: d.example,
+      code: d.code,
+      stageHeight: d.stageHeight,
       sizes: d.sizes, defaultSize: d.defaultSize,
       build: d.build, render: d.render
     });
   }
+  sel.onchange = function () { mountDemo(sel.value); };
   var want = params.get("mode");
   if (want && DEMOS[want]) { sel.value = want; mountDemo(want); }
   else mountDemo(keys[0]);
