@@ -11,7 +11,7 @@ REVIEW_INTERVALS_CONTENT / due_after_content / def daily_data / module_id: str
 CREATE TABLE IF NOT EXISTS submissions / CREATE TABLE IF NOT EXISTS credentials
 /api/submit /api/leetcode/connect / Access-Control-Allow-Origin
 /api/daily?module= / module_id=params.get("module", "") / lc_id / full: bool / uq_submissions_lc
-"/assets/navigation-policy.js?v=1"
+"/assets/navigation-policy.js?v=2"
 """
 
 try:

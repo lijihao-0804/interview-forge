@@ -1497,6 +1497,9 @@ def mark_cross_page_links(page: str) -> str:
                 or href.startswith("#")
                 or lowered.startswith(("javascript:", "mailto:", "tel:"))
                 or "download" in attrs_map
+                # 显式声明了打开策略的链接（返回动线等）保持原样，
+                # 运行时由 navigation-policy.js 按声明分流。
+                or "data-navigation-policy" in attrs_map
             ):
                 return
             # 规范化而非追加：可视化页会在已有 HTML 上再次润色，必须清掉
@@ -2118,10 +2121,12 @@ def render_markdown(source: Path) -> None:
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={ASSET_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
-    ai_css_href = ai_asset_base + "/ai-launcher.css?v=2"
+    ai_css_href = ai_asset_base + "/ai-launcher.css?v=3"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
     ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=2"
+    policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     root_href = web_rel(output, ROOT / "index.html")
+    cockpit_href = web_rel(output, ROOT / "cockpit.html")
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
     map_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "02-算法模式地图.html")
     checklist_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "03-复习清单.html")
@@ -2138,6 +2143,7 @@ def render_markdown(source: Path) -> None:
   <title>{html.escape(title)} · Hot 100</title>
   <link rel="stylesheet" href="{html.escape(css_href)}">
   <link rel="stylesheet" data-interviewforge-ai href="{html.escape(ai_css_href)}">
+  <script src="{html.escape(policy_href)}" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到正文</a>
@@ -2145,11 +2151,12 @@ def render_markdown(source: Path) -> None:
     <header class="site-topbar">
       <a class="site-brand" href="{html.escape(root_href)}">Hot 100 深度学习库</a>
       <nav class="site-nav" aria-label="主导航">
+        <a href="{html.escape(cockpit_href)}">中控台</a>
         <a href="{html.escape(web_rel(output, ROOT / 'library' / 'index.html'))}">学习书架</a>
         <a href="{html.escape(route_href)}">学习路线</a>
         <a href="{html.escape(map_href)}">模式地图</a>
         <a href="{html.escape(checklist_href)}">复习清单</a>
-        <a class="lc-button" href="{html.escape(lc_href)}">力扣连接</a>
+        <a href="{html.escape(lc_href)}">力扣连接</a>
       </nav>
     </header>
     <main id="main-content" class="reader-card">
@@ -2305,6 +2312,21 @@ def polish_visual(path: Path) -> None:
     else:
         text = re.sub(r"(?is)</body>", VISUAL_A11Y_SCRIPT + "\n</body>", text, count=1)
     text = text.replace('href="../README.md"', 'href="../guide.html"')
+    # 可视化中心 body 的“← 返回 …”是返回动线（“移动”而非“另开参考资料”）：
+    # 声明同页打开；mark_cross_page_links 会尊重该声明不再追加 _blank。
+    text = re.sub(
+        r"<a\s+href=\"([^\"]*guide\.html)\"[^>]*>(←\s*返回[^<]*)</a>",
+        lambda m: f'<a href="{m.group(1)}" data-navigation-policy="same-tab">{m.group(2)}</a>',
+        text,
+    )
+    # 离线（file://）打开时服务端不注入脚本：构建期写入导航策略，保证
+    # 顶栏/上一题下一题等 chrome 导航不会被历史 target=_blank 全部新开。
+    if "navigation-policy.js" not in text:
+        text = text.replace(
+            "</head>",
+            '<script src="../../../assets/navigation-policy.js?v=2" defer></script>\n</head>',
+            1,
+        )
     text = mark_cross_page_links(text)
     path.write_text(text, encoding="utf-8")
 
@@ -2328,7 +2350,7 @@ def update_dashboard() -> None:
     text = path.read_text(encoding="utf-8-sig")
     text = re.sub(r'("note"\s*:\s*"[^"]+)\.md"', r'\1.html"', text)
     text = text.replace('href="README.md">打开 Markdown 总目录</a>', 'href="guide.html">完整使用指南</a>')
-    quick = '<nav class="dashboard-nav"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>'
+    quick = '<nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>'
     if 'class="dashboard-nav"' not in text:
         text = text.replace('</header>\n<div class="bar"', '</header>\n' + quick + '\n<div class="bar"', 1)
         text = text.replace('</style>', '.dashboard-nav{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0 8px}.dashboard-nav a{padding:7px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px}.dashboard-nav a:hover{background:var(--soft);text-decoration:none}.dashboard-nav a.lc-button{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.dashboard-nav a.lc-button:hover{background:var(--brand-strong);color:#fff}@media(max-width:680px){.dashboard-nav{gap:7px}.dashboard-nav a{padding:6px 9px}}\n</style>', 1)

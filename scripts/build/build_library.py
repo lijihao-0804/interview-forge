@@ -875,6 +875,9 @@ def mark_cross_page_links(page: str) -> str:
                 or href.startswith("#")
                 or lowered.startswith(("javascript:", "mailto:", "tel:"))
                 or "download" in attrs_map
+                # 显式声明了打开策略的链接保持原样，运行时由
+                # navigation-policy.js 按声明分流（与 build_html_site 一致）。
+                or "data-navigation-policy" in attrs_map
             ):
                 return
             # 同一 HTML 可能被重复构建，先移除旧属性再写入唯一规范值，保证幂等。
@@ -909,7 +912,10 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
-        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=2">'
+        # 导航策略构建期写入：离线（file://）打开时服务端不注入，书架页顶栏
+        # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
+        f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
+        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=3">'
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=2" defer data-interviewforge-ai></script>'
     )
@@ -1356,6 +1362,9 @@ input.addEventListener('input',()=>{
   const q=input.value.trim();
   queryVersion+=1;
   const version=queryVersion;
+  // 搜索词写回 URL：same-tab 跳到章节后“返回”不丢关键词与结果
+  // （HTML no-store 禁用 bfcache，不写回就真的丢了）。file:// 下可能抛错，静默降级。
+  try{history.replaceState(null,'',q?('?q='+encodeURIComponent(q)):location.pathname)}catch(_){}
   if(searchTimer)clearTimeout(searchTimer);
   if(searchController)searchController.abort();
   if(!q){renderHint('输入关键词开始搜索。');return}

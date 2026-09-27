@@ -8,6 +8,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#5755d4">
 <script src="assets/time-utils.js?v=2"></script>
+<script src="assets/navigation-policy.js?v=2" defer></script>
 <link rel="stylesheet" href="assets/uplot.min.css?v=__ASSET_VERSION__">
 <style>
 @font-face{font-family:"Inter";src:url("assets/fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -102,7 +103,9 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .day-row{display:flex;justify-content:space-between;gap:10px}.day-row strong{font-variant-numeric:tabular-nums}.day-row span,.event-time{color:var(--muted);font-size:12px}
 .event-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-empty{padding:12px 0;color:var(--muted)}
 .empty{padding:42px 18px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center}
-.toast{min-height:24px;margin:14px 0 0;color:var(--success);text-align:center}
+.toast{min-height:24px;margin:14px 0 0;color:var(--muted);text-align:center}
+.toast.success{color:var(--success)}
+.toast.error{color:var(--danger);font-weight:650}
 .review-section{margin:0 0 22px;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
 .review-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .review-head h2{margin:0;font-size:18px}
@@ -197,7 +200,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:980px){.workspace{grid-template-columns:1fr}.history{order:-1}.history-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px}.history h3{margin-top:0}}
 @media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
-@media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}}
+@media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}.mark-select,.weak-clear,.mock-btn{min-height:38px}.plan-item .pick-meta{flex-basis:auto}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 /* 手动主题切换（theme-toggle.js 写入 data-theme） */
 html[data-theme="dark"]{color-scheme:dark;
@@ -222,18 +225,18 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 <main class="shell">
   <header class="hero">
     <div><h1>Interview Forge</h1><div class="sub">__PROBLEM_COUNT__ 道高频算法题，覆盖 __TOPIC_COUNT__ 个专题；每一次打开与每一轮完成，都会留下可回看的学习轨迹</div><div id="connection" class="connection">正在连接学习服务</div></div>
-    <div class="stats" aria-live="polite">
+    <div class="stats">
       <div class="stat"><span>今天看题</span><strong id="todayViewed">0</strong></div>
       <div class="stat"><span>今天完成</span><strong id="todayRounds">0</strong></div>
       <div class="stat"><span>已刷题目</span><strong id="completedCount">0</strong></div>
-      <div class="stat" title="第 1 轮：完成 90 题以上达成；之后：大部分题完成到第几轮，完整轮次就是几（完成 3 轮也算第 2 轮已完成）"><span>完整轮次</span><strong id="totalRounds">0</strong></div>
+      <div class="stat" title="第 1 轮：完成 90 题以上达成；之后：大部分题完成到第几轮，整体进度就是几（完成 3 轮也算第 2 轮已完成）"><span>整体进度</span><strong id="totalRounds">0</strong></div>
       <div class="stat"><span>日 AC / 提交</span><strong id="acTodayText">0 / 0</strong></div>
   <div class="stat"><span>累计 AC / 已解决</span><strong id="acTotalText">0 / 0</strong></div>
   <div class="stat"><span>连续学习</span><strong id="streakCount">0</strong></div>
       <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
     </div>
   </header>
-  <nav class="dashboard-nav" aria-label="学习入口"><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>
+  <nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>
   <div class="lc-sync-mask" id="leetcodeSyncModal" hidden>
     <section class="lc-sync-dialog" id="leetcodeSyncDialog" role="dialog" aria-modal="true" aria-labelledby="leetcodeSyncTitle" aria-describedby="leetcodeSyncMessage" tabindex="-1">
       <div class="lc-sync-head"><h2 class="lc-sync-title" id="leetcodeSyncTitle">力扣同步</h2><button class="lc-sync-close" id="leetcodeSyncClose" type="button" aria-label="关闭同步提示">×</button></div>
@@ -244,8 +247,8 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请检查网络后重试；若持续失败请联系管理员。<button id="serverRetry" class="round-button" type="button">重试</button></div>
   <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
-  <section class="review-section" aria-labelledby="reviewTitle">
-    <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" target="_blank" rel="noopener noreferrer" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
+  <section class="review-section" aria-labelledby="reviewTitle" id="review">
+    <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" data-navigation-policy="same-tab" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
     <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div>
   </section>
   <section class="review-section" aria-labelledby="pickTitle">
@@ -382,7 +385,7 @@ function leetcodeSyncSummary(data){
   let text=`${partial?'同步部分完成':'同步成功'}。本次处理 ${seen} 条提交，新增 ${added} 条记录。`;
   if(solvedAdded)text+=` 另补充 ${solvedAdded} 条已解决记录。`;
   if(warningCount)text+=` 有 ${warningCount} 项暂未读取，可稍后再次同步。`;
-  if(data.has_more&&Number.isSafeInteger(Number(data.next_offset)))text+=' 仍有更早记录，可再次点击同步继续。';
+  if(data.has_more&&Number.isSafeInteger(Number(data.next_offset)))text+=' 还有更早的历史提交未读取，建议到力扣连接页做一次全量同步。';
   return text;
 }
 function leetcodeSyncCursorKey(full){return 'forge_leetcode_sync_offset_'+(full?'full':'incremental');}
@@ -450,7 +453,7 @@ async function runLeetcodeIncrementalSync(){
       if(task.partial||result.partial){
         saveLeetcodeSyncCursor(full,result);
         await refresh();
-        openLeetcodeSyncModal('success','同步部分完成',leetcodeSyncSummary(result));
+        openLeetcodeSyncModal('success','同步部分完成',leetcodeSyncSummary(result),Boolean(result.has_more));
         return;
       }
       if(task.error){
@@ -460,7 +463,7 @@ async function runLeetcodeIncrementalSync(){
       }
       saveLeetcodeSyncCursor(full,result);
       await refresh();
-      openLeetcodeSyncModal('success','同步完成',leetcodeSyncSummary(result));
+      openLeetcodeSyncModal('success','同步完成',leetcodeSyncSummary(result),Boolean(result.has_more));
       return;
     }
   }catch(error){
@@ -486,6 +489,14 @@ document.addEventListener('keydown',event=>{
 
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;category.appendChild(option)});
 function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+// toast 变体：成功=绿、失败=红（此前错误也显示绿色，误导用户）
+let toastClearTimer=null;
+function showToast(message,kind){
+  toast.textContent=message;
+  toast.className='toast'+(kind==='success'?' success':kind==='error'?' error':'');
+  clearTimeout(toastClearTimer);
+  if(kind==='success')toastClearTimer=setTimeout(()=>{toast.textContent='';toast.className='toast'},2500);
+}
 function infoFor(id){return state.data.problems[String(id)]||{rounds:0,last_viewed_at:null,last_completed_at:null,last_activity_at:null}}
 function localTime(value){if(!value)return '尚无记录';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}
 function updateSummary(){
@@ -493,13 +504,16 @@ function updateSummary(){
   document.getElementById('todayViewed').textContent=summary.today_viewed;
   document.getElementById('todayRounds').textContent=summary.today_rounds;
   document.getElementById('completedCount').textContent=summary.completed_problems;
-  // 数字 count-up：300ms 从 0 滚到目标值（尊重 reduced-motion）
+  // 数字滚动：从上一次的值滚到新值（首次从 0 开始），避免每次刷新都从 0 重滚
   const countUp=(id,target)=>{const el=document.getElementById(id);if(!el)return;
-    if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=target;return}
-    const start=performance.now(),from=0,dur=300;
+    const from=Number(countUp.lastValues[id]||0);
+    countUp.lastValues[id]=target;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches||from===target){el.textContent=target;return}
+    const start=performance.now(),dur=300;
     const tick=now=>{const p=Math.min((now-start)/dur,1);const eased=1-Math.pow(1-p,3);
       el.textContent=Math.round(from+(target-from)*eased);if(p<1)requestAnimationFrame(tick)};
     requestAnimationFrame(tick)};
+  countUp.lastValues=countUp.lastValues||{};
   countUp('todayViewed',summary.today_viewed);
   countUp('todayRounds',summary.today_rounds);
   countUp('completedCount',summary.completed_problems);
@@ -667,16 +681,15 @@ async function pinPlan(problemId){
   try{
     const response=await fetchWithTimeout('/api/plan/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'排期失败');
-    toast.textContent=`已纳入明天计划（${result.for_date}），明天见`;
-    setTimeout(()=>{toast.textContent=''},2500);
-  }catch(error){toast.textContent=error.message||'排期失败'}
+    showToast(`已纳入明天计划（${result.for_date}），明天见`,'success');
+  }catch(error){showToast(error.message||'排期失败','error')}
 }
 async function setMark(problemId,mark){
   try{
     const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:String(problemId),mark})});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'标记失败');
     await refresh();
-  }catch(error){toast.textContent=`标记失败：${error.message}`}
+  }catch(error){showToast(`标记失败：${error.message}`,'error')}
 }
 function downloadText(filename,text,mime){
   const blob=new Blob([text],{type:mime});
@@ -700,8 +713,8 @@ async function exportData(kind){
     }else{
       downloadText(filename,await response.text(),response.headers.get('Content-Type')||'text/plain');
     }
-    toast.textContent=`已导出 ${filename}`;
-  }catch(error){toast.textContent=`导出失败：${error.message}`}
+    showToast(`已导出 ${filename}`,'success');
+  }catch(error){showToast(`导出失败：${error.message}`,'error')}
 }
 async function saveGoal(){
   const value=String(Math.max(1,Math.min(50,Number(document.getElementById('goalInput').value)||3)));
@@ -709,8 +722,8 @@ async function saveGoal(){
     const response=await fetchWithTimeout('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'daily_goal_rounds',value})});
     if(!response.ok)throw new Error('保存失败');
     await refresh();
-    toast.textContent=`每日目标已设为 ${value} 轮`;
-  }catch(error){toast.textContent=`保存失败：${error.message}`}
+    showToast(`每日目标已设为 ${value} 轮`,'success');
+  }catch(error){showToast(`保存失败：${error.message}`,'error')}
 }
 function render(){updateSummary();renderReview();renderWeak();renderHeatmap();renderTrend();renderCards()}
 document.getElementById('pickAgain').addEventListener('click',()=>loadPick(true));
@@ -726,6 +739,8 @@ function mockTick(){
 }
 async function mockStart(){
   if(mockInFlight)return;
+  // 进行中的模拟不能被静默丢弃：先确认，再开新的一卷
+  if(mockState&&!mockState.finished&&!window.confirm('当前有一次进行中的模拟，开始新模拟将放弃本次进度。继续吗？'))return;
   mockInFlight=true;
   if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId)}
   const count=Number(document.getElementById('mockCount').value);
@@ -766,7 +781,7 @@ async function mockFinish(timeout){
   document.getElementById('mockTimer').textContent='';
   document.getElementById('mockStatus').textContent=`完成 ${mockState.done.length} / ${mockState.problems.length}`;
   if(mockState.done.length){
-    toast.textContent=`模拟完成 ${mockState.done.length} 题；真实 AC 会自动计入轮次`;
+    showToast(`模拟完成 ${mockState.done.length} 题；真实 AC 会自动计入轮次`,'success');
   }
   mockState=null;
 }
@@ -796,6 +811,18 @@ async function updateLcStatus(){
     el.textContent='力扣：检测失败';
   }
 }
+// 离线错误态：断网时不能把故障渲染成“正常空态”（假空卡会让用户以为无事可做）。
+// 采用 cockpit 的模块级失败范式：明确报错 + 重试入口；题网格不渲染假数据。
+function renderOfflineErrors(){
+  reviewList.innerHTML='<div class="review-empty">暂时无法读取今日待复习，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
+  const retry=reviewList.querySelector('[data-retry]');
+  if(retry)retry.addEventListener('click',()=>refresh());
+  pickCard.innerHTML='<div class="review-empty">计划暂时无法加载，请检查网络后重试。</div>';
+  weakList.innerHTML='<li class="history-empty">暂时无法读取薄弱清单，请稍后重试。</li>';
+  grid.innerHTML='<div class="empty">暂时无法读取题目数据，请检查网络后点击页面上方的“重试”。</div>';
+  empty.hidden=true;
+  document.getElementById('reviewSummary').textContent='读取失败';
+}
 async function refresh(){
   try{
     const bootstrapResponse=await fetchWithTimeout('/api/bootstrap',{cache:'no-store'});
@@ -815,7 +842,7 @@ async function refresh(){
     document.getElementById('serverNotice').hidden=false;
   }
   updateLcStatus();
-  render();
+  if(state.online)render();else renderOfflineErrors();
   updateOnlineControls();
   maybeNotify();
 }
@@ -841,12 +868,24 @@ function maybeNotify(){
   lastNotifyDate=daily.today;
   try{new Notification('Interview Forge',{body:`今日待复习 ${daily.summary.due} 项${daily.summary.overdue?`（逾期 ${daily.summary.overdue}）`:''}，去复习吧`})}catch(_){}
 }
+// 通知按钮三态：刷新后不再“永远回到未开启”。denied 时给出自助引导，
+// 再点也不再发起注定被拒的权限请求。
+(function initRemindButton(){
+  if(!('Notification' in window))return;
+  const button=document.getElementById('remindButton');
+  if(Notification.permission==='granted')button.textContent='复习提醒已开启';
+  else if(Notification.permission==='denied')button.textContent='提醒已被浏览器拒绝';
+})();
 document.getElementById('remindButton').addEventListener('click',async()=>{
-  if(!('Notification' in window)){toast.textContent='当前浏览器不支持通知';return}
+  if(!('Notification' in window)){showToast('当前浏览器不支持通知','error');return}
+  if(Notification.permission==='denied'){
+    showToast('通知权限已被拒绝：请点浏览器地址栏左侧的网站设置，把“通知”改为允许后刷新页面','error');
+    return;
+  }
   let permission;
-  try{permission=await Notification.requestPermission();}catch(error){toast.textContent='通知权限请求失败，请检查浏览器设置';return}
+  try{permission=await Notification.requestPermission();}catch(error){showToast('通知权限请求失败，请检查浏览器设置','error');return}
   document.getElementById('remindButton').textContent=permission==='granted'?'复习提醒已开启':'提醒被拒绝';
-  if(permission==='granted'){toast.textContent='复习提醒已开启，刷新页面后会通知待复习项';maybeNotify()}
+  if(permission==='granted'){showToast('复习提醒已开启，刷新页面后会通知待复习项','success');maybeNotify()}
 });
 search.addEventListener('input',renderCards);
 [category,status].forEach(control=>control.addEventListener('change',renderCards));

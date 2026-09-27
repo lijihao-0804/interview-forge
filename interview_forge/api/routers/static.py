@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from interview_forge.analytics.cache import invalidate_learning_caches
 from interview_forge.api.support import current_user, error_response
@@ -21,12 +21,15 @@ from interview_forge.services.study import record_content_view, record_view
 router = APIRouter()
 
 _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
-_PUBLIC_PREFIXES = ("/assets/fonts",)
+# 整个 /assets/ 都是公开前端资源（样式/脚本/字体/图标，不含用户数据）。
+# 登录页自身也引用这些脚本（服务端注入），只豁免字体会让未登录时脚本被 307
+# 成 HTML，登录/注册页的主题切换、导航策略全部静默失效。
+_PUBLIC_PREFIXES = ("/assets/",)
 _ADMIN_PAGE = "/pages/admin.html"
-_WIDGET_STYLES = ("/assets/ai-launcher.css?v=2",)
+_WIDGET_STYLES = ("/assets/ai-launcher.css?v=3",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
-    "/assets/navigation-policy.js?v=1",
+    "/assets/navigation-policy.js?v=2",
     "/assets/auth-widget.js?v=3",
     "/assets/feedback-widget.js?v=2",
     "/assets/theme-toggle.js?v=2",
@@ -36,6 +39,51 @@ _WIDGET_SCRIPTS = (
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _AI_LAUNCHER_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
+
+
+# 内容页 404 的品牌化兜底页：只给浏览器（Accept: text/html）返回；
+# API/程序化请求仍拿 JSON。页面内联样式，避免依赖任何需登录或缓存的资源。
+_NOT_FOUND_PAGE = """<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>页面不存在 · Interview Forge</title>
+<style>
+:root{color-scheme:light dark}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f5fa;color:#172033;font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;text-align:center}
+@media(prefers-color-scheme:dark){body{background:#0f131b;color:#edf2fb}}
+.box{max-width:460px;margin:24px;padding:44px 34px;border:1px solid rgba(100,113,136,.28);border-radius:18px;background:rgba(255,255,255,.72)}
+@media(prefers-color-scheme:dark){.box{background:rgba(24,30,41,.72)}}
+h1{margin:0 0 6px;font-size:44px;letter-spacing:-.02em;color:#5755d4}
+p{margin:0 0 22px;color:#647188}
+nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+nav a{padding:9px 16px;border:1px solid rgba(100,113,136,.32);border-radius:10px;color:inherit;text-decoration:none}
+nav a:hover{border-color:#5755d4;color:#5755d4}
+</style>
+</head>
+<body>
+<main class="box">
+  <h1>404</h1>
+  <p>要找的页面不存在，或已被移动。可以从这里继续：</p>
+  <nav>
+    <a href="/cockpit.html">学习中控台</a>
+    <a href="/index.html">学习面板</a>
+    <a href="/library/search.html">全文搜索</a>
+  </nav>
+</main>
+</body>
+</html>
+"""
+
+
+def _not_found_response(request: Request, decoded: str) -> Response:
+    """HTML 请求给品牌 404 页，API/脚本请求保持 JSON 错误体。"""
+    accepts_html = "text/html" in (request.headers.get("accept") or "").lower()
+    if accepts_html and not decoded.startswith("/api/"):
+        return HTMLResponse(_NOT_FOUND_PAGE, status_code=404, headers=_security_headers("404.html"))
+    return error_response("Not Found", 404)
 
 
 def _sensitive(path: str) -> bool:
@@ -89,7 +137,7 @@ def _security_headers(path: str) -> dict[str, str]:
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
-    scripts = ("/assets/navigation-policy.js?v=1",) if navigation_only else tuple(
+    scripts = ("/assets/navigation-policy.js?v=2",) if navigation_only else tuple(
         script for script in _WIDGET_SCRIPTS
         if not (
             (script.startswith("/assets/auth-widget") and (path in _AUTH_WIDGET_SKIP or embedded_assistant))
@@ -144,19 +192,25 @@ def _record_view(path: str, db_path: Path) -> None:
 def static_path(request: Request, path: str):
     decoded = _path(request)
     if _sensitive(decoded):
-        return error_response("Not Found", 404)
+        return _not_found_response(request, decoded)
     if decoded == "/":
         return RedirectResponse("/cockpit.html", status_code=307, headers={"Cache-Control": "no-store"})
     if decoded.startswith("/api/"):
         return error_response("Not Found", 404)
     user = current_user(request)
     if user is None and decoded not in _PUBLIC_GET and not decoded.startswith(_PUBLIC_PREFIXES):
-        return RedirectResponse(f"/pages/login.html?next={quote(decoded)}", status_code=307, headers={"Cache-Control": "no-store"})
+        # next 只保留 .html 页面（带上 query，保持与客户端 401 跳转一致的行为）：
+        # 否则登录成功后会被带到裸 CSS/JS 资源文件上。
+        next_value = ""
+        if decoded.lower().endswith(".html"):
+            next_value = decoded + (f"?{request.url.query}" if request.url.query else "")
+        next_suffix = f"?next={quote(next_value)}" if next_value else ""
+        return RedirectResponse(f"/pages/login.html{next_suffix}", status_code=307, headers={"Cache-Control": "no-store"})
     if decoded == _ADMIN_PAGE and (user is None or str(user["role"]) != "admin"):
         return error_response("Forbidden", 403)
     target = (ROOT / decoded.lstrip("/")).resolve()
     if not target.is_file() or not str(target).startswith(str(ROOT.resolve())):
-        return error_response("Not Found", 404)
+        return _not_found_response(request, decoded)
     db_path = Path(ROOT / "data" / "users" / str(user["username"]) / "hot100-study.db") if user is not None else None
     if db_path is not None:
         _record_view(decoded, db_path)

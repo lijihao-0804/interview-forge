@@ -15,18 +15,23 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
 const store = new Map();
-const sandbox = {
-  URL,
-  localStorage: { getItem: key => store.has(key) ? store.get(key) : null,
-    setItem: (key, value) => store.set(key, String(value)) },
-  location: { origin: 'http://localhost:8765' },
-  CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
-  document: { baseURI: 'http://localhost:8765/cockpit.html', documentElement: {},
-    querySelectorAll: () => [], addEventListener: () => {} },
-  window: { addEventListener: () => {} }
-};
-vm.runInNewContext(source, sandbox, { filename: 'navigation-policy.js' });
-const policy = sandbox.window.ForgeNavigationPolicy;
+function makeSandbox(matchMedia) {
+  return {
+    URL,
+    matchMedia,
+    localStorage: { getItem: key => store.has(key) ? store.get(key) : null,
+      setItem: (key, value) => store.set(key, String(value)) },
+    location: { origin: 'http://localhost:8765' },
+    CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
+    document: { baseURI: 'http://localhost:8765/cockpit.html', documentElement: {},
+      querySelectorAll: () => [], addEventListener: () => {} },
+    window: { addEventListener: () => {} }
+  };
+}
+const desktopSandbox = makeSandbox(undefined);
+vm.runInNewContext(source, desktopSandbox, { filename: 'navigation-policy.js' });
+const policy = desktopSandbox.window.ForgeNavigationPolicy;
+if (!policy) throw new Error('policy not exposed');
 if (policy.key !== 'learningContentOpenMode') throw new Error('preference key');
 if (policy.getPreference() !== 'new-tab') throw new Error('default preference');
 if (policy.resolveNavigationMode('same-tab', 'new-tab') !== 'same-tab') throw new Error('same-tab override');
@@ -34,6 +39,13 @@ if (policy.resolveNavigationMode('user-preference', 'new-tab') !== 'new-tab') th
 policy.setPreference('same-tab');
 if (policy.getPreference() !== 'same-tab') throw new Error('persisted preference');
 if (policy.resolveNavigationMode('user-preference', policy.getPreference()) !== 'same-tab') throw new Error('same-tab preference');
+
+// 移动/触屏默认同页打开（触屏没有中键/Ctrl，新标签无选择权）
+store.clear();
+const coarse = q => ({ matches: q.indexOf('pointer:coarse') >= 0 || q.indexOf('max-width:760px') >= 0 });
+const mobileSandbox = makeSandbox(coarse);
+vm.runInNewContext(source, mobileSandbox, { filename: 'navigation-policy.js' });
+if (mobileSandbox.window.ForgeNavigationPolicy.getPreference() !== 'same-tab') throw new Error('mobile default same-tab');
 
 function anchor(href, attrs, classes) {
   const data = Object.assign({ href }, attrs || {});
@@ -47,16 +59,16 @@ function anchor(href, attrs, classes) {
     attr: data
   };
 }
-function apply(one) { policy.apply({ querySelectorAll: () => [one] }); return one; }
-const external = apply(anchor('https://example.com/a'));
+function applyWith(policyApi, one) { policyApi.apply({ querySelectorAll: () => [one] }); return one; }
+const external = applyWith(policy, anchor('https://example.com/a'));
 if (external.attr.target !== '_blank' || external.attr.rel !== 'noopener noreferrer') throw new Error('external safety');
-const continuous = apply(anchor('/books/hot100/next.html', { target: '_blank', rel: 'noopener noreferrer' }, ['problem-nav-btn']));
+const continuous = applyWith(policy, anchor('/books/hot100/next.html', { target: '_blank', rel: 'noopener noreferrer' }, ['problem-nav-btn']));
 if ('target' in continuous.attr || 'rel' in continuous.attr) throw new Error('continuous must stay same-tab');
 policy.setPreference('new-tab');
-const independent = apply(anchor('/books/hot100/one.html', { 'data-navigation-policy': 'user-preference' }, []));
+const independent = applyWith(policy, anchor('/books/hot100/one.html', { 'data-navigation-policy': 'user-preference' }, []));
 if (independent.attr.target !== '_blank' || independent.attr.rel !== 'noopener noreferrer') throw new Error('default independent mode');
 policy.setPreference('same-tab');
-const independentSame = apply(anchor('/books/hot100/one.html', { 'data-navigation-policy': 'user-preference' }, []));
+const independentSame = applyWith(policy, anchor('/books/hot100/one.html', { 'data-navigation-policy': 'user-preference' }, []));
 if ('target' in independentSame.attr || 'rel' in independentSame.attr) throw new Error('same-tab independent mode');
 process.stdout.write(JSON.stringify({ ok: true }));
 """
@@ -73,7 +85,7 @@ process.stdout.write(JSON.stringify({ ok: true }));
     def test_policy_is_loaded_and_does_not_intercept_native_navigation(self):
         policy = (ROOT / "assets" / "navigation-policy.js").read_text(encoding="utf-8")
         study_server = (ROOT / "tools" / "study_server.py").read_text(encoding="utf-8")
-        self.assertIn('"/assets/navigation-policy.js?v=1"', study_server)
+        self.assertIn('"/assets/navigation-policy.js?v=2"', study_server)
         self.assertNotIn("preventDefault", policy)
         self.assertNotIn("window.open", policy)
         self.assertIn("MutationObserver", policy)

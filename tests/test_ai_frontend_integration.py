@@ -100,7 +100,7 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library
 
-        self.assertIn("/ai-launcher.css?v=2", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
+        self.assertIn("/ai-launcher.css?v=3", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
         self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
 
 

@@ -4,7 +4,18 @@
 (function () {
   "use strict";
   var KEY = "learningContentOpenMode";
-  var DEFAULT = "new-tab";
+  // 移动/触屏设备默认同页打开：触屏没有中键/Ctrl 可按，用户对新标签没有
+  // 选择权，标签堆进抽屉后也难回收；独立内容的偏好开关仍然可用。
+  // 桌面默认保持新标签（保住工作台状态）。测试沙箱没有 matchMedia，守卫回退。
+  var DEFAULT = (function () {
+    try {
+      if (typeof matchMedia === "function" &&
+          (matchMedia("(max-width:760px)").matches || matchMedia("(pointer:coarse)").matches)) {
+        return "same-tab";
+      }
+    } catch (error) { /* 保持桌面默认 */ }
+    return "new-tab";
+  })();
   var VALID = { "same-tab": true, "new-tab": true };
   var SAME_TAB_SELECTOR = [
     ".site-nav a", ".topbar nav a", ".dashboard-nav a", ".hot100-topnav a",

@@ -513,7 +513,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
     # 管理页与登录页不显示反馈悬浮按钮，避免遮挡页面自身的操作区。
     FEEDBACK_WIDGET_SKIP_PATHS = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
     # 页面增强脚本清单（v 参数用于更新缓存）：导航策略/认证胶囊/反馈/主题切换。
-    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=1", "/assets/auth-widget.js?v=3", "/assets/feedback-widget.js?v=2", "/assets/theme-toggle.js?v=1"]
+    WIDGET_SCRIPTS = ["/assets/navigation-policy.js?v=2", "/assets/auth-widget.js?v=3", "/assets/feedback-widget.js?v=2", "/assets/theme-toggle.js?v=1"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -639,14 +639,18 @@ class StudyHandler(SimpleHTTPRequestHandler):
         user = self.current_user()
         self._gate_user = user  # 复用给 do_GET，避免同请求二次查会话库
         public_get = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/api/health"}
-        # 字体非敏感且登录页也需要，放行（前缀判断）
-        public_prefixes = ("/assets/fonts",)
+        # 整个 /assets/ 都是公开前端资源（与 api/routers/static.py 保持一致）：
+        # 登录页注入的脚本也在这里，只豁免字体会让未登录时脚本被 307 成 HTML。
+        public_prefixes = ("/assets/",)
         if user is None and decoded_path not in public_get                 and not decoded_path.startswith(public_prefixes):
             if decoded_path.startswith("/api/"):
                 self.send_json({"error": "未登录"}, HTTPStatus.UNAUTHORIZED)
             else:
+                # next 只保留 .html 页面，避免登录后落到裸 CSS/JS 资源文件上。
+                next_path = decoded_path if decoded_path.lower().endswith(".html") else ""
+                next_suffix = f"?next={quote(next_path)}" if next_path else ""
                 self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
-                self.send_header("Location", f"/pages/login.html?next={quote(decoded_path)}")
+                self.send_header("Location", f"/pages/login.html{next_suffix}")
                 self.send_header("Content-Length", "0")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
@@ -1052,7 +1056,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         except OSError:
             return False
         if navigation_only:
-            scripts = ["/assets/navigation-policy.js?v=1"]
+            scripts = ["/assets/navigation-policy.js?v=2"]
         else:
             scripts = [
                 s for s in self.WIDGET_SCRIPTS

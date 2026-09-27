@@ -11,6 +11,7 @@ import asyncio
 import os
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
@@ -84,12 +85,29 @@ def _allowed_origins() -> set[str]:
     return set(_DEFAULT_ALLOWED_ORIGINS) | configured
 
 
+def _is_loopback_origin(origin: str) -> bool:
+    """Allow loopback origins on any port.
+
+    The default allowlist pins port 8765, but local development and custom
+    `--port` deployments legitimately serve other ports.  Loopback + SameSite
+    cookies + server-side sessions keep this low risk; non-loopback hosts must
+    still be allowlisted explicitly via INTERVIEW_FORGE_ALLOWED_ORIGINS.
+    """
+    try:
+        parts = urlsplit(origin)
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https") or parts.path not in ("", "/"):
+        return False
+    return (parts.hostname or "").lower() in ("localhost", "127.0.0.1", "::1")
+
+
 def _same_origin_request(request) -> bool:
     """Reject cross-site state-changing requests without breaking CLI clients."""
     origin = (request.headers.get("origin") or "").strip().rstrip("/").lower()
     if not origin:
         return True
-    return origin in _allowed_origins()
+    return origin in _allowed_origins() or _is_loopback_origin(origin)
 
 @app.middleware("http")
 async def request_observability(request, call_next):
@@ -116,7 +134,12 @@ async def request_observability(request, call_next):
             else:
                 response = Response(status_code=405)
         elif request.method in {"POST", "PUT", "PATCH", "DELETE"} and not _same_origin_request(request):
-            response = JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
+            response = JSONResponse(
+                {"error": "跨站请求被拒绝：当前访问地址不在允许列表中。"
+                          "本机任意端口可直接访问；若经域名或非本机地址访问，"
+                          "请设置环境变量 INTERVIEW_FORGE_ALLOWED_ORIGINS（逗号分隔）后重启服务。"},
+                status_code=403,
+            )
         else:
             response = await call_next(request)
     except Exception as exc:

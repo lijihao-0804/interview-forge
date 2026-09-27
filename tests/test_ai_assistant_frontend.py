@@ -94,7 +94,9 @@ class AiAssistantFrontendTests(unittest.TestCase):
         launcher = (ROOT / "assets" / "ai-launcher.css").read_text(encoding="utf-8")
         theme = (ROOT / "assets" / "theme-toggle.js").read_text(encoding="utf-8")
         self.assertIn("100dvh", css)
-        self.assertIn("top: 50%", launcher)
+        # 悬浮球收拢在右下角悬浮件桩位（bottom 定位），不再垂直居中遮挡内容
+        self.assertIn("--forge-auth-reserve", launcher)
+        self.assertIn("bottom: calc(", launcher)
         self.assertIn("button.hidden = true", (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8"))
         self.assertIn('event.key === KEY', theme)
         self.assertIn('embedded', theme)
