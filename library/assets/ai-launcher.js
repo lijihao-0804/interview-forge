@@ -7,6 +7,13 @@
     try { return global.InterviewForgeAI.getPageContext(); } catch (_) { return null; }
   }
 
+  var openDrawer = null;
+  var pendingOpen = false;
+  global.addEventListener("interviewforge:open-ai", function () {
+    if (openDrawer) openDrawer();
+    else pendingOpen = true;
+  });
+
   function boot(me) {
     if (!me || document.getElementById("if-ai-launcher")) return;
     var button = document.createElement("button");
@@ -71,6 +78,7 @@
         throw error;
       }
     }
+    openDrawer = open;
     button.addEventListener("click", open);
     global.addEventListener("message", function (event) {
       if (event.origin !== global.location.origin || !event.data) return;
@@ -80,6 +88,7 @@
     global.addEventListener("scroll", update, { passive: true });
     document.addEventListener("selectionchange", update);
     global.addEventListener("pagehide", clearDrawerOpenState, { once: true });
+    if (pendingOpen) { pendingOpen = false; open(); }
   }
 
   fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
