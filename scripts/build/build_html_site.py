@@ -614,6 +614,7 @@ html,body,.module-card,.review-section,.reader-card,.chapter-card,.topbar,.site-
 transition:background-color .25s var(--ease-in-out),border-color .25s var(--ease-in-out),color .25s var(--ease-in-out)}
 .module-card:hover,.chapter-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));
 box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent)}
+.site-nav a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
 @view-transition{navigation:auto}
 
@@ -1858,6 +1859,29 @@ def breadcrumb(source: Path) -> str:
     return " / ".join(rel.parts[:-1])
 
 
+def active_navigation_label(source: Path) -> str:
+    """Identify the shared navigation destination represented by this source page."""
+    labels = {
+        "01-学习路线.md": "学习路线",
+        "02-算法模式地图.md": "模式地图",
+        "03-复习清单.md": "复习清单",
+    }
+    return labels.get(source.name, "")
+
+
+def solution_breadcrumb(source: Path, output: Path) -> str:
+    """Build a semantic, human-readable location trail for a solution page."""
+    topic = source.parent.name.split("-", 1)[-1]
+    home = web_rel(output, ROOT / "index.html")
+    return (
+        '<nav class="page-kicker page-breadcrumb" aria-label="当前位置">'
+        f'<a href="{html.escape(home)}">Hot 100 面板</a>'
+        '<span aria-hidden="true">›</span><span>题解</span>'
+        '<span aria-hidden="true">›</span>'
+        f'<span aria-current="page">{html.escape(topic)}专题</span></nav>'
+    )
+
+
 # 题解内嵌可视化装配（仅 03-题解 下的题解页会命中 VISUAL_EMBEDS 绑定表）：
 #   1) 用本页相对 ROOT 的正斜杠路径作 key 查表；未命中返回空串——该题解页
 #      底部不出现演示区；
@@ -1950,7 +1974,152 @@ def wrap_language_sections(body, soup):
         section.insert(0, h3.extract())
     return body
 
-def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
+# ---- 自测遮罩模式（03-题解 专属注入）----
+# 复习从"看"升级为"提取"：开关打开后按 h2 分区遮住推导与代码（题面与核心
+# 不变量保持可见），逐段点击揭示。状态存 localStorage；数据层零改动。
+SELFTEST_BAR = (
+    '<div class="selftest-bar" id="selftestBar">'
+    '<button type="button" id="selftestToggle" class="selftest-toggle" aria-pressed="false">自测模式</button>'
+    '<span class="selftest-hint">遮住推导与代码，先自己想，再逐段揭示</span>'
+    '</div>'
+)
+SELFTEST_CSS = """
+.selftest-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+.selftest-toggle{padding:7px 14px;border:1px solid color-mix(in srgb,var(--brand) 35%,var(--line));border-radius:999px;color:var(--brand-strong);background:var(--panel);cursor:pointer;font:inherit;font-size:13px;font-weight:650}
+.selftest-toggle:hover{border-color:var(--brand);background:var(--brand-soft)}
+.selftest-toggle[aria-pressed="true"]{border-color:var(--brand);color:#fff;background:var(--brand)}
+.selftest-toggle:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 45%,transparent);outline-offset:2px}
+.selftest-hint{color:var(--muted);font-size:12px}
+.selftest-reveal{width:100%;display:flex;align-items:center;justify-content:center;min-height:44px;margin:8px 0;padding:12px 16px;border:1px dashed color-mix(in srgb,var(--brand) 40%,var(--line));border-radius:12px;color:var(--brand-strong);background:color-mix(in srgb,var(--brand) 6%,var(--panel));cursor:pointer;font:inherit;font-size:14px}
+.selftest-reveal:hover{background:var(--brand-soft)}
+.selftest-reveal:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 45%,transparent);outline-offset:2px}
+@media print{.selftest-bar,.selftest-reveal{display:none}.selftest-content[hidden]{display:block}}
+"""
+SELFTEST_JS = """
+(function () {
+  "use strict";
+  var KEY = "forgeSelfTestMode";
+  // 永不遮罩的分区：题面与核心不变量（允许先记住的骨架）、力扣链接、演示入口
+  var KEEP = { "题目与约束": 1, "核心不变量": 1, "力扣原题": 1 };
+  var toggle = document.getElementById("selftestToggle");
+  if (!toggle) return;
+  function modeOn() {
+    try { return localStorage.getItem(KEY) === "1"; } catch (error) { return false; }
+  }
+  function writeMode(on) {
+    try { localStorage.setItem(KEY, on ? "1" : "0"); } catch (error) {}
+  }
+  function unwrapAll() {
+    var blocks = document.querySelectorAll("article.markdown-body .selftest-block");
+    Array.prototype.forEach.call(blocks, function (wrap) {
+      var content = wrap.querySelector(".selftest-content");
+      var parent = wrap.parentNode;
+      if (!parent) return;
+      if (content) { while (content.firstChild) parent.insertBefore(content.firstChild, wrap); }
+      parent.removeChild(wrap);
+    });
+  }
+  function collectSections() {
+    var article = document.querySelector("article.markdown-body");
+    if (!article) return [];
+    var out = [], current = null;
+    Array.prototype.forEach.call(article.children, function (node) {
+      if (node.tagName === "H2") {
+        current = { title: node.textContent.trim(), head: node, nodes: [] };
+        out.push(current);
+      } else if (current && (" " + node.className + " ").indexOf("problem-nav") !== -1) {
+        current = null; // 底部上一题/下一题导航永不纳入遮罩
+      } else if (current) {
+        current.nodes.push(node);
+      }
+    });
+    return out;
+  }
+  function maskElement(el, title) {
+    var wrap = document.createElement("div");
+    wrap.className = "selftest-block";
+    var content = document.createElement("div");
+    content.className = "selftest-content";
+    content.hidden = true;
+    var reveal = document.createElement("button");
+    reveal.type = "button";
+    reveal.className = "selftest-reveal";
+    reveal.textContent = "已隐藏 · " + title + " · 点击揭示";
+    reveal.addEventListener("click", function () {
+      content.hidden = false;
+      if (reveal.parentNode) reveal.parentNode.removeChild(reveal);
+    });
+    wrap.appendChild(reveal);
+    wrap.appendChild(content);
+    el.parentNode.insertBefore(wrap, el);
+    content.appendChild(el);
+  }
+  function apply() {
+    unwrapAll();
+    var on = modeOn();
+    toggle.setAttribute("aria-pressed", on ? "true" : "false");
+    toggle.textContent = on ? "退出自测" : "自测模式";
+    if (!on) return;
+    collectSections().forEach(function (section, index) {
+      // 第一段兜底保留（题面），其余按白名单；打印/复制场景不受影响
+      if (index === 0 || KEEP[section.title] || !section.nodes.length) return;
+      var wrap = document.createElement("div");
+      wrap.className = "selftest-block";
+      var content = document.createElement("div");
+      content.className = "selftest-content";
+      content.hidden = true;
+      var reveal = document.createElement("button");
+      reveal.type = "button";
+      reveal.className = "selftest-reveal";
+      reveal.textContent = "已隐藏 · " + section.title + " · 点击揭示";
+      reveal.addEventListener("click", function () {
+        content.hidden = false;
+        if (reveal.parentNode) reveal.parentNode.removeChild(reveal);
+      });
+      wrap.appendChild(reveal);
+      wrap.appendChild(content);
+      section.head.parentNode.insertBefore(wrap, section.head.nextSibling);
+      section.nodes.forEach(function (node) { content.appendChild(node); });
+    });
+    // 交互演示按 h2 分区收集不到（h2 嵌在 section 内），单独遮罩——
+    // 演示会逐步动画出答案，自测时应与推导一同隐藏
+    Array.prototype.forEach.call(
+      document.querySelectorAll("article.markdown-body > section.reader-visual"),
+      function (section) { maskElement(section, "交互演示"); }
+    );
+  }
+  toggle.addEventListener("click", function () {
+    writeMode(!modeOn());
+    apply();
+  });
+  // ←/→ 切换上一题/下一题；输入控件聚焦或按了修饰键时不劫持
+  document.addEventListener("keydown", function (event) {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    var target = event.target;
+    if (target && (target.isContentEditable || (target.closest && target.closest("input, textarea, select, button, a, [contenteditable='true']")))) return;
+    var wanted = event.key === "ArrowLeft" ? "\\u4e0a\\u4e00" : "\\u4e0b\\u4e00";
+    var buttons = document.querySelectorAll(".problem-nav-btn");
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].textContent.indexOf(wanted) !== -1) {
+        event.preventDefault();
+        buttons[i].click();
+        return;
+      }
+    }
+  });
+  apply();
+})();
+"""
+
+
+def transform_solution_page(
+    page: str,
+    source: Path,
+    toc_html: str,
+    progress_css_href: str = "",
+    progress_js_href: str = "",
+) -> str:
     """题解页专属构建期后处理（bs4）：aside 提示框、题目信息徽标行、三栏结构。
 
     三栏：.site-shell 变 grid —— 左栏同专题题目导航（当前题高亮）+ 中间正文 +
@@ -2077,7 +2246,51 @@ def transform_solution_page(page: str, source: Path, toc_html: str) -> str:
             # 右栏已有目录 → 移除正文内重复的 toc-box
             for tb in soup2.find_all("details", class_="toc-box"):
                 tb.decompose()
+            # 自测模式开关挂在 h1 之后（题面信息之前，始终可见可及）
+            h1 = main_card.find("h1")
+            if h1 is not None:
+                match = re.match(r"(\d{4})-", source.stem)
+                if match:
+                    problem_id = int(match.group(1))
+                    progress_bar = (
+                        '<section class="solution-progress" id="solutionProgress" '
+                        f'data-problem-id="{problem_id}" aria-label="本题学习状态">'
+                        '<div class="solution-progress-copy"><strong>本题学习状态</strong>'
+                        '<span id="solutionProgressSummary">正在读取学习记录…</span>'
+                        '<span id="solutionProgressDue">下次复习：—</span></div>'
+                        '<label for="solutionProgressMark">本题标记'
+                        '<select id="solutionProgressMark" disabled>'
+                        '<option value="">无标记</option><option value="mastered">已掌握</option>'
+                        '<option value="reviewing">复习中</option><option value="weak">薄弱</option>'
+                        '</select></label>'
+                        '<button type="button" id="solutionWeakToggle" aria-pressed="false" disabled>标记薄弱</button>'
+                        '<div class="solution-review-ratings" role="group" aria-label="本次复习记忆情况">'
+                        '<span>本次复习：</span>'
+                        '<button type="button" data-review-rating="1" disabled>忘了</button>'
+                        '<button type="button" data-review-rating="2" disabled>有点困难</button>'
+                        '<button type="button" data-review-rating="3" disabled>记得</button>'
+                        '<button type="button" data-review-rating="4" disabled>很轻松</button></div>'
+                        '<button type="button" id="solutionProgressHistoryButton" aria-expanded="false" aria-controls="solutionProgressHistory">查看 AC 记录</button>'
+                        '<div id="solutionProgressHistory" class="solution-progress-history" hidden aria-live="polite"></div>'
+                        '<span class="solution-shortcut">按 M 快速切换薄弱标记</span></section>'
+                        '<div id="solutionProgressToast" class="toast solution-progress-toast" aria-live="polite"></div>'
+                    )
+                    h1.insert_after(BeautifulSoup(progress_bar, "html.parser"))
+                    progress_node = h1.find_next_sibling("section", id="solutionProgress")
+                    if progress_node is not None:
+                        progress_node.insert_after(BeautifulSoup(SELFTEST_BAR, "html.parser"))
+                else:
+                    h1.insert_after(BeautifulSoup(SELFTEST_BAR, "html.parser"))
             page = str(soup2)
+        if "forgeSelfTestMode" not in page:
+            # 样式与脚本用字符串注入（bs4 会把 script/style 内的 &、< 转义），
+            # 内联进页面因此离线 file:// 打开同样可用。
+            page = page.replace("</head>", "<style>" + SELFTEST_CSS + "</style>\n</head>", 1)
+            page = page.replace("</body>", "<script>" + SELFTEST_JS + "</script>\n</body>", 1)
+        if progress_css_href:
+            page = page.replace("</head>", '<link rel="stylesheet" href="' + html.escape(progress_css_href) + '">\n</head>', 1)
+        if progress_js_href:
+            page = page.replace("</body>", '<script src="' + html.escape(progress_js_href) + '" defer></script>\n</body>', 1)
     return page
 
 
@@ -2121,10 +2334,13 @@ def render_markdown(source: Path) -> None:
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
     js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={ASSET_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
-    ai_css_href = ai_asset_base + "/ai-launcher.css?v=3"
+    ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"
-    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=2"
+    ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=3"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
+    ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
+    progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + f"?v={ASSET_VERSION}"
+    progress_js_href = web_rel(output, ROOT / "assets" / "solution-progress.js") + f"?v={ASSET_VERSION}"
     root_href = web_rel(output, ROOT / "index.html")
     cockpit_href = web_rel(output, ROOT / "cockpit.html")
     route_href = web_rel(output, ROOT / "books" / "hot100" / "00-总览" / "01-学习路线.html")
@@ -2133,6 +2349,22 @@ def render_markdown(source: Path) -> None:
     lc_href = web_rel(output, ROOT / "pages" / "leetcode-connect.html")
     title_match = re.search(r"(?m)^#\s+(.+)$", raw)
     title = title_match.group(1).strip() if title_match else source.stem
+    is_solution = "03-题解" in source.parts
+    current_navigation = active_navigation_label(source)
+    site_navigation = [
+        ("题目面板", root_href),
+        ("中控台", cockpit_href),
+        ("学习书架", web_rel(output, ROOT / "library" / "index.html")),
+        ("学习路线", route_href),
+        ("模式地图", map_href),
+        ("复习清单", checklist_href),
+        ("力扣连接", lc_href),
+    ]
+    navigation_html = "\n".join(
+        f'<a href="{html.escape(href)}"' + (' aria-current="page"' if label == current_navigation else "") + f'>{html.escape(label)}</a>'
+        for label, href in site_navigation
+    )
+    breadcrumb_html = solution_breadcrumb(source, output) if is_solution else f'<div class="page-kicker">{html.escape(breadcrumb(source))}</div>'
     visual_embed = render_visual_embed(source, output, title)
     page = f"""<!doctype html>
 <html lang="zh-CN">
@@ -2144,6 +2376,7 @@ def render_markdown(source: Path) -> None:
   <link rel="stylesheet" href="{html.escape(css_href)}">
   <link rel="stylesheet" data-interviewforge-ai href="{html.escape(ai_css_href)}">
   <script src="{html.escape(policy_href)}" defer></script>
+  <script src="{html.escape(ui_href)}" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到正文</a>
@@ -2151,17 +2384,12 @@ def render_markdown(source: Path) -> None:
     <header class="site-topbar">
       <a class="site-brand" href="{html.escape(root_href)}">Hot 100 深度学习库</a>
       <nav class="site-nav" aria-label="主导航">
-        <a href="{html.escape(cockpit_href)}">中控台</a>
-        <a href="{html.escape(web_rel(output, ROOT / 'library' / 'index.html'))}">学习书架</a>
-        <a href="{html.escape(route_href)}">学习路线</a>
-        <a href="{html.escape(map_href)}">模式地图</a>
-        <a href="{html.escape(checklist_href)}">复习清单</a>
-        <a href="{html.escape(lc_href)}">力扣连接</a>
+        {navigation_html}
       </nav>
     </header>
     <main id="main-content" class="reader-card">
       <article class="markdown-body">
-        <div class="page-kicker">{html.escape(breadcrumb(source))}</div>
+        {breadcrumb_html}
         {page_heading}
         <details class="toc-box">
           <summary>本页目录</summary>
@@ -2197,7 +2425,7 @@ def render_markdown(source: Path) -> None:
     # —— 题解页专属后处理：aside 提示框 + 徽标行 + 三栏 ——
     if "03-题解" in source.parts:
         try:
-            page = transform_solution_page(page, source, toc)
+            page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href)
         except Exception:
             pass  # 转换失败不阻断构建，页面保持原样
     page = mark_cross_page_links(page)

@@ -37,6 +37,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_content_round
     ON content_events(content_id, round_no) WHERE action = 'complete';
 CREATE INDEX IF NOT EXISTS ix_content_date ON content_events(study_date DESC);
 CREATE INDEX IF NOT EXISTS ix_content_activity ON content_events(content_id, studied_at DESC);
+CREATE TABLE IF NOT EXISTS review_cards (
+    target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
+    target_id TEXT NOT NULL,
+    stability REAL NOT NULL,
+    difficulty REAL NOT NULL,
+    due_date TEXT NOT NULL,
+    last_reviewed_at TEXT NOT NULL,
+    scheduled_days INTEGER NOT NULL,
+    reps INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    scheduler TEXT NOT NULL DEFAULT 'fsrs-4.5',
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS ix_review_cards_due ON review_cards(due_date, target_type);
+CREATE TABLE IF NOT EXISTS review_logs (
+    id INTEGER PRIMARY KEY,
+    target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
+    target_id TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
+    rating_name TEXT NOT NULL CHECK (rating_name IN ('again', 'hard', 'good', 'easy')),
+    reviewed_at TEXT NOT NULL,
+    elapsed_days INTEGER NOT NULL,
+    previous_stability REAL,
+    next_stability REAL NOT NULL,
+    previous_difficulty REAL,
+    next_difficulty REAL NOT NULL,
+    scheduled_days INTEGER NOT NULL,
+    due_date TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_review_logs_target ON review_logs(target_type, target_id, id DESC);
 CREATE TABLE IF NOT EXISTS marks (
     target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
     target_id TEXT NOT NULL,

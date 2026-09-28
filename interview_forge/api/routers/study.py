@@ -17,7 +17,7 @@ from interview_forge.services.study import (
     complete_content, complete_round, daily_data, dashboard_cached, export_data,
     export_database_snapshot, get_settings, library_data, mock_exam,
     pin_problem_for_tomorrow, pick_problem,
-    problem_marks, set_mark, set_setting, today_plan, weaklist,
+    problem_marks, problem_progress, set_mark, set_setting, today_plan, weaklist,
 )
 from interview_forge.analytics.cache import analytics_cached
 
@@ -124,6 +124,19 @@ def dashboard(request: Request):
         return denied
     try:
         return json_response(dashboard_cached(user_db(user)))
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.get("/api/problem/{problem_id}/progress")
+def problem_progress_get(problem_id: int, request: Request):
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(problem_progress(problem_id, user_db(user)))
+    except ValueError as exc:
+        return error_response(str(exc), 400)
     except BaseException as exc:
         return _handled(exc)
 
@@ -259,12 +272,23 @@ def export(request: Request):
 
 @router.post("/api/complete")
 async def complete(request: Request):
-    return await _write_json(request, lambda p, db: complete_round(int(p["problem_id"]), db))
+    return await _write_json(
+        request,
+        lambda p, db: complete_round(
+            int(p["problem_id"]), db, p.get("rating", 3)
+        ),
+    )
 
 
 @router.post("/api/content/complete")
 async def content_complete(request: Request):
-    return await _write_json(request, lambda p, db: complete_content(str(p["module_id"]), str(p["content_id"]), db))
+    return await _write_json(
+        request,
+        lambda p, db: complete_content(
+            str(p["module_id"]), str(p["content_id"]), db,
+            p.get("rating", 3),
+        ),
+    )
 
 
 @router.post("/api/mark")

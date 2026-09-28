@@ -119,8 +119,8 @@ class AdminV2BackendTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-observability.js").read_text(encoding="utf-8")
-        self.assertIn("../assets/admin-observability.css?v=2", page)
-        self.assertIn("../assets/admin-observability.js?v=6", page)
+        self.assertIn("../assets/admin-observability.css?v=3", page)
+        self.assertIn("../assets/admin-observability.js?v=7", page)
         self.assertIn("data-admin-v2", page)
         self.assertIn("textContent", script)
         self.assertNotIn("innerHTML", script)
@@ -147,8 +147,8 @@ class AdminV2BackendTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-operations.js").read_text(encoding="utf-8")
-        self.assertIn("../assets/admin-operations.css?v=2", page)
-        self.assertIn("../assets/admin-operations.js?v=5", page)
+        self.assertIn("../assets/admin-operations.css?v=3", page)
+        self.assertIn("../assets/admin-operations.js?v=6", page)
         self.assertIn("data-admin-operations", page)
         self.assertNotIn("innerHTML", script)
         self.assertIn('bindChangeReload("admin-tools-window", loadTools)', script)

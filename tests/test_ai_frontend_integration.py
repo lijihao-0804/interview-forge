@@ -11,9 +11,10 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_static_html_injects_launcher_assets(self):
         body = "<!doctype html><html><body><main>学习</main></body></html>".encode()
         rendered = _inject_html("/books/hot100/03-题解/0146-LRU.html", body).decode()
-        self.assertIn("ai-launcher.css", rendered)
+        self.assertIn("ai-launcher.css?v=5", rendered)
         self.assertIn("ai-page-context.js", rendered)
-        self.assertIn("ai-launcher.js", rendered)
+        self.assertIn("ai-launcher.js?v=3", rendered)
+        self.assertIn("auth-widget.js?v=4", rendered)
 
     def test_embedded_assistant_does_not_receive_auth_or_feedback_widgets(self):
         body = b"<html><body></body></html>"
@@ -100,8 +101,18 @@ class AiFrontendIntegrationTests(unittest.TestCase):
     def test_generated_page_markup_uses_shared_launcher_contract(self):
         from scripts.build import build_html_site, build_library
 
-        self.assertIn("/ai-launcher.css?v=3", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
+        self.assertIn("/ai-launcher.css?v=5", "".join(str(item) for item in build_html_site.render_markdown.__code__.co_consts))
         self.assertIn("data-interviewforge-ai", build_library.document("x", "", "assets/library.css"))
+
+    def test_mobile_ai_entry_is_in_auth_pill_and_drawer_opener_is_queued(self):
+        auth = (ROOT / "assets" / "auth-widget.js").read_text(encoding="utf-8")
+        launcher = (ROOT / "assets" / "ai-launcher.js").read_text(encoding="utf-8")
+        style = (ROOT / "assets" / "ai-launcher.css").read_text(encoding="utf-8")
+        self.assertIn('className = "fap-ai"', auth)
+        self.assertIn('dispatchEvent(new Event("interviewforge:open-ai"))', auth)
+        self.assertIn('global.addEventListener("interviewforge:open-ai"', launcher)
+        self.assertIn("if (pendingOpen) { pendingOpen = false; open(); }", launcher)
+        self.assertIn(".if-ai-launcher { display: none !important; }", style)
 
 
 if __name__ == "__main__":

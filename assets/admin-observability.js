@@ -74,9 +74,58 @@
   function loadTab(name) { var work = name === "overview" ? loadOverview() : name === "traffic" ? loadTraffic() : name === "usage" ? loadUsage() : name === "traces" ? loadTraces() : loadLogs(); work.catch(fail); }
   document.addEventListener("DOMContentLoaded", function () {
     if (!$("admin-observability")) return;
-    document.querySelectorAll(".admin-topic-nav a").forEach(function (link) { link.addEventListener("click", function () { var target = link.getAttribute("href"); var map = { "#admin-traffic": "traffic", "#admin-ai": "usage", "#admin-logs": "logs" }; if (map[target]) { var tab = document.querySelector('[data-admin-tab="' + map[target] + '"]'); if (tab) tab.click(); } var opsMap = { "#admin-tools": "tasks", "#admin-system": "system" }; if (opsMap[target]) { var opsTab = document.querySelector('[data-ops-tab="' + opsMap[target] + '"]'); if (opsTab) opsTab.click(); } }); });
     document.querySelectorAll("[data-admin-tab]").forEach(function (button) { button.addEventListener("click", function () { var name = button.getAttribute("data-admin-tab"); document.querySelectorAll("[data-admin-tab]").forEach(function (item) { item.classList.toggle("active", item === button); }); document.querySelectorAll("[data-admin-panel]").forEach(function (item) { item.classList.toggle("active", item.getAttribute("data-admin-panel") === name); }); loadTab(name); }); });
     $("admin-traffic-refresh").onclick = function () { loadTraffic().catch(fail); }; $("admin-usage-refresh").onclick = function () { loadUsage().catch(fail); }; $("admin-trace-refresh").onclick = function () { loadTraces().catch(fail); }; $("admin-log-refresh").onclick = function () { loadLogs().catch(fail); };
-    bindChangeReload("admin-traffic-window", loadTraffic); bindChangeReload("admin-usage-window", loadUsage); bindChangeReload("admin-trace-window", loadTraces); bindChangeReload("admin-trace-status", loadTraces); bindChangeReload("admin-log-level", loadLogs); loadOverview();
+    bindChangeReload("admin-traffic-window", loadTraffic); bindChangeReload("admin-usage-window", loadUsage); bindChangeReload("admin-trace-window", loadTraces); bindChangeReload("admin-trace-status", loadTraces); bindChangeReload("admin-log-level", loadLogs);
+    var routeNames = { overview: "overview", traffic: "traffic", ai: "usage", tools: "tasks", system: "system", logs: "logs", users: "users" };
+    var currentRoute = "";
+    var sectionIds = ["admin-registration", "admin-account-security", "admin-feedback", "admin-users", "admin-observability", "admin-operations", "admin-ai-config"];
+    function routeFromHash() { var key = String(window.location.hash || "").replace(/^#admin-/, ""); return Object.prototype.hasOwnProperty.call(routeNames, key) ? key : "overview"; }
+    function selectOuter(route) {
+      document.querySelectorAll(".admin-topic-nav a").forEach(function (link) {
+        if (link.getAttribute("href") === "#admin-" + route) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
+      });
+    }
+    function activateOuter(route, push, replace, skipInner) {
+      if (!Object.prototype.hasOwnProperty.call(routeNames, route)) route = "overview";
+      currentRoute = route; selectOuter(route);
+      if (push || replace) {
+        var url = window.location.pathname + window.location.search + "#admin-" + route;
+        if (replace) window.history.replaceState(null, "", url); else if (window.location.hash !== "#admin-" + route) window.history.pushState(null, "", url);
+      }
+      sectionIds.forEach(function (id) { var section = $(id); if (section) section.hidden = true; });
+      function show(id) { var section = $(id); if (section) section.hidden = false; }
+      if (route === "overview") {
+        ["admin-registration", "admin-account-security", "admin-feedback", "admin-observability"].forEach(show);
+        var overview = document.querySelector('[data-admin-tab="overview"]'); if (overview && !skipInner) overview.click();
+      } else if (route === "traffic" || route === "ai" || route === "logs") {
+        show("admin-observability");
+        var observe = document.querySelector('[data-admin-tab="' + routeNames[route] + '"]'); if (observe && !skipInner) observe.click();
+      } else if (route === "tools" || route === "system") {
+        show("admin-operations"); if (route === "system") show("admin-ai-config");
+        var ops = document.querySelector('[data-ops-tab="' + routeNames[route] + '"]'); if (ops && !skipInner) ops.click();
+      } else if (route === "users") {
+        show("admin-users"); show("admin-operations");
+        var users = document.querySelector('[data-ops-tab="users"]'); if (users && !skipInner) users.click();
+      }
+    }
+    document.querySelectorAll(".admin-topic-nav a").forEach(function (link) {
+      link.addEventListener("click", function (event) { event.preventDefault(); activateOuter(String(link.getAttribute("href") || "").replace(/^#admin-/, ""), true, false); });
+    });
+    document.querySelectorAll("[data-admin-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var name = button.getAttribute("data-admin-tab");
+        var route = name === "traffic" ? "traffic" : name === "usage" || name === "traces" ? "ai" : name === "logs" ? "logs" : "overview";
+        if (currentRoute && route !== currentRoute) activateOuter(route, true, false, true);
+      });
+    });
+    document.querySelectorAll("[data-ops-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var name = button.getAttribute("data-ops-tab"); var route = name === "system" ? "system" : name === "users" ? "users" : "tools";
+        if (currentRoute && route !== currentRoute) activateOuter(route, true, false, true);
+      });
+    });
+    window.addEventListener("popstate", function () { activateOuter(routeFromHash(), false, false); });
+    window.setTimeout(function () { activateOuter(routeFromHash(), false, true); }, 0);
   });
 })();

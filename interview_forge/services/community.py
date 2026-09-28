@@ -181,10 +181,17 @@ def search_index_server(query: str) -> list[dict[str, object]]:
     for entry in _load_search_index():
         title = str(entry.get("title", "")).lower()
         mod = str(entry.get("module_title", "")).lower()
-        text = str(entry.get("text", "")).lower()
+        body = str(entry.get("text", ""))
+        text = body.lower()
         score = 3 if q in title else 2 if q in mod else 1 if q in text else 0
         if score:
-            hits.append({"id": entry.get("id"), "title": entry.get("title"), "url": entry.get("url"), "module_title": entry.get("module_title"), "s": score})
+            snippet = ""
+            if q in text:
+                index = text.find(q)
+                start = max(0, index - 64)
+                end = min(len(body), index + len(q) + 80)
+                snippet = ("…" if start else "") + body[start:end].strip() + ("…" if end < len(body) else "")
+            hits.append({"id": entry.get("id"), "title": entry.get("title"), "url": entry.get("url"), "module_title": entry.get("module_title"), "snippet": snippet, "s": score})
     hits.sort(key=lambda x: -x["s"])
     return hits[:60]
 

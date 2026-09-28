@@ -168,6 +168,16 @@ def build_learning_analytics(
                 quality,
             )
         ]
+        # FSRS state was introduced after the legacy event tables. Keep old
+        # read-only snapshots compatible until their user DB is initialized.
+        raw_rows["review_cards"] = (
+            [
+                dict(row)
+                for row in _read_compatible_rows(connection, "review_cards", quality)
+            ]
+            if connection is not None and _table_exists(connection, "review_cards")
+            else []
+        )
     finally:
         if connection is not None:
             connection.close()
@@ -343,6 +353,21 @@ def build_learning_analytics(
         if mark in {"mastered", "reviewing", "weak"}:
             marks[(target_type, target_id)] = mark
 
+    review_due: dict[tuple[str, str], date] = {}
+    for raw in raw_rows["review_cards"]:
+        target_type = _safe_text(raw.get("target_type")).strip()
+        target_id = _safe_text(raw.get("target_id")).strip()
+        if target_type == "problem":
+            known = _safe_int(target_id) in catalog if _safe_int(target_id) is not None else False
+        else:
+            known = target_type == "content" and target_id in content_index
+        try:
+            due_date = date.fromisoformat(_safe_text(raw.get("due_date")))
+        except (TypeError, ValueError):
+            continue
+        if known:
+            review_due[(target_type, target_id)] = due_date
+
     # A manual/bookmarklet and a sync record close in time can describe one
     # real-world submission.  They remain separate facts in v1.  Use a
     # sorted sliding window: a large all-manual history must not become an
@@ -447,11 +472,15 @@ def build_learning_analytics(
             zero_reason="no valid submission or view records",
         )
         pass_rate = round(len(ac_events) / len(submissions), 3) if submissions else None
+        stored_due = review_due.get(("problem", str(pid)))
         due_date = (
-            _due_date(latest_ac["dt"], len(ac_dates), content=False)
-            if latest_ac
-            else None
+            stored_due
+            or (
+                _due_date(latest_ac["dt"], len(ac_dates), content=False)
+                if latest_ac else None
+            )
         )
+        due_sources = ["review_cards"] if stored_due else ["submissions"]
         overdue_days = max(0, (as_of_date - due_date).days) if due_date else 0
         due = bool(due_date and due_date <= as_of_date)
         overdue = bool(due_date and due_date < as_of_date)
@@ -606,7 +635,7 @@ def build_learning_analytics(
                 value=value,
                 unit=unit,
                 data_as_of=data_as_of,
-                source=sources_for_submissions,
+                source=due_sources,
                 sample_count=sample,
                 confidence=metric_confidence,
                 confidence_reason=metric_reason,
@@ -767,11 +796,20 @@ def build_learning_analytics(
                 last_activity = max(all_activity, key=_event_key) if all_activity else None
                 sources = ["content_events"]
                 sample_count = len(all_activity)
-            due_date = (
-                _due_date(last_completed["dt"], rounds, content=True)
-                if last_completed and rounds > 0
-                else None
+            card_key = (
+                ("problem", str(hot_problem_id))
+                if is_hot100 and hot_problem_id is not None
+                else ("content", content_id)
             )
+            stored_due = review_due.get(card_key)
+            due_date = (
+                stored_due
+                or (
+                    _due_date(last_completed["dt"], rounds, content=True)
+                    if last_completed and rounds > 0 else None
+                )
+            )
+            due_sources = ["review_cards"] if stored_due else sources
             overdue_days = max(0, (as_of_date - due_date).days) if due_date else 0
             due = bool(due_date and due_date <= as_of_date)
             overdue = bool(due_date and due_date < as_of_date)
@@ -816,7 +854,7 @@ def build_learning_analytics(
                     value=value,
                     unit=unit,
                     data_as_of=data_as_of,
-                    source=sources,
+                    source=due_sources,
                     sample_count=sample_count,
                     confidence=confidence,
                     confidence_reason=confidence_reason,

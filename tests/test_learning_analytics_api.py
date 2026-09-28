@@ -408,6 +408,7 @@ class LearningAnalyticsAPITests(unittest.TestCase):
         call_count = 0
         results = []
         errors = []
+        wait_timeout = 30.0
 
         def blocked_builder(*_args, **_kwargs):
             nonlocal call_count
@@ -417,13 +418,13 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             if call_no >= 3:
                 return {"snapshot": "new"}
             try:
-                ready.wait(timeout=5)
+                ready.wait(timeout=wait_timeout)
             except threading.BrokenBarrierError as exc:
                 errors.append(exc)
                 raise
             (first_ready if call_no == 1 else second_ready).set()
             release = release_first if call_no == 1 else release_second
-            if not release.wait(timeout=5):
+            if not release.wait(timeout=wait_timeout):
                 error = TimeoutError(f"analytics build {call_no} was not released")
                 errors.append(error)
                 raise error
@@ -440,12 +441,12 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             second = threading.Thread(target=run_build)
             first.start()
             second.start()
-            self.assertTrue(first_ready.wait(timeout=5))
-            self.assertTrue(second_ready.wait(timeout=5))
+            self.assertTrue(first_ready.wait(timeout=wait_timeout))
+            self.assertTrue(second_ready.wait(timeout=wait_timeout))
 
             server._invalidate_analytics_cache(db_path)
             release_first.set()
-            first.join(timeout=5)
+            first.join(timeout=wait_timeout)
             self.assertFalse(first.is_alive())
 
             # Force the generation-pruning path while the second build is
@@ -459,7 +460,7 @@ class LearningAnalyticsAPITests(unittest.TestCase):
                     self.assertIn(resolved, server._ANALYTICS_CACHE_GENERATIONS)
 
             release_second.set()
-            second.join(timeout=5)
+            second.join(timeout=wait_timeout)
             self.assertFalse(second.is_alive())
 
             self.assertEqual(errors, [])

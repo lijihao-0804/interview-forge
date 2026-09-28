@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class CockpitP0Tests(unittest.TestCase):
     def test_service_worker_version_and_update_contract(self):
         source = (ROOT / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn('const VERSION = "hot100-v9-20260919"', source)
+        self.assertIn('const VERSION = "hot100-v11-20260929"', source)
         self.assertIn("self.clients.claim()", source)
         self.assertIn('event.data.type === "SKIP_WAITING"', source)
         self.assertIn("caches.delete(key)", source)
@@ -26,6 +26,10 @@ class CockpitP0Tests(unittest.TestCase):
             self.assertTrue("registration.update()" in source or "reg.update()" in source, name)
             self.assertIn("SKIP_WAITING", source, name)
 
+    def test_dashboard_anchor_retry_uses_safe_id_lookup(self):
+        source = (ROOT / "tools" / "templates" / "dashboard.tpl").read_text(encoding="utf-8")
+        self.assertIn("document.getElementById(targetId)", source)
+        self.assertNotIn("document.querySelector(location.hash)", source)
     def test_cockpit_loads_bootstrap_and_plan_independently(self):
         source = (ROOT / "cockpit.html").read_text(encoding="utf-8")
         self.assertIn('function loadBootstrap()', source)
@@ -43,6 +47,11 @@ class CockpitP0Tests(unittest.TestCase):
             self.assertIn('"%s"' % category, source)
         self.assertIn("error.endpoint", source)
         self.assertIn("error.status", source)
+
+    def test_cockpit_uses_shared_error_renderer(self):
+        source = (ROOT / "cockpit.html").read_text(encoding="utf-8")
+        self.assertIn('assets/ui.js?v=1', source)
+        self.assertIn('window.InterviewForgeUI.renderError(box, message, retryLabel, retry)', source)
 
 
 if __name__ == "__main__":

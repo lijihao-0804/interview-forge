@@ -18,6 +18,7 @@
         "#forge-auth-pill a{color:var(--brand,#5654d4);text-decoration:none;font-weight:600}" +
         "#forge-auth-pill a:hover{color:var(--brand-strong,#4543bd);text-decoration:underline}" +
         "#forge-auth-pill .fap-chat,#forge-auth-pill .fap-name{cursor:pointer}" +
+        "#forge-auth-pill .fap-ai{display:none;border:0;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);font:inherit;font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;cursor:pointer}" +
         "#forge-auth-pill .fap-name{border:0;padding:0;background:transparent;font:inherit}" +
         "#forge-auth-pill button{border:0;background:var(--brand-soft,#eeedff);color:var(--brand-strong,#4543bd);font:inherit;font-size:12px;font-weight:600;" +
         "padding:4px 12px;border-radius:999px;cursor:pointer}" +
@@ -34,7 +35,7 @@
         ".forge-panel .fcp-older button{border:0;background:transparent;color:var(--brand,#5654d4);font:inherit;font-weight:600;cursor:pointer;padding:3px 8px;border-radius:7px}" +
         ".forge-panel .fcp-older button:hover{background:var(--brand-soft,#eeedff)}.forge-panel .fcp-older button:disabled{cursor:default;opacity:.65}" +
         ".forge-panel .fcp-status{min-height:18px;padding:0 12px 5px;color:var(--muted,#66748a);font-size:12px}" +
-        "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));padding:4px 6px 4px 10px}" +
+        "@media (max-width:640px){#forge-auth-pill{right:10px;bottom:calc(10px + env(safe-area-inset-bottom));padding:4px 6px 4px 10px}#forge-auth-pill .fap-ai{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:28px}" +
         ".forge-panel{right:10px;bottom:calc(var(--forge-auth-reserve,76px) + 16px + env(safe-area-inset-bottom))}}";
       document.head.appendChild(style);
 
@@ -535,6 +536,16 @@
       unreadBadge.style.cssText = "display:none;background:#b3372f;color:#fff;border-radius:99px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px";
       chatLink.appendChild(unreadBadge);
       pill.appendChild(chatLink);
+      var aiLink = document.createElement("button");
+      aiLink.type = "button";
+      aiLink.className = "fap-ai";
+      aiLink.setAttribute("aria-label", "打开 AI 助手");
+      aiLink.title = "打开 AI 助手";
+      aiLink.textContent = "✦ AI";
+      aiLink.onclick = function () {
+        window.dispatchEvent(new Event("interviewforge:open-ai"));
+      };
+      pill.appendChild(aiLink);
       var sep0 = document.createElement("span");
       sep0.textContent = "·";
       sep0.style.color = "#dfe4ee";

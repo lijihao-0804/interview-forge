@@ -51,12 +51,19 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .connection{display:inline-flex;align-items:center;gap:7px;margin-top:10px;color:var(--muted);font-size:13px}
 .connection::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--warning)}
 .connection.online::before{background:var(--success)}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(105px,1fr));gap:9px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;width:100%;margin-top:20px}
 .stat{min-width:0;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:0 5px 18px rgba(31,42,68,.035)}
 .stat span{color:var(--muted);font-size:12px}.stat strong{display:block;margin-top:1px;font-size:23px;line-height:1.25;font-variant-numeric:tabular-nums}
 .stat .goal-line{display:flex;align-items:center;gap:6px;margin-top:2px}
 .stat .goal-line input{width:52px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:var(--panel-soft);font-size:12px}
 .stat .goal-hint{font-size:11px;color:var(--muted)}
+.metric-note{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}
+.metric-note b{color:var(--text);font-weight:650}
+.metric-note.positive{color:var(--success)}.metric-note.negative{color:var(--warning)}
+.ui-error{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;min-height:100%;padding:12px;color:var(--muted);text-align:center}
+.metric-progress{margin:8px 0 0}.metric-progress .progress-head{margin-bottom:5px;font-size:11px}.metric-progress .bar{height:6px}
+.hero-cta{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:9px 14px;border:1px solid var(--brand);border-radius:10px;color:#fff;background:var(--brand);font-weight:700;box-shadow:0 5px 16px color-mix(in srgb,var(--brand) 22%,transparent)}
+.hero-cta:hover{color:#fff;background:var(--brand-strong);text-decoration:none}
 .dashboard-nav{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 17px}
 .dashboard-nav a,.dashboard-nav button{padding:7px 11px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel)}
 .dashboard-nav button{cursor:pointer}
@@ -141,6 +148,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .weak-list a:hover{color:var(--brand)}
 .weak-clear{border:1px solid var(--line);border-radius:7px;padding:3px 8px;color:var(--muted);background:transparent;cursor:pointer;font-size:12px}
 .mark-select{border:1px solid var(--line);border-radius:7px;padding:3px 6px;color:var(--muted);background:var(--panel-soft);font-size:12px}
+.mark-action{min-height:38px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:var(--panel);cursor:pointer;font-size:12px}
 .plan-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
 .plan-item a{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:650}
 .plan-item .pick-meta{flex:0 0 150px;align-items:center;justify-content:flex-start}
@@ -150,7 +158,11 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .plan-reason.weak{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .plan-reason.new{color:var(--brand);background:var(--brand-soft)}
 .mock-setup{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px}
+.mock-settings{margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
+.mock-settings summary{padding:8px 12px;color:var(--brand);font-weight:650;cursor:pointer}
+.mock-settings[open] .mock-setup{padding:4px 12px 12px}
 .mock-timer{font-variant-numeric:tabular-nums;font-weight:750;color:var(--brand);font-size:18px}
+.mock-timer.urgent{color:var(--danger)}
 .mock-list{display:grid;gap:9px;margin-top:14px}
 .mock-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
 .mock-item a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:650}
@@ -168,6 +180,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .heatmap{display:grid;grid-template-columns:repeat(53,minmax(9px,1fr));gap:3px;overflow-x:auto;padding-bottom:4px}
 .hm-cell{aspect-ratio:1;border-radius:2px;background:var(--panel-soft);border:1px solid var(--line)}
 .hm-label{display:flex;align-items:center;justify-content:center;min-width:14px;font-size:10px;color:var(--muted);white-space:nowrap}
+.hm-cell.level-0{background:var(--panel-soft);border-color:var(--line)}
 .hm-cell.level-1{background:var(--hot-hm-1);border-color:transparent}
 .hm-cell.level-2{background:var(--hot-hm-2);border-color:transparent}
 .hm-cell.level-3{background:var(--hot-hm-3);border-color:transparent}
@@ -199,7 +212,8 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 @media(max-width:980px){.quick-cards{grid-template-columns:minmax(0,1fr)}}
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
 @media(max-width:980px){.workspace{grid-template-columns:1fr}.history{order:-1}.history-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px}.history h3{margin-top:0}}
-@media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
+@media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
 @media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}.mark-select,.weak-clear,.mock-btn{min-height:38px}.plan-item .pick-meta{flex-basis:auto}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 /* 手动主题切换（theme-toggle.js 写入 data-theme） */
@@ -224,16 +238,13 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 <a class="skip-link" href="#problemGrid">跳到题目列表</a>
 <main class="shell">
   <header class="hero">
-    <div><h1>Interview Forge</h1><div class="sub">__PROBLEM_COUNT__ 道高频算法题，覆盖 __TOPIC_COUNT__ 个专题；每一次打开与每一轮完成，都会留下可回看的学习轨迹</div><div id="connection" class="connection">正在连接学习服务</div></div>
+    <div><h1>Interview Forge</h1><div class="sub">__PROBLEM_COUNT__ 道高频算法题，覆盖 __TOPIC_COUNT__ 个专题；每一次打开与每一轮完成，都会留下可回看的学习轨迹</div><div id="connection" class="connection">正在连接学习服务</div><a class="hero-cta" href="#problemGrid">开始今天学习 <span aria-hidden="true">→</span></a></div>
     <div class="stats">
-      <div class="stat"><span>今天看题</span><strong id="todayViewed">0</strong></div>
-      <div class="stat"><span>今天完成</span><strong id="todayRounds">0</strong></div>
-      <div class="stat"><span>已刷题目</span><strong id="completedCount">0</strong></div>
-      <div class="stat" title="第 1 轮：完成 90 题以上达成；之后：大部分题完成到第几轮，整体进度就是几（完成 3 轮也算第 2 轮已完成）"><span>整体进度</span><strong id="totalRounds">0</strong></div>
-      <div class="stat"><span>日 AC / 提交</span><strong id="acTodayText">0 / 0</strong></div>
-  <div class="stat"><span>累计 AC / 已解决</span><strong id="acTotalText">0 / 0</strong></div>
-  <div class="stat"><span>连续学习</span><strong id="streakCount">0</strong></div>
-      <div class="stat"><span>今日目标</span><strong id="goalText">0 / 0</strong><div class="goal-line"><span class="goal-hint">每日轮次</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
+      <div class="stat"><span>今日学习</span><strong id="goalText">0 / 3</strong><span class="metric-note"><b id="todayRounds">0</b> 轮完成 · 看题 <b id="todayViewed">0</b> · AC/提交 <b id="acTodayText">0 / 0</b></span><div class="goal-line"><span class="goal-hint">每日目标</span><input id="goalInput" data-online-action type="number" min="1" max="50" value="3" aria-label="每日目标轮次"></div></div>
+      <div class="stat" title="至少 AC 一次的 Hot 100 题目进度"><span>首轮完成</span><strong><span id="completedCount">0</span> 题</strong><section class="progress-section metric-progress" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">Hot 100 首轮进度</span><strong id="progressText">0 / __PROBLEM_COUNT__</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="__PROBLEM_COUNT__" aria-valuenow="0"><div id="progress"></div></div></section><span class="metric-note">累计 AC/已解决 <b id="acTotalText">0 / 0</b> · 完整轮次 <b id="totalRounds">0</b></span></div>
+      <div class="stat"><span>连续学习</span><strong><span id="streakCount">0</span> 天</strong><span class="metric-note" id="streakMessage">今天完成一轮，继续保持</span></div>
+      <div class="stat"><span>近 7 天首解</span><strong><span id="weekSolved">0</span> 题</strong><span class="metric-note" id="weekDelta">较前 7 天 —</span></div>
+      <div class="stat"><span>预计完成</span><strong id="estimatedFinish">计算中</strong><span class="metric-note">按近 28 天首解速度估算</span></div>
     </div>
   </header>
   <nav class="dashboard-nav" aria-label="学习入口"><a href="cockpit.html">中控台</a><a href="library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a><a href="books/hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a><a href="books/hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a><a href="books/hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a><a href="books/hot100/04-模板/01-Hot100算法模板.html" target="_blank" rel="noopener noreferrer">算法模板</a><a href="pages/history.html" target="_blank" rel="noopener noreferrer">学习记录</a><a href="pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a><button class="lc-button" id="leetcodeSyncBtn" type="button">一键同步</button></nav>
@@ -245,7 +256,6 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
     </section>
   </div>
   <div id="serverNotice" class="notice" hidden>学习服务暂时不可用，请检查网络后重试；若持续失败请联系管理员。<button id="serverRetry" class="round-button" type="button">重试</button></div>
-  <section class="progress-section" aria-labelledby="progressLabel"><div class="progress-head"><span id="progressLabel">至少完成一轮的题目</span><strong id="progressText">0 / 100</strong></div><div id="progressBar" class="bar" role="progressbar" aria-label="至少完成一轮的题目" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div></section>
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle" id="review">
     <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" data-navigation-policy="same-tab" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
@@ -281,20 +291,20 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   </section>
   <section class="review-section" aria-labelledby="mockTitle">
     <div class="review-head"><h2 id="mockTitle">限时模拟</h2><span id="mockStatus" class="review-summary">随机组卷，模拟考试节奏</span></div>
-    <div class="mock-setup">
+    <details id="mockSettings" class="mock-settings"><summary>模拟设置</summary><div class="mock-setup">
       <div class="field"><label for="mockCount">题目数</label><select id="mockCount"><option value="5">5 题</option><option value="10" selected>10 题</option><option value="20">20 题</option></select></div>
       <div class="field"><label for="mockMinutes">时长（分钟）</label><select id="mockMinutes"><option value="10">10</option><option value="20" selected>20</option><option value="30">30</option></select></div>
       <div class="field"><label for="mockCategory">专题</label><select id="mockCategory"><option value="">全部专题</option></select></div>
       <div class="field"><label for="mockDifficulty">难度</label><select id="mockDifficulty"><option value="">全部难度</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option></select></div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="mockStart" class="round-button" data-online-action type="button">开始模拟</button><span id="mockTimer" class="mock-timer"></span></div>
+    </div></details>
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="mockStart" class="round-button" data-online-action type="button">开始模拟</button><button id="mockAbandon" class="round-button" type="button" hidden>放弃本次</button><span id="mockTimer" class="mock-timer" role="timer" aria-live="off"></span></div>
     <div id="mockList" class="mock-list"></div>
     <div id="mockReport"></div>
   </section>
   <section class="track-section" aria-labelledby="trackTitle">
-    <div class="track-head"><h2 id="trackTitle">学习轨迹</h2><span id="heatmapDetail" class="track-sub">近 365 天活跃热力图，点击格子看当日明细</span></div>
-    <div id="heatmap" class="heatmap" role="list" aria-label="近 365 天学习活跃热力图"></div>
-<div class="hm-legend" aria-hidden="true"><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日力扣提交次数（0 / 1 / 2–4 / 5–9 / 10+）</span></div>
+    <div class="track-head"><h2 id="trackTitle">学习轨迹</h2><span id="heatmapDetail" class="track-sub">从首次学习至今；选择格子查看当日摘要，方向键可移动</span></div>
+    <div id="heatmap" class="heatmap" role="list" aria-label="从首次学习至今的学习活跃热力图"></div>
+<div class="hm-legend" aria-hidden="true"><span>无</span><i class="hm-cell level-0"></i><span>低</span><i class="hm-cell level-1"></i><i class="hm-cell level-2"></i><i class="hm-cell level-3"></i><i class="hm-cell level-4"></i><span>高</span><span style="margin-left:8px">绿色深浅 = 当日力扣提交次数</span></div>
     <div class="track-head" style="margin-top:20px"><h3 id="trendTitle">近 14 天趋势</h3><span class="track-sub">每日看题与完成轮次</span></div>
     <div id="trend" class="trend-chart"></div>
   </section>
@@ -302,6 +312,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <div id="toast" class="toast" aria-live="polite"></div>
 <footer><a href="guide.html">完整使用指南</a> · <a href="pages/leetcode-connect.html">力扣连接</a> · <span id="lcStatus" class="muted">力扣：检测中…</span> · 你的学习数据保存在服务端，仅自己可见</footer>
 </main>
+<script src="assets/ui.js?v=__ASSET_VERSION__"></script>
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
 const problems=__HOT100_PROBLEMS__;
@@ -492,6 +503,7 @@ function esc(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;',
 // toast 变体：成功=绿、失败=红（此前错误也显示绿色，误导用户）
 let toastClearTimer=null;
 function showToast(message,kind){
+  if(window.InterviewForgeUI){window.InterviewForgeUI.showToast(toast,message,kind);return}
   toast.textContent=message;
   toast.className='toast'+(kind==='success'?' success':kind==='error'?' error':'');
   clearTimeout(toastClearTimer);
@@ -501,9 +513,9 @@ function infoFor(id){return state.data.problems[String(id)]||{rounds:0,last_view
 function localTime(value){if(!value)return '尚无记录';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}
 function updateSummary(){
   const summary=state.data.summary;
-  document.getElementById('todayViewed').textContent=summary.today_viewed;
-  document.getElementById('todayRounds').textContent=summary.today_rounds;
-  document.getElementById('completedCount').textContent=summary.completed_problems;
+  document.getElementById('todayViewed').textContent=summary.today_viewed||0;
+  document.getElementById('todayRounds').textContent=summary.today_rounds||0;
+  document.getElementById('completedCount').textContent=summary.completed_problems||0;
   // 数字滚动：从上一次的值滚到新值（首次从 0 开始），避免每次刷新都从 0 重滚
   const countUp=(id,target)=>{const el=document.getElementById(id);if(!el)return;
     const from=Number(countUp.lastValues[id]||0);
@@ -522,6 +534,7 @@ function updateSummary(){
   document.getElementById('acTodayText').textContent=`${subs.today_ac||0} / ${subs.today_submits||0}`;
   document.getElementById('acTotalText').textContent=`${subs.total_ac||0} / ${subs.solved_ac||0}`;
   document.getElementById('streakCount').textContent=summary.streak||0;
+  document.getElementById('streakMessage').textContent=Number(summary.today_rounds||0)>0?'今天已经完成一轮，继续保持':'今天还没完成一轮，先从一道题开始';
   document.getElementById('goalText').textContent=`${summary.today_rounds||0} / ${summary.daily_goal||3}`;
   document.getElementById('goalInput').value=summary.daily_goal||3;
   const completed=summary.completed_problems;
@@ -529,6 +542,33 @@ function updateSummary(){
   document.getElementById('progress').style.width=`${percent}%`;
   document.getElementById('progressText').textContent=`${completed} / ${problems.length}`;
   document.getElementById('progressBar').setAttribute('aria-valuenow',String(completed));
+  document.getElementById('progressBar').setAttribute('aria-valuemax',String(problems.length));
+
+  const activity=state.data.activity||[];
+  const solvedOn=day=>Number(day&&day.newly_solved||0);
+  const recentWeek=activity.slice(-7).reduce((sum,day)=>sum+solvedOn(day),0);
+  const previousWeek=activity.slice(-14,-7).reduce((sum,day)=>sum+solvedOn(day),0);
+  const delta=recentWeek-previousWeek;
+  document.getElementById('weekSolved').textContent=String(recentWeek);
+  const deltaEl=document.getElementById('weekDelta');
+  deltaEl.textContent=`较前 7 天 ${delta>0?'+':''}${delta} 题`;
+  deltaEl.classList.toggle('positive',delta>0);
+  deltaEl.classList.toggle('negative',delta<0);
+
+  const remaining=Math.max(0,problems.length-Number(summary.completed_problems||0));
+  const recent28=activity.slice(-28);
+  const firstSolved28=recent28.reduce((sum,day)=>sum+solvedOn(day),0);
+  const eta=document.getElementById('estimatedFinish');
+  if(!remaining){eta.textContent='已完成'}
+  else if(firstSolved28>0&&activity.length){
+    const daysNeeded=Math.ceil(remaining/(firstSolved28/Math.max(1,recent28.length)));
+    const baseDate=String(activity[activity.length-1].date||'');
+    const parsed=/^\d{4}-\d{2}-\d{2}$/.test(baseDate)?new Date(baseDate+'T00:00:00Z'):null;
+    if(parsed&&!Number.isNaN(parsed.getTime())){
+      parsed.setUTCDate(parsed.getUTCDate()+daysNeeded);
+      eta.textContent=parsed.toISOString().slice(0,10);
+    }else eta.textContent='持续学习中';
+  }else eta.textContent='积累首解后估算';
 }
 function renderReview(){
   const daily=state.daily;
@@ -593,14 +633,22 @@ function renderHeatmap(){
     const submits=Number(day.submits||0);
     const level=submits===0?0:submits===1?1:submits<=4?2:submits<=9?3:4;
     const detail=`提交 ${submits} 次${Number(day.viewed||0)?` · 看 ${day.viewed} 题`:''}${Number(day.rounds||0)?` · 完成 ${day.rounds} 轮`:''}`;
-    return `<span class="hm-cell level-${level}" data-date="${esc(day.date)}" data-viewed="${esc(day.viewed)}" data-rounds="${esc(day.rounds)}" data-submits="${esc(submits)}" title="${esc(day.date)}：${esc(detail)}" tabindex="0" role="listitem" aria-label="${esc(day.date)} ${esc(detail)}"></span>`;
+    return `<span class="hm-cell level-${level}" data-date="${esc(day.date)}" data-viewed="${esc(day.viewed)}" data-rounds="${esc(day.rounds)}" data-submits="${esc(submits)}" title="${esc(day.date)}：${esc(detail)}" tabindex="-1" role="button" aria-label="查看 ${esc(day.date)} 摘要：${esc(detail)}"></span>`;
   }).join('')).join('');
   el.innerHTML=monthRow.join('')+rows;
-  el.querySelectorAll('.hm-cell[data-date]').forEach(cell=>{
+  const dateCells=[...el.querySelectorAll('.hm-cell[data-date]')];
+  const chronological=[...dateCells].sort((a,b)=>a.dataset.date.localeCompare(b.dataset.date));
+  chronological.forEach((cell,index)=>{cell.tabIndex=index===chronological.length-1?0:-1});
+  dateCells.forEach(cell=>{
     const show=()=>{document.getElementById('heatmapDetail').textContent=`${cell.dataset.date}：看 ${cell.dataset.viewed} 题 · 完成 ${cell.dataset.rounds} 轮${Number(cell.dataset.submits)?` · 提交 ${cell.dataset.submits} 次`:''}`};
-    cell.addEventListener('click',show);
+    cell.addEventListener('click',()=>{location.href=`pages/history.html#d-${encodeURIComponent(cell.dataset.date)}`});
     cell.addEventListener('focus',show);
-    cell.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();show()}});
+    cell.addEventListener('keydown',event=>{
+      const current=chronological.indexOf(cell);
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();cell.click();return}
+      const delta=event.key==='ArrowRight'?1:event.key==='ArrowLeft'?-1:event.key==='ArrowDown'?7:event.key==='ArrowUp'?-7:0;
+      if(delta){event.preventDefault();const next=chronological[Math.max(0,Math.min(chronological.length-1,current+delta))];cell.tabIndex=-1;next.tabIndex=0;next.focus()}
+    });
   });
 }
 let trendChart=null;
@@ -672,10 +720,12 @@ function renderCards(){
     const markBadge=mark?`<span class="mark-pill ${mark}">${markLabels[mark]}</span>`:'';
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="标记薄弱" ${state.online?'':'disabled'}><option value="">标记</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="">清除</option><option value="pin-tomorrow">纳入明天计划</option></select></div></div></article>`;
+    const placeholder=manualMark?'':'selected';
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="设置题目状态" ${state.online?'':'disabled'}><option value="__choose__" disabled ${placeholder}>标记…</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="clear">清除标记</option></select><button class="mark-action" type="button" data-pin-plan="${problem.id}" ${state.online?'':'disabled'}>排入明天</button></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
-  grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='pin-tomorrow'){pinPlan(Number(select.dataset.mark));select.value='';}else setMark(Number(select.dataset.mark),select.value)}));
+  grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='__choose__')return;setMark(Number(select.dataset.mark),select.value==='clear'?'':select.value)}));
+  grid.querySelectorAll('[data-pin-plan]').forEach(button=>button.addEventListener('click',()=>pinPlan(Number(button.dataset.pinPlan))));
 }
 async function pinPlan(problemId){
   try{
@@ -685,11 +735,22 @@ async function pinPlan(problemId){
   }catch(error){showToast(error.message||'排期失败','error')}
 }
 async function setMark(problemId,mark){
+  // 乐观更新：先改本地状态立即渲染，失败再回滚（弱网下不再“点→等→变”）
+  const key=String(problemId);
+  if(!state.data.marks)state.data.marks={};
+  const hadPrev=Object.prototype.hasOwnProperty.call(state.data.marks,key);
+  const prev=hadPrev?state.data.marks[key]:'';
+  if(mark)state.data.marks[key]=mark;else delete state.data.marks[key];
+  renderCards();renderWeak();
   try{
-    const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:String(problemId),mark})});
+    const response=await fetchWithTimeout('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_type:'problem',target_id:key,mark})});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'标记失败');
     await refresh();
-  }catch(error){showToast(`标记失败：${error.message}`,'error')}
+  }catch(error){
+    if(hadPrev)state.data.marks[key]=prev;else delete state.data.marks[key];
+    renderCards();renderWeak();
+    showToast(`标记失败：${error.message}`,'error');
+  }
 }
 function downloadText(filename,text,mime){
   const blob=new Blob([text],{type:mime});
@@ -718,31 +779,65 @@ async function exportData(kind){
 }
 async function saveGoal(){
   const value=String(Math.max(1,Math.min(50,Number(document.getElementById('goalInput').value)||3)));
+  const summary=state.data.summary;
+  const prevGoal=summary.daily_goal;
+  summary.daily_goal=Number(value);
+  updateSummary();
   try{
     const response=await fetchWithTimeout('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'daily_goal_rounds',value})});
     if(!response.ok)throw new Error('保存失败');
     await refresh();
     showToast(`每日目标已设为 ${value} 轮`,'success');
-  }catch(error){showToast(`保存失败：${error.message}`,'error')}
+  }catch(error){
+    summary.daily_goal=prevGoal;
+    updateSummary();
+    showToast(`保存失败：${error.message}`,'error');
+  }
 }
 function render(){updateSummary();renderReview();renderWeak();renderHeatmap();renderTrend();renderCards()}
 document.getElementById('pickAgain').addEventListener('click',()=>loadPick(true));
 document.querySelectorAll('[data-export]').forEach(button=>button.addEventListener('click',()=>exportData(button.dataset.export)));
 document.getElementById('goalInput').addEventListener('change',saveGoal);
+const MOCK_SESSION_KEY='forge-mock-session-v1';
 let mockState=null;let mockTimerId=null;let mockInFlight=false;
+function persistMockState(){
+  if(!mockState)return;
+  try{sessionStorage.setItem(MOCK_SESSION_KEY,JSON.stringify({version:1,problemIds:mockState.problems.map(item=>Number(item.id)),index:mockState.index,done:mockState.done,skip:mockState.skip,startedAt:mockState.startedAt,deadline:mockState.deadline}))}catch(_error){}
+}
+function clearMockSession(){try{sessionStorage.removeItem(MOCK_SESSION_KEY)}catch(_error){}}
+function setMockActive(active){document.getElementById('mockAbandon').hidden=!active;document.getElementById('mockStart').textContent=active?'重新开始模拟':'开始模拟'}
+function restoreMockSession(){
+  let saved;
+  try{saved=JSON.parse(sessionStorage.getItem(MOCK_SESSION_KEY)||'null')}catch(_error){clearMockSession();return}
+  if(!saved||saved.version!==1||!Array.isArray(saved.problemIds)||!saved.problemIds.length||saved.problemIds.length>20){clearMockSession();return}
+  const byId=new Map(problems.map(item=>[Number(item.id),item]));
+  const restored=saved.problemIds.map(id=>byId.get(Number(id)));
+  const validIds=new Set(saved.problemIds.map(Number));
+  const validList=value=>Array.isArray(value)?value.filter(id=>validIds.has(Number(id))).map(Number):[];
+  const index=Number(saved.index),startedAt=Number(saved.startedAt),deadline=Number(saved.deadline);
+  if(restored.some(item=>!item)||!Number.isInteger(index)||index<0||index>=restored.length||!Number.isFinite(startedAt)||!Number.isFinite(deadline)){clearMockSession();return}
+  mockState={problems:restored,index,done:validList(saved.done),skip:validList(saved.skip),startedAt,deadline,finished:false};
+  if(deadline<=Date.now()){mockState.finished=true;mockFinish(true);return}
+  document.getElementById('mockSettings').open=false;
+  document.getElementById('mockReport').innerHTML='';
+  document.getElementById('mockStatus').textContent=`已恢复进行中的模拟 · ${restored.length} 题`;
+  setMockActive(true);mockTick();mockRender();mockTimerId=setInterval(mockTick,1000);
+}
 function mockTick(){
   if(!mockState)return;
   const left=mockState.deadline-Date.now();
   if(left<=0){clearInterval(mockTimerId);mockState.finished=true;mockFinish(true);return}
   const s=Math.max(0,Math.floor(left/1000));
-  document.getElementById('mockTimer').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  const timer=document.getElementById('mockTimer');
+  timer.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  timer.classList.toggle('urgent',s<=60);
 }
 async function mockStart(){
   if(mockInFlight)return;
   // 进行中的模拟不能被静默丢弃：先确认，再开新的一卷
   if(mockState&&!mockState.finished&&!window.confirm('当前有一次进行中的模拟，开始新模拟将放弃本次进度。继续吗？'))return;
   mockInFlight=true;
-  if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId)}
+  if(mockState&&!mockState.finished){mockState.finished=true;clearInterval(mockTimerId);mockState=null;clearMockSession()}
   const count=Number(document.getElementById('mockCount').value);
   const minutes=Number(document.getElementById('mockMinutes').value);
   const category=document.getElementById('mockCategory').value;
@@ -753,10 +848,11 @@ async function mockStart(){
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'组卷失败');
     mockState={problems:data.problems,index:0,done:[],skip:[],startedAt:Date.now(),deadline:Date.now()+minutes*60000,finished:false};
+    persistMockState();setMockActive(true);document.getElementById('mockSettings').open=false;
     document.getElementById('mockStatus').textContent=`${data.count} 题 · ${minutes} 分钟`;
     document.getElementById('mockReport').innerHTML='';
     mockTimerId=setInterval(mockTick,1000);mockTick();mockRender();
-  }catch(error){document.getElementById('mockStatus').textContent=`组卷失败：${error.message}`}
+  }catch(error){if(!mockState)setMockActive(false);document.getElementById('mockStatus').textContent=`组卷失败：${error.message}`}
   finally{mockInFlight=false}
 }
 function mockRender(){
@@ -770,7 +866,15 @@ function mockRender(){
 function mockNext(){
   if(!mockState)return;
   mockState.index+=1;
-  if(mockState.index>=mockState.problems.length){clearInterval(mockTimerId);mockState.finished=true;mockFinish(false)}else{mockRender()}
+  if(mockState.index>=mockState.problems.length){clearInterval(mockTimerId);mockState.finished=true;mockFinish(false)}else{persistMockState();mockRender()}
+}
+function mockAbandon(ask=true){
+  if(!mockState||!ask||window.confirm('确定放弃这次模拟？当前完成/跳过记录只保存在此标签页，不会计入真实刷题记录。')){
+    clearInterval(mockTimerId);mockTimerId=null;clearMockSession();mockState=null;
+    document.getElementById('mockList').innerHTML='';document.getElementById('mockTimer').textContent='';document.getElementById('mockTimer').classList.remove('urgent');
+    document.getElementById('mockReport').innerHTML='<div class="mock-report">本次模拟已放弃，模拟结果不会计入真实学习记录。</div>';
+    document.getElementById('mockStatus').textContent='模拟已放弃';setMockActive(false);
+  }
 }
 async function mockFinish(timeout){
   if(!mockState)return;
@@ -779,13 +883,18 @@ async function mockFinish(timeout){
   report.innerHTML=`<div class="mock-report"><strong>模拟结束</strong><br>完成 ${mockState.done.length} 题 · 跳过 ${mockState.skip.length} 题 · 用时 ${Math.floor(used/60)} 分 ${used%60} 秒${timeout?'（时间到）':''}</div>`;
   document.getElementById('mockList').innerHTML='';
   document.getElementById('mockTimer').textContent='';
+  document.getElementById('mockTimer').classList.remove('urgent');
   document.getElementById('mockStatus').textContent=`完成 ${mockState.done.length} / ${mockState.problems.length}`;
   if(mockState.done.length){
     showToast(`模拟完成 ${mockState.done.length} 题；真实 AC 会自动计入轮次`,'success');
   }
-  mockState=null;
+  mockState=null;mockTimerId=null;clearMockSession();setMockActive(false);
 }
 document.getElementById('mockStart').addEventListener('click',mockStart);
+document.getElementById('mockAbandon').addEventListener('click',()=>mockAbandon());
+window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟面试仍在进行，离开将中断当前页面。'}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&mockState)mockTick()});
+restoreMockSession();
 document.getElementById('serverRetry').addEventListener('click',()=>refresh());
 [...new Set(problems.map(problem=>problem.category))].forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;document.getElementById('mockCategory').appendChild(option)});
 window.addEventListener('resize',()=>{
@@ -814,12 +923,19 @@ async function updateLcStatus(){
 // 离线错误态：断网时不能把故障渲染成“正常空态”（假空卡会让用户以为无事可做）。
 // 采用 cockpit 的模块级失败范式：明确报错 + 重试入口；题网格不渲染假数据。
 function renderOfflineErrors(){
-  reviewList.innerHTML='<div class="review-empty">暂时无法读取今日待复习，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
-  const retry=reviewList.querySelector('[data-retry]');
-  if(retry)retry.addEventListener('click',()=>refresh());
-  pickCard.innerHTML='<div class="review-empty">计划暂时无法加载，请检查网络后重试。</div>';
-  weakList.innerHTML='<li class="history-empty">暂时无法读取薄弱清单，请稍后重试。</li>';
-  grid.innerHTML='<div class="empty">暂时无法读取题目数据，请检查网络后点击页面上方的“重试”。</div>';
+  // 四处错误态统一“明确文案 + 重试按钮”，交互保持一致
+  const wireRetry=container=>{const b=container.querySelector('[data-retry]');if(b)b.addEventListener('click',()=>refresh())};
+  if(window.InterviewForgeUI){
+    InterviewForgeUI.renderError(reviewList,'暂时无法读取今日待复习，请检查网络后','重试',()=>refresh());
+    InterviewForgeUI.renderError(pickCard,'计划暂时无法加载，请检查网络后','重试',()=>refresh());
+    InterviewForgeUI.renderError(grid,'暂时无法读取题目数据，请检查网络后','重试',()=>refresh());
+  }else{
+    reviewList.innerHTML='<div class="review-empty">暂时无法读取今日待复习，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
+    pickCard.innerHTML='<div class="review-empty">计划暂时无法加载，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
+    grid.innerHTML='<div class="empty">暂时无法读取题目数据，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
+  }
+  weakList.innerHTML='<li class="history-empty">暂时无法读取薄弱清单，请检查网络后<button class="round-button" type="button" data-retry>重试</button></li>';
+  [reviewList,pickCard,weakList,grid].forEach(wireRetry);
   empty.hidden=true;
   document.getElementById('reviewSummary').textContent='读取失败';
 }
@@ -845,7 +961,17 @@ async function refresh(){
   if(state.online)render();else renderOfflineErrors();
   updateOnlineControls();
   maybeNotify();
+  // SW 首次激活窗口可能吞掉 #锚点 的原生滚动：首次数据就绪后补一次（仅一次，
+  // 避免后续标记/保存触发的 refresh 反复拉回锚点位置）
+  if(!anchorScrollRetry.done&&location.hash&&state.online){
+    anchorScrollRetry.done=true;
+    let targetId='';
+    try{targetId=decodeURIComponent(location.hash.slice(1))}catch(_error){targetId=location.hash.slice(1)}
+    const target=document.getElementById(targetId);
+    if(target)target.scrollIntoView({block:'start'});
+  }
 }
+const anchorScrollRetry={done:false};
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('/service-worker.js',{updateViaCache:'none'}).then(reg=>{

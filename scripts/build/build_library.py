@@ -40,6 +40,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote
@@ -48,7 +49,6 @@ from urllib.parse import unquote
 # import root is ``scripts/build`` rather than the repository root.  Keep the
 # moved package and scripts package importable without changing the CLI.
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-import sys
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
@@ -78,7 +78,7 @@ from pygments.util import ClassNotFound
 #   (HOT100_MODULE)，是书架目录结构的唯一事实来源。
 from scripts.build.build_html_site import render_math_in_markdown
 from scripts.build.build_hot100 import PROBLEMS, repair_indented_headings, safe_name
-from scripts.build.library_catalog import HOT100_MODULE, LIBRARY_MODULES, MODULE_ORDER
+from scripts.build.library_catalog import HOT100_MODULE, LIBRARY_MODULES, MODULE_ORDER  # noqa: E402
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。章节正文渲染是纯函数
 # （render_markdown(text) → str），进程池安全；元数据收集与聚合产物仍串行。
@@ -218,6 +218,9 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 .chapter-status .complete-button{width:auto;margin-left:auto;padding:5px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;cursor:pointer}
 .chapter-status .complete-button:disabled{cursor:not-allowed;opacity:.5}
 .chapter-status .notice,.chapter-status .toast{margin:0}
+.reader-sticky{position:fixed;inset:0 0 auto;z-index:990;display:flex;align-items:center;gap:14px;min-height:54px;padding:8px max(18px,calc((100vw - 1320px)/2));border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 8px 24px rgba(31,42,68,.12);backdrop-filter:blur(14px)}
+.reader-sticky[hidden]{display:none}.reader-sticky-title{min-width:0;flex:1;overflow:hidden;color:var(--text);font-size:13px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}.reader-sticky-status{flex:none;max-width:42vw;overflow:hidden;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}.reader-sticky a{flex:none;padding:5px 10px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;font-weight:650}
+.reader-body h2,.reader-body h3{scroll-margin-top:72px}
 
 /* 阅读排版宽松化：加大行距、段距与留白，页面够宽不必挤 */
 .reader{line-height:1.9;padding:clamp(30px,6vw,64px)}
@@ -236,6 +239,7 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 .math-display-wrap{padding:16px;margin:26px 0}
 .reader h1{margin:0 0 18px}
 .chapter-status{margin:0 0 30px}
+.review-rating-picker{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.review-rating-picker span{color:var(--muted);font-size:12px}.review-rating-picker button{padding:6px 10px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel);cursor:pointer;font:inherit;font-size:13px}.review-rating-picker button:hover{border-color:var(--brand);color:var(--brand)}
 .chapter-nav{margin-top:44px;padding-top:26px}
 .demo-embed{margin:26px 0;border:1px solid color-mix(in srgb,var(--brand) 22%,var(--line));border-radius:var(--radius-3);overflow:hidden;background:var(--panel);box-shadow:0 9px 28px rgba(31,42,68,.05)}
 .demo-embed iframe{display:block;width:100%;height:560px;min-height:420px;border:0}
@@ -373,6 +377,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7
 .copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid rgba(233,237,247,.35);border-radius:var(--radius-1);color:#e9edf7;background:rgba(255,255,255,.08);font-size:12px;cursor:pointer;opacity:.72}
 .copy-btn:hover{opacity:1;background:rgba(255,255,255,.16)}
 @media(max-width:1150px){.reader-grid.has-otp{grid-template-columns:1fr}.otp{order:-1;position:static;max-height:none}}
+@media(max-width:560px){.reader-sticky{gap:8px;min-height:50px;padding:7px 10px}.reader-sticky-status{display:none}.reader-sticky a{padding:5px 8px;font-size:11px}}
 
 /* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
 .read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
@@ -421,9 +426,12 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .reader table{display:table;width:100%;max-width:100%;margin:20px 0;overflow:hidden}
 
 .module-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));box-shadow:0 10px 28px color-mix(in srgb,var(--brand) 14%,transparent),0 0 0 1px color-mix(in srgb,var(--brand) 18%,transparent)}
+.search-snippet{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}.search-snippet mark{padding:0 2px;border-radius:3px;color:var(--text);background:color-mix(in srgb,var(--warning) 28%,var(--panel))}
+.topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
 @view-transition{navigation:auto}
 html,body,.module-card,.chapter-list,.reader,.chapter-side{transition:background-color .25s ease,border-color .25s ease,color .25s ease}
+.topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 
 """
 
@@ -897,8 +905,18 @@ def mark_cross_page_links(page: str) -> str:
 
 # 公共顶栏(书架首页/搜索页/模块页/章节页共用)：prefix 是相对路径深度——
 # 首页传 "."、二级页面传 ".."，据此拼出到书架首页/搜索页/Hot 100 站/维护指南的链接。
-def topbar(prefix: str = "..") -> str:
-    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html">学习书架</a><nav aria-label="主导航"><a href="{prefix}/../cockpit.html">🎛️ 中控台</a><a href="{prefix}/search.html">全文搜索</a><a href="{prefix}/../index.html">Hot 100</a></nav></header>'
+def topbar(prefix: str = "..", current: str = "") -> str:
+    brand_current = ' aria-current="page"' if current == "学习书架" else ""
+    links = (
+        ("中控台", f"{prefix}/../cockpit.html"),
+        ("全文搜索", f"{prefix}/search.html"),
+        ("Hot 100", f"{prefix}/../index.html"),
+    )
+    nav = "".join(
+        f'<a href="{href}"' + (' aria-current="page"' if label == current else "") + f'>{"🎛️ 中控台" if label == "中控台" else html.escape(label)}</a>'
+        for label, href in links
+    )
+    return f'<header class="topbar"><a class="brand" href="{prefix}/index.html"{brand_current}>学习书架</a><nav aria-label="主导航">{nav}</nav></header>'
 
 
 # 页面 HTML 外壳：统一 lang/字符集/响应式 viewport/明暗色声明，标题做 HTML 转义，
@@ -912,12 +930,13 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
+        f'<script src="{time_asset_base}/ui.js?v={ASSET_VERSION}" defer></script>'
         # 导航策略构建期写入：离线（file://）打开时服务端不注入，书架页顶栏
         # /面包屑/上一章下一章才不会被历史 target=_blank 全部新开标签。
         f'<script src="{time_asset_base}/navigation-policy.js?v=2" defer></script>'
-        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=3">'
+        f'<link rel="stylesheet" data-interviewforge-ai href="{asset_base}/ai-launcher.css?v=5">'
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
-        f'<script src="{asset_base}/ai-launcher.js?v=2" defer data-interviewforge-ai></script>'
+        f'<script src="{asset_base}/ai-launcher.js?v=3" defer data-interviewforge-ai></script>'
     )
     page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)} · 学习书架</title><link rel="stylesheet" href="{css_href}?v={ASSET_VERSION}">{ai_assets}</head><body>{body}{scripts}</body></html>'''
     return mark_cross_page_links(page)
@@ -1106,19 +1125,44 @@ function renderCards(){
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-chapter]').forEach(button=>button.addEventListener('click',()=>completeChapter(button)));
 }
-async function completeChapter(button){
+async function completeChapter(button,rating){
+  if(rating===undefined){
+    const host=button.parentNode;
+    if(!host)return;
+    const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');
+    const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);
+    [['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{
+      const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.dataset.rating=grade;
+      choice.addEventListener('click',()=>{picker.remove();button.hidden=false;completeChapter(button,Number(grade))});picker.appendChild(choice)
+    });
+    button.hidden=true;host.appendChild(picker);return
+  }
   const chapter=chapters.find(item=>item.id===button.dataset.chapter);
   if(!chapter){button.disabled=false;return}
-  button.disabled=true;button.textContent='记录中…';toast.textContent='';
+  const previousInfo=state.data.contents[chapter.id]?{...state.data.contents[chapter.id]}:null;
+  const previousDue=state.due.items[chapter.id]||null;
+  const currentRounds=Number(previousInfo&&previousInfo.rounds||0);
+  state.data.contents[chapter.id]={...(previousInfo||{}),rounds:currentRounds+1,last_activity_at:new Date().toISOString()};
+  delete state.due.items[chapter.id];
+  updateStats();renderDue();renderCards();
+  button.disabled=true;button.textContent='记录中…';toast.textContent='正在保存学习记录…';
   try{
     const isProblem=Boolean(chapter.problem_id);
-    const payload=isProblem?{problem_id:Number(chapter.problem_id)}:{module_id:moduleId,content_id:chapter.id};
+    const payload=isProblem?{problem_id:Number(chapter.problem_id),rating}:{module_id:moduleId,content_id:chapter.id,rating};
     const response=await fetchWithTimeout(isProblem?'/api/complete':'/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const result=await response.json();
     if(!response.ok)throw new Error(result.error||'记录失败');
-    toast.textContent=`已记录「${chapter.title}」的第 ${result.round_no} 轮`;
+    const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||{1:'忘了',2:'有点困难',3:'记得',4:'很轻松'}[rating];
+    toast.textContent=result.already_reviewed_today
+      ?`今天已记录过「${chapter.title}」评分，沿用「${ratingName}」（${result.interval_days} 天后复习）`
+      :`已记录「${chapter.title}」第 ${result.round_no} 轮（${ratingName}，${result.interval_days} 天后复习）`;
     await refresh();
-  }catch(error){toast.textContent=`记录失败：${error.message}`;button.disabled=false;button.textContent='完成一轮'}
+  }catch(error){
+    if(previousInfo)state.data.contents[chapter.id]=previousInfo;else delete state.data.contents[chapter.id];
+    if(previousDue)state.due.items[chapter.id]=previousDue;
+    updateStats();renderDue();renderCards();
+    toast.textContent=`记录失败：${error.message}`;button.disabled=false;button.textContent='完成一轮'
+  }
 }
 async function refresh(){
   try{
@@ -1177,7 +1221,7 @@ def module_index_page(module: dict[str, object], page_chapters: list[dict[str, o
     about = html.escape(str(module.get("about") or ""))
     # 简介来源优先级：登记表人工文案 > module_about 自动提取 > 兜底文案
     # (后者在 build() 组装模块 dict 时决定)；HTML 转义后放入模块页，防注入。
-    return f'''<div class="shell">{topbar("..")}
+    return f'''<div class="shell">{topbar("..", "学习书架")}
 <header class="module-hero">
   <div>
     <h1>{html.escape(str(module['title']))}</h1>
@@ -1327,7 +1371,10 @@ function renderLocal(){
     groups[m].map(e=>cardHl(e,q)).join('')+'</div>').join('');
 }
 function cardHl(e,q){
-  return '<article class="chapter-card"><div class="card-head"><h2><a href="'+escHtml(e.url)+'" target="_blank" rel="noopener noreferrer">'+hl(e.title,q)+'</a></h2></div><div class="meta"><span class="pill">'+escHtml(e.module_title)+'</span></div></article>';
+  const text=String(e.snippet||e.text||'').replace(/\\s+/g,' ').trim();
+  const lower=text.toLowerCase(),at=lower.indexOf(q.toLowerCase());
+  const excerpt=at<0?'':(at>0?'…':'')+hl(text.slice(Math.max(0,at-46),Math.min(text.length,at+q.length+66)),q)+(at+q.length+66<text.length?'…':'');
+  return '<article class="chapter-card"><div class="card-head"><h2><a href="'+escHtml(e.url)+'" target="_blank" rel="noopener noreferrer">'+hl(e.title,q)+'</a></h2></div><div class="meta"><span class="pill">'+escHtml(e.module_title)+'</span></div>'+(excerpt?'<p class="search-snippet">'+excerpt+'</p>':'')+'</article>';
 }
 async function searchServer(q,version){
   renderHint('搜索中…');
@@ -1374,7 +1421,7 @@ input.addEventListener('input',()=>{
 const initialQ=new URLSearchParams(location.search).get('q')||'';
 if(initialQ.trim()){input.value=initialQ;input.dispatchEvent(new Event('input'))}
 </script>'''
-    body = body.replace("__TOPBAR__", topbar(".")).replace("__CHAPTER_COUNT__", str(chapter_count))
+    body = body.replace("__TOPBAR__", topbar(".", "全文搜索")).replace("__CHAPTER_COUNT__", str(chapter_count))
     return document("全文搜索", body, "assets/library.css")
 
 
@@ -1551,8 +1598,8 @@ def build() -> None:
                 )
                 otp_html = f'<nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul>{lis}</ul></nav>'
             otp_class = " has-otp" if otp_html else ""
-            reader = f'''<div class="shell">{topbar("..")}
- <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
+            reader = f'''<div class="shell">{topbar("..", "学习书架")}
+ <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><nav id="readerSticky" class="reader-sticky" aria-label="阅读进度" hidden><span class="reader-sticky-title" title="{html.escape(raw_chapter['title'], quote=True)}">{html.escape(raw_chapter['title'])}</span><span id="readerStickyStatus" class="reader-sticky-status">正在读取学习记录…</span>{next_html}</nav><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){{
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -1583,6 +1630,43 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             reader = reader.replace("toast.textContent=error.message;", "toast.textContent=readableError(error,'记录失败，请检查网络后重试');", 1)
             reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={ASSET_VERSION}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
             reader = reader.replace("catch(_){toast.textContent='导出失败，请检查网络后重试'}", "catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}", 1)
+            # 章节完成采取轻量乐观更新：先让本章轮数立即前进一步，失败时回滚
+            # 文案与轮数；服务端成功后仍以 loadStatus() 的持久化结果为准。
+            chapter_ui_replacements = (
+                (
+                    "dueLine=document.getElementById('chapterDue');const shortTime=",
+                    "dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=",
+                ),
+                (
+                    "const info=data.contents[contentId]||{rounds:0,last_activity_at:null};status.textContent=",
+                    "const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=",
+                ),
+                (
+                    "button.addEventListener('click',async()=>{button.disabled=true;button.textContent='记录中…';try{",
+                    "button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{",
+                ),
+                (
+                    "body:JSON.stringify({module_id:moduleId,content_id:contentId})",
+                    "body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})",
+                ),
+                (
+                    "toast.textContent=`已记录第 ${result.round_no} 轮${next}`;button.textContent='完成本章一轮';await loadStatus()",
+                    "chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()",
+                ),
+                (
+                    "catch(error){toast.textContent=readableError(error,'记录失败，请检查网络后重试');button.disabled=false;button.textContent='完成本章一轮'}",
+                    "catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}",
+                ),
+            )
+            for old_fragment, new_fragment in chapter_ui_replacements:
+                if old_fragment not in reader:
+                    raise RuntimeError(f"章节学习状态模板锚点缺失：{old_fragment[:56]}")
+                reader = reader.replace(old_fragment, new_fragment, 1)
+            sticky_script = """<script>(function(){var bar=document.getElementById('readerSticky'),marker=document.querySelector('.chapter-status'),summary=document.getElementById('readerStickyStatus'),status=document.getElementById('chapterStatus'),due=document.getElementById('chapterDue');if(!bar||!marker)return;var sync=function(){if(summary)summary.textContent=[status&&status.textContent,due&&due.textContent].filter(Boolean).join(' · ')};if(window.IntersectionObserver){var observer=new IntersectionObserver(function(entries){bar.hidden=entries[0].isIntersecting},{threshold:0});observer.observe(marker)}if(window.MutationObserver){var mutations=new MutationObserver(sync);if(status)mutations.observe(status,{childList:true,subtree:true,characterData:true});if(due)mutations.observe(due,{childList:true,subtree:true,characterData:true})}sync()})();</script>"""
+            if 'id="readerSticky"' in reader:
+                if "</main></div>" not in reader:
+                    raise RuntimeError("章节阅读页缺少 sticky 状态条注入锚点")
+                reader = reader.replace("</main></div>", "</main>" + sticky_script + "</div>", 1)
             # Mermaid 依赖按需注入：只有正文含 .mermaid-diagram 的章节页才引入
             # mermaid 运行库与渲染驱动(library-mermaid.js)，其余页面零额外脚本；
             # 版本号统一带 ?v=ASSET_VERSION 便于缓存失效。
@@ -1641,11 +1725,12 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     #   (进度条保持 0、汇总区保持提示文案)，保证静态打开也能浏览。
     _module_icons = {'Java 语言': ('☕', '#f59e0b'), '计算机基础': ('🖥️', '#0ea5e9'), '数据存储': ('🗄️', '#3b82f6'), 'Web 与框架': ('🌿', '#22c55e'), '分布式与工程': ('🌐', '#06b6d4'), '算法刷题': ('🧩', '#8b5cf6'), '校招冲刺': ('🎯', '#ef4444'), '编程基础': ('📘', '#6366f1'), '基础认知': ('💡', '#eab308'), '模型与训练': ('🤖', '#a855f7'), '大模型应用': ('✨', '#d946ef'), 'Agent 工程': ('🛠️', '#14b8a6'), '系统与基础设施': ('⚙️', '#64748b')}
     _cat_default = ('📗', '#22c55e')
-    _cat_icon = lambda cat: _module_icons.get(cat, _cat_default)
+    def _cat_icon(cat):
+        return _module_icons.get(cat, _cat_default)
     module_cards = "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
     categories = ["全部", *dict.fromkeys(str(module["category"]) for module in modules)]
     filters = "".join(f'<button type="button" data-filter="{html.escape(category)}" class="{"active" if category == "全部" else ""}">{html.escape(category)}</button>' for category in categories)
-    index_body = f'''<div class="shell">{topbar(".")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+    index_body = f'''<div class="shell">{topbar(".", "学习书架")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。
     index_body = index_body.replace(

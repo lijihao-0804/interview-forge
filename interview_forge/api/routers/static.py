@@ -5,6 +5,7 @@ keeps the same path gate and widget injection but never invokes StudyHandler.
 """
 from __future__ import annotations
 
+import hashlib
 import posixpath
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -26,15 +27,15 @@ _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/ap
 # 成 HTML，登录/注册页的主题切换、导航策略全部静默失效。
 _PUBLIC_PREFIXES = ("/assets/",)
 _ADMIN_PAGE = "/pages/admin.html"
-_WIDGET_STYLES = ("/assets/ai-launcher.css?v=3",)
+_WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/auth-widget.js?v=3",
+    "/assets/auth-widget.js?v=4",
     "/assets/feedback-widget.js?v=2",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=1",
-    "/assets/ai-launcher.js?v=2",
+    "/assets/ai-launcher.js?v=3",
 )
 _AUTH_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
 _FEEDBACK_WIDGET_SKIP = {"/pages/login.html", "/pages/register.html", "/pages/admin.html", "/pages/ai-assistant.html"}
@@ -216,7 +217,16 @@ def static_path(request: Request, path: str):
         _record_view(decoded, db_path)
     if decoded.lower().endswith(".html"):
         body = _inject_html(decoded, target.read_bytes(), embedded=request.query_params.get("embedded") == "1")
-        return Response(content=body, media_type="text/html", headers=_security_headers(decoded))
+        # HTML 协商缓存：注入后的页面按内容指纹发 ETag，浏览器以 no-cache
+        # 回存并在每次导航时重验证（命中即 304，不再全量下载 771 个阅读页）。
+        # 注入内容只取决于页面本身，与用户身份无关；_record_view 在上方
+        # 已执行，浏览计数不受 304 影响。
+        headers = _security_headers(decoded)
+        headers["Cache-Control"] = "private, no-cache"
+        headers["ETag"] = '"' + hashlib.sha256(body).hexdigest()[:32] + '"'
+        if headers["ETag"] in (request.headers.get("if-none-match") or ""):
+            return Response(status_code=304, headers=headers)
+        return Response(content=body, media_type="text/html", headers=headers)
     return FileResponse(target, headers=_security_headers(decoded))
 
 

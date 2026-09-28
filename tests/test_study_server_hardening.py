@@ -44,18 +44,60 @@ class StudyServerHardeningTests(unittest.TestCase):
             item.stop()
         self.temp_dir.cleanup()
 
-    def test_content_completion_uses_content_review_interval(self) -> None:
+    def test_content_completion_uses_fsrs_rating_and_deduplicates_round(self) -> None:
         with patch.object(server, "valid_content", return_value=True):
             result = server.complete_content("module", "module:01", self.db_path)
             duplicate = server.complete_content("module", "module:01", self.db_path)
         self.assertEqual(result["round_no"], 1)
         self.assertEqual(duplicate["round_no"], 1)
-        self.assertEqual(result["next_due"], "2026-09-10")
+        self.assertEqual(result["rating_name"], "good")
+        self.assertEqual(result["interval_days"], 4)
+        self.assertEqual(result["next_due"], "2026-09-11")
         connection = sqlite3.connect(self.db_path)
         try:
             self.assertEqual(connection.execute(
                 "SELECT COUNT(*) FROM content_events WHERE content_id = 'module:01' AND action = 'complete'"
             ).fetchone()[0], 1)
+        finally:
+            connection.close()
+
+    def test_first_explicit_rating_invalidates_cache_even_if_round_already_exists_today(self) -> None:
+        with patch.object(server, "valid_content", return_value=True), \
+             patch.object(server, "_invalidate_learning_caches") as invalidate:
+            with server.closing(server.connect(self.db_path)) as connection:
+                connection.execute(
+                    """INSERT INTO content_events(
+                           module_id, content_id, action, studied_at, study_date, round_no
+                       ) VALUES (?, ?, 'complete', ?, ?, 1)""",
+                    ("module", "module:01", "2026-09-07T12:00:00+08:00", "2026-09-07"),
+                )
+                connection.commit()
+            result = server.complete_content("module", "module:01", self.db_path, rating=4)
+
+        self.assertEqual(result["rating_name"], "easy")
+        self.assertFalse(result["already_reviewed_today"])
+        invalidate.assert_called_once_with(self.db_path)
+
+    def test_problem_rating_changes_the_fsrs_due_interval(self) -> None:
+        again_db = Path(self.temp_dir.name) / "again.db"
+        easy_db = Path(self.temp_dir.name) / "easy.db"
+        again = server.complete_round(1, again_db, rating=1)
+        easy = server.complete_round(1, easy_db, rating=4)
+        self.assertEqual(again["rating_name"], "again")
+        self.assertEqual(again["next_due"], "2026-09-08")
+        self.assertEqual(easy["rating_name"], "easy")
+        self.assertEqual(easy["next_due"], "2026-09-21")
+
+    def test_problem_accepts_only_one_explicit_fsrs_rating_per_business_day(self) -> None:
+        first = server.complete_round(1, self.db_path, rating=1)
+        duplicate = server.complete_round(1, self.db_path, rating=4)
+        self.assertEqual(first["rating_name"], "again")
+        self.assertEqual(duplicate["rating_name"], "again")
+        self.assertTrue(duplicate["already_reviewed_today"])
+        connection = sqlite3.connect(self.db_path)
+        try:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM review_logs").fetchone()[0], 1)
+            self.assertEqual(connection.execute("SELECT rating FROM review_logs").fetchone()[0], 1)
         finally:
             connection.close()
 
@@ -79,7 +121,7 @@ class StudyServerHardeningTests(unittest.TestCase):
 
     def test_daily_default_projects_hot100_once_as_a_problem(self) -> None:
         with patch.object(server, "business_now", return_value=datetime(2026, 9, 10)):
-            server.complete_round(1, self.db_path)
+            server.complete_round(1, self.db_path, rating=1)
             daily = server.daily_data(self.db_path)
         self.assertEqual([item["id"] for item in daily["problems"]], [1])
         self.assertNotIn("hot100:0001", {item["content_id"] for item in daily["contents"]})
@@ -178,6 +220,19 @@ class StudyServerHardeningTests(unittest.TestCase):
         self.assertEqual(dashboard["summary"]["today_rounds"], 1)
         active = {item["date"]: item for item in dashboard["activity"] if item["rounds"]}
         self.assertEqual(active["2026-09-08"]["rounds"], 1)
+
+    def test_recent_activity_window_for_new_user_ends_today_without_future_dates(self) -> None:
+        today = datetime.fromisoformat("2026-09-29T12:00:00+08:00")
+        with patch.object(server, "now_parts", return_value=("2026-09-28T10:00:00+08:00", "2026-09-28")), \
+             patch.object(server, "business_now", return_value=today):
+            self.assertTrue(server.record_view(1, self.db_path))
+            dashboard = server.dashboard_data(self.db_path)
+
+        dates = [item["date"] for item in dashboard["activity"]]
+        self.assertEqual(dates[-1], "2026-09-29")
+        self.assertEqual(dates[0], "2026-09-28")
+        self.assertEqual(dates[-7:], ["2026-09-28", "2026-09-29"])
+        self.assertTrue(all(value <= "2026-09-29" for value in dates))
 
     def test_event_date_aggregates_use_studied_at_shanghai_day(self) -> None:
         # The persisted study_date in old VPS databases may have been written

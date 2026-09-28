@@ -384,6 +384,19 @@ READ_TABLE_SCHEMAS: dict[str, dict[str, Any]] = {
         "core": ("target_type", "target_id", "mark"),
         "optional": {"updated_at": "NULL"},
     },
+    "review_cards": {
+        "core": ("target_type", "target_id", "due_date"),
+        "optional": {
+            "stability": "NULL",
+            "difficulty": "NULL",
+            "last_reviewed_at": "NULL",
+            "scheduled_days": "NULL",
+            "reps": "0",
+            "lapses": "0",
+            "scheduler": "'fsrs-4.5'",
+            "updated_at": "NULL",
+        },
+    },
 }
 
 __all__ = [

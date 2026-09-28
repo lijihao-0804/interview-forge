@@ -16,12 +16,13 @@ import threading
 import time
 import tempfile
 from contextlib import closing
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from interview_forge.core.paths import DB_PATH, ROOT
 from interview_forge.core.runtime import server_runtime
+from interview_forge.services.review import FSRS_RATINGS, FSRS_VERSION, fsrs_review
 
 
 
@@ -115,6 +116,172 @@ _DASH_CACHE_LOCK = threading.Lock()
 _DASH_CACHE_GENERATIONS: dict[str, int] = {}
 _DASH_TTL = _RuntimeLookup("_DASH_TTL")
 
+
+def _ensure_legacy_review_card(
+    connection: sqlite3.Connection,
+    target_type: str,
+    target_id: str,
+) -> None:
+    """Lazily migrate legacy activity created after the schema migration ran."""
+    exists = connection.execute(
+        "SELECT 1 FROM review_cards WHERE target_type = ? AND target_id = ?",
+        (target_type, target_id),
+    ).fetchone()
+    if exists:
+        return
+    if target_type == "problem":
+        rows = connection.execute(
+            """SELECT submitted_at AS reviewed_at
+               FROM submissions WHERE problem_id = ? AND status = 'ac' ORDER BY id""",
+            (int(target_id),),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """SELECT studied_at AS reviewed_at
+               FROM content_events WHERE content_id = ? AND action = 'complete'
+               AND module_id <> 'hot100' ORDER BY id""",
+            (target_id,),
+        ).fetchall()
+    business_tz = server_runtime.BUSINESS_TZ
+    date_stamps: dict[str, str] = {}
+    for row in rows:
+        try:
+            parsed = datetime.fromisoformat(str(row["reviewed_at"]))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=business_tz)
+            parsed = parsed.astimezone(business_tz)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        date_stamps[parsed.date().isoformat()] = parsed.isoformat(timespec="seconds")
+    if not date_stamps:
+        return
+    rounds = len(date_stamps)
+    last_date = max(date_stamps)
+    last_reviewed_at = date_stamps[last_date]
+    legacy_due = (
+        server_runtime.due_after_content(last_reviewed_at, rounds)
+        if target_type == "content"
+        else server_runtime.due_after(last_reviewed_at, rounds)
+    )
+    interval = max(1, (date.fromisoformat(legacy_due) - date.fromisoformat(last_date)).days)
+    connection.execute(
+        """INSERT OR IGNORE INTO review_cards(
+               target_type, target_id, stability, difficulty, due_date,
+               last_reviewed_at, scheduled_days, reps, lapses, scheduler, updated_at
+           ) VALUES (?, ?, ?, 5.0, ?, ?, ?, ?, 0, 'fsrs-4.5', ?)""",
+        (target_type, target_id, float(interval), legacy_due, last_reviewed_at,
+         interval, rounds, last_reviewed_at),
+    )
+
+
+def _apply_review_rating(
+    connection: sqlite3.Connection,
+    target_type: str,
+    target_id: str,
+    rating: int,
+    reviewed_at: str,
+) -> dict[str, object]:
+    """Atomically advance the FSRS card and append its auditable rating log."""
+    if target_type not in {"problem", "content"}:
+        raise ValueError("未知复习目标")
+    business_tz = server_runtime.BUSINESS_TZ
+    reviewed_datetime = datetime.fromisoformat(reviewed_at).astimezone(business_tz)
+    today = reviewed_datetime.date()
+    current = connection.execute(
+        """SELECT stability, difficulty, due_date, last_reviewed_at,
+                  scheduled_days, reps, lapses
+           FROM review_cards WHERE target_type = ? AND target_id = ?""",
+        (target_type, target_id),
+    ).fetchone()
+    previous_log = connection.execute(
+        """SELECT rating, rating_name, reviewed_at FROM review_logs
+           WHERE target_type = ? AND target_id = ? ORDER BY id DESC LIMIT 1""",
+        (target_type, target_id),
+    ).fetchone()
+    if previous_log:
+        try:
+            previous_log_date = (
+                datetime.fromisoformat(str(previous_log["reviewed_at"]))
+                .astimezone(business_tz).date()
+            )
+        except (TypeError, ValueError, OverflowError):
+            previous_log_date = None
+        if previous_log_date == today and current:
+            return {
+                "rating": int(previous_log["rating"]),
+                "rating_name": str(previous_log["rating_name"]),
+                "next_due": str(current["due_date"]),
+                "interval_days": int(current["scheduled_days"]),
+                "stability": float(current["stability"]),
+                "difficulty": float(current["difficulty"]),
+                "reps": int(current["reps"]),
+                "lapses": int(current["lapses"]),
+                "already_reviewed_today": True,
+            }
+    previous_stability = float(current["stability"]) if current else None
+    previous_difficulty = float(current["difficulty"]) if current else None
+    last_review_date = (
+        datetime.fromisoformat(str(current["last_reviewed_at"]))
+        .astimezone(business_tz).date()
+        if current else None
+    )
+    elapsed_days = max((today - last_review_date).days, 0) if last_review_date else 0
+    result = fsrs_review(
+        rating=rating,
+        today=today,
+        stability=previous_stability,
+        difficulty=previous_difficulty,
+        last_review_date=last_review_date,
+        lapses=int(current["lapses"]) if current else 0,
+    )
+    rating_value = int(result["rating"])
+    rating_name = str(result["rating_name"])
+    interval = int(result["scheduled_days"])
+    due_date = str(result["due_date"])
+    next_stability = float(result["stability"])
+    next_difficulty = float(result["difficulty"])
+    lapses = int(result["lapses"])
+    reps = (int(current["reps"]) if current else 0) + 1
+    connection.execute(
+        """INSERT INTO review_logs(
+               target_type, target_id, rating, rating_name, reviewed_at, elapsed_days,
+               previous_stability, next_stability, previous_difficulty,
+               next_difficulty, scheduled_days, due_date
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (target_type, target_id, rating_value, rating_name, reviewed_at, elapsed_days,
+         previous_stability, next_stability, previous_difficulty, next_difficulty,
+         interval, due_date),
+    )
+    connection.execute(
+        """INSERT INTO review_cards(
+               target_type, target_id, stability, difficulty, due_date,
+               last_reviewed_at, scheduled_days, reps, lapses, scheduler, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(target_type, target_id) DO UPDATE SET
+               stability = excluded.stability,
+               difficulty = excluded.difficulty,
+               due_date = excluded.due_date,
+               last_reviewed_at = excluded.last_reviewed_at,
+               scheduled_days = excluded.scheduled_days,
+               reps = excluded.reps,
+               lapses = excluded.lapses,
+               scheduler = excluded.scheduler,
+               updated_at = excluded.updated_at""",
+        (target_type, target_id, next_stability, next_difficulty, due_date,
+         reviewed_at, interval, reps, lapses, f"fsrs-{FSRS_VERSION}", reviewed_at),
+    )
+    return {
+        "rating": rating_value,
+        "rating_name": rating_name,
+        "next_due": due_date,
+        "interval_days": interval,
+        "stability": next_stability,
+        "difficulty": next_difficulty,
+        "reps": reps,
+        "lapses": lapses,
+        "already_reviewed_today": False,
+    }
+
 def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     """记录一次题目浏览（view 事件）：60 秒内对同一题去重，防止翻页/刷接口产生垃圾记录。"""
     if problem_id not in PROBLEM_BY_ID:
@@ -146,7 +313,7 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     return True
 
 
-def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
+def complete_round(problem_id: int, db_path: Path = DB_PATH, rating: int = 3) -> dict[str, object]:
     """兼容旧面板的手动完成接口，并写入 AC 语义的 submissions 读模型。
 
     The legacy study event is retained for old exports, while the submission
@@ -161,6 +328,7 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
         # BEGIN IMMEDIATE：立刻拿写锁，"取下一轮次 + 插入"在同一事务内原子完成，
         # 并发双击也不会开出重复轮次（配合唯一索引 uq_problem_round 双保险）。
         connection.execute("BEGIN IMMEDIATE")
+        _ensure_legacy_review_card(connection, "problem", str(problem_id))
         event_rows = connection.execute(
             "SELECT round_no, date(studied_at, '+8 hours') AS study_date "
             "FROM study_events WHERE problem_id = ? AND action = 'complete'",
@@ -210,16 +378,18 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object
                ) VALUES (?, 'ac', '', NULL, NULL, ?, 'manual')""",
             (problem_id, studied_at),
         )
+        review_state = _apply_review_rating(
+            connection, "problem", str(problem_id), rating, studied_at
+        )
         connection.commit()
     # Hot100 library progress is derived from AC submissions; no separate
     # content-event mirror is needed and avoiding it keeps this endpoint atomic.
     server_runtime._invalidate_learning_caches(db_path)
-    # next_due：前端用它展示"下次复习时间"（= 完成时间 + 轮次对应间隔）。
     return {
         "problem_id": problem_id,
         "round_no": round_no,
         "studied_at": studied_at,
-        "next_due": server_runtime.due_after(studied_at, round_no),
+        **review_state,
     }
 
 
@@ -275,6 +445,12 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                       MAX(date(submitted_at, '+8 hours')) AS last_ac_date
                FROM submissions WHERE status = 'ac' GROUP BY problem_id"""
         ).fetchall()
+        review_due = {
+            (str(row["target_type"]), str(row["target_id"])): str(row["due_date"])
+            for row in connection.execute(
+                "SELECT target_type, target_id, due_date FROM review_cards"
+            ).fetchall()
+        }
         study_summary = connection.execute(
             """SELECT
                  COUNT(DISTINCT CASE WHEN date(studied_at, '+8 hours') = ? AND action = 'view' THEN problem_id END) AS today_viewed
@@ -352,6 +528,13 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
             """SELECT date(submitted_at, '+8 hours') AS study_date, COUNT(1) AS submits
                FROM submissions GROUP BY study_date"""
         ).fetchall()
+        first_solved_days = connection.execute(
+            """SELECT date(first_ac_at, '+8 hours') AS study_date, COUNT(*) AS newly_solved
+               FROM (
+                   SELECT problem_id, MIN(submitted_at) AS first_ac_at
+                   FROM submissions WHERE status = 'ac' GROUP BY problem_id
+               ) GROUP BY study_date"""
+        ).fetchall()
         active_dates = {
             str(row["study_date"]) for row in view_days
         } | {
@@ -377,16 +560,33 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
     for row in submission_days:
         day_stats.setdefault(str(row["study_date"]), {"viewed": 0, "rounds": 0, "submits": 0})
         day_stats[str(row["study_date"])]["submits"] += int(row["submits"] or 0)
-    # 热力图数据：生成过去 365 天逐日计数（缺数据的补 0），前端按格子渲染 GitHub 风格日历。
-    base = server_runtime.business_now().date() - timedelta(days=364)
+    newly_solved_by_day = {
+        str(row["study_date"]): int(row["newly_solved"] or 0)
+        for row in first_solved_days
+    }
+    # 热力图只覆盖截至今天的最多 365 天。新用户从首次活动日开始，不能按
+    # “首次活动日 + 365 天”铺日期，否则会生成未来格子并污染近 7 天统计。
+    end = server_runtime.business_now().date()
+    window_start = end - timedelta(days=364)
+    valid_active_dates: list[date] = []
+    for value in active_dates:
+        try:
+            active_date = date.fromisoformat(value)
+        except (TypeError, ValueError):
+            continue
+        if active_date <= end:
+            valid_active_dates.append(active_date)
+    first_active = min(valid_active_dates, default=end)
+    base = max(first_active, window_start)
     activity = [
         {
             "date": (base + timedelta(days=offset)).isoformat(),
             "viewed": day_stats.get((base + timedelta(days=offset)).isoformat(), {}).get("viewed", 0),
             "rounds": day_stats.get((base + timedelta(days=offset)).isoformat(), {}).get("rounds", 0),
             "submits": day_stats.get((base + timedelta(days=offset)).isoformat(), {}).get("submits", 0),
+            "newly_solved": newly_solved_by_day.get((base + timedelta(days=offset)).isoformat(), 0),
         }
-        for offset in range(365)
+        for offset in range((end - base).days + 1)
     ]
     # 连续学习天数：从今天（今天无记录则从昨天）往回数连续有活动的天数。
     streak = 0
@@ -456,6 +656,10 @@ def dashboard_data(db_path: Path = DB_PATH) -> dict[str, object]:
                 **stat,
             }
             problems_payload[str(pid)]["last_activity_at"] = stat.get("last_submitted_at") or ""
+    for pid_str, item in problems_payload.items():
+        due_date = review_due.get(("problem", pid_str))
+        if due_date:
+            item["next_due"] = due_date
     recent_items = [dict(row) for row in view_events] + complete_events
     recent_items.sort(key=lambda item: str(item["studied_at"]), reverse=True)
     recent = recent_items[:20]
@@ -490,6 +694,7 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
         # Serialize the read-check-write sequence for the same 60-second
         # de-duplication guarantee as record_view().
         connection.execute("BEGIN IMMEDIATE")
+        _ensure_legacy_review_card(connection, "content", content_id)
         # 同样的 60 秒去重窗口（这里按 content_id 查最近一条 view）。
         recent = connection.execute(
             """SELECT studied_at FROM content_events
@@ -510,7 +715,12 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
     return True
 
 
-def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -> dict[str, object]:
+def complete_content(
+    module_id: str,
+    content_id: str,
+    db_path: Path = DB_PATH,
+    rating: int = 3,
+) -> dict[str, object]:
     """书架章节"完成一轮"：轮次自增 + 写库（事务内原子完成），返回下次到期日。"""
     if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
@@ -542,16 +752,18 @@ def complete_content(module_id: str, content_id: str, db_path: Path = DB_PATH) -
                    VALUES (?, ?, 'complete', ?, ?, ?)""",
                 (module_id, content_id, studied_at, study_date, round_no),
             )
+        review_state = _apply_review_rating(
+            connection, "content", content_id, rating, studied_at
+        )
         connection.commit()
-    if duplicate_round is None:
+    if duplicate_round is None or not review_state["already_reviewed_today"]:
         server_runtime._invalidate_learning_caches(db_path)
-    # next_due：按章节专用间隔表（REVIEW_INTERVALS_CONTENT）推算的到期日，前端展示"下次复习"。
     return {
         "module_id": module_id,
         "content_id": content_id,
         "round_no": round_no,
         "studied_at": studied_at,
-        "next_due": server_runtime.due_after_content(studied_at, round_no),
+        **review_state,
     }
 
 
@@ -590,6 +802,12 @@ def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]
             """SELECT problem_id, MAX(studied_at) AS last_viewed_at
                FROM study_events WHERE action = 'view' GROUP BY problem_id"""
         ).fetchall()
+        review_due = {
+            str(row["target_id"]): str(row["due_date"])
+            for row in connection.execute(
+                "SELECT target_id, due_date FROM review_cards WHERE target_type = 'problem'"
+            ).fetchall()
+        }
         connection.execute("COMMIT")
     info: dict[int, dict[str, object]] = {}
     for row in view_rows:
@@ -611,6 +829,9 @@ def problem_review_state(db_path: Path = DB_PATH) -> dict[int, dict[str, object]
         ac_at = str(progress["last_completed_at"] or "")
         if ac_at and (not last or ac_at > last):
             entry["last_activity_at"] = ac_at
+        due_date = review_due.get(str(pid))
+        if due_date:
+            entry["next_due"] = due_date
     return info
 
 
@@ -625,11 +846,25 @@ def library_data(db_path: Path = DB_PATH) -> dict[str, object]:
                       MAX(studied_at) AS last_activity_at
                FROM content_events WHERE module_id <> 'hot100' GROUP BY content_id"""
         ).fetchall()
+        review_due = {
+            (str(row["target_type"]), str(row["target_id"])): str(row["due_date"])
+            for row in connection.execute(
+                "SELECT target_type, target_id, due_date FROM review_cards"
+            ).fetchall()
+        }
     contents = {str(row["content_id"]): dict(row) for row in rows}
+    for content_id, item in contents.items():
+        due_date = review_due.get(("content", content_id))
+        if due_date:
+            item["next_due"] = due_date
     for pid, progress in server_runtime.ac_problem_progress(db_path).items():
         contents[f"hot100:{pid:04d}"] = {
             "rounds": int(progress["rounds"]),
             "last_activity_at": progress["last_completed_at"],
+            "next_due": review_due.get(("problem", str(pid)))
+            or server_runtime.due_after(
+                str(progress["last_completed_at"]), int(progress["rounds"])
+            ),
         }
     # 逐模块统计 total / completed：completed 按"该模块里 rounds>0 的章节数"计算 → 进度条。
     modules: dict[str, dict[str, int]] = {}
@@ -654,6 +889,12 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         # snapshot; LeetCode sync may otherwise update submissions between
         # these two reads and make the due counters disagree.
         ac_progress = _ac_problem_progress_from_connection(connection)
+        review_due = {
+            (str(row["target_type"]), str(row["target_id"])): str(row["due_date"])
+            for row in connection.execute(
+                "SELECT target_type, target_id, due_date FROM review_cards"
+            ).fetchall()
+        }
         # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
         if module_id == "hot100":
             content_rows = [
@@ -694,7 +935,9 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
             rounds = int(progress["rounds"])
             if rounds <= 0:
                 continue
-            due = server_runtime.due_after(str(progress["last_completed_at"]), rounds)
+            due = review_due.get(("problem", str(pid))) or server_runtime.due_after(
+                str(progress["last_completed_at"]), rounds
+            )
             if due > today:
                 continue
             overdue_days = (datetime.fromisoformat(today).date()
@@ -748,7 +991,9 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         if meta is None:
             continue
         rounds = int(row["rounds"])
-        due = server_runtime.due_after_content(row["last_completed_at"], rounds)
+        due = review_due.get(("content", str(row["content_id"]))) or server_runtime.due_after_content(
+            row["last_completed_at"], rounds
+        )
         if due > today:
             continue
         contents.append({
@@ -793,6 +1038,60 @@ def problem_marks(db_path: Path = DB_PATH) -> dict[str, str]:
             "SELECT target_id, mark FROM marks WHERE target_type = 'problem'"
         ).fetchall()
     return {str(row["target_id"]): str(row["mark"]) for row in rows}
+
+
+def problem_progress(problem_id: int, db_path: Path = DB_PATH) -> dict[str, object]:
+    """Return the compact learning state used by an individual Hot 100 solution page."""
+    if problem_id not in PROBLEM_BY_ID:
+        raise ValueError("未知题号")
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN")
+        submissions = connection.execute(
+            """SELECT COUNT(DISTINCT CASE WHEN status = 'ac' THEN date(submitted_at, '+8 hours') END) AS rounds,
+                      SUM(CASE WHEN status = 'ac' THEN 1 ELSE 0 END) AS ac_submits,
+                      COUNT(*) AS submits,
+                      MAX(CASE WHEN status = 'ac' THEN submitted_at END) AS last_ac_at
+               FROM submissions WHERE problem_id = ?""",
+            (problem_id,),
+        ).fetchone()
+        last_submission = connection.execute(
+            "SELECT status, submitted_at FROM submissions WHERE problem_id = ? ORDER BY id DESC LIMIT 1",
+            (problem_id,),
+        ).fetchone()
+        last_viewed = connection.execute(
+            "SELECT MAX(studied_at) AS last_viewed_at FROM study_events WHERE problem_id = ? AND action = 'view'",
+            (problem_id,),
+        ).fetchone()
+        mark = connection.execute(
+            "SELECT mark FROM marks WHERE target_type = 'problem' AND target_id = ?",
+            (str(problem_id),),
+        ).fetchone()
+        review_card = connection.execute(
+            "SELECT due_date FROM review_cards WHERE target_type = 'problem' AND target_id = ?",
+            (str(problem_id),),
+        ).fetchone()
+        connection.execute("COMMIT")
+
+    rounds = int(submissions["rounds"] or 0)
+    last_ac_at = str(submissions["last_ac_at"] or "")
+    last_viewed_at = str(last_viewed["last_viewed_at"] or "")
+    last_submitted_at = str(last_submission["submitted_at"] or "") if last_submission else ""
+    activity = [value for value in (last_viewed_at, last_submitted_at) if value]
+    return {
+        "problem_id": problem_id,
+        "rounds": rounds,
+        "submits": int(submissions["submits"] or 0),
+        "ac_submits": int(submissions["ac_submits"] or 0),
+        "last_status": str(last_submission["status"] or "") if last_submission else "",
+        "last_submitted_at": last_submitted_at or None,
+        "last_activity_at": max(activity) if activity else None,
+        "next_due": (
+            str(review_card["due_date"])
+            if review_card
+            else server_runtime.due_after(last_ac_at, rounds) if rounds and last_ac_at else None
+        ),
+        "mark": str(mark["mark"] or "") if mark else "",
+    }
 
 
 def get_settings(db_path: Path = DB_PATH) -> dict[str, str]:
@@ -1164,7 +1463,7 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
                 continue
             lines.append(f"| {p['id']} | [{p['title']}]({problem_note(p)}) | {p['difficulty']} | 见学习站 |")
         return "text/markdown; charset=utf-8", "hot100-薄弱清单.md", "\n".join(lines)
-    # records：四张业务表全量导出为 JSON（题目/章节/标记/设置），可作备份或数据迁移。
+    # records：学习事件、提交、标记、设置及 FSRS 状态/评分全量导出，可作备份或迁移。
     if kind == "records":
         with closing(server_runtime.connect(db_path)) as connection:
             problems = [dict(row) for row in connection.execute(
@@ -1177,10 +1476,18 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
             submissions = [dict(row) for row in connection.execute(
                 "SELECT id, problem_id, status, lang, runtime_ms, memory_kb, submitted_at, source, lc_id FROM submissions ORDER BY id"
             )]
+            review_cards = [dict(row) for row in connection.execute(
+                "SELECT * FROM review_cards ORDER BY target_type, target_id"
+            )]
+            review_logs = [dict(row) for row in connection.execute(
+                "SELECT * FROM review_logs ORDER BY id"
+            )]
         payload = {
             "problems": problems,
             "contents": contents,
             "submissions": submissions,
+            "review_cards": review_cards,
+            "review_logs": review_logs,
             "marks": marks,
             "settings": settings,
         }

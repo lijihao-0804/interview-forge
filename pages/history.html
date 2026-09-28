@@ -26,6 +26,7 @@ body{margin:0;color:var(--text);background:var(--bg);font:15px/1.7 system-ui,"Mi
 ul{list-style:none;margin:0;padding:0}
 li{padding:8px 0;border-bottom:1px solid var(--line)}
 li:last-child{border-bottom:0}
+#dayList li:target{outline:3px solid color-mix(in srgb,var(--brand) 34%,transparent);outline-offset:2px;border-radius:7px;padding-left:8px;padding-right:8px}
 .day{display:flex;justify-content:space-between;gap:10px}
 .muted{color:var(--muted);font-size:12px}
 .empty{padding:10px 0;color:var(--muted)}
@@ -102,7 +103,8 @@ async function load(){
     document.getElementById('completedCount').textContent=summary.completed_problems||0;
     document.getElementById('streakCount').textContent=summary.streak||0;
     const allDays=(data.activity||[]).filter(day=>day.viewed||day.rounds||day.submits).reverse();
-    dayList.innerHTML=allDays.length?allDays.map(day=>`<li><div class="day"><strong>${esc(day.date||day.study_date)}</strong><span class="muted">${day.viewed} 题 · ${day.rounds} 轮 · ${day.submits} 提交</span></div></li>`).join(''):'<li class="empty">还没有学习记录</li>';
+    dayList.innerHTML=allDays.length?allDays.map(day=>{const dateKey=String(day.date||day.study_date);return `<li id="d-${esc(dateKey)}" tabindex="-1"><div class="day"><strong>${esc(dateKey)}</strong><span class="muted">${day.viewed} 题 · ${day.rounds} 轮 · ${day.submits} 提交</span></div></li>`}).join(''):'<li class="empty">还没有学习记录</li>';
+    if(location.hash){let targetId='';try{targetId=decodeURIComponent(location.hash.slice(1))}catch(_){targetId=location.hash.slice(1)}const target=document.getElementById(targetId);if(target){requestAnimationFrame(()=>{target.scrollIntoView({block:'center'});target.focus({preventScroll:true})})}}
     const events=(data.recent||[]).slice(0,20);
     eventList.innerHTML=events.length?events.map(event=>{
       const info=problemInfo(event.problem_id);

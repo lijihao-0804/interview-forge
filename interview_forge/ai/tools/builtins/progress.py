@@ -28,8 +28,8 @@ def get_problem_progress(
     review = dict(study.problem_review_state(context.user_db).get(int(args.problem_id), {}))
     rounds = int(review.get("rounds") or 0)
     completed_at = str(review.get("last_completed_at") or "")
-    next_due = None
-    if completed_at and rounds > 0:
+    next_due = review.get("next_due")
+    if not next_due and completed_at and rounds > 0:
         next_due = server_runtime.due_after(completed_at, rounds)
 
     payload = {

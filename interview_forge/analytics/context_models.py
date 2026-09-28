@@ -112,6 +112,7 @@ _ALLOWED_EVIDENCE_TABLES = {
     "study_events",
     "submissions",
     "content_events",
+    "review_cards",
     "data_quality",
 }
 _ALLOWED_EVIDENCE_TYPES = {
@@ -140,6 +141,7 @@ _ALLOWED_SOURCE_TABLES = {
     "submissions",
     "content_events",
     "marks",
+    "review_cards",
     "data_quality",
 }
 
@@ -220,7 +222,7 @@ _QUALITY_COUNT_KEYS = (
     "other_source_count",
     "unknown_mark_target_count",
 )
-_QUALITY_TABLES = ("study_events", "submissions", "content_events", "marks")
+_QUALITY_TABLES = ("study_events", "submissions", "content_events", "marks", "review_cards")
 
 _DIAGNOSIS_SIGNAL_RANK = {
     "repeat_wa": 600,
