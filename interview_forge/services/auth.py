@@ -207,6 +207,11 @@ CREATE TABLE IF NOT EXISTS weather_preferences (
     timezone TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS site_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -249,6 +254,46 @@ def connect_auth() -> sqlite3.Connection:
                 connection.execute("DELETE FROM sessions WHERE expires_at < ?", (runtime.now_iso(),))
                 runtime._AUTH_READY = True
     return connection
+
+
+FSRS_RETENTION_KEY = "fsrs_desired_retention"
+FSRS_RETENTION_DEFAULT = 0.9
+
+
+def get_fsrs_desired_retention() -> float:
+    """Read the admin-controlled global target; fail safe to FSRS default."""
+    try:
+        with closing(connect_auth()) as connection:
+            row = connection.execute(
+                "SELECT value FROM site_settings WHERE key = ?", (FSRS_RETENTION_KEY,)
+            ).fetchone()
+        value = float(row["value"]) if row else FSRS_RETENTION_DEFAULT
+        if 0.8 <= value <= 0.95:
+            return value
+    except (sqlite3.Error, TypeError, ValueError, OverflowError):
+        pass
+    return FSRS_RETENTION_DEFAULT
+
+
+def set_fsrs_desired_retention(value: object) -> dict[str, float]:
+    """Persist a validated global target retention for future FSRS reviews."""
+    if isinstance(value, bool):
+        raise ValueError("目标保持率必须是 0.80 到 0.95 之间的数字")
+    try:
+        retention = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("目标保持率必须是 0.80 到 0.95 之间的数字") from exc
+    if not 0.8 <= retention <= 0.95:
+        raise ValueError("目标保持率必须是 0.80 到 0.95 之间的数字")
+    encoded = f"{retention:.4f}".rstrip("0").rstrip(".")
+    with closing(connect_auth()) as connection:
+        connection.execute(
+            """INSERT INTO site_settings(key, value, updated_at) VALUES (?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                             updated_at = excluded.updated_at""",
+            (FSRS_RETENTION_KEY, encoded, server_runtime.now_iso()),
+        )
+    return {"desired_retention": retention}
 
 
 def business_now() -> datetime:

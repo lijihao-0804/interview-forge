@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from interview_forge.api.support import async_require_admin, async_require_user, error_response, json_response, read_json, require_admin, require_user, service_error, user_db
 from interview_forge.services.community import (
     chat_delete, chat_has_older, chat_messages_after, chat_messages_before, chat_rate_limit_ok,
-    chat_rate_limit_record, chat_send, search_index_server,
+    chat_rate_limit_record, chat_send, search_index_server_with_count,
 )
 
 router = APIRouter()
@@ -22,7 +22,8 @@ def search(request: Request):
     if denied is not None:
         return denied
     try:
-        return json_response({"items": search_index_server(request.query_params.get("q", ""))})
+        items, count = search_index_server_with_count(request.query_params.get("q", ""))
+        return json_response({"items": items, "count": count, "has_more": count > len(items)})
     except (OSError, ValueError, TypeError):
         return error_response("搜索索引不可用", 500)
 

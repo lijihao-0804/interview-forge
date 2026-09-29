@@ -70,7 +70,7 @@ class FastApiRouteContractTests(unittest.TestCase):
              patch("interview_forge.api.routers.study.user_db", return_value=self.db_path), \
              patch("interview_forge.api.routers.study.dashboard_cached", return_value={"ok": True}), \
              patch("interview_forge.api.routers.weather.weather_for_user", return_value={"location": {"name": "南京"}}), \
-             patch("interview_forge.api.routers.community.search_index_server", return_value=[]):
+             patch("interview_forge.api.routers.community.search_index_server_with_count", return_value=([], 0)):
             self.assertEqual(self.client.get("/api/dashboard").json(), {"ok": True})
             self.assertEqual(self.client.get("/api/weather").status_code, 200)
             self.assertEqual(self.client.get("/api/search?q=x").status_code, 200)

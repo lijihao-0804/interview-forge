@@ -33,6 +33,10 @@
 # =============================================================================
 from __future__ import annotations
 
+# E402 is intentional: the repository root is added to sys.path before loading
+# project-local build modules so this script also works when run by file path.
+# ruff: noqa: E402
+
 from datetime import datetime
 import hashlib
 import html
@@ -129,7 +133,7 @@ def _cleanup_stale_chapter_pages(expected_paths: set[Path]) -> int:
 LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Inter-Variable.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"JetBrains Mono";src:url("../../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");font-weight:100 800;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
-:root{color-scheme:light dark;--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;--bg:#edf0f8;--panel:#fff;--soft:#f2f4fb;--text:#172033;--muted:#647188;--line:#d6dded;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075);/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--fs-0:.8rem;--fs-1:.9rem;--fs-2:1rem;--fs-3:1.1rem;--fs-4:1.25rem;--fs-5:1.5rem;--fs-6:1.8rem;--fs-7:2.2rem;--radius-1:6px;--radius-2:10px;--radius-3:14px;--radius-4:20px;--ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.65,0,.35,1);
+:root{color-scheme:light dark;--font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;--bg:#edf0f8;--panel:#fff;--soft:#f2f4fb;--text:#172033;--muted:#647188;--line:#d6dded;--brand:#5654d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075);/* ===== 设计令牌（Open Props 风格：间距/字阶/圆角/缓动） ===== */--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--fs-0:.8rem;--fs-1:.9rem;--fs-2:1rem;--fs-3:1.1rem;--fs-4:1.25rem;--fs-5:1.5rem;--fs-6:1.8rem;--fs-7:2.2rem;--radius-1:6px;--radius-2:10px;--radius-3:14px;--radius-4:20px;--ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.65,0,.35,1);
 }@media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22)}}
 *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
 ::-webkit-scrollbar{width:10px;height:10px}
@@ -360,7 +364,7 @@ a{overflow-wrap:anywhere}
 
 /* ===== 手动主题切换（theme-toggle.js 设置 data-theme） ===== */
 html[data-theme="dark"]{color-scheme:dark;--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:rgba(148,163,190,.22);--brand:#b2b0ff;--brand-soft:#292955;--success:#79d8a8;--success-soft:#17382b;--warning:#ffc474;--shadow:0 18px 46px rgba(0,0,0,.22);--diagram-surface:#1b2230;--diagram-glow:#262c4a;--diagram-node:#263042;--diagram-node-border:#8b88f0;--diagram-decision:#3a2f1e;--diagram-decision-border:#dfa34c;--diagram-cluster:#1f2735;--diagram-cluster-border:#3d4a5e;--diagram-line:#5d6b80;--diagram-label-bg:#1b2230;--diagram-node-text:#dce4f2}
-html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075);--diagram-surface:#fbfcff;--diagram-node:#f1f2ff;--diagram-node-border:#7775dc;--diagram-decision:#fff7e8;--diagram-decision-border:#dfa34c;--diagram-cluster:#f7f9fd;--diagram-cluster-border:#d4dbe7;--diagram-line:#8490a3;--diagram-label-bg:#fbfcff;--diagram-node-text:#344056;--diagram-glow:#f1f2ff}
+html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5654d4;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--shadow:0 14px 38px rgba(31,42,68,.075);--diagram-surface:#fbfcff;--diagram-node:#f1f2ff;--diagram-node-border:#7775dc;--diagram-decision:#fff7e8;--diagram-decision-border:#dfa34c;--diagram-cluster:#f7f9fd;--diagram-cluster-border:#d4dbe7;--diagram-line:#8490a3;--diagram-label-bg:#fbfcff;--diagram-node-text:#344056;--diagram-glow:#f1f2ff}
 
 /* ===== On This Page 粘性目录 + 复制按钮（P0） ===== */
 .reader-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;align-items:start}
@@ -1338,6 +1342,7 @@ def search_page(chapter_count: int) -> str:
     body = '''<div class="shell">__TOPBAR__
 <section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文。</p><p style="margin-top:6px"><span class="search-kbd">Ctrl</span> / <span class="search-kbd">⌘</span> + <span class="search-kbd">K</span> 快速聚焦搜索框</p></section>
 <div class="module-controls"><div class="field"><label for="searchInput">关键词</label><input id="searchInput" type="search" placeholder="输入关键词，如 循环依赖、MVCC、线程池、Kafka" autocomplete="off"></div></div>
+<p id="searchSummary" class="muted" role="status" aria-live="polite">输入关键词开始搜索。</p>
 <main id="results" class="chapter-grid" aria-live="polite"></main>
 </div>
 <script>
@@ -1345,6 +1350,7 @@ let entries=[],ready=false,serverMode=true;
 let searchTimer=null,queryVersion=0,searchController=null;
 const input=document.getElementById('searchInput');
 const results=document.getElementById('results');
+const searchSummary=document.getElementById('searchSummary');
 function escHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function hl(text,q){const i=text.toLowerCase().indexOf(q.toLowerCase());if(i<0)return escHtml(text);
 return escHtml(text.slice(0,i))+'<mark>'+escHtml(text.slice(i,i+q.length))+'</mark>'+escHtml(text.slice(i+q.length))}
@@ -1360,10 +1366,17 @@ function score(entry,q){
 }
 function card(e){return `<article class="chapter-card"><div class="card-head"><h2><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title)}</a></h2></div><div class="meta"><span class="pill">${esc(e.module_title)}</span></div></article>`}
 function renderHint(text){results.innerHTML='<p class="empty">'+text+'</p>'}
+function renderSearchSummary(count,truncated){
+  const total=Math.max(0,Number(count)||0);
+  searchSummary.textContent=total?`共 ${total} 个章节匹配${truncated?'，当前显示前 60 条':''}`:'没有找到匹配章节，试试更短的关键词或其他说法。';
+}
 function renderLocal(){
   const q=input.value.trim().toLowerCase();
-  if(!q){results.innerHTML='<p class="empty">输入关键词开始搜索。</p>';return}
-  const hits=entries.map(e=>({e,s:score(e,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,60);
+  if(!q){results.innerHTML='<p class="empty">输入关键词开始搜索。</p>';searchSummary.textContent='输入关键词开始搜索。';return}
+  const matches=entries.map(e=>({e,s:score(e,q)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  const hits=matches.slice(0,60);
+  renderSearchSummary(matches.length,matches.length>hits.length);
+  if(!hits.length){results.innerHTML='<p class="empty">没有找到匹配章节，试试更短的关键词或其他说法。</p>';return}
   const groups={};
   hits.forEach(({e})=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
   results.innerHTML=Object.keys(groups).map(m=>
@@ -1377,6 +1390,7 @@ function cardHl(e,q){
   return '<article class="chapter-card"><div class="card-head"><h2><a href="'+escHtml(e.url)+'" target="_blank" rel="noopener noreferrer">'+hl(e.title,q)+'</a></h2></div><div class="meta"><span class="pill">'+escHtml(e.module_title)+'</span></div>'+(excerpt?'<p class="search-snippet">'+excerpt+'</p>':'')+'</article>';
 }
 async function searchServer(q,version){
+  searchSummary.textContent='正在搜索…';
   renderHint('搜索中…');
   if(searchController)searchController.abort();
   const controller=new AbortController();
@@ -1387,8 +1401,12 @@ async function searchServer(q,version){
     if(!r.ok)throw new Error('server');
     const d=await r.json();
     if(version!==queryVersion)return;
+    const items=Array.isArray(d.items)?d.items:[];
+    const count=Number.isFinite(Number(d.count))?Number(d.count):items.length;
+    renderSearchSummary(count,Boolean(d.has_more)||count>items.length);
+    if(!items.length){results.innerHTML='<p class="empty">没有找到匹配章节，试试更短的关键词或其他说法。</p>';return}
     const groups={};
-    d.items.forEach(e=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
+    items.forEach(e=>{const m=e.module_title||'其他';(groups[m]=groups[m]||[]).push(e)});
     results.innerHTML=Object.keys(groups).map(m=>
       '<div class="search-group"><div class="search-group-title">'+escHtml(m)+' · '+groups[m].length+'</div>'+
       groups[m].map(e=>cardHl(e,q)).join('')+'</div>').join('');

@@ -126,6 +126,41 @@ class StudyServerHardeningTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in daily["problems"]], [1])
         self.assertNotIn("hot100:0001", {item["content_id"] for item in daily["contents"]})
 
+    def test_daily_includes_read_only_next_seven_day_review_forecast(self) -> None:
+        with server.closing(server.connect(self.db_path)) as connection:
+            connection.executemany(
+                """INSERT INTO review_cards(
+                       target_type, target_id, stability, difficulty, due_date,
+                       last_reviewed_at, scheduled_days, reps, lapses, scheduler, updated_at
+                   ) VALUES (?, ?, 3, 5, ?, '2026-09-01T12:00:00+08:00', 3, 1, 0, 'fsrs-4.5',
+                             '2026-09-01T12:00:00+08:00')""",
+                [
+                    ("problem", "1", "2026-09-08"),
+                    ("content", "module:01", "2026-09-10"),
+                    ("problem", "2", "2026-09-07"),
+                    ("problem", "3", "2026-09-15"),
+                ],
+            )
+            connection.commit()
+
+        with patch.object(server, "business_now", return_value=datetime(2026, 9, 7, 12)):
+            daily = server.daily_data(self.db_path)
+
+        forecast = daily["summary"]["upcoming_review"]
+        self.assertEqual(forecast["total"], 2)
+        self.assertEqual(
+            [(item["date"], item["count"]) for item in forecast["days"]],
+            [
+                ("2026-09-08", 1),
+                ("2026-09-09", 0),
+                ("2026-09-10", 1),
+                ("2026-09-11", 0),
+                ("2026-09-12", 0),
+                ("2026-09-13", 0),
+                ("2026-09-14", 0),
+            ],
+        )
+
     def test_legacy_event_type_completes_are_backfilled_once_by_shanghai_day(self) -> None:
         # Build the pre-AC schema directly, including duplicate events that
         # fall on one Shanghai business day despite different source offsets.

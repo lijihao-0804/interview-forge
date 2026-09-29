@@ -8,8 +8,9 @@ from fastapi import APIRouter, Request
 from interview_forge.api.support import async_require_admin, error_response, json_response, read_json, require_admin, service_error
 from interview_forge.services.auth import (
     admin_reset_user_ai_quota, admin_set_user_ai_daily_limit, generate_invite_codes,
-    list_invite_codes, list_users, reset_user_nickname, reset_user_password,
+    get_fsrs_desired_retention, list_invite_codes, list_users, reset_user_nickname, reset_user_password,
     revoke_invite_code, set_user_active, set_user_role,
+    set_fsrs_desired_retention,
 )
 from interview_forge.services.community import list_feedback, resolve_feedback
 
@@ -51,6 +52,24 @@ def feedback_list(request: Request):
         return json_response({"items": list_feedback(request.query_params.get("status", ""))})
     except BaseException as exc:
         return _handled(exc)
+
+
+@router.get("/api/admin/settings/fsrs-retention")
+def fsrs_retention_get(request: Request):
+    user, denied = require_admin(request)
+    if denied is not None:
+        return denied
+    return json_response({"desired_retention": get_fsrs_desired_retention()})
+
+
+@router.post("/api/admin/settings/fsrs-retention")
+async def fsrs_retention_set(request: Request):
+    def operation(payload, _user):
+        if set(payload) != {"desired_retention"}:
+            raise ValueError("请求参数不正确")
+        return set_fsrs_desired_retention(payload["desired_retention"])
+
+    return await _admin_write(request, operation)
 
 
 async def _payload(request: Request):

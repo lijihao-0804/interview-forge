@@ -9,6 +9,10 @@ write.
 
 from __future__ import annotations
 
+# E402 is intentional: diagnosis and selection helpers are imported after the
+# compiler's public normalization helpers to keep the dependency direction.
+# ruff: noqa: E402
+
 import hashlib
 import json
 import math

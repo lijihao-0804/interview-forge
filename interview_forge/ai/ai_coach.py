@@ -9,6 +9,10 @@ performed here.
 """
 from __future__ import annotations
 
+# E402 is intentional here: compatibility facade exports are imported after
+# their local wrappers so legacy monkeypatch points remain stable.
+# ruff: noqa: E402
+
 import hashlib
 import json
 import os

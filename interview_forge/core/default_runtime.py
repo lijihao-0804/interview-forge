@@ -6,6 +6,10 @@ paths, clock and service callbacks without importing an HTTP handler.
 """
 from __future__ import annotations
 
+# E402 is intentional: runtime registration follows initialization of the
+# default callbacks and compatibility proxy definitions in this module.
+# ruff: noqa: E402
+
 import hashlib
 import os
 import re

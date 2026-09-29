@@ -7,6 +7,10 @@ before.  No credential is logged or included in errors.
 """
 from __future__ import annotations
 
+# E402 is intentional: the TaskManager backend is registered after the sync
+# service functions it calls have been defined.
+# ruff: noqa: E402
+
 import io
 import asyncio
 import json

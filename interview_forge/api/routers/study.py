@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
-from interview_forge.services.auth import effective_ai_daily_limit
+from interview_forge.services.auth import effective_ai_daily_limit, get_fsrs_desired_retention
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.observability.logging import log_event
 from interview_forge.services.study import (
@@ -275,7 +275,7 @@ async def complete(request: Request):
     return await _write_json(
         request,
         lambda p, db: complete_round(
-            int(p["problem_id"]), db, p.get("rating", 3)
+            int(p["problem_id"]), db, p.get("rating", 3), get_fsrs_desired_retention()
         ),
     )
 
@@ -286,7 +286,7 @@ async def content_complete(request: Request):
         request,
         lambda p, db: complete_content(
             str(p["module_id"]), str(p["content_id"]), db,
-            p.get("rating", 3),
+            p.get("rating", 3), get_fsrs_desired_retention(),
         ),
     )
 

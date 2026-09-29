@@ -5,6 +5,10 @@ so legacy ai_coach patch points and provider timing remain unchanged.
 """
 from __future__ import annotations
 
+# E402 is intentional: TaskManager is registered after this module's worker
+# lifecycle functions are defined to avoid circular facade initialization.
+# ruff: noqa: E402
+
 from interview_forge.ai.runtime import facade
 from interview_forge.core.runtime import server_runtime
 

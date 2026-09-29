@@ -57,11 +57,11 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f5f
 @media(prefers-color-scheme:dark){body{background:#0f131b;color:#edf2fb}}
 .box{max-width:460px;margin:24px;padding:44px 34px;border:1px solid rgba(100,113,136,.28);border-radius:18px;background:rgba(255,255,255,.72)}
 @media(prefers-color-scheme:dark){.box{background:rgba(24,30,41,.72)}}
-h1{margin:0 0 6px;font-size:44px;letter-spacing:-.02em;color:#5755d4}
+h1{margin:0 0 6px;font-size:44px;letter-spacing:-.02em;color:#5654d4}
 p{margin:0 0 22px;color:#647188}
 nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 nav a{padding:9px 16px;border:1px solid rgba(100,113,136,.32);border-radius:10px;color:inherit;text-decoration:none}
-nav a:hover{border-color:#5755d4;color:#5755d4}
+nav a:hover{border-color:#5654d4;color:#5654d4}
 </style>
 </head>
 <body>
@@ -164,7 +164,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     if b"rel=\"icon\"" not in body and b"rel='icon'" not in body:
         icon_html = (
             b'<link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">'
-            b'<link rel="apple-touch-icon" href="/assets/icons/icon.svg">'
+            b'<link rel="apple-touch-icon" href="/assets/icons/icon-180.png">'
         )
     head_marker = b"</head>"
     head_index = body.lower().find(head_marker)

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>Interview Forge</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#5755d4">
+<meta name="theme-color" content="#5654d4">
 <script src="assets/time-utils.js?v=2"></script>
 <script src="assets/navigation-policy.js?v=2" defer></script>
 <link rel="stylesheet" href="assets/uplot.min.css?v=__ASSET_VERSION__">
@@ -19,7 +19,7 @@
   --font-sans:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Microsoft YaHei",monospace;
   --bg:#edf0f8;--panel:#fff;--panel-soft:#f2f4fb;--text:#172033;--muted:#647188;
-  --line:#d6dded;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
+  --line:#d6dded;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;
   --success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;
   --hot-hm-1:#9be9a8;--hot-hm-2:#40c463;--hot-hm-3:#30a14e;--hot-hm-4:#216e39;
   --shadow:0 14px 38px rgba(31,42,68,.075)
@@ -104,11 +104,8 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .card-buttons{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
 .round-button{flex:0 0 auto;padding:6px 9px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:8px;color:var(--brand);background:var(--brand-soft);cursor:pointer}
 .round-button:hover:not(:disabled){border-color:var(--brand);color:var(--brand-strong)}.round-button:disabled{cursor:not-allowed;opacity:.52}
-.history{min-width:0;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
-.history h2{margin:0 0 12px;font-size:18px}.history h3{margin:19px 0 8px;font-size:14px;color:var(--muted)}
-.day-list,.event-list{list-style:none;margin:0;padding:0}.day-list li,.event-list li{display:grid;gap:2px;padding:8px 0;border-bottom:1px solid var(--line)}.day-list li:last-child,.event-list li:last-child{border-bottom:0}
-.day-row{display:flex;justify-content:space-between;gap:10px}.day-row strong{font-variant-numeric:tabular-nums}.day-row span,.event-time{color:var(--muted);font-size:12px}
-.event-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-empty{padding:12px 0;color:var(--muted)}
+.muted{color:var(--muted)}
+.history-empty{padding:12px 0;color:var(--muted)}
 .empty{padding:42px 18px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center}
 .toast{min-height:24px;margin:14px 0 0;color:var(--muted);text-align:center}
 .toast.success{color:var(--success)}
@@ -119,6 +116,9 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .review-summary{color:var(--muted);font-size:13px}
 .review-summary strong{color:var(--warning)}
 .review-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:9px}
+.review-forecast{display:flex;align-items:flex-end;gap:8px;min-height:54px;margin:0 0 12px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
+.review-forecast-title{align-self:center;flex:none;color:var(--muted);font-size:12px}.review-forecast-days{display:flex;align-items:flex-end;justify-content:space-around;gap:7px;min-width:0;flex:1}
+.review-forecast-day{display:grid;justify-items:center;gap:3px;min-width:24px;color:var(--muted);font-size:10px;line-height:1.2}.review-forecast-bar{width:12px;height:var(--bar-height,4px);min-height:4px;border-radius:4px 4px 2px 2px;background:var(--brand);opacity:.78}.review-forecast-day strong{color:var(--text);font-size:10px;font-weight:600}
 .review-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
 .review-item a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 .review-item a:hover{color:var(--brand);text-decoration:underline}
@@ -191,7 +191,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 #heatmapDetail{min-height:20px;margin-top:8px;color:var(--muted);font-size:13px}
 .trend-chart{margin-top:18px;max-width:100%}
 .trend-chart .u-title{font-size:14px;color:var(--muted)}
-#trend,#trend .uplot,#trend .u-wrap,.history{min-width:0}
+#trend,#trend .uplot,#trend .u-wrap{min-width:0}
 #trend .uplot,#trend .u-wrap{width:100%;max-width:100%}
 .quick-cards{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start;margin:0 0 22px}
 .quick-cards .review-section{margin:0}
@@ -211,10 +211,10 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .shelf-due-link:hover{text-decoration:underline}
 @media(max-width:980px){.quick-cards{grid-template-columns:minmax(0,1fr)}}
 footer{margin-top:25px;color:var(--muted);text-align:center;font-size:13px}
-@media(max-width:980px){.workspace{grid-template-columns:1fr}.history{order:-1}.history-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px}.history h3{margin-top:0}}
+@media(max-width:980px){.workspace{grid-template-columns:1fr}}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.shell{width:min(100% - 18px,1240px);padding:18px 0 38px}.hero{align-items:flex-start}.stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}.controls{grid-template-columns:1fr;padding:12px}.method{min-height:0}.card{padding:14px}}
-@media(max-width:520px){.history-columns{grid-template-columns:1fr;gap:0}.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}.mark-select,.weak-clear,.mock-btn{min-height:38px}.plan-item .pick-meta{flex-basis:auto}}
+@media(max-width:520px){.card-actions{align-items:flex-end}.last-study{white-space:normal}.dashboard-nav{gap:6px}.dashboard-nav a,.dashboard-nav button{padding:6px 8px}.mark-select,.weak-clear,.mock-btn{min-height:38px}.plan-item .pick-meta{flex-basis:auto}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 /* 手动主题切换（theme-toggle.js 写入 data-theme） */
 html[data-theme="dark"]{color-scheme:dark;
@@ -224,7 +224,7 @@ html[data-theme="dark"]{color-scheme:dark;
   --hot-hm-1:#6fc98c;--hot-hm-2:#3db863;--hot-hm-3:#23944b;--hot-hm-4:#136b33;
   --shadow:0 18px 46px rgba(0,0,0,.22)
 }
-html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;--hot-hm-1:#9be9a8;--hot-hm-2:#40c463;--hot-hm-3:#30a14e;--hot-hm-4:#216e39;--shadow:0 14px 38px rgba(31,42,68,.075)}
+html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5654d4;--brand-strong:#4543bd;--brand-soft:#eeedff;--success:#13764b;--success-soft:#e7f6ee;--warning:#a45a00;--danger:#c1363e;--hot-hm-1:#9be9a8;--hot-hm-2:#40c463;--hot-hm-3:#30a14e;--hot-hm-4:#216e39;--shadow:0 14px 38px rgba(31,42,68,.075)}
   /* P2-2 骨架屏 */
   .skeleton{position:relative;overflow:hidden;background:var(--panel-soft);border-radius:9px;min-height:42px}
   .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
@@ -259,6 +259,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <div class="quick-cards">
   <section class="review-section" aria-labelledby="reviewTitle" id="review">
     <div class="review-head"><h2 id="reviewTitle">今日待复习</h2><span id="reviewSummary" class="review-summary">正在读取…</span><a id="shelfDueLink" class="shelf-due-link" href="library/index.html" data-navigation-policy="same-tab" title="去书架查看各模块待复习章节">书架待复习 0 项 →</a><button id="remindButton" class="round-button" type="button">开启复习提醒</button></div>
+    <div id="reviewForecast" class="review-forecast" role="img" aria-label="未来七天复习负荷"></div>
     <div id="reviewList" class="review-list"><div class="skeleton" style="flex:1"></div><div class="skeleton" style="flex:1"></div></div>
   </section>
   <section class="review-section" aria-labelledby="pickTitle">
@@ -316,7 +317,7 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
 <script src="assets/uplot.min.js?v=__ASSET_VERSION__"></script>
 <script>
 const problems=__HOT100_PROBLEMS__;
-const state={online:false,data:{summary:{today_viewed:0,today_rounds:0,completed_problems:0,total_rounds:0,active_days:0},problems:{},days:[],recent:[]},daily:{summary:{due:0,overdue:0,problems:0,overdue_problems:0,contents:0,overdue_contents:0},problems:[],contents:[]},settings:{}};
+const state={online:false,data:{summary:{today_viewed:0,today_rounds:0,completed_problems:0,total_rounds:0,active_days:0},problems:{},days:[],recent:[]},daily:{summary:{due:0,overdue:0,problems:0,overdue_problems:0,contents:0,overdue_contents:0,upcoming_review:{total:0,days:[]}},problems:[],contents:[]},settings:{},pinnedTomorrow:{}};
 const grid=document.getElementById('grid');
 const empty=document.getElementById('empty');
 const search=document.getElementById('search');
@@ -574,6 +575,7 @@ function renderReview(){
   const daily=state.daily;
   const items=daily.problems.map(item=>({href:item.note,title:`${item.id}. ${item.title}`,meta:`${item.difficulty||item.category||''} · 已 ${item.rounds} 轮`,due:item.due_date,overdue:item.due_date<daily.today}));
   reviewSummary.textContent=`${daily.summary.problems} 题待复习${daily.summary.overdue_problems?`（逾期 ${daily.summary.overdue_problems}）`:''}`;
+  renderReviewForecast(daily.summary.upcoming_review);
   const shelfLink=document.getElementById('shelfDueLink');
   if(shelfLink) shelfLink.textContent=`书架待复习 ${daily.summary.contents||0} 项 →`;
   let contentsBlock='';
@@ -581,6 +583,15 @@ function renderReview(){
     contentsBlock=`<details class="shelf-due-fold" open><summary>书架章节 ${daily.contents.length} 项（逾期 ${daily.summary.overdue_contents||0}）</summary><div class="shelf-due-list">${daily.contents.map(item=>`<div class="review-item ${item.due_date<daily.today?'due-overdue':''}"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.module_title)} · ${esc(item.title)}</a><span class="due-badge">${item.due_date<daily.today?`逾期 ${esc(item.due_date)}`:`今日 ${esc(item.due_date)}`}</span></div>`).join('')}</div></details>`;
   }
   reviewList.innerHTML=(items.length?items.map(item=>`<div class="review-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-badge">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="review-empty">今日没有到期的题目，可以学新题或复习其他内容。</div>')+contentsBlock;
+}
+function renderReviewForecast(forecast){
+  const container=document.getElementById('reviewForecast');
+  if(!container)return;
+  const days=Array.isArray(forecast&&forecast.days)?forecast.days:[];
+  const maximum=Math.max(1,...days.map(day=>Number(day.count)||0));
+  const total=Number(forecast&&forecast.total)||0;
+  container.setAttribute('aria-label',`未来七天预计 ${total} 项复习`);
+  container.innerHTML=`<span class="review-forecast-title">未来 7 天 · ${total} 项</span><div class="review-forecast-days">${days.map(day=>{const count=Math.max(0,Number(day.count)||0);const height=count?Math.max(8,Math.round(count/maximum*28)):4;return `<span class="review-forecast-day" title="${esc(day.date)}：${count} 项"><i class="review-forecast-bar" style="--bar-height:${height}px"></i><strong>${count}</strong><span>${esc(String(day.date||'').slice(5))}</span></span>`}).join('')}</div>`;
 }
 async function loadPick(randomize){
   const requestSerial=++pickRequestSerial;
@@ -721,18 +732,33 @@ function renderCards(){
     const submissionLine=info.submits?`提交：AC ${info.ac_submits||0} / ${info.submits}（${Math.round((info.pass_rate||0)*100)}%） · 最近：${localTime(info.last_submitted_at)}`:`最近：${localTime(last)}`;
     const nextDue=info.next_due?` · 下次 ${String(info.next_due).slice(5)}`:'';
     const placeholder=manualMark?'':'selected';
-    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="设置题目状态" ${state.online?'':'disabled'}><option value="__choose__" disabled ${placeholder}>标记…</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="clear">清除标记</option></select><button class="mark-action" type="button" data-pin-plan="${problem.id}" ${state.online?'':'disabled'}>排入明天</button></div></div></article>`;
+    const pinnedTomorrow=!!state.pinnedTomorrow[String(problem.id)];
+    return `<article class="card ${rounds?'studied':''} ${isDue?'due':''} ${overdue?'overdue':''}"><div class="card-head"><h2><a href="${esc(problem.note)}" target="_blank" rel="noopener noreferrer">${problem.id}. ${esc(problem.title)}</a></h2><span class="round-count">${rounds} 轮</span>${acBadge}${badge}${markBadge}</div><div class="meta"><span class="pill">${esc(problem.category)}</span><span class="difficulty-${problem.difficulty}">${problem.difficulty}</span></div><div class="method">${esc(problem.method)}</div><div class="card-actions"><span class="last-study">${submissionLine}${nextDue}</span><div class="card-buttons"><select class="mark-select" data-mark="${problem.id}" aria-label="设置题目状态" ${state.online?'':'disabled'}><option value="__choose__" disabled ${placeholder}>标记…</option><option value="mastered" ${manualMark==='mastered'?'selected':''}>已掌握</option><option value="reviewing" ${manualMark==='reviewing'?'selected':''}>复习中</option><option value="weak" ${manualMark==='weak'?'selected':''}>薄弱</option><option value="clear">清除标记</option></select><button class="mark-action" type="button" data-pin-plan="${problem.id}" ${state.online&&!pinnedTomorrow?'':'disabled'}>${pinnedTomorrow?'已排入明天':'排入明天'}</button></div></div></article>`;
   }).join('');
   empty.hidden=list.length!==0;
   grid.querySelectorAll('[data-mark]').forEach(select=>select.addEventListener('change',()=>{if(select.value==='__choose__')return;setMark(Number(select.dataset.mark),select.value==='clear'?'':select.value)}));
   grid.querySelectorAll('[data-pin-plan]').forEach(button=>button.addEventListener('click',()=>pinPlan(Number(button.dataset.pinPlan))));
 }
 async function pinPlan(problemId){
+  const key=String(problemId);
+  if(state.pinnedTomorrow[key])return;
+  const button=grid.querySelector(`[data-pin-plan="${problemId}"]`);
+  const previousText=button?button.textContent:'排入明天';
+  const previousDisabled=button?button.disabled:!state.online;
+  // 乐观反馈：立即呈现排期结果；失败时回滚按钮与本地标记。
+  state.pinnedTomorrow[key]=true;
+  if(button){button.textContent='已排入明天';button.disabled=true;button.setAttribute('aria-busy','true')}
   try{
     const response=await fetchWithTimeout('/api/plan/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem_id:problemId})});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'排期失败');
+    if(button&&button.isConnected){button.removeAttribute('aria-busy')}
     showToast(`已纳入明天计划（${result.for_date}），明天见`,'success');
-  }catch(error){showToast(error.message||'排期失败','error')}
+  }catch(error){
+    delete state.pinnedTomorrow[key];
+    if(button&&button.isConnected){button.textContent=previousText;button.disabled=previousDisabled;button.removeAttribute('aria-busy')}
+    else renderCards();
+    showToast(error.message||'排期失败','error');
+  }
 }
 async function setMark(problemId,mark){
   // 乐观更新：先改本地状态立即渲染，失败再回滚（弱网下不再“点→等→变”）

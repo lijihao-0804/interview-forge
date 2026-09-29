@@ -28,6 +28,10 @@
 # =============================================================================
 from __future__ import annotations
 
+# E402 is intentional: the repository root is added to sys.path before loading
+# project-local build modules so this script also works when run by file path.
+# ruff: noqa: E402
+
 import html
 import os
 import re
@@ -2257,7 +2261,8 @@ def transform_solution_page(
                         f'data-problem-id="{problem_id}" aria-label="本题学习状态">'
                         '<div class="solution-progress-copy"><strong>本题学习状态</strong>'
                         '<span id="solutionProgressSummary">正在读取学习记录…</span>'
-                        '<span id="solutionProgressDue">下次复习：—</span></div>'
+                        '<span id="solutionProgressDue">下次复习：—</span>'
+                        '<button type="button" class="solution-progress-help" aria-label="复习间隔说明：下次复习时间由 FSRS 记忆模型根据本次评分动态计算，不是固定间隔表。" title="下次复习时间由 FSRS 记忆模型根据本次评分动态计算，不是固定间隔表。">?</button></div>'
                         '<label for="solutionProgressMark">本题标记'
                         '<select id="solutionProgressMark" disabled>'
                         '<option value="">无标记</option><option value="mastered">已掌握</option>'
@@ -2612,7 +2617,7 @@ def render_notebook() -> None:
 <meta name="color-scheme" content="light dark">
 <title>错题本 · Interview Forge</title>
 <style>
-:root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5755d4;--brand-soft:#eeedff;--danger:#c1363e;--danger-soft:#fdecec;--success:#13764b;--success-soft:#e7f6ee}
+:root{color-scheme:light dark;--bg:#f3f5fa;--panel:#fff;--soft:#f7f8fc;--text:#172033;--muted:#647188;--line:#dce2ec;--brand:#5654d4;--brand-soft:#eeedff;--danger:#c1363e;--danger-soft:#fdecec;--success:#13764b;--success-soft:#e7f6ee}
 @media(prefers-color-scheme:dark){:root{--bg:#0f131b;--panel:#181e29;--soft:#141a24;--text:#edf2fb;--muted:#a7b2c4;--line:#313b4c;--brand:#b2b0ff;--brand-soft:#292955;--danger:#ff969d;--danger-soft:#47242b;--success:#79d8a8;--success-soft:#17382b}}
 *{box-sizing:border-box}
 body{margin:0;color:var(--text);background:var(--bg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}

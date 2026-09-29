@@ -30,6 +30,10 @@
 # ============================================================================
 from __future__ import annotations
 
+# E402 is intentional in this compatibility facade: service/schema imports are
+# placed after legacy constants and adapters are defined to avoid import cycles.
+# ruff: noqa: E402
+
 # ---- 标准库导入分组说明 ----
 # argparse      命令行参数（--host/--port/--open/--init-only/--quiet/--create-admin）
 # json / sqlite3 HTTP 请求体解析、数据库读写（本库核心存储）
@@ -221,6 +225,7 @@ from interview_forge.services.auth import (
     create_user,
     destroy_session,
     effective_ai_daily_limit,
+    get_fsrs_desired_retention,
     ensure_admin,
     generate_invite_codes,
     hash_password,
@@ -1390,10 +1395,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 )
             # /api/complete：兼容旧面板调用；Hot100 轮次现由 AC 记录自动推进。
             elif path == "/api/complete":
-                result = complete_round(int(payload["problem_id"]), db)
+                result = complete_round(
+                    int(payload["problem_id"]), db,
+                    desired_retention=get_fsrs_desired_retention(),
+                )
             # /api/content/complete：书架章节完成一轮（独立的事件表与轮次序列）。
             elif path == "/api/content/complete":
-                result = complete_content(str(payload["module_id"]), str(payload["content_id"]), db)
+                result = complete_content(
+                    str(payload["module_id"]), str(payload["content_id"]), db,
+                    desired_retention=get_fsrs_desired_retention(),
+                )
             # /api/mark：设置/清除标记 —— mastered/reviewing/weak，'' 表示删除标记。
             elif path == "/api/mark":
                 result = set_mark(str(payload["target_type"]), str(payload["target_id"]), str(payload.get("mark", "")), db)

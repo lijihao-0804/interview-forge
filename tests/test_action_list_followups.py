@@ -17,6 +17,8 @@ class ActionListFollowupTests(unittest.TestCase):
         self.assertIn('item.status === "ac"', script)
         self.assertIn("InterviewForgeTime.formatDateTime(item.submitted_at)", script)
         self.assertIn("if (response.status === 401) { redirectToLogin(); return; }", script)
+        self.assertIn("class=\"solution-progress-help\"", builder)
+        self.assertIn("FSRS 记忆模型根据本次评分动态计算", builder)
 
     def test_solution_arrow_navigation_is_global_but_does_not_steal_controls(self):
         builder = (ROOT / "scripts" / "build" / "build_html_site.py").read_text(encoding="utf-8")

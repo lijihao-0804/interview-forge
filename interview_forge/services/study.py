@@ -22,7 +22,12 @@ from typing import Any
 
 from interview_forge.core.paths import DB_PATH, ROOT
 from interview_forge.core.runtime import server_runtime
-from interview_forge.services.review import FSRS_RATINGS, FSRS_VERSION, fsrs_review
+from interview_forge.services.review import (
+    FSRS_DESIRED_RETENTION,
+    FSRS_RATINGS,
+    FSRS_VERSION,
+    fsrs_review,
+)
 
 
 
@@ -180,6 +185,7 @@ def _apply_review_rating(
     target_id: str,
     rating: int,
     reviewed_at: str,
+    desired_retention: float = FSRS_DESIRED_RETENTION,
 ) -> dict[str, object]:
     """Atomically advance the FSRS card and append its auditable rating log."""
     if target_type not in {"problem", "content"}:
@@ -226,6 +232,7 @@ def _apply_review_rating(
         if current else None
     )
     elapsed_days = max((today - last_review_date).days, 0) if last_review_date else 0
+    # Admin changes affect only future ratings; existing due dates are not rewritten.
     result = fsrs_review(
         rating=rating,
         today=today,
@@ -233,6 +240,7 @@ def _apply_review_rating(
         difficulty=previous_difficulty,
         last_review_date=last_review_date,
         lapses=int(current["lapses"]) if current else 0,
+        desired_retention=desired_retention,
     )
     rating_value = int(result["rating"])
     rating_name = str(result["rating_name"])
@@ -313,7 +321,12 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     return True
 
 
-def complete_round(problem_id: int, db_path: Path = DB_PATH, rating: int = 3) -> dict[str, object]:
+def complete_round(
+    problem_id: int,
+    db_path: Path = DB_PATH,
+    rating: int = 3,
+    desired_retention: float = FSRS_DESIRED_RETENTION,
+) -> dict[str, object]:
     """兼容旧面板的手动完成接口，并写入 AC 语义的 submissions 读模型。
 
     The legacy study event is retained for old exports, while the submission
@@ -379,7 +392,8 @@ def complete_round(problem_id: int, db_path: Path = DB_PATH, rating: int = 3) ->
             (problem_id, studied_at),
         )
         review_state = _apply_review_rating(
-            connection, "problem", str(problem_id), rating, studied_at
+            connection, "problem", str(problem_id), rating, studied_at,
+            desired_retention=desired_retention,
         )
         connection.commit()
     # Hot100 library progress is derived from AC submissions; no separate
@@ -720,6 +734,7 @@ def complete_content(
     content_id: str,
     db_path: Path = DB_PATH,
     rating: int = 3,
+    desired_retention: float = FSRS_DESIRED_RETENTION,
 ) -> dict[str, object]:
     """书架章节"完成一轮"：轮次自增 + 写库（事务内原子完成），返回下次到期日。"""
     if not server_runtime.valid_content(module_id, content_id):
@@ -753,7 +768,8 @@ def complete_content(
                 (module_id, content_id, studied_at, study_date, round_no),
             )
         review_state = _apply_review_rating(
-            connection, "content", content_id, rating, studied_at
+            connection, "content", content_id, rating, studied_at,
+            desired_retention=desired_retention,
         )
         connection.commit()
     if duplicate_round is None or not review_state["already_reviewed_today"]:
@@ -883,6 +899,7 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
     传 module_id 时只返回该模块的 contents（problems 置空），供书架模块页使用。
     """
     today = server_runtime.business_now().date().isoformat()
+    forecast_end = (date.fromisoformat(today) + timedelta(days=7)).isoformat()
     with closing(server_runtime.connect(db_path)) as connection:
         connection.execute("BEGIN")
         # AC progress and chapter completion must come from the same read
@@ -893,6 +910,14 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
             (str(row["target_type"]), str(row["target_id"])): str(row["due_date"])
             for row in connection.execute(
                 "SELECT target_type, target_id, due_date FROM review_cards"
+            ).fetchall()
+        }
+        upcoming_counts = {
+            str(row["due_date"]): int(row["item_count"])
+            for row in connection.execute(
+                """SELECT due_date, COUNT(*) AS item_count FROM review_cards
+                   WHERE due_date > ? AND due_date <= ? GROUP BY due_date""",
+                (today, forecast_end),
             ).fetchall()
         }
         # 章节侧：传 module_id 时只统计该模块；hot100 模块由 AC 推导，不走手动按钮。
@@ -1027,6 +1052,18 @@ def daily_data(db_path: Path = DB_PATH, module_id: str = "") -> dict[str, object
         "contents": len(contents),
         "overdue_contents": content_overdue,
         "modules": modules,
+        "upcoming_review": {
+            "total": sum(upcoming_counts.values()),
+            "days": [
+                {
+                    "date": (date.fromisoformat(today) + timedelta(days=offset)).isoformat(),
+                    "count": upcoming_counts.get(
+                        (date.fromisoformat(today) + timedelta(days=offset)).isoformat(), 0
+                    ),
+                }
+                for offset in range(1, 8)
+            ],
+        },
     }
     return {"today": today, "summary": summary, "problems": problems, "relearn": relearn, "contents": contents}
 

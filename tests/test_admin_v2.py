@@ -70,6 +70,32 @@ class AdminV2BackendTests(unittest.TestCase):
         self.assertEqual(logs.status_code, 200)
         self.assertTrue(any(item.get("event") == "api_request" for item in logs.json()["items"]))
 
+    def test_global_fsrs_retention_is_admin_only_and_applies_to_new_reviews(self):
+        self.client.cookies.set("forge_session", self.user_token)
+        self.assertEqual(self.client.get("/api/admin/settings/fsrs-retention").status_code, 403)
+
+        admin = self._admin()
+        current = admin.get("/api/admin/settings/fsrs-retention")
+        self.assertEqual(current.status_code, 200)
+        self.assertEqual(current.json()["desired_retention"], 0.9)
+
+        low = admin.post("/api/admin/settings/fsrs-retention", json={"desired_retention": 0.8})
+        self.assertEqual(low.status_code, 201)
+        self.assertEqual(low.json()["desired_retention"], 0.8)
+        first = admin.post("/api/complete", json={"problem_id": 1, "rating": 3})
+        self.assertEqual(first.status_code, 201)
+
+        high = admin.post("/api/admin/settings/fsrs-retention", json={"desired_retention": 0.95})
+        self.assertEqual(high.status_code, 201)
+        second = admin.post("/api/complete", json={"problem_id": 2, "rating": 3})
+        self.assertEqual(second.status_code, 201)
+        self.assertGreater(first.json()["interval_days"], second.json()["interval_days"])
+
+        invalid = admin.post("/api/admin/settings/fsrs-retention", json={"desired_retention": 0.99})
+        self.assertEqual(invalid.status_code, 400)
+        unchanged = admin.get("/api/admin/settings/fsrs-retention")
+        self.assertEqual(unchanged.json()["desired_retention"], 0.95)
+
     def test_log_redaction_is_applied_on_write_and_admin_read(self):
         log_event("redaction_test", module="test", password="secret-password", token="secret-token", safe_value="visible")
         payload = self._admin().get("/api/admin/logs", params={"event": "redaction_test"})

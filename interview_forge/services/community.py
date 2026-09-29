@@ -174,9 +174,15 @@ def _load_search_index() -> list[dict]:
 
 
 def search_index_server(query: str) -> list[dict[str, object]]:
+    items, _total = search_index_server_with_count(query)
+    return items
+
+
+def search_index_server_with_count(query: str) -> tuple[list[dict[str, object]], int]:
+    """Return the bounded search page plus the complete match count."""
     q = query.strip().lower()
     if not q:
-        return []
+        return [], 0
     hits = []
     for entry in _load_search_index():
         title = str(entry.get("title", "")).lower()
@@ -193,7 +199,7 @@ def search_index_server(query: str) -> list[dict[str, object]]:
                 snippet = ("…" if start else "") + body[start:end].strip() + ("…" if end < len(body) else "")
             hits.append({"id": entry.get("id"), "title": entry.get("title"), "url": entry.get("url"), "module_title": entry.get("module_title"), "snippet": snippet, "s": score})
     hits.sort(key=lambda x: -x["s"])
-    return hits[:60]
+    return hits[:60], len(hits)
 
 
 def get_profile(username: str) -> dict[str, object]:
