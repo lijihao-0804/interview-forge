@@ -406,15 +406,17 @@ class LearningAnalyticsAPITests(unittest.TestCase):
         release_second = threading.Event()
         call_lock = threading.Lock()
         call_count = 0
+        call_threads = {}
         results = []
         errors = []
-        wait_timeout = 30.0
+        wait_timeout = 60.0
 
         def blocked_builder(*_args, **_kwargs):
             nonlocal call_count
             with call_lock:
                 call_count += 1
                 call_no = call_count
+                call_threads[call_no] = threading.current_thread()
             if call_no >= 3:
                 return {"snapshot": "new"}
             try:
@@ -441,26 +443,34 @@ class LearningAnalyticsAPITests(unittest.TestCase):
             second = threading.Thread(target=run_build)
             first.start()
             second.start()
-            self.assertTrue(first_ready.wait(timeout=wait_timeout))
-            self.assertTrue(second_ready.wait(timeout=wait_timeout))
+            try:
+                self.assertTrue(first_ready.wait(timeout=wait_timeout))
+                self.assertTrue(second_ready.wait(timeout=wait_timeout))
 
-            server._invalidate_analytics_cache(db_path)
-            release_first.set()
-            first.join(timeout=wait_timeout)
+                server._invalidate_analytics_cache(db_path)
+                # Thread start order is not builder call order: CI may schedule
+                # the second thread first, so join by the builder's call number.
+                first_build_thread = call_threads[1]
+                release_first.set()
+                first_build_thread.join(timeout=wait_timeout)
+                self.assertFalse(first_build_thread.is_alive())
+
+                # Force the generation-pruning path while the second build is
+                # still in flight. Its reference must keep the invalidated
+                # generation alive even though the first build already finished.
+                with patch.object(server, "_ANALYTICS_GENERATION_MAX_ENTRIES", 0):
+                    with server._ANALYTICS_CACHE_LOCK:
+                        server._prune_analytics_generations_locked()
+                        resolved = str(db_path.resolve())
+                        self.assertEqual(server._ANALYTICS_CACHE_ACTIVE.get(resolved), 1)
+                        self.assertIn(resolved, server._ANALYTICS_CACHE_GENERATIONS)
+            finally:
+                release_first.set()
+                release_second.set()
+                for worker in (first, second):
+                    worker.join(timeout=wait_timeout)
+
             self.assertFalse(first.is_alive())
-
-            # Force the generation-pruning path while the second build is
-            # still in flight.  Its reference must keep the invalidated
-            # generation alive even though the first build already finished.
-            with patch.object(server, "_ANALYTICS_GENERATION_MAX_ENTRIES", 0):
-                with server._ANALYTICS_CACHE_LOCK:
-                    server._prune_analytics_generations_locked()
-                    resolved = str(db_path.resolve())
-                    self.assertEqual(server._ANALYTICS_CACHE_ACTIVE.get(resolved), 1)
-                    self.assertIn(resolved, server._ANALYTICS_CACHE_GENERATIONS)
-
-            release_second.set()
-            second.join(timeout=wait_timeout)
             self.assertFalse(second.is_alive())
 
             self.assertEqual(errors, [])
