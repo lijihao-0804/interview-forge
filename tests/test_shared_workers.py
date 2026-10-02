@@ -131,6 +131,14 @@ class SharedWorkerTests(unittest.TestCase):
         probe.release()
         pipe.close()
 
+    def test_short_mutex_contention_starts_with_millisecond_backoff(self):
+        with patch.object(shared, "FileLock") as lock_class, patch.object(shared.time, "sleep") as sleep:
+            lock_class.return_value.acquire.side_effect = [False, False, True]
+            with shared.mutex("test", "short-write"):
+                pass
+            self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.001, 0.0015])
+            lock_class.return_value.release.assert_called_once()
+
     def test_model_call_limit_is_global_across_processes(self):
         from interview_forge.ai.tasks import _release_model_slot, _try_claim_model_slot
         process, pipe = self.spawn(_hold_model_slot)

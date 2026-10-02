@@ -76,10 +76,14 @@ def mutex(namespace: str, key: str, timeout: float = 10):
         return
     lock = FileLock(namespace, key)
     deadline = time.monotonic() + timeout
+    delay = 0.001
     while not lock.acquire():
         if time.monotonic() >= deadline:
             raise TimeoutError("worker coordination timed out")
-        time.sleep(0.02)
+        # Log writes are normally sub-millisecond. Starting at 20ms made short
+        # requests pay an artificial scheduling floor under worker contention.
+        time.sleep(delay)
+        delay = min(0.02, delay * 1.5)
     try:
         yield
     finally:
