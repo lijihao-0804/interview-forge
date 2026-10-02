@@ -296,7 +296,8 @@ class AIConfigStore:
         return connection
 
     def ensure_schema(self) -> None:
-        with closing(self.connect()) as connection:
+        from interview_forge.runtime.shared import mutex
+        with mutex("schema", str(self.path.resolve())), closing(self.connect()) as connection:
             connection.executescript(SCHEMA)
             provider_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(ai_providers)").fetchall()}
             model_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(ai_models)").fetchall()}

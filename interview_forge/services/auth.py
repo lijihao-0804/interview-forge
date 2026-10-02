@@ -216,12 +216,16 @@ CREATE TABLE IF NOT EXISTS site_settings (
 
 
 def connect_auth() -> sqlite3.Connection:
+    from interview_forge.db.tuning import configure_connection
+    from interview_forge.runtime.shared import mutex
+
     runtime = server_runtime
     connection = sqlite3.connect(runtime.AUTH_DB_PATH, timeout=10, isolation_level=None)
     connection.row_factory = sqlite3.Row
+    configure_connection(connection, auth=True)
     connection.execute("PRAGMA foreign_keys = ON")
     if not runtime._AUTH_READY:
-        with runtime._AUTH_LOCK:
+        with runtime._AUTH_LOCK, mutex("schema", str(Path(runtime.AUTH_DB_PATH).resolve())):
             if not runtime._AUTH_READY:
                 connection.execute("PRAGMA journal_mode = WAL")
                 connection.executescript(AUTH_SCHEMA)
@@ -435,14 +439,24 @@ def _session_digest(token: str) -> str:
 
 
 def session_user(token: str) -> sqlite3.Row | None:
+    from interview_forge.runtime import shared
+    from interview_forge.runtime.cache import session_cache
+
     runtime = server_runtime
     if not token:
         return None
     runtime._maybe_purge_sessions()
+    cache_key = (str(Path(runtime.AUTH_DB_PATH).resolve()), _session_digest(token))
+    if shared.enabled():
+        signature = shared.db_signature(Path(runtime.AUTH_DB_PATH))
+        cached = session_cache.get(cache_key, signature)
+        if cached is not None and str(cached["session_expires_at"]) > runtime.now_iso():
+            return cached
     with closing(connect_auth()) as connection:
         row = connection.execute(
             """SELECT u.id, u.username, u.role, u.is_active, u.ai_daily_limit,
-                      COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang
+                      COALESCE(NULLIF(u.nickname, ''), u.username) AS nickname, COALESCE(u.lang, 'java') AS lang,
+                      s.expires_at AS session_expires_at
                FROM sessions s JOIN users u ON u.id = s.user_id
                WHERE s.token = ? AND s.expires_at > ? AND u.is_active = 1
                  AND NOT EXISTS (
@@ -452,23 +466,32 @@ def session_user(token: str) -> sqlite3.Row | None:
                  )""",
             (_session_digest(token), runtime.now_iso()),
         ).fetchone()
+        changed_here = False
         if row is not None:
             # Sliding renewal keeps active users signed in without extending
             # abandoned sessions.  The HTTP boundary refreshes Max-Age too.
             now = business_now()
             renew_before = (now + runtime.SESSION_TTL / 3).isoformat(timespec="seconds")
-            connection.execute(
+            renewed = connection.execute(
                 "UPDATE sessions SET expires_at = ? WHERE token = ? AND expires_at <= ?",
                 ((now + runtime.SESSION_TTL).isoformat(timespec="seconds"), _session_digest(token), renew_before),
             )
+            changed_here = renewed.rowcount > 0
             seen_now = runtime.time.time()
             with _LAST_SEEN_LOCK:
                 if seen_now - _LAST_SEEN_TS.get(row["id"], 0) >= _LAST_SEEN_INTERVAL:
                     _LAST_SEEN_TS[row["id"]] = seen_now
                     try:
                         connection.execute("UPDATE users SET last_seen = ? WHERE id = ?", (runtime.now_iso(), row["id"]))
+                        changed_here = True
                     except sqlite3.Error:
                         pass
+        # A concurrent revocation/role change during the read must not be
+        # stamped with the new fingerprint and cached as a fresh old row.
+    if shared.enabled() and row is not None and not changed_here:
+        final_signature = shared.db_signature(Path(runtime.AUTH_DB_PATH))
+        if final_signature == signature:
+            session_cache.put(cache_key, signature, row)
     return row
 
 

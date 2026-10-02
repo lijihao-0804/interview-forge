@@ -8,15 +8,16 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
-from typing import Callable
 
 from interview_forge.ai.ai_coach import ensure_ai_schema as _default_ensure_ai_schema
 from interview_forge.core.paths import DB_PATH
 from interview_forge.db.schema import SCHEMA
+from interview_forge.db.tuning import configure_connection
 from interview_forge.services.review import review_interval, review_interval_content
-
+from interview_forge.runtime.shared import mutex
 
 _SCHEMA_DONE: set[str] = set()
 _SCHEMA_LOCK = threading.Lock()
@@ -198,10 +199,11 @@ def connect(
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path, timeout=10)
     connection.row_factory = sqlite3.Row
+    configure_connection(connection)
     connection.execute("PRAGMA foreign_keys = ON")
     schema_key = str(db_path)
     if schema_key not in _SCHEMA_DONE:
-        with _SCHEMA_LOCK:
+        with _SCHEMA_LOCK, mutex("schema", str(db_path.resolve())):
             if schema_key not in _SCHEMA_DONE:
                 connection.execute("PRAGMA journal_mode = WAL")
                 _prepare_legacy_study_events_schema(connection)

@@ -6,6 +6,26 @@
 
 ## 立即开始
 
+### 单主机多 worker 运行
+
+Linux 可在项目 Python 环境安装 `requirements-server.txt` 后，用
+`python -m interview_forge.server.study_server --workers 4` 启动。这个入口自动设置
+`IF_SHARED_RUNTIME=1`，使力扣任务状态、用户互斥、AI worker 存活检查与模型并发
+额度支持同一主机的多个进程。直接使用 `uvicorn --workers 4` 时也必须设置该环境变量。
+默认仍为 1 worker；`deploy/interview-forge-workers.conf` 提供仅针对本服务的可选
+systemd drop-in，仓库更新不会自动修改线上 unit。
+
+共享协调依赖本地磁盘的 OS 文件锁，不适用于 NFS 或多主机。SQLite 保留 10 秒
+锁等待与 FULL 持久性；`IF_SQLITE_SYNCHRONOUS=NORMAL` 只允许学习库显式选择，
+认证库始终 FULL。页缓存默认每连接按需最多约 32MiB，mmap 上限 256MiB；可通过
+`IF_SQLITE_BUSY_TIMEOUT_MS`、`IF_SQLITE_CACHE_KIB`、`IF_SQLITE_MMAP_BYTES` 调整。
+多 worker 模式的会话缓存最多 30 秒、bootstrap 微缓存最多 3 秒，并校验数据库及
+WAL 文件变更以识别其他 worker 的写入。工作目录应为仓库根，服务账号必须能写
+自己的 `data/runtime`；该目录仅存锁及安全任务状态，不能公开静态访问。
+
+4 worker 与 uvloop/httptools 的收益需以相同场景重新压测，不承诺线性增长或固定
+RPS/日活。部署前备份项目数据；回滚时恢复原 ExecStart 和 worker 配置，勿清除用户库。
+
 1. 访问线上学习站 [hot100.xyz](https://hot100.xyz/) 并登录；
 2. 进入 [项目首页](index.html) 或 [学习中控台](cockpit.html)；
 3. 首次使用建议按 [四阶段学习路线](books/hot100/00-总览/01-学习路线.md) 开始；

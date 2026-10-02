@@ -62,6 +62,23 @@ class _JsonFormatter(stdlib_logging.Formatter):
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
+class _WorkerSafeRotatingHandler(RotatingFileHandler):
+    def emit(self, record) -> None:
+        from interview_forge.runtime import shared
+        if not shared.enabled():
+            super().emit(record)
+            return
+        # Serialize rollover as well as writes. Close after each emit so other
+        # workers do not retain an old inode (or prevent a Windows rename).
+        with shared.mutex("application-log", self.baseFilename, timeout=2):
+            try:
+                super().emit(record)
+            finally:
+                if self.stream is not None:
+                    self.stream.close()
+                    self.stream = None
+
+
 def _logger() -> stdlib_logging.Logger:
     global _CONFIGURED_PATH
     path = log_path()
@@ -74,7 +91,7 @@ def _logger() -> stdlib_logging.Logger:
             for handler in list(logger.handlers):
                 logger.removeHandler(handler)
                 handler.close()
-            handler = RotatingFileHandler(
+            handler = _WorkerSafeRotatingHandler(
                 path, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT,
                 encoding="utf-8", delay=True,
             )

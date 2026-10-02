@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 
 from interview_forge.ai.errors import AIServiceError
 from interview_forge.db.ai_schema import ensure_ai_schema
+from interview_forge.db.tuning import configure_connection
+from interview_forge.runtime.shared import mutex
 
 _SCHEMA_DONE: set[str] = set()
 _SCHEMA_LOCK = threading.Lock()
@@ -277,11 +279,12 @@ def _open_ai_db(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path, timeout=10)
     connection.row_factory = sqlite3.Row
+    configure_connection(connection)
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
     schema_key = str(db_path.resolve())
     if schema_key not in _SCHEMA_DONE:
-        with _SCHEMA_LOCK:
+        with _SCHEMA_LOCK, mutex("schema", schema_key):
             if schema_key not in _SCHEMA_DONE:
                 ensure_ai_schema(connection)
                 _SCHEMA_DONE.add(schema_key)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from interview_forge.ai.runtime import facade
 from interview_forge.core.runtime import server_runtime
+from interview_forge.runtime import shared
 
 import json
 import queue
@@ -71,6 +72,7 @@ _AI_ACTIVE_TASKS: set[str] = set()
 _AI_PROCESS_ID = uuid.uuid4().hex
 _AI_CALL_CONDITION = threading.Condition()
 _AI_CALL_ACTIVE = 0
+_AI_SHARED_SLOTS: list[shared.FileLock] = []
 
 
 def _try_claim_model_slot(limit: int) -> bool:
@@ -79,6 +81,14 @@ def _try_claim_model_slot(limit: int) -> bool:
     with _AI_CALL_CONDITION:
         if _AI_CALL_ACTIVE >= max(1, int(limit)):
             return False
+        if shared.enabled():
+            for number in range(max(1, int(limit))):
+                slot = shared.FileLock("ai-model-slot", str(number))
+                if slot.acquire():
+                    _AI_SHARED_SLOTS.append(slot)
+                    break
+            else:
+                return False
         _AI_CALL_ACTIVE += 1
         return True
 
@@ -86,6 +96,8 @@ def _try_claim_model_slot(limit: int) -> bool:
 def _release_model_slot() -> None:
     global _AI_CALL_ACTIVE
     with _AI_CALL_CONDITION:
+        if _AI_SHARED_SLOTS:
+            _AI_SHARED_SLOTS.pop().release()
         _AI_CALL_ACTIVE = max(0, _AI_CALL_ACTIVE - 1)
         _AI_CALL_CONDITION.notify_all()
 
@@ -148,11 +160,13 @@ def recover_ai_tasks(db_path: Path) -> int:
     with closing(_open_ai_db(db_path)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute(
-            "SELECT task_id, fallback_json FROM ai_tasks WHERE status IN ('queued', 'running')"
+            "SELECT task_id, fallback_json, worker_id FROM ai_tasks WHERE status IN ('queued', 'running')"
         ).fetchall()
         for row in rows:
             task_id = str(row["task_id"])
             if task_id in active:
+                continue
+            if shared.enabled() and shared.process_alive(row["worker_id"]):
                 continue
             _release_ai_quota_reservation(connection, task_id)
             connection.execute(
@@ -483,6 +497,8 @@ def create_ai_task(
     if not re.fullmatch(r"[0-9a-f]{64}", snapshot_hash):
         raise AIServiceError("invalid_output", "分析上下文无效。", fallback=public_fallback)
     current_model_key = model_key(config)
+    if shared.enabled():
+        shared.register_process(_AI_PROCESS_ID)
     recover_ai_tasks(db_path)
     created = False
     task_id = ""
@@ -514,8 +530,8 @@ def create_ai_task(
             connection.execute(
                 """INSERT INTO ai_tasks(
                    task_id, task, status, snapshot_hash, prompt_version, model_key,
-                   created_at, context_preview, fallback_json
-                ) VALUES (?, 'learning_diagnosis', 'queued', ?, ?, ?, ?, ?, ?)""",
+                   created_at, context_preview, fallback_json, worker_id
+                ) VALUES (?, 'learning_diagnosis', 'queued', ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     task_id,
                     snapshot_hash,
@@ -524,6 +540,7 @@ def create_ai_task(
                     now,
                     full_context_json,
                     json.dumps(fallback, ensure_ascii=False, separators=(",", ":")),
+                    _AI_PROCESS_ID if shared.enabled() else None,
                 ),
             )
             if role != "admin":

@@ -1585,6 +1585,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hot 100 本地学习站")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--workers", type=int, default=os.environ.get("IF_SERVER_WORKERS", "1"),
+                        help="HTTP worker 数（1–16）；多 worker 自动启用同主机共享协调")
     parser.add_argument("--open", action="store_true", help="启动后打开浏览器")
     parser.add_argument("--init-only", action="store_true", help="仅初始化数据库")
     parser.add_argument("--quiet", action="store_true", help="不打印请求日志")
@@ -1593,6 +1595,10 @@ def main() -> None:
                              "该管理员尚无独立学习库，则自动把 data/hot100-study.db 迁移为其学习库")
     parser.add_argument("--admin-password", metavar="PASSWORD", help="与管理员用户名一起传入的初始密码")
     args = parser.parse_args()
+    if not 1 <= args.workers <= 16:
+        parser.error("--workers 必须是 1 到 16")
+    if args.workers > 1:
+        os.environ["IF_SHARED_RUNTIME"] = "1"
     QUIET = args.quiet
     # ---- 管理员引导（幂等）：创建账号并按需收编旧单用户库 ----
     adopted = False
@@ -1635,8 +1641,8 @@ def main() -> None:
         # compatibility adapter for direct tests and the legacy router, so
         # public URLs and cookie/static semantics stay unchanged.
         import uvicorn
-        from interview_forge.api.app import app
-        uvicorn.run(app, host=args.host, port=args.port,
+        uvicorn.run("interview_forge.api.app:app", host=args.host, port=args.port,
+                    workers=args.workers,
                     log_level="warning" if args.quiet else "info")
     except ImportError as exc:
         # A source checkout that has not installed requirements-server can

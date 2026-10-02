@@ -7,6 +7,7 @@ import hashlib
 import threading
 import time
 from pathlib import Path
+from interview_forge.runtime import shared
 
 # The cache singleton belongs to analytics.  The server facade re-exports
 # these exact objects for old tests and imports, so there is still only one
@@ -41,7 +42,10 @@ def _analytics_cache_key(db_path: Path, generation: int | None = None) -> str:
     if generation is None:
         with _ANALYTICS_CACHE_LOCK:
             generation = _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0)
-    return f"{_analytics_cache_prefix(resolved_path)}:g{int(generation)}"
+    suffix = ""
+    if shared.enabled():
+        suffix = ":db" + hashlib.sha256(repr(shared.db_signature(db_path)).encode()).hexdigest()
+    return f"{_analytics_cache_prefix(resolved_path)}:g{int(generation)}{suffix}"
 
 
 def _analytics_cache_has_path_locked(resolved_path: str) -> bool:
@@ -151,7 +155,9 @@ def analytics_cached(db_path: Path) -> dict[str, object]:
 
     with _ANALYTICS_CACHE_LOCK:
         _analytics_build_finished_locked(resolved_path)
-        if _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0) == generation:
+        if _ANALYTICS_CACHE_GENERATIONS.get(resolved_path, 0) == generation and (
+            not shared.enabled() or _analytics_cache_key(db_path, generation) == key
+        ):
             created_at = time.time()
             _prune_analytics_cache_locked(created_at)
             _ANALYTICS_CACHE[key] = (created_at, result)

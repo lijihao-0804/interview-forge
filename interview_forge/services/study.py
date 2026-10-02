@@ -408,9 +408,24 @@ def complete_round(
     }
 
 
+_SHARED_DASH_SIGNATURES: dict[str, tuple] = {}
+
+
 def dashboard_cached(db_path: Path) -> dict[str, object]:
     """带 60 秒缓存的仪表盘聚合；写操作后由调用方清缓存。"""
     key = str(Path(db_path).resolve())
+    from interview_forge.runtime import shared
+    if shared.enabled():
+        # Keep the existing cache owner/shape, but detect commits from siblings.
+        signature = shared.db_signature(db_path)
+        with _DASH_CACHE_LOCK:
+            previous = _SHARED_DASH_SIGNATURES.get(key)
+            if previous != signature:
+                _DASH_CACHE.pop(key, None)
+                _DASH_CACHE_GENERATIONS[key] = _DASH_CACHE_GENERATIONS.get(key, 0) + 1
+            _SHARED_DASH_SIGNATURES[key] = signature
+            if len(_SHARED_DASH_SIGNATURES) > 4096:
+                _SHARED_DASH_SIGNATURES.pop(next(iter(_SHARED_DASH_SIGNATURES)))
     now = time.time()
     with _DASH_CACHE_LOCK:
         generation = _DASH_CACHE_GENERATIONS.get(key, 0)
@@ -424,7 +439,9 @@ def dashboard_cached(db_path: Path) -> dict[str, object]:
         # A write/invalidation may have happened while the dashboard was
         # calculated outside the lock.  Returning this caller's result remains
         # valid, but an old snapshot must never repopulate the shared cache.
-        if _DASH_CACHE_GENERATIONS.get(key, 0) == generation:
+        if _DASH_CACHE_GENERATIONS.get(key, 0) == generation and (
+            not shared.enabled() or shared.db_signature(db_path) == signature
+        ):
             _DASH_CACHE[key] = (time.time(), data)
     return data
 

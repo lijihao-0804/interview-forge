@@ -1,7 +1,10 @@
 """Learning, review, dashboard, export and submission routes."""
 from __future__ import annotations
 
+import copy
+import os
 import time
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -20,6 +23,10 @@ from interview_forge.services.study import (
     problem_marks, problem_progress, set_mark, set_setting, today_plan, weaklist,
 )
 from interview_forge.analytics.cache import analytics_cached
+from interview_forge.runtime import shared
+from interview_forge.runtime.cache import bootstrap_cache
+from interview_forge.ai.config_store import AI_CONFIG_DB_PATH
+from interview_forge.core.runtime import server_runtime
 
 router = APIRouter()
 
@@ -76,6 +83,17 @@ def bootstrap(request: Request):
         return denied
     started = time.perf_counter()
     db = user_db(user)
+    cache_key = (str(Path(db).resolve()), str(user["username"]), str(user["role"]),
+                 server_runtime.now_iso()[:10]) if shared.enabled() else ()
+    def signature():
+        config_path = Path(os.environ.get("INTERVIEW_FORGE_AI_CONFIG_DB") or AI_CONFIG_DB_PATH)
+        return (shared.db_signature(db), shared.db_signature(Path(server_runtime.AUTH_DB_PATH)),
+                shared.db_signature(config_path))
+    before = signature() if shared.enabled() else ()
+    if shared.enabled():
+        cached = bootstrap_cache.get(cache_key, before)
+        if cached is not None:
+            return json_response(copy.deepcopy(cached))
     try:
         payload = {
             "dashboard": dashboard_cached(db),
@@ -114,6 +132,8 @@ def bootstrap(request: Request):
             request_id=str(getattr(request.state, "request_id", ""))[:96],
         )
     payload["capabilities"] = {"ai_coach": capability}
+    if shared.enabled() and capability is not unavailable_capability and signature() == before:
+        bootstrap_cache.put(cache_key, before, copy.deepcopy(payload))
     return json_response(payload)
 
 

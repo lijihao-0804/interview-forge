@@ -29,6 +29,7 @@ from interview_forge.core.paths import DB_PATH
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.logging import log_event
 from interview_forge.ai.config_store import decrypt_secret, encrypt_secret
+from interview_forge.runtime import shared
 
 
 LC_STATUS_TTL = 60.0
@@ -38,6 +39,19 @@ SYNC_TASKS: dict[str, dict[str, object]] = {}
 SYNC_TASKS_LOCK = threading.Lock()
 _SYNC_OWNER_LOCKS: dict[str, threading.Lock] = {}
 _SYNC_OWNER_LOCKS_GUARD = threading.Lock()
+_SHARED_OWNER_LOCKS: dict[str, shared.FileLock] = {}
+_SYNC_PROCESS_ID = uuid.uuid4().hex
+_SHARED_TASK_LOCKS: dict[str, shared.FileLock] = {}
+
+
+def _release_task_lease(task_id: str) -> None:
+    lease = _SHARED_TASK_LOCKS.pop(task_id, None)
+    if lease is not None:
+        lease.release()
+
+
+def _sync_task_alive(task_id: str, task: dict) -> bool:
+    return shared.process_alive(task.get("worker_id")) and shared.lock_held("leetcode-task", task_id)
 
 
 def _sync_owner_lock(owner: str) -> threading.Lock | None:
@@ -51,10 +65,24 @@ def _sync_owner_lock(owner: str) -> threading.Lock | None:
 def try_acquire_sync_owner(owner: str) -> bool:
     """Reserve one user's sync slot for direct or background execution."""
     lock = _sync_owner_lock(owner)
-    return lock is None or lock.acquire(blocking=False)
+    if lock is not None and not lock.acquire(blocking=False):
+        return False
+    if shared.enabled() and owner:
+        lease = shared.FileLock("leetcode-owner", owner)
+        if not lease.acquire():
+            if lock is not None:
+                lock.release()
+            return False
+        with _SYNC_OWNER_LOCKS_GUARD:
+            _SHARED_OWNER_LOCKS[owner] = lease
+    return True
 
 
 def release_sync_owner(owner: str) -> None:
+    with _SYNC_OWNER_LOCKS_GUARD:
+        lease = _SHARED_OWNER_LOCKS.pop(owner, None)
+    if lease is not None:
+        lease.release()
     lock = _sync_owner_lock(owner)
     if lock is not None and lock.locked():
         lock.release()
@@ -647,7 +675,12 @@ def start_leetcode_sync_task(
     # Check and insert are one atomic operation.  The task manager remains the
     # source of truth; this only prevents duplicate work for one owner.
     with SYNC_TASKS_LOCK:
-        for existing_id, existing in SYNC_TASKS.items():
+        candidates = shared.sync_states(owner) if shared.enabled() else SYNC_TASKS
+        for existing_id, existing in candidates.items():
+            if shared.enabled() and existing.get("running") and not _sync_task_alive(existing_id, existing):
+                existing.update(running=False, error="服务重启后同步已结束，请重试",
+                                error_category="cancelled", finished_at=runtime.now_iso())
+                shared.save_sync_state(existing_id, existing)
             if str(existing.get("owner", "")) == owner and bool(existing.get("running")):
                 if bool(existing.get("full")) == bool(full):
                     reused_task_id = str(existing_id)
@@ -674,6 +707,20 @@ def start_leetcode_sync_task(
                 "started_at": None, "finished_at": None,
             }
             SYNC_TASKS[task_id] = task
+            if shared.enabled():
+                try:
+                    shared.register_process(_SYNC_PROCESS_ID)
+                    lease = shared.FileLock("leetcode-task", task_id)
+                    if not lease.acquire():
+                        raise RuntimeError("duplicate task identity")
+                    _SHARED_TASK_LOCKS[task_id] = lease
+                    task["worker_id"] = _SYNC_PROCESS_ID
+                    shared.save_sync_state(task_id, task)
+                except BaseException:
+                    SYNC_TASKS.pop(task_id, None)
+                    _release_task_lease(task_id)
+                    release_sync_owner(owner)
+                    raise
 
     if reused_task_id is not None:
         _safe_log_event(
@@ -691,6 +738,8 @@ def start_leetcode_sync_task(
             logs = task["logs"]
             if isinstance(logs, list):
                 logs.append({"text": text, "at": runtime.now_parts()[0]})
+                if shared.enabled():
+                    shared.save_sync_state(task_id, task)
 
     def worker() -> None:
         nonlocal started_monotonic
@@ -701,6 +750,8 @@ def start_leetcode_sync_task(
             owner=owner, full=bool(full), duration_ms=0,
         )
         try:
+            if shared.enabled():
+                shared.save_sync_state(task_id, task)
             if task["offset"]:
                 result = runtime.leetcode_sync(
                     credentials, db_path=db_path, full=full, offset=task["offset"], progress=progress
@@ -738,7 +789,12 @@ def start_leetcode_sync_task(
                     degraded_category = task.get("degraded_category")
                     finished_at = str(task.get("finished_at") or runtime.now_iso())
                     duration_ms = int((time.monotonic() - started_monotonic) * 1000) if started_monotonic is not None else None
-                    release_sync_owner(owner)
+                    try:
+                        if shared.enabled():
+                            shared.save_sync_state(task_id, task)
+                    finally:
+                        release_sync_owner(owner)
+                        _release_task_lease(task_id)
                     action_id_value = str(task.get("action_id") or "")
                 if partial:
                     event = "leetcode_sync_partial"
@@ -768,7 +824,18 @@ def start_leetcode_sync_task(
                     finished_at=finished_at,
                 )
 
-    threading.Thread(target=worker, daemon=True).start()
+    try:
+        threading.Thread(target=worker, daemon=True).start()
+    except BaseException:
+        task.update(running=False, error="同步任务启动失败，请重试", error_category="server_error",
+                    finished_at=runtime.now_iso())
+        try:
+            if shared.enabled():
+                shared.save_sync_state(task_id, task)
+        finally:
+            release_sync_owner(owner)
+            _release_task_lease(task_id)
+        raise
     with SYNC_TASKS_LOCK:
         completed = [tid for tid, item in SYNC_TASKS.items() if not item["running"]]
         for tid in completed[:-10]:
@@ -779,9 +846,13 @@ def start_leetcode_sync_task(
 def sync_task_status(task_id: str, owner: str = "") -> dict[str, object] | None:
     runtime = server_runtime
     with SYNC_TASKS_LOCK:
-        task = SYNC_TASKS.get(task_id)
+        task = shared.sync_states(owner).get(task_id) if shared.enabled() else SYNC_TASKS.get(task_id)
         if task is None or str(task.get("owner", "")) != owner:
             return None
+        if shared.enabled() and task.get("running") and not _sync_task_alive(task_id, task):
+            task.update(running=False, error="服务重启后同步已结束，请重试", error_category="cancelled",
+                        finished_at=runtime.now_iso())
+            shared.save_sync_state(task_id, task)
         return {
             "task_id": task_id, "running": bool(task["running"]),
             "logs": list(task["logs"]), "result": task["result"],
@@ -795,7 +866,12 @@ def admin_list_sync_tasks() -> list[dict[str, object]]:
     """Return a credential-free projection of process-local sync tasks."""
     with SYNC_TASKS_LOCK:
         items: list[dict[str, object]] = []
-        for task_id, task in SYNC_TASKS.items():
+        candidates = shared.sync_states() if shared.enabled() else SYNC_TASKS
+        for task_id, task in candidates.items():
+            if shared.enabled() and task.get("running") and not _sync_task_alive(task_id, task):
+                task.update(running=False, error="服务重启后同步已结束，请重试", error_category="cancelled",
+                            finished_at=server_runtime.now_iso())
+                shared.save_sync_state(task_id, task)
             logs = task.get("logs")
             items.append({
                 "task_id": str(task_id),
