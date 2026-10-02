@@ -89,7 +89,7 @@ def fsrs_review(
     difficulty: float | None = None,
     last_review_date: date | None = None,
     lapses: int = 0,
-    desired_retention: float = FSRS_DESIRED_RETENTION,
+    desired_retention: float,
 ) -> dict[str, float | int | str]:
     """Apply one FSRS-4.5 rating and return the updated memory state."""
     grade = _validate_rating(rating)

@@ -23,7 +23,6 @@ from typing import Any
 from interview_forge.core.paths import DB_PATH, ROOT
 from interview_forge.core.runtime import server_runtime
 from interview_forge.services.review import (
-    FSRS_DESIRED_RETENTION,
     FSRS_RATINGS,
     FSRS_VERSION,
     fsrs_review,
@@ -185,7 +184,7 @@ def _apply_review_rating(
     target_id: str,
     rating: int,
     reviewed_at: str,
-    desired_retention: float = FSRS_DESIRED_RETENTION,
+    desired_retention: float,
 ) -> dict[str, object]:
     """Atomically advance the FSRS card and append its auditable rating log."""
     if target_type not in {"problem", "content"}:
@@ -325,7 +324,7 @@ def complete_round(
     problem_id: int,
     db_path: Path = DB_PATH,
     rating: int = 3,
-    desired_retention: float = FSRS_DESIRED_RETENTION,
+    desired_retention: float | None = None,
 ) -> dict[str, object]:
     """兼容旧面板的手动完成接口，并写入 AC 语义的 submissions 读模型。
 
@@ -336,6 +335,8 @@ def complete_round(
     """
     if problem_id not in PROBLEM_BY_ID:
         raise ValueError("未知题号")
+    if desired_retention is None:
+        desired_retention = server_runtime.get_fsrs_desired_retention()
     studied_at, study_date = server_runtime.now_parts()
     with closing(server_runtime.connect(db_path)) as connection:
         # BEGIN IMMEDIATE：立刻拿写锁，"取下一轮次 + 插入"在同一事务内原子完成，
@@ -734,11 +735,13 @@ def complete_content(
     content_id: str,
     db_path: Path = DB_PATH,
     rating: int = 3,
-    desired_retention: float = FSRS_DESIRED_RETENTION,
+    desired_retention: float | None = None,
 ) -> dict[str, object]:
     """书架章节"完成一轮"：轮次自增 + 写库（事务内原子完成），返回下次到期日。"""
     if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
+    if desired_retention is None:
+        desired_retention = server_runtime.get_fsrs_desired_retention()
     studied_at, study_date = server_runtime.now_parts()
     duplicate_round: int | None = None
     with closing(server_runtime.connect(db_path)) as connection:

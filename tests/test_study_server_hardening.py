@@ -35,6 +35,7 @@ class StudyServerHardeningTests(unittest.TestCase):
             patch.object(server, "PROBLEM_BY_ID", self.catalog),
             patch.object(server, "now_parts", return_value=("2026-09-07T12:00:00+08:00", "2026-09-07")),
             patch.object(server, "_invalidate_learning_caches"),
+            patch.object(server, "get_fsrs_desired_retention", return_value=0.9),
         ]
         for item in self.patches:
             item.start()
@@ -100,6 +101,30 @@ class StudyServerHardeningTests(unittest.TestCase):
             self.assertEqual(connection.execute("SELECT rating FROM review_logs").fetchone()[0], 1)
         finally:
             connection.close()
+
+    def test_default_review_retention_reads_current_admin_setting(self) -> None:
+        with patch.object(server, "get_fsrs_desired_retention", return_value=0.95):
+            problem = server.complete_round(1, self.db_path, rating=4)
+            with patch.object(server, "valid_content", return_value=True):
+                content = server.complete_content("module", "module:01", self.db_path, rating=4)
+        self.assertEqual(problem["interval_days"], 6)
+        self.assertEqual(content["interval_days"], 6)
+
+    def test_content_duplicate_rating_preserves_card_and_review_log(self) -> None:
+        with patch.object(server, "valid_content", return_value=True):
+            first = server.complete_content("module", "module:01", self.db_path, rating=1)
+            duplicate = server.complete_content("module", "module:01", self.db_path, rating=4)
+        self.assertTrue(duplicate["already_reviewed_today"])
+        for field in ("rating", "next_due", "stability", "difficulty", "reps", "lapses"):
+            self.assertEqual(first[field], duplicate[field])
+        with server.closing(sqlite3.connect(self.db_path)) as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM review_logs").fetchone()[0], 1)
+
+    def test_explicit_retention_keeps_request_snapshot(self) -> None:
+        with patch.object(server, "get_fsrs_desired_retention", return_value=0.95) as read_setting:
+            result = server.complete_round(1, self.db_path, rating=4, desired_retention=0.9)
+        read_setting.assert_not_called()
+        self.assertEqual(result["interval_days"], 14)
 
     def test_legacy_complete_populates_ac_model_and_deduplicates_same_day_round(self) -> None:
         with patch.object(server, "complete_content", return_value={}):

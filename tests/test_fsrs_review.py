@@ -25,20 +25,21 @@ class FSRSReviewTests(unittest.TestCase):
         self.assertEqual(fsrs_interval(10), 10)
 
     def test_review_updates_due_date_and_records_rating(self):
-        result = fsrs_review(rating=4, today=date(2026, 9, 29))
+        result = fsrs_review(rating=4, today=date(2026, 9, 29), desired_retention=0.9)
         self.assertEqual(result["rating_name"], "easy")
         self.assertEqual(result["due_date"], "2026-10-13")
         self.assertEqual(result["scheduled_days"], 14)
         self.assertEqual(result["lapses"], 0)
 
     def test_again_increments_lapse_and_never_schedules_zero_days(self):
-        result = fsrs_review(rating=1, today=date(2026, 9, 29))
+        result = fsrs_review(rating=1, today=date(2026, 9, 29), desired_retention=0.9)
         self.assertEqual(result["scheduled_days"], 1)
         self.assertEqual(result["due_date"], "2026-09-30")
         self.assertEqual(result["lapses"], 1)
 
     def test_existing_card_uses_elapsed_time_and_rating(self):
         base = fsrs_review(
+            desired_retention=0.9,
             rating=3,
             today=date(2026, 9, 29),
             stability=10,
@@ -46,6 +47,7 @@ class FSRSReviewTests(unittest.TestCase):
             last_review_date=date(2026, 9, 19),
         )
         again = fsrs_review(
+            desired_retention=0.9,
             rating=1,
             today=date(2026, 9, 29),
             stability=10,
@@ -58,7 +60,7 @@ class FSRSReviewTests(unittest.TestCase):
 
     def test_invalid_rating_is_rejected(self):
         with self.assertRaises(ValueError):
-            fsrs_review(rating=5, today=date(2026, 9, 29))
+            fsrs_review(rating=5, today=date(2026, 9, 29), desired_retention=0.9)
 
 
 if __name__ == "__main__":
