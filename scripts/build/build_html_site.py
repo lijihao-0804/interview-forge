@@ -2344,7 +2344,7 @@ def render_markdown(source: Path) -> None:
     ai_launcher_href = ai_asset_base + "/ai-launcher.js?v=3"
     policy_href = ai_asset_base + "/navigation-policy.js?v=2"
     ui_href = web_rel(output, ROOT / "assets" / "ui.js") + f"?v={ASSET_VERSION}"
-    progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + f"?v={ASSET_VERSION}"
+    progress_css_href = web_rel(output, ROOT / "assets" / "solution-progress.css") + "?v=20261009-static"
     progress_js_href = web_rel(output, ROOT / "assets" / "solution-progress.js") + f"?v={ASSET_VERSION}"
     root_href = web_rel(output, ROOT / "index.html")
     cockpit_href = web_rel(output, ROOT / "cockpit.html")

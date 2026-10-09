@@ -8,6 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActionListFollowupTests(unittest.TestCase):
+    def test_solution_progress_is_not_a_floating_overlay(self):
+        css = (ROOT / "assets" / "solution-progress.css").read_text(encoding="utf-8")
+        builder = (ROOT / "scripts" / "build" / "build_html_site.py").read_text(encoding="utf-8")
+        self.assertNotRegex(css, r"\.solution-progress\s*\{[^}]*position\s*:\s*(?:sticky|fixed)")
+        self.assertNotRegex(css, r"\.solution-progress\s*\{[^}]*z-index\s*:")
+        self.assertIn('"?v=20261009-static"', builder)
+
     def test_solution_progress_has_lazy_ac_history_and_safe_date_rendering(self):
         builder = (ROOT / "scripts" / "build" / "build_html_site.py").read_text(encoding="utf-8")
         script = (ROOT / "assets" / "solution-progress.js").read_text(encoding="utf-8")
