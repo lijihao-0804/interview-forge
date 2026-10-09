@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
 import statistics
 import sys
@@ -69,10 +70,37 @@ def summarize(latencies_ms: list[float], errors: int, status_counts: dict[int, i
 
 
 # ---------------------------------------------------------------- 客户端 ----
+class ShardedTransport(httpx.AsyncBaseTransport):
+    """Bound each httpcore pool; keep one client/cookie jar and a fixed budget.
+
+    One large httpcore pool spends excessive CPU scanning connections on every
+    assignment. Sharding improves the generator, not the target's capacity.
+    The generator is still single-process and must be independently calibrated.
+    """
+    def __init__(self, max_connections: int):
+        if max_connections < 1:
+            raise ValueError("max_connections must be positive")
+        shards = min(8, math.ceil(max_connections / 25))
+        base, remainder = divmod(max_connections, shards)
+        self.budgets = [base + (index < remainder) for index in range(shards)]
+        self.transports = [httpx.AsyncHTTPTransport(
+            trust_env=False, limits=httpx.Limits(max_connections=budget,
+                                              max_keepalive_connections=budget))
+            for budget in self.budgets]
+        self.cursor = 0
+
+    async def handle_async_request(self, request):
+        transport = self.transports[self.cursor % len(self.transports)]
+        self.cursor += 1
+        return await transport.handle_async_request(request)
+
+    async def aclose(self):
+        await asyncio.gather(*(transport.aclose() for transport in self.transports))
+
+
 async def build_client(target: str, max_connections: int) -> httpx.AsyncClient:
-    limits = httpx.Limits(max_connections=max_connections,
-                          max_keepalive_connections=max_connections)
-    return httpx.AsyncClient(base_url=target, limits=limits, timeout=httpx.Timeout(15.0),
+    return httpx.AsyncClient(base_url=target, transport=ShardedTransport(max_connections),
+                             trust_env=False, timeout=httpx.Timeout(15.0),
                              headers={"User-Agent": TEST_UA}, follow_redirects=False)
 
 
@@ -119,6 +147,7 @@ async def run_stage(client: httpx.AsyncClient, path: str, vus: int, seconds: flo
     statuses: dict[int, int] = {}
     bytes_counter = [0]
     started = time.monotonic()
+    cpu_started = time.process_time()
     stop_at = started + seconds
     await asyncio.gather(*[
         hammer(client, path, stop_at, latencies, errors, statuses, bytes_counter, headers)
@@ -128,6 +157,8 @@ async def run_stage(client: httpx.AsyncClient, path: str, vus: int, seconds: flo
     summary = summarize(latencies, len(errors), statuses, duration, bytes_counter[0])
     summary["vus"] = vus
     summary["duration_s"] = round(duration, 1)
+    summary["generator_cpu_s"] = round(time.process_time() - cpu_started, 3)
+    summary["generator_one_core_pct"] = round((time.process_time() - cpu_started) / duration * 100, 1)
     return summary
 
 
@@ -418,6 +449,7 @@ def main() -> None:
     parser.add_argument("--duration", type=float, default=30, help="decompose 每路径持续秒数")
     parser.add_argument("--out", default="", help="结果 JSON 输出路径")
     args = parser.parse_args()
+    print("注意：这是客户端闭环测量，不是服务容量证明；需校准发压端CPU、连接池及网络。", file=sys.stderr)
 
     runner = {"baseline": scenario_baseline, "ramp": scenario_ramp, "mixed": scenario_mixed,
               "decompose": scenario_decompose}[args.scenario]
