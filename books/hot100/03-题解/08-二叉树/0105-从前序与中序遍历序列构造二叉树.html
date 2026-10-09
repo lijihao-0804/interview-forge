@@ -56,9 +56,44 @@
 </blockquote>
 <h2 id="_3">完整推导</h2>
 <h3 id="_4">思路推导</h3>
-<ol>
-<li><strong>直觉与痛点（两份线索的作用分别是什么？）</strong>：</li>
-</ol>
+<p><strong>1. 直觉与痛点（两份线索的作用分别是什么？）</strong></p>
+<p>只看前序遍历，我们能确定“谁先当根”，却不知道根的左边有多少节点、右边有多少节点；只看中序遍历，虽然根一旦确定就能用它把序列切成左右两半，但中序本身没有告诉我们根是谁。单独一份线索都不够：前序给出<strong>根的身份和访问顺序</strong>，中序给出<strong>左右子树的边界</strong>。</p>
+<p>把两份线索放在一起，就能逐层还原：前序区间的第一个值是当前子树的根；去中序中找到这个值，它左边的部分就是左子树，右边的部分就是右子树。题目保证节点值不重复，所以根在中序里的位置唯一，左右边界也就唯一。</p>
+<p><strong>2. 拿示例走一遍（先定根，再切左右）</strong></p>
+<p>例如：</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>preorder = [3, 9, 20, 15, 7]
+inorder  = [9, 3, 15, 20, 7]
+</code></pre></div>
+<ul>
+<li>前序第一个值 <code>3</code> 是整棵树的根。在中序中找到 <code>3</code>，它左边是 <code>[9]</code>，右边是 <code>[15, 20, 7]</code>。因此左子树有 1 个节点，右子树有 3 个节点。</li>
+<li>前序中紧跟在根后面的 1 个值属于左子树，所以左子树的前序是 <code>[9]</code>；剩余的 <code>[20, 15, 7]</code> 属于右子树。</li>
+<li>对右子树重复同一过程：它的前序第一个值 <code>20</code> 是根；在对应的中序部分 <code>[15, 20, 7]</code> 中，<code>20</code> 左边是 <code>[15]</code>，右边是 <code>[7]</code>。</li>
+</ul>
+<p>最终得到：</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>    3
+   / \
+  9  20
+     / \
+    15  7
+</code></pre></div>
+<p><strong>3. 破局思路（用区间代表一棵子树）</strong></p>
+<p>递归函数不必真的复制出新的前序、中序子数组，只需分别记录这棵子树在两个数组中的闭区间：<code>[preStart, preEnd]</code> 和 <code>[inStart, inEnd]</code>。这样每次递归只传几个下标，不会反复切片、复制数组。</p>
+<ul>
+<li><strong>定根</strong>：当前子树的根是 <code>preorder[preStart]</code>。</li>
+<li><strong>找边界</strong>：用哈希表查出根在中序中的位置 <code>inRoot</code>。<code>inStart</code> 到 <code>inRoot - 1</code> 是左子树，<code>inRoot + 1</code> 到 <code>inEnd</code> 是右子树。</li>
+<li><strong>算左子树节点数</strong>：<code>leftSize = inRoot - inStart</code>。前序里根后面的 <code>leftSize</code> 个元素属于左子树，剩下的属于右子树。</li>
+<li><strong>递归并接回指针</strong>：左、右两边分别按各自对应的前序区间和中序区间继续构造，返回的节点接到 <code>root.left</code>、<code>root.right</code>。</li>
+<li><strong>停止条件</strong>：若区间为空（起点大于终点），说明这边没有节点，返回 <code>null</code>。</li>
+</ul>
+<p>把区间边界写出来，能避免最容易错的“前序切分下标”：</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>左子树 preorder: [preStart + 1,             preStart + leftSize]
+左子树 inorder:  [inStart,                  inRoot - 1]
+右子树 preorder: [preStart + leftSize + 1,  preEnd]
+右子树 inorder:  [inRoot + 1,               inEnd]
+</code></pre></div>
+<p>这里有个重要对应关系：<strong>前序区间中，根后面的左子树节点数，必须与中序根左侧的节点数相同</strong>。两边区间长度相等，递归拿到的才是同一棵子树的两份遍历线索。</p>
+<p><strong>4. 逻辑推演（为什么哈希表能把复杂度降到 <span aria-label="O(N)" class="plain-math">O(N)</span>）</strong></p>
+<p>如果每次都从中序区间里顺序查找根，树越偏斜，反复查找的总成本越高，最坏会到 <span aria-label="O(N^2)" class="plain-math">O(N<sup>2</sup>)</span>。先把“节点值 → 中序下标”放进 <code>HashMap</code>，每个根的位置就能平均 <span aria-label="O(1)" class="plain-math">O(1)</span> 查到；之后每个节点只创建、处理一次，整体时间为 <span aria-label="O(N)" class="plain-math">O(N)</span>。哈希表占 <span aria-label="O(N)" class="plain-math">O(N)</span>，递归栈占 <span aria-label="O(H)" class="plain-math">O(H)</span>（<code>H</code> 是树高），总空间为 <span aria-label="O(N)" class="plain-math">O(N)</span>。</p>
 <div class="lang-section" data-lang="java"><h3 id="java-on">Java 实现（哈希表 <span aria-label="O(N)" class="plain-math">O(N)</span> 优化版）</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
