@@ -99,7 +99,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
-LIBRARY_STYLE_VERSION = "20261010-reader-fit"
+LIBRARY_STYLE_VERSION = "20261010-hot100-layout"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -435,15 +435,15 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .search-snippet{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}.search-snippet mark{padding:0 2px;border-radius:3px;color:var(--text);background:color-mix(in srgb,var(--warning) 28%,var(--panel))}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
-/* ===== 书架阅读：专题导航 / 收窄正文 / 本页目录 ===== */
-.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start;width:calc(100% - 40px);max-width:1760px;margin-inline:auto}
-.chapter-shell.has-page-toc{max-width:1360px}
-.chapter-shell.no-page-toc{max-width:1100px}
-.chapter-shell>.topbar{grid-column:1/-1;margin-bottom:0}
-.chapter-shell>.reader{grid-column:2;width:100%;max-width:1120px;min-width:0;padding:clamp(22px,2.8vw,40px)}
-.chapter-shell.no-page-toc>.reader{max-width:860px}
-.shelf-topic-rail{position:sticky;top:14px;grid-column:1;min-width:0;max-height:calc(100vh - 28px);overflow:hidden;padding:13px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
-.shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--text);font-size:13px;font-weight:700;list-style:none}
+/* ===== 书架阅读：复用 Hot100 题解页的三栏骨架 ===== */
+.chapter-shell.site-shell-cols{display:grid;grid-template-columns:216px minmax(0,1fr) 232px;gap:20px;align-items:start;width:calc(100% - 400px);margin:0 auto;padding:20px 0 56px}
+.chapter-shell.site-shell-cols>.topbar{grid-column:1/-1;margin-bottom:0}
+.chapter-shell.site-shell-cols>.reader{grid-column:2;width:100%;max-width:none;min-width:0;padding:clamp(32px,4vw,56px)}
+.chapter-shell .shelf-topic-rail,.chapter-shell .sol-rail-right{position:sticky;top:14px;min-width:0;max-height:calc(100vh - 32px);overflow:auto;padding:14px 12px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
+.chapter-shell .shelf-topic-rail{grid-column:1;overflow:hidden}
+.chapter-shell .sol-rail-right{grid-column:3}
+.chapter-shell .sol-rail-title{margin:0 0 9px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em}
+.shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:700;list-style:none}
 .shelf-topic-rail summary::-webkit-details-marker{display:none}
 .shelf-topic-count{flex:none;color:var(--muted);font-size:11px;font-weight:500}
 .shelf-topic-links{max-height:calc(100vh - 83px);margin-top:9px;overflow:auto}
@@ -452,26 +452,33 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .shelf-topic-link.current{color:var(--brand);background:var(--brand-soft);font-weight:700}
 .shelf-topic-number{flex:none;font-variant-numeric:tabular-nums;opacity:.8}
 .shelf-topic-label{min-width:0;overflow-wrap:anywhere}
-.reader-grid{width:100%;max-width:1000px;margin-inline:0}
-.reader-grid.has-otp{grid-template-columns:minmax(0,780px) 190px;gap:20px}
-.reader-body{width:100%;min-width:0;max-width:780px}
+.chapter-shell .reader-grid{display:block;width:100%;max-width:none;margin:0}
+.chapter-shell .reader-body{width:100%;min-width:0;max-width:none}
+.chapter-shell .sol-rail-right .toc ul{list-style:none;margin:0;padding:0}
+.chapter-shell .sol-rail-right .toc li{margin:3px 0}
+.chapter-shell .sol-rail-right .toc a{display:block;padding:3px 8px;border-radius:6px;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.chapter-shell .sol-rail-right .toc a:hover{color:var(--text);background:var(--soft);text-decoration:none}
+.chapter-shell .sol-rail-right .toc a.active{color:var(--brand);background:var(--brand-soft);font-weight:650}
+.chapter-shell .sol-rail-right .toc li.lv3 a{padding-left:20px;font-size:12px}
+.chapter-shell .toc-empty{padding:4px 8px;color:var(--muted);font-size:12px}
 .reader-body img,.reader-body video{width:auto;max-width:min(100%,680px);max-height:min(72vh,720px);object-fit:contain}
-@media(max-width:1280px){
- .chapter-shell{grid-template-columns:minmax(0,1fr)}
- .chapter-shell.no-page-toc{max-width:900px}
- .chapter-shell>.topbar,.chapter-shell>.reader,.chapter-shell>.shelf-topic-rail{grid-column:1}
+@media(max-width:1440px){
+ .chapter-shell.site-shell-cols{width:calc(100% - 100px);grid-template-columns:minmax(0,1fr) 232px}
+ .chapter-shell>.shelf-topic-rail{display:none}
+ .chapter-shell.site-shell-cols>.reader{grid-column:1}
+ .chapter-shell .sol-rail-right{grid-column:2}
+}
+@media(max-width:1150px){
+ .chapter-shell.site-shell-cols{width:calc(100% - 40px);grid-template-columns:minmax(0,1fr)}
+ .chapter-shell>.shelf-topic-rail{display:block}
+ .chapter-shell .sol-rail-right{display:none}
+ .chapter-shell>.reader,.chapter-shell>.shelf-topic-rail{grid-column:1}
  .chapter-shell>.reader{padding:clamp(20px,3vw,36px)}
  .shelf-topic-rail{position:static;max-height:none}
  .shelf-topic-links{max-height:min(280px,40vh)}
- .reader-grid.has-otp{grid-template-columns:minmax(0,1fr)}
- .reader-grid .otp{position:static;order:-1;max-height:190px}
-}
-@media(max-width:900px){
- .reader-grid.has-otp{grid-template-columns:minmax(0,1fr)}
- .otp{position:static;order:-1;width:100%;max-width:780px;max-height:190px}
 }
 @media(max-width:640px){
- .chapter-shell{width:calc(100% - 20px);gap:12px}
+ .chapter-shell.site-shell-cols{width:calc(100% - 20px);gap:12px}
  .chapter-shell>.reader{padding:20px 14px 30px}
  .shelf-topic-rail{padding:10px 12px}
  .reader-body img,.reader-body video{max-width:min(100%,560px);max-height:65vh}
@@ -1012,12 +1019,27 @@ def chapter_topic_navigation(raw_chapters: list[dict[str, object]], current_inde
 
 
 def apply_chapter_reader_layout(reader: str, topic_navigation: str) -> str:
-    """Attach the responsive topic rail to the generated chapter page shell."""
-    has_page_toc = re.search(r'class="reader-grid[^\"]*\bhas-otp\b', reader) is not None
-    shell_class = "chapter-shell has-page-toc" if has_page_toc else "chapter-shell no-page-toc"
+    """Attach the topic rail and Hot100-style three-column shell to a chapter page."""
+    shell_class = "chapter-shell site-shell-cols"
     reader = reader.replace('<div class="shell">', f'<div class="shell {shell_class}">', 1)
     reader = reader.replace('\n <main class="reader"', f'\n{topic_navigation}\n <main class="reader"', 1)
-    return reader.replace('class="reader-grid', 'class="reader-grid has-topic', 1)
+    reader = re.sub(r'class="reader-grid[^\"]*"', 'class="reader-grid"', reader, count=1)
+    right_rail = re.search(
+        r'<aside class="sol-rail sol-rail-right shelf-page-rail".*?</aside>',
+        reader,
+        flags=re.DOTALL,
+    )
+    if right_rail:
+        rail_html = right_rail.group(0)
+        reader = reader[: right_rail.start()] + reader[right_rail.end() :]
+    else:
+        rail_html = (
+            '<aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录">'
+            '<div class="sol-rail-title">本页目录</div>'
+            '<div class="toc"><ul><li class="toc-empty">本页暂无小节</li></ul></div></aside>'
+        )
+    reader = reader.replace('</main></div>', f'</main>{rail_html}</div>', 1)
+    return reader
 
 
 # 摘要文本清洗(章节摘要/模块简介共用)：剥掉 markdown 图片语法、链接只留显示
@@ -1680,16 +1702,22 @@ def build() -> None:
             # problem_id)，导出本章按钮的处理逻辑也在其中；接口不可达时提示
             # 当前无法连接学习服务。所有线上请求都必须有超时，避免页面按钮永久卡住。
             # On This Page：从渲染后的标题（toc 扩展已生成 id）提取 h2/h3 目录；
-            # 无标题的章节不渲染目录区，正文独占整行。
+            # 与 Hot100 题解页一致，右栏始终保留，无标题时显示轻量占位。
             otp_items = re.findall(r'<h([23]) id="([^"]+)"[^>]*>(.*?)</h\1>', content)
-            otp_html = ""
             if otp_items:
                 lis = "".join(
                     f'<li class="lv{level}"><a href="#{hid}">{re.sub("<[^>]+>", "", text).replace("*", "")}</a></li>'
                     for level, hid, text in otp_items
                 )
-                otp_html = f'<nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul>{lis}</ul></nav>'
-            otp_class = " has-otp" if otp_html else ""
+            else:
+                lis = '<li class="toc-empty">本页暂无小节</li>'
+            otp_html = (
+                '<aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录">'
+                '<div class="sol-rail-title">本页目录</div><div class="toc"><ul>'
+                + lis
+                + "</ul></div></aside>"
+            )
+            otp_class = " has-otp" if otp_items else ""
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
  <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><nav id="readerSticky" class="reader-sticky" aria-label="阅读进度" hidden><span class="reader-sticky-title" title="{html.escape(raw_chapter['title'], quote=True)}">{html.escape(raw_chapter['title'])}</span><span id="readerStickyStatus" class="reader-sticky-status">正在读取学习记录…</span>{next_html}</nav><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
@@ -1704,7 +1732,7 @@ else{{var ta=document.createElement('textarea');ta.value=text;document.body.appe
 }});
 pre.appendChild(btn);
 }});
-var otpLinks=[].slice.call(document.querySelectorAll('.otp a[href^="#"]'));
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
 if(otpLinks.length){{var otpMap=new Map(otpLinks.map(function(a){{return [a.getAttribute('href').slice(1),a]}}));
 var io=new IntersectionObserver(function(es){{es.forEach(function(e){{if(e.isIntersecting){{otpLinks.forEach(function(a){{a.classList.remove('active')}});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}}}})}},{{rootMargin:'-12% 0px -78% 0px'}});
 otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe(h)}});}}
@@ -1758,9 +1786,9 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 reader = reader.replace(old_fragment, new_fragment, 1)
             sticky_script = """<script>(function(){var bar=document.getElementById('readerSticky'),marker=document.querySelector('.chapter-status'),summary=document.getElementById('readerStickyStatus'),status=document.getElementById('chapterStatus'),due=document.getElementById('chapterDue');if(!bar||!marker)return;var sync=function(){if(summary)summary.textContent=[status&&status.textContent,due&&due.textContent].filter(Boolean).join(' · ')};if(window.IntersectionObserver){var observer=new IntersectionObserver(function(entries){bar.hidden=entries[0].isIntersecting},{threshold:0});observer.observe(marker)}if(window.MutationObserver){var mutations=new MutationObserver(sync);if(status)mutations.observe(status,{childList:true,subtree:true,characterData:true});if(due)mutations.observe(due,{childList:true,subtree:true,characterData:true})}sync()})();</script>"""
             if 'id="readerSticky"' in reader:
-                if "</main></div>" not in reader:
+                if "</main>" not in reader:
                     raise RuntimeError("章节阅读页缺少 sticky 状态条注入锚点")
-                reader = reader.replace("</main></div>", "</main>" + sticky_script + "</div>", 1)
+                reader = reader.replace("</main>", "</main>" + sticky_script, 1)
             # Mermaid 依赖按需注入：只有正文含 .mermaid-diagram 的章节页才引入
             # mermaid 运行库与渲染驱动(library-mermaid.js)，其余页面零额外脚本；
             # 版本号统一带 ?v=ASSET_VERSION 便于缓存失效。
