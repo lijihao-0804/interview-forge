@@ -49,6 +49,17 @@
 <h2 id="_1">题目与约束</h2>
 <p>给定一个二叉树, 找到该树中两个指定节点 <code>p</code> 和 <code>q</code> 的最近公共祖先（LCA）。</p>
 <p><em>最近公共祖先定义</em>：“对于有根树 T 的两个节点 p、q，最近公共祖先表示为一个节点 x，满足 x 是 p、q 的祖先且 x 的深度尽可能大（一个节点也可以是它自己的祖先）。”</p>
+<p><strong>示例 1：</strong></p>
+<p><img alt="" decoding="async" loading="lazy" src="../../../../assets/leetcode/lc-e771e2536545b3.png"/></p>
+<p><strong>输入：</strong><code>root = [3,5,1,6,2,0,8,null,null,7,4]</code>，<code>p = 5</code>，<code>q = 1</code><br/>
+<strong>输出：</strong><code>3</code><br/>
+<strong>解释：</strong>节点 5 和节点 1 的最近公共祖先是节点 3。</p>
+<p><strong>示例 2：</strong></p>
+<p><img alt="" decoding="async" loading="lazy" src="../../../../assets/leetcode/lc-e771e2536545b3.png"/></p>
+<p><strong>输入：</strong><code>root = [3,5,1,6,2,0,8,null,null,7,4]</code>，<code>p = 5</code>，<code>q = 4</code><br/>
+<strong>输出：</strong><code>5</code><br/>
+<strong>解释：</strong>节点 5 是节点 4 的祖先；节点也可以是自己的祖先。</p>
+<p><strong>示例 3：</strong><code>root = [1,2]</code>，<code>p = 1</code>，<code>q = 2</code>，输出 <code>1</code>。</p>
 <p><a href="https://leetcode.cn/problems/lowest-common-ancestor-of-a-binary-tree/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
 <h2 id="_2">核心不变量</h2>
 <blockquote>
@@ -72,6 +83,17 @@
 <li><strong>逻辑推演（四种情报汇聚场景）</strong>：</li>
 </ol>
 <p>假设你是一个父节点，你的左小弟和右小弟分别给你汇报了情报（<code>left</code> 和 <code>right</code>）：</p>
+<ul>
+<li><strong>左右都有结果</strong>：<code>p</code>、<code>q</code> 分居当前节点两侧，当前节点就是最近公共祖先。更高层的祖先也包含二者，但深度更浅，不再是“最近”的那个。</li>
+<li><strong>只有左边有结果</strong>：将左侧结果原样向父节点返回。它可能是 <code>p</code>/<code>q</code> 本身，也可能已经是更低处确定的 LCA。</li>
+<li><strong>只有右边有结果</strong>：对称地把右侧结果继续向上返回。</li>
+<li><strong>两边都是 <code>null</code></strong>：当前子树没有目标，返回 <code>null</code>。</li>
+</ul>
+<p><strong>目标节点本身也要提前返回。</strong> 若当前节点就是 <code>p</code> 或 <code>q</code>，递归直接返回它。比如 <code>p</code> 是 <code>q</code> 的祖先，<code>p</code> 返回后会一路向上传递，而另一个目标在它的子树中；按题目定义，<code>p</code> 仍然是 LCA，因为节点可以是自己的祖先。题目保证两个目标都存在，因此不需要处理缺失目标的情况。</p>
+<ol start="4">
+<li><strong>拿示例走一遍</strong>：<code>p = 5, q = 1</code> 时，两个结果分别从根 3 的左右子树返回，3 处左右同时非空，答案为 3；<code>p = 5, q = 4</code> 时，节点 5 命中目标后向上传递，并成为包含节点 4 的子树结果，答案为 5。</li>
+</ol>
+<p>递归必须采用后序顺序，是因为当前节点要等左右子树先给出结果，才能判断是否在此汇合。每个节点最多访问一次，时间复杂度 <code>O(n)</code>；递归栈空间为 <code>O(h)</code>，<code>h</code> 为树高。</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现（极简后序遍历版）</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="cm">/**</span>
 <span class="cm"> * Definition for a binary tree node.</span>

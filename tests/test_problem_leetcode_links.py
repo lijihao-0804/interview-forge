@@ -11,7 +11,11 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from tools.build_hot100 import LEETCODE_BASE, LEETCODE_SLUGS, PROBLEMS, problem_filename
-from scripts.build.build_hot100 import split_problem_statement
+from scripts.build.build_hot100 import (
+    extract_original_sections,
+    normalize_original_body,
+    split_problem_statement,
+)
 
 
 class ProblemLeetCodeLinkTests(unittest.TestCase):
@@ -54,6 +58,51 @@ class ProblemLeetCodeLinkTests(unittest.TestCase):
                 if heading.get_text(" ", strip=True) == "题目与约束"
             ]
             self.assertEqual(len(html_headings), 1, html_path.name)
+
+    def test_examples_and_images_survive_statement_deduplication(self):
+        expected_examples = {105: 2, 124: 2, 236: 3, 437: 2, 994: 3}
+        source_sections = extract_original_sections()
+
+        for pid, example_count in expected_examples.items():
+            problem = next(item for item in PROBLEMS if int(item["id"]) == pid)
+            md_path = ROOT / "books" / "hot100" / "03-题解" / str(problem["folder"]) / problem_filename(problem)
+            markdown = md_path.read_text(encoding="utf-8")
+            statement_start = markdown.index("## 题目与约束")
+            statement_end = markdown.index("## 核心不变量", statement_start)
+            statement = markdown[statement_start:statement_end]
+            example_heading = r"(?m)^\s*(?:[-*]\s+)?\*\*示例\s+\d+：?\*\*"
+            self.assertEqual(len(re.findall(example_heading, statement)), example_count, md_path.name)
+
+            images = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", statement)
+            self.assertTrue(images, md_path.name)
+            for image in images:
+                self.assertTrue((ROOT / "assets" / "leetcode" / Path(image).name).is_file(), image)
+
+            source_variants = source_sections[pid]
+            self.assertTrue(source_variants, f"missing source for {pid}")
+            source_statement, _ = split_problem_statement(normalize_original_body(source_variants[0][1]))
+            self.assertEqual(len(re.findall(example_heading, source_statement)), example_count, f"source {pid}")
+
+            soup = BeautifulSoup(md_path.with_suffix(".html").read_text(encoding="utf-8"), "html.parser")
+            heading = next(h for h in soup.find_all("h2") if h.get_text(" ", strip=True) == "题目与约束")
+            section_nodes = []
+            sibling = heading.find_next_sibling()
+            while sibling and not (sibling.name == "h2" and sibling.get_text(" ", strip=True) == "核心不变量"):
+                section_nodes.append(sibling)
+                sibling = sibling.find_next_sibling()
+            rendered_statement = " ".join(node.get_text(" ", strip=True) for node in section_nodes)
+            self.assertEqual(len(re.findall(r"示例\s+\d+[:：]", rendered_statement)), example_count, md_path.name)
+            self.assertTrue(any(node.find("img") for node in section_nodes), md_path.with_suffix(".html").name)
+
+        tree_pages = {
+            105: "leftSize = inRoot - inStart",
+            124: "向上汇报一条支路",
+            236: "左右都有结果",
+        }
+        for pid, explanation in tree_pages.items():
+            problem = next(item for item in PROBLEMS if int(item["id"]) == pid)
+            md_path = ROOT / "books" / "hot100" / "03-题解" / str(problem["folder"]) / problem_filename(problem)
+            self.assertIn(explanation, md_path.read_text(encoding="utf-8"), md_path.name)
 
     def test_every_problem_reuses_its_own_safe_url_before_solution_and_at_end(self):
         for problem in PROBLEMS:
