@@ -117,6 +117,18 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn("都对应一个向量", search_entry["text"])
         self.assertNotIn("对应 一个向量", search_entry["text"])
 
+    def test_agent_mianjing_lora_code_renders_as_a_code_block(self):
+        generated = (ROOT / "library" / "agent-mianjing" / "chapter-14.html").read_text(encoding="utf-8")
+        sample_start = generated.index("<p>代码示例：</p>")
+        sample_end = generated.index("</div>", sample_start) + len("</div>")
+        rendered_sample = generated[sample_start:sample_end]
+
+        self.assertIn('class="codehilite" data-lang="python"', rendered_sample)
+        self.assertIn("LoRALinear", rendered_sample)
+        self.assertIn("language-python", rendered_sample)
+        self.assertNotIn("<table", rendered_sample)
+        self.assertNotIn("torch.nnas", generated)
+
 
 if __name__ == "__main__":
     unittest.main()

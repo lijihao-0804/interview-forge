@@ -833,11 +833,9 @@ LoRA 通过对权重更新做低秩分解，实现参数的高效表达。
 ![](images/agent面经.pdf-0057-00.png)
 
 
-具体而言，假设原权重矩阵为 W ，LoRA 并不直接更新 W，而是引入两个小矩阵 A 和 B，使得权重的增量更新满足：
+具体而言，假设原权重矩阵为 W ，LoRA 并不直接更新 W，而是引入两个小矩阵 A 和 B，使得权重的增量更新满足 `ΔW = B @ A`。若 W 将 d 维输入映射到 k 维输出，则 A 的形状为 `(r, d)`，B 的形状为 `(k, r)`：
 
-Δ _W_ = _A_ × _B_
-
-其中， _A_ ∈ R<sup>_d_×</sup><sup>_r_</sup> ， _B_ ∈ R<sup>_r_×</sup><sup>_k_</sup> ，且秩 _r_ ≪ _d_ , _k_ 训练过程中，仅优化这两个低秩矩阵参数，保持 _W_  不变，从而大幅减少可训练参数数量和计算资源。
+其中秩 `r ≪ min(d, k)`。训练过程中，仅优化这两个低秩矩阵参数，保持 W 不变，从而大幅减少可训练参数数量和计算资源。
 
 #### LoRA 训练详细步骤
 
@@ -856,38 +854,47 @@ for param in model.parameters():
 
 _Q_ = _XWQ_ , _K_ = _XWK_ , _V_ = _XWV_ LoRA 不直接训练原始权重 _WQ_  ，而是对其增量进行低秩分解：
 
-Δ _W_ = _BA Q_
+`ΔW_Q = B_Q @ A_Q`
 
 其中：
 
-• _A_  大小为 _d_ × _r_ （低秩矩阵），
+• `A_Q` 的形状为 `(r, d)`；
 
-• _B_  大小为 _r_ × _d_ ，
+• `B_Q` 的形状为 `(d, r)`；
 
 • _r_ ≪ _d_ ，大幅减少训练参数。
 
+下面按 PyTorch 的 `nn.Linear` 约定实现：`A.weight` 的形状是 `(rank, in_features)`，`B.weight` 的形状是 `(out_features, rank)`。因此合并到线性层权重时使用 `B.weight @ A.weight`。
+
 代码示例：
 
+```python
+import torch
+from torch import nn
 
-|1<br>2|`import torch.nnas nn`|
-|---|---|
-|3|`class LoRALinear(nn.Module):`|
-|4|`def __init__(self, in_features, out_features, rank=4, alpha=32):`|
-|5|`super().__init__()`|
-|6|`self.rank = rank`|
-|7|`self.alpha = alpha`|
-|8||
-|9|`self.W = nn.Linear(in_features, out_features, bias=False)`|
-|10|`self.W.requires_grad_(False)# `冻结原权重|
-|11||
-|12|`self.A = nn.Linear(in_features, rank, bias=False)# d × r`|
-|13|`self.B = nn.Linear(rank, out_features, bias=False)# r × d`|
-|14||
-|15|`nn.init.kaiming_uniform_(self.A.weight, a=5**0.5)`|
-|16|`nn.init.zeros_(self.B.weight)# B`零初始化，防止扰动原始权重|
-|17||
-|18|`def forward(self, x):`|
-|19|`return self.W(x) + self.alpha * self.B(self.A(x))`|
+
+class LoRALinear(nn.Module):
+    def __init__(self, in_features, out_features, rank=4, alpha=32):
+        super().__init__()
+        if rank <= 0:
+            raise ValueError("rank must be positive")
+
+        self.rank = rank
+        self.scaling = alpha / rank
+
+        self.W = nn.Linear(in_features, out_features, bias=False)
+        self.W.requires_grad_(False)  # 冻结原始权重
+
+        # nn.Linear.weight 的形状分别是 (rank, in_features) 和 (out_features, rank)
+        self.A = nn.Linear(in_features, rank, bias=False)
+        self.B = nn.Linear(rank, out_features, bias=False)
+
+        nn.init.kaiming_uniform_(self.A.weight, a=5**0.5)
+        nn.init.zeros_(self.B.weight)  # 零初始化，使初始输出不偏离原模型
+
+    def forward(self, x):
+        return self.W(x) + self.scaling * self.B(self.A(x))
+```
 
 
 **3.只训练低秩矩阵参数**
@@ -895,8 +902,8 @@ _Q_ = _XWQ_ , _K_ = _XWK_ , _V_ = _XWV_ LoRA 不直接训练原始权重 _WQ_  �
 
 ```python
 optimizer = torch.optim.AdamW([
-    {'params': model.lora_A.parameters()},
-    {'params': model.lora_B.parameters()}
+    {'params': model.A.parameters()},
+    {'params': model.B.parameters()}
 ], lr=1e-4)
 ```
 
@@ -904,9 +911,9 @@ optimizer = torch.optim.AdamW([
 
 **4.训练完成后权重合并**
 
-训练完成后，可将增量权重直接加到原始权重：
+训练完成后，可将增量权重（包含缩放系数）直接加到原始权重：
 
-′ _WQ_ = _WQ_ + Δ _WQ_ = _WQ_ + _BA_
+`W'_Q = W_Q + (alpha / rank) * (B_Q @ A_Q)`
 
 合并优势：
 
@@ -922,7 +929,8 @@ optimizer = torch.optim.AdamW([
 
 
 ```python
-model.W_Q.weight.data += model.B.weight @ model.A.weight
+with torch.no_grad():
+    model.W.weight.add_(model.scaling * (model.B.weight @ model.A.weight))
 ```
 
 其中需要注意的实现细节如下：
@@ -958,10 +966,10 @@ class LoRAModel(nn.Module):
         nn.init.kaiming_uniform_(self.A.weight, a=5**0.5)
         nn.init.zeros_(self.B.weight)
 
-        self.alpha = alpha
+        self.scaling = alpha / r
 
     def forward(self, x):
-        return self.W(x) + self.alpha * self.B(self.A(x))
+        return self.W(x) + self.scaling * self.B(self.A(x))
 
 model = LoRAModel(d=512, r=4).cuda()
 

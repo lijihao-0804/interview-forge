@@ -6,9 +6,14 @@
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from scripts.build import build_agent_mianjing_book as builder
+
+ROOT = Path(__file__).resolve().parents[1]
 
 RAW = """# 1.1 什么是大语言模型
 
@@ -89,3 +94,14 @@ def test_nested_fence_headings_survive(book):
     # 否则 "## Quick start" 会被误判成正文标题
     assert "## Quick start" in result
     assert "### Quick start" not in result
+
+
+def test_lora_example_is_a_valid_python_code_block():
+    source = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+    match = re.search(r"代码示例：\s*```python\n(.*?)\n```", source, re.DOTALL)
+
+    assert match is not None
+    compile(match.group(1), "agent-mianjing-lora-example", "exec")
+    assert "from torch import nn" in match.group(1)
+    assert "torch.nnas" not in source
+    assert not re.search(r"(?m)^\|\s*\d+(?:\s*<br>.*)?\s*\|", source)
