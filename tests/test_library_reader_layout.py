@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -104,6 +105,17 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn("随后，模型会在", generated)
         self.assertNotIn("对应 一个向量", generated)
         self.assertNotIn("随 后", generated)
+
+        manifest = json.loads((ROOT / "library" / "manifest.json").read_text(encoding="utf-8"))
+        module = next(item for item in manifest["modules"] if item["id"] == "agent-mianjing")
+        chapter = next(item for item in module["chapters"] if item["id"] == "agent-mianjing:04")
+        self.assertIn("文本进入模型之前", chapter["intro"])
+        self.assertNotIn("文 本进入", chapter["intro"])
+
+        search_index = json.loads((ROOT / "library" / "search-index.json").read_text(encoding="utf-8"))
+        search_entry = next(item for item in search_index if item["id"] == "agent-mianjing:04")
+        self.assertIn("都对应一个向量", search_entry["text"])
+        self.assertNotIn("对应 一个向量", search_entry["text"])
 
 
 if __name__ == "__main__":
