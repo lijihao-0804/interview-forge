@@ -92,6 +92,19 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn("下一章 →", chapter_nav)
         self.assertNotIn(".reader-sticky", build_library.LIBRARY_CSS)
 
+    def test_agent_interview_embedding_copy_has_no_split_chinese_words(self):
+        source = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+        generated = (ROOT / "library" / "agent-mianjing" / "chapter-04.html").read_text(encoding="utf-8")
+
+        cjk = r"\u3001-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0002fa1f"
+        self.assertNotRegex(source, rf"(?<=[{cjk}]) +(?=[{cjk}])")
+        self.assertIn("每个 Token 都对应一个向量", source)
+        self.assertIn("随后，模型会在", source)
+        self.assertIn("每个 Token 都对应一个向量", generated)
+        self.assertIn("随后，模型会在", generated)
+        self.assertNotIn("对应 一个向量", generated)
+        self.assertNotIn("随 后", generated)
+
 
 if __name__ == "__main__":
     unittest.main()
