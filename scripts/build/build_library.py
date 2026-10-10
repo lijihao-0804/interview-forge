@@ -99,7 +99,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
-LIBRARY_STYLE_VERSION = "20261010-hot100-layout"
+LIBRARY_STYLE_VERSION = "20261010-no-reader-float"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -224,8 +224,6 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 .chapter-status .complete-button{width:auto;margin-left:auto;padding:5px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;cursor:pointer}
 .chapter-status .complete-button:disabled{cursor:not-allowed;opacity:.5}
 .chapter-status .notice,.chapter-status .toast{margin:0}
-.reader-sticky{position:fixed;inset:0 0 auto;z-index:990;display:flex;align-items:center;gap:14px;min-height:54px;padding:8px max(18px,calc((100vw - 1320px)/2));border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 8px 24px rgba(31,42,68,.12);backdrop-filter:blur(14px)}
-.reader-sticky[hidden]{display:none}.reader-sticky-title{min-width:0;flex:1;overflow:hidden;color:var(--text);font-size:13px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}.reader-sticky-status{flex:none;max-width:42vw;overflow:hidden;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}.reader-sticky a{flex:none;padding:5px 10px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;font-weight:650}
 .reader-body h2,.reader-body h3{scroll-margin-top:72px}
 
 /* 阅读排版宽松化：加大行距、段距与留白，页面够宽不必挤 */
@@ -383,8 +381,6 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7
 .copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid rgba(233,237,247,.35);border-radius:var(--radius-1);color:#e9edf7;background:rgba(255,255,255,.08);font-size:12px;cursor:pointer;opacity:.72}
 .copy-btn:hover{opacity:1;background:rgba(255,255,255,.16)}
 @media(max-width:1150px){.reader-grid.has-otp{grid-template-columns:1fr}.otp{order:-1;position:static;max-height:none}}
-@media(max-width:560px){.reader-sticky{gap:8px;min-height:50px;padding:7px 10px}.reader-sticky-status{display:none}.reader-sticky a{padding:5px 8px;font-size:11px}}
-
 /* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
 .read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
 background:linear-gradient(90deg,var(--brand),var(--success));transition:width .1s linear}
@@ -1693,7 +1689,7 @@ def build() -> None:
             previous_html = f'<a href="{previous_link}">{previous_label}</a>' if previous_link else ""
             next_html = f'<a href="{next_link}">{next_label}</a>' if next_link else ""
             # 章节页 HTML 模板(reader)组成：
-            #   面包屑 书架 › 模块 › 本章(aria 标注当前页)；状态条内嵌“学习记录
+            #   面包屑 书架 › 模块 › 本章(aria 标注当前页)；页面顶部状态条内嵌“学习记录
             #   轮次/下次复习日期/完成一章/导出本章”控件；正文由 render_markdown
             #   产出；页尾章节导航含 目录/上一章/下一章。
             # 内联 <script>：contentId/moduleId 由 json.dumps 注入；loadStatus
@@ -1720,7 +1716,7 @@ def build() -> None:
             otp_class = " has-otp" if otp_items else ""
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
- <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><nav id="readerSticky" class="reader-sticky" aria-label="阅读进度" hidden><span class="reader-sticky-title" title="{html.escape(raw_chapter['title'], quote=True)}">{html.escape(raw_chapter['title'])}</span><span id="readerStickyStatus" class="reader-sticky-status">正在读取学习记录…</span>{next_html}</nav><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
+ <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){{
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
@@ -1784,11 +1780,6 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 if old_fragment not in reader:
                     raise RuntimeError(f"章节学习状态模板锚点缺失：{old_fragment[:56]}")
                 reader = reader.replace(old_fragment, new_fragment, 1)
-            sticky_script = """<script>(function(){var bar=document.getElementById('readerSticky'),marker=document.querySelector('.chapter-status'),summary=document.getElementById('readerStickyStatus'),status=document.getElementById('chapterStatus'),due=document.getElementById('chapterDue');if(!bar||!marker)return;var sync=function(){if(summary)summary.textContent=[status&&status.textContent,due&&due.textContent].filter(Boolean).join(' · ')};if(window.IntersectionObserver){var observer=new IntersectionObserver(function(entries){bar.hidden=entries[0].isIntersecting},{threshold:0});observer.observe(marker)}if(window.MutationObserver){var mutations=new MutationObserver(sync);if(status)mutations.observe(status,{childList:true,subtree:true,characterData:true});if(due)mutations.observe(due,{childList:true,subtree:true,characterData:true})}sync()})();</script>"""
-            if 'id="readerSticky"' in reader:
-                if "</main>" not in reader:
-                    raise RuntimeError("章节阅读页缺少 sticky 状态条注入锚点")
-                reader = reader.replace("</main>", "</main>" + sticky_script, 1)
             # Mermaid 依赖按需注入：只有正文含 .mermaid-diagram 的章节页才引入
             # mermaid 运行库与渲染驱动(library-mermaid.js)，其余页面零额外脚本；
             # 版本号统一带 ?v=ASSET_VERSION 便于缓存失效。

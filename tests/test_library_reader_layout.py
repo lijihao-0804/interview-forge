@@ -71,7 +71,8 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('class="reader-grid"', generated_page)
         self.assertIn('aria-label="本页目录"', generated_page)
         self.assertIn('class="shelf-topic-link current"', generated_page)
-        self.assertIn('</main><script>', generated_page)
+        self.assertNotIn('</main><script>', generated_page)
+        self.assertIn('function fetchWithTimeout', generated_page)
         self.assertIn('<aside class="sol-rail sol-rail-right shelf-page-rail"', generated_page)
         self.assertLess(
             generated_page.index('</main>'),
@@ -82,6 +83,14 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('class="shell chapter-shell site-shell-cols"', generated_no_toc_page)
         self.assertIn('class="sol-rail sol-rail-right shelf-page-rail"', generated_no_toc_page)
         self.assertIn("本页暂无小节", generated_no_toc_page)
+        self.assertNotIn("readerSticky", generated_no_toc_page)
+        self.assertNotIn("reader-sticky", generated_no_toc_page)
+        chapter_nav_start = generated_no_toc_page.index('<nav class="chapter-nav"')
+        chapter_nav_end = generated_no_toc_page.index("</nav>", chapter_nav_start)
+        chapter_nav = generated_no_toc_page[chapter_nav_start:chapter_nav_end]
+        self.assertIn('href="chapter-05.html"', chapter_nav)
+        self.assertIn("下一章 →", chapter_nav)
+        self.assertNotIn(".reader-sticky", build_library.LIBRARY_CSS)
 
 
 if __name__ == "__main__":
