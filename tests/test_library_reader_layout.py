@@ -65,6 +65,9 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn("max-width:1150px", build_library.LIBRARY_CSS)
         self.assertIn("max-width:min(100%,680px)", build_library.LIBRARY_CSS)
         self.assertIn("@media(max-width:640px)", build_library.LIBRARY_CSS)
+        self.assertIn(".reader h5{margin:24px 0 9px;font-size:17px;line-height:1.55}", build_library.LIBRARY_CSS)
+        self.assertIn(".reader h6{margin:20px 0 8px;font-size:16px;line-height:1.55}", build_library.LIBRARY_CSS)
+        self.assertIn(".reader h1,.reader h2,.reader h3,.reader h4,.reader h5,.reader h6{overflow-wrap:break-word}", build_library.LIBRARY_CSS)
 
         generated_css = (ROOT / "library" / "assets" / "library.css").read_text(encoding="utf-8")
         generated_page = (ROOT / "library" / "xiaolin-langchain" / "chapter-04.html").read_text(encoding="utf-8")
@@ -138,6 +141,27 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertNotIn("1 任务：判断文本情感", generated)
         self.assertNotIn("2 3 文本：", generated)
         self.assertNotIn("1 请判断以下文本的情感倾向", generated)
+
+    def test_agent_mianjing_rag_image_has_no_ocr_dump_and_subheadings_are_structured(self):
+        source = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+        generated = (ROOT / "library" / "agent-mianjing" / "chapter-24.html").read_text(encoding="utf-8")
+        document_processing = (ROOT / "library" / "agent-mianjing" / "chapter-26.html").read_text(encoding="utf-8")
+
+        self.assertIn("agent-.pdf-0097-11.png", generated)
+        self.assertNotIn("请基于以上资料回答问题", source)
+        self.assertNotIn("请基于以上资料回答问题", generated)
+        self.assertNotIn("[ 文档 1]", generated)
+        self.assertRegex(generated, r'<h5 id="llm-generation">LLM Generation</h5>')
+        self.assertNotRegex(source, r"(?m)^\s*-\s*[•◦]\s+")
+        self.assertNotRegex(source, r"方式来编\s*\n\s*码")
+        self.assertIn("表示方式来编码。因此：", source)
+        self.assertIn("多栏排版、复杂排版（如学术论文）易导致文本顺序错乱。", document_processing)
+        self.assertRegex(
+            document_processing,
+            r"<li>\s*<p>多栏排版、复杂排版（如学术论文）易导致文本顺序错乱。</p>\s*</li>",
+        )
+        self.assertNotIn("•", document_processing)
+        self.assertNotIn("来编</p><p>码", document_processing)
 
 
 if __name__ == "__main__":

@@ -99,7 +99,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
-LIBRARY_STYLE_VERSION = "20261010-no-reader-float"
+LIBRARY_STYLE_VERSION = "20261010-heading-scale"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -232,6 +232,8 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 .reader h2{margin:56px 0 18px}
 .reader h3{margin:40px 0 14px}
 .reader h4{margin:30px 0 11px}
+.reader h5{margin:24px 0 9px;font-size:17px;line-height:1.55}
+.reader h6{margin:20px 0 8px;font-size:16px;line-height:1.55}
 .reader ul,.reader ol{padding-left:1.7em}
 .reader li{margin:7px 0}
 .reader blockquote{margin:26px 0;padding:15px 19px}
@@ -334,7 +336,7 @@ body{overflow-x:clip}
 /* 行内代码 / 链接 / 标题可断行 */
 a{overflow-wrap:anywhere}
 .reader code{overflow-wrap:anywhere;word-break:break-word}
-.reader h1,.reader h2,.reader h3,.reader h4{overflow-wrap:break-word}
+.reader h1,.reader h2,.reader h3,.reader h4,.reader h5,.reader h6{overflow-wrap:break-word}
 .reader blockquote p{overflow-wrap:anywhere}
 /* pre 块内的 code 不受影响（保持代码原样，由 pre 自身横向滚动控制） */
 .reader pre code{overflow-wrap:normal;word-break:normal}
@@ -347,6 +349,8 @@ a{overflow-wrap:anywhere}
   .reader h1{font-size:27px}
   .reader h2{font-size:21px;margin:40px 0 14px}
   .reader h3{font-size:18px}
+  .reader h5{font-size:16px}
+  .reader h6{font-size:16px}
   .reader pre{font-size:12.5px;padding:16px 14px}
   .reader pre:not(.mermaid){white-space:pre-wrap;word-break:break-all;overflow-x:hidden}
   .reader th,.reader td{padding:8px 9px}
