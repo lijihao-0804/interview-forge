@@ -98,6 +98,8 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 # ASSET_VERSION：资产版本号。所有页面把样式/脚本链接写成 ?v=ASSET_VERSION，
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
+# LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
+LIBRARY_STYLE_VERSION = "20261010-reader-layout"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -433,6 +435,43 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .search-snippet{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}.search-snippet mark{padding:0 2px;border-radius:3px;color:var(--text);background:color-mix(in srgb,var(--warning) 28%,var(--panel))}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
+/* ===== 书架阅读：专题导航 / 收窄正文 / 本页目录 ===== */
+.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start}
+.chapter-shell>.topbar{grid-column:1/-1;margin-bottom:0}
+.chapter-shell>.reader{grid-column:2;min-width:0;padding:clamp(22px,2.8vw,40px)}
+.shelf-topic-rail{position:sticky;top:14px;grid-column:1;min-width:0;max-height:calc(100vh - 28px);overflow:hidden;padding:13px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
+.shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--text);font-size:13px;font-weight:700;list-style:none}
+.shelf-topic-rail summary::-webkit-details-marker{display:none}
+.shelf-topic-count{flex:none;color:var(--muted);font-size:11px;font-weight:500}
+.shelf-topic-links{max-height:calc(100vh - 83px);margin-top:9px;overflow:auto}
+.shelf-topic-link{display:flex;align-items:flex-start;gap:8px;padding:5px 7px;border-radius:7px;color:var(--muted);font-size:12px;line-height:1.5}
+.shelf-topic-link:hover{color:var(--text);background:var(--soft);text-decoration:none}
+.shelf-topic-link.current{color:var(--brand);background:var(--brand-soft);font-weight:700}
+.shelf-topic-number{flex:none;font-variant-numeric:tabular-nums;opacity:.8}
+.shelf-topic-label{min-width:0;overflow-wrap:anywhere}
+.reader-grid{width:100%;max-width:1000px;margin-inline:auto}
+.reader-grid.has-otp{grid-template-columns:minmax(0,780px) 190px;gap:20px}
+.reader-body{width:100%;min-width:0;max-width:780px}
+.reader-body img,.reader-body video{width:auto;max-width:min(100%,680px);max-height:min(72vh,720px);object-fit:contain}
+@media(max-width:1280px){
+ .chapter-shell{grid-template-columns:minmax(0,1fr)}
+ .chapter-shell>.topbar,.chapter-shell>.reader,.chapter-shell>.shelf-topic-rail{grid-column:1}
+ .chapter-shell>.reader{padding:clamp(20px,3vw,36px)}
+ .shelf-topic-rail{position:static;max-height:none}
+ .shelf-topic-links{max-height:min(280px,40vh)}
+ .reader-grid.has-otp{grid-template-columns:minmax(0,1fr)}
+ .reader-grid .otp{position:static;order:-1;max-height:190px}
+}
+@media(max-width:900px){
+ .reader-grid.has-otp{grid-template-columns:minmax(0,1fr)}
+ .otp{position:static;order:-1;width:100%;max-width:780px;max-height:190px}
+}
+@media(max-width:640px){
+ .chapter-shell{gap:12px}
+ .chapter-shell>.reader{padding:20px 14px 30px}
+ .shelf-topic-rail{padding:10px 12px}
+ .reader-body img,.reader-body video{max-width:min(100%,560px);max-height:65vh}
+}
 @view-transition{navigation:auto}
 html,body,.module-card,.chapter-list,.reader,.chapter-side{transition:background-color .25s ease,border-color .25s ease,color .25s ease}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
@@ -924,7 +963,7 @@ def topbar(prefix: str = "..", current: str = "") -> str:
 
 
 # 页面 HTML 外壳：统一 lang/字符集/响应式 viewport/明暗色声明，标题做 HTML 转义，
-# CSS 链接带 ?v=ASSET_VERSION 查询串(与常量注释里的缓存破坏约定一致)；
+# 书架 CSS 使用独立缓存版本；其余脚本继续使用 ASSET_VERSION；
 # scripts 参数追加页面尾部 JS(如章节页的 Mermaid 运行库与渲染驱动)。
 def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     # 图片懒加载：章节/模块页配图多（小林笔记单页可达 10+ 张截图），
@@ -932,6 +971,7 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
     body = body.replace("<img ", '<img loading="lazy" decoding="async" ')
     asset_base = css_href.rsplit("assets/", 1)[0] + "assets" if "assets/" in css_href else "assets"
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
+    css_version = LIBRARY_STYLE_VERSION if css_href.rstrip("/").endswith("library.css") else ASSET_VERSION
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
         f'<script src="{time_asset_base}/ui.js?v={ASSET_VERSION}" defer></script>'
@@ -942,8 +982,36 @@ def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=3" defer data-interviewforge-ai></script>'
     )
-    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)} · 学习书架</title><link rel="stylesheet" href="{css_href}?v={ASSET_VERSION}">{ai_assets}</head><body>{body}{scripts}</body></html>'''
+    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)} · 学习书架</title><link rel="stylesheet" href="{css_href}?v={css_version}">{ai_assets}</head><body>{body}{scripts}</body></html>'''
     return mark_cross_page_links(page)
+
+
+def chapter_topic_navigation(raw_chapters: list[dict[str, object]], current_index: int) -> str:
+    """Render the current book's chapter list for the left reader rail."""
+    items: list[str] = []
+    for chapter_index, chapter in enumerate(raw_chapters, 1):
+        current = chapter_index == current_index
+        active_class = " current" if current else ""
+        current_attr = ' aria-current="page"' if current else ""
+        items.append(
+            f'<a class="shelf-topic-link{active_class}" href="chapter-{chapter_index:02d}.html"{current_attr}>'
+            f'<span class="shelf-topic-number">{chapter_index:02d}</span>'
+            f'<span class="shelf-topic-label">{html.escape(str(chapter["title"]))}</span></a>'
+        )
+    return (
+        '<details class="shelf-topic-rail" open><summary><span>本专题目录</span>'
+        f'<span class="shelf-topic-count">{len(raw_chapters)} 章</span></summary>'
+        '<nav class="shelf-topic-links" aria-label="本专题章节">'
+        + "".join(items)
+        + "</nav></details>"
+    )
+
+
+def apply_chapter_reader_layout(reader: str, topic_navigation: str) -> str:
+    """Attach the responsive topic rail to the generated chapter page shell."""
+    reader = reader.replace('<div class="shell">', '<div class="shell chapter-shell">', 1)
+    reader = reader.replace('\n <main class="reader"', f'\n{topic_navigation}\n <main class="reader"', 1)
+    return reader.replace('class="reader-grid', 'class="reader-grid has-topic', 1)
 
 
 # 摘要文本清洗(章节摘要/模块简介共用)：剥掉 markdown 图片语法、链接只留显示
@@ -1294,7 +1362,7 @@ def build_hot100_module() -> tuple[dict[str, object], dict[str, dict[str, str]]]
         "url": "../index.html",
         "about": f"{len(chapters)} 道高频算法题，覆盖 {len(topics)} 个专题；点击卡片直接进入对应题解，完成一轮会同步到书架进度。",
     }
-    redirect_page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta http-equiv="refresh" content="0; url=../../index.html"><title>{html.escape(module['title'])}</title><link rel="stylesheet" href="../assets/library.css?v={ASSET_VERSION}"></head><body><div class="shell" style="min-height:70vh;display:grid;place-items:center"><main class="chapter-list" style="text-align:center"><h1>{html.escape(module['title'])}</h1><p>正在打开 Interview Forge…</p><p><a href="../../index.html">如果未自动跳转，请点击这里</a></p></main></div></body></html>'''
+    redirect_page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta http-equiv="refresh" content="0; url=../../index.html"><title>{html.escape(module['title'])}</title><link rel="stylesheet" href="../assets/library.css?v={LIBRARY_STYLE_VERSION}"></head><body><div class="shell" style="min-height:70vh;display:grid;place-items:center"><main class="chapter-list" style="text-align:center"><h1>{html.escape(module['title'])}</h1><p>正在打开 Interview Forge…</p><p><a href="../../index.html">如果未自动跳转，请点击这里</a></p></main></div></body></html>'''
     (module_dir / "index.html").write_text(mark_cross_page_links(redirect_page), encoding="utf-8")
     return module, routes
 
@@ -1616,6 +1684,7 @@ def build() -> None:
                 )
                 otp_html = f'<nav class="otp" aria-label="本页目录"><div class="otp-title">本页目录</div><ul>{lis}</ul></nav>'
             otp_class = " has-otp" if otp_html else ""
+            topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
  <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><nav id="readerSticky" class="reader-sticky" aria-label="阅读进度" hidden><span class="reader-sticky-title" title="{html.escape(raw_chapter['title'], quote=True)}">{html.escape(raw_chapter['title'])}</span><span id="readerStickyStatus" class="reader-sticky-status">正在读取学习记录…</span>{next_html}</nav><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){{
@@ -1634,9 +1703,10 @@ if(otpLinks.length){{var otpMap=new Map(otpLinks.map(function(a){{return [a.getA
 var io=new IntersectionObserver(function(es){{es.forEach(function(e){{if(e.isIntersecting){{otpLinks.forEach(function(a){{a.classList.remove('active')}});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}}}})}},{{rootMargin:'-12% 0px -78% 0px'}});
 otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe(h)}});}}
 loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{{try{{const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{{type:'text/html'}});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}}catch(_){{toast.textContent='导出失败，请检查网络后重试'}}}});</script>'''
+            reader = apply_chapter_reader_layout(reader, topic_nav_html)
             # 章节脚本写在单行模板中，为避免重复维护整段 HTML，在生成前统一注入
             # 请求超时、状态检查和线上错误提示。这样所有章节页都由同一权威源产生。
-            chapter_helpers = "function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}"
+            chapter_helpers = "function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;"
             reader = reader.replace("<script>const contentId=", "<script>" + chapter_helpers + "const contentId=", 1)
             reader = reader.replace("fetch('/api/library',", "fetchWithTimeout('/api/library',", 1)
             reader = reader.replace("fetch(`/api/daily?module=${encodeURIComponent(moduleId)}`,", "fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,", 1)
@@ -1646,7 +1716,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             reader = reader.replace("const result=await response.json();", "const result=await response.json().catch(()=>({}));", 1)
             reader = reader.replace("result.error||'记录失败'", "result.error||'记录失败，请检查网络后重试'", 1)
             reader = reader.replace("toast.textContent=error.message;", "toast.textContent=readableError(error,'记录失败，请检查网络后重试');", 1)
-            reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={ASSET_VERSION}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
+            reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={LIBRARY_STYLE_VERSION}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
             reader = reader.replace("catch(_){toast.textContent='导出失败，请检查网络后重试'}", "catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}", 1)
             # 章节完成采取轻量乐观更新：先让本章轮数立即前进一步，失败时回滚
             # 文案与轮数；服务端成功后仍以 loadStatus() 的持久化结果为准。
