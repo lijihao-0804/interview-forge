@@ -52,9 +52,10 @@
       startOnLoad: false,
       securityLevel: 'strict',
       theme: 'base',
-      themeVariables: { ...palette(), fontSize: '15px' },
+      themeVariables: { ...palette(), fontSize: '14px' },
       fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif',
-      flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: narrow ? 18 : 34, rankSpacing: narrow ? 26 : 44, padding: narrow ? 10 : 14 },
+      // 收紧所有流程图的默认间距，但保留各图原有方向和节点关系。
+      flowchart: { htmlLabels: true, useMaxWidth: false, curve: 'basis', nodeSpacing: narrow ? 16 : 22, rankSpacing: narrow ? 22 : 30, padding: narrow ? 6 : 8 },
       sequence: { useMaxWidth: true, wrap: true, actorMargin: narrow ? 34 : 46, messageMargin: narrow ? 24 : 32, diagramMarginX: narrow ? 12 : 24, diagramMarginY: narrow ? 12 : 18 },
       mindmap: { useMaxWidth: true }
     });

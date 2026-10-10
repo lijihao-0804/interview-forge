@@ -741,13 +741,14 @@ elif uplot_vendor.exists() and uplot_vendor.read_bytes() != uplot_asset.read_byt
 
 # ---- Mermaid 图数量闭环：源笔记 vs 课程页 ----
 # 先统计“应有的图”：LIBRARY_MODULES 定义每个模块的 source 笔记文件路径
-# （位于仓库根目录的上层），用 (?im)^```mermaid\s*$ 数出 Mermaid 围栏个数。
+# （位于仓库根目录的上层），允许围栏前有空格/Tab（列表项下的合法缩进），
+# 用 (?im)^[ \t]*```mermaid[ \t]*$ 数出 Mermaid 围栏个数。
 # “应有值”与后面的“实际渲染值”必须相等，数量对不上说明有图没渲染或渲染多。
 expected_mermaid = 0
 for definition in LIBRARY_MODULES:
     source_path = ROOT / "books" / definition["source"]
     source_text = source_path.read_text(encoding="utf-8-sig")
-    expected_mermaid += len(re.findall(r"(?im)^```mermaid\s*$", source_text))
+    expected_mermaid += len(re.findall(r"(?im)^[ \t]*```mermaid[ \t]*$", source_text))
 
 # 再统计“实际的图”：数课程页里 figure.mermaid-diagram 节点。挨页检查四件事：
 # ① 图不能以代码块形式展示（code.language-mermaid —— 说明渲染器漏处理）；

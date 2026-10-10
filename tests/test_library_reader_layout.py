@@ -27,19 +27,44 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('aria-label="流程图"', rendered)
         self.assertIn('"useMaxWidth": false', rendered)
 
+    def test_diagram_pages_can_use_a_scoped_stylesheet_cache_version(self):
+        page = build_library.document(
+            "图表页",
+            "<figure class=\"mermaid-diagram\"></figure>",
+            "../assets/library.css",
+            css_version=build_library.LIBRARY_DIAGRAM_STYLE_VERSION,
+        )
+
+        self.assertIn(
+            f"../assets/library.css?v={build_library.LIBRARY_DIAGRAM_STYLE_VERSION}",
+            page,
+        )
+
     def test_agent_tool_calling_diagram_uses_compact_horizontal_layout(self):
         canonical = (ROOT / "books" / "agent面经" / "《Agent 面经》.md").read_text(encoding="utf-8")
         alias = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
         generated = (ROOT / "library" / "agent-mianjing" / "chapter-40.html").read_text(encoding="utf-8")
+        mermaid_runtime = (ROOT / "library" / "assets" / "library-mermaid.js").read_text(encoding="utf-8")
         section = canonical.split("## 7.1 Tool Calling", 1)[1].split("## ", 1)[0]
         diagram = section.split("```mermaid", 1)[1].split("```", 1)[0]
 
         self.assertEqual(canonical, alias)
         self.assertIn("flowchart LR", diagram)
-        self.assertIn('"useMaxWidth": false', diagram)
-        self.assertIn('"nodeSpacing": 22', diagram)
+        self.assertNotIn("%%{init:", diagram)
+        self.assertIn("useMaxWidth: false", mermaid_runtime)
+        self.assertIn("nodeSpacing: narrow ? 16 : 22", mermaid_runtime)
+        self.assertIn("rankSpacing: narrow ? 22 : 30", mermaid_runtime)
+        self.assertIn("fontSize: '14px'", mermaid_runtime)
         self.assertIn('data-diagram-type="flowchart"', generated)
-        self.assertIn('"useMaxWidth": false', generated)
+        self.assertNotIn("%%{init:", generated)
+        self.assertIn(f"library-mermaid.js?v={build_library.LIBRARY_MERMAID_VERSION}", generated)
+
+    def test_all_mermaid_diagrams_use_compact_reader_spacing(self):
+        self.assertIn(".mermaid-diagram{margin-block:18px}", build_library.LIBRARY_CSS)
+        self.assertIn(".reader pre.mermaid{min-height:0;padding:16px}", build_library.LIBRARY_CSS)
+        self.assertIn("min-height:0;padding:10px", build_library.LIBRARY_CSS)
+        self.assertIn("flex:none;width:auto!important;max-width:none!important", build_library.LIBRARY_CSS)
+        self.assertIn('content:"↔ 左右滑动查看图表"', build_library.LIBRARY_CSS)
 
     def test_topic_navigation_is_escaped_and_marks_the_active_chapter(self):
         chapters = [

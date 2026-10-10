@@ -98,8 +98,10 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 # ASSET_VERSION：资产版本号。所有页面把样式/脚本链接写成 ?v=ASSET_VERSION，
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
-# LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
+# LIBRARY_STYLE_VERSION：通用书架 CSS 版本；LIBRARY_DIAGRAM_STYLE_VERSION 仅供含图章节刷新。
 LIBRARY_STYLE_VERSION = "20261010-heading-scale"
+LIBRARY_DIAGRAM_STYLE_VERSION = "20261010-compact-diagrams"
+LIBRARY_MERMAID_VERSION = "20261010-compact-flowcharts"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -483,6 +485,13 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
  .shelf-topic-rail{padding:10px 12px}
  .reader-body img,.reader-body video{max-width:min(100%,560px);max-height:65vh}
 }
+/* Mermaid 图表采用紧凑留白；桌面按容器缩放，窄屏保留可读尺寸并允许横向浏览。 */
+.mermaid-diagram{margin-block:18px}
+.reader pre.mermaid{min-height:0;padding:16px}
+@media(max-width:860px){.reader pre.mermaid{padding:14px}}
+@media(max-width:560px){.reader pre.mermaid{min-height:0;padding:10px}}
+@media(hover:none){.mermaid-diagram::after{content:"流程图已适配窄屏"}}
+@media(max-width:640px){.reader pre.mermaid{justify-content:flex-start}.reader pre.mermaid svg{flex:none;width:auto!important;max-width:none!important}.mermaid-diagram::after{content:"↔ 左右滑动查看图表"}}
 @view-transition{navigation:auto}
 html,body,.module-card,.chapter-list,.reader,.chapter-side{transition:background-color .25s ease,border-color .25s ease,color .25s ease}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
@@ -549,9 +558,10 @@ MERMAID_JS = r"""
       startOnLoad: false,
       securityLevel: 'strict',
       theme: 'base',
-      themeVariables: { ...palette(), fontSize: '15px' },
+      themeVariables: { ...palette(), fontSize: '14px' },
       fontFamily: 'system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif',
-      flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis', nodeSpacing: narrow ? 18 : 34, rankSpacing: narrow ? 26 : 44, padding: narrow ? 10 : 14 },
+      // 收紧所有流程图的默认间距，但保留各图原有方向和节点关系。
+      flowchart: { htmlLabels: true, useMaxWidth: false, curve: 'basis', nodeSpacing: narrow ? 16 : 22, rankSpacing: narrow ? 22 : 30, padding: narrow ? 6 : 8 },
       sequence: { useMaxWidth: true, wrap: true, actorMargin: narrow ? 34 : 46, messageMargin: narrow ? 24 : 32, diagramMarginX: narrow ? 12 : 24, diagramMarginY: narrow ? 12 : 18 },
       mindmap: { useMaxWidth: true }
     });
@@ -983,13 +993,22 @@ def topbar(prefix: str = "..", current: str = "") -> str:
 # 页面 HTML 外壳：统一 lang/字符集/响应式 viewport/明暗色声明，标题做 HTML 转义，
 # 书架 CSS 使用独立缓存版本；其余脚本继续使用 ASSET_VERSION；
 # scripts 参数追加页面尾部 JS(如章节页的 Mermaid 运行库与渲染驱动)。
-def document(title: str, body: str, css_href: str, scripts: str = "") -> str:
+def document(
+    title: str,
+    body: str,
+    css_href: str,
+    scripts: str = "",
+    *,
+    css_version: str | None = None,
+) -> str:
     # 图片懒加载：章节/模块页配图多（小林笔记单页可达 10+ 张截图），
     # 统一加 loading=lazy 让视口外图片滚动到才加载。
     body = body.replace("<img ", '<img loading="lazy" decoding="async" ')
     asset_base = css_href.rsplit("assets/", 1)[0] + "assets" if "assets/" in css_href else "assets"
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
-    css_version = LIBRARY_STYLE_VERSION if css_href.rstrip("/").endswith("library.css") else ASSET_VERSION
+    css_version = css_version or (
+        LIBRARY_STYLE_VERSION if css_href.rstrip("/").endswith("library.css") else ASSET_VERSION
+    )
     ai_assets = (
         f'<script src="{time_asset_base}/time-utils.js?v=2"></script>'
         f'<script src="{time_asset_base}/ui.js?v={ASSET_VERSION}" defer></script>'
@@ -1671,6 +1690,11 @@ def build() -> None:
             content = contents_map.get(chapter_id)
             if content is None:
                 continue  # 增量跳过：该章输出已存在且源未变
+            chapter_style_version = (
+                LIBRARY_DIAGRAM_STYLE_VERSION
+                if 'class="mermaid-diagram"' in content
+                else LIBRARY_STYLE_VERSION
+            )
             # —— 以下为渲染+拼装+落盘（仅 need_render 的章节执行）——
             # 【演示内嵌机制 <!--demo:文件名-->】章节源里出现该 HTML 注释占位时，
             # 把它替换为 <iframe src="../../05-可视化/<文件名>?embed=1">：
@@ -1757,7 +1781,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             reader = reader.replace("const result=await response.json();", "const result=await response.json().catch(()=>({}));", 1)
             reader = reader.replace("result.error||'记录失败'", "result.error||'记录失败，请检查网络后重试'", 1)
             reader = reader.replace("toast.textContent=error.message;", "toast.textContent=readableError(error,'记录失败，请检查网络后重试');", 1)
-            reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={LIBRARY_STYLE_VERSION}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
+            reader = reader.replace(f"const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();", f"const cssResponse=await fetchWithTimeout('../assets/library.css?v={chapter_style_version}');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();", 1)
             reader = reader.replace("catch(_){toast.textContent='导出失败，请检查网络后重试'}", "catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}", 1)
             # 章节完成采取轻量乐观更新：先让本章轮数立即前进一步，失败时回滚
             # 文案与轮数；服务端成功后仍以 loadStatus() 的持久化结果为准。
@@ -1793,12 +1817,21 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 reader = reader.replace(old_fragment, new_fragment, 1)
             # Mermaid 依赖按需注入：只有正文含 .mermaid-diagram 的章节页才引入
             # mermaid 运行库与渲染驱动(library-mermaid.js)，其余页面零额外脚本；
-            # 版本号统一带 ?v=ASSET_VERSION 便于缓存失效。
+            # 图表脚本使用独立版本号，避免影响其他前端资源缓存。
             diagram_scripts = ""
             if 'class="mermaid-diagram"' in content:
-                diagram_scripts = f'<script src="../assets/mermaid-11.16.1.min.js?v={ASSET_VERSION}"></script><script src="../assets/library-mermaid.js?v={ASSET_VERSION}"></script>'
+                diagram_scripts = f'<script src="../assets/mermaid-11.16.1.min.js?v={LIBRARY_MERMAID_VERSION}"></script><script src="../assets/library-mermaid.js?v={LIBRARY_MERMAID_VERSION}"></script>'
             chapter_scripts = diagram_scripts
-            (module_dir / filename).write_text(document(raw_chapter["title"], reader, "../assets/library.css", chapter_scripts), encoding="utf-8")
+            (module_dir / filename).write_text(
+                document(
+                    raw_chapter["title"],
+                    reader,
+                    "../assets/library.css",
+                    chapter_scripts,
+                    css_version=chapter_style_version,
+                ),
+                encoding="utf-8",
+            )
         # 书架使用登记表中的人工整理标题，避免源文件里的临时标题、章节名或
         # “副本”等文件管理字样出现在课程卡片上。源标题只用于无登记标题时兜底。
         # 模块 dict 组装：显示名优先登记表 title、缺省回书名；about 优先登记表人工

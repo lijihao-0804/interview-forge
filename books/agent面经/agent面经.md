@@ -3731,7 +3731,6 @@ AI 内容生产系统
 
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "14px"}, "flowchart": {"useMaxWidth": false, "nodeSpacing": 22, "rankSpacing": 30, "padding": 8}}}%%
 flowchart LR
     input[用户输入] --> reasoning[LLM 理解与推理]
     reasoning --> needTool{需要调用工具？}
