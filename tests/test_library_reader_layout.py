@@ -32,10 +32,18 @@ class LibraryReaderLayoutTests(unittest.TestCase):
 
         page = build_library.apply_chapter_reader_layout(reader, nav)
 
-        self.assertIn('class="shell chapter-shell"', page)
+        self.assertIn('class="shell chapter-shell has-page-toc"', page)
         self.assertIn('class="reader-grid has-topic has-otp"', page)
         self.assertLess(page.index("shelf-topic-rail"), page.index("<main class=\"reader\""))
         self.assertIn('<nav class="otp"', page)
+
+        reader_without_toc = (
+            '<div class="shell"><header class="topbar"></header> '
+            '<main class="reader"><div class="reader-grid">'
+            '<div class="reader-body"></div></div></main></div>'
+        )
+        compact_page = build_library.apply_chapter_reader_layout(reader_without_toc, nav)
+        self.assertIn('class="shell chapter-shell no-page-toc"', compact_page)
 
     def test_library_styles_use_a_scoped_cache_version_and_constrain_images(self):
         page = build_library.document("测试", "", "assets/library.css")
@@ -43,8 +51,10 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn(f"assets/library.css?v={build_library.LIBRARY_STYLE_VERSION}", page)
         self.assertIn(f"ui.js?v={build_library.ASSET_VERSION}", page)
         self.assertIn("grid-template-columns:minmax(190px,220px) minmax(0,1fr)", build_library.LIBRARY_CSS)
-        self.assertIn("max-width:1760px;margin-inline:auto", build_library.LIBRARY_CSS)
-        self.assertIn("max-width:1400px;min-width:0", build_library.LIBRARY_CSS)
+        self.assertIn("max-width:1360px", build_library.LIBRARY_CSS)
+        self.assertIn("max-width:1100px", build_library.LIBRARY_CSS)
+        self.assertIn("max-width:1120px;min-width:0", build_library.LIBRARY_CSS)
+        self.assertIn("max-width:860px", build_library.LIBRARY_CSS)
         self.assertIn("max-width:1000px;margin-inline:0", build_library.LIBRARY_CSS)
         self.assertIn("max-width:min(100%,680px)", build_library.LIBRARY_CSS)
         self.assertIn("@media(max-width:1280px)", build_library.LIBRARY_CSS)
@@ -56,6 +66,9 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('class="reader-grid has-topic has-otp"', generated_page)
         self.assertIn('aria-label="本页目录"', generated_page)
         self.assertIn('class="shelf-topic-link current"', generated_page)
+
+        generated_no_toc_page = (ROOT / "library" / "agent-mianjing" / "chapter-04.html").read_text(encoding="utf-8")
+        self.assertIn('class="shell chapter-shell no-page-toc"', generated_no_toc_page)
 
 
 if __name__ == "__main__":

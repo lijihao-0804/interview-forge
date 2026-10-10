@@ -99,7 +99,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
-LIBRARY_STYLE_VERSION = "20261010-reader-compact"
+LIBRARY_STYLE_VERSION = "20261010-reader-fit"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -436,9 +436,12 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
 /* ===== 书架阅读：专题导航 / 收窄正文 / 本页目录 ===== */
-.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start;width:calc(100% - 100px);max-width:1760px;margin-inline:auto}
+.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start;width:calc(100% - 40px);max-width:1760px;margin-inline:auto}
+.chapter-shell.has-page-toc{max-width:1360px}
+.chapter-shell.no-page-toc{max-width:1100px}
 .chapter-shell>.topbar{grid-column:1/-1;margin-bottom:0}
-.chapter-shell>.reader{grid-column:2;width:100%;max-width:1400px;min-width:0;padding:clamp(22px,2.8vw,40px)}
+.chapter-shell>.reader{grid-column:2;width:100%;max-width:1120px;min-width:0;padding:clamp(22px,2.8vw,40px)}
+.chapter-shell.no-page-toc>.reader{max-width:860px}
 .shelf-topic-rail{position:sticky;top:14px;grid-column:1;min-width:0;max-height:calc(100vh - 28px);overflow:hidden;padding:13px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
 .shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--text);font-size:13px;font-weight:700;list-style:none}
 .shelf-topic-rail summary::-webkit-details-marker{display:none}
@@ -455,6 +458,7 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .reader-body img,.reader-body video{width:auto;max-width:min(100%,680px);max-height:min(72vh,720px);object-fit:contain}
 @media(max-width:1280px){
  .chapter-shell{grid-template-columns:minmax(0,1fr)}
+ .chapter-shell.no-page-toc{max-width:900px}
  .chapter-shell>.topbar,.chapter-shell>.reader,.chapter-shell>.shelf-topic-rail{grid-column:1}
  .chapter-shell>.reader{padding:clamp(20px,3vw,36px)}
  .shelf-topic-rail{position:static;max-height:none}
@@ -467,7 +471,7 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
  .otp{position:static;order:-1;width:100%;max-width:780px;max-height:190px}
 }
 @media(max-width:640px){
- .chapter-shell{gap:12px}
+ .chapter-shell{width:calc(100% - 20px);gap:12px}
  .chapter-shell>.reader{padding:20px 14px 30px}
  .shelf-topic-rail{padding:10px 12px}
  .reader-body img,.reader-body video{max-width:min(100%,560px);max-height:65vh}
@@ -1009,7 +1013,9 @@ def chapter_topic_navigation(raw_chapters: list[dict[str, object]], current_inde
 
 def apply_chapter_reader_layout(reader: str, topic_navigation: str) -> str:
     """Attach the responsive topic rail to the generated chapter page shell."""
-    reader = reader.replace('<div class="shell">', '<div class="shell chapter-shell">', 1)
+    has_page_toc = re.search(r'class="reader-grid[^\"]*\bhas-otp\b', reader) is not None
+    shell_class = "chapter-shell has-page-toc" if has_page_toc else "chapter-shell no-page-toc"
+    reader = reader.replace('<div class="shell">', f'<div class="shell {shell_class}">', 1)
     reader = reader.replace('\n <main class="reader"', f'\n{topic_navigation}\n <main class="reader"', 1)
     return reader.replace('class="reader-grid', 'class="reader-grid has-topic', 1)
 
