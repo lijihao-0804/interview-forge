@@ -99,7 +99,7 @@ PARALLEL_WORKERS = min(8, os.cpu_count() or 4)
 #   浏览器据此做缓存失效；每次改动 CSS/JS 常量后应递增该值再重新构建
 #   (构建命令：tools/build_hot100.py 或直接运行本文件)。
 # LIBRARY_STYLE_VERSION：书架 CSS 单独版本，避免只改阅读样式就让全站生成页面换版。
-LIBRARY_STYLE_VERSION = "20261010-reader-layout"
+LIBRARY_STYLE_VERSION = "20261010-reader-compact"
 NOTES_ROOT = HOT100_ROOT / "books"
 OUTPUT_ROOT = HOT100_ROOT / "library"
 _GENERATED_CHAPTER_PAGE = re.compile(r"^chapter-\d+\.html$")
@@ -436,9 +436,9 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .topbar a[aria-current="page"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 ::selection{background:color-mix(in srgb,var(--brand) 24%,transparent)}
 /* ===== 书架阅读：专题导航 / 收窄正文 / 本页目录 ===== */
-.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start}
+.chapter-shell{display:grid;grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:20px;align-items:start;width:calc(100% - 100px);max-width:1760px;margin-inline:auto}
 .chapter-shell>.topbar{grid-column:1/-1;margin-bottom:0}
-.chapter-shell>.reader{grid-column:2;min-width:0;padding:clamp(22px,2.8vw,40px)}
+.chapter-shell>.reader{grid-column:2;width:100%;max-width:1400px;min-width:0;padding:clamp(22px,2.8vw,40px)}
 .shelf-topic-rail{position:sticky;top:14px;grid-column:1;min-width:0;max-height:calc(100vh - 28px);overflow:hidden;padding:13px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
 .shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--text);font-size:13px;font-weight:700;list-style:none}
 .shelf-topic-rail summary::-webkit-details-marker{display:none}
@@ -449,7 +449,7 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .shelf-topic-link.current{color:var(--brand);background:var(--brand-soft);font-weight:700}
 .shelf-topic-number{flex:none;font-variant-numeric:tabular-nums;opacity:.8}
 .shelf-topic-label{min-width:0;overflow-wrap:anywhere}
-.reader-grid{width:100%;max-width:1000px;margin-inline:auto}
+.reader-grid{width:100%;max-width:1000px;margin-inline:0}
 .reader-grid.has-otp{grid-template-columns:minmax(0,780px) 190px;gap:20px}
 .reader-body{width:100%;min-width:0;max-width:780px}
 .reader-body img,.reader-body video{width:auto;max-width:min(100%,680px);max-height:min(72vh,720px);object-fit:contain}
