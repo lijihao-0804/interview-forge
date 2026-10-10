@@ -3,12 +3,24 @@
  <main class="reader" data-page-type="library/chapter" data-content-id="agent-mianjing:18"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Prompt 技术范式</span></nav><div class="module-meta">Agent 工程 · 第 18 / 55 章 · <span class="muted">更新于 2026-10-10</span></div><h1>Prompt 技术范式</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>在大语言模型的应用实践中，人们逐渐发现，不同的 Prompt 设计方式会显著影响模型的推理能力与输出质量。因此，研究者和工程实践者逐步总结出一系列 Prompt 技术范式（Prompting  Paradigms）。这些范式本质上是引导模型理解任务、进行推理以及生成答案的方法体系。从最简单的直接提问，到通过示例进行引导，再到显式地让模型展示推理过程，不同的 Prompt 技术适用于不同类型的任务。对于简单的知识问答，直接提问可能已经足够；而对于复杂的逻辑推理、数学计算或多步骤任务，往往需要更复杂的 Prompt 技术来帮助模型逐步完成推理。目前在 Prompt Engineering 中最常见的几种技术范式包括 Zero-shot、Few-shot、Chain-ofThought 以及 Self-Consistency。这些方法不仅在学术研究中被广泛讨论，也在实际 AI 系统中得到了大量应用。</p>
 <p><strong>Zero-shot Prompt</strong></p>
 <p>Zero-shot Prompt 是最基础、也是最直观的一种 Prompt 技术。在这种方法中，开发者只向模型提供任务说明，而不提供任何示例，模型需要依靠自身已经学习到的知识和语言能力完成任务。例如，如果希望模型对一段文本进行情感分类，可以直接给出这样的 Prompt：</p>
-<p>1 请判断以下文本的情感倾向（正面 <code>/</code> 负面）： 2 3 文本：这个产品质量非常好，使用体验也很棒。</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">请判断以下文本的情感倾向（正面或负面）：
+文本：这个产品质量非常好，使用体验也很棒。
+</code></pre></div>
 <p>在 Zero-shot 模式下，模型会根据训练过程中学到的语言模式，对文本进行理解并输出判断结果。 Zero-shot 的优势在于使用简单、成本较低。由于不需要额外示例，因此 Prompt 通常较短，可以减少 Token 消耗。在许多常见任务中，例如文本总结、简单问答或翻译，Zero-shot 已经能够获得不错的效果。</p>
 <p>但这种方法也存在明显的局限性。当任务较为复杂或者任务形式不常见时，模型可能无法准确理解任务目标，从而导致输出不稳定。在这种情况下，就需要通过提供示例来进一步引导模型，这就引出了 Few-shot Prompt 技术。</p>
 <p><strong>Few-shot Prompt</strong></p>
 <p>Few-shot Prompt 的核心思想是：通过提供少量示例，让模型学习任务模式，然后再完成新的任务。在 Prompt 中，开发者通常会给出几组“输入—输出”的示例，从而让模型理解任务的结构。例如：</p>
-<p>1 任务：判断文本情感 2 3 文本：这个电影非常精彩 4 情感：正面 5 6 文本：服务态度很差 7 情感：负面 8 9 文本：产品做工很好 10 情感：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">任务：判断文本情感
+
+文本：这个电影非常精彩
+情感：正面
+
+文本：服务态度很差
+情感：负面
+
+文本：产品做工很好
+情感：
+</code></pre></div>
 <p>通过前面的示例，模型能够更清晰地理解任务格式和判断逻辑，从而在最后一条数据上给出更准确的结果。 Few-shot Prompt 的优势在于显著提升模型对任务格式的理解能力。尤其是在一些结构化任务中，例如信息抽取、分类、格式转换等，通过示例可以大幅提高模型的稳定性。</p>
 <p>不过，Few-shot 也存在一定的成本问题。示例越多，Prompt 的 Token 长度就越大，从而增加推理成本。因此，在实际工程中，往往需要在示例数量与 Token 成本之间进行权衡。</p>
 <p><strong>Chain-of-Thought Prompt</strong></p>
@@ -16,7 +28,9 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/be5815640d-agent-.pdf-0075-00.png" /></p>
 <p>Chain-of-Thought 的核心思想是：引导模型显式地展示推理过程，而不是直接给出答案。</p>
 <p><strong>例如：</strong></p>
-<p>1 问题：一个盒子里有 3 个红球和 2 个蓝球，总共有多少个球？ 2 请一步一步思考并给出答案。</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">问题：一个盒子里有 3 个红球和 2 个蓝球，总共有多少个球？
+请一步一步思考并给出答案。
+</code></pre></div>
 <p><img loading="lazy" decoding="async" alt="" src="assets/5cee068baa-agent-.pdf-0075-04.png" /></p>
 <ol>
 <li>

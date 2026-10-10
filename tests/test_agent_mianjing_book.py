@@ -105,3 +105,17 @@ def test_lora_example_is_a_valid_python_code_block():
     assert "from torch import nn" in match.group(1)
     assert "torch.nnas" not in source
     assert not re.search(r"(?m)^\|\s*\d+(?:\s*<br>.*)?\s*\|", source)
+
+
+def test_prompt_examples_do_not_contain_pdf_line_number_artifacts():
+    source = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+
+    assert "```text\n请判断以下文本的情感倾向（正面或负面）：\n文本：这个产品质量非常好，使用体验也很棒。\n```" in source
+    assert "```text\n任务：判断文本情感\n\n文本：这个电影非常精彩\n情感：正面" in source
+    assert "文本：产品做工很好\n情感：\n```" in source
+    assert "```text\n问题：一个盒子里有 3 个红球和 2 个蓝球，总共有多少个球？\n请一步一步思考并给出答案。\n```" in source
+    assert not re.search(
+        r"(?m)^1\s+(?:请判断|任务：|问题：|请检查|忽略之前|请假装|退款怎么弄|商品退款|如何申请信用卡|如何重置账户|代码块北京|上海现在)",
+        source,
+    )
+    assert not re.search(r"^1\s+[^\n]+\s+2\s+3\s+", source, re.MULTILINE)

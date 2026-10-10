@@ -129,6 +129,16 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertNotIn("<table", rendered_sample)
         self.assertNotIn("torch.nnas", generated)
 
+    def test_agent_mianjing_prompt_examples_render_without_line_numbers(self):
+        generated = (ROOT / "library" / "agent-mianjing" / "chapter-18.html").read_text(encoding="utf-8")
+
+        self.assertIn('class="codehilite" data-lang="text"', generated)
+        self.assertIn("文本：这个电影非常精彩", generated)
+        self.assertIn("情感：负面", generated)
+        self.assertNotIn("1 任务：判断文本情感", generated)
+        self.assertNotIn("2 3 文本：", generated)
+        self.assertNotIn("1 请判断以下文本的情感倾向", generated)
+
 
 if __name__ == "__main__":
     unittest.main()
