@@ -17,6 +17,30 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         self.assertIn('<pre class="mermaid" aria-label="流程图">', rendered)
         self.assertIn("query[用户问题] --&gt; rewrite[问题改写]", rendered)
 
+    def test_mermaid_flowchart_directive_preserves_diagram_type(self):
+        rendered = build_library.render_markdown(
+            '```mermaid\n%%{init: {"flowchart": {"useMaxWidth": false}}}%%\n'
+            "flowchart LR\n    input[用户输入] --> answer[最终回答]\n```"
+        )
+
+        self.assertIn('data-diagram-type="flowchart"', rendered)
+        self.assertIn('aria-label="流程图"', rendered)
+        self.assertIn('"useMaxWidth": false', rendered)
+
+    def test_agent_tool_calling_diagram_uses_compact_horizontal_layout(self):
+        canonical = (ROOT / "books" / "agent面经" / "《Agent 面经》.md").read_text(encoding="utf-8")
+        alias = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+        generated = (ROOT / "library" / "agent-mianjing" / "chapter-40.html").read_text(encoding="utf-8")
+        section = canonical.split("## 7.1 Tool Calling", 1)[1].split("## ", 1)[0]
+        diagram = section.split("```mermaid", 1)[1].split("```", 1)[0]
+
+        self.assertEqual(canonical, alias)
+        self.assertIn("flowchart LR", diagram)
+        self.assertIn('"useMaxWidth": false', diagram)
+        self.assertIn('"nodeSpacing": 22', diagram)
+        self.assertIn('data-diagram-type="flowchart"', generated)
+        self.assertIn('"useMaxWidth": false', generated)
+
     def test_topic_navigation_is_escaped_and_marks_the_active_chapter(self):
         chapters = [
             {"title": "基础篇"},

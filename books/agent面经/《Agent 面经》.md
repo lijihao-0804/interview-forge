@@ -3731,14 +3731,15 @@ AI 内容生产系统
 
 
 ```mermaid
-flowchart TD
-    input[User Input] --> reasoning[LLM Reasoning]
+%%{init: {"themeVariables": {"fontSize": "14px"}, "flowchart": {"useMaxWidth": false, "nodeSpacing": 22, "rankSpacing": 30, "padding": 8}}}%%
+flowchart LR
+    input[用户输入] --> reasoning[LLM 理解与推理]
     reasoning --> needTool{需要调用工具？}
-    needTool -->|是| selection[Tool Selection]
-    selection --> execution[Tool Execution]
-    execution --> result[Result Returned to LLM]
+    needTool -->|否| response[生成最终回答]
+    needTool -->|是| selection[选择工具并整理参数]
+    selection --> execution[应用程序执行工具]
+    execution --> result[工具结果返回 LLM]
     result --> reasoning
-    needTool -->|否| response[Final Response]
 ```
 
 在这个过程中，大模型不仅负责理解用户意图，还需要判断是否需要调用工具，并决定调用哪个工具以及传递哪些参数。

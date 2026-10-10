@@ -802,7 +802,14 @@ def mermaid_figure(source: str) -> str:
     """把 Mermaid 源码转成统一的图表 HTML，源码先转义防止注入。"""
     source = source.replace("\xa0", " ").strip()
     safe_source = html.escape(source, quote=False)
-    diagram_type = source.split(None, 1)[0] if source else "diagram"
+    # 单图配置指令可以位于 Mermaid 源码开头；识别类型时跳过它，避免
+    # 带 %%{init: ...}%% 的流程图丢失按图类型设置的配色与无障碍标签。
+    source_without_directives = re.sub(r"%%\{.*?\}%%", "", source, flags=re.DOTALL).lstrip()
+    diagram_type = (
+        source_without_directives.split(None, 1)[0]
+        if source_without_directives
+        else "diagram"
+    )
     label = {
         "flowchart": "流程图",
         "graph": "流程图",
