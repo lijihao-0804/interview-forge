@@ -92,7 +92,14 @@ Claude Code 的答案可能出乎你的意料，它没有用 ReAct，而是用�
 
 如果你接触过 Agent 开发，大概率听说过 ReAct（Reasoning + Acting）。它是 2022 年提出的一种 Agent 范式，核心思路是把 Agent 的每一步拆成三个阶段：
 
-![](../images/fef882ea934377a12f6a38bc.png)
+```mermaid
+flowchart TD
+    T[Thought：判断当前要做什么] --> A[Action：选择并调用工具]
+    A --> O[Observation：接收工具结果]
+    O --> D{任务完成？}
+    D -->|否| T
+    D -->|是| F[生成最终答复]
+```
 
 具体来说，模型在每一轮都会先输出一段「思考」（Thought），比如「我需要先读取 config.ts 文件来了解数据库连接配置」；然后选择一个工具调用（Action）；最后拿到工具结果（Observation）。这三步不断循环，直到模型认为任务完成。
 

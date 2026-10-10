@@ -272,9 +272,14 @@ def run_agent(user_goal, model, tool_registry, max_steps=12):
 
 短任务可以同步运行；需要等待人工、外部回调或执行数小时的任务，应使用状态库和队列：
 
-```text
-API 接收 → 保存状态 → 投递队列 → Worker 执行
-→ 每步 Checkpoint → 等待审批/回调 → 恢复执行
+```mermaid
+flowchart TD
+    A["API 接收"] --> B["保存状态"]
+    B --> C["投递队列"]
+    C --> D["Worker 执行"]
+    D --> E["每步 Checkpoint"]
+    E --> F["等待审批 / 回调"]
+    F --> G["恢复执行"]
 ```
 
 进程不能依靠 `sleep()` 长期等待。Worker 崩溃后，应从最近 Checkpoint 恢复，而不是重新执行所有副作用。
@@ -340,8 +345,12 @@ Function Calling 的协议细节可继续阅读：
 
 高风险操作可拆为：
 
-```text
-prepare → preview → approve → commit → verify
+```mermaid
+flowchart TD
+    A["prepare"] --> B["preview"]
+    B --> C["approve"]
+    C --> D["commit"]
+    D --> E["verify"]
 ```
 
 邮件先生成草稿与收件人预览，退款先计算金额并生成草稿，审批后才提交。提交工具应支持幂等键：相同任务重复请求时返回第一次结果，不能再次产生副作用。
@@ -489,7 +498,16 @@ Hermes、OpenClaw、Codex 和 Claude Code 的 Harness 差异及产品定位，�
 
 ### 6.5 确定性节点与模型节点
 
-图中的节点不一定调用模型。身份验证、规则计算、Schema 校验和数据库写入应使用普通代码；模型适合理解非结构化输入和生成候选。可靠退款流程可能是：模型识别意图 → 程序查订单 → 规则计算资格 → 模型解释政策 → 人工审批 → 程序提交。
+图中的节点不一定调用模型。身份验证、规则计算、Schema 校验和数据库写入应使用普通代码；模型适合理解非结构化输入和生成候选。可靠退款流程可表示为：
+
+```mermaid
+flowchart TD
+    A["模型识别意图"] --> B["程序查订单"]
+    B --> C["规则计算资格"]
+    C --> D["模型解释政策"]
+    D --> E["人工审批"]
+    E --> F["程序提交"]
+```
 
 ---
 ## 7. 状态、会话与记忆
@@ -1143,7 +1161,18 @@ flowchart TB
 
 ### 16.7 状态机与补偿
 
-任务状态应显式定义允许转移，如 `created → running → waiting_approval → completed/failed`。非法转移要拒绝。跨系统副作用无法原子提交时，使用 Saga/补偿流程并记录每步完成状态。
+任务状态应显式定义允许转移，非法转移要拒绝：
+
+```mermaid
+flowchart TD
+    A["created"] --> B["running"]
+    B --> C["waiting_approval"]
+    C --> D{"执行结果？"}
+    D -->|成功| E["completed"]
+    D -->|失败| F["failed"]
+```
+
+跨系统副作用无法原子提交时，使用 Saga/补偿流程并记录每步完成状态。
 
 ---
 ## 17. 完整开发流程

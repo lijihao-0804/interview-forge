@@ -1802,29 +1802,37 @@ LangChain 主要覆盖能力层和一部分编排、上下文接口；LangGraph 
 
 ### 22.3 一次请求的四种典型数据流
 
-**单次生成：**
-
-```text
-用户输入 → 消息/Prompt → Chat Model → AIMessage → 展示文本
-```
-
-**确定性 Chain：**
-
-```text
-业务输入 → Prompt → Model → Parser → 结构化结果 → 普通业务代码
-```
-
-**2-step RAG：**
-
-```text
-问题 → Retriever → Documents → 上下文组装 → Model → 回答 + 程序绑定的引用
-```
-
-**Tool Agent：**
-
-```text
-目标 → Model → 工具调用建议 → 应用校验并执行 → ToolMessage
-     → Model 决定继续调用或结束 → 最终状态
+```mermaid
+flowchart TD
+    subgraph Single["单次生成"]
+        S1["用户输入"] --> S2["消息 / Prompt"]
+        S2 --> S3["Chat Model"]
+        S3 --> S4["AIMessage"]
+        S4 --> S5["展示文本"]
+    end
+    subgraph Chain["确定性 Chain"]
+        C1["业务输入"] --> C2["Prompt"]
+        C2 --> C3["Model"]
+        C3 --> C4["Parser"]
+        C4 --> C5["结构化结果"]
+        C5 --> C6["普通业务代码"]
+    end
+    subgraph RAG["2-step RAG"]
+        R1["问题"] --> R2["Retriever"]
+        R2 --> R3["Documents"]
+        R3 --> R4["上下文组装"]
+        R4 --> R5["Model"]
+        R5 --> R6["回答 + 程序绑定的引用"]
+    end
+    subgraph Agent["Tool Agent"]
+        A1["目标"] --> A2["Model"]
+        A2 --> A3["工具调用建议"]
+        A3 --> A4["应用校验并执行"]
+        A4 --> A5["ToolMessage"]
+        A5 --> A6{"Model 决定继续调用？"}
+        A6 -->|继续| A2
+        A6 -->|结束| A7["最终状态"]
+    end
 ```
 
 这四条链路从上到下，自主性与不确定性逐渐提高。不是越靠下越高级，而是要按问题复杂度选择足够简单的方案。
@@ -3479,7 +3487,16 @@ ReAct 可简化为循环：
 
 ### 29.4 Planner-Executor 何时有价值
 
-如果任务可以分解为“查资料 → 比较 → 计算 → 生成报告”，Planner 可以先产出结构化步骤，Executor 逐步执行。计划必须被视为可修改草案：
+若任务能分解为清晰步骤，Planner 可以先产出结构化计划，再由 Executor 逐步执行：
+
+```mermaid
+flowchart TD
+    A["查资料"] --> B["比较"]
+    B --> C["计算"]
+    C --> D["生成报告"]
+```
+
+计划必须被视为可修改草案：
 
 - 工具结果可能让后续步骤失效；
 - 计划可能漏掉依赖；
@@ -3718,7 +3735,17 @@ curl -X POST http://127.0.0.1:8000/v1/chat \
 }
 ```
 
-这次请求依次发生：Pydantic 校验输入 → Semaphore 获取并发名额 → wait_for 启动 60 秒计时 → Agent 读取 thread 状态 → 模型生成 → Checkpointer 保存新状态 → FastAPI 按 ChatResponse 过滤并序列化输出。
+这次请求依次经过以下处理阶段：
+
+```mermaid
+flowchart TD
+    A["Pydantic 校验输入"] --> B["Semaphore 获取并发名额"]
+    B --> C["wait_for 启动 60 秒计时"]
+    C --> D["Agent 读取 thread 状态"]
+    D --> E["模型生成"]
+    E --> F["Checkpointer 保存新状态"]
+    F --> G["FastAPI 按 ChatResponse 过滤并序列化输出"]
+```
 
 其中 30 秒的模型 `timeout` 限制单次供应商请求，60 秒限制整次 Agent 运行。后者可能包含多次模型和工具调用，因此两个超时不是重复配置。
 
@@ -4308,18 +4335,24 @@ LCEL 中的 `|` 表示把左侧输出交给右侧输入。例如 `prompt | model
 
 教学代码常把建库和问答放在一个文件里，但它们本质上是两套不同生命周期的系统。
 
-**离线建库流水线：**
-
-```text
-原始文件 → Loader → Document → Splitter → Chunks
-         → Embedding → Vector Store
-```
-
-**在线问答流水线：**
-
-```text
-用户问题 → 查询向量 → Retriever → 相关 Documents
-         → 上下文组装 → Chat Model → 回答与真实引用
+```mermaid
+flowchart TD
+    subgraph Offline["离线建库流水线"]
+        O1["原始文件"] --> O2["Loader"]
+        O2 --> O3["Document"]
+        O3 --> O4["Splitter"]
+        O4 --> O5["Chunks"]
+        O5 --> O6["Embedding"]
+        O6 --> O7["Vector Store"]
+    end
+    subgraph Online["在线问答流水线"]
+        Q1["用户问题"] --> Q2["查询向量"]
+        Q2 --> Q3["Retriever"]
+        Q3 --> Q4["相关 Documents"]
+        Q4 --> Q5["上下文组装"]
+        Q5 --> Q6["Chat Model"]
+        Q6 --> Q7["回答与真实引用"]
+    end
 ```
 
 Embedding 不是让模型重新训练，也不是把知识写进模型参数。它只是生成用于相似度搜索的数值表示。相似表示“语义可能相关”，不表示内容正确、最新或当前用户有权访问。

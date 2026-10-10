@@ -8,6 +8,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class LibraryReaderLayoutTests(unittest.TestCase):
+    def test_mermaid_flowchart_renders_as_a_diagram(self):
+        rendered = build_library.render_markdown(
+            "```mermaid\nflowchart TD\n    query[用户问题] --> rewrite[问题改写]\n```"
+        )
+
+        self.assertIn('<figure class="mermaid-diagram" data-diagram-type="flowchart">', rendered)
+        self.assertIn('<pre class="mermaid" aria-label="流程图">', rendered)
+        self.assertIn("query[用户问题] --&gt; rewrite[问题改写]", rendered)
+
     def test_topic_navigation_is_escaped_and_marks_the_active_chapter(self):
         chapters = [
             {"title": "基础篇"},
@@ -162,6 +171,33 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         )
         self.assertNotIn("•", document_processing)
         self.assertNotIn("来编</p><p>码", document_processing)
+
+    def test_agent_mianjing_ocr_text_and_rag_flow_render_without_duplicate_screenshots(self):
+        source = (ROOT / "books" / "agent面经" / "《Agent 面经》.md").read_text(encoding="utf-8")
+        source_alias = (ROOT / "books" / "agent面经" / "agent面经.md").read_text(encoding="utf-8")
+        chapter_pages = sorted((ROOT / "library" / "agent-mianjing").glob("chapter-*.html"))
+        sentence = "上下文压缩的目标是：在保留关键信息的前提下，减少输入文本长度。"
+        matching_pages = [page for page in chapter_pages if sentence in page.read_text(encoding="utf-8")]
+
+        self.assertEqual(source, source_alias)
+        self.assertNotIn("<!-- Start of picture text -->", source)
+        self.assertNotIn("<!-- End of picture text -->", source)
+        self.assertIn("agent面经.pdf-0039-08.png", source)
+        self.assertIn("agent面经.pdf-0124-10.png", source)
+        self.assertEqual(len(matching_pages), 1)
+        generated = matching_pages[0].read_text(encoding="utf-8")
+        self.assertNotIn("agent面经.pdf-0123-10.png", "".join(page.read_text(encoding="utf-8") for page in chapter_pages))
+        self.assertEqual(generated.count(sentence), 1)
+        self.assertIn('<figure class="mermaid-diagram" data-diagram-type="flowchart">', generated)
+        self.assertIn("User Query", generated)
+        self.assertIn("Multi Query Retrieval", generated)
+        self.assertIn("LLM Generation", generated)
+
+    def test_agent_mianjing_tool_components_have_consistent_numbered_labels(self):
+        source = (ROOT / "books" / "agent面经" / "《Agent 面经》.md").read_text(encoding="utf-8")
+        self.assertIn("**1. 名称（Tool Name / Name）**", source)
+        self.assertIn("**2. 描述（Description）**", source)
+        self.assertIn("**3. 执行函数（Function）**", source)
 
 
 if __name__ == "__main__":

@@ -84,13 +84,21 @@ LangGraph 是 LangChain Agent 的底层运行时。简单的模型与工具循�
 
 LlamaIndex 将数据处理链路拆得更细，可以概括为：
 
-```text
-数据接入 -> 解析与切分 -> 索引 -> 检索与重排 -> Query Engine -> Agent
+```mermaid
+flowchart TD
+    PDF[PDF] --> ING[数据接入]
+    WEB[网页] --> ING
+    DB[数据库] --> ING
+    ING --> PARSE[解析与切分]
+    PARSE --> INDEX[建立索引]
+    INDEX --> RETRIEVE[检索]
+    RETRIEVE --> RERANK[重排]
+    RERANK --> CTX[组织上下文]
+    CTX --> ENGINE[Query Engine]
+    ENGINE --> AGENT[Agent]
 ```
 
 它的价值不在于记住每个组件名字，而在于它把「如何得到高质量上下文」作为核心工程问题。企业文档、多数据源路由和复杂检索是它更自然的应用入口。
-
-![](../images/c237be44bbddef50b8a4bcb9.png)
 
 LlamaIndex 也提供 Agent 和事件驱动 Workflow，可以让模型调用普通工具或数据查询能力。因此，准确的说法是「LlamaIndex 以数据为优势重心」，而不是「LlamaIndex 只能做 RAG」。
 

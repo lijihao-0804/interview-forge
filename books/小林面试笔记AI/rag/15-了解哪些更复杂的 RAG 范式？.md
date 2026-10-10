@@ -61,6 +61,18 @@ Self-RAG 是论文提出的、让模型产生检索与反思信号的训练范�
 
 **Advanced RAG** 常用来指在检索前后加入 Query 改写、混合召回、Rerank、压缩等增强步骤。它可能提高质量，也会引入模型调用、版本、超时和成本；是否有效要靠基线对照，不能宣称所有生产系统都采用同一形态。
 
+下面是一个固定流程示例，按配图中的顺序展示常见增强环节；实际项目可以并行或调整检索步骤，并不存在唯一标准顺序。
+
+```mermaid
+flowchart TD
+    Q[User Query] --> RW[Query Rewrite]
+    RW --> HS[Hybrid Search]
+    HS --> MQ[Multi Query Retrieval]
+    MQ --> RR[Rerank]
+    RR --> CC[Context Compression]
+    CC --> LLM[LLM Generation]
+```
+
 Advanced RAG 往往仍可实现为固定或半固定流程；当不同问题需要不同检索器、证据策略和回退路径时，模块化与路由设计会更有帮助。
 
 **Modular RAG** 把检索器、过滤器、融合器、重排器、生成器和校验器等拆成可替换模块，并通过明确的输入/输出契约组合。它提高了可测试性和路由灵活性，也会增加接口、状态、版本和观测复杂度。某些框架提供 Workflow/Graph 能力可以承载这种设计，但框架名称本身不等于架构实现。

@@ -4731,9 +4731,19 @@ RAG（Retrieval-Augmented Generation，检索增强生成）解决“模型不�
 
 ### 32.1 整体流程
 
-```text
-文档 → 分块(chunking) → 嵌入(embedding) → 存入向量库
-用户问题 → 嵌入 → 检索最相似的块 → 拼进 prompt → 模型生成答案
+```mermaid
+flowchart TD
+    subgraph Offline["离线建库"]
+        D1["文档"] --> D2["分块 (chunking)"]
+        D2 --> D3["嵌入 (embedding)"]
+        D3 --> D4["存入向量库"]
+    end
+    subgraph Online["在线问答"]
+        Q1["用户问题"] --> Q2["嵌入"]
+        Q2 --> Q3["检索最相似的块"]
+        Q3 --> Q4["拼进 prompt"]
+        Q4 --> Q5["模型生成答案"]
+    end
 ```
 
 可以先用“纯 Python + NumPy”实现一个最小版本，理解原理后再换专业向量库（如 FAISS、Chroma、Milvus）。

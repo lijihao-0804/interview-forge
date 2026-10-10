@@ -4420,9 +4420,30 @@ RAG 这个概念最早是由 Facebook（现 Meta）的研究团队在 2020 年�
 
 很多同学对 RAG 的理解停留在「就是检索+生成」这个层面，但真正要搭建一个 RAG 系统，远比这复杂。一个完整的 RAG 系统其实分为两个大阶段：**索引阶段（离线）** 和 **查询阶段（在线）**。
 
-![img](../images/5917b75abab84c5db69359a6.png)
-
-*img*
+```mermaid
+flowchart TD
+    subgraph Offline[索引阶段：离线]
+        SRC[原始数据] --> CLEAN[清洗、去重与格式化]
+        CLEAN --> DOC[文档库]
+        DOC --> SPLIT[文本切分]
+        SPLIT --> CHUNK[Chunks]
+        CHUNK --> EMB[Embedding 向量化]
+        EMB --> INDEX[(向量数据库索引)]
+    end
+    subgraph Online[查询阶段：在线]
+        Q[用户问题] --> PRE[Prompt 预处理]
+        PRE --> QEMB[查询向量化]
+        QEMB --> SEARCH[相似度检索]
+        INDEX --> SEARCH
+        SEARCH --> RERANK[重排序]
+        RERANK --> TOPK[Top-K 结果]
+        TOPK --> CTX[组织 Context]
+        Q --> PROMPT[提示词模板：Context + Question]
+        CTX --> PROMPT
+        PROMPT --> LLM[LLM]
+        LLM --> ANSWER[回答返回用户]
+    end
+```
 
 #### 先用一个生活化的例子来理解
 
@@ -4504,12 +4525,7 @@ RAG 的工作流程和这个一模一样。
 
 #### 完整流程一览
 
-把索引阶段和查询阶段合在一起，就是 RAG 的完整工作流程：
-
-- 索引阶段（离线）：文档加载→文档切割→文本向量化→存入向量数据库
-- 查询阶段（在线）：用户提问→问题向量化→向量检索→构造增强Prompt→大模型生成回答
-
-这是最基础的 RAG 流程，也被称为 **Naive RAG**（朴素 RAG）。
+上方流程图把离线建索引与在线查询放在同一条链路中。最基础的 **Naive RAG** 可以看作它的简化基线：先准备可检索索引，再在每次查询时召回证据、组织 Prompt 并生成回答。
 
 在实际生产中，为了提升效果，还会加入查询改写、多路召回、重排序（Re-rank）等高级技术，这些后面都会讲。
 

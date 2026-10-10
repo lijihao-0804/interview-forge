@@ -107,24 +107,30 @@ RAG 这个概念最早是由 Facebook（现 Meta）的研究团队在 2020 年�
 很多同学对 RAG 的理解停留在「就是检索+生成」这个层面，但真正要搭建一个 RAG 系统，远比这复杂。一个完整的 RAG 系统通常分为**索引阶段（离线/异步）**和**查询阶段（在线）**，并需要把权限、版本、引用、错误处理和评估纳入边界。
 
 ```mermaid
-flowchart LR
-    A[文档/数据源] --> B[解析、清洗、切块]
-    B --> C[Embedding、关键词或结构化索引]
-    C --> D[(检索索引)]
-    Q[用户问题] --> P[身份、租户与 ACL 过滤]
-    P --> R[查询改写/多路召回]
-    D --> R
-    R --> K[重排、去重、上下文预算]
-    K --> G[模型生成]
-    G --> V[引用/事实性/格式校验]
-    V -->|通过| O[回答与审计记录]
-    V -->|失败| E[拒答、重检索、人工升级或重试]
-    B -.来源与版本.-> O
+flowchart TD
+    subgraph Offline[索引阶段：离线或异步]
+        SRC[数据源：PDF、网页、数据库] --> CLEAN[解析、清洗与格式化]
+        CLEAN --> DOC[文档库]
+        DOC --> SPLIT[文本切分]
+        SPLIT --> CHUNK[Chunks]
+        CHUNK --> INDEXER[Embedding、关键词或结构化索引]
+        INDEXER --> INDEX[(检索索引)]
+    end
+    subgraph Online[查询阶段：在线]
+        Q[用户问题] --> ACL[身份、租户与 ACL 过滤]
+        ACL --> REWRITE[Query 改写与多路召回]
+        INDEX --> REWRITE
+        REWRITE --> RERANK[重排、去重与上下文预算]
+        RERANK --> TOPK[整理 Top-K 证据]
+        Q --> PROMPT[构造 Context + Question Prompt]
+        TOPK --> PROMPT
+        PROMPT --> LLM[模型生成]
+        LLM --> CHECK{引用、事实性与格式校验}
+        CHECK -->|通过| ANSWER[回答与审计记录]
+        CHECK -->|失败| RECOVER[拒答、重检索、人工升级或重试]
+    end
+    CLEAN -.来源与版本信息.-> ANSWER
 ```
-
-![img](../images/5917b75abab84c5db69359a6.png)
-
-*img*
 
 ### 先用一个生活化的例子来理解
 
@@ -206,12 +212,7 @@ RAG 的工作流程和这个一模一样。
 
 ### 完整流程一览
 
-把索引阶段和查询阶段合在一起，就是 RAG 的完整工作流程：
-
-- 索引阶段（离线）：文档加载→文档切割→文本向量化→存入向量数据库
-- 查询阶段（在线）：用户提问→问题向量化→向量检索→构造增强Prompt→大模型生成回答
-
-这是最基础的 RAG 流程，也常被称为 **Naive RAG**（朴素 RAG）。
+上方流程图把离线建索引与在线查询放在同一条链路中。最基础的 **Naive RAG** 可以看作它的简化基线：先准备可检索索引，再在每次查询时召回证据、组织 Prompt 并生成回答。
 
 在实际生产中，为了提升效果，还会加入查询改写、多路召回、重排序（Re-rank）等高级技术，这些后面都会讲。
 

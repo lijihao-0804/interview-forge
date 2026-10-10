@@ -396,8 +396,11 @@ flowchart LR
 
 **CMS（Concurrent Mark Sweep）** 四阶段：
 
-```text
-初始标记（STW，只标记 GC Roots 直接引用）→ 并发标记 → 重新标记（STW，修正并发期间变化）→ 并发清除
+```mermaid
+flowchart TD
+    A["初始标记（STW：标记 GC Roots 直接引用）"] --> B["并发标记"]
+    B --> C["重新标记（STW：修正并发期间变化）"]
+    C --> D["并发清除"]
 ```
 
 CMS 的问题：标记-清除产生碎片；并发阶段占 CPU；并发失败（Concurrent Mode Failure）时退化为 Serial Old 全停顿；浮动垃圾（标记期间新产生的垃圾留到下次）。
@@ -498,8 +501,14 @@ Minor GC 前检查老年代是否足够容纳晋升对象：老年代最大连�
 
 ### 7.1 类加载的生命周期
 
-```text
-加载 → 验证 → 准备 → 解析 → 初始化 → 使用 → 卸载
+```mermaid
+flowchart TD
+    A["加载"] --> B["验证"]
+    B --> C["准备"]
+    C --> D["解析"]
+    D --> E["初始化"]
+    E --> F["使用"]
+    F --> G["卸载"]
 ```
 
 | 阶段 | 做什么 |

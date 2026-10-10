@@ -4,8 +4,24 @@
 <p><img loading="lazy" decoding="async" alt="" src="assets/fe4d0cd63b-agent-.pdf-0144-02.png" /></p>
 <h3 id="function-calling">Function Calling 工作流程</h3>
 <p>在传统的大模型应用中，模型通常只会生成自然语言文本，例如回答问题或生成内容。但在 Function  Calling 机制下，模型不仅可以生成文本，还可以生成函数调用结构。系统会根据这个结构去执行真实的函数，然后把执行结果再返回给模型继续推理。</p>
-<p>一个完整的 Function Calling 工作流程通常包括以下几个步骤。第一步是定义可用函数。系统需要提前向模型提供所有可调用函数的信息，包括函数名称、功能描述以及参数结构。模型会根据这些信息判断在什么情况下应该调用对应函数。</p>
-<p>第二步是用户输入任务请求。用户向 Agent 提出问题或任务，例如查询订单、搜索知识库或者生成数据报告。系统会把用户输入与函数定义一起发送给大语言模型。第三步是模型判断是否需要调用函数。模型会根据任务需求进行推理。如果任务可以直接回答，模型会生成普通文本；如果任务需要访问外部系统，模型就会生成函数调用请求。第四步是生成函数调用参数。当模型决定调用某个函数时，它会按照函数定义的结构生成参数。例如查询订单时，模型可能会生成一个包含订单编号的 JSON 对象。第五步是系统执行函数。在收到模型生成的函数调用请求之后，Agent 系统会根据函数名称找到对应的程序接口，并执行真实的业务逻辑，例如调用数据库、访问 API 或执行代码。第六步是返回执行结果并继续推理。函数执行完成后，系统会将返回结果再次发送给模型。模型会根据新的信息继续推理，最终生成完整的回答。通过这一流程，大语言模型可以在保持推理能力的同时，安全地调用外部系统，而不需要直接执行代码。</p>
+<p>Function Calling 的完整流程可以分为函数定义、模型决策、系统执行和结果回传几个阶段：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    define[系统定义函数名称、描述和参数结构]
+    request[用户提交任务请求]
+    define --&gt; send[系统将函数定义与用户请求一起发送给模型]
+    request --&gt; send
+    send --&gt; decide[模型分析任务并判断是否需要调用函数]
+    decide --&gt; needCall{需要调用函数？}
+    needCall --&gt;|否| direct[模型生成普通文本回答]
+    direct --&gt; final[返回完整回答]
+    needCall --&gt;|是| args[模型按函数定义生成调用名称和参数]
+    args --&gt; execute[系统定位并执行对应函数]
+    execute --&gt; result[系统将函数结果返回给模型]
+    result --&gt; reason[模型结合结果继续推理]
+    reason --&gt; again{还需要调用函数吗？}
+    again --&gt;|是| decide
+    again --&gt;|否| final</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>函数可以访问数据库、调用 API 或执行代码；实际执行始终由 Agent 系统完成，而不是让模型直接运行代码。</p>
 <h4 id="json-schema">JSON Schema 定义</h4>
 <p>在 Function Calling 机制中，函数参数通常采用 JSON Schema 的形式进行定义。JSON Schema 是一种结构化数据描述标准，用于明确说明函数需要哪些参数、参数类型是什么以及哪些参数是必需的。通过使用 JSON Schema，系统可以向模型提供清晰的函数接口说明，使模型能够准确地生成调用参数。</p>
 <p>一个典型的函数定义通常包含以下几个部分：</p>
@@ -56,4 +72,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260929-review-polish"></script><script src="../assets/library-mermaid.js?v=20260929-review-polish"></script></body></html>

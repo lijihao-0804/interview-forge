@@ -13,12 +13,16 @@
 <p>当 Planner 将任务分配给某个 Worker 后，该 Worker 会根据任务内容进行推理，并调用相应工具完成任务。执行完成后，Worker 会将结果返回给 Planner，供下一步任务使用。</p>
 <p>Worker Agent 的设计原则通常是职责单一、能力明确。这样不仅可以提高执行效率，还能够降低系统复杂度。当系统需要新增能力时，只需要增加新的 Worker Agent，而不需要修改整个系统结构。此外，在一些系统中，Worker 之间也可能存在协作关系。例如一个 Worker 的输出可能成为另一个 Worker 的输入，从而形成任务流水线。</p>
 <h5 id="_1">协作流程</h5>
-<p>在 Planner‒Worker 模式下，一个典型的任务执行流程通常如下： 首先，用户向系统提交任务请求。</p>
-<p>Planner Agent 接收任务并进行分析，将任务拆解为多个子步骤。</p>
-<p>Planner 根据任务类型选择合适的 Worker Agent。</p>
-<p>Worker Agent 执行任务并返回结果。</p>
-<p>Planner 汇总结果并决定是否继续执行下一步。</p>
-<p>最终由 Planner 生成完整输出并返回给用户。通过这种方式，复杂任务可以被逐步完成，同时系统仍然保持较好的可控性。</p>
+<p>在 Planner‒Worker 模式下，用户提交任务后由 Planner 分析并拆解子步骤，再按任务类型选择 Worker 执行；Worker 返回结果后，Planner 汇总并决定是否继续：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    request[用户提交任务请求] --&gt; planner[Planner 分析任务并拆解子步骤]
+    planner --&gt; select[Planner 按任务类型选择 Worker]
+    select --&gt; worker[Worker 执行子任务并返回结果]
+    worker --&gt; decide[Planner 汇总结果并判断后续安排]
+    decide --&gt; more{还要继续执行子步骤？}
+    more --&gt;|是| select
+    more --&gt;|否| answer[Planner 生成完整输出并返回用户]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>这种协作方式将复杂任务拆成可控步骤，再由 Planner 汇总结果。</p>
 <h5 id="_2">协作模式总结</h5>
 <p>Planner‒Worker 模式是当前 Multi-Agent 系统中最常见的协作方式。通过将任务规划与任务执行分离，系统可以在保持灵活性的同时提高整体效率。</p>
 <p>Planner 负责任务理解、任务拆解以及流程控制，而 Worker 负责具体执行。两者通过任务分配和结果反馈形成闭环协作，从而完成复杂目标。</p>
@@ -38,4 +42,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260929-review-polish"></script><script src="../assets/library-mermaid.js?v=20260929-review-polish"></script></body></html>

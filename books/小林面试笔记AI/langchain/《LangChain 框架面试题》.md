@@ -204,7 +204,16 @@ AutoGen、Semantic Kernel 和 Microsoft Agent Framework 更偏微软生态或存
 
 流程跑得更久时，新的问题又会出现：会话中断后能否恢复，最终结果能否稳定进入业务系统，线上出错后能不能复现？因此，完整 Agent 不是一次模型调用，而是一条从任务设计、能力接入、运行控制走到测试监控的工程链路。
 
-![](../images/dcb3014c9ed4b06b98f1b728.png)
+```mermaid
+flowchart TD
+    A[任务边界：目标、范围、约束] --> B[选择模型与 Tools]
+    B --> C[设计 Prompt 与输出格式]
+    C --> D[配置 Agent：模型、Tools 与参数]
+    D --> E[设计状态与 Middleware：记忆、拦截与增强]
+    E --> F[确定调用方式：本地、API 或异步任务]
+    F --> G[测试与监控：用例、告警、日志与追踪]
+    G -.根据测试和线上反馈迭代.-> A
+```
 
 #### 第一步：明确任务边界
 
@@ -290,10 +299,14 @@ reply: SupportReply = result["structured_response"]
 
 底层执行流程是：
 
-```text
-用户消息 -> 模型判断
-模型判断 -> 工具调用 -> ToolMessage -> 模型继续判断
-模型判断 -> 最终结果（没有工具调用）
+```mermaid
+flowchart TD
+    U[用户消息] --> M[模型判断]
+    M --> D{是否请求工具？}
+    D -->|是| T[执行工具]
+    T --> R[ToolMessage 写回状态]
+    R --> M
+    D -->|否| F[输出最终结果]
 ```
 
 模型没有工具调用时，Agent 输出最终结果；模型请求工具时，LangGraph 运行时执行工具并把结果写回消息状态，再让模型继续判断。
@@ -433,10 +446,24 @@ Chain 解决的就是这个问题。它先让每个零件暴露相对统一的�
 
 最简单的 Chain 确实是线性的，例如：
 
-![](../images/bce58aa5d960b291eec6b043.png)
-
-```text
-用户输入 -> Prompt 模板 -> Chat Model -> 输出解析器 -> 字符串答案
+```mermaid
+flowchart TD
+    subgraph Fixed[固定数据流：线性 Chain]
+        U1[用户输入] --> P1[Prompt 模板] --> M1[Chat Model] --> X1[输出解析器] --> A1[字符串答案]
+    end
+    subgraph Branch[固定数据流：检索分支与汇合]
+        U2[用户输入] --> R2[检索上下文]
+        U2 --> Q2[保留原问题]
+        R2 --> P2[Prompt 模板]
+        Q2 --> P2
+        P2 --> M2[Chat Model] --> X2[输出解析器] --> A2[字符串答案]
+    end
+    subgraph Agent[运行时决策：Agent]
+        L[Agent] --> D{选择下一步}
+        D -->|搜索| S[搜索工具]
+        D -->|查数据| DB[数据库工具]
+        D -->|执行代码| C[代码执行工具]
+    end
 ```
 
 但真实应用还可能出现并行分支。比如用户问题一边送去知识库检索，一边原样保留下来，等检索结束后再把「问题」和「上下文」汇合到 Prompt。它也可能根据分类结果走不同分支。
@@ -1543,13 +1570,21 @@ LangGraph 是 LangChain Agent 的底层运行时。简单的模型与工具循�
 
 LlamaIndex 将数据处理链路拆得更细，可以概括为：
 
-```text
-数据接入 -> 解析与切分 -> 索引 -> 检索与重排 -> Query Engine -> Agent
+```mermaid
+flowchart TD
+    PDF[PDF] --> ING[数据接入]
+    WEB[网页] --> ING
+    DB[数据库] --> ING
+    ING --> PARSE[解析与切分]
+    PARSE --> INDEX[建立索引]
+    INDEX --> RETRIEVE[检索]
+    RETRIEVE --> RERANK[重排]
+    RERANK --> CTX[组织上下文]
+    CTX --> ENGINE[Query Engine]
+    ENGINE --> AGENT[Agent]
 ```
 
 它的价值不在于记住每个组件名字，而在于它把「如何得到高质量上下文」作为核心工程问题。企业文档、多数据源路由和复杂检索是它更自然的应用入口。
-
-![](../images/c237be44bbddef50b8a4bcb9.png)
 
 LlamaIndex 也提供 Agent 和事件驱动 Workflow，可以让模型调用普通工具或数据查询能力。因此，准确的说法是「LlamaIndex 以数据为优势重心」，而不是「LlamaIndex 只能做 RAG」。
 

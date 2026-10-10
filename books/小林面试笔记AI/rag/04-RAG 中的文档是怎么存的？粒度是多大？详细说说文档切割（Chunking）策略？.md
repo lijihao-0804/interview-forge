@@ -63,9 +63,16 @@
 
 理解了存储结构，查询时的流程就很顺了：
 
-![](../images/bfe5eb6f14b72ab300e0044b.png)
+```mermaid
+flowchart TD
+    question[用户提问] --> embedding[问题向量化]
+    embedding --> search[在向量库中检索相似 chunk]
+    search --> original[取回 chunk 原文]
+    original --> prompt[将原文放入 Prompt]
+    prompt --> answer[LLM 生成答案]
+```
 
-用户问题 -> 向量化 -> 在向量库里找相似的 chunk -> 取出 chunk 的原文 -> 塞进 prompt -> LLM 生成答案。向量只在「找」的时候用，LLM 最终读的是原文。
+向量只负责「找」，LLM 最终读取的是检索到的原文。
 
 ### 粒度怎么定?
 

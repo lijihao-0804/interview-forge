@@ -11,20 +11,12 @@
 <ul>
 <li>在 ReAct 模式中，模型会按照以下循环进行工作：</li>
 </ul>
-<ol>
-<li>
-<p>思考当前任务（Reasoning）</p>
-</li>
-<li>
-<p>决定下一步行动（Action）</p>
-</li>
-<li>
-<p>调用工具并获取结果（Observation）</p>
-</li>
-<li>
-<p>根据结果继续推理</p>
-</li>
-</ol>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    reason[思考当前任务 Reasoning] --&gt; action[决定下一步行动 Action]
+    action --&gt; observe[调用工具并获取结果 Observation]
+    observe --&gt; assess{是否已能回答？}
+    assess --&gt;|否| reason
+    assess --&gt;|是| answer[生成最终答案]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>这种模式形成了一个 “思考—行动—观察” 的循环结构，使模型能够逐步接近最终答案。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/e0edff304a-agent-.pdf-0149-03.png" /></p>
 <p>例如，当用户提出问题“某个城市今天的天气如何”时，Agent 的推理过程可能如下：</p>
@@ -45,34 +37,24 @@
 <p>ReAct 模式的优势在于结构简单、可解释性强，并且非常适合需要多次工具调用的任务。因此，许多 Agent 框架默认采用 ReAct 作为基本推理策略。</p>
 <h4 id="plan-and-execute">Plan-and-Execute</h4>
 <p>Plan-and-Execute（规划与执行） 是另一种常见的 Agent 推理模式，其核心思想是先制定完整计划，再逐步执行任务。</p>
-<p>在这种模式下，Agent 的工作流程通常分为两个阶段： 第一阶段是规划阶段（Planning）。模型会先分析任务目标，并生成一个完整的执行计划。例如： 任务：生成市场分析报告可能的计划：</p>
-<ol>
-<li>搜索行业数据</li>
-</ol>
-<p><strong>2. 分析市场趋势</strong></p>
-<p><strong>3. 总结竞争情况</strong></p>
-<ol start="4">
-<li>生成报告</li>
-</ol>
-<p>第二阶段是执行阶段（Execution）。系统会按照计划逐步执行每一个步骤，并在每一步调用相应的工具。</p>
+<p>在这种模式下，Agent 先进入规划阶段（Planning）：分析任务目标并生成完整计划；然后进入执行阶段（Execution），按计划逐步调用相应工具。以“生成市场分析报告”为例，计划可以拆成搜索行业数据、分析市场趋势、总结竞争情况和生成报告：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    task[接收任务：生成市场分析报告] --&gt; plan[Planning：分析目标并生成计划]
+    plan --&gt; steps[计划：搜索数据 → 分析趋势 → 总结竞争情况 → 生成报告]
+    steps --&gt; execute[Execution：调用相应工具执行当前步骤]
+    execute --&gt; more{计划中还有未完成步骤？}
+    more --&gt;|是| execute
+    more --&gt;|否| output[汇总并输出报告]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>相比 ReAct 模式，Plan-and-Execute 的特点是先整体规划，再逐步执行。这种方式在复杂任务中更加稳定，因为模型不会在每一步都重新思考整个问题，而是按照既定计划推进任务。这种模式通常适用于多步骤复杂任务，例如数据分析、研究报告生成、自动化工作流等场景。</p>
 <h5 id="reflection">Reflection</h5>
 <p>Reflection（反思机制） 是一种用于提升 Agent 推理质量的策略。其核心思想是让模型在完成任务之后进行自我检查，并根据检查结果修正答案或重新执行任务。在传统推理过程中，模型一旦生成答案就直接输出，这很容易产生错误。而 Reflection 机制会增加一个自我评估步骤，让模型重新审视自己的推理过程。</p>
-<p>一个典型的 Reflection 流程通常包括以下步骤：</p>
-<ol>
-<li>
-<p>模型生成初始答案</p>
-</li>
-<li>
-<p>模型评估答案是否存在错误</p>
-</li>
-<li>
-<p>如果发现问题，则重新推理或修改答案</p>
-</li>
-<li>
-<p>输出最终结果</p>
-</li>
-</ol>
+<p>一个典型的 Reflection 流程是先生成初始答案，再自我评估；发现问题时重新推理或修改，并再次检查，确认没有问题后才输出：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    draft[模型生成初始答案] --&gt; review[模型评估答案是否存在错误]
+    review --&gt; hasError{发现问题？}
+    hasError --&gt;|是| revise[重新推理或修改答案]
+    revise --&gt; review
+    hasError --&gt;|否| final[输出最终结果]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>例如，在代码生成或数学推理任务中，Reflection 机制可以显著减少错误率，因为模型会在输出之前进行自我校验。</p>
 <p>在实际 Agent 系统中，Reflection 还可以用于：</p>
 <ul>
@@ -193,4 +175,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260929-review-polish"></script><script src="../assets/library-mermaid.js?v=20260929-review-polish"></script></body></html>

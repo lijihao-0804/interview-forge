@@ -107,7 +107,22 @@ Streamable HTTP 不是「内部仍然就是 SSE」：Client 用 POST 发送 JSON
 | 消息 | 消息如何表达？ | JSON-RPC request/response/notification | JSON-RPC 不负责业务权限 |
 | 传输 | 消息如何到达？ | stdio / Streamable HTTP | SSE 是 HTTP 的一种事件表示，不是全部 MCP |
 
-正常会话可以抽象为：`initialize → capabilities → list/read/call → result/error/notification → close`。实现还应给请求设置超时，区分可重试错误与副作用错误，并记录调用者、工具名、参数摘要和结果状态。
+正常会话可以抽象为下面的生命周期；列举、读取和调用可以重复多次，通知也可能异步到达：
+
+```mermaid
+flowchart TD
+    init[initialize 初始化] --> caps[协商并确认 capabilities]
+    caps --> op{选择会话操作}
+    op -->|list / read / call| request[发送请求]
+    request --> outcome{收到什么？}
+    outcome -->|result / error| again{继续会话？}
+    again -->|是| op
+    again -->|否| close[close 关闭会话]
+    caps -. 异步事件 .-> notification[notification 通知]
+    notification -. 返回会话 .-> op
+```
+
+实现还应给请求设置超时，区分可重试错误与副作用错误，并记录调用者、工具名、参数摘要和结果状态。
 
 这里有一个很重要的设计点：消息格式（JSON-RPC 2.0）和传输方式（stdio / Streamable HTTP）是解耦的，同一套 JSON-RPC 消息可以跑在任意传输层上，切换传输方式不影响上层的工具调用逻辑。这个设计让 MCP Server 既可以轻量地作为本地进程运行，也可以作为正式的微服务部署，实现方式灵活但协议层始终一致。
 

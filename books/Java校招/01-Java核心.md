@@ -396,9 +396,15 @@ public interface Runnable2 {
 
 创建一个子类对象时，初始化顺序是：
 
-```text
-父类静态变量/静态块（按声明顺序） → 子类静态变量/静态块 → main
-→ new 对象：父类实例变量/实例块 → 父类构造器 → 子类实例变量/实例块 → 子类构造器
+```mermaid
+flowchart TD
+    A["父类静态变量 / 静态块（按声明顺序）"] --> B["子类静态变量 / 静态块"]
+    B --> C["main"]
+    C --> D["new 对象"]
+    D --> E["父类实例变量 / 实例块"]
+    E --> F["父类构造器"]
+    F --> G["子类实例变量 / 实例块"]
+    G --> H["子类构造器"]
 ```
 
 ```java
@@ -884,9 +890,16 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent, boolean evict) {
 
 ### 6.5 get 流程
 
-```text
-计算 hash → (n-1)&hash 定位桶 → 桶空返回 null
-→ 首节点 key 命中直接返回 → 是树则树中查找 → 否则遍历链表
+```mermaid
+flowchart TD
+    A["计算 hash"] --> B["(n - 1) & hash 定位桶"]
+    B --> C{"桶是否为空？"}
+    C -->|是| D["返回 null"]
+    C -->|否| E{"首节点 key 是否命中？"}
+    E -->|是| F["返回首节点 value"]
+    E -->|否| G{"桶是否为红黑树？"}
+    G -->|是| H["在树中查找"]
+    G -->|否| I["遍历链表查找"]
 ```
 
 比较条件永远是 `hash 相等 && (引用相同 || equals 相等)`，这就是自定义 key 必须重写 `equals` 和 `hashCode` 的原因。
@@ -1609,8 +1622,12 @@ server.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
 
 传统 `read + write` 传输文件，数据要经过 4 次拷贝（2 次 CPU 拷贝 + 2 次 DMA 拷贝）、4 次用户态/内核态切换：
 
-```text
-磁盘 → 内核缓冲区（DMA）→ 用户缓冲区（CPU）→ Socket 缓冲区（CPU）→ 网卡（DMA）
+```mermaid
+flowchart TD
+    A["磁盘"] --> B["内核缓冲区（DMA）"]
+    B --> C["用户缓冲区（CPU）"]
+    C --> D["Socket 缓冲区（CPU）"]
+    D --> E["网卡（DMA）"]
 ```
 
 零拷贝的目标是减少 CPU 拷贝和上下文切换：
@@ -1651,7 +1668,7 @@ Netty 是对 NIO 的高性能封装：解决粘包/半包、提供编解码器�
 - 问：NIO 为什么快？
 - 答：准确说是“NIO 在高并发连接场景下快”，快在三点：① **线程模型革命**：BIO 每连接一线程，1 万连接 = 1 万个线程 = 巨大的内存（每线程默认 1MB 栈）与上下文切换开销；NIO 的 Selector 让一个线程监视所有连接的就绪状态，只处理真正有数据的连接，线程数从“正比于连接数”变成“正比于 CPU 核数”；② **非阻塞**：read 没数据时返回 0 而不是挂起，线程永远不会卡在某个慢连接上；③ **零拷贝与直接内存**：FileChannel.transferTo/sendfile 减少数据拷贝，DirectBuffer 让网络读写少一次堆内到堆外的复制。注意边界：连接数少或都是短连接时 NIO 未必更快（Selector 轮询有管理成本），它的主场是“长连接、海量连接、高并发”如 IM、网关、RPC 服务端。
 - 问：什么是零拷贝？
-- 答：对比传统读文件再发网络的两条路径就懂了：传统方式数据要经历“磁盘 → 内核缓冲 → 用户空间（应用） → 内核 socket 缓冲 → 网卡”，共 4 次拷贝 + 4 次用户态/内核态切换，其中两次拷贝完全多余（数据进了用户空间又原样送出去）。零拷贝（Linux sendfile 系统调用）让数据直接从内核缓冲 → 网卡，全程不经过用户态，拷贝从 4 次降到 2~3 次（配合 DMA 与页缓存）。Java 的入口是 `FileChannel.transferTo(position, count, socketChannel)`，Kafka 消费消息、RocketMQ、Nginx 发静态文件都靠它。收益场景是“大文件、静态内容”这类不需要在用户态加工的数据；如果要在应用层修改数据（如加密），就必须进用户空间，零拷贝用不上。
+- 答：见 12.5 节传统 `read + write` 路径图：数据经过用户空间，产生 4 次拷贝 + 4 次用户态/内核态切换，其中两次拷贝完全多余（数据进了用户空间又原样送出去）。零拷贝（Linux `sendfile` 系统调用）让数据直接从内核缓冲区送到网卡，全程不经过用户态，拷贝从 4 次降到 2~3 次（配合 DMA 与页缓存）。Java 的入口是 `FileChannel.transferTo(position, count, socketChannel)`，Kafka 消费消息、RocketMQ、Nginx 发静态文件都靠它。收益场景是“大文件、静态内容”这类不需要在用户态加工的数据；如果要在应用层修改数据（如加密），就必须进用户空间，零拷贝用不上。
 - 问：select、poll、epoll 的区别？
 - 答：三者都是 I/O 多路复用的内核机制，演进脉络是“解决连接数上限 → 解决每次全量扫描”。select：每次调用把整个 fd 集合从用户态拷进内核，内核线性扫描所有 fd，且有 1024 个的上限——连接数一多性能断崖。poll：用链表打破 1024 上限，但仍是“拷贝全量 + 线性扫描”，O(n)。epoll（Linux 特有）：三个系统调用分工——epoll_create 建实例、epoll_ctl 注册/删除 fd（一次性的）、epoll_wait 只返回**就绪**的 fd；内核用红黑树管理 fd + 就绪链表回调，把“每次全量扫描 O(n)”变成“事件通知 O(就绪数)”，万级连接下优势巨大。这也是 Redis、Nginx、Netty（Linux 下）单机扛高并发的底层支撑。macOS/Windows 对应的机制是 kqueue 和 IOCP。
 - 问：Netty 为什么不用 AIO？

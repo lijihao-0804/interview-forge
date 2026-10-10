@@ -577,10 +577,20 @@ public final boolean release(int arg) {
 
 完整流程（以 ReentrantLock 为例）：
 
-```text
-lock() → acquire(1) → tryAcquire 成功？→ 是：直接持有，state=1
-                              → 否：封装成 Node 加入队尾，LockSupport.park 阻塞
-unlock() → release(1) → tryRelease 成功（state 归零）→ 唤醒队首线程
+```mermaid
+flowchart TD
+    subgraph Acquire["获取锁"]
+        L["lock()"] --> A["acquire(1)"]
+        A --> Q{"tryAcquire 成功？"}
+        Q -->|是| H["直接持有，state = 1"]
+        Q -->|否| N["封装成 Node 并加入队尾"]
+        N --> P["LockSupport.park 阻塞"]
+    end
+    subgraph Release["释放锁"]
+        U["unlock()"] --> R["release(1)"]
+        R --> T{"tryRelease 成功？（state 归零）"}
+        T -->|是| W["唤醒队首线程"]
+    end
 ```
 
 ### 6.3 独占与共享
@@ -878,9 +888,13 @@ ThreadPoolExecutor pool = new ThreadPoolExecutor(
 
 ### 9.5 线程池状态
 
-```text
-RUNNING → SHUTDOWN → TIDYING → TERMINATED
-    └─────→ STOP ────→ TIDYING → TERMINATED
+```mermaid
+flowchart TD
+    R["RUNNING"] -->|shutdown| S["SHUTDOWN"]
+    R -->|shutdownNow| P["STOP"]
+    S --> T["TIDYING"]
+    P --> T
+    T --> X["TERMINATED"]
 ```
 
 | 状态 | 含义 |
@@ -938,7 +952,24 @@ if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
 ### 9.10 面试追问
 
 - 问：线程池执行任务的完整流程？
-- 答：submit 一个任务后按顺序四步：① 当前线程数 < corePoolSize → 创建**核心线程**直接执行（哪怕其他核心线程正闲着，也要新建，直到填满核心数）；② 核心满了 → 任务**进入队列排队**（注意：是先入队而不是先开新线程）；③ 队列也满了 → 创建**非核心（救急）线程**执行，直到达到 maximumPoolSize；④ 线程数已达 max 且队列满 → 触发**拒绝策略**（AbortPolicy 抛异常、CallerRunsPolicy 由提交线程自己跑、Discard 丢弃、DiscardOldest 丢最老的）。一个反直觉的点要主动讲：max 比核心数大的线程池，只有队列**满了**才会开救急线程——队列是无界的（如 LinkedBlockingQueue 默认）就永远轮不到开救急线程，max 形同虚设，这也是为什么手写线程池推荐有界队列。
+- 答：submit 一个任务后，线程池按下面顺序选择执行位置：
+
+  ```mermaid
+  flowchart TD
+      A["提交任务"] --> B{"当前线程数低于 corePoolSize？"}
+      B -->|是| C["创建核心线程并执行"]
+      B -->|否| D{"工作队列有空位？"}
+      D -->|是| E["任务进入队列排队"]
+      D -->|否| F{"当前线程数低于 maximumPoolSize？"}
+      F -->|是| G["创建非核心（救急）线程执行"]
+      F -->|否| H["触发拒绝策略"]
+      H --> I["AbortPolicy：抛异常"]
+      H --> J["CallerRunsPolicy：提交线程执行"]
+      H --> K["Discard：丢弃新任务"]
+      H --> L["DiscardOldest：丢弃队头旧任务后重试"]
+  ```
+
+  一个反直觉的点要主动讲：即使核心线程有空闲，只要线程数还没达到 `corePoolSize`，线程池仍会继续创建核心线程；队列优先于非核心线程，因此 `maximumPoolSize` 只有队列满了才会生效。队列无界（如 `LinkedBlockingQueue` 默认）时，通常不会开救急线程，这也是为什么手写线程池推荐有界队列。
 - 问：核心线程会被回收吗？
 - 答：默认不会——核心线程空闲时阻塞在队列的 take() 上等任务，永远存活，这是“核心”的含义（保持随时可用的运力）。两个例外/细节：① 调用 `allowCoreThreadTimeOut(true)` 后，核心线程空闲超过 keepAliveTime 也会被回收，线程数可以降到 0（配合无任务时队列空闲的场景省资源）；② 非核心线程空闲超过 keepAliveTime 会被回收（从队列 poll 超时退出），核心线程用的是无限阻塞的 take，非核心用的是带超时的 poll——同一个队列，两种等待方式。追问“为什么核心线程不销毁重建”：线程创建/销毁本身有成本，池化的意义就是复用常驻线程；但如果业务有明显的波峰波谷（如白天忙深夜闲），allowCoreThreadTimeOut 反而能省资源。
 - 问：Executors 为什么不让用？
@@ -946,7 +977,22 @@ if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
 - 问：线程数怎么定？
 - 答：先分任务类型估算。CPU 密集（纯计算，无阻塞）：核数 + 1（多的 1 个是防备偶尔的缺页中断等暂停，保证核不空转）；IO 密集（大量等网络/数据库/磁盘）：线程在等待时不占 CPU，可以多开——公式 `核数 × (1 + 等待时间/计算时间)`，如 8 核、每任务 90% 时间在等 DB，则 8 × 10 = 80 线程。估算只是起点，**最终以压测为准**，观察三个信号：CPU 利用率接近 100% 说明加线程无益（瓶颈在 CPU）、队列持续堆积说明消费不过来、RT 上升说明过载。另外记住线程不是免费的：每个线程 1MB 栈内存 + 上下文切换开销，线程数远超核数时切换成本会反噬吞吐。虚拟线程的出现正是为了解决“IO 密集需要海量线程”的成本问题。
 - 问：如何优雅关闭线程池？
-- 答：两步走的“先礼后兵”：① `shutdown()`——停止接收新任务（新提交抛 RejectedExecutionException），但**已提交的任务（含队列里排队的）会继续执行完**；配合 `awaitTermination(30, TimeUnit.SECONDS)` 等待一段时间。② 超时还没跑完 → `shutdownNow()`——给所有线程发中断信号，并返回队列里还没执行的任务列表；线程要能响应中断（阻塞方法抛 InterruptedException、循环里检查 isInterrupted），否则 shutdownNow 也停不下来。完整代码模板：shutdown → awaitTermination → false 则 shutdownNow → 再 awaitTermination → 仍失败则记录被丢弃的任务。常见坑：应用关闭时没关线程池，导致 JVM 挂着不退出（非 daemon 线程）；任务里吞掉中断信号导致永远停不下来。
+- 答：按“先礼后兵”关闭线程池：
+
+  ```mermaid
+  flowchart TD
+      A["shutdown：停止接收新任务"] --> B["awaitTermination：等待一段时间"]
+      B --> C{"是否已终止？"}
+      C -->|是| G["关闭完成"]
+      C -->|否| D["shutdownNow：发送中断并取回队列中未执行任务"]
+      D --> E["任务响应中断"]
+      E --> F["再次 awaitTermination"]
+      F --> H{"是否已终止？"}
+      H -->|是| G
+      H -->|否| I["记录未完成任务并告警"]
+  ```
+
+  `shutdown()` 会拒绝新提交，但让已提交任务（包括队列中的任务）继续执行；第一次等待通常用 `awaitTermination(30, TimeUnit.SECONDS)`。`shutdownNow()` 只是发送中断并返回尚未执行的队列任务，不保证立刻停止；任务必须响应中断（阻塞方法处理 `InterruptedException`，循环检查 `isInterrupted()`）。应用退出时没关闭线程池会因非 daemon 线程而挂住；吞掉中断信号也会让强制关闭失效。
 
 ## 10. ThreadLocal 与内存泄漏
 
@@ -1001,8 +1047,11 @@ Entry extends WeakReference<ThreadLocal<?>>
 
 泄漏链条：
 
-```text
-线程（线程池长期存活）→ threadLocals → Entry[null, value] → value 无法回收
+```mermaid
+flowchart TD
+    A["线程池线程长期存活"] --> B["线程内部的 threadLocals"]
+    B --> C["Entry：key 已变 null，value 仍强引用"]
+    C --> D["value 无法回收，可能造成泄漏"]
 ```
 
 - 业务代码里 ThreadLocal 用完后，外部强引用消失，key 被回收变成 null；

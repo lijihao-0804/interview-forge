@@ -67,10 +67,24 @@ Chain 解决的就是这个问题。它先让每个零件暴露相对统一的�
 
 最简单的 Chain 确实是线性的，例如：
 
-![](../images/bce58aa5d960b291eec6b043.png)
-
-```text
-用户输入 -> Prompt 模板 -> Chat Model -> 输出解析器 -> 字符串答案
+```mermaid
+flowchart TD
+    subgraph Fixed[固定数据流：线性 Chain]
+        U1[用户输入] --> P1[Prompt 模板] --> M1[Chat Model] --> X1[输出解析器] --> A1[字符串答案]
+    end
+    subgraph Branch[固定数据流：检索分支与汇合]
+        U2[用户输入] --> R2[检索上下文]
+        U2 --> Q2[保留原问题]
+        R2 --> P2[Prompt 模板]
+        Q2 --> P2
+        P2 --> M2[Chat Model] --> X2[输出解析器] --> A2[字符串答案]
+    end
+    subgraph Agent[运行时决策：Agent]
+        L[Agent] --> D{选择下一步}
+        D -->|搜索| S[搜索工具]
+        D -->|查数据| DB[数据库工具]
+        D -->|执行代码| C[代码执行工具]
+    end
 ```
 
 但真实应用还可能出现并行分支。比如用户问题一边送去知识库检索，一边原样保留下来，等检索结束后再把「问题」和「上下文」汇合到 Prompt。它也可能根据分类结果走不同分支。

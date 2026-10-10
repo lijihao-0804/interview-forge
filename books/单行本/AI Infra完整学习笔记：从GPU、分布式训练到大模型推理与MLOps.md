@@ -311,9 +311,14 @@ if torch.cuda.is_available():
 
 一次训练 Step 通常包含：
 
-```text
-取数据 → Host-to-Device → Forward → Loss
-→ Backward → Optimizer → 日志/Checkpoint
+```mermaid
+flowchart TD
+    A["取数据"] --> B["Host-to-Device"]
+    B --> C["Forward"]
+    C --> D["Loss"]
+    D --> E["Backward"]
+    E --> F["Optimizer"]
+    F --> G["日志 / Checkpoint"]
 ```
 
 Profiler 应回答每部分耗时、是否串行、是否存在空洞和显存峰值在哪里。
@@ -547,9 +552,15 @@ Ring All-Reduce 把数据切块在环上 Reduce-Scatter，再 All-Gather，带�
 
 ### 11.1 数据生命周期
 
-```text
-原始数据 → 校验/清洗 → 去重/过滤 → 切分
-→ Tokenize/特征 → Shard → 版本化数据集 → 训练读取
+```mermaid
+flowchart TD
+    A["原始数据"] --> B["校验 / 清洗"]
+    B --> C["去重 / 过滤"]
+    C --> D["切分"]
+    D --> E["Tokenize / 特征"]
+    E --> F["Shard"]
+    F --> G["版本化数据集"]
+    G --> H["训练读取"]
 ```
 
 必须记录来源、许可证、时间范围、过滤规则、Schema、统计信息和数据 Hash。否则无法复现模型，也无法响应删除或合规要求。
@@ -616,7 +627,18 @@ Model Registry 管理：
 
 ### 12.3 Pipeline 与 Orchestrator
 
-训练流水线是有依赖的 DAG：数据校验 → 特征/Tokenize → 训练 → 评价 → 注册 → 部署。Airflow、Argo Workflows、Kubeflow Pipelines 等负责调度和状态，不替代训练框架。
+训练流水线是有依赖的 DAG：
+
+```mermaid
+flowchart TD
+    A["数据校验"] --> B["特征 / Tokenize"]
+    B --> C["训练"]
+    C --> D["评价"]
+    D --> E["注册"]
+    E --> F["部署"]
+```
+
+Airflow、Argo Workflows、Kubeflow Pipelines 等负责调度和状态，不替代训练框架。
 
 任务应幂等：重试不会产生重复发布或覆盖错误版本。大制品通过对象存储传递，不应把模型文件直接塞入调度器元数据库。
 
@@ -912,7 +934,18 @@ SLI 是观测指标，例如 99% 请求在 2 秒内完成；SLO 是目标。告�
 
 ### 17.6 推理排障顺序
 
-把 E2E 延迟拆成：Gateway → Queue → Preprocess → Model → Postprocess → Network。若 TTFT 高，可能是排队或 Prefill；若 TPOT 高，可能是 Decode、显存带宽或并行通信；若偶发 P99 高，检查冷启动、GC、长 Prompt 和共置干扰。
+把 E2E 延迟沿请求链路拆开：
+
+```mermaid
+flowchart TD
+    A["Gateway"] --> B["Queue"]
+    B --> C["Preprocess"]
+    C --> D["Model"]
+    D --> E["Postprocess"]
+    E --> F["Network"]
+```
+
+若 TTFT 高，可能是排队或 Prefill；若 TPOT 高，可能是 Decode、显存带宽或并行通信；若偶发 P99 高，检查冷启动、GC、长 Prompt 和共置干扰。
 
 ---
 

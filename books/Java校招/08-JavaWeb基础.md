@@ -111,8 +111,12 @@ Servlet 是运行在 Web 容器中的 Java 组件，处理 HTTP 请求并生成�
 
 ### 2.2 Servlet 生命周期
 
-```text
-加载 → 实例化（构造器）→ init()（只调用一次）→ service()（每次请求）→ destroy()（容器关闭）
+```mermaid
+flowchart TD
+    A["加载"] --> B["实例化（构造器）"]
+    B --> C["init()（只调用一次）"]
+    C --> D["service()（每次请求）"]
+    D --> E["destroy()（容器关闭）"]
 ```
 
 ```java
@@ -158,7 +162,19 @@ public class EncodingFilter implements Filter {
 }
 ```
 
-**完整执行顺序**：`Filter.doFilter`（容器级最外层）→ DispatcherServlet → `Interceptor.preHandle` → Controller → `postHandle` → `afterCompletion` → 沿 Filter 链返回。Filter 属 Servlet 规范、先于一切 MVC 组件；Interceptor 属 Spring MVC、在 DispatcherServlet 内部围绕 Handler，两者不要混为一谈。
+**完整执行顺序**：
+
+```mermaid
+flowchart TD
+    A["Filter.doFilter（容器级最外层）"] --> B["DispatcherServlet"]
+    B --> C["Interceptor.preHandle"]
+    C --> D["Controller"]
+    D --> E["postHandle"]
+    E --> F["afterCompletion"]
+    F --> G["沿 Filter 链返回"]
+```
+
+Filter 属 Servlet 规范、先于一切 MVC 组件；Interceptor 属 Spring MVC、在 DispatcherServlet 内部围绕 Handler，两者不要混为一谈。
 
 ### 2.4 Tomcat 架构与线程模型
 
@@ -239,8 +255,14 @@ Maven 是 Java 项目的构建与依赖管理工具，负责四件事：**编译
 
 Maven 内置三套生命周期：**clean**（清理）、**default**（构建）、**site**（站点）。default 的核心阶段按顺序执行，执行后一个阶段会自动执行之前所有阶段：
 
-```text
-validate → compile → test → package → verify → install → deploy
+```mermaid
+flowchart TD
+    A["validate"] --> B["compile"]
+    B --> C["test"]
+    C --> D["package"]
+    D --> E["verify"]
+    E --> F["install"]
+    F --> G["deploy"]
 ```
 
 | 命令 | 作用 |
@@ -328,7 +350,16 @@ main:    A
 feature:     B'--C'
 ```
 
-冲突解决流程：`git merge` 报冲突 → 打开冲突文件手动合并 → `git add` 标记解决 → `git commit` 完成。冲突不可怕，关键是看懂 `<<<<<<< / ======= / >>>>>>>` 分段。
+冲突解决流程：
+
+```mermaid
+flowchart TD
+    A["git merge 报冲突"] --> B["打开冲突文件并手动合并"]
+    B --> C["git add 标记解决"]
+    C --> D["git commit 完成合并"]
+```
+
+冲突不可怕，关键是看懂 `<<<<<<< / ======= / >>>>>>>` 分段。
 
 团队常见工作流：main 保护分支 + feature 分支开发 + Pull Request 评审后合入；Git Flow 在此基础上加 develop/release/hotfix 分支，适合发布节奏固定的团队。
 
@@ -375,7 +406,17 @@ feature:     B'--C'
 
 ### 5.2 RESTful 设计
 
-**Spring MVC 前瞻框**：这些接口最终由 Spring MVC 处理——`DispatcherServlet` → `HandlerMapping` → `HandlerAdapter`（`@RequestBody` 经 HttpMessageConverter 反序列化 JSON）→ Controller → 返回写出，详见《Spring 家族》。
+**Spring MVC 前瞻框**：这些接口最终由 Spring MVC 处理：
+
+```mermaid
+flowchart TD
+    A["DispatcherServlet"] --> B["HandlerMapping"]
+    B --> C["HandlerAdapter：HttpMessageConverter 反序列化 @RequestBody"]
+    C --> D["Controller"]
+    D --> E["返回值处理并写出响应"]
+```
+
+详见《Spring 家族》。
 
 REST 把一切抽象为**资源**，URL 用名词复数，操作用 HTTP 方法表达：
 

@@ -111,11 +111,23 @@ public class AppConfig {
 
 ### 1.4 @Autowired 是怎么工作的
 
-```text
-1. 按类型（byType）找候选 Bean
-2. 找到唯一 → 直接注入
-3. 找到多个 → 先按 @Qualifier 过滤 → 再按 @Primary 决胜 → 最后才按字段/参数名回退；仍不唯一 → 抛 NoUniqueBeanDefinitionException
-4. 一个都找不到 → 默认报错；required=false 则注入 null
+```mermaid
+flowchart TD
+    A["按类型（byType）查找候选 Bean"] --> B{"候选数量？"}
+    B -->|0 个| C{"required = false？"}
+    C -->|是| D["注入 null"]
+    C -->|否| E["报错：未找到候选 Bean"]
+    B -->|1 个| F["直接注入"]
+    B -->|多个| G["按 @Qualifier 过滤"]
+    G --> H{"是否只剩一个？"}
+    H -->|是| F
+    H -->|否| I["按 @Primary 决胜"]
+    I --> J{"是否得到唯一候选？"}
+    J -->|是| F
+    J -->|否| K["按字段名 / 参数名回退"]
+    K --> L{"是否匹配到唯一 Bean？"}
+    L -->|是| F
+    L -->|否| M["报错：NoUniqueBeanDefinitionException"]
 ```
 
 @Qualifier("userDao") 精确指定名字；多个同类型 Bean 也常用 @Primary 标记默认首选。构造器注入时，Spring 4.3 之后可以省略 @Autowired（单构造器场景）。
@@ -152,18 +164,21 @@ public class AppConfig {
 
 Bean 从定义到销毁经历两大阶段：**实例化与属性填充**（容器管理）→ **初始化与销毁**（开发者可插手）。完整流程：
 
-```text
-1. 扫描/读取 Bean 定义
-2. 实例化（构造器）
-3. 属性填充（依赖注入）
-4. 感知 Aware 接口（BeanNameAware、BeanFactoryAware、ApplicationContextAware 等）
-5. BeanPostProcessor#postProcessBeforeInitialization（初始化前）
-6. @PostConstruct 初始化方法
-7. InitializingBean#afterPropertiesSet
-8. 自定义 init-method
-9. BeanPostProcessor#postProcessAfterInitialization（初始化后，AOP 代理常在此生成）
-10. 使用 Bean
-11. 容器关闭 → @PreDestroy → DisposableBean#destroy → 自定义 destroy-method
+```mermaid
+flowchart TD
+    A["扫描 / 读取 Bean 定义"] --> B["实例化（构造器）"]
+    B --> C["属性填充（依赖注入）"]
+    C --> D["Aware 回调（BeanName / BeanFactory / ApplicationContext）"]
+    D --> E["BeanPostProcessor 初始化前回调"]
+    E --> F["@PostConstruct"]
+    F --> G["InitializingBean.afterPropertiesSet"]
+    G --> H["自定义 init-method"]
+    H --> I["BeanPostProcessor 初始化后回调（常在此生成 AOP 代理）"]
+    I --> J["使用 Bean"]
+    J --> K["容器关闭"]
+    K --> L["@PreDestroy"]
+    L --> M["DisposableBean.destroy"]
+    M --> N["自定义 destroy-method"]
 ```
 
 ### 2.2 关键扩展点
@@ -484,7 +499,17 @@ public class DemoApplication {
 ```text
 Filter（Servlet 规范）：请求进 Servlet 前后，作用范围更大
 Interceptor（Spring MVC）：Handler 调用前后，能拿到 Handler 对象
-顺序：Filter → Interceptor.preHandle → Controller → Interceptor.postHandle → Interceptor.afterCompletion → Filter 返回
+```
+
+调用顺序：
+
+```mermaid
+flowchart TD
+    A["Filter"] --> B["Interceptor.preHandle"]
+    B --> C["Controller"]
+    C --> D["Interceptor.postHandle"]
+    D --> E["Interceptor.afterCompletion"]
+    E --> F["Filter 返回"]
 ```
 
 实现：实现 HandlerInterceptor 接口（preHandle/postHandle/afterCompletion），在 WebMvcConfigurer 里注册拦截路径。
@@ -506,7 +531,7 @@ public class GlobalExceptionHandler {
 ### 7.6 面试追问
 
 - 问：Spring MVC 一次请求经过哪些组件？
-- 答：DispatcherServlet → HandlerMapping → HandlerAdapter → 拦截器 → Controller → 返回值处理 → 响应。
+- 答：DispatcherServlet → HandlerMapping → HandlerAdapter → Interceptor.preHandle → Controller → postHandle / afterCompletion → 返回响应；Filter 包在整条链路外层（见 7.4 节）。HandlerAdapter 负责适配并调用 Controller。
 - 问：HandlerAdapter 的作用？
 - 答：把请求参数适配成方法参数，并调用处理器。
 - 问：Filter 和 Interceptor 顺序？

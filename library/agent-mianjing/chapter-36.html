@@ -13,7 +13,10 @@
 <p>Prompt 用于控制模型行为。LangChain 提供 PromptTemplate 等工具，使 Prompt 可以被参数化和复用，从而提高系统的可维护性。</p>
 <p><strong>Chain Layer</strong></p>
 <p>Chain 是任务流程的编排机制。开发者可以将多个步骤连接起来，例如：</p>
-<p>输入处理 → 检索知识库 → 生成回答 → 结构化输出。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    input[输入处理] --&gt; retrieve[检索知识库]
+    retrieve --&gt; answer[生成回答]
+    answer --&gt; output[结构化输出]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p><strong>Tool Layer</strong></p>
 <p>Tool 用于连接外部能力，例如：</p>
 <ul>
@@ -36,7 +39,13 @@
 <p>在 LangChain 中，Chain 是最基础的执行单元。Chain 的本质是一种任务流程的组合方式，通过将多个步骤连接在一起，形成完整的处理流程。</p>
 <p>最简单的 Chain 可以只有一个步骤，例如：</p>
 <p>用户输入 → LLM → 输出结果。</p>
-<p>但在实际应用中，Chain 往往会包含多个组件。例如在 RAG 系统中，典型流程可能是： 用户问题 → 向量检索 → 文档拼接 → Prompt 构建 → LLM 生成答案。通过 Chain，开发者可以将复杂流程拆解为多个模块，每个模块负责不同的功能，从而提高系统的可扩展性。</p>
+<p>但在实际应用中，Chain 往往会包含多个组件。例如在 RAG 系统中，典型流程可以抽象为：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    question[用户问题] --&gt; retrieval[向量检索]
+    retrieval --&gt; documents[文档拼接]
+    documents --&gt; prompt[Prompt 构建]
+    prompt --&gt; answer[LLM 生成答案]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>通过 Chain，开发者可以将复杂流程拆解为多个模块，每个模块负责不同的功能，从而提高系统的可扩展性。</p>
 <p>LangChain 中常见的 Chain 类型包括：</p>
 <p><strong>LLMChain</strong></p>
 <p>最基础的 Chain 类型，主要用于 Prompt + LLM 调用的简单流程。 Sequential Chain 用于执行多个连续步骤，例如：</p>
@@ -50,9 +59,13 @@
 <p>如果说 Chain 是固定流程，那么 Agent 则是动态决策系统。</p>
 <p>在 LangChain 中，Agent 的核心能力是让 LLM 决定下一步应该做什么。Agent 会根据用户任务，动态选择工具并执行步骤，从而完成目标。</p>
 <p>一个典型的 Agent 执行流程如下：</p>
-<p>用户提出问题</p>
-<p>↓</p>
-<p>LLM 分析问题 ↓ 选择需要使用的工具 ↓ 执行工具并获取结果 ↓ 继续推理或生成最终答案</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    question[用户提出问题] --&gt; reasoning[LLM 分析问题]
+    reasoning --&gt; needTool{需要调用工具？}
+    needTool --&gt;|是| selection[选择工具]
+    selection --&gt; execution[执行工具并获取结果]
+    execution --&gt; reasoning
+    needTool --&gt;|否| answer[生成最终答案]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>例如，当用户提出问题： “帮我查一下今天苹果公司的股价，并计算过去一周的平均值。” Agent 可能会执行如下步骤：</p>
 <ol>
 <li>
@@ -70,16 +83,19 @@
 <p>这种能力使 Agent 可以完成复杂任务，而不仅仅是简单问答。</p>
 <h5 id="tool">Tool</h5>
 <p>Tool 是 Agent 能力扩展的核心。大语言模型本身无法访问互联网、数据库或操作系统，因此需要通过 Tool 将外部能力连接到 Agent 系统中。</p>
-<p>在 LangChain 中，Tool 通常包含三个核心部分： 名称（Name）</p>
-<p>工具的名称，用于让模型识别和调用。</p>
-<p><strong>描述（Description）</strong></p>
-<p>工具的功能说明，这部分内容会被写入 Prompt，帮助 LLM 判断是否需要调用该工具。</p>
-<p>执行函数（Function）</p>
-<p>真正执行任务的代码，例如：</p>
-<p>查询数据库</p>
-<p>调用 API</p>
-<p>执行 Python 计算。例如，一个天气查询工具可以定义为：</p>
-<p>Tool Name: weather_search  Description: 查询指定城市天气信息 Function: 调用天气 API</p>
+<p>在 LangChain 中，Tool 通常包含三个核心部分：</p>
+<p><strong>1. 名称（Tool Name / Name）</strong></p>
+<p>工具的名称，用于让模型识别并发起调用。</p>
+<p><strong>2. 描述（Description）</strong></p>
+<p>工具的功能说明。这部分内容会写入 Prompt，帮助 LLM 判断是否需要调用该工具。</p>
+<p><strong>3. 执行函数（Function）</strong></p>
+<p>真正执行任务的代码，可以用于查询数据库、调用 API 或执行 Python 计算。</p>
+<p>例如，一个天气查询工具可以定义为：</p>
+<ul>
+<li><strong>Tool Name：</strong> <code>weather_search</code></li>
+<li><strong>Description：</strong> 查询指定城市天气信息</li>
+<li><strong>Function：</strong> 调用天气 API</li>
+</ul>
 <p>当用户提出问题：</p>
 <p>“北京今天的天气怎么样？”</p>
 <p>Agent 在推理过程中会识别需要使用天气工具，然后调用该 Tool 并返回结果。通过不断扩展 Tool，Agent 可以逐渐获得越来越多的能力，例如：</p>
@@ -103,4 +119,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260929-review-polish"></script><script src="../assets/library-mermaid.js?v=20260929-review-polish"></script></body></html>

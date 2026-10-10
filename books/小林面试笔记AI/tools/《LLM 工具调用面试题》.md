@@ -1366,7 +1366,15 @@ code = mcp_client.call_tool("read_file", {
 
 整个流程的分工非常清晰：Skill 扮演「编排者」，定义了做什么、按什么顺序做、用什么标准做；MCP 扮演「执行者」，提供了每一步需要调用的具体工具。两者配合起来，Agent 才能既知道「该怎么做」，又有能力「真正去做」。
 
-![](../images/05f6db1bda9c9af53ff8bc7e.png)
+```mermaid
+flowchart TD
+    U[用户提出代码审查任务] --> A[Agent 匹配 code-review Skill]
+    A --> S[加载 SKILL.md：流程、脚本与模板]
+    S --> R[调用 MCP read_file 读取相关代码]
+    R --> C[运行安全检查脚本]
+    C --> T[加载报告模板并整理结果]
+    T --> O[向用户返回结构化审查报告]
+```
 
 再看一个稍复杂的场景，你就能感觉到这种分工的威力。假设 Skill 定义的流程里有一步「如果改动涉及数据库表结构，额外执行权限合规检查」，这就是条件分支。
 
@@ -1376,7 +1384,18 @@ Agent 读到这条指令时，会先调用一个 MCP Tool 去扫描这次提交�
 
 缺了 Skill，Agent 拿着一堆工具不知道该什么时候用；缺了 MCP，Skill 再详细的流程也只是纸上谈兵。
 
-![](../images/5648e133af951ccd79ce813e.png)
+```mermaid
+flowchart TD
+    A[读取待审查代码：MCP read_file] --> B[运行安全检查脚本]
+    B --> C{数据库 schema 是否改变？}
+    C -->|否| SKIP[跳过合规检查分支]
+    C -->|是| D[查询权限/合规策略：query_permission_policy]
+    D --> E{是否存在严重违规？}
+    E -->|是| WARN[在报告中添加严重级警告]
+    E -->|否| REPORT[输出审查报告]
+    WARN --> REPORT
+    SKIP --> REPORT
+```
 
 ### 🎯 面试总结
 
@@ -2173,7 +2192,21 @@ OpenAI 在 2024 年发布了 Realtime API，用于实现实时语音对话：用
 
 意思相近的句子，指纹在向量空间里的位置也接近），然后在向量数据库里做相似度搜索，如果找到一个指纹很接近的历史问题（相似度超过设定阈值），就直接把那次的答案返回，**完全跳过 LLM 调用**。
 
-完整流程是：收到新问题 -> 把问题向量化 -> 在向量数据库里做相似度搜索 -> 命中则直接返回历史答案，未命中则调 LLM 并把「问题向量 + 回答」存入缓存。整个过程对业务层透明，它就像一个智能的「语义感知」缓存层。
+完整流程如下。缓存命中不能只看语义相似度，还要同时通过上下文、权限、版本和时效检查：
+
+```mermaid
+flowchart TD
+    question[收到新问题] --> embedding[问题向量化]
+    embedding --> search[相似度检索]
+    search --> valid{相似度与上下文、权限、版本、时效均通过？}
+    valid -->|是| cached[返回历史答案<br/>跳过 LLM]
+    valid -->|否| generate[调用 LLM 生成答案]
+    generate --> store[缓存问题向量与回答]
+    cached --> answer[返回答案]
+    store --> answer
+```
+
+整个过程对业务层透明，它就像一个智能的「语义感知」缓存层。
 
 ![](../images/c05c3dd7513704e06ae6a729.png)
 

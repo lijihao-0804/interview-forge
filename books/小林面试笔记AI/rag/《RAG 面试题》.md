@@ -376,9 +376,16 @@ RAG 不改模型参数，而是在推理时检索外部资料并放入上下文�
 
 理解了存储结构，查询时的流程就很顺了：
 
-![](../images/bfe5eb6f14b72ab300e0044b.png)
+```mermaid
+flowchart TD
+    question[用户提问] --> embedding[问题向量化]
+    embedding --> search[在向量库中检索相似 chunk]
+    search --> original[取回 chunk 原文]
+    original --> prompt[将原文放入 Prompt]
+    prompt --> answer[LLM 生成答案]
+```
 
-用户问题 -> 向量化 -> 在向量库里找相似的 chunk -> 取出 chunk 的原文 -> 塞进 prompt -> LLM 生成答案。向量只在「找」的时候用，LLM 最终读的是原文。
+向量只负责「找」，LLM 最终读取的是检索到的原文。
 
 #### 粒度怎么定?
 
@@ -1869,6 +1876,18 @@ Self-RAG 论文关注模型对检索与证据的反思；CRAG 关注检索不足
 
 在基线上加入 Query 处理、混合检索、Rerank、内容压缩和引用校验，可称为 **Advanced RAG** 或检索增强流水线。它通常保留相对固定的主流程，便于调试；是否优于基线要用统一数据集和相同资源预算比较，不能直接断言“大多数生产系统”都采用某一种形态。
 
+下面是一个固定流程示例，按配图中的顺序展示常见增强环节；实际项目可以并行或调整检索步骤，并不存在唯一标准顺序。
+
+```mermaid
+flowchart TD
+    Q[User Query] --> RW[Query Rewrite]
+    RW --> HS[Hybrid Search]
+    HS --> MQ[Multi Query Retrieval]
+    MQ --> RR[Rerank]
+    RR --> CC[Context Compression]
+    CC --> LLM[LLM Generation]
+```
+
 很多人以为 Advanced RAG 就是 RAG 的终极形态了，其实不是。Advanced RAG 有一个隐含的假设——流程是固定的「检索前优化 -> 检索 -> 检索后优化 -> 生成」，不管用户问什么，都走这套流程。但真实场景中，不同问题需要不同的处理策略，这就是 Modular RAG 要解决的。
 
 再往后可以把 **Modular RAG** 理解为把解析、改写、召回、融合、重排、生成和校验做成可替换模块，并按路由条件组合。模块化本身不是某个框架的专属实现；LlamaIndex Workflow、LangGraph 或自建编排都可能承载类似设计，选型取决于状态、可观测性和团队约束。
@@ -2344,7 +2363,18 @@ Answer Relevancy 低表示答复没有充分回应问题，排查 Query 理解�
 
 会话解决率（session_resolution_rate）可反映一次会话是否达成目标，但需要明确“解决”的标注/代理规则，并注意它受人工介入、追问和业务流程影响。
 
-离线指标用于回归和定位，线上指标用于观察真实分布与产品结果；两者都不是单一最终标准。可形成“离线测评 -> 灰度/上线 -> 线上观测 -> 样本回流 -> 离线复现 -> 修复”的闭环，并按风险分层。
+离线指标用于回归和定位，线上指标用于观察真实分布与产品结果；两者都不是单一最终标准。按风险分层后，可用下面的闭环让线上问题回到离线评估，再验证修复效果：
+
+```mermaid
+flowchart TD
+    offline[离线测评<br/>召回、引用支持、事实性、拒答与安全] --> locate[发现问题并定位到具体环节]
+    locate --> fix[修复与优化]
+    fix --> rollout[灰度或正式上线]
+    rollout --> monitor[线上观测<br/>反馈、转人工、解决率、延迟与成本]
+    monitor --> sample[采样并复现线上新问题]
+    sample --> dataset[补充离线测试集]
+    dataset --> offline
+```
 
 这里还要提醒一点：离线指标好不代表线上一定好，反过来也一样。常见的情况是离线测试集不能完整代表真实用户分布，或者离线指标优化过头反而损害了线上体验（比如为了 Faithfulness 把 Prompt 收得太死，结果模型回答过于保守、用户觉得不好用）。所以两者要定期交叉对照，发现偏差时往往是测试集需要更新或者指标权重需要调整。
 

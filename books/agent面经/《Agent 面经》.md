@@ -464,12 +464,8 @@ LoRA 是一个非常有影响力的方法，它把需要更新的大矩阵分解
 
 ![](images/agent面经.pdf-0039-08.png)
 
+提示微调的关键是将任务信息编码为可学习的连续向量（软提示），附加到输入序列前端。
 
-![](images/agent面经.pdf-0039-09.png)
-
-
-<!-- Start of picture text -->
-提示微调的关键是将任务信息编码为可学习的连续向量（软提示），附加到输入序列前端：<br><!-- End of picture text -->
 
 - 软提示向量：一组可训练的嵌入，不是自然语言文本，直接与输入拼接。
 
@@ -1668,16 +1664,12 @@ Fine-tuning 的核心思想是：在预训练模型的基础上，使用特定�
 **从整体流程来看，RAG 的基本架构可以表示为：**
 
 
-```text
-User Query
-    ↓
-Query Embedding
-    ↓
-Vector Retrieval
-    ↓
-Context Construction
-    ↓
-LLM Generation
+```mermaid
+flowchart TD
+    query[User Query] --> embedding[Query Embedding]
+    embedding --> retrieval[Vector Retrieval]
+    retrieval --> context[Context Construction]
+    context --> generation[LLM Generation]
 ```
 
 在这个流程中，每一个环节都承担着不同的职责，并且都会直接影响最终生成结果的质量。理解这些模块的工作方式，是设计高质量 RAG 系统的关键。
@@ -2254,11 +2246,7 @@ Cross Encoder 会同时输入用户问题和候选文档，然后计算二者之
 在 RAG 系统中，大语言模型的输入长度是一个重要限制。即使现代模型支持较大的上下文窗口，也不可能将所有检索到的文档全部输入给模型。因此，需要对检索结果进行 Context Compression（上下文压缩）。
 
 
-![](images/agent面经.pdf-0123-10.png)
-
-
-<!-- Start of picture text -->
-上下文压缩的目标是：在保留关键信息的前提下，减少输入文本长度。<br><!-- End of picture text -->
+上下文压缩的目标是：在保留关键信息的前提下，减少输入文本长度。
 
 常见的压缩方法包括：
 
@@ -2298,17 +2286,28 @@ Cross Encoder 会同时输入用户问题和候选文档，然后计算二者之
 
 Multi-hop RAG 的基本流程通常包括：
 
-1. 根据用户问题进行第一次检索
+```mermaid
+flowchart TD
+    first[根据用户问题进行第一次检索] --> entity[从检索结果中提取关键实体]
+    entity --> second[根据新信息进行第二次检索]
+    second --> answer[组合多次检索结果并生成答案]
+```
 
-2. 从检索结果中提取关键实体
-
-3. 根据新的信息进行第二次检索
-
-4. 将多次检索结果组合后生成答案通过这种多阶段检索机制，系统可以逐步构建完整知识链，从而回答更加复杂的问题。
+通过这种多阶段检索机制，系统可以逐步构建完整知识链，从而回答更加复杂的问题。
 
 ##### 进阶 RAG 的整体架构
 
-在实际系统中，进阶 RAG 技术通常会组合使用。例如，一个成熟的 RAG 系统可能包含如下流程： User Query  ↓ Query Rewrite  ↓ Hybrid Search  ↓ Multi Query Retrieval  ↓ Rerank  ↓ Context Compression  ↓ LLM Generation
+在实际系统中，进阶 RAG 技术通常会组合使用。例如，一个成熟的 RAG 系统可能包含如下流程：
+
+```mermaid
+flowchart TD
+    query[User Query] --> rewrite[Query Rewrite]
+    rewrite --> search[Hybrid Search]
+    search --> multi[Multi Query Retrieval]
+    multi --> rerank[Rerank]
+    rerank --> compress[Context Compression]
+    compress --> generation[LLM Generation]
+```
 
 通过这些优化模块，可以显著提升系统的检索质量和生成效果，使 RAG 系统能够在复杂业务场景中稳定运行。
 
@@ -2357,15 +2356,14 @@ Agentic RAG 是近年来出现的一种新型架构，它将 AI Agent 与 RAG �
 
 这种机制使得系统不再是简单的检索与生成流水线，而是具备一定的“决策能力”。例如，当用户提出一个复杂问题时，Agent 可能会执行如下步骤：
 
-1. 分析问题并拆解任务
-
-2. 根据子问题进行检索
-
-3. 对检索结果进行总结
-
-4. 如果信息不足，则再次检索
-
-5. 最终整合信息生成答案
+```mermaid
+flowchart TD
+    question[分析问题并拆解任务] --> retrieve[根据子问题进行检索]
+    retrieve --> summarize[总结检索结果]
+    summarize --> enough{信息足够回答吗？}
+    enough -->|否| retrieve
+    enough -->|是| integrate[整合信息并生成答案]
+```
 
 通过这种方式，Agentic RAG 可以更好地处理复杂任务，例如研究分析、数据调查或多步骤问题解答。
 
@@ -2459,18 +2457,15 @@ Agentic RAG 是近年来出现的一种新型架构，它将 AI Agent 与 RAG �
 
 **典型的 Agent 架构流程如下：**
 
-```text
-User Input
-    ↓
-LLM Reasoning
-    ↓
-Tool Selection
-    ↓
-Tool Execution
-    ↓
-Observation
-    ↓
-Final Answer
+```mermaid
+flowchart TD
+    input[User Input] --> reasoning[LLM Reasoning]
+    reasoning --> needTool{需要调用工具？}
+    needTool -->|是| selection[Tool Selection]
+    selection --> execution[Tool Execution]
+    execution --> observation[Observation]
+    observation --> reasoning
+    needTool -->|否| answer[Final Answer]
 ```
 
 这一流程看似简单，但实际上构成了绝大多数 Agent 系统的核心运行逻辑。下面我们逐步解释每一个环节在系统中的作用。
@@ -2577,7 +2572,17 @@ Agent 的运行始于用户输入。用户可以通过自然语言向系统提�
 
 例如：
 
-用户问题 → 查询数据库 → 获取数据 → 分析数据 → 生成报告整个过程可能包含多次工具调用和多轮推理。
+例如，一个数据分析任务可以概括为：
+
+```mermaid
+flowchart TD
+    question[用户问题] --> query[查询数据库]
+    query --> data[获取数据]
+    data --> analyze[分析数据]
+    analyze --> report[生成报告]
+```
+
+实际执行过程中，Agent 可能会多次调用工具并进行多轮推理。
 
 ##### Final Answer
 
@@ -2614,17 +2619,19 @@ Agent 的运行始于用户输入。用户可以通过自然语言向系统提�
 
 一个典型的工具调用流程通常如下：
 
-1. 用户向 Agent 提出任务请求
-
-2. 大语言模型分析任务并判断是否需要调用工具
-
-3. 模型生成工具调用请求（包含工具名称和参数）
-
-4. 系统根据请求执行对应工具
-
-5. 工具返回执行结果
-
-6. 结果再次输入模型进行下一步推理
+```mermaid
+flowchart TD
+    request[用户向 Agent 提出任务请求] --> decide[大语言模型分析任务]
+    decide --> needTool{是否需要调用工具？}
+    needTool -->|否| answer[直接生成回答]
+    needTool -->|是| call[生成工具名称和参数]
+    call --> execute[系统执行对应工具]
+    execute --> result[工具返回执行结果]
+    result --> continue[结果再次输入模型继续推理]
+    continue --> complete{任务是否完成？}
+    complete -->|否| decide
+    complete -->|是| final[输出最终回答]
+```
 
 这一过程会不断循环，直到模型认为任务已经完成。
 
@@ -2742,9 +2749,28 @@ Tool Schema 本质上是一种结构化描述，用于告诉模型：
 
 在传统的大模型应用中，模型通常只会生成自然语言文本，例如回答问题或生成内容。但在 Function  Calling 机制下，模型不仅可以生成文本，还可以生成函数调用结构。系统会根据这个结构去执行真实的函数，然后把执行结果再返回给模型继续推理。
 
-一个完整的 Function Calling 工作流程通常包括以下几个步骤。第一步是定义可用函数。系统需要提前向模型提供所有可调用函数的信息，包括函数名称、功能描述以及参数结构。模型会根据这些信息判断在什么情况下应该调用对应函数。
+Function Calling 的完整流程可以分为函数定义、模型决策、系统执行和结果回传几个阶段：
 
-第二步是用户输入任务请求。用户向 Agent 提出问题或任务，例如查询订单、搜索知识库或者生成数据报告。系统会把用户输入与函数定义一起发送给大语言模型。第三步是模型判断是否需要调用函数。模型会根据任务需求进行推理。如果任务可以直接回答，模型会生成普通文本；如果任务需要访问外部系统，模型就会生成函数调用请求。第四步是生成函数调用参数。当模型决定调用某个函数时，它会按照函数定义的结构生成参数。例如查询订单时，模型可能会生成一个包含订单编号的 JSON 对象。第五步是系统执行函数。在收到模型生成的函数调用请求之后，Agent 系统会根据函数名称找到对应的程序接口，并执行真实的业务逻辑，例如调用数据库、访问 API 或执行代码。第六步是返回执行结果并继续推理。函数执行完成后，系统会将返回结果再次发送给模型。模型会根据新的信息继续推理，最终生成完整的回答。通过这一流程，大语言模型可以在保持推理能力的同时，安全地调用外部系统，而不需要直接执行代码。
+```mermaid
+flowchart TD
+    define[系统定义函数名称、描述和参数结构]
+    request[用户提交任务请求]
+    define --> send[系统将函数定义与用户请求一起发送给模型]
+    request --> send
+    send --> decide[模型分析任务并判断是否需要调用函数]
+    decide --> needCall{需要调用函数？}
+    needCall -->|否| direct[模型生成普通文本回答]
+    direct --> final[返回完整回答]
+    needCall -->|是| args[模型按函数定义生成调用名称和参数]
+    args --> execute[系统定位并执行对应函数]
+    execute --> result[系统将函数结果返回给模型]
+    result --> reason[模型结合结果继续推理]
+    reason --> again{还需要调用函数吗？}
+    again -->|是| decide
+    again -->|否| final
+```
+
+函数可以访问数据库、调用 API 或执行代码；实际执行始终由 Agent 系统完成，而不是让模型直接运行代码。
 
 #### JSON Schema 定义
 
@@ -2817,13 +2843,14 @@ Function Calling 在 Agent 系统中扮演着非常重要的角色，因为它�
 
 - 在 ReAct 模式中，模型会按照以下循环进行工作：
 
-1. 思考当前任务（Reasoning）
-
-2. 决定下一步行动（Action）
-
-3. 调用工具并获取结果（Observation）
-
-4. 根据结果继续推理
+```mermaid
+flowchart TD
+    reason[思考当前任务 Reasoning] --> action[决定下一步行动 Action]
+    action --> observe[调用工具并获取结果 Observation]
+    observe --> assess{是否已能回答？}
+    assess -->|否| reason
+    assess -->|是| answer[生成最终答案]
+```
 
 这种模式形成了一个 “思考—行动—观察” 的循环结构，使模型能够逐步接近最终答案。
 
@@ -2847,17 +2874,17 @@ ReAct 模式的优势在于结构简单、可解释性强，并且非常适合�
 
 Plan-and-Execute（规划与执行） 是另一种常见的 Agent 推理模式，其核心思想是先制定完整计划，再逐步执行任务。
 
-在这种模式下，Agent 的工作流程通常分为两个阶段： 第一阶段是规划阶段（Planning）。模型会先分析任务目标，并生成一个完整的执行计划。例如： 任务：生成市场分析报告可能的计划：
+在这种模式下，Agent 先进入规划阶段（Planning）：分析任务目标并生成完整计划；然后进入执行阶段（Execution），按计划逐步调用相应工具。以“生成市场分析报告”为例，计划可以拆成搜索行业数据、分析市场趋势、总结竞争情况和生成报告：
 
-1. 搜索行业数据
-
-**2. 分析市场趋势**
-
-**3. 总结竞争情况**
-
-4. 生成报告
-
-第二阶段是执行阶段（Execution）。系统会按照计划逐步执行每一个步骤，并在每一步调用相应的工具。
+```mermaid
+flowchart TD
+    task[接收任务：生成市场分析报告] --> plan[Planning：分析目标并生成计划]
+    plan --> steps[计划：搜索数据 → 分析趋势 → 总结竞争情况 → 生成报告]
+    steps --> execute[Execution：调用相应工具执行当前步骤]
+    execute --> more{计划中还有未完成步骤？}
+    more -->|是| execute
+    more -->|否| output[汇总并输出报告]
+```
 
 相比 ReAct 模式，Plan-and-Execute 的特点是先整体规划，再逐步执行。这种方式在复杂任务中更加稳定，因为模型不会在每一步都重新思考整个问题，而是按照既定计划推进任务。这种模式通常适用于多步骤复杂任务，例如数据分析、研究报告生成、自动化工作流等场景。
 
@@ -2865,15 +2892,16 @@ Plan-and-Execute（规划与执行） 是另一种常见的 Agent 推理模式�
 
 Reflection（反思机制） 是一种用于提升 Agent 推理质量的策略。其核心思想是让模型在完成任务之后进行自我检查，并根据检查结果修正答案或重新执行任务。在传统推理过程中，模型一旦生成答案就直接输出，这很容易产生错误。而 Reflection 机制会增加一个自我评估步骤，让模型重新审视自己的推理过程。
 
-一个典型的 Reflection 流程通常包括以下步骤：
+一个典型的 Reflection 流程是先生成初始答案，再自我评估；发现问题时重新推理或修改，并再次检查，确认没有问题后才输出：
 
-1. 模型生成初始答案
-
-2. 模型评估答案是否存在错误
-
-3. 如果发现问题，则重新推理或修改答案
-
-4. 输出最终结果
+```mermaid
+flowchart TD
+    draft[模型生成初始答案] --> review[模型评估答案是否存在错误]
+    review --> hasError{发现问题？}
+    hasError -->|是| revise[重新推理或修改答案]
+    revise --> review
+    hasError -->|否| final[输出最终结果]
+```
 
 例如，在代码生成或数学推理任务中，Reflection 机制可以显著减少错误率，因为模型会在输出之前进行自我校验。
 
@@ -3192,7 +3220,12 @@ Prompt 用于控制模型行为。LangChain 提供 PromptTemplate 等工具，�
 
 Chain 是任务流程的编排机制。开发者可以将多个步骤连接起来，例如：
 
-输入处理 → 检索知识库 → 生成回答 → 结构化输出。
+```mermaid
+flowchart TD
+    input[输入处理] --> retrieve[检索知识库]
+    retrieve --> answer[生成回答]
+    answer --> output[结构化输出]
+```
 
 **Tool Layer**
 
@@ -3218,7 +3251,17 @@ Agent Layer Agent 是 LangChain 中最重要的模块之一。Agent 可以根据
 
 用户输入 → LLM → 输出结果。
 
-但在实际应用中，Chain 往往会包含多个组件。例如在 RAG 系统中，典型流程可能是： 用户问题 → 向量检索 → 文档拼接 → Prompt 构建 → LLM 生成答案。通过 Chain，开发者可以将复杂流程拆解为多个模块，每个模块负责不同的功能，从而提高系统的可扩展性。
+但在实际应用中，Chain 往往会包含多个组件。例如在 RAG 系统中，典型流程可以抽象为：
+
+```mermaid
+flowchart TD
+    question[用户问题] --> retrieval[向量检索]
+    retrieval --> documents[文档拼接]
+    documents --> prompt[Prompt 构建]
+    prompt --> answer[LLM 生成答案]
+```
+
+通过 Chain，开发者可以将复杂流程拆解为多个模块，每个模块负责不同的功能，从而提高系统的可扩展性。
 
 LangChain 中常见的 Chain 类型包括：
 
@@ -3246,11 +3289,15 @@ Router Chain
 
 一个典型的 Agent 执行流程如下：
 
-用户提出问题
-
-↓
-
-LLM 分析问题 ↓ 选择需要使用的工具 ↓ 执行工具并获取结果 ↓ 继续推理或生成最终答案
+```mermaid
+flowchart TD
+    question[用户提出问题] --> reasoning[LLM 分析问题]
+    reasoning --> needTool{需要调用工具？}
+    needTool -->|是| selection[选择工具]
+    selection --> execution[执行工具并获取结果]
+    execution --> reasoning
+    needTool -->|否| answer[生成最终答案]
+```
 
 例如，当用户提出问题： “帮我查一下今天苹果公司的股价，并计算过去一周的平均值。” Agent 可能会执行如下步骤：
 
@@ -3270,25 +3317,25 @@ LLM 分析问题 ↓ 选择需要使用的工具 ↓ 执行工具并获取结果
 
 Tool 是 Agent 能力扩展的核心。大语言模型本身无法访问互联网、数据库或操作系统，因此需要通过 Tool 将外部能力连接到 Agent 系统中。
 
-在 LangChain 中，Tool 通常包含三个核心部分： 名称（Name）
+在 LangChain 中，Tool 通常包含三个核心部分：
 
-工具的名称，用于让模型识别和调用。
+**1. 名称（Tool Name / Name）**
 
-**描述（Description）**
+工具的名称，用于让模型识别并发起调用。
 
-工具的功能说明，这部分内容会被写入 Prompt，帮助 LLM 判断是否需要调用该工具。
+**2. 描述（Description）**
 
-执行函数（Function）
+工具的功能说明。这部分内容会写入 Prompt，帮助 LLM 判断是否需要调用该工具。
 
-真正执行任务的代码，例如：
+**3. 执行函数（Function）**
 
-查询数据库
+真正执行任务的代码，可以用于查询数据库、调用 API 或执行 Python 计算。
 
-调用 API
+例如，一个天气查询工具可以定义为：
 
-执行 Python 计算。例如，一个天气查询工具可以定义为：
-
-Tool Name: weather_search  Description: 查询指定城市天气信息 Function: 调用天气 API
+- **Tool Name：** `weather_search`
+- **Description：** 查询指定城市天气信息
+- **Function：** 调用天气 API
 
 当用户提出问题：
 
@@ -3329,7 +3376,13 @@ LangGraph 最核心的概念是 State Graph（状态图）。
 
 边（Edge）代表执行路径状态（State）代表当前任务上下文每当一个节点执行完成，系统会更新当前状态，然后根据状态决定下一步应该进入哪个节点。一个简单的 State Graph 可以表示为：
 
-用户输入 ↓ 意图识别 ↓ 知识库检索 ↓ 答案生成 ↓ 结果返回
+```mermaid
+flowchart TD
+    input[用户输入] --> intent[意图识别]
+    intent --> retrieval[知识库检索]
+    retrieval --> generation[答案生成]
+    generation --> response[结果返回]
+```
 
 但在复杂系统中，Graph 可以包含更多逻辑，例如：
 
@@ -3341,7 +3394,22 @@ LangGraph 最核心的概念是 State Graph（状态图）。
 
 多任务协作
 
-例如，在智能客服系统中，State Graph 可能包含如下节点： 用户意图识别 ↓ 是否需要知识库检索 ↓ 是否需要工具调用 ↓ 生成回复 ↓ 判断用户是否继续提问
+例如，在智能客服系统中，State Graph 可以按以下节点和分支组织：
+
+```mermaid
+flowchart TD
+    input[用户输入] --> intent[识别用户意图]
+    intent --> needKnowledge{需要知识库检索？}
+    needKnowledge -->|是| knowledge[检索知识库]
+    needKnowledge -->|否| needTool{需要工具调用？}
+    knowledge --> needTool
+    needTool -->|是| tool[调用工具]
+    needTool -->|否| reply[生成回复]
+    tool --> reply
+    reply --> continue{用户继续提问？}
+    continue -->|是| input
+    continue -->|否| done[结束]
+```
 
 通过这种方式，LangGraph 可以很好地管理复杂对话状态与任务流程。 State Graph 的最大优势在于：
 
@@ -3361,13 +3429,23 @@ LangGraph 最核心的概念是 State Graph（状态图）。
 
 - 输出生成节点
 
-这样一来，Agent 的执行逻辑就被纳入整个工作流体系中，而不是独立运行。例如，在一个 RAG 系统中，Workflow Agent 的执行流程可能是： 用户问题输入
+这样一来，Agent 的执行逻辑就被纳入整个工作流体系中，而不是独立运行。例如，在一个 RAG 系统中，Workflow Agent 的执行流程可以表示为：
 
-↓ Agent 判断是否需要检索 ↓ 调用向量数据库 ↓ 拼接上下文 ↓ 生成答案
+```mermaid
+flowchart TD
+    question[用户问题输入] --> needRetrieval{Agent 判断是否需要检索？}
+    needRetrieval -->|否| answer[生成答案]
+    needRetrieval -->|是| search[调用向量数据库]
+    search --> context[拼接上下文]
+    context --> answer
+    answer --> enough{信息是否充足？}
+    enough -->|是| done[返回答案]
+    enough -->|否| search
+```
 
-如果 Agent 发现信息不足，还可以重新进入检索节点，从而形成循环工作流。这种设计方式使得 Agent 可以实现更加复杂的行为，例如： 多轮推理任务分解自我反思工具多次调用在工程实践中，Workflow Agent 通常被用于构建： 智能客服系统
+如果 Agent 发现信息不足，还可以重新进入检索节点，从而形成循环工作流。这种设计方式使得 Agent 可以实现多轮推理、任务分解、自我反思和多次工具调用等复杂行为。
 
-自动研究 Agent  代码生成 Agent  企业数据分析 Agent
+在工程实践中，Workflow Agent 通常用于构建智能客服系统、自动研究 Agent、代码生成 Agent 和企业数据分析 Agent。
 
 由于所有流程都在 Graph 中定义，因此系统结构会更加清晰，也更容易维护。
 
@@ -3480,19 +3558,19 @@ Tool Use（工具调用）
 
 Action Loop（行动循环）
 
-AutoGPT 的执行通常采用循环推理机制：
+AutoGPT 的执行通常采用行动循环：
 
-思考
+```mermaid
+flowchart TD
+    think[思考] --> plan[制定下一步行动]
+    plan --> act[执行行动]
+    act --> observe[观察结果]
+    observe --> complete{任务已完成？}
+    complete -->|否| think
+    complete -->|是| done[结束]
+```
 
-↓
-
-制定下一步行动 ↓
-
-执行行动 ↓ 观察结果 ↓ 继续思考
-
-这个循环会不断进行，直到 Agent 认为任务已经完成。这种机制通常被称为：
-
-Thought → Action → Observation 循环
+这个循环会不断进行，直到 Agent 认为任务已经完成，通常概括为 Thought–Action–Observation 循环。
 
 通过这种方式，Agent 可以逐步逼近目标。
 
@@ -3555,29 +3633,22 @@ CrewAI 最核心的能力是 Multi-Agent 协作机制。在系统中，可以创
 ![](images/agent面经.pdf-0180-00.png)
 
 
-例如，在一个内容生产系统中，可以设计如下几个 Agent： 研究员 Agent
+例如，在一个内容生产系统中，可以设计以下 Agent：
 
-负责收集资料、搜索信息并整理研究材料。写作 Agent
+- **研究员 Agent**：收集资料、搜索信息并整理研究材料。
+- **写作 Agent**：根据研究内容生成文章结构与文本。
+- **编辑 Agent**：润色生成内容，并优化结构。
+- **审校 Agent**：检查逻辑错误、语法问题和事实准确性。
 
-根据研究内容生成文章结构与文本。编辑 Agent
+在 CrewAI 系统中，这些 Agent 可以按以下流程协作：
 
-对生成内容进行润色、修改与结构优化。
-
-审校 Agent  检查逻辑错误、语法问题以及事实准确性。
-
-在 CrewAI 系统中，这些 Agent 会按照一定流程协作，例如： 研究员 Agent 收集信息
-
-↓
-
-写作 Agent 生成文章
-
-↓
-
-编辑 Agent 优化内容
-
-↓
-
-审校 Agent 进行最终检查
+```mermaid
+flowchart TD
+    research[研究员 Agent：收集信息]
+    research --> writing[写作 Agent：生成文章]
+    writing --> edit[编辑 Agent：优化内容]
+    edit --> review[审校 Agent：最终检查]
+```
 
 这种协作模式可以显著提高任务完成质量，因为每个 Agent 都专注于自己擅长的领域。此外，多 Agent 系统还可以实现更加复杂的协作机制，例如：
 
@@ -3659,18 +3730,15 @@ AI 内容生产系统
 让大模型在推理过程中，根据任务需要，自动选择并调用外部工具，从而扩展自身能力。在现代 AI Agent 架构中，Tool Calling 已经成为连接 LLM 与真实世界系统的关键桥梁。一个典型的 Tool Calling 流程通常如下：
 
 
-```text
-User Input
-    ↓
-LLM Reasoning
-    ↓
-Tool Selection
-    ↓
-Tool Execution
-    ↓
-Result Returned to LLM
-    ↓
-Final Response
+```mermaid
+flowchart TD
+    input[User Input] --> reasoning[LLM Reasoning]
+    reasoning --> needTool{需要调用工具？}
+    needTool -->|是| selection[Tool Selection]
+    selection --> execution[Tool Execution]
+    execution --> result[Result Returned to LLM]
+    result --> reasoning
+    needTool -->|否| response[Final Response]
 ```
 
 在这个过程中，大模型不仅负责理解用户意图，还需要判断是否需要调用工具，并决定调用哪个工具以及传递哪些参数。
@@ -3775,11 +3843,15 @@ unit: celsius | fahrenheit
 模型在推理后可能生成如下 Tool 调用：
 
 
-![](images/agent面经.pdf-0187-02.png)
-
-
-<!-- Start of picture text -->
-代码块<br>1 {<br>2 "tool": "get_weather",<br>3 "arguments": {<br>4 "city": "Beijing",<br>5 "unit": "celsius"<br>6   }<br>7 }<br><!-- End of picture text -->
+```json
+{
+  "tool": "get_weather",
+  "arguments": {
+    "city": "Beijing",
+    "unit": "celsius"
+  }
+}
+```
 
 系统收到该调用后，执行对应工具，并将结果返回给模型。
 
@@ -3829,25 +3901,20 @@ unit: celsius | fahrenheit
 简单来说，Function Calling 是 Tool Calling 的一种实现形式。如果说 Tool 描述的是“系统中有哪些能力”，那么 Function Calling 解决的问题就是： 当模型需要使用某个能力时，如何以结构化方式发起调用。通过 Function Calling，大模型可以生成标准化的 JSON 调用格式，系统接收到该调用后即可执行对应函数，并将结果返回给模型继续推理。
 
 
-![](images/agent面经.pdf-0189-03.png)
-
-
 一个典型的 Function Calling 流程如下：
 
-```text
-User Input
-    ↓
-LLM Reasoning
-    ↓
-Function Selection
-    ↓
-Generate Function Arguments
-    ↓
-Function Execution
-    ↓
-Return Result to LLM
-    ↓
-Final Response
+```mermaid
+flowchart TD
+    request[用户提出请求] --> serialize[序列化可用函数定义]
+    serialize --> send[将消息与函数定义发送给模型]
+    send --> process[模型处理输入]
+    process --> functionCall{模型是否生成函数调用？}
+    functionCall -->|否| chat[处理普通聊天回复]
+    chat --> response[将回复返回给用户]
+    functionCall -->|是| parse[提取函数名和参数]
+    parse --> invoke[执行函数]
+    invoke --> result[将函数结果返回给模型]
+    result --> process
 ```
 
 在这个过程中，模型不仅需要判断是否需要调用函数，还需要自动生成符合 Schema 的参数结构。
@@ -4108,18 +4175,13 @@ MCP（Model Context Protocol）是一种用于连接大模型与外部系统的�
 从系统设计角度来看，MCP 通常位于 LLM 与外部系统之间，充当一个能力协调层。一个典型的 MCP 架构如下：
 
 
-```text
-User
-    ↓
-AI Agent
-    ↓
-LLM Reasoning
-    ↓
-MCP Client
-    ↓
-MCP Server
-    ↓
-Tools / Data / Services
+```mermaid
+flowchart TD
+    user[User] --> agent[AI Agent]
+    agent --> reasoning[LLM Reasoning]
+    reasoning --> client[MCP Client]
+    client --> server[MCP Server]
+    server --> resources[Tools / Data / Services]
 ```
 
 在这一架构中，各组件承担不同职责。
@@ -4563,15 +4625,13 @@ Skill、Function 和 Tool 构成了 AI Agent 执行能力的三层结构，它�
 
 第三个重要作用是任务连续性（Task Continuity）。在复杂任务中，一个 Agent 往往需要分多步完成目标，例如：
 
-用户目标
-
-→ 任务规划
-
-→ 工具调用
-
-→ 结果反馈
-
-→ 再次推理
+```mermaid
+flowchart TD
+    goal[用户目标] --> planning[任务规划]
+    planning --> tool[工具调用]
+    tool --> feedback[结果反馈]
+    feedback --> reasoning[再次推理]
+```
 
 在这种多阶段流程中，Agent 需要记住之前的推理结果、工具调用记录以及任务状态。如果没有 Memory，Agent 在每一步都会丢失之前的信息，整个任务流程就无法顺利推进。
 
@@ -4697,27 +4757,30 @@ Memory Storage 指的是将有价值的信息从对话或任务过程中提取�
 
 在某些系统中，Agent 还可以将新知识补充到记忆库中，例如从文档、网页或数据库中获取的重要信息。
 
-在工程实践中，Memory Storage 通常会经过一个简单的处理流程：
+在工程实践中，Memory Storage 通常会经过以下处理流程：
 
-对话数据
+```mermaid
+flowchart TD
+    conversation[对话数据] --> extract[信息提取]
+    extract --> structure[结构化或向量化]
+    structure --> persist[持久化存储]
+```
 
-→ 信息提取 → 结构化或向量化
-
-→ 持久化存储这样可以避免将冗余对话直接存入数据库，同时提高后续检索效率。
+这样可以避免将冗余对话直接存入数据库，同时提高后续检索效率。
 
 **Memory Retrieval**
 
 仅仅存储记忆是不够的，Agent 还需要能够在合适的时机检索相关记忆并利用这些信息进行推理。这一过程被称为 Memory Retrieval。在实际系统中，Agent 在生成回答之前，通常会先根据当前任务或用户输入进行一次记忆检索。例如：
 
-**用户提出问题**
+```mermaid
+flowchart TD
+    question[用户提出问题] --> analyze[系统分析问题语义]
+    analyze --> retrieve[在长期记忆库中检索相关信息]
+    retrieve --> prompt[将检索结果加入 Prompt]
+    prompt --> answer[LLM 生成最终回答]
+```
 
-→ 系统分析问题语义
-
-→ 在长期记忆库中检索相关信息
-
-→ 将检索结果加入 Prompt
-
-→ LLM 生成最终回答通过这种方式，Agent 可以在推理过程中使用过去积累的知识或经验。
+通过这种方式，Agent 可以在推理过程中使用过去积累的知识或经验。
 
 例如：
 
@@ -4744,17 +4807,14 @@ Vector Memory 是当前 AI Agent 系统中最常见的一种记忆架构。其�
 
 一个典型的 Vector Memory 工作流程如下：
 
-用户对话或任务信息
-
-→ 文本向量化（Embedding）
-
-→ 存入向量数据库
-
-→ 新任务触发检索
-
-→ 计算向量相似度
-
-→ 返回最相关的记忆内容
+```mermaid
+flowchart TD
+    input[用户对话或任务信息] --> embedding[文本向量化（Embedding）]
+    embedding --> store[存入向量数据库]
+    store --> trigger[新任务触发检索]
+    trigger --> similarity[计算向量相似度]
+    similarity --> result[返回最相关的记忆内容]
+```
 
 例如，用户曾经在系统中讨论过一个项目：
 
@@ -4882,18 +4942,13 @@ Summarization 是另一种重要的上下文管理方法。与简单删除历史
 
 一个典型的 Agent 系统架构通常可以抽象为如下结构：
 
-```text
-Client
-    ↓
-API Gateway
-    ↓
-Agent Service
-    ↓
-LLM Service
-    ↓
-Tool Layer
-    ↓
-External Systems
+```mermaid
+flowchart TD
+    client[Client] --> gateway[API Gateway]
+    gateway --> agent[Agent Service]
+    agent --> llm[LLM Service]
+    llm --> tools[Tool Layer]
+    tools --> external[External Systems]
 ```
 
 这个架构基本覆盖了绝大多数 AI Agent 系统的工程实现方式。
@@ -4985,19 +5040,15 @@ Logging 是最基础的可观测能力，也是定位问题最直接的手段。
 
 如果说 Logging 解决的是“发生了什么”，那么 Tracing 解决的是“事情是如何发生的”。 Agent 系统往往包含多个步骤，例如 Prompt 构建、模型推理、工具调用以及结果生成，这些步骤构成了一个完整的执行链路。当系统出现问题时，开发者需要能够清晰地看到整个链路的执行过程。 Tracing 的核心思想是为每一次请求建立一个 Trace ID，并记录请求在系统中的完整执行路径。例如一个典型的 Agent 请求链路可能如下：
 
-用户请求
-
-→ Prompt 构建
-
-→ LLM 推理
-
-→ Tool Call
-
-→ 工具执行
-
-→ 二次推理
-
-→ 返回结果
+```mermaid
+flowchart TD
+    request[用户请求] --> prompt[Prompt 构建]
+    prompt --> reasoning[LLM 推理]
+    reasoning --> call[Tool Call]
+    call --> execute[工具执行]
+    execute --> second[二次推理]
+    second --> response[返回结果]
+```
 
 通过 Tracing 系统，工程师可以看到每一个步骤的执行时间以及执行结果，从而快速定位性能瓶颈或者失败节点。
 
@@ -5219,17 +5270,20 @@ Worker Agent 的设计原则通常是职责单一、能力明确。这样不仅�
 
 ##### 协作流程
 
-在 Planner‒Worker 模式下，一个典型的任务执行流程通常如下： 首先，用户向系统提交任务请求。
+在 Planner‒Worker 模式下，用户提交任务后由 Planner 分析并拆解子步骤，再按任务类型选择 Worker 执行；Worker 返回结果后，Planner 汇总并决定是否继续：
 
-Planner Agent 接收任务并进行分析，将任务拆解为多个子步骤。
+```mermaid
+flowchart TD
+    request[用户提交任务请求] --> planner[Planner 分析任务并拆解子步骤]
+    planner --> select[Planner 按任务类型选择 Worker]
+    select --> worker[Worker 执行子任务并返回结果]
+    worker --> decide[Planner 汇总结果并判断后续安排]
+    decide --> more{还要继续执行子步骤？}
+    more -->|是| select
+    more -->|否| answer[Planner 生成完整输出并返回用户]
+```
 
-Planner 根据任务类型选择合适的 Worker Agent。
-
-Worker Agent 执行任务并返回结果。
-
-Planner 汇总结果并决定是否继续执行下一步。
-
-最终由 Planner 生成完整输出并返回给用户。通过这种方式，复杂任务可以被逐步完成，同时系统仍然保持较好的可控性。
+这种协作方式将复杂任务拆成可控步骤，再由 Planner 汇总结果。
 
 ##### 协作模式总结
 

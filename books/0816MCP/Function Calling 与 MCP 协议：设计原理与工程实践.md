@@ -879,8 +879,12 @@ MCP 和 REST/GraphQL/gRPC 并非互斥。
 
 一个常见架构是：
 
-```text
-LLM Host → MCP Client → MCP Server → REST API → 业务服务
+```mermaid
+flowchart TD
+    A["LLM Host"] --> B["MCP Client"]
+    B --> C["MCP Server"]
+    C --> D["REST API"]
+    D --> E["业务服务"]
 ```
 
 MCP Server 是面向 AI Host 的适配层，REST API 仍是业务系统的稳定接口。
@@ -1280,8 +1284,11 @@ MCP Server 仍需要可靠的领域代码；Host 仍需要模型编排；业务 
 
 将 MCP Tool 转换为模型 Function Calling schema，建立：
 
-```text
-模型调用 → MCP tools/call → Tool Result → 模型续答
+```mermaid
+flowchart TD
+    A["模型调用"] --> B["MCP tools/call"]
+    B --> C["Tool Result"]
+    C --> D["模型续答"]
 ```
 
 增加工具白名单、schema 校验、调用上限和超时。

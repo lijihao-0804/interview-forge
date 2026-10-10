@@ -1728,8 +1728,6 @@ Claude Code 有三个工作模式，这是你必须要了解的。
 
 这个计划是写到一个 md 文档里的，这样在执行任务，不会做着做着就忘记执行到哪了，而且你还可以用 ctrl+g 命令去编辑这个计划 md 文档。
 
-![](../images/80453d6584d7e6e7e11cb795.png)
-
 这里我们不对计划做任何修改，直接选择第一个，接下来 Claude 就会开始按照规划好的计划，一步一步开始执行了。
 
 ![](../images/07f1ace0917de4249c69f6c5.png)
@@ -1876,8 +1874,6 @@ Claude Code 会自动加载 frontend-design 这个 Skill，然后按照专业的
 请把倒计时数字改大一点，加一个呼吸动画效果。
 @src/components/TimerDisplay.tsx
 ```
-
-![](../images/328ce033124cec0a23bd8a6f.png)
 
 ![](../images/1a746eeca5a0ab03a945093b.png)
 
@@ -3918,7 +3914,14 @@ Anthropic 干了一件很值钱的事：他们把内部几百个 skill 全部拉
 
 这套机制有个专门的名字，叫**渐进式披露（Progressive Disclosure）**：平时只给目录，用到了才给正文。
 
-![](../images/8a00718f7165e281836715ad.png)
+```mermaid
+flowchart TD
+    A[会话启动] --> B[收集每个 Skill 的名称与 description]
+    B --> C[将清单注入 context]
+    C --> D{Claude 判断任务是否匹配}
+    D -->|匹配| E[按需加载 SKILL.md 全文]
+    D -->|不匹配| F[全文不进入 context]
+```
 
 ![渐进式披露图书馆类比图](../images/2076aa1b07e15178b2fe2167.png)
 
@@ -4136,7 +4139,14 @@ Anthropic 内部的答案可能跟你想的不一样：**没有一个中心化�
 
 他们的玩法是完全的自然演化：你写了个 skill 想给大家试试，先扔进 GitHub 上的一个沙盒文件夹，在 Slack 里吆喝一声。用的人多了、口碑起来了（火没火由 skill 作者自己判断），作者再提一个 PR 把它从沙盒挪进正式 marketplace。
 
-![](../images/c4b0f37849c67096eab4d6a3.png)
+```mermaid
+flowchart TD
+    A[编写 Skill] --> B[放入 GitHub 沙盒文件夹]
+    B --> C[在 Slack 分享]
+    C --> D{有人使用且口碑起来？}
+    D -->|是| E[作者提 PR 移入正式 marketplace]
+    D -->|否| F[继续留在沙盒]
+```
 
 像不像开源社区的运作方式？好东西靠口碑自己长出来，而不是靠委员会评出来。审批环节越重，愿意分享的人越少；门槛低到「扔进沙盒就行」，几百个 skill 才攒得起来。
 
@@ -4644,8 +4654,6 @@ Claude Code 收到之后，不会急着写代码，它会生成一份需求规�
 /speckit-plan 前端用 React，后端用 Node 加 Express，数据库用 SQLite 先跑起来，
 看板的拖拽用现成的拖拽库，接口按项目、任务两块分开设计。
 ```
-
-![](../images/0b6000718a318b5e593d364e.png)
 
 这回轮到技术了。Claude Code 会基于刚才那份需求文档，产出一份技术方案。
 
@@ -9743,7 +9751,14 @@ Claude Code 的答案可能出乎你的意料，它没有用 ReAct，而是用�
 
 如果你接触过 Agent 开发，大概率听说过 ReAct（Reasoning + Acting）。它是 2022 年提出的一种 Agent 范式，核心思路是把 Agent 的每一步拆成三个阶段：
 
-![](../images/fef882ea934377a12f6a38bc.png)
+```mermaid
+flowchart TD
+    T[Thought：判断当前要做什么] --> A[Action：选择并调用工具]
+    A --> O[Observation：接收工具结果]
+    O --> D{任务完成？}
+    D -->|否| T
+    D -->|是| F[生成最终答复]
+```
 
 具体来说，模型在每一轮都会先输出一段「思考」（Thought），比如「我需要先读取 config.ts 文件来了解数据库连接配置」；然后选择一个工具调用（Action）；最后拿到工具结果（Observation）。这三步不断循环，直到模型认为任务完成。
 

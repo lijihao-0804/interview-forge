@@ -3,18 +3,14 @@
  <main class="reader" data-page-type="library/chapter" data-content-id="agent-mianjing:31"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 面经</a><span aria-hidden="true">›</span><span aria-current="page">Agent 架构</span></nav><div class="module-meta">Agent 工程 · 第 31 / 55 章 · <span class="muted">更新于 2026-10-10</span></div><h1>Agent 架构</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>在理解了 AI Agent 的基本概念之后，我们需要进一步了解 Agent 在系统层面是如何运行的。从工程实现角度来看，一个完整的 Agent 系统通常由大语言模型、工具系统、执行环境以及任务循环机制共同组成，其中大语言模型负责推理与决策，而工具系统则负责执行具体操作。在实际应用中，大多数 Agent 系统都会遵循一种类似的运行流程，即：先理解用户请求，然后进行推理分析，再决定是否调用工具，并根据工具返回结果继续推理，直到最终生成答案。这种运行方式可以看作是一种循环推理与执行的架构模式。</p>
 <p><img loading="lazy" decoding="async" alt="" src="assets/f9af2d58fd-agent-.pdf-0135-02.png" /></p>
 <p><strong>典型的 Agent 架构流程如下：</strong></p>
-<div class="codehilite" data-lang="text"><pre><code class="language-text">User Input
-    ↓
-LLM Reasoning
-    ↓
-Tool Selection
-    ↓
-Tool Execution
-    ↓
-Observation
-    ↓
-Final Answer
-</code></pre></div>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    input[User Input] --&gt; reasoning[LLM Reasoning]
+    reasoning --&gt; needTool{需要调用工具？}
+    needTool --&gt;|是| selection[Tool Selection]
+    selection --&gt; execution[Tool Execution]
+    execution --&gt; observation[Observation]
+    observation --&gt; reasoning
+    needTool --&gt;|否| answer[Final Answer]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
 <p>这一流程看似简单，但实际上构成了绝大多数 Agent 系统的核心运行逻辑。下面我们逐步解释每一个环节在系统中的作用。</p>
 <h3 id="user-input">User Input</h3>
 <p>Agent 的运行始于用户输入。用户可以通过自然语言向系统提出问题、描述需求或者给出任务目标。例如：</p>
@@ -137,7 +133,13 @@ Final Answer
 </ul>
 <p>这一机制使得 Agent 可以进行多轮推理循环（Reasoning Loop），直到任务完成。</p>
 <p>例如：</p>
-<p>用户问题 → 查询数据库 → 获取数据 → 分析数据 → 生成报告整个过程可能包含多次工具调用和多轮推理。</p>
+<p>例如，一个数据分析任务可以概括为：</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart TD
+    question[用户问题] --&gt; query[查询数据库]
+    query --&gt; data[获取数据]
+    data --&gt; analyze[分析数据]
+    analyze --&gt; report[生成报告]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>实际执行过程中，Agent 可能会多次调用工具并进行多轮推理。</p>
 <h5 id="final-answer">Final Answer</h5>
 <p>当模型判断任务已经完成时，就会生成最终回答（Final Answer）。这个回答通常会整合所有工具执行结果，并以自然语言的形式返回给用户。例如：</p>
 <p>用户：我的订单什么时候发货？ Agent：您的订单已于今天下午 3 点发货，预计两天后送达。在复杂任务中，最终输出也可能是：</p>
@@ -173,4 +175,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20260929-review-polish"></script><script src="../assets/library-mermaid.js?v=20260929-review-polish"></script></body></html>

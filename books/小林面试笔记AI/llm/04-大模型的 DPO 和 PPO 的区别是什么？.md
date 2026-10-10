@@ -172,7 +172,17 @@ GRPO 对可验证任务很有吸引力：数学、代码等任务可以用程序
 
 回到开头那段对话，问到 DPO 和 PPO 的区别，最重要的是先讲清楚**两者都在解决「SFT 之后的对齐问题」**。SFT 让模型学会按指令回答，但回答风格不一定符合人类偏好，所以需要进一步训练让模型学会「哪种回答更受人类欢迎」。这一句铺垫先讲到，面试官就知道你抓到了对齐这件事的本质。
 
-接下来讲 PPO 的一种流程：收集偏好数据 → 训练或接入奖励/验证器 → policy 采样 → 用 reference/KL 与 value/critic 计算更新 → 评测与防奖励投机。可以提到常见的 policy/reference/reward/value 角色，但要说明实现并非固定四份模型。
+接下来可以讲 PPO 的一种偏好对齐流程（具体实现会变化，并非固定四份模型）：
+
+```mermaid
+flowchart TD
+    preferences[收集偏好数据] --> reward[训练或接入奖励模型 / 验证器]
+    reward --> sample[Policy 采样]
+    sample --> update[结合 Reference / KL 与 Value / Critic 估计更新策略]
+    update --> evaluate[评测效果并检查奖励投机]
+```
+
+可以提到常见的 policy/reference/reward/value 角色，但要说明实现并非固定四份模型。
 
 DPO 的核心创新是「**在特定假设下把带 KL 约束的偏好目标改写成偏好对损失**」。它通常不需要显式奖励模型或 PPO 在线采样，但仍要用 reference、选择合适 β、处理偏好噪声并评估能力保持。类比可以用，但不要把它说成任意 RLHF 的完全等价物。
 
