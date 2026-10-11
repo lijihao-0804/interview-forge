@@ -297,6 +297,31 @@ def drag_slider(page, delta):
 
 # ---------------------------------------------------------------- login
 
+def click_first_visible(page, text, timeout_ms=2500, exact=True):
+    """在所有匹配文本的元素里点击第一个可见的。
+
+    这类 Vue 页面常有多份隐藏的弹窗模板（相同文案），get_by_text(...).first
+    会按 DOM 顺序绑到隐藏元素上，is_visible() 永远为 False 导致永远点不到；
+    必须遍历全部匹配。"""
+    locator = page.get_by_text(text, exact=exact)
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        try:
+            count = locator.count()
+        except Exception:  # noqa: BLE001
+            count = 0
+        for i in range(count):
+            node = locator.nth(i)
+            try:
+                if node.is_visible():
+                    node.click()
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+        time.sleep(0.25)
+    return False
+
+
 def settle_after_login(page, target_url, max_wait=45):
     """CAS 回跳后站点要自动走 /venue/login?oauth_token=... 换自身会话，
     期间连续多次自动跳转——任何主动 goto/reload 都会打断它。
@@ -308,16 +333,12 @@ def settle_after_login(page, target_url, max_wait=45):
         state = safe_body_text(page)
         try:
             if "请登录后访问" in state:
-                ok = page.get_by_text("确定", exact=True).first
-                if ok.is_visible():
-                    ok.click()
+                if click_first_visible(page, "确定", timeout_ms=600):
                     log.info("点击“请登录后访问”确定，等待站点自行跳转")
                     time.sleep(1.2)
                     continue
             for txt in ("统一登录", "统一身份认证登录"):
-                btn = page.get_by_text(txt, exact=True).first
-                if btn.count() and btn.is_visible():
-                    btn.click()
+                if click_first_visible(page, txt, timeout_ms=400):
                     log.info("点击“%s”，等待 CAS 与 oauth 自动换票", txt)
                     time.sleep(1.5)
                     break
@@ -393,16 +414,12 @@ def ensure_target_date(page, target_date):
 
 
 def confirm_if_popped(page, texts=("确定",), timeout_ms=2500):
-    """点击后可能弹二次确认框，也可能不弹：短超时等待，出现才点。"""
+    """点击后可能弹二次确认框，也可能不弹：短超时等待，出现才点。
+    用 click_first_visible 遍历全部匹配（页面有隐藏弹窗模板，.first 会绑到隐藏元素）。"""
     for t in texts:
-        btn = page.get_by_text(t, exact=True).first
-        try:
-            btn.wait_for(state="visible", timeout=timeout_ms)
-            btn.click()
+        if click_first_visible(page, t, timeout_ms=timeout_ms):
             log.info("出现二次确认弹窗（%s），已点击", t)
             return True
-        except Exception:  # noqa: BLE001
-            continue
     return False
 
 
@@ -707,14 +724,9 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
             time.sleep(0.55)
         time.sleep(1.0)
         for txt in ("确认", "确定", "验证"):
-            btn = page.get_by_text(txt, exact=True).first
-            try:
-                if btn.is_visible():
-                    btn.click()
-                    log.info("点击验证码弹窗「%s」", txt)
-                    break
-            except Exception:  # noqa: BLE001
-                continue
+            if click_first_visible(page, txt, timeout_ms=300):
+                log.info("点击验证码弹窗「%s」", txt)
+                break
         for _ in range(20):
             time.sleep(0.6)
             if "tradeNo" in page.url:
@@ -808,13 +820,10 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
     # 2) 兜底：任意可见元素文本恰好是支付字样
     if not clicked:
         for txt in pay_texts:
-            btn = page.get_by_text(txt, exact=True).first
-            try:
-                if btn.is_visible():
-                    clicked = click_pay_candidate(btn, f"text:{txt}")
-                    break
-            except Exception:  # noqa: BLE001
-                continue
+            if click_first_visible(page, txt, timeout_ms=400):
+                clicked = True
+                log.info("已点击支付控件（text兜底:%s）", txt)
+                break
     if not clicked:
         snippet = safe_body_text(page, 600)
         log.warning("确认页未找到支付按钮，页面文本片段：%s", snippet.replace("\n", " | "))
@@ -855,6 +864,86 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
 
 # ---------------------------------------------------------------- main
 
+def force_select_slot(page, slot):
+    """测试用：强选一个前端已禁用的时段（去掉 disabled 类后点击）。
+    服务端对刚结束的时段可能仍然受理（实测 22:01 可进入支付页）。"""
+    idx = page.evaluate("""(slot) => {
+      const tables = [...document.querySelectorAll('table')];
+      for (const tb of tables) {
+        const headerRow = tb.querySelector('thead tr') || tb.rows[0];
+        if (!headerRow) continue;
+        const headers = [...headerRow.cells].map(c => c.innerText.trim());
+        if (!headers.some(h => /^\\d{2}:\\d{2}-\\d{2}:\\d{2}$/.test(h))) continue;
+        const blocks = [...tb.querySelectorAll('.reserveBlock')];
+        for (const block of blocks) {
+          const td = block.closest('td');
+          if (!td) continue;
+          if (headers[td.cellIndex] !== slot) continue;
+          block.classList.remove('disabled');
+          block.classList.add('free');
+          return blocks.indexOf(block);
+        }
+      }
+      return -1;
+    }""", slot)
+    if idx < 0:
+        raise RuntimeError(f"强选失败：表格中找不到时段 {slot}")
+    block = page.locator(".reserveBlock").nth(idx)
+    block.click()
+    confirm_if_popped(page)
+    time.sleep(0.8)
+    sel = page.evaluate("""() => {
+      const b = document.querySelector('.reserveBlock.selected');
+      return b ? b.innerText.trim() : null;
+    }""")
+    if not sel:
+        # 诊断留证：可能确认弹窗文案不同（如负剩余分钟），或服务端拒绝
+        body = safe_body_text(page, 500)
+        log.warning("强选后无选中态，页面文本片段：%s", body.replace("\n", " | "))
+        try:
+            page.screenshot(path=str(ROOT / "data/logs/gym/captures/force-select-fail.png"))
+        except Exception:  # noqa: BLE001
+            pass
+        raise RuntimeError(f"强选 {slot} 后未进入选中状态")
+    log.info("已强选时段 %s（%s）", slot, sel)
+    return slot, sel
+
+
+def inspect_payment(page, capture_dir):
+    """不支付，只采集支付页证据：截图 + 全部按钮类元素的文本/类名/位置。
+    返回人类可读的候选描述，用于校准 pay_and_verify 的定位逻辑。"""
+    try:
+        page.screenshot(path=str(capture_dir / "confirm-page.png"))
+    except Exception:  # noqa: BLE001
+        pass
+    controls = page.evaluate("""() => {
+      const out = [];
+      for (const el of document.querySelectorAll('button, [role=button], a, .btn, input[type=submit], input[type=button]')) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) continue;
+        const text = (el.innerText || el.value || '').replace(/\\s+/g, ' ').trim();
+        out.push({ tag: el.tagName, cls: String(el.className).slice(0, 60),
+                   text: text.slice(0, 40),
+                   rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)],
+                   disabled: el.disabled === true || el.getAttribute('aria-disabled') === 'true' });
+      }
+      return out;
+    }""")
+    lines = [f"{c['tag']} cls={c['cls']!r} text={c['text']!r} rect={c['rect']} disabled={c['disabled']}"
+             for c in controls]
+    body = page.evaluate("() => document.body.innerText")
+    money_lines = [ln.strip() for ln in body.splitlines() if ("金额" in ln or "支付" in ln or "倒计时" in ln)]
+    payload = {"controls": controls, "money_lines": money_lines}
+    try:
+        (capture_dir / "pay-inspect.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:  # noqa: BLE001
+        pass
+    log.info("支付页金额/支付相关文本：%s", json.dumps(money_lines, ensure_ascii=False))
+    log.info("支付页可见控件：\n%s", "\n".join(lines))
+    return f"支付页检查完成：{len(controls)} 个可见控件，已截图与 pay-inspect.json"
+
+
 def run(args) -> dict:
     """执行一次完整预约流程，返回结果 dict（同时写入 --json-result）。"""
     target_url = VENUE_URL_FMT.format(venue=args.venue)
@@ -884,27 +973,31 @@ def run(args) -> dict:
 
         login(page, user, pwd, target_url)
 
-        order_status = check_existing_orders(page, target_date)
-        if order_status == "booked":
-            result.update(status="succeeded",
-                          detail="当天已存在有效预约（订单页核验），无需重复下单")
-            log.info("%s", result["detail"])
-            return result
-        if order_status == "pending":
-            result.update(status="ambiguous", detail="当天存在未支付订单，避免重复下单，请人工确认")
-            log.warning(result["detail"])
-            return result
+        if not args.skip_order_check:
+            order_status = check_existing_orders(page, target_date)
+            if order_status == "booked":
+                result.update(status="succeeded",
+                              detail="当天已存在有效预约（订单页核验），无需重复下单")
+                log.info("%s", result["detail"])
+                return result
+            if order_status == "pending":
+                result.update(status="ambiguous", detail="当天存在未支付订单，避免重复下单，请人工确认")
+                log.warning(result["detail"])
+                return result
 
         robust_goto(page, target_url)
         settle_after_login(page, target_url)
         ensure_target_date(page, target_date)
 
-        picked = pick_slot(page, slots)
-        if not picked:
-            result.update(status="no_slot", detail="目标时段均无空位")
-            log.info(result["detail"])
-            return result
-        slot, capacity = picked
+        if getattr(args, "force_slot", None):
+            slot, capacity = force_select_slot(page, args.force_slot)
+        else:
+            picked = pick_slot(page, slots)
+            if not picked:
+                result.update(status="no_slot", detail="目标时段均无空位")
+                log.info(result["detail"])
+                return result
+            slot, capacity = picked
         result["actual_slot"] = slot
 
         amount = read_amount(page)
@@ -944,6 +1037,11 @@ def run(args) -> dict:
             log.warning(result["detail"])
             return result
 
+        if getattr(args, "no_pay", False):
+            info = inspect_payment(page, capture_dir)
+            result.update(status="inspected", detail=info)
+            return result
+
         status, detail = pay_and_verify(page, target_date, slot, capture_dir)
         result.update(status=status, detail=detail)
         return result
@@ -958,6 +1056,9 @@ def main(argv=None):
     parser.add_argument("--headless", action="store_true", help="无头模式（服务器部署用）")
     parser.add_argument("--credentials-stdin", action="store_true",
                         help="从 stdin 读 JSON 凭据（调度器调用方式，优先于凭据文件）")
+    parser.add_argument("--skip-order-check", action="store_true", help="跳过当天已有订单预检（测试用）")
+    parser.add_argument("--force-slot", default=None, help="强选指定时段（含前端已禁用的，测试用）")
+    parser.add_argument("--no-pay", action="store_true", help="到达支付页只检查不支付（测试用）")
     args = parser.parse_args(argv)
 
     try:
@@ -979,7 +1080,7 @@ def main(argv=None):
     except OSError:  # noqa: BLE001
         log.exception("结果写入失败")
     log.info("最终结果：%s", json.dumps(result, ensure_ascii=False))
-    code = {"succeeded": 0, "no_slot": 2, "ambiguous": 3}.get(result["status"], 1)
+    code = {"succeeded": 0, "no_slot": 2, "ambiguous": 3, "inspected": 4}.get(result["status"], 1)
     sys.exit(code)
 
 
