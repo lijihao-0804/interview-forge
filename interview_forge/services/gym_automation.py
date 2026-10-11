@@ -366,6 +366,32 @@ def login(page, user, pwd, target_url):
     log.info("登录完成")
 
 
+def check_login(page, user, pwd, target_url):
+    """只验证凭据能否登录（含滑块），不进入预约流程。返回 {status, detail}。
+
+    status: ok / bad_credentials / captcha_failed / error"""
+    robust_goto(page, target_url)
+    if "authserver" not in page.url:
+        return {"status": "ok", "detail": "已有登录态"}
+    log.info("登录验证：填写凭据并提交")
+    page.fill("#username", user)
+    page.fill("#password", pwd)
+    page.locator("#login_submit:visible").click()
+    if wait_either(page, [".sliderContainer"], 8000) == ".sliderContainer":
+        log.info("出现滑块验证，自动拖动")
+        if not solve_slider(page):
+            return {"status": "captcha_failed", "detail": "滑块验证未通过（可重试）"}
+    try:
+        page.wait_for_url("https://ggtypt.nju.edu.cn/**", timeout=20000)
+    except Exception:  # noqa: BLE001
+        body = safe_body_text(page, 300)
+        if re.search(r"有误|不正确|不存在|锁定", body):
+            return {"status": "bad_credentials", "detail": "账号或密码不正确"}
+        return {"status": "error", "detail": f"登录后未跳转：{body[:120]}"}
+    settle_after_login(page, target_url)
+    return {"status": "ok", "detail": "登录验证通过"}
+
+
 # ---------------------------------------------------------------- orders
 
 def check_existing_orders(page, target_date):
@@ -1086,6 +1112,8 @@ def main(argv=None):
     parser.add_argument("--skip-order-check", action="store_true", help="跳过当天已有订单预检（测试用）")
     parser.add_argument("--force-slot", default=None, help="强选指定时段（含前端已禁用的，测试用）")
     parser.add_argument("--no-pay", action="store_true", help="到达支付页只检查不支付（测试用）")
+    parser.add_argument("--check-login", action="store_true",
+                        help="凭据验证模式：只跑登录（含滑块），成功即退出")
     args = parser.parse_args(argv)
 
     try:
@@ -1095,7 +1123,23 @@ def main(argv=None):
     log_dir = setup_logging()
     result = {"status": "failed", "detail": "", "actual_slot": None}
     try:
-        result = run(args)
+        if args.check_login:
+            if args.credentials_stdin:
+                user, pwd = read_stdin_credentials()
+            else:
+                user, pwd = read_credentials()
+            target_url = VENUE_URL_FMT.format(venue=args.venue)
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=args.headless)
+                ctx = browser.new_context(user_agent=USER_AGENT,
+                                          viewport={"width": 1280, "height": 800},
+                                          locale="zh-CN", timezone_id="Asia/Shanghai")
+                page = ctx.new_page()
+                page.set_default_timeout(8000)
+                result = check_login(page, user, pwd, target_url)
+        else:
+            result = run(args)
     except Exception as exc:  # noqa: BLE001
         result = {"status": "failed", "detail": f"异常：{exc}", "actual_slot": None}
         log.exception("流程失败")

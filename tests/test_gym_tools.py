@@ -146,7 +146,8 @@ class GymCredentialCryptoTests(unittest.TestCase):
             self._original_key_path.write_bytes(self._original_key)
 
     def test_save_and_load_roundtrip(self) -> None:
-        status = gym.save_credentials("admin01", "522025230035", "a-secret-password")
+        status = gym.save_credentials("admin01", "522025230035", "a-secret-password",
+                                      verify=False)
         self.assertTrue(status["configured"])
         self.assertEqual(status["account_masked"], "522****35")
         account, password = gym._load_credentials_decrypted("admin01")
@@ -154,7 +155,8 @@ class GymCredentialCryptoTests(unittest.TestCase):
         self.assertEqual(password, "a-secret-password")
 
     def test_delete_credentials(self) -> None:
-        gym.save_credentials("admin01", "522025230035", "a-secret-password")
+        gym.save_credentials("admin01", "522025230035", "a-secret-password",
+                             verify=False)
         gym.delete_credentials("admin01")
         self.assertFalse(gym.credentials_status("admin01")["configured"])
         with self.assertRaises(gym.GymServiceError):
@@ -163,3 +165,80 @@ class GymCredentialCryptoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GymVerificationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        import tempfile
+        from pathlib import Path as PathLib
+
+        self._tmp = tempfile.TemporaryDirectory()
+        import interview_forge.services.gym as gym_module
+        self._patcher = patch.object(gym_module, "SECRET_KEY_PATH",
+                                     PathLib(self._tmp.name) / "gym-secret.key")
+        self._patcher.start()
+        self._db_patcher = patch.object(gym_module, "GYM_DB_PATH",
+                                        PathLib(self._tmp.name) / "gym.db")
+        self._db_patcher.start()
+        self.addCleanup(self._patcher.stop)
+        self.addCleanup(self._db_patcher.stop)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_save_rejects_bad_credentials_without_storing(self) -> None:
+        with patch.object(gym, "verify_credentials",
+                          return_value={"status": "bad_credentials", "detail": "账号或密码不正确"}):
+            with self.assertRaises(gym.GymServiceError) as ctx:
+                gym.save_credentials("admin01", "522025230035", "wrong-password")
+        self.assertIn("不正确", str(ctx.exception))
+        self.assertFalse(gym.credentials_status("admin01")["configured"])
+
+    def test_save_stores_after_successful_verification(self) -> None:
+        with patch.object(gym, "verify_credentials",
+                          return_value={"status": "ok", "detail": "登录验证通过"}):
+            status = gym.save_credentials("admin01", "522025230035", "a-secret-password")
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["verification"]["status"], "ok")
+
+
+class GymSmtpConfigTests(unittest.TestCase):
+    def setUp(self) -> None:
+        import tempfile
+        from pathlib import Path as PathLib
+
+        self._tmp = tempfile.TemporaryDirectory()
+        import interview_forge.services.gym as gym_module
+        self._patcher = patch.object(gym_module, "SECRET_KEY_PATH",
+                                     PathLib(self._tmp.name) / "gym-secret.key")
+        self._patcher.start()
+        self._db_patcher = patch.object(gym_module, "GYM_DB_PATH",
+                                        PathLib(self._tmp.name) / "gym.db")
+        self._db_patcher.start()
+        self.addCleanup(self._patcher.stop)
+        self.addCleanup(self._db_patcher.stop)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_smtp_roundtrip_and_recipient(self) -> None:
+        status = gym.save_smtp_config("2723542256@qq.com", "x" * 16)
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["smtp_user"], "2723542256@qq.com")
+        gym.set_notify_recipient("admin01", "2030309470@qq.com")
+        merged = gym.notify_status("admin01")
+        self.assertTrue(merged["configured"])
+        self.assertEqual(merged["recipient"], "2030309470@qq.com")
+        gym.delete_smtp_config()
+        self.assertFalse(gym.notify_status("admin01")["configured"])
+
+    def test_legacy_notify_row_migrates_to_global_smtp(self) -> None:
+        conn = gym.connect()
+        conn.execute(
+            "INSERT INTO gym_notify_config (username, smtp_host, smtp_port, smtp_user,"
+            " auth_code_encrypted, notify_to, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("legacy-user", "smtp.163.com", 465, "old@163.com", "ENC", "old@163.com",
+             "2026-10-11T00:00:00"),
+        )
+        conn.commit()
+        conn.close()
+        status = gym.smtp_config_status()
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["smtp_user"], "old@163.com")
+        self.assertEqual(status["smtp_host"], "smtp.163.com")

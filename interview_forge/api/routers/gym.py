@@ -156,6 +156,7 @@ def gym_notify_status(request: Request):
 
 @router.post("/api/tools/gym/notify")
 async def save_gym_notify(request: Request):
+    """保存当前用户的收件邮箱（发件 SMTP 为全局配置，见 /api/admin/gym/smtp）。"""
     user, denied = await async_require_admin(request)
     if denied is not None:
         return denied
@@ -166,13 +167,9 @@ async def save_gym_notify(request: Request):
         return denied or error_response("请求体无效", 400)
     try:
         status = await asyncio.to_thread(
-            gym.save_notify_config,
+            gym.set_notify_recipient,
             str(user["username"]),
-            str(payload.get("smtp_user", "")),
-            str(payload.get("auth_code", "")),
             str(payload.get("notify_to", "")),
-            str(payload.get("smtp_host", "smtp.qq.com")),
-            payload.get("smtp_port", 465),
         )
     except GymServiceError as exc:
         return error_response(str(exc), 400, error_category="invalid_notify_config")
@@ -188,11 +185,63 @@ async def delete_gym_notify(request: Request):
     if denied is not None:
         return denied
     try:
-        status = await asyncio.to_thread(gym.delete_notify_config, str(user["username"]))
+        status = await asyncio.to_thread(gym.delete_notify_recipient, str(user["username"]))
     except Exception as exc:  # noqa: BLE001
         denied = service_error(exc, write=True)
         return denied or error_response("删除通知配置失败", 500)
     return json_response({"notify": status})
+
+
+@router.get("/api/admin/gym/smtp")
+def gym_smtp_status(request: Request):
+    user, denied = require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(gym.smtp_config_status())
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("读取发件配置失败", 500)
+
+
+@router.post("/api/admin/gym/smtp")
+async def save_gym_smtp(request: Request):
+    """全局发件 SMTP 配置（管理后台，配置一次全站共用）。"""
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("请求体无效", 400)
+    try:
+        status = await asyncio.to_thread(
+            gym.save_smtp_config,
+            str(payload.get("smtp_user", "")),
+            str(payload.get("auth_code", "")),
+            str(payload.get("smtp_host", "smtp.qq.com")),
+            payload.get("smtp_port", 465),
+        )
+    except GymServiceError as exc:
+        return error_response(str(exc), 400, error_category="invalid_smtp_config")
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc, write=True)
+        return denied or error_response("保存发件配置失败", 500)
+    return json_response({"smtp": status})
+
+
+@router.delete("/api/admin/gym/smtp")
+async def delete_gym_smtp(request: Request):
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        status = await asyncio.to_thread(gym.delete_smtp_config)
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc, write=True)
+        return denied or error_response("删除发件配置失败", 500)
+    return json_response({"smtp": status})
 
 
 @router.post("/api/tools/gym/notify/test")

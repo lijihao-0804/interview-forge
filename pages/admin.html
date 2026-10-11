@@ -103,6 +103,20 @@
       </table>
     </section>
 
+    <section id="admin-gym-smtp">
+      <h2>工具箱 · 邮件发件配置（全局）</h2>
+      <p class="muted" style="margin:6px 0 10px;font-size:12.5px">健身房自动预约的任务通知（成功/无空位/失败）由此邮箱发出，全站共用一份；各用户在工具箱里只填自己的收件邮箱。授权码加密存储。</p>
+      <div class="row">
+        <div class="field"><label for="gym-smtp-user">发件邮箱（完整地址）</label><input id="gym-smtp-user" placeholder="例如 12345@qq.com" style="width:220px"></div>
+        <div class="field"><label for="gym-smtp-code">SMTP 授权码（不是 QQ 密码）</label><input id="gym-smtp-code" type="password" autocomplete="new-password" placeholder="16 位授权码" style="width:180px"></div>
+        <div class="field"><label for="gym-smtp-host">SMTP 服务器</label><input id="gym-smtp-host" value="smtp.qq.com" style="width:160px"></div>
+        <div class="field"><label for="gym-smtp-port">端口</label><input id="gym-smtp-port" value="465" style="width:80px"></div>
+        <button id="gym-smtp-save">保存发件配置</button>
+        <button id="gym-smtp-clear" class="ghost">清除</button>
+      </div>
+      <div class="msg" id="gym-smtp-msg"></div>
+    </section>
+
     <section id="admin-account-security">
       <h2>账号安全 · 修改自己的密码</h2>
       <div class="row">
@@ -300,6 +314,38 @@ function fmtBytes(n) {
   if (n < 1024) return n + " B";
   if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
   return (n / 1048576).toFixed(1) + " MB";
+}
+function gymSmtpRender(data) {
+  var state = document.getElementById("gym-smtp-msg");
+  if (data && data.configured) {
+    state.textContent = "已配置：" + data.smtp_user + "（" + data.smtp_host + ":" + data.smtp_port + "，更新于 " + fmtTime(data.updated_at) + "）";
+    document.getElementById("gym-smtp-user").value = data.smtp_user;
+    document.getElementById("gym-smtp-host").value = data.smtp_host;
+    document.getElementById("gym-smtp-port").value = data.smtp_port;
+    document.getElementById("gym-smtp-code").value = "";
+    document.getElementById("gym-smtp-code").placeholder = "留空则不更新授权码";
+  } else {
+    state.textContent = "尚未配置：工具箱任务通知将无法发送。";
+  }
+}
+function gymSmtpLoad() {
+  api("/api/admin/gym/smtp").then(function (res) { if (res.ok) gymSmtpRender(res.data); }).catch(function () {});
+}
+function gymSmtpSave() {
+  var code = document.getElementById("gym-smtp-code").value;
+  var body = { smtp_user: document.getElementById("gym-smtp-user").value.trim(),
+               smtp_host: document.getElementById("gym-smtp-host").value.trim() || "smtp.qq.com",
+               smtp_port: parseInt(document.getElementById("gym-smtp-port").value, 10) || 465 };
+  if (code) body.auth_code = code;
+  api("/api/admin/gym/smtp", { method: "POST", body: JSON.stringify(body) })
+    .then(function (res) { if (res.ok) { gymSmtpRender(res.data.smtp); document.getElementById("gym-smtp-msg").textContent = "已保存"; } })
+    .catch(function (e) { document.getElementById("gym-smtp-msg").textContent = e.message || "保存失败"; });
+}
+function gymSmtpClear() {
+  if (!confirm("清除全局发件配置？工具箱任务通知将停发。")) return;
+  api("/api/admin/gym/smtp", { method: "DELETE" })
+    .then(function () { document.getElementById("gym-smtp-msg").textContent = "已清除"; gymSmtpLoad(); })
+    .catch(function (e) { document.getElementById("gym-smtp-msg").textContent = e.message || "失败"; });
 }
 function fmtTime(s) {
   // 数据里混有 +08:00 与 +00:00 两种偏移，统一按北京时间展示。
@@ -608,6 +654,9 @@ document.getElementById("reset-confirm").onclick = function () {
     });
 };
 
+document.getElementById("gym-smtp-save").onclick = gymSmtpSave;
+document.getElementById("gym-smtp-clear").onclick = gymSmtpClear;
+gymSmtpLoad();
 document.getElementById("gen").onclick = function () {
   var msg = document.getElementById("gen-msg");
   api("/api/admin/codes", { method: "POST", body: JSON.stringify({

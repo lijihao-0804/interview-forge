@@ -77,6 +77,14 @@ CREATE TABLE IF NOT EXISTS gym_notify_config (
     notify_to TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS gym_smtp_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    smtp_host TEXT NOT NULL DEFAULT 'smtp.qq.com',
+    smtp_port INTEGER NOT NULL DEFAULT 465,
+    smtp_user TEXT NOT NULL,
+    auth_code_encrypted TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -91,6 +99,19 @@ def connect() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=15000")
     conn.executescript(_SCHEMA)
+    # 一次性迁移：旧的按用户 SMTP 配置 → 全局发件配置。
+    # 只认 auth_code 非空的遗留行（纯收件占位行不该触发迁移）；
+    # delete_smtp_config 会同步清空遗留行，避免每次连接都被复活。
+    conn.execute(
+        "INSERT INTO gym_smtp_config (id, smtp_host, smtp_port, smtp_user,"
+        " auth_code_encrypted, updated_at)"
+        " SELECT 1, smtp_host, smtp_port, smtp_user, auth_code_encrypted, updated_at"
+        " FROM gym_notify_config"
+        " WHERE auth_code_encrypted != ''"
+        " AND NOT EXISTS (SELECT 1 FROM gym_smtp_config)"
+        " ORDER BY updated_at DESC LIMIT 1"
+    )
+    conn.commit()
     return conn
 
 
@@ -132,13 +153,23 @@ def _fernet() -> Fernet:
         return Fernet(base64.urlsafe_b64encode(digest))
 
 
-def save_credentials(username: str, account: str, password: str) -> dict:
+def save_credentials(username: str, account: str, password: str,
+                     verify: bool = True) -> dict:
+    """保存南大凭据。默认先做一次真实登录验证（含滑块），密码错误直接拒绝，
+    避免到预约那一步才发现。验证基础设施异常时降级为保存+警告。"""
     account = str(account or "").strip()
     password = str(password or "")
     if not re.fullmatch(r"[A-Za-z0-9]{6,20}", account):
         raise GymServiceError("账号应为 6-20 位数字或字母（学号/工号）")
     if len(password) < 6 or len(password) > 64:
         raise GymServiceError("密码长度应为 6-64 位")
+    verification = {"status": "skipped", "detail": "未执行"}
+    if verify:
+        verification = verify_credentials(account, password)
+        if verification.get("status") == "bad_credentials":
+            raise GymServiceError(f"南大账号或密码不正确，已拒绝保存（{verification.get('detail', '')}）")
+        if verification.get("status") == "captcha_failed":
+            raise GymServiceError("登录滑块验证未通过，请稍后重试保存")
     cipher = _fernet()
     enc_account = cipher.encrypt(account.encode("utf-8")).decode("ascii")
     enc_password = cipher.encrypt(password.encode("utf-8")).decode("ascii")
@@ -155,7 +186,9 @@ def save_credentials(username: str, account: str, password: str) -> dict:
             conn.commit()
         finally:
             conn.close()
-    return credentials_status(username)
+    status = credentials_status(username)
+    status["verification"] = verification
+    return status
 
 
 def _load_credentials_decrypted(username: str) -> tuple[str, str]:
@@ -209,17 +242,16 @@ def delete_credentials(username: str) -> dict:
     return {"configured": False, "account_masked": "", "updated_at": ""}
 
 
-# ------------------------------------------------------------- 通知配置（邮件）
+# ------------------------------------------------------------- 通知（全局发件 + 每人收件）
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def save_notify_config(username: str, smtp_user: str, auth_code: str,
-                       notify_to: str, smtp_host: str = "smtp.qq.com",
-                       smtp_port: int = 465) -> dict:
+def save_smtp_config(smtp_user: str, auth_code: str,
+                     smtp_host: str = "smtp.qq.com", smtp_port: int = 465) -> dict:
+    """全局发件 SMTP 配置（管理后台配置一次，全站共用）。授权码 Fernet 加密。"""
     smtp_user = str(smtp_user or "").strip()
     auth_code = str(auth_code or "").strip()
-    notify_to = str(notify_to or "").strip()
     smtp_host = str(smtp_host or "").strip() or "smtp.qq.com"
     try:
         smtp_port = int(smtp_port)
@@ -229,8 +261,6 @@ def save_notify_config(username: str, smtp_user: str, auth_code: str,
         raise GymServiceError("发件邮箱格式不正确")
     if not 8 <= len(auth_code) <= 32:
         raise GymServiceError("SMTP 授权码应为 8-32 位（QQ 邮箱为 16 位授权码，不是 QQ 密码）")
-    if not _EMAIL_PATTERN.fullmatch(notify_to):
-        raise GymServiceError("收件邮箱格式不正确")
     if not 1 <= smtp_port <= 65535:
         raise GymServiceError("SMTP 端口不合法")
     enc_code = _fernet().encrypt(auth_code.encode("utf-8")).decode("ascii")
@@ -238,14 +268,65 @@ def save_notify_config(username: str, smtp_user: str, auth_code: str,
         conn = connect()
         try:
             conn.execute(
+                "INSERT INTO gym_smtp_config (id, smtp_host, smtp_port, smtp_user,"
+                " auth_code_encrypted, updated_at) VALUES (1, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET smtp_host=excluded.smtp_host,"
+                " smtp_port=excluded.smtp_port, smtp_user=excluded.smtp_user,"
+                " auth_code_encrypted=excluded.auth_code_encrypted, updated_at=excluded.updated_at",
+                (smtp_host, smtp_port, smtp_user, enc_code, _now()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return smtp_config_status()
+
+
+def smtp_config_status() -> dict:
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT smtp_host, smtp_port, smtp_user, updated_at FROM gym_smtp_config WHERE id = 1"
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return {"configured": False}
+    return {"configured": True, "smtp_host": row["smtp_host"], "smtp_port": row["smtp_port"],
+            "smtp_user": row["smtp_user"], "updated_at": row["updated_at"]}
+
+
+def delete_smtp_config() -> dict:
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            conn.execute("DELETE FROM gym_smtp_config WHERE id = 1")
+            # 同步清空遗留按用户行里的发件字段，防止 connect() 迁移把配置复活
+            conn.execute(
+                "UPDATE gym_notify_config SET smtp_user='', auth_code_encrypted=''"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {"configured": False}
+
+
+def set_notify_recipient(username: str, notify_to: str) -> dict:
+    """每用户收件邮箱（谁的任务通知发给谁）。"""
+    notify_to = str(notify_to or "").strip()
+    if not _EMAIL_PATTERN.fullmatch(notify_to):
+        raise GymServiceError("收件邮箱格式不正确")
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            # gym_notify_config 的 smtp_* 列是旧按用户配置的遗留结构（NOT NULL），
+            # 新模型下发件信息在 gym_smtp_config 全局表，这里仅以空串占位。
+            conn.execute(
                 "INSERT INTO gym_notify_config (username, smtp_host, smtp_port, smtp_user,"
                 " auth_code_encrypted, notify_to, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)"
-                " ON CONFLICT(username) DO UPDATE SET smtp_host=excluded.smtp_host,"
-                " smtp_port=excluded.smtp_port, smtp_user=excluded.smtp_user,"
-                " auth_code_encrypted=excluded.auth_code_encrypted,"
-                " notify_to=excluded.notify_to, updated_at=excluded.updated_at",
-                (username, smtp_host, smtp_port, smtp_user, enc_code, notify_to, _now()),
+                " VALUES (?, 'smtp.qq.com', 465, '', '', ?, ?)"
+                " ON CONFLICT(username) DO UPDATE SET notify_to=excluded.notify_to,"
+                " updated_at=excluded.updated_at",
+                (username, notify_to, _now()),
             )
             conn.commit()
         finally:
@@ -254,21 +335,20 @@ def save_notify_config(username: str, smtp_user: str, auth_code: str,
 
 
 def notify_status(username: str) -> dict:
+    smtp = smtp_config_status()
     conn = connect()
     try:
         row = conn.execute(
-            "SELECT smtp_host, smtp_port, smtp_user, notify_to, updated_at"
-            " FROM gym_notify_config WHERE username = ?", (username,)).fetchone()
+            "SELECT notify_to, updated_at FROM gym_notify_config WHERE username = ?",
+            (username,)).fetchone()
     finally:
         conn.close()
-    if row is None:
-        return {"configured": False}
-    return {"configured": True, "smtp_host": row["smtp_host"], "smtp_port": row["smtp_port"],
-            "smtp_user": row["smtp_user"], "notify_to": row["notify_to"],
-            "updated_at": row["updated_at"]}
+    recipient = row["notify_to"] if row else ""
+    return {"smtp": smtp, "recipient": recipient,
+            "configured": bool(smtp.get("configured") and recipient)}
 
 
-def delete_notify_config(username: str) -> dict:
+def delete_notify_recipient(username: str) -> dict:
     with mutex("gym", "write", timeout=10):
         conn = connect()
         try:
@@ -276,41 +356,49 @@ def delete_notify_config(username: str) -> dict:
             conn.commit()
         finally:
             conn.close()
-    return {"configured": False}
+    return notify_status(username)
 
 
 def send_mail(username: str, subject: str, body: str) -> None:
-    """用该用户保存的 SMTP 配置发一封邮件；未配置/失败都抛 GymServiceError。"""
+    """用全局发件配置给该用户的收件邮箱发邮件；未配置/失败抛 GymServiceError。"""
     import smtplib
     from email.header import Header
     from email.mime.text import MIMEText
 
+    smtp = smtp_config_status()
+    if not smtp.get("configured"):
+        raise GymServiceError("发件 SMTP 尚未在管理后台配置")
     conn = connect()
     try:
         row = conn.execute(
-            "SELECT * FROM gym_notify_config WHERE username = ?", (username,)).fetchone()
+            "SELECT notify_to FROM gym_notify_config WHERE username = ?", (username,)).fetchone()
     finally:
         conn.close()
-    if row is None:
-        raise GymServiceError("尚未配置通知邮箱")
+    recipient = (row["notify_to"] if row else "") or smtp["smtp_user"]  # 未设收件人时发给发件箱自己
+    conn = connect()
     try:
-        auth_code = _fernet().decrypt(row["auth_code_encrypted"].encode("ascii")).decode("utf-8")
+        enc = conn.execute(
+            "SELECT auth_code_encrypted FROM gym_smtp_config WHERE id = 1").fetchone()
+    finally:
+        conn.close()
+    try:
+        auth_code = _fernet().decrypt(enc["auth_code_encrypted"].encode("ascii")).decode("utf-8")
     except InvalidToken as exc:
         raise GymServiceError("通知凭据解密失败：主密钥与加密时不一致") from exc
     msg = MIMEText(body, "plain", "utf-8")
-    msg["From"] = str(row["smtp_user"])
-    msg["To"] = str(row["notify_to"])
+    msg["From"] = str(smtp["smtp_user"])
+    msg["To"] = recipient
     msg["Subject"] = Header(subject, "utf-8")
-    if int(row["smtp_port"]) == 465:
-        server = smtplib.SMTP_SSL(str(row["smtp_host"]), int(row["smtp_port"]), timeout=15)
+    if int(smtp["smtp_port"]) == 465:
+        server = smtplib.SMTP_SSL(str(smtp["smtp_host"]), int(smtp["smtp_port"]), timeout=15)
     else:
-        server = smtplib.SMTP(str(row["smtp_host"]), int(row["smtp_port"]), timeout=15)
+        server = smtplib.SMTP(str(smtp["smtp_host"]), int(smtp["smtp_port"]), timeout=15)
         try:
             server.starttls()
         except smtplib.SMTPException:  # noqa: BLE001
             pass
     try:
-        server.login(str(row["smtp_user"]), auth_code)
+        server.login(str(smtp["smtp_user"]), auth_code)
         server.send_message(msg)
     finally:
         try:
@@ -349,6 +437,35 @@ def notify_job_result(job: dict, status: str, result: dict) -> None:
         log.info("任务 #%s 未发送邮件：%s", job["id"], exc)
     except Exception as exc:  # noqa: BLE001
         log.warning("任务 #%s 邮件发送失败：%s", job["id"], exc)
+
+
+def verify_credentials(account: str, password: str) -> dict:
+    """真实验证南大凭据：子进程跑一次登录（含滑块）。返回 {status, detail}。
+
+    status: ok / bad_credentials / captcha_failed / error。"""
+    import time as _time
+    run_dir = GYM_LOG_DIR / "runs"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    stamp = int(_time.time() * 1000)
+    result_path = run_dir / f"cred-check-{stamp}.json"
+    log_path = run_dir / f"cred-check-{stamp}.log"
+    cmd = [sys.executable, "-m", "interview_forge.services.gym_automation",
+           "--check-login", "--json-result", str(result_path)]
+    if os.environ.get("GYM_HEADLESS", "").strip() == "1":
+        cmd.append("--headless")
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    with log_path.open("w", encoding="utf-8") as log_file:
+        subprocess.run(
+            cmd, cwd=ROOT, env=env, stdout=log_file, stderr=subprocess.STDOUT,
+            timeout=180, input=json.dumps({"account": account, "password": password}).encode("utf-8"),
+        )
+    if result_path.exists():
+        try:
+            return json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    return {"status": "error", "detail": "验证进程无输出"}
 
 
 # ------------------------------------------------------------- CRUD（给路由层）
