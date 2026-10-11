@@ -292,8 +292,15 @@ border-radius:var(--radius-3);padding:13px 17px}
     }).then(function (res) {
       var creds = res.data.credentials || {};
       var verification = creds.verification || {};
-      var note = verification.status === "ok" ? "，登录验证已通过" : "";
-      showMsg("cred-msg", "凭据已加密保存" + (creds.account_masked ? "（" + creds.account_masked + "）" : "") + note, true);
+      var mask = creds.account_masked ? "（" + creds.account_masked + "）" : "";
+      if (verification.status === "ok") {
+        showMsg("cred-msg", "凭据已加密保存" + mask + "，登录验证已通过 ✓", true);
+      } else if (verification.status === "skipped") {
+        showMsg("cred-msg", "凭据已加密保存" + mask + "，本次未执行登录验证", true);
+      } else {
+        showMsg("cred-msg", "凭据已保存" + mask + "，但登录验证未完成：" +
+          (verification.detail || verification.status) + "（预约执行时还会再次验证）", false);
+      }
       $("cred-password").value = "";
       return loadStatus();
     }).catch(function (error) {

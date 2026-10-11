@@ -450,7 +450,7 @@ def verify_credentials(account: str, password: str) -> dict:
     result_path = run_dir / f"cred-check-{stamp}.json"
     log_path = run_dir / f"cred-check-{stamp}.log"
     cmd = [sys.executable, "-m", "interview_forge.services.gym_automation",
-           "--check-login", "--json-result", str(result_path)]
+           "--check-login", "--json-result", str(result_path), "--credentials-stdin"]
     if os.environ.get("GYM_HEADLESS", "").strip() == "1":
         cmd.append("--headless")
     env = os.environ.copy()
