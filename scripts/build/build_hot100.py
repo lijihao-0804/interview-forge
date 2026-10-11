@@ -294,6 +294,11 @@ def _problems_source_hash() -> str:
     for path in sorted(EXTENSION_SOURCE.glob("*.md")):
         hasher.update(path.read_bytes())
     hasher.update(json.dumps(PROBLEMS, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    # lang_solutions.json 是题解页多语言小节的输入之一，必须纳入指纹：
+    # 漏掉它会让 JSON 修复/更新后增量构建静默跳过题页重建（2026-10-03 修复时发现）。
+    lang_json = ROOT / "tools" / "lang_solutions.json"
+    if lang_json.exists():
+        hasher.update(lang_json.read_bytes())
     return hasher.hexdigest()
 PROBLEM_BY_ID = {int(p["id"]): p for p in PROBLEMS}
 

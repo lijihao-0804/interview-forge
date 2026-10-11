@@ -32,12 +32,16 @@ class ActionListFollowupTests(unittest.TestCase):
         self.assertIn('document.addEventListener("keydown", function (event)', builder)
         self.assertIn('target.closest("input, textarea, select, button, a, [contenteditable=\'true\']")', builder)
 
-    def test_reader_sticky_bar_and_h2_h3_toc_are_generated(self):
+    def test_reader_sticky_bar_stays_removed_by_design(self):
+        # a331fcfb（"remove floating bookshelf chapter status"）刻意移除了悬浮
+        # 阅读进度条及其小目录：这里反向断言，防止构建回退时悄悄复活。
+        # 注意：章节页 on-page 目录的 re.findall(r'<h([23]) id=…'）是另一处
+        # 正当用途（otp 高亮），不在禁止之列。
         builder = (ROOT / "scripts" / "build" / "build_library.py").read_text(encoding="utf-8")
-        self.assertIn('id="readerSticky"', builder)
-        self.assertIn("new IntersectionObserver(function(entries){bar.hidden=entries[0].isIntersecting}", builder)
-        self.assertIn("re.findall(r'<h([23]) id=", builder)
-        self.assertIn(".reader-sticky[hidden]{display:none}", builder)
+        self.assertNotIn('id="readerSticky"', builder)
+        self.assertNotIn("bar.hidden=entries[0].isIntersecting", builder)
+        self.assertNotIn(".reader-sticky[hidden]{display:none}", builder)
+        self.assertIn("otp_items = re.findall(r'<h([23]) id=", builder)
 
     def test_streak_message_reflects_today_round_count(self):
         template = (ROOT / "tools" / "templates" / "dashboard.tpl").read_text(encoding="utf-8")

@@ -527,6 +527,60 @@ if not (ROOT / "pages" / "leetcode-connect.html").exists():
     errors.append("学习站缺少力扣连接向导页 pages/leetcode-connect.html")
 if "syncFullBtn" not in (ROOT / "pages" / "leetcode-connect.html").read_text(encoding="utf-8-sig"):
     errors.append("力扣连接页缺少“全量同步”入口")
+# 多语言题解数据完整性门禁：lang_solutions.json 曾因提取器截断（代码块内部
+# 空行被当作块终点）混入 80 处断码并上线（2026-10-03 审计）。此处强制校验：
+# 每条实现必须括号平衡；非 void 主实现必须含 return（void 型 python/go 的
+# 原地修改无返回值属正常，按"签名含 void 或前 4 行含 void"豁免）。
+def _strip_noise(line: str) -> str:
+    line = re.sub(r'"[^"]*"', '""', line)
+    line = re.sub(r"'[^']*'", "''", line)
+    return re.sub(r"//.*$", "", line)
+
+_LANG_JSON = ROOT / "tools" / "lang_solutions.json"
+if _LANG_JSON.exists():
+    _lang_data = json.loads(_LANG_JSON.read_text(encoding="utf-8"))
+    for _pid, _langs in _lang_data.items():
+        for _lang, _item in _langs.items():
+            if not isinstance(_item, dict) or not _item.get("code"):
+                continue
+            _lines = [_strip_noise(l) for l in _item["code"].splitlines() if l.strip()]
+            if not _lines:
+                continue
+            _depth = sum(x.count("{") - x.count("}") + x.count("[") - x.count("]")
+                         + x.count("(") - x.count(")") for x in _lines)
+            if _depth != 0:
+                errors.append(f"多语言题解数据截断（括号不平衡）：题 {_pid} {_lang}，净差 {_depth}")
+            # return 检查只适用于有 void 关键字可判定的语言（cpp/java/c）；
+            # python/go 的原地修改函数无返回值属正常（Go 更是没有 void 关键字），
+            # 截断交由上面的括号平衡规则捕捉。
+            if _lang in ("cpp", "java", "c") \
+                    and not any("return" in x for x in _lines) \
+                    and not any("void" in x for x in _lines[:4]) \
+                    and len(_lines) >= 4:
+                errors.append(f"多语言题解数据疑似截断（无 return 且非 void）：题 {_pid} {_lang}")
+
+# 书架章节正文体量门禁：reader-body 净文本过少（且无图片）的章节对用户就是
+# "白页"——源稿空小节或章节切分把过渡句切成独立章都会产生（2026-10-03 全站
+# 审计发现 lora/chapter-03 正文为空）。按 <div> 括号深度平衡提取正文判断。
+_library_chapters = sorted(Path("library").rglob("chapter-*.html"))
+for _chapter in _library_chapters:
+    _chapter_text = _chapter.read_text(encoding="utf-8-sig", errors="replace")
+    _m = re.search(r'<div class="reader-body">', _chapter_text)
+    if not _m:
+        continue
+    _start = _m.end()
+    _depth = 1
+    _end = len(_chapter_text)
+    for _tag in re.finditer(r"<div[\s>]|</div>", _chapter_text[_start:]):
+        _depth += 1 if _tag.group(0).startswith("<div") else -1
+        if _depth == 0:
+            _end = _start + _tag.start()
+            break
+    _body_text = re.sub(r"<[^>]+>", "", _chapter_text[_start:_end]).strip()
+    _body_imgs = len(re.findall(r"<img", _chapter_text[_start:_end]))
+    if len(_body_text) < 100 and _body_imgs == 0:
+        errors.append(f"书架章节正文近空（疑似白页）：{_chapter.relative_to(ROOT)}，净文本 {len(_body_text)} 字符")
+
 # ============================================================================
 # ④ 学习站运行骨架与“生成脚本/模板/服务端/力扣功能”断言
 #   前面三段检查的是“产物页面长什么样”，这一段检查“支撑物齐不齐、契约签没签”：
