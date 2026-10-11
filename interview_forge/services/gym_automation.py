@@ -21,7 +21,7 @@ import os
 import re
 import sys
 import time
-from datetime import date as date_cls, datetime
+from datetime import date as date_cls, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -1042,12 +1042,32 @@ def run(args) -> dict:
         settle_after_login(page, target_url)
         ensure_target_date(page, target_date)
 
+        # 名额 08:00:00 才放出（不抢秒杀，也不做高频轮询）：
+        # 登录就位后等到 08:00:20 查第一次；若那一刻恰好无空位且还没到 08:04，
+        # 60 秒后复查一次，之后停止。
+        SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
+        now = datetime.now(SHANGHAI)
+        release = now.replace(hour=8, minute=0, second=20, microsecond=0)
+        if now < release and (release - now) < timedelta(minutes=10):
+            log.info("等待名额放出 %.0f 秒（08:00:20 开始查询）", (release - now).total_seconds())
+            time.sleep((release - now).total_seconds())
+
         if getattr(args, "force_slot", None):
             slot, capacity = force_select_slot(page, args.force_slot)
         else:
             picked = pick_slot(page, slots)
             if not picked:
-                result.update(status="no_slot", detail="目标时段均无空位")
+                now = datetime.now(SHANGHAI)
+                cutoff = now.replace(hour=8, minute=4, second=0, microsecond=0)
+                if now < cutoff:
+                    log.info("首次查询无空位且未到 08:04，60 秒后复查一次")
+                    time.sleep(60)
+                    robust_goto(page, target_url)
+                    settle_after_login(page, target_url)
+                    ensure_target_date(page, target_date)
+                    picked = pick_slot(page, slots)
+            if not picked:
+                result.update(status="no_slot", detail="目标时段均无空位（已复查一次）")
                 log.info(result["detail"])
                 return result
             slot, capacity = picked
