@@ -509,11 +509,38 @@ JS_CAPTCHA_DUMP = """() => {
 
 
 def deepseek_key():
+    """验证码识字用的 DeepSeek key 查找顺序：
+    1. 环境变量 DEEPSEEK_API_KEY（显式覆盖）；
+    2. 站点 AI 配置库（管理后台「AI 配置」里配置的 DeepSeek 供应商，密钥加密存
+       ai_config.db，主密钥 INTERVIEW_FORGE_AI_CONFIG_KEY）——部署机首选，
+       前端即可换 key；
+    3. data/gym-deepseek-key.txt（本工具独立 key 文件）；
+    4. 本机开发机遗留路径。
+    """
     k = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if k:
         return k
-    for p in (Path("E:/interview-forge/.maintenance/deepseek-api-key.txt"),
-              ROOT / "data" / "gym-deepseek-key.txt"):
+    try:
+        from interview_forge.ai.config_store import AIConfigStore
+
+        store = AIConfigStore()
+        for rec in store.list_providers():
+            if not rec.enabled or not rec.key_configured:
+                continue
+            managed_deepseek = (
+                rec.capability_profile == "deepseek_official"
+                or "deepseek" in (rec.base_url or "").lower()
+                or "deepseek" in (rec.name or "").lower()
+            )
+            if not managed_deepseek:
+                continue
+            secret = (store.provider_secret(rec.id) or "").strip()
+            if secret:
+                return secret
+    except Exception:  # noqa: BLE001  AI 配置库未配置主密钥/不可用时静默跳过
+        pass
+    for p in (ROOT / "data" / "gym-deepseek-key.txt",
+              Path("E:/interview-forge/.maintenance/deepseek-api-key.txt")):
         try:
             if p.exists():
                 t = p.read_text(encoding="utf-8").strip()
