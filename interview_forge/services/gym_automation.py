@@ -756,36 +756,84 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
 
 # ---------------------------------------------------------------- payment
 
-def pay_and_verify(page, target_date, slot):
+def pay_and_verify(page, target_date, slot, capture_dir=None):
     """确认页校验金额 0 元 → 点击支付 → 到订单页核验「已支付+正常」。
-    返回 (status, detail)：succeeded / ambiguous / failed。"""
+    返回 (status, detail)：succeeded / ambiguous / failed。
+
+    支付按钮从未见过真实 DOM，因此按可靠性分层定位：先按钮类元素+精确文本，
+    再放宽；全程截图留证；失败时把页面文本写入日志供远程诊断。
+    """
     body = page.evaluate("() => document.body.innerText")
     m = re.search(r"金额[：:]\s*¥?\s*([\d.]+)", body)
     amount = float(m.group(1)) if m else None
     log.info("确认页金额：%s 元", amount)
     if amount != 0:
         return "failed", f"订单金额为 {amount} 元（非 0），按安全规则停止"
-    clicked = False
-    for txt in ("立即支付", "去支付", "支 付", "支付"):
-        btn = page.get_by_text(txt, exact=False).first
+    if capture_dir:
         try:
-            if btn.is_visible():
-                btn.click()
-                clicked = True
-                log.info("已点击「%s」", txt)
-                break
+            page.screenshot(path=str(capture_dir / "confirm-page.png"))
         except Exception:  # noqa: BLE001
-            continue
+            pass
+
+    def click_pay_candidate(node, label):
+        node.click()
+        log.info("已点击支付控件（%s）", label)
+        return True
+
+    clicked = False
+    # 1) 按钮类元素 + 精确文本（最可靠）
+    pay_texts = ["立即支付", "去支付", "支 付", "支付"]
+    for sel in ("button", "[role=button]", "a", ".btn"):
+        for txt in pay_texts:
+            nodes = page.locator(sel).filter(has_text=txt)
+            for i in range(min(nodes.count(), 5)):
+                node = nodes.nth(i)
+                try:
+                    if not node.is_visible() or not node.is_enabled():
+                        continue
+                    label = (node.inner_text() or "").strip()
+                    # 排除倒计时/状态类文字节点
+                    if re.search(r"倒计时|状态|须知|未支付", label):
+                        continue
+                    if not re.fullmatch(r"(立即)?(去)?支\s*付(订单)?", label):
+                        continue
+                    clicked = click_pay_candidate(node, f"{sel}:{label}")
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
+            if clicked:
+                break
+        if clicked:
+            break
+    # 2) 兜底：任意可见元素文本恰好是支付字样
     if not clicked:
+        for txt in pay_texts:
+            btn = page.get_by_text(txt, exact=True).first
+            try:
+                if btn.is_visible():
+                    clicked = click_pay_candidate(btn, f"text:{txt}")
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+    if not clicked:
+        snippet = safe_body_text(page, 600)
+        log.warning("确认页未找到支付按钮，页面文本片段：%s", snippet.replace("\n", " | "))
+        if capture_dir:
+            try:
+                page.screenshot(path=str(capture_dir / "confirm-page-no-button.png"))
+            except Exception:  # noqa: BLE001
+                pass
         return "ambiguous", "确认页未找到支付按钮，订单未支付（5 分钟后将自动取消）"
+
     time.sleep(2.5)
-    # 支付后可能弹提示框
+    # 支付后可能弹提示框（成功提示/二次确认）
     for _ in range(3):
-        confirm_if_popped(page, ("确定", "知道了", "好的"), timeout_ms=1500)
+        confirm_if_popped(page, ("确定", "知道了", "好的", "我知道了"), timeout_ms=1500)
         if "/venue/orders" in page.url:
             break
         time.sleep(1)
-    robust_goto(page, ORDERS_URL)
+    if "/venue/orders" not in page.url:
+        robust_goto(page, ORDERS_URL)
     time.sleep(2)
     rows = page.evaluate("""() => {
       const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
@@ -799,7 +847,6 @@ def pay_and_verify(page, target_date, slot):
             continue
         log.info("核验订单行：%s", row[:140])
         if "已支付" in row and "正常" in row:
-            m_order = re.search(r"D\\d{9,}", row)
             return "succeeded", f"订单核验通过：{row[:80]}"
         if "未支付" in row or "待支付" in row:
             return "ambiguous", "订单已生成但未支付成功（5 分钟后将自动取消）"
@@ -897,7 +944,7 @@ def run(args) -> dict:
             log.warning(result["detail"])
             return result
 
-        status, detail = pay_and_verify(page, target_date, slot)
+        status, detail = pay_and_verify(page, target_date, slot, capture_dir)
         result.update(status=status, detail=detail)
         return result
 
