@@ -90,8 +90,12 @@ class GymToolboxRouteTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 403)
 
     def test_tools_page_forbidden_for_regular_user(self) -> None:
-        """页面级 gate：普通用户直接访问 /pages/tools.html 必须被 403。"""
-        with patch("interview_forge.api.support.current_user", return_value=USER):
+        """页面级 gate：普通用户直接访问 /pages/tools.html 必须被 403。
+
+        注意 static.py 以 `from support import current_user` 直接绑定名字，
+        必须 patch static 模块的引用才能命中真实代码路径。
+        """
+        with patch("interview_forge.api.routers.static.current_user", return_value=USER):
             with _client() as client:
                 response = client.get("/pages/tools.html")
         self.assertEqual(response.status_code, 403)
