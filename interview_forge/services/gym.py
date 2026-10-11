@@ -491,12 +491,14 @@ _scheduler_thread: threading.Thread | None = None
 
 
 def _claim_due_jobs(today_iso: str) -> list[dict]:
-    """原子领取今天到点的 pending 任务（07:58 之后），多 worker 下只领一次。"""
+    """原子领取今天到点的 pending 任务（07:58 之后），多 worker 下只领一次。
+    已错过日期的 pending 任务标记失败并同样发通知。"""
     hh, mm = RUN_EARLIEST
     now = datetime.now(SHANGHAI)
     if (now.hour, now.minute) < (hh, mm):
         return []
     claimed: list[dict] = []
+    expired: list[dict] = []
     with mutex("gym", "scheduler", timeout=15):
         conn = connect()
         try:
@@ -508,8 +510,9 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                     conn.execute(
                         "UPDATE gym_jobs SET status='failed', updated_at=?,"
                         " result=? WHERE id=? AND status='pending'",
-                        (_now(), json.dumps({"detail": "已错过执行日期"}, ensure_ascii=False), row["id"]),
+                        (_now(), json.dumps({"detail": "已错过执行日期（当天未运行）"}, ensure_ascii=False), row["id"]),
                     )
+                    expired.append(_row_to_dict(row))
                     continue
                 if row["target_date"] != today_iso:
                     continue
@@ -523,6 +526,8 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
             conn.commit()
         finally:
             conn.close()
+    for row in expired:
+        notify_job_result(row, "failed", {"detail": "已错过执行日期（当天站点未运行），自动预约已失效"})
     return claimed
 
 
