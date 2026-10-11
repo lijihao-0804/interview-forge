@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<script src="assets/time-utils.js?v=2"></script>
-<script src="assets/ui.js?v=1"></script>
+<script src="../assets/time-utils.js?v=2"></script>
+<script src="../assets/ui.js?v=1"></script>
 <title>工具箱 · InterviewForge</title>
 <style>
 :root{
@@ -101,7 +101,7 @@ border-radius:var(--radius-3);padding:13px 17px}
 <div class="shell">
   <div class="pagehead">
     <h1>🧰 工具箱</h1>
-    <a class="back" href="cockpit.html">← 返回中控台</a>
+    <a class="back" href="../cockpit.html">← 返回中控台</a>
   </div>
 
   <div class="grid">
@@ -123,6 +123,39 @@ border-radius:var(--radius-3);padding:13px 17px}
       </div>
       <p class="hint" id="cred-state" style="margin-top:11px">加载中…</p>
       <div class="msg" id="cred-msg" hidden></div>
+    </section>
+
+    <section class="card" id="card-notify">
+      <h2>📬 邮件通知</h2>
+      <p class="hint">预约任务结束（成功 / 无空位 / 失败）后自动发邮件到收件邮箱。
+      QQ 邮箱需先在网页版「设置 → 账户」开启 SMTP 服务并生成 16 位<b>授权码</b>（不是 QQ 密码）。
+      授权码加密存库，永不明文显示。</p>
+      <div class="field">
+        <label for="notify-user">发件邮箱（完整地址）</label>
+        <input id="notify-user" autocomplete="off" placeholder="例如 12345@qq.com">
+      </div>
+      <div class="field">
+        <label for="notify-code">SMTP 授权码</label>
+        <input id="notify-code" type="password" autocomplete="new-password" placeholder="16 位授权码">
+      </div>
+      <div class="field">
+        <label for="notify-to">收件邮箱（可填同一个）</label>
+        <input id="notify-to" autocomplete="off" placeholder="例如 12345@qq.com">
+      </div>
+      <div class="field">
+        <label for="notify-host">SMTP 服务器 / 端口（高级，默认 QQ）</label>
+        <div style="display:flex;gap:8px">
+          <input id="notify-host" value="smtp.qq.com" style="flex:2">
+          <input id="notify-port" value="465" inputmode="numeric" style="flex:1">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="notify-save" type="button">保存配置</button>
+        <button class="btn" id="notify-test" type="button">发送测试邮件</button>
+        <button class="btn danger" id="notify-delete" type="button">删除配置</button>
+      </div>
+      <p class="hint" id="notify-state" style="margin-top:11px">加载中…</p>
+      <div class="msg" id="notify-msg" hidden></div>
     </section>
 
     <section class="card" id="card-env">
@@ -292,6 +325,71 @@ border-radius:var(--radius-3);padding:13px 17px}
     }).finally(function () { busyButton(btn, false); });
   }
 
+  /* ---- 邮件通知 ---- */
+  function renderNotify(data) {
+    var state = $("notify-state");
+    if (data && data.configured) {
+      state.textContent = "已配置：" + data.smtp_user + " → " + data.notify_to +
+        "（" + data.smtp_host + ":" + data.smtp_port + "，更新于 " +
+        String(data.updated_at || "").replace("T", " ").slice(0, 16) + "）";
+      $("notify-user").value = data.smtp_user || "";
+      $("notify-to").value = data.notify_to || "";
+      $("notify-host").value = data.smtp_host || "smtp.qq.com";
+      $("notify-port").value = data.smtp_port || 465;
+    } else {
+      state.textContent = "尚未配置：任务结束后不会发邮件。";
+    }
+  }
+  function loadNotify() {
+    return api("/api/tools/gym/notify").then(function (res) { renderNotify(res.data); })
+      .catch(function (error) { if (error.category !== "unauthorized") $("notify-state").textContent = "通知配置加载失败"; });
+  }
+  function saveNotify() {
+    var btn = $("notify-save");
+    busyButton(btn, true);
+    api("/api/tools/gym/notify", {
+      method: "POST",
+      body: {
+        smtp_user: $("notify-user").value.trim(),
+        auth_code: $("notify-code").value,
+        notify_to: $("notify-to").value.trim(),
+        smtp_host: $("notify-host").value.trim() || "smtp.qq.com",
+        smtp_port: parseInt($("notify-port").value, 10) || 465
+      }
+    }).then(function (res) {
+      showMsg("notify-msg", "通知配置已加密保存", true);
+      $("notify-code").value = "";
+      renderNotify(res.data.notify);
+    }).catch(function (error) {
+      if (error.category !== "unauthorized") showMsg("notify-msg", error.publicMessage || "保存失败", false);
+    }).finally(function () { busyButton(btn, false); });
+  }
+  function testNotify() {
+    var btn = $("notify-test");
+    busyButton(btn, true);
+    showMsg("notify-msg", "正在发送测试邮件…", true);
+    api("/api/tools/gym/notify/test", { method: "POST" })
+      .then(function () { showMsg("notify-msg", "测试邮件已发送，请到收件邮箱查收", true); })
+      .catch(function (error) {
+        if (error.category !== "unauthorized") showMsg("notify-msg", error.publicMessage || "发送失败", false);
+      })
+      .finally(function () { busyButton(btn, false); });
+  }
+  function deleteNotify() {
+    if (!window.confirm("确定删除邮件通知配置？")) return;
+    var btn = $("notify-delete");
+    busyButton(btn, true);
+    api("/api/tools/gym/notify", { method: "DELETE" }).then(function () {
+      showMsg("notify-msg", "通知配置已删除", true);
+      $("notify-user").value = ""; $("notify-to").value = "";
+      $("notify-code").value = ""; $("notify-host").value = "smtp.qq.com";
+      $("notify-port").value = "465";
+      renderNotify({ configured: false });
+    }).catch(function (error) {
+      if (error.category !== "unauthorized") showMsg("notify-msg", error.publicMessage || "删除失败", false);
+    }).finally(function () { busyButton(btn, false); });
+  }
+
   /* ---- 时段优先级行 ---- */
   function addSlotRow(value) {
     var rows = $("slot-rows");
@@ -425,9 +523,13 @@ border-radius:var(--radius-3);padding:13px 17px}
   initDateInput();
   $("cred-save").addEventListener("click", saveCredentials);
   $("cred-delete").addEventListener("click", deleteCredentials);
+  $("notify-save").addEventListener("click", saveNotify);
+  $("notify-test").addEventListener("click", testNotify);
+  $("notify-delete").addEventListener("click", deleteNotify);
   $("slot-add").addEventListener("click", function () { addSlotRow(""); });
   $("job-create").addEventListener("click", createJob);
   loadStatus();
+  loadNotify();
   loadJobs();
   window.setInterval(function () { loadJobs(); loadStatus(); }, 30000);
 })();

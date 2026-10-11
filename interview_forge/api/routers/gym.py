@@ -140,3 +140,71 @@ async def delete_gym_credentials(request: Request):
         denied = service_error(exc, write=True)
         return denied or error_response("删除凭据失败", 500)
     return json_response({"credentials": status})
+
+
+@router.get("/api/tools/gym/notify")
+def gym_notify_status(request: Request):
+    user, denied = require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(gym.notify_status(str(user["username"])))
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("读取通知配置失败", 500)
+
+
+@router.post("/api/tools/gym/notify")
+async def save_gym_notify(request: Request):
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("请求体无效", 400)
+    try:
+        status = await asyncio.to_thread(
+            gym.save_notify_config,
+            str(user["username"]),
+            str(payload.get("smtp_user", "")),
+            str(payload.get("auth_code", "")),
+            str(payload.get("notify_to", "")),
+            str(payload.get("smtp_host", "smtp.qq.com")),
+            payload.get("smtp_port", 465),
+        )
+    except GymServiceError as exc:
+        return error_response(str(exc), 400, error_category="invalid_notify_config")
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc, write=True)
+        return denied or error_response("保存通知配置失败", 500)
+    return json_response({"notify": status})
+
+
+@router.delete("/api/tools/gym/notify")
+async def delete_gym_notify(request: Request):
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        status = await asyncio.to_thread(gym.delete_notify_config, str(user["username"]))
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc, write=True)
+        return denied or error_response("删除通知配置失败", 500)
+    return json_response({"notify": status})
+
+
+@router.post("/api/tools/gym/notify/test")
+async def test_gym_notify(request: Request):
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        status = await asyncio.to_thread(gym.send_test_email, str(user["username"]))
+    except GymServiceError as exc:
+        return error_response(str(exc), 400, error_category="notify_send_failed")
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("测试邮件发送失败", 502)
+    return json_response({"notify": status})

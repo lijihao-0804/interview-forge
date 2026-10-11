@@ -68,6 +68,15 @@ CREATE TABLE IF NOT EXISTS gym_credentials (
     password_encrypted TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS gym_notify_config (
+    username TEXT PRIMARY KEY,
+    smtp_host TEXT NOT NULL DEFAULT 'smtp.qq.com',
+    smtp_port INTEGER NOT NULL DEFAULT 465,
+    smtp_user TEXT NOT NULL,
+    auth_code_encrypted TEXT NOT NULL,
+    notify_to TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -198,6 +207,148 @@ def delete_credentials(username: str) -> dict:
         finally:
             conn.close()
     return {"configured": False, "account_masked": "", "updated_at": ""}
+
+
+# ------------------------------------------------------------- 通知配置（邮件）
+
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def save_notify_config(username: str, smtp_user: str, auth_code: str,
+                       notify_to: str, smtp_host: str = "smtp.qq.com",
+                       smtp_port: int = 465) -> dict:
+    smtp_user = str(smtp_user or "").strip()
+    auth_code = str(auth_code or "").strip()
+    notify_to = str(notify_to or "").strip()
+    smtp_host = str(smtp_host or "").strip() or "smtp.qq.com"
+    try:
+        smtp_port = int(smtp_port)
+    except (TypeError, ValueError) as exc:
+        raise GymServiceError("SMTP 端口应为数字") from exc
+    if not _EMAIL_PATTERN.fullmatch(smtp_user):
+        raise GymServiceError("发件邮箱格式不正确")
+    if not 8 <= len(auth_code) <= 32:
+        raise GymServiceError("SMTP 授权码应为 8-32 位（QQ 邮箱为 16 位授权码，不是 QQ 密码）")
+    if not _EMAIL_PATTERN.fullmatch(notify_to):
+        raise GymServiceError("收件邮箱格式不正确")
+    if not 1 <= smtp_port <= 65535:
+        raise GymServiceError("SMTP 端口不合法")
+    enc_code = _fernet().encrypt(auth_code.encode("utf-8")).decode("ascii")
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            conn.execute(
+                "INSERT INTO gym_notify_config (username, smtp_host, smtp_port, smtp_user,"
+                " auth_code_encrypted, notify_to, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(username) DO UPDATE SET smtp_host=excluded.smtp_host,"
+                " smtp_port=excluded.smtp_port, smtp_user=excluded.smtp_user,"
+                " auth_code_encrypted=excluded.auth_code_encrypted,"
+                " notify_to=excluded.notify_to, updated_at=excluded.updated_at",
+                (username, smtp_host, smtp_port, smtp_user, enc_code, notify_to, _now()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return notify_status(username)
+
+
+def notify_status(username: str) -> dict:
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT smtp_host, smtp_port, smtp_user, notify_to, updated_at"
+            " FROM gym_notify_config WHERE username = ?", (username,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return {"configured": False}
+    return {"configured": True, "smtp_host": row["smtp_host"], "smtp_port": row["smtp_port"],
+            "smtp_user": row["smtp_user"], "notify_to": row["notify_to"],
+            "updated_at": row["updated_at"]}
+
+
+def delete_notify_config(username: str) -> dict:
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            conn.execute("DELETE FROM gym_notify_config WHERE username = ?", (username,))
+            conn.commit()
+        finally:
+            conn.close()
+    return {"configured": False}
+
+
+def send_mail(username: str, subject: str, body: str) -> None:
+    """用该用户保存的 SMTP 配置发一封邮件；未配置/失败都抛 GymServiceError。"""
+    import smtplib
+    from email.header import Header
+    from email.mime.text import MIMEText
+
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM gym_notify_config WHERE username = ?", (username,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise GymServiceError("尚未配置通知邮箱")
+    try:
+        auth_code = _fernet().decrypt(row["auth_code_encrypted"].encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise GymServiceError("通知凭据解密失败：主密钥与加密时不一致") from exc
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["From"] = str(row["smtp_user"])
+    msg["To"] = str(row["notify_to"])
+    msg["Subject"] = Header(subject, "utf-8")
+    if int(row["smtp_port"]) == 465:
+        server = smtplib.SMTP_SSL(str(row["smtp_host"]), int(row["smtp_port"]), timeout=15)
+    else:
+        server = smtplib.SMTP(str(row["smtp_host"]), int(row["smtp_port"]), timeout=15)
+        try:
+            server.starttls()
+        except smtplib.SMTPException:  # noqa: BLE001
+            pass
+    try:
+        server.login(str(row["smtp_user"]), auth_code)
+        server.send_message(msg)
+    finally:
+        try:
+            server.quit()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def send_test_email(username: str) -> dict:
+    send_mail(username, "【InterviewForge】通知配置测试",
+              "这是一封测试邮件。\n\n如果你收到了它，说明健身房预约工具的邮件通知配置正确。\n"
+              f"发送时间：{_now()}（Asia/Shanghai）")
+    return notify_status(username)
+
+
+def notify_job_result(job: dict, status: str, result: dict) -> None:
+    """任务完成后的邮件通知：成功/无空位/失败都发，收不到也不影响任务记录。"""
+    label = {"succeeded": "✅ 预约成功", "no_slot": "⭕ 无空位",
+             "ambiguous": "⚠️ 结果待核", "failed": "❌ 预约失败"}.get(status, status)
+    detail = str(result.get("detail", ""))
+    try:
+        send_mail(
+            str(job["created_by"]),
+            f"【InterviewForge】健身房预约通知：{label}（{job['target_date']} {job['slots'][0] if job['slots'] else ''}）",
+            "自动预约任务已结束。\n\n"
+            f"任务编号：#{job['id']}\n"
+            f"目标日期：{job['target_date']}\n"
+            f"时段优先级：{' → '.join(job['slots'])}\n"
+            f"实际时段：{result.get('actual_slot') or '-'}\n"
+            f"结果：{label}\n"
+            f"详情：{detail}\n\n"
+            "可在工具箱查看完整记录；0 元订单 5 分钟内未支付会自动取消。",
+        )
+        log.info("任务 #%s 结果邮件已发送至 %s", job["id"], job["created_by"])
+    except GymServiceError as exc:
+        log.info("任务 #%s 未发送邮件：%s", job["id"], exc)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("任务 #%s 邮件发送失败：%s", job["id"], exc)
 
 
 # ------------------------------------------------------------- CRUD（给路由层）
@@ -445,6 +596,7 @@ def _scheduler_loop() -> None:
                 except Exception as exc:  # noqa: BLE001
                     status, result = "failed", {"detail": f"执行异常：{exc}"}
                 _finish_job(job["id"], status, result)
+                notify_job_result(job, status, result)
                 log.info("任务 #%s 完成：%s %s", job["id"], status,
                          result.get("detail", "")[:120])
         except Exception:  # noqa: BLE001
