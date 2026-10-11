@@ -67,6 +67,35 @@ class GymToolboxRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("南大账号密码", response.json()["error"])
 
+    def test_all_gym_endpoints_reject_anonymous_and_regular_users(self) -> None:
+        """安全回归：工具箱 API 不能只靠前端隐藏，每个端点都必须在服务端拒绝
+        匿名（401）与普通用户（403）。新增端点时必须加入此表。"""
+        endpoints = [
+            ("GET", "/api/tools/gym/jobs", None),
+            ("POST", "/api/tools/gym/jobs", {"target_date": "2026-10-15", "slots": ["17:00-18:00"]}),
+            ("DELETE", "/api/tools/gym/jobs/1", None),
+            ("GET", "/api/tools/gym/status", None),
+            ("GET", "/api/tools/gym/credentials", None),
+            ("POST", "/api/tools/gym/credentials", {"account": "12345678", "password": "x" * 10}),
+            ("DELETE", "/api/tools/gym/credentials", None),
+        ]
+        with _client() as client:
+            for method, path, body in endpoints:
+                kwargs = {"json": body} if body is not None else {}
+                with self.subTest(endpoint=f"{method} {path}"):
+                    response = client.request(method, path, **kwargs)
+                    self.assertEqual(response.status_code, 401)
+                with patch("interview_forge.api.support.current_user", return_value=USER):
+                    response = client.request(method, path, **kwargs)
+                    self.assertEqual(response.status_code, 403)
+
+    def test_tools_page_forbidden_for_regular_user(self) -> None:
+        """页面级 gate：普通用户直接访问 /pages/tools.html 必须被 403。"""
+        with patch("interview_forge.api.support.current_user", return_value=USER):
+            with _client() as client:
+                response = client.get("/pages/tools.html")
+        self.assertEqual(response.status_code, 403)
+
 
 class GymServiceValidationTests(unittest.TestCase):
     def test_create_job_rejects_past_date(self) -> None:
