@@ -111,9 +111,14 @@ def extract_carl(text):
             continue
         if line.startswith("    ") and line.strip():
             buf.append(line)
+        elif not line.strip():
+            # 代码块内部的空行（源稿缩进块中的空行不带缩进）：属于代码的一部分，
+            # 必须延续收集。此前这里直接 flush，导致所有含空行的实现被拦腰截断
+            # （如 0003 cpp 断在首个空行处，全库 80 处签名受损，2026-10-03 审计）。
+            buf.append("")
+        elif NUM_LINE.match(line):
+            continue    # 行号噪声行：跳过且不断开代码块
         else:
-            if line.strip() and NUM_LINE.match(line):
-                continue    # 行号噪声行：跳过但不断开代码块？→ 行号在代码块后成段出现，遇数字行直接跳过
             flush()
     flush()
     return out

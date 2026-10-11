@@ -27,6 +27,8 @@ _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/ap
 # 成 HTML，登录/注册页的主题切换、导航策略全部静默失效。
 _PUBLIC_PREFIXES = ("/assets/",)
 _ADMIN_PAGE = "/pages/admin.html"
+# 工具箱页：与管理后台同级的仅管理员页面
+_TOOLS_PAGE = "/pages/tools.html"
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
@@ -207,7 +209,7 @@ def static_path(request: Request, path: str):
             next_value = decoded + (f"?{request.url.query}" if request.url.query else "")
         next_suffix = f"?next={quote(next_value)}" if next_value else ""
         return RedirectResponse(f"/pages/login.html{next_suffix}", status_code=307, headers={"Cache-Control": "no-store"})
-    if decoded == _ADMIN_PAGE and (user is None or str(user["role"]) != "admin"):
+    if decoded in (_ADMIN_PAGE, _TOOLS_PAGE) and (user is None or str(user["role"]) != "admin"):
         return error_response("Forbidden", 403)
     target = (ROOT / decoded.lstrip("/")).resolve()
     if not target.is_file() or not str(target).startswith(str(ROOT.resolve())):
