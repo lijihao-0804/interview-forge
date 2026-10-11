@@ -468,13 +468,6 @@ def environment_check() -> dict:
     except Exception as exc:  # noqa: BLE001
         add("Chromium", False, str(exc)[:120])
     try:
-        import interview_forge.services.gym_automation as auto
-
-        cred = auto.credentials_file()
-        add("凭据文件", cred.exists(), str(cred))
-    except Exception as exc:  # noqa: BLE001
-        add("凭据文件", False, str(exc)[:120])
-    try:
         from interview_forge.services.gym_automation import deepseek_key
 
         add("DeepSeek 认字凭据", bool(deepseek_key()), "未配置时验证码仅靠本地识别")
