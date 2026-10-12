@@ -43,6 +43,7 @@ SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
 RUN_EARLIEST = (8, 0)
 # 执行器无空位时最多间隔 2 分钟复查 15 次（约 28 分钟），给登录/页面加载留余量。
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
+JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
 JOB_RETRY_DELAY_SECONDS = 3 * 60
 MAX_SLOTS_PER_JOB = 6
@@ -496,12 +497,30 @@ def _gym_email_story(status: str, result: dict) -> tuple[str, str, str, str]:
             "请先打开南大场馆订单页查看状态；确认这笔订单已取消或失效后，再决定是否重新预约。",
         )
 
+    if status == "ambiguous" and "金额" in detail and any(
+        marker in detail for marker in ("无法确认", "无法识别", "不能确认")
+    ):
+        return (
+            "支付前需要核对金额",
+            "最终确认页没有提供可可靠识别的金额信息，系统没有点击支付。",
+            "订单可能仍在待支付状态，请先查看南大订单页和金额。",
+            "确认订单已取消/失效且没有其他待处理订单后，再解除任务并重新预约。",
+        )
+
+    if result.get("needs_manual_check") or "任务执行期间服务中断" in detail:
+        return (
+            "任务中断，预约结果待核",
+            "服务在预约流程中中断，无法判断提交或支付是否已经生效；系统没有自动重跑。",
+            "请先核对南大订单，避免重复预约或重复支付。",
+            "确认没有有效预约和待支付订单后，再回工具箱点“核对后允许重试”。",
+        )
+
     if status == "ambiguous":
         return (
             "预约结果还不能确认",
             "自动流程没有拿到足以判断成功或失败的订单记录，所以我们不会把它说成已预约成功。",
             "为避免重复下单，本次没有自动重试。",
-            "请先到南大场馆订单页核对目标日期和时段；如果没有订单，再回工具箱重新发起。",
+            "请先到南大场馆订单页核对目标日期和时段；确认没有订单后，再回工具箱点“核对后允许重试”。",
         )
 
     if existing or any(marker in compact for marker in (
@@ -515,7 +534,9 @@ def _gym_email_story(status: str, result: dict) -> tuple[str, str, str, str]:
             "如果这正是你要的时段，不需要再操作；若不是，请先到南大订单页核实已有预约，再决定后续安排。",
         )
 
-    if "金额" in detail and any(marker in detail for marker in ("非 0", "非0", "数值冲突", "无法识别")):
+    if "金额" in detail and any(marker in detail for marker in (
+        "非 0", "非0", "数值冲突", "无法识别", "无法确认",
+    )):
         amount = re.search(r"(?:订单)?金额(?:为|是)\s*([0-9]+(?:\.[0-9]+)?)\s*元", detail)
         amount_note = f"（页面显示 {amount.group(1)} 元）" if amount else ""
         return (
@@ -732,6 +753,9 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
             continue
         if not SLOT_PATTERN.fullmatch(s):
             raise GymServiceError(f"时段格式应为 HH:MM-HH:MM：{s}")
+        start, end = s.split("-")
+        if start >= end:
+            raise GymServiceError(f"时段结束时间必须晚于开始时间：{s}")
         if s not in cleaned:
             cleaned.append(s)
     if not cleaned:
@@ -748,10 +772,16 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
         conn = connect()
         try:
             dup = conn.execute(
-                "SELECT id FROM gym_jobs WHERE target_date = ? AND status IN ('pending','running')",
+                "SELECT id, status FROM gym_jobs WHERE target_date = ? "
+                "AND status IN ('pending','running','ambiguous')",
                 (target_date,),
             ).fetchone()
             if dup:
+                if dup["status"] == "ambiguous":
+                    raise GymServiceError(
+                        f"{target_date} 有结果待核任务（#{dup['id']}）。"
+                        "请先核对南大订单，并确认没有有效或待支付订单后再重新排程。"
+                    )
                 raise GymServiceError(f"{target_date} 已有待执行的自动预约任务（#{dup['id']}）")
             cur = conn.execute(
                 "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by,"
@@ -792,6 +822,41 @@ def cancel_job(job_id: int, username: str) -> dict:
                 " result=json_insert(result, '$.cancelled_by', ?) WHERE id=?",
                 (_now(), username, job_id),
             )
+            conn.commit()
+            fresh = conn.execute("SELECT * FROM gym_jobs WHERE id = ?", (job_id,)).fetchone()
+            return _row_to_dict(fresh)
+        finally:
+            conn.close()
+
+
+def resolve_job_for_retry(job_id: int, username: str, confirmed_no_order: bool) -> dict:
+    """管理员核对南大订单明确无有效/待支付订单后，解除 ambiguous 日期占用。"""
+    if confirmed_no_order is not True:
+        raise GymServiceError("请先核对南大订单，并明确确认没有有效或待支付订单")
+    with mutex("gym", "write", timeout=10):
+        conn = connect()
+        try:
+            row = conn.execute("SELECT * FROM gym_jobs WHERE id = ?", (job_id,)).fetchone()
+            if row is None:
+                raise GymServiceError(f"任务 #{job_id} 不存在")
+            if row["status"] != "ambiguous":
+                raise GymServiceError(f"任务 #{job_id} 状态为 {row['status']}，无需结果核对")
+            result = _row_to_dict(row).get("result") or {}
+            result["previous_detail"] = result.get("detail", "")
+            result["detail"] = (
+                f"管理员 {username} 已核对南大订单，确认没有有效或待支付订单。"
+                f"原任务情况：{result['previous_detail']}"
+            )
+            result["resolved_by"] = username
+            result["resolved_at"] = _now()
+            result["needs_manual_check"] = False
+            cur = conn.execute(
+                "UPDATE gym_jobs SET status='failed', updated_at=?, result=? "
+                "WHERE id=? AND status='ambiguous'",
+                (_now(), json.dumps(result, ensure_ascii=False), job_id),
+            )
+            if cur.rowcount != 1:
+                raise GymServiceError(f"任务 #{job_id} 状态已变化，请刷新后重试")
             conn.commit()
             fresh = conn.execute("SELECT * FROM gym_jobs WHERE id = ?", (job_id,)).fetchone()
             return _row_to_dict(fresh)
@@ -842,6 +907,7 @@ _scheduler_thread: threading.Thread | None = None
 def _claim_due_jobs(today_iso: str) -> list[dict]:
     """原子领取今天到点的 pending 任务（08:00 之后），多 worker 下只领一次。
     已错过日期的 pending 任务标记失败并同样发通知。"""
+    _recover_stale_running_jobs()
     hh, mm = RUN_EARLIEST
     now = datetime.now(SHANGHAI)
     if (now.hour, now.minute) < (hh, mm):
@@ -881,6 +947,56 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
     for row in expired:
         notify_job_result(row, "failed", {"detail": "已错过执行日期（当天站点未运行），自动预约已失效"})
     return claimed
+
+
+def _recover_stale_running_jobs(now: datetime | None = None) -> int:
+    """把执行进程中断后遗留的 running 任务转为 ambiguous，绝不盲目重跑。
+
+    子进程的硬超时为 35 分钟；再留 5 分钟收尾余量。任务结果未知时必须由
+    用户核对南大订单，不能重新预约，以免进程退出前已经完成提交/支付。
+    """
+    now = now or datetime.now(SHANGHAI)
+    cutoff = now - timedelta(
+        seconds=JOB_SUBPROCESS_TIMEOUT_SECONDS + JOB_RUNNING_STALE_GRACE_SECONDS
+    )
+    recovered: list[dict] = []
+    with mutex("gym", "scheduler", timeout=15):
+        conn = connect()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM gym_jobs WHERE status='running' AND updated_at <= ?",
+                (cutoff.isoformat(timespec="seconds"),),
+            ).fetchall()
+            for row in rows:
+                result = {
+                    "detail": (
+                        "任务执行期间服务中断，无法确认是否已提交预约或完成支付。"
+                        "系统已停止自动重试，请先核对南大订单。"
+                    ),
+                    "needs_manual_check": True,
+                    "recovered_from_running": True,
+                    "interrupted_at": now.isoformat(timespec="seconds"),
+                }
+                cur = conn.execute(
+                    "UPDATE gym_jobs SET status='ambiguous', updated_at=?, result=? "
+                    "WHERE id=? AND status='running' AND updated_at=?",
+                    (now.isoformat(timespec="seconds"),
+                     json.dumps(result, ensure_ascii=False), row["id"], row["updated_at"]),
+                )
+                if cur.rowcount == 1:
+                    recovered.append(_row_to_dict(row))
+            conn.commit()
+        finally:
+            conn.close()
+    for old_row in recovered:
+        notify_job_result(old_row, "ambiguous", {
+            "detail": (
+                "任务执行期间服务中断，无法确认是否已提交预约或完成支付。"
+                "系统已停止自动重试，请先核对南大订单。"
+            ),
+            "needs_manual_check": True,
+        })
+    return len(recovered)
 
 
 def _finish_job(job_id: int, status: str, result: dict) -> None:

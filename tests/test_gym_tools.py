@@ -1,15 +1,13 @@
 """工具箱·健身房自动预约 API 的管理员边界与排程校验测试。"""
 from __future__ import annotations
 
-import json
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from interview_forge.api.app import app
-from interview_forge.api.support import current_user
 from interview_forge.services import gym
 
 USER = {"username": "student01", "role": "user", "nickname": "同学甲"}
@@ -74,6 +72,7 @@ class GymToolboxRouteTests(unittest.TestCase):
             ("GET", "/api/tools/gym/jobs", None),
             ("POST", "/api/tools/gym/jobs", {"target_date": "2026-10-15", "slots": ["17:00-18:00"]}),
             ("DELETE", "/api/tools/gym/jobs/1", None),
+            ("POST", "/api/tools/gym/jobs/1/resolve", {"confirmed_no_order": True}),
             ("GET", "/api/tools/gym/status", None),
             ("GET", "/api/tools/gym/credentials", None),
             ("POST", "/api/tools/gym/credentials", {"account": "12345678", "password": "x" * 10}),
@@ -113,6 +112,14 @@ class GymServiceValidationTests(unittest.TestCase):
              patch.object(gym, "connect", side_effect=AssertionError("不应走到建库")):
             with self.assertRaises(gym.GymServiceError):
                 gym.create_job(future, ["25:00-26:00"], "admin01")
+
+    def test_create_job_rejects_reversed_or_zero_length_slot(self) -> None:
+        future = (date.today() + timedelta(days=2)).isoformat()
+        with patch.object(gym, "credentials_status", return_value={"configured": True}), \
+             patch.object(gym, "connect", side_effect=AssertionError("不应走到建库")):
+            for slot in ("18:00-17:00", "17:00-17:00"):
+                with self.subTest(slot=slot), self.assertRaises(gym.GymServiceError):
+                    gym.create_job(future, [slot], "admin01")
 
     def test_slot_pattern_accepts_canonical_ranges(self) -> None:
         self.assertTrue(gym.SLOT_PATTERN.fullmatch("17:00-18:00"))

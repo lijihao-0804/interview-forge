@@ -155,6 +155,54 @@ def date_label_cn(d: date_cls):
     return f"{d.month}月{d.day}日"
 
 
+class OrderPageNotReady(RuntimeError):
+    """订单页未能证明列表已加载；提交预约前可安全重试。"""
+
+
+_ORDER_ROWS_JS = """() => {
+  const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
+  return trs.map(tr => tr.innerText.replace(/\\s+/g, ' ').trim()).filter(t => t.length > 0);
+}"""
+
+_ORDER_LIST_READY_JS = """() => {
+  const rows = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')]
+    .some(row => row.innerText.trim().length > 0);
+  if (rows) return true;
+  const text = (document.body?.innerText || '').replace(/\\s+/g, '');
+  return ['暂无订单', '暂无数据', '暂无记录', '暂无预约', '暂无预约记录', '暂无健身房预约',
+          '暂无健身房订单', '没有订单', '没有预约记录', '还没有预约', '无预约记录']
+    .some(marker => text.includes(marker));
+}"""
+
+
+def _wait_order_list_ready(page, timeout_ms=12000):
+    """等待有订单行或明确空态；空 DOM 不等于没有预约。"""
+    try:
+        page.wait_for_function(_ORDER_LIST_READY_JS, timeout=timeout_ms)
+    except Exception as exc:  # noqa: BLE001
+        raise OrderPageNotReady("订单页未确认加载完成，不能安全判断当天是否已有预约") from exc
+    return page.evaluate(_ORDER_ROWS_JS)
+
+
+def _retryable_before_submission(exc):
+    """仅重试提交预约之前的短暂页面/网络故障；凭据和环境错误不反复撞。"""
+    message = str(exc).lower()
+    permanent = (
+        "账号或密码不正确", "账号不存在", "密码错误", "密码不正确", "账号锁定",
+        "stdin 凭据缺失", "无法读取凭据文件", "未找到 账号", "executable doesn't exist",
+        "playwright install", "no module named", "chromium executable",
+    )
+    if any(marker in message for marker in permanent):
+        return False
+    transient = (
+        "timeout", "超时", "未就绪", "未渲染", "订单页未确认加载", "net::err",
+        "connection", "连接", "navigation", "interrupted", "execution context",
+        "temporarily", "暂时", "滑块验证未通过", "target closed", "page has been closed",
+    )
+    return isinstance(exc, OrderPageNotReady) or type(exc).__name__ == "TimeoutError" \
+        or any(marker in message for marker in transient)
+
+
 # ---------------------------------------------------------------- slider
 
 JS_CANVAS_DUMP = """() => {
@@ -365,7 +413,13 @@ def login(page, user, pwd, target_url):
         log.info("出现滑块验证，自动拖动")
         if not solve_slider(page):
             raise RuntimeError("滑块验证未通过")
-    page.wait_for_url("https://ggtypt.nju.edu.cn/**", timeout=15000)
+    try:
+        page.wait_for_url("https://ggtypt.nju.edu.cn/**", timeout=15000)
+    except Exception as exc:  # noqa: BLE001
+        body = safe_body_text(page, 500)
+        if re.search(r"有误|不正确|不存在|锁定|密码错误", body):
+            raise RuntimeError("南大账号或密码不正确") from exc
+        raise
     settle_after_login(page, target_url)
     log.info("登录完成")
 
@@ -436,6 +490,35 @@ def _format_existing_bookings(rows):
     return "、".join(labels)
 
 
+def _safe_order_log_label(row):
+    """仅记录时段与必要状态，避免订单号、姓名等页面字段进入服务日志。"""
+    slot = _format_existing_bookings([row]) or "时段未识别"
+    states = [marker for marker in ("已支付", "未支付", "待支付", "待付款", "正常", "已取消")
+              if marker in str(row)]
+    return f"时段 {slot}；状态 {'/'.join(states) if states else '未识别'}"
+
+
+def _wait_for_matching_order(page, target_date, slot, timeout_ms=12000):
+    """支付后短暂轮询订单行，避免固定 sleep 后把延迟入库误报成失败。"""
+    marks = [target_date.isoformat(), date_label_cn(target_date),
+             f"{target_date.month:02d}-{target_date.day:02d}"]
+    target = {"dates": marks, "slot": _normalize_order_text(slot)}
+    script = """(target) => {
+      const rows = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
+      const norm = value => value.replace(/\\s+/g, '').replace(/[—–]/g, '-');
+      return rows.some(node => {
+        const text = node.innerText || '';
+        const compact = norm(text);
+        return target.dates.some(mark => text.includes(mark)) && compact.includes(target.slot);
+      });
+    }"""
+    try:
+        page.wait_for_function(script, arg=target, timeout=timeout_ms)
+    except Exception:  # noqa: BLE001  由下方订单状态判定返回“结果待核”
+        pass
+    return page.evaluate(_ORDER_ROWS_JS)
+
+
 def _existing_booking_failure(rows):
     """目标日已有任一有效预约时立即停止，避免继续轮询或尝试其他时段。"""
     labels = _format_existing_bookings(rows).split("、")
@@ -469,19 +552,14 @@ def _daily_limit_message(text):
 def check_existing_orders(page, target_date):
     """返回目标日期订单汇总；有效预约保留时段信息，不再笼统阻断当天其它时段。"""
     robust_goto(page, ORDERS_URL)
-    time.sleep(1.5)
     if not is_site_ready(page):
         settle_after_login(page, VENUE_URL_FMT.format(venue="129"))
         robust_goto(page, ORDERS_URL)
-        time.sleep(1.5)
-    rows = page.evaluate("""() => {
-      const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
-      return trs.map(tr => tr.innerText.replace(/\\s+/g, ' ').trim()).filter(t => t.length > 0);
-    }""")
+    rows = _wait_order_list_ready(page)
     log.info("订单页读取到 %d 条记录", len(rows))
     summary = _summarize_order_rows(rows, target_date)
     for row in summary["relevant"]:
-        log.info("当天健身房订单记录：%s", row[:120])
+        log.info("当天健身房订单：%s", _safe_order_log_label(row))
     return summary
 
 
@@ -1005,11 +1083,11 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
 # ---------------------------------------------------------------- payment
 
 def pay_and_verify(page, target_date, slot, capture_dir=None):
-    """确认页金额非 0 时停止；金额未知时仅在找到明确支付控件后点击并核验订单。
+    """确认页必须明确显示 0 元才允许点击支付，再核验订单状态。
     返回 (status, detail)：succeeded / ambiguous / failed。
 
-    支付按钮从未见过真实 DOM，因此按可靠性分层定位：先按钮类元素+精确文本，
-    再放宽；全程截图留证；失败时把页面文本写入日志供远程诊断。
+    支付按钮按可靠性分层定位：先按钮类元素+精确文本，再放宽。
+    常规流程不持久化确认页截图或原始订单行，避免把个人/订单信息留在日志中。
     """
     body = page.evaluate("() => document.body.innerText")
     amount_values = _order_amount_values(body)
@@ -1020,12 +1098,12 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
     if amount is not None and amount != 0:
         return "failed", f"订单金额为 {amount} 元（非 0），按安全规则停止"
     if amount is None:
-        log.warning("确认页金额未识别；仅在找到可见且可用的明确支付控件时继续")
-    if capture_dir:
+        log.warning("确认页金额无法识别，按安全规则不点击支付")
         try:
-            page.screenshot(path=str(capture_dir / "confirm-page.png"))
-        except Exception:  # noqa: BLE001
-            pass
+            inspect_payment(page, None)
+        except Exception as exc:  # noqa: BLE001 诊断失败不能改变“不支付”的安全结果
+            log.warning("确认页诊断采集失败：%s", exc)
+        return "ambiguous", "确认页金额无法确认是 0 元，系统未点击支付；请先核对南大订单和金额。"
 
     def click_pay_candidate(node, label):
         node.click()
@@ -1069,39 +1147,34 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
                 log.info("已点击支付控件（text兜底:%s）", txt)
                 break
     if not clicked:
-        snippet = safe_body_text(page, 600)
-        log.warning("确认页未找到支付按钮，页面文本片段：%s", snippet.replace("\n", " | "))
-        inspection = inspect_payment(page, capture_dir)
-        if amount is None:
-            return "ambiguous", (
-                "确认页金额无法识别且未找到支付按钮，未点击支付；"
-                f"{inspection}，请人工核对（订单可能 5 分钟后自动取消）"
-            )
+        log.warning("确认页未找到支付按钮；仅采集控件与金额摘要用于诊断")
+        inspection = inspect_payment(page, None)
         return "ambiguous", f"确认页未找到支付按钮，订单未支付；{inspection}（5 分钟后将自动取消）"
 
-    time.sleep(2.5)
-    # 支付后可能弹提示框（成功提示/二次确认）
-    for _ in range(3):
-        confirm_if_popped(page, ("确定", "知道了", "好的", "我知道了"), timeout_ms=1500)
-        if "/venue/orders" in page.url:
-            break
-        time.sleep(1)
-    if "/venue/orders" not in page.url:
-        robust_goto(page, ORDERS_URL)
-    time.sleep(2)
-    rows = page.evaluate("""() => {
-      const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
-      return trs.map(tr => tr.innerText.replace(/\\s+/g, ' ').trim()).filter(t => t.length > 0);
-    }""")
-    today_marks = [target_date.isoformat(), date_label_cn(target_date)]
+    try:
+        time.sleep(2.5)
+        # 支付后可能弹提示框（成功提示/二次确认）
+        for _ in range(3):
+            confirm_if_popped(page, ("确定", "知道了", "好的", "我知道了"), timeout_ms=1500)
+            if "/venue/orders" in page.url:
+                break
+            time.sleep(1)
+        if "/venue/orders" not in page.url:
+            robust_goto(page, ORDERS_URL)
+        rows = _wait_for_matching_order(page, target_date, slot)
+    except Exception as exc:  # noqa: BLE001 支付已点击，后续异常必须报告为不确定
+        log.warning("支付后订单核验中断：%s", exc)
+        return "ambiguous", "已点击支付，但订单状态暂时无法读取；请先核对南大订单，系统不会自动重复提交。"
+    today_marks = [target_date.isoformat(), date_label_cn(target_date),
+                   f"{target_date.month:02d}-{target_date.day:02d}"]
     for row in rows:
         if "健身房" not in row or not any(mk in row for mk in today_marks):
             continue
-        if slot and slot not in row:
+        if slot and not _row_matches_slot(row, slot):
             continue
-        log.info("核验订单行：%s", row[:140])
+        log.info("核验到订单：%s", _safe_order_log_label(row))
         if "已支付" in row and "正常" in row:
-            return "succeeded", f"订单核验通过：{row[:80]}"
+            return "succeeded", f"订单核验通过：{date_label_cn(target_date)} {slot}，已支付且状态正常"
         if "未支付" in row or "待支付" in row:
             return "ambiguous", "订单已生成但未支付成功（5 分钟后将自动取消）"
     return "ambiguous", "订单页未找到匹配的已支付记录，请人工核对"
@@ -1179,7 +1252,16 @@ def inspect_payment(page, capture_dir):
     lines = [f"{c['tag']} cls={c['cls']!r} text={c['text']!r} rect={c['rect']} disabled={c['disabled']}"
              for c in controls]
     body = page.evaluate("() => document.body.innerText")
-    money_lines = [ln.strip() for ln in body.splitlines() if ("金额" in ln or "支付" in ln or "倒计时" in ln)]
+    money_lines = []
+    for line in body.splitlines():
+        if not any(marker in line for marker in ("金额", "支付", "倒计时")):
+            continue
+        labels = [marker for marker in ("订单金额", "应付金额", "实付金额", "支付金额",
+                                        "金额", "支付", "倒计时") if marker in line]
+        values = _order_amount_values(line)
+        money_lines.append(
+            f"{'/'.join(labels)}: {', '.join(str(value) for value in values) if values else '未识别'}"
+        )
     payload = {"controls": controls, "money_lines": money_lines}
     if capture_dir:
         try:
@@ -1190,11 +1272,14 @@ def inspect_payment(page, capture_dir):
             pass
     log.info("支付页金额/支付相关文本：%s", json.dumps(money_lines, ensure_ascii=False))
     log.info("支付页可见控件：\n%s", "\n".join(lines))
-    return f"支付页检查完成：{len(controls)} 个可见控件，已截图与 pay-inspect.json"
+    if capture_dir:
+        return f"支付页检查完成：{len(controls)} 个可见控件，诊断证据已保存"
+    return f"支付页安全检查完成：{len(controls)} 个可见控件，未保存页面截图或订单详情"
 
 
 def run(args) -> dict:
     """执行一次完整预约流程，返回结果 dict（同时写入 --json-result）。"""
+    args._booking_submitted = False
     target_url = VENUE_URL_FMT.format(venue=args.venue)
     target_date = date_cls.fromisoformat(args.date) if args.date else datetime.now(SHANGHAI).date()
     slots = [s.strip() for s in args.slots.split(",")] if args.slots else list(PREFERRED_SLOTS)
@@ -1274,6 +1359,13 @@ def run(args) -> dict:
 
         amount = read_amount(page)
         log.info("订单金额：%s 元", amount)
+        if amount is None:
+            result.update(
+                detail="预约页面金额无法确认是 0 元，尚未提交；稍后可安全重试。",
+                retryable=True,
+            )
+            log.warning(result["detail"])
+            return result
         if amount != 0:
             result["detail"] = f"金额为 {amount} 元（非 0），按安全规则停止"
             log.error(result["detail"])
@@ -1289,6 +1381,8 @@ def run(args) -> dict:
         if not agree.is_checked():
             raise RuntimeError("预约须知未能勾选")
 
+        # 从点击开始就视为可能已产生站点副作用；后续异常不得盲目自动重跑。
+        args._booking_submitted = True
         page.get_by_text("提交", exact=True).first.click()
         log.info("已点击提交，等待验证码")
 
@@ -1311,7 +1405,8 @@ def run(args) -> dict:
             return result
 
         page.wait_for_load_state("domcontentloaded")
-        log.info("订单确认页：%s", page.url)
+        # 确认页 URL 含 tradeNo，不写入服务日志。
+        log.info("已进入订单确认页")
         if "tradeNo" not in page.url:
             result["detail"] = "验证码通过但未到达订单确认页"
             log.warning(result["detail"])
@@ -1371,7 +1466,11 @@ def main(argv=None):
             result = run(args)
     except Exception as exc:  # noqa: BLE001
         detail = f"异常：{exc}"
-        retryable = "场次页未渲染出时段表格/日期条" in detail
+        retryable = (
+            not args.check_login
+            and not getattr(args, "_booking_submitted", False)
+            and _retryable_before_submission(exc)
+        )
         result = {"status": "failed", "detail": detail,
                   "actual_slot": None, "retryable": retryable}
         log.exception("流程失败")

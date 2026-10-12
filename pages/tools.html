@@ -155,7 +155,7 @@ border-radius:var(--radius-3);padding:13px 17px}
     <p class="hint">站点名额在<b>目标日 08:00</b> 放出（只能约当天），本工具在目标日 <b>08:00 后启动</b>，并等到 <b>08:00:20</b> 再进入预约页，避免页面尚未渲染。
     目标日只要已有任一有效预约就明确提示并停止，不再轮询或尝试其他时段。无预约但无空位时每 2 分钟复查一次，最多 15 次；可恢复的瞬时失败最多间隔 3 分钟重试 2 次。
     有空位即按下方优先级选择 → 提交并自动通过验证码 → 校验 0 元后自动支付 → 到订单页核验。
-    <b>取消按钮只取消本工具的自动排程，不会取消南大已生成的预约。</b></p>
+    <b>待执行任务可以取消；任务开始后不会强行中断，以免预约是否已提交变得更不确定。若显示“结果待核”，先核对南大订单再操作。</b></p>
     <div class="grid" style="margin-top:14px">
       <div>
         <div class="field">
@@ -185,8 +185,9 @@ border-radius:var(--radius-3);padding:13px 17px}
 
   <div class="foot">
     <b>说明</b> · 执行日志与验证码截图在 <code>data/logs/gym/</code>；任务由本站后端的调度线程
-    （每日 08:00 起扫描）以创建者的凭据执行；一台日期同时只允许一个待执行任务；
-    金额非 0 元会立即停止；支付后自动到订单页核验「已支付 + 正常」才算成功。
+    （每日 08:00 起扫描）以创建者的凭据执行；同一日期只允许一个待执行任务或结果待核任务；
+    最终确认页必须明确显示 0 元才会点击支付；金额未知或非 0 元都会停止；支付后自动到订单页核验「已支付 + 正常」才算成功。
+    结果待核任务会暂时占用目标日期，管理员确认南大订单中没有有效预约或待支付订单后，才能解除并重新排程。
     未来更多小工具将在此页陆续上架。
   </div>
 </div>
@@ -450,6 +451,25 @@ border-radius:var(--radius-3);padding:13px 17px}
             });
         });
         tdAction.appendChild(cancel);
+      } else if (job.status === "ambiguous") {
+        var resolve = document.createElement("button");
+        resolve.type = "button";
+        resolve.className = "btn small";
+        resolve.textContent = "核对后允许重试";
+        resolve.addEventListener("click", function () {
+          if (!window.confirm(
+            "请先打开南大场馆订单页核对目标日期。\n\n"
+            + "只有确认没有有效预约、也没有待支付订单时，才继续解除日期占用。\n"
+            + "确认无订单并允许重新排程？"
+          )) return;
+          api("/api/tools/gym/jobs/" + job.id + "/resolve", {
+            method: "POST", body: { confirmed_no_order: true }
+          }).then(function () { loadJobs(); })
+            .catch(function (error) {
+              if (error.category !== "unauthorized") window.alert(error.publicMessage || "核对失败");
+            });
+        });
+        tdAction.appendChild(resolve);
       }
       tr.appendChild(tdAction);
       body.appendChild(tr);
@@ -480,7 +500,7 @@ border-radius:var(--radius-3);padding:13px 17px}
       method: "POST",
       body: { target_date: dateValue, slots: slots, venue: "129" }
     }).then(function () {
-      showMsg("job-msg", "已创建：将于 " + dateValue + " 08:00 后自动执行（可随时取消排程）", true);
+      showMsg("job-msg", "已创建：将于 " + dateValue + " 08:00 后自动执行（开始前可取消）", true);
       return loadJobs();
     }).catch(function (error) {
       if (error.category !== "unauthorized") showMsg("job-msg", error.publicMessage || "创建失败", false);

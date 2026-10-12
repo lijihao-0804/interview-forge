@@ -1,8 +1,11 @@
 """健身房同日订单、放号时间与瞬时重试策略测试。"""
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 from interview_forge.services import gym, gym_automation
@@ -66,10 +69,52 @@ class GymAutomationOrderPolicyTests(unittest.TestCase):
             0,
         )
 
+    def test_order_page_empty_dom_is_not_treated_as_a_confirmed_empty_list(self) -> None:
+        class Page:
+            def wait_for_function(self, script: str, *, timeout: int) -> None:
+                self.script = script
+                self.timeout = timeout
+                raise TimeoutError("order list never rendered")
+
+        with self.assertRaises(gym_automation.OrderPageNotReady):
+            gym_automation._wait_order_list_ready(Page(), timeout_ms=100)
+
+    def test_explicit_empty_marker_or_rows_are_the_only_order_list_ready_signal(self) -> None:
+        class Page:
+            def __init__(self) -> None:
+                self.waited = False
+
+            def wait_for_function(self, script: str, *, timeout: int) -> None:
+                self.waited = "暂无订单" in script
+
+            def evaluate(self, script: str):
+                self.extraction = "table tbody tr" in script
+                return []
+
+        page = Page()
+        self.assertEqual(gym_automation._wait_order_list_ready(page), [])
+        self.assertTrue(page.waited)
+        self.assertTrue(page.extraction)
+
+    def test_order_log_summary_does_not_include_personal_order_fields(self) -> None:
+        summary = gym_automation._safe_order_log_label(
+            "健身房 2026-10-12 李同学 17:00-18:00 已支付 正常 订单号 PRIVATE-123"
+        )
+        self.assertIn("17:00-18:00", summary)
+        self.assertIn("已支付", summary)
+        self.assertNotIn("李同学", summary)
+        self.assertNotIn("PRIVATE-123", summary)
+
 
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
         self.assertEqual(gym.RUN_EARLIEST, (8, 0))
+
+    def test_pre_submission_network_errors_are_retryable_but_credential_errors_are_not(self) -> None:
+        self.assertTrue(gym_automation._retryable_before_submission(
+            RuntimeError("navigation timeout while loading venue")))
+        self.assertFalse(gym_automation._retryable_before_submission(
+            RuntimeError("南大账号或密码不正确")))
 
     def test_retry_waits_until_three_minute_deadline(self) -> None:
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
@@ -117,6 +162,71 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertTrue(result["retry_exhausted"])
         self.assertFalse(result["retryable"])
         self.assertIn("3 次", result["detail"])
+
+
+class GymInterruptedJobRecoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_patch = patch.object(gym, "GYM_DB_PATH", Path(self.tmp.name) / "gym.db")
+        self.db_patch.start()
+        self.addCleanup(self.db_patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def _insert_job(self, status: str, updated_at: str, target_date="2026-10-12") -> int:
+        conn = gym.connect()
+        try:
+            cur = conn.execute(
+                "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by, "
+                "created_at, updated_at, result) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (target_date, '["17:00-18:00"]', "129", status, "admin01",
+                 updated_at, updated_at, "{}"),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+        finally:
+            conn.close()
+
+    def test_stale_running_job_becomes_ambiguous_and_is_not_retried(self) -> None:
+        now = datetime(2026, 10, 12, 9, 0, tzinfo=gym.SHANGHAI)
+        old = now - timedelta(
+            seconds=gym.JOB_SUBPROCESS_TIMEOUT_SECONDS
+            + gym.JOB_RUNNING_STALE_GRACE_SECONDS + 1
+        )
+        job_id = self._insert_job("running", old.isoformat(timespec="seconds"))
+
+        with patch.object(gym, "notify_job_result") as notify:
+            recovered = gym._recover_stale_running_jobs(now)
+
+        self.assertEqual(recovered, 1)
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.args[1], "ambiguous")
+        conn = gym.connect()
+        try:
+            row = conn.execute("SELECT status, result FROM gym_jobs WHERE id=?", (job_id,)).fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row["status"], "ambiguous")
+        self.assertTrue(json.loads(row["result"])["needs_manual_check"])
+
+    def test_ambiguous_date_is_blocked_until_admin_explicitly_resolves_it(self) -> None:
+        now = datetime.now(gym.SHANGHAI)
+        target_date = now.date().isoformat()
+        job_id = self._insert_job("ambiguous", now.isoformat(timespec="seconds"), target_date)
+        with patch.object(gym, "credentials_status", return_value={"configured": True}):
+            with self.assertRaisesRegex(gym.GymServiceError, "结果待核"):
+                gym.create_job(target_date, ["17:00-18:00"], "admin01")
+
+            resolved = gym.resolve_job_for_retry(job_id, "admin01", True)
+            self.assertEqual(resolved["status"], "failed")
+            self.assertEqual(resolved["result"]["resolved_by"], "admin01")
+            new_job = gym.create_job(target_date, ["17:00-18:00"], "admin01")
+        self.assertEqual(new_job["status"], "pending")
+
+    def test_resolution_requires_explicit_no_order_confirmation(self) -> None:
+        now = datetime.now(gym.SHANGHAI)
+        job_id = self._insert_job("ambiguous", now.isoformat(timespec="seconds"))
+        with self.assertRaisesRegex(gym.GymServiceError, "明确确认"):
+            gym.resolve_job_for_retry(job_id, "admin01", False)
 
 
 if __name__ == "__main__":

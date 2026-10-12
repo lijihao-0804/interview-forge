@@ -1,7 +1,6 @@
 """健身房确认页金额判定与支付安全门测试。"""
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from datetime import date
@@ -53,7 +52,7 @@ class GymPaymentAmountTests(unittest.TestCase):
         self.assertEqual(status, "failed")
         self.assertIn("数值冲突", detail)
 
-    def test_unknown_amount_collects_diagnostics_without_clicking(self) -> None:
+    def test_unknown_amount_does_not_persist_page_screenshot_or_diagnostics(self) -> None:
         class EmptyLocator:
             def filter(self, **_kwargs):
                 return self
@@ -91,12 +90,40 @@ class GymPaymentAmountTests(unittest.TestCase):
             fallback.assert_not_called()
             self.assertEqual(status, "ambiguous")
             self.assertIn("未点击支付", detail)
-            self.assertTrue(page.screenshots)
-            evidence = json.loads((Path(tmp) / "pay-inspect.json").read_text(encoding="utf-8"))
-            self.assertEqual(evidence["controls"], [])
-            self.assertTrue(any("待支付" in line for line in evidence["money_lines"]))
+            self.assertEqual(page.screenshots, [])
+            self.assertFalse((Path(tmp) / "pay-inspect.json").exists())
 
-    def test_unknown_amount_clicks_explicit_visible_payment_button(self) -> None:
+    def test_unknown_amount_never_clicks_even_when_payment_button_is_visible(self) -> None:
+        class Page:
+            def __init__(self) -> None:
+                self.clicked = False
+                self.screenshots = []
+
+            def evaluate(self, script: str):
+                if "document.body.innerText" in script:
+                    return "订单确认\n请完成支付"
+                if "const trs" in script:
+                    return []
+                if "querySelectorAll" in script:
+                    return [{"tag": "BUTTON", "cls": "pay", "text": "支付",
+                             "rect": [1, 2, 3, 4], "disabled": False}]
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+            def locator(self, *_args, **_kwargs):
+                raise AssertionError("unknown confirmation amount must stop before button lookup")
+
+            def screenshot(self, *, path: str) -> None:
+                self.screenshots.append(path)
+
+        page = Page()
+        with patch.object(gym_automation.time, "sleep"):
+            status, detail = pay_and_verify(page, date(2026, 10, 12), "17:00-18:00")
+        self.assertFalse(page.clicked)
+        self.assertEqual(status, "ambiguous")
+        self.assertIn("未点击支付", detail)
+        self.assertEqual(page.screenshots, [])
+
+    def test_explicit_zero_amount_clicks_and_returns_redacted_verified_result(self) -> None:
         class Button:
             def __init__(self, page) -> None:
                 self.page = page
@@ -108,7 +135,7 @@ class GymPaymentAmountTests(unittest.TestCase):
                 return True
 
             def inner_text(self) -> str:
-                return "支付 （57s）"
+                return "支付（57s）"
 
             def click(self) -> None:
                 self.page.clicked = True
@@ -137,9 +164,9 @@ class GymPaymentAmountTests(unittest.TestCase):
 
             def evaluate(self, script: str):
                 if "document.body.innerText" in script:
-                    return "订单确认\n请完成支付"
+                    return "订单金额：¥0.00"
                 if "const trs" in script:
-                    return []
+                    return ["健身房预约 2026-10-12 17:00-18:00 已支付 正常 PRIVATE-ORDER-ID"]
                 raise AssertionError(f"unexpected page evaluation: {script}")
 
             def locator(self, selector: str) -> Buttons:
@@ -150,8 +177,9 @@ class GymPaymentAmountTests(unittest.TestCase):
              patch.object(gym_automation, "confirm_if_popped", return_value=False):
             status, detail = pay_and_verify(page, date(2026, 10, 12), "17:00-18:00")
         self.assertTrue(page.clicked)
-        self.assertEqual(status, "ambiguous")
-        self.assertIn("订单页未找到匹配", detail)
+        self.assertEqual(status, "succeeded")
+        self.assertIn("17:00-18:00", detail)
+        self.assertNotIn("PRIVATE-ORDER-ID", detail)
 
     def test_manual_captcha_mode_accepts_confirmation_tab_without_ocr(self) -> None:
         class Page:

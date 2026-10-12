@@ -78,6 +78,32 @@ async def cancel_gym_job(job_id: int, request: Request):
     return json_response({"job": job})
 
 
+@router.post("/api/tools/gym/jobs/{job_id}/resolve")
+async def resolve_gym_job_for_retry(job_id: int, request: Request):
+    """只有管理员明确核对无有效/待支付订单后，才解除不确定任务的日期占用。"""
+    user, denied = await async_require_admin(request)
+    if denied is not None:
+        return denied
+    try:
+        payload = await read_json(request)
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc)
+        return denied or error_response("请求体无效", 400)
+    try:
+        job = await asyncio.to_thread(
+            gym.resolve_job_for_retry,
+            job_id,
+            str(user["username"]),
+            payload.get("confirmed_no_order") is True,
+        )
+    except GymServiceError as exc:
+        return error_response(str(exc), 400, error_category="invalid_job_state")
+    except Exception as exc:  # noqa: BLE001
+        denied = service_error(exc, write=True)
+        return denied or error_response("核对任务失败", 500)
+    return json_response({"job": job})
+
+
 @router.get("/api/tools/gym/status")
 def gym_environment_status(request: Request):
     user, denied = require_admin(request)
