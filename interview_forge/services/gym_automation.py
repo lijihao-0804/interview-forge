@@ -423,11 +423,6 @@ def _row_matches_slot(row, slot):
     return _normalize_order_text(slot) in _normalize_order_text(row)
 
 
-def _slots_not_already_booked(slots, booked_rows):
-    return [slot for slot in slots
-            if not any(_row_matches_slot(row, slot) for row in booked_rows)]
-
-
 def _format_existing_bookings(rows):
     labels = []
     for row in rows:
@@ -439,6 +434,17 @@ def _format_existing_bookings(rows):
         if label not in labels:
             labels.append(label)
     return "、".join(labels)
+
+
+def _existing_booking_failure(rows):
+    """目标日已有任一有效预约时立即停止，避免继续轮询或尝试其他时段。"""
+    labels = _format_existing_bookings(rows).split("、")
+    return {
+        "status": "failed",
+        "existing_bookings": labels,
+        "detail": (f"当天已存在有效预约（{'、'.join(labels)}），"
+                   "本次任务已停止，未尝试其他时段。"),
+    }
 
 
 def _booking_release_delay_seconds(now=None):
@@ -1221,7 +1227,6 @@ def run(args) -> dict:
         login(page, user, pwd, target_url)
 
         existing_bookings = []
-        candidate_slots = slots
         if not args.skip_order_check:
             order_snapshot = check_existing_orders(page, target_date)
             existing_bookings = order_snapshot["booked"]
@@ -1234,25 +1239,10 @@ def run(args) -> dict:
                 log.warning(result["detail"])
                 return result
 
-            # 同一所选时段已经有效预约时不重复提交；若还选了其它备选时段，
-            # 去掉已预约时段后继续尝试，让站点决定当天是否允许再约。
-            candidate_slots = _slots_not_already_booked(slots, existing_bookings)
-            booked_candidates = [selected for selected in slots if selected not in candidate_slots]
-            if not candidate_slots:
-                result.update(
-                    status="succeeded",
-                    actual_slot=booked_candidates[0] if booked_candidates else None,
-                    detail=("当天已存在所选时段的有效预约，无需重复下单："
-                            f"{_format_existing_bookings(existing_bookings)}"),
-                )
-                log.info(result["detail"])
-                return result
             if existing_bookings:
-                result["existing_bookings"] = [
-                    label for label in _format_existing_bookings(existing_bookings).split("、")
-                ]
-                log.info("当天已有其它有效预约，仍按用户选择尝试可用备选时段：%s",
-                         _format_existing_bookings(existing_bookings))
+                result.update(_existing_booking_failure(existing_bookings))
+                log.warning(result["detail"])
+                return result
 
         robust_goto(page, target_url)
         settle_after_login(page, target_url)
@@ -1264,7 +1254,7 @@ def run(args) -> dict:
             # 不按时钟放弃：无空位时每 2 分钟重查一次，最多 15 次（约 30 分钟）
             picked = None
             for attempt in range(1, 16):
-                picked = pick_slot(page, candidate_slots)
+                picked = pick_slot(page, slots)
                 if picked:
                     break
                 if attempt == 15:
@@ -1277,8 +1267,6 @@ def run(args) -> dict:
             if not picked:
                 result.update(status="no_slot",
                               detail="多次查询均无空位（15 次，约 30 分钟）")
-                if existing_bookings:
-                    result["detail"] += f"；当天已有有效预约：{_format_existing_bookings(existing_bookings)}"
                 log.info(result["detail"])
                 return result
             slot, capacity = picked
@@ -1288,8 +1276,6 @@ def run(args) -> dict:
         log.info("订单金额：%s 元", amount)
         if amount != 0:
             result["detail"] = f"金额为 {amount} 元（非 0），按安全规则停止"
-            if existing_bookings:
-                result["detail"] += f"；当天已有其它有效预约：{_format_existing_bookings(existing_bookings)}"
             log.error(result["detail"])
             return result
 
@@ -1337,8 +1323,6 @@ def run(args) -> dict:
             return result
 
         status, detail = pay_and_verify(page, target_date, slot, capture_dir)
-        if existing_bookings:
-            detail += f"；当天另有有效预约：{_format_existing_bookings(existing_bookings)}"
         result.update(status=status, detail=detail)
         return result
 

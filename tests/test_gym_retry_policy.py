@@ -9,22 +9,18 @@ from interview_forge.services import gym, gym_automation
 
 
 class GymAutomationOrderPolicyTests(unittest.TestCase):
-    def test_same_day_booking_only_blocks_the_exact_selected_slot(self) -> None:
+    def test_any_same_day_valid_booking_stops_the_job_before_alternate_slots(self) -> None:
         rows = [
             "健身房预约 2026-10-12 17:00-18:00 已支付 正常",
         ]
         state = gym_automation._summarize_order_rows(rows, date(2026, 10, 12))
 
         self.assertEqual(state["booked"], rows)
-        self.assertEqual(
-            gym_automation._slots_not_already_booked(
-                ["17:00-18:00", "16:00-17:00"], state["booked"]),
-            ["16:00-17:00"],
-        )
-        self.assertEqual(
-            gym_automation._slots_not_already_booked(["17:00-18:00"], state["booked"]),
-            [],
-        )
+        result = gym_automation._existing_booking_failure(state["booked"])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["existing_bookings"], ["17:00-18:00"])
+        self.assertIn("本次任务已停止", result["detail"])
+        self.assertIn("17:00-18:00", result["detail"])
 
     def test_unpaid_order_is_not_classified_as_valid_booking(self) -> None:
         state = gym_automation._summarize_order_rows(
