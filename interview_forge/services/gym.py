@@ -28,7 +28,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -412,28 +412,205 @@ def send_mail(username: str, subject: str, body: str) -> None:
 
 def send_test_email(username: str) -> dict:
     send_mail(username, "【InterviewForge】通知配置测试",
-              "这是一封测试邮件。\n\n如果你收到了它，说明健身房预约工具的邮件通知配置正确。\n"
-              f"发送时间：{_now()}（Asia/Shanghai）")
+              "你好！👋\n\n这是一封健身房预约通知测试邮件。收到它，说明收件邮箱和全局发件配置已经连通。\n\n"
+              "之后每次自动预约结束，我们都会把结果和下一步建议发到这里。\n"
+              f"测试时间：{_now()}（北京时间）\n\n祝预约顺利！")
     return notify_status(username)
 
 
+_EMAIL_SLOT_RE = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\s*[-—–]\s*(?:[01]\d|2[0-3]):[0-5]\d")
+
+
+def _email_date(value: object) -> str:
+    try:
+        parsed = date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return str(value or "日期未识别")
+    weekdays = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+    return f"{parsed:%Y年%m月%d日}（{weekdays[parsed.weekday()]}）"
+
+
+def _email_slots(values: object) -> list[str]:
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, (list, tuple)):
+        return []
+    slots = []
+    for value in values:
+        match = _EMAIL_SLOT_RE.search(str(value))
+        if match:
+            slot = re.sub(r"\s+", "", match.group(0)).replace("—", "-").replace("–", "-")
+            if slot not in slots:
+                slots.append(slot)
+    return slots
+
+
+def _gym_email_story(status: str, result: dict) -> tuple[str, str, str, str]:
+    """Turn scheduler/executor states into a friendly summary and a safe next step.
+
+    Never put raw exception text, provider responses, or internal status codes in user mail.
+    """
+    detail = str(result.get("last_attempt_detail") or result.get("detail") or "")
+    compact = re.sub(r"\s+", "", detail)
+    existing = _email_slots(result.get("existing_bookings"))
+    if not existing and any(marker in compact for marker in (
+        "当天已存在有效预约", "当天已有有效预约", "每天只能预约", "已预约过", "已有预约",
+    )):
+        existing = _email_slots(detail)
+    pending = _email_slots(result.get("pending_orders"))
+    if not pending and any(marker in detail for marker in ("待支付", "未支付订单", "未支付成功")):
+        pending = _email_slots(detail)
+
+    if status == "succeeded":
+        slot = str(result.get("actual_slot") or "").strip()
+        if not _EMAIL_SLOT_RE.fullmatch(slot):
+            discovered_slots = _email_slots(detail)
+            slot = discovered_slots[0] if discovered_slots else ""
+        slot_line = f"已确认时段：{slot}" if _EMAIL_SLOT_RE.fullmatch(slot) else ""
+        return (
+            "预约成功啦 🎉",
+            "好消息！系统已经在南大场馆订单记录中核实到一条有效预约。",
+            slot_line,
+            "可以按计划前往场馆；如需再次确认，南大订单页面显示的状态为准。",
+        )
+
+    if status == "no_slot":
+        return (
+            "这次暂时没抢到空位",
+            "系统在放号后反复检查了你选择的时段，约半小时内都没有等到可预约名额。",
+            "本次没有确认生成预约。",
+            "可以换一个日期，或下次多选几个备选时段，提高遇到空位的机会。",
+        )
+
+    if status == "ambiguous" and any(marker in detail for marker in ("待支付", "未支付订单", "未支付成功")):
+        booked = "、".join(pending) if pending else "订单页显示的时段"
+        return (
+            "发现待确认订单，需要你看一眼",
+            f"场馆已经生成了 {booked} 的订单，但目前没有确认它已完成支付。为避免重复下单，系统没有继续提交。",
+            "待支付订单可能会在约 5 分钟后自动取消。",
+            "请先打开南大场馆订单页查看状态；确认这笔订单已取消或失效后，再决定是否重新预约。",
+        )
+
+    if status == "ambiguous":
+        return (
+            "预约结果还不能确认",
+            "自动流程没有拿到足以判断成功或失败的订单记录，所以我们不会把它说成已预约成功。",
+            "为避免重复下单，本次没有自动重试。",
+            "请先到南大场馆订单页核对目标日期和时段；如果没有订单，再回工具箱重新发起。",
+        )
+
+    if existing or any(marker in compact for marker in (
+        "当天已存在有效预约", "当天已有有效预约", "每天只能预约", "已预约过", "已有预约",
+    )):
+        booked = "、".join(existing) if existing else "当天已有时段（请查看南大订单页）"
+        return (
+            "当天已经有预约，本次已避免重复提交",
+            f"我们发现当天已有有效预约：{booked}。按照防重复规则，系统立即停止了本次任务，没有再尝试其他时段。",
+            "这表示已有预约被保留，并不代表它被取消或修改。",
+            "如果这正是你要的时段，不需要再操作；若不是，请先到南大订单页核实已有预约，再决定后续安排。",
+        )
+
+    if "金额" in detail and any(marker in detail for marker in ("非 0", "非0", "数值冲突", "无法识别")):
+        amount = re.search(r"(?:订单)?金额(?:为|是)\s*([0-9]+(?:\.[0-9]+)?)\s*元", detail)
+        amount_note = f"（页面显示 {amount.group(1)} 元）" if amount else ""
+        return (
+            "金额需要确认，系统已安全停止",
+            f"预约页面的金额不是明确的 0 元{amount_note}，或金额信息彼此不一致。为了避免意外扣费，系统没有继续支付。",
+            "本次没有由自动流程完成支付。",
+            "请先检查南大订单页面显示的金额；只有确认订单为 0 元后，再重新尝试。",
+        )
+
+    if "滑块验证未通过" in detail or "验证码" in detail:
+        return (
+            "验证步骤没有通过，预约未完成",
+            "场馆要求完成页面验证，但这次验证没有顺利通过。它不一定代表账号或密码错误。",
+            "系统没有确认到预约成功。",
+            "稍后可以重新尝试；如果连续遇到同样情况，请先手动登录南大场馆确认账号状态。",
+        )
+
+    if any(marker in detail for marker in ("账号或密码不正确", "登录后站点始终未就绪", "登录失败")):
+        return (
+            "登录环节没有完成",
+            "自动预约未能顺利进入场馆页面，因此没有确认到预约结果。",
+            "请检查工具箱里保存的南大账号信息，以及账号是否仍可正常登录。",
+            "更新凭据后再重新创建任务；如果手动登录也失败，请联系学校场馆平台处理。",
+        )
+
+    if "场次页未渲染" in detail or "未渲染出时段" in detail:
+        return (
+            "预约页面暂时没有正常加载",
+            "场馆的日期或时段列表这次没有完整显示，系统无法可靠判断空位，也没有继续盲目提交。",
+            "如果已经自动重试多次仍未成功，任务会停止，不会无限运行。",
+            "可以稍后重新发起；若页面持续异常，请先手动打开场馆页面确认服务是否正常。",
+        )
+
+    if "超时" in detail or "timeout" in detail.lower():
+        return (
+            "场馆响应较慢，任务没有完成",
+            "等待场馆页面返回结果时超出了安全等待时间，系统因此停止了本次流程。",
+            "目前不能据此判断预约成功，请先核对订单记录。",
+            "确认订单页没有生成待处理订单后，再稍后重试，避免重复提交。",
+        )
+
+    if "订单确认页未打开" in detail or "未到达订单确认页" in detail:
+        return (
+            "场馆没有返回明确的预约确认",
+            "提交后没有进入订单确认页面，订单记录也未能证明预约已经成功。",
+            "系统没有把这次尝试记作成功。",
+            "请先查看南大订单页；如果没有待支付或有效订单，再重新发起预约。",
+        )
+
+    return (
+        "预约没有完成，需要检查一下",
+        "自动预约流程中遇到了无法安全判断的情况。为避免重复下单或误报成功，系统已经停止。",
+        "请先到南大订单页确认目标日期是否已有有效或待支付订单。",
+        "确认没有未处理订单后，可以稍后重新创建任务；如果问题重复出现，请把工具箱里的任务记录发给管理员。",
+    )
+
+
 def notify_job_result(job: dict, status: str, result: dict) -> None:
-    """任务完成后的邮件通知：成功/无空位/失败都发，收不到也不影响任务记录。"""
-    label = {"succeeded": "✅ 预约成功", "no_slot": "⭕ 无空位",
-             "ambiguous": "⚠️ 结果待核", "failed": "❌ 预约失败"}.get(status, status)
-    detail = str(result.get("detail", ""))
+    """Send a readable, actionable result mail without exposing executor internals."""
+    title, summary, note, next_step = _gym_email_story(status, result)
+    slots = _email_slots(job.get("slots"))
+    actual_slot = str(result.get("actual_slot") or "").strip()
+    venue = {"129": "南大健身房（一层）", "162": "南大健身房（负一层）"}.get(
+        str(job.get("venue") or "129"), "南大健身房")
+    retry_note = ""
+    if result.get("retry_exhausted"):
+        attempts = result.get("attempt", JOB_MAX_ATTEMPTS)
+        retry_note = f"\n自动重试：已尝试 {attempts} 次，暂时停止继续重试。"
+    slot_lines = []
+    if slots:
+        slot_lines.append(f"你选择的时段：{'、'.join(slots)}")
+    if actual_slot and _EMAIL_SLOT_RE.fullmatch(actual_slot):
+        label = "已确认预约时段" if status == "succeeded" else "本次处理时段"
+        if not any(actual_slot in line for line in slot_lines):
+            slot_lines.append(f"{label}：{actual_slot}")
+    if note:
+        slot_lines.append(note)
+    subject_label = {
+        "succeeded": "预约成功 🎉",
+        "no_slot": "暂时没有空位",
+        "ambiguous": "需要确认订单状态",
+        "failed": title,
+    }.get(status, "预约任务结果")
+    body = (
+        "你好，预约结果回来啦 👋\n\n"
+        f"{title}\n{summary}\n\n"
+        f"📅 预约日期：{_email_date(job.get('target_date'))}\n"
+        f"🏟️ 场馆：{venue}\n"
+        + ("\n".join(slot_lines) + "\n" if slot_lines else "")
+        + retry_note
+        + f"\n接下来：{next_step}\n\n"
+        f"任务编号：#{job.get('id', '—')}（可在 InterviewForge 工具箱查看记录）\n"
+        "预约状态以南大场馆订单页面为准。\n\n"
+        "祝你锻炼顺利！\nInterviewForge 健身房预约助手"
+    )
     try:
         send_mail(
             str(job["created_by"]),
-            f"【InterviewForge】健身房预约通知：{label}（{job['target_date']} {job['slots'][0] if job['slots'] else ''}）",
-            "自动预约任务已结束。\n\n"
-            f"任务编号：#{job['id']}\n"
-            f"目标日期：{job['target_date']}\n"
-            f"时段优先级：{' → '.join(job['slots'])}\n"
-            f"实际时段：{result.get('actual_slot') or '-'}\n"
-            f"结果：{label}\n"
-            f"详情：{detail}\n\n"
-            "可在工具箱查看完整记录；0 元订单 5 分钟内未支付会自动取消。",
+            f"【InterviewForge】健身房预约：{subject_label}｜{_email_date(job.get('target_date'))}",
+            body,
         )
         log.info("任务 #%s 结果邮件已发送至 %s", job["id"], job["created_by"])
     except GymServiceError as exc:
