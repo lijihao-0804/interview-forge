@@ -3,8 +3,8 @@
 设计要点
 ========
 * 站点只支持约当天，名额在当天 08:00 放出；因此“任选日期”的语义是
-  预排一个任务，调度线程在目标日 07:58 后自动执行浏览器自动化
-  （gym_automation，子进程，Playwright 真机操作）。
+  预排一个任务，调度线程在目标日 08:00 后执行浏览器自动化
+  （gym_automation，子进程，Playwright 真机操作）；执行器不早于 08:00:20 进入预约流程。
 * 每用户凭据：用户在前端输入南大账号密码，Fernet 加密（scrypt KDF，
   主密钥取 INTERVIEW_FORGE_GYM_KEY 环境变量，缺省时自动生成本机密钥文件
   data/gym-secret.key）后存入本模块数据库，按用户隔离。任务执行时以
@@ -39,9 +39,12 @@ from interview_forge.runtime.shared import mutex
 log = logging.getLogger(__name__)
 
 SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
-# 站点名额 08:00 放出，略提前启动以完成登录/滑块等前置步骤
-RUN_EARLIEST = (7, 58)
-JOB_SUBPROCESS_TIMEOUT_SECONDS = 25 * 60
+# 站点名额 08:00 放出；任务到 08:00 才启动，执行器在 08:00:20 前等待后再进预约流程。
+RUN_EARLIEST = (8, 0)
+# 执行器无空位时最多间隔 2 分钟复查 15 次（约 28 分钟），给登录/页面加载留余量。
+JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
+JOB_MAX_ATTEMPTS = 3
+JOB_RETRY_DELAY_SECONDS = 3 * 60
 MAX_SLOTS_PER_JOB = 6
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")
 _KDF_SALT = b"interview-forge-gym-credentials-v1"
@@ -601,7 +604,7 @@ _scheduler_thread: threading.Thread | None = None
 
 
 def _claim_due_jobs(today_iso: str) -> list[dict]:
-    """原子领取今天到点的 pending 任务（07:58 之后），多 worker 下只领一次。
+    """原子领取今天到点的 pending 任务（08:00 之后），多 worker 下只领一次。
     已错过日期的 pending 任务标记失败并同样发通知。"""
     hh, mm = RUN_EARLIEST
     now = datetime.now(SHANGHAI)
@@ -625,6 +628,9 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
                     expired.append(_row_to_dict(row))
                     continue
                 if row["target_date"] != today_iso:
+                    continue
+                result = _row_to_dict(row).get("result") or {}
+                if not _retry_is_due(result, now):
                     continue
                 cur = conn.execute(
                     "UPDATE gym_jobs SET status='running', updated_at=?"
@@ -653,6 +659,48 @@ def _finish_job(job_id: int, status: str, result: dict) -> None:
         conn.close()
 
 
+def _retry_is_due(result: dict, now: datetime) -> bool:
+    retry_after = result.get("retry_after")
+    if not retry_after:
+        return True
+    try:
+        retry_at = datetime.fromisoformat(str(retry_after))
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=SHANGHAI)
+        return retry_at <= now
+    except ValueError:
+        return True
+
+
+def _defer_transient_retry(job: dict, status: str, result: dict) -> bool:
+    """瞬时故障延迟重试；只有执行器明确标记可重试且结果确定未下单才进入队列。"""
+    if status != "failed" or result.get("retryable") is not True:
+        return False
+    previous = job.get("result") or {}
+    try:
+        attempt = max(1, int(previous.get("attempt", 1)))
+    except (TypeError, ValueError):
+        attempt = 1
+    result["last_attempt_detail"] = result.get("detail", "")
+    result["attempt"] = attempt
+    if attempt >= JOB_MAX_ATTEMPTS:
+        result["retryable"] = False
+        result["retry_exhausted"] = True
+        result["detail"] = (f"已连续尝试 {JOB_MAX_ATTEMPTS} 次，停止自动重试。"
+                            f"最后结果：{result.get('detail', '')}")
+        return False
+
+    retry_at = datetime.now(SHANGHAI) + timedelta(seconds=JOB_RETRY_DELAY_SECONDS)
+    result["attempt"] = attempt + 1
+    result["retry_after"] = retry_at.isoformat(timespec="seconds")
+    result["detail"] = (f"第 {attempt} 次遇到可恢复故障，将于 {retry_at:%H:%M} 自动重试。"
+                        f"最近结果：{result.get('last_attempt_detail', '')}")
+    _finish_job(int(job["id"]), "pending", result)
+    log.warning("任务 #%s 第 %d 次失败，将于 %s 重试",
+                job["id"], attempt, retry_at.isoformat(timespec="minutes"))
+    return True
+
+
 def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     """子进程执行一次预约自动化，返回 (状态, 结果)。
 
@@ -661,7 +709,10 @@ def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     run_dir = GYM_LOG_DIR / "runs"
     run_dir.mkdir(parents=True, exist_ok=True)
     result_path = run_dir / f"job-{job['id']}.json"
-    log_path = run_dir / f"job-{job['id']}.log"
+    attempt = (job.get("result") or {}).get("attempt", 1)
+    log_path = run_dir / f"job-{job['id']}-attempt-{attempt}.log"
+    # 同一任务会重试；删除上轮结果文件，避免本次进程尚未写结果时误读旧 JSON。
+    result_path.unlink(missing_ok=True)
     account, password = _load_credentials_decrypted(str(job["created_by"]))
     stdin_payload = json.dumps({"account": account, "password": password}, ensure_ascii=False)
     cmd = [
@@ -707,9 +758,12 @@ def _scheduler_loop() -> None:
                 try:
                     status, result = _run_job_subprocess(job)
                 except subprocess.TimeoutExpired:
-                    status, result = "failed", {"detail": "执行超时（25 分钟）"}
+                    timeout_minutes = JOB_SUBPROCESS_TIMEOUT_SECONDS // 60
+                    status, result = "failed", {"detail": f"执行超时（{timeout_minutes} 分钟）"}
                 except Exception as exc:  # noqa: BLE001
                     status, result = "failed", {"detail": f"执行异常：{exc}"}
+                if _defer_transient_retry(job, status, result):
+                    continue
                 _finish_job(job["id"], status, result)
                 notify_job_result(job, status, result)
                 log.info("任务 #%s 完成：%s %s", job["id"], status,

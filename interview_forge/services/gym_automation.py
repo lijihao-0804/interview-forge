@@ -29,8 +29,12 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
+SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
 
 PREFERRED_SLOTS = ["17:00-18:00", "16:00-17:00"]
+BOOKING_RELEASE_HOUR = 8
+BOOKING_RELEASE_MINUTE = 0
+BOOKING_RELEASE_SECOND = 20
 ORDERS_URL = "https://ggtypt.nju.edu.cn/venue/orders"
 VENUE_URL_FMT = "https://ggtypt.nju.edu.cn/venue/venue-reservation/{venue}"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -394,8 +398,70 @@ def check_login(page, user, pwd, target_url):
 
 # ---------------------------------------------------------------- orders
 
+def _summarize_order_rows(rows, target_date):
+    """按目标日期汇总有效预约与未支付订单，保留原始行以便解释结果。"""
+    today_marks = [target_date.isoformat(), date_label_cn(target_date),
+                   f"{target_date.month:02d}-{target_date.day:02d}"]
+    summary = {"booked": [], "pending": [], "relevant": []}
+    for raw_row in rows:
+        row = re.sub(r"\s+", " ", str(raw_row)).strip()
+        if "健身房" not in row or not any(mark in row for mark in today_marks):
+            continue
+        summary["relevant"].append(row)
+        if "已支付" in row and "正常" in row:
+            summary["booked"].append(row)
+        elif ("未支付" in row or "待支付" in row or "待付款" in row) and "已取消" not in row:
+            summary["pending"].append(row)
+    return summary
+
+
+def _normalize_order_text(value):
+    return re.sub(r"\s+", "", str(value)).replace("—", "-").replace("–", "-")
+
+
+def _row_matches_slot(row, slot):
+    return _normalize_order_text(slot) in _normalize_order_text(row)
+
+
+def _slots_not_already_booked(slots, booked_rows):
+    return [slot for slot in slots
+            if not any(_row_matches_slot(row, slot) for row in booked_rows)]
+
+
+def _format_existing_bookings(rows):
+    labels = []
+    for row in rows:
+        match = re.search(
+            r"((?:[01]\d|2[0-3]):[0-5]\d)\s*[-—–]\s*((?:[01]\d|2[0-3]):[0-5]\d)",
+            str(row),
+        )
+        label = f"{match.group(1)}-{match.group(2)}" if match else "时段未识别"
+        if label not in labels:
+            labels.append(label)
+    return "、".join(labels)
+
+
+def _booking_release_delay_seconds(now=None):
+    """返回距离今天 08:00:20 的等待秒数；放号后为 0。"""
+    now = now or datetime.now(SHANGHAI)
+    release = now.replace(hour=BOOKING_RELEASE_HOUR,
+                          minute=BOOKING_RELEASE_MINUTE,
+                          second=BOOKING_RELEASE_SECOND,
+                          microsecond=0)
+    return max(0.0, (release - now).total_seconds())
+
+
+def _daily_limit_message(text):
+    markers = ("一天只能", "当天只能预约", "当日只能预约", "每天只能", "每日只能",
+               "已预约过", "已有预约", "已存在预约", "不能重复预约", "预约次数已达",
+               "每人限约一次", "每人每天限", "每人每日限", "单日仅限",
+               "预约次数达到上限")
+    compact = re.sub(r"\s+", "", text or "")
+    return next((marker for marker in markers if marker in compact), None)
+
+
 def check_existing_orders(page, target_date):
-    """返回 'booked' / 'pending' / 'none'，依据当天健身房订单状态。"""
+    """返回目标日期订单汇总；有效预约保留时段信息，不再笼统阻断当天其它时段。"""
     robust_goto(page, ORDERS_URL)
     time.sleep(1.5)
     if not is_site_ready(page):
@@ -406,21 +472,64 @@ def check_existing_orders(page, target_date):
       const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
       return trs.map(tr => tr.innerText.replace(/\\s+/g, ' ').trim()).filter(t => t.length > 0);
     }""")
-    today_marks = [target_date.isoformat(), date_label_cn(target_date),
-                   f"{target_date.month:02d}-{target_date.day:02d}"]
     log.info("订单页读取到 %d 条记录", len(rows))
-    for row in rows:
-        if "健身房" not in row:
-            continue
-        if not any(m in row for m in today_marks):
-            continue
+    summary = _summarize_order_rows(rows, target_date)
+    for row in summary["relevant"]:
         log.info("当天健身房订单记录：%s", row[:120])
-        if "已支付" in row and "正常" in row:
-            return "booked"
-        # 「未支付/已取消」是过期死单，不算待支付，可以重新预约
-        if ("未支付" in row or "待支付" in row or "待付款" in row) and "已取消" not in row:
-            return "pending"
-    return "none"
+    return summary
+
+
+def _result_without_confirmation(page, target_date, slot, known_bookings=None):
+    """未到确认页时复核站点提示与订单，避免把日限额误报成验证码失败。"""
+    try:
+        body = safe_body_text(page, 1200)
+    except Exception:  # noqa: BLE001
+        body = ""
+    rejection = _daily_limit_message(body)
+    orders_checked = True
+    try:
+        snapshot = check_existing_orders(page, target_date)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("未确认订单复核失败：%s", exc)
+        orders_checked = False
+        snapshot = {"booked": [], "pending": [], "relevant": []}
+    booked = snapshot.get("booked") or list(known_bookings or [])
+    pending = snapshot.get("pending") or []
+
+    matching = [row for row in snapshot.get("booked", []) if _row_matches_slot(row, slot)]
+    if matching:
+        return {
+            "status": "succeeded",
+            "detail": f"预约成功：订单页已核验所选时段为有效预约：{_format_existing_bookings(matching)}",
+        }
+    if rejection:
+        detail = f"预约未成功：站点提示“{rejection}”。"
+        if booked:
+            detail += f"当天已有有效预约：{_format_existing_bookings(booked)}"
+        return {"status": "failed", "detail": detail, "retryable": False}
+    if pending:
+        return {
+            "status": "ambiguous",
+            "detail": f"未能确认本次预约；订单页发现待支付订单：{_format_existing_bookings(pending)}，请先人工核实。",
+            "retryable": False,
+        }
+    if booked:
+        return {
+            "status": "failed",
+            "detail": f"站点未确认本次预约；当天已有其它有效预约：{_format_existing_bookings(booked)}。",
+            "retryable": False,
+        }
+    if not orders_checked:
+        return {
+            "status": "ambiguous",
+            "detail": "预约结果未确认，且订单页暂时无法核验；为避免重复下单，暂停自动重试，请稍后检查订单。",
+            "retryable": False,
+        }
+    return {
+        "status": "failed",
+        "detail": "订单确认页未打开，订单页也未发现本次预约；可在稍后自动重试。",
+        "retryable": True,
+    }
 
 
 # ---------------------------------------------------------------- venue page
@@ -716,6 +825,7 @@ def _wait_for_manual_captcha(page, wait_s=180):
     """Wait for a human-solved challenge and detect confirmation tabs, including popups."""
     log.warning("等待人工完成验证码（%d 秒）", wait_s)
     deadline = time.time() + wait_s
+    closed_since = None
     while time.time() < deadline:
         time.sleep(1)
         confirmed = _confirmation_page(page.context, page)
@@ -726,12 +836,15 @@ def _wait_for_manual_captcha(page, wait_s=180):
             challenge_open = page.evaluate(JS_CAPTCHA_DUMP) is not None
         except Exception:  # noqa: BLE001
             challenge_open = False
-        if not challenge_open:
-            # Some versions close the challenge before opening the confirmation tab.
-            time.sleep(1)
-            confirmed = _confirmation_page(page.context, page)
-            if confirmed is not None:
-                return confirmed
+        if challenge_open:
+            closed_since = None
+            continue
+        # 验证弹窗关闭后站点可能延迟跳确认页；短暂宽限后仍无 tradeNo，
+        # 就把它交给订单页复核，不能继续重试验证码/重复提交。
+        if closed_since is None:
+            closed_since = time.monotonic()
+        elif time.monotonic() - closed_since >= 4:
+            return _confirmation_page(page.context, page)
     return None
 
 
@@ -857,13 +970,14 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
                         pass
                     return pg
             if page.evaluate(JS_CAPTCHA_DUMP) is None:
-                time.sleep(1.5)
-                if "tradeNo" in page.url:
-                    return page
-                for pg in page.context.pages:
-                    if pg is not page and "tradeNo" in pg.url:
-                        return pg
-                log.info("验证码弹窗已关闭但未跳转，继续等待")
+                log.info("验证码弹窗已关闭，短暂等待确认页后交由订单状态复核")
+                deadline = time.monotonic() + 4
+                while time.monotonic() < deadline:
+                    time.sleep(0.4)
+                    confirmed = _confirmation_page(page.context, page)
+                    if confirmed is not None:
+                        return confirmed
+                return None
         log.warning("点选验证码第 %d 次未通过", attempt)
         try:
             refresh = page.locator(".verify-refresh, .refresh, [class*='refresh']:visible").first
@@ -1076,7 +1190,7 @@ def inspect_payment(page, capture_dir):
 def run(args) -> dict:
     """执行一次完整预约流程，返回结果 dict（同时写入 --json-result）。"""
     target_url = VENUE_URL_FMT.format(venue=args.venue)
-    target_date = date_cls.fromisoformat(args.date) if args.date else date_cls.today()
+    target_date = date_cls.fromisoformat(args.date) if args.date else datetime.now(SHANGHAI).date()
     slots = [s.strip() for s in args.slots.split(",")] if args.slots else list(PREFERRED_SLOTS)
     capture_dir = ROOT / "data" / "logs" / "gym" / "captures"
     capture_dir.mkdir(parents=True, exist_ok=True)
@@ -1084,6 +1198,10 @@ def run(args) -> dict:
               "slots": slots, "venue": args.venue, "actual_slot": None}
 
     log.info("目标：%s 日期：%s 时段：%s", target_url, target_date, slots)
+    release_delay = _booking_release_delay_seconds()
+    if release_delay:
+        log.info("放号前不启动预约流程，等待至 08:00:20（%.0f 秒）", release_delay)
+        time.sleep(release_delay)
     if getattr(args, "credentials_stdin", False):
         user, pwd = read_stdin_credentials()
         log.info("凭据来源：调度器 stdin")
@@ -1102,26 +1220,39 @@ def run(args) -> dict:
 
         login(page, user, pwd, target_url)
 
+        existing_bookings = []
+        candidate_slots = slots
         if not args.skip_order_check:
-            order_status = check_existing_orders(page, target_date)
-            if order_status == "booked":
-                result.update(status="succeeded",
-                              detail="当天已存在有效预约（订单页核验），无需重复下单")
-                log.info("%s", result["detail"])
-                return result
-            if order_status == "pending":
-                result.update(status="ambiguous", detail="当天存在未支付订单，避免重复下单，请人工确认")
+            order_snapshot = check_existing_orders(page, target_date)
+            existing_bookings = order_snapshot["booked"]
+            if order_snapshot["pending"]:
+                result.update(
+                    status="ambiguous",
+                    detail=("当天存在未支付订单，避免重复下单，请人工确认："
+                            f"{_format_existing_bookings(order_snapshot['pending'])}"),
+                )
                 log.warning(result["detail"])
                 return result
 
-        # 名额 08:00:00 放出（不抢秒杀，也不做高频轮询）：必须在进场馆页**之前**
-        # 等到 08:00:20——08:00 前页面可能不渲染当日时段表，提前进场必然超时。
-        SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
-        now = datetime.now(SHANGHAI)
-        release = now.replace(hour=8, minute=0, second=20, microsecond=0)
-        if now < release and (release - now) < timedelta(minutes=10):
-            log.info("等待名额放出 %.0f 秒（08:00:20 后进入场馆页）", (release - now).total_seconds())
-            time.sleep((release - now).total_seconds())
+            # 同一所选时段已经有效预约时不重复提交；若还选了其它备选时段，
+            # 去掉已预约时段后继续尝试，让站点决定当天是否允许再约。
+            candidate_slots = _slots_not_already_booked(slots, existing_bookings)
+            booked_candidates = [selected for selected in slots if selected not in candidate_slots]
+            if not candidate_slots:
+                result.update(
+                    status="succeeded",
+                    actual_slot=booked_candidates[0] if booked_candidates else None,
+                    detail=("当天已存在所选时段的有效预约，无需重复下单："
+                            f"{_format_existing_bookings(existing_bookings)}"),
+                )
+                log.info(result["detail"])
+                return result
+            if existing_bookings:
+                result["existing_bookings"] = [
+                    label for label in _format_existing_bookings(existing_bookings).split("、")
+                ]
+                log.info("当天已有其它有效预约，仍按用户选择尝试可用备选时段：%s",
+                         _format_existing_bookings(existing_bookings))
 
         robust_goto(page, target_url)
         settle_after_login(page, target_url)
@@ -1133,7 +1264,7 @@ def run(args) -> dict:
             # 不按时钟放弃：无空位时每 2 分钟重查一次，最多 15 次（约 30 分钟）
             picked = None
             for attempt in range(1, 16):
-                picked = pick_slot(page, slots)
+                picked = pick_slot(page, candidate_slots)
                 if picked:
                     break
                 if attempt == 15:
@@ -1146,6 +1277,8 @@ def run(args) -> dict:
             if not picked:
                 result.update(status="no_slot",
                               detail="多次查询均无空位（15 次，约 30 分钟）")
+                if existing_bookings:
+                    result["detail"] += f"；当天已有有效预约：{_format_existing_bookings(existing_bookings)}"
                 log.info(result["detail"])
                 return result
             slot, capacity = picked
@@ -1155,6 +1288,8 @@ def run(args) -> dict:
         log.info("订单金额：%s 元", amount)
         if amount != 0:
             result["detail"] = f"金额为 {amount} 元（非 0），按安全规则停止"
+            if existing_bookings:
+                result["detail"] += f"；当天已有其它有效预约：{_format_existing_bookings(existing_bookings)}"
             log.error(result["detail"])
             return result
 
@@ -1178,13 +1313,15 @@ def run(args) -> dict:
                 manual_only=getattr(args, "manual_captcha", False),
             )
             if order_page is None:
-                result["detail"] = "点选验证码未能通过（含人工等待窗口）"
-                log.error(result["detail"])
+                result.update(_result_without_confirmation(
+                    page, target_date, slot, known_bookings=existing_bookings))
+                log.error("%s", result["detail"])
                 return result
             page = order_page  # 确认页可能在新标签页，后续支付/核验切换过去
         elif "tradeNo" not in page.url:
-            result["detail"] = "提交后未出现验证码也未跳转"
-            log.warning(result["detail"])
+            result.update(_result_without_confirmation(
+                page, target_date, slot, known_bookings=existing_bookings))
+            log.warning("%s", result["detail"])
             return result
 
         page.wait_for_load_state("domcontentloaded")
@@ -1200,6 +1337,8 @@ def run(args) -> dict:
             return result
 
         status, detail = pay_and_verify(page, target_date, slot, capture_dir)
+        if existing_bookings:
+            detail += f"；当天另有有效预约：{_format_existing_bookings(existing_bookings)}"
         result.update(status=status, detail=detail)
         return result
 
@@ -1247,7 +1386,10 @@ def main(argv=None):
         else:
             result = run(args)
     except Exception as exc:  # noqa: BLE001
-        result = {"status": "failed", "detail": f"异常：{exc}", "actual_slot": None}
+        detail = f"异常：{exc}"
+        retryable = "场次页未渲染出时段表格/日期条" in detail
+        result = {"status": "failed", "detail": detail,
+                  "actual_slot": None, "retryable": retryable}
         log.exception("流程失败")
     if not args.json_result:
         args.json_result = str(log_dir / "last-result.json")
