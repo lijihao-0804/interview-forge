@@ -426,11 +426,26 @@ def check_existing_orders(page, target_date):
 
 def ensure_target_date(page, target_date):
     label = date_label_cn(target_date)
-    try:
-        page.wait_for_selector(".reserveBlock", timeout=15000)
-        page.wait_for_selector(".select_date_box .date_box .active", timeout=10000)
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError("场次页未渲染出时段表格/日期条") from exc
+    # 场次表格与日期条均为 Vue 异步渲染；超时先重载一次再放弃（网络/首屏抖动兜底）
+    for attempt in range(2):
+        try:
+            page.wait_for_selector(".reserveBlock", timeout=15000)
+            page.wait_for_selector(".select_date_box .date_box .active", timeout=10000)
+            break
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 1:
+                try:
+                    body = page.evaluate("() => document.body.innerText.slice(0, 300)")
+                    log.warning("场次页仍未渲染，页面文本片段：%s", body.replace("\n", " | "))
+                    shot_dir = ROOT / "data" / "logs" / "gym" / "captures"
+                    shot_dir.mkdir(parents=True, exist_ok=True)
+                    page.screenshot(path=str(shot_dir / "venue-page-stuck.png"))
+                except Exception:  # noqa: BLE001
+                    pass
+                raise RuntimeError("场次页未渲染出时段表格/日期条（已重载重试一次）") from exc
+            log.warning("场次页首屏未就绪（%s），重载页面重试", exc)
+            robust_goto(page, page.url)
+            time.sleep(1)
     active = page.evaluate("""() => {
       const act = document.querySelector('.select_date_box .date_box .active');
       return act ? act.innerText.replace(/\\s+/g, '') : '';
@@ -1038,19 +1053,18 @@ def run(args) -> dict:
                 log.warning(result["detail"])
                 return result
 
-        robust_goto(page, target_url)
-        settle_after_login(page, target_url)
-        ensure_target_date(page, target_date)
-
-        # 名额 08:00:00 才放出（不抢秒杀，也不做高频轮询）：
-        # 登录就位后等到 08:00:20 查第一次；若那一刻恰好无空位且还没到 08:04，
-        # 60 秒后复查一次，之后停止。
+        # 名额 08:00:00 放出（不抢秒杀，也不做高频轮询）：必须在进场馆页**之前**
+        # 等到 08:00:20——08:00 前页面可能不渲染当日时段表，提前进场必然超时。
         SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
         now = datetime.now(SHANGHAI)
         release = now.replace(hour=8, minute=0, second=20, microsecond=0)
         if now < release and (release - now) < timedelta(minutes=10):
-            log.info("等待名额放出 %.0f 秒（08:00:20 开始查询）", (release - now).total_seconds())
+            log.info("等待名额放出 %.0f 秒（08:00:20 后进入场馆页）", (release - now).total_seconds())
             time.sleep((release - now).total_seconds())
+
+        robust_goto(page, target_url)
+        settle_after_login(page, target_url)
+        ensure_target_date(page, target_date)
 
         if getattr(args, "force_slot", None):
             slot, capacity = force_select_slot(page, args.force_slot)
