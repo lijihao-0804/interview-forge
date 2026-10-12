@@ -153,11 +153,18 @@ border-radius:var(--radius-3);padding:13px 17px}
   <section class="card" id="card-jobs" style="margin-bottom:18px">
     <h2>📅 自动预约排程</h2>
     <p class="hint">站点名额在<b>目标日 08:00</b> 放出（只能约当天），本工具在目标日 <b>08:00 后启动</b>，并等到 <b>08:00:20</b> 再进入预约页，避免页面尚未渲染。
-    目标日只要已有任一有效预约就明确提示并停止，不再轮询或尝试其他时段。无预约但无空位时每 2 分钟复查一次，最多 15 次；可恢复的瞬时失败最多间隔 3 分钟重试 2 次。
+    目标日所选健身房已有有效预约就明确提示并停止；其他楼层的预约不拦截本次任务，不再轮询或尝试其他时段。无预约但无空位时每 2 分钟复查一次，最多 15 次；可恢复的瞬时失败最多间隔 3 分钟重试 2 次。
     有空位即按下方优先级选择 → 提交并自动通过验证码 → 校验 0 元后自动支付 → 到订单页核验。
     <b>待执行任务可以取消；任务开始后不会强行中断，以免预约是否已提交变得更不确定。若显示“结果待核”，先核对南大订单再操作。</b></p>
     <div class="grid" style="margin-top:14px">
       <div>
+        <div class="field">
+          <label for="job-venue">健身房</label>
+          <select id="job-venue">
+            <option value="129">一楼健身房</option>
+            <option value="162">负一楼健身房</option>
+          </select>
+        </div>
         <div class="field">
           <label for="job-date">目标日期</label>
           <input id="job-date" type="date">
@@ -176,8 +183,8 @@ border-radius:var(--radius-3);padding:13px 17px}
       </div>
       <div style="min-width:0">
         <table class="jobs">
-          <thead><tr><th>#</th><th>日期</th><th>时段优先级</th><th>状态</th><th>结果</th><th>更新时间</th><th></th></tr></thead>
-          <tbody id="jobs-body"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+          <thead><tr><th>#</th><th>日期</th><th>健身房</th><th>时段优先级</th><th>状态</th><th>结果</th><th>更新时间</th><th></th></tr></thead>
+          <tbody id="jobs-body"><tr><td colspan="8" class="empty">加载中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -185,7 +192,7 @@ border-radius:var(--radius-3);padding:13px 17px}
 
   <div class="foot">
     <b>说明</b> · 执行日志与验证码截图在 <code>data/logs/gym/</code>；任务由本站后端的调度线程
-    （每日 08:00 起扫描）以创建者的凭据执行；同一日期只允许一个待执行任务或结果待核任务；
+    （每日 08:00 起扫描）以创建者的凭据执行；同一日期、同一健身房只允许一个待执行任务或结果待核任务；
     最终确认页必须明确显示 0 元才会点击支付；金额未知或非 0 元都会停止；支付后自动到订单页核验「已支付 + 正常」才算成功。
     结果待核任务会暂时占用目标日期，管理员确认南大订单中没有有效预约或待支付订单后，才能解除并重新排程。
     未来更多小工具将在此页陆续上架。
@@ -417,9 +424,9 @@ border-radius:var(--radius-3);padding:13px 17px}
     if (!items.length) {
       var tr0 = document.createElement("tr");
       var td0 = document.createElement("td");
-      td0.colSpan = 7;
+      td0.colSpan = 8;
       td0.className = "empty";
-      td0.textContent = "还没有排程任务：选好日期和时段后点「创建自动预约」。";
+      td0.textContent = "还没有排程任务：选好健身房、日期和时段后点「创建自动预约」。";
       tr0.appendChild(td0);
       body.appendChild(tr0);
       return;
@@ -428,6 +435,8 @@ border-radius:var(--radius-3);padding:13px 17px}
       var tr = document.createElement("tr");
       tr.appendChild(el("td", null, "#" + job.id));
       tr.appendChild(el("td", null, job.target_date));
+      var venue = String(job.venue || "129");
+      tr.appendChild(el("td", null, {"129": "一楼健身房", "162": "负一楼健身房"}[venue] || "场馆 " + venue));
       tr.appendChild(el("td", null, (job.slots || []).join(" → ")));
       var tdStatus = document.createElement("td");
       var badge = el("span", "badge " + job.status, STATUS_LABEL[job.status] || job.status);
@@ -483,7 +492,7 @@ border-radius:var(--radius-3);padding:13px 17px}
         body.textContent = "";
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-        td.colSpan = 7;
+        td.colSpan = 8;
         td.className = "empty";
         td.textContent = error.publicMessage || "任务列表加载失败";
         tr.appendChild(td);
@@ -498,7 +507,7 @@ border-radius:var(--radius-3);padding:13px 17px}
     busyButton(btn, true);
     api("/api/tools/gym/jobs", {
       method: "POST",
-      body: { target_date: dateValue, slots: slots, venue: "129" }
+      body: { target_date: dateValue, slots: slots, venue: $("job-venue").value }
     }).then(function () {
       showMsg("job-msg", "已创建：将于 " + dateValue + " 08:00 后自动执行（开始前可取消）", true);
       return loadJobs();

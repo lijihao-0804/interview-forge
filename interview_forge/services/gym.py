@@ -47,6 +47,7 @@ JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
 JOB_RETRY_DELAY_SECONDS = 3 * 60
 MAX_SLOTS_PER_JOB = 6
+SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")
 _KDF_SALT = b"interview-forge-gym-credentials-v1"
 SECRET_KEY_PATH = DATA_DIR / "gym-secret.key"
@@ -763,8 +764,8 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
     if len(cleaned) > MAX_SLOTS_PER_JOB:
         raise GymServiceError(f"时段优先级最多 {MAX_SLOTS_PER_JOB} 个")
     venue = str(venue or "129").strip() or "129"
-    if not venue.isdigit():
-        raise GymServiceError("场馆 id 应为数字")
+    if venue not in SUPPORTED_VENUES:
+        raise GymServiceError("请选择支持的一楼或负一楼健身房")
     if not credentials_status(created_by)["configured"]:
         raise GymServiceError("请先在工具箱中保存南大账号密码，再创建自动预约")
 
@@ -772,9 +773,9 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
         conn = connect()
         try:
             dup = conn.execute(
-                "SELECT id, status FROM gym_jobs WHERE target_date = ? "
+                "SELECT id, status FROM gym_jobs WHERE target_date = ? AND venue = ? "
                 "AND status IN ('pending','running','ambiguous')",
-                (target_date,),
+                (target_date, venue),
             ).fetchone()
             if dup:
                 if dup["status"] == "ambiguous":
@@ -888,13 +889,15 @@ def environment_check() -> dict:
             add("Chromium", ok, path if ok else "未安装，执行 python -m playwright install chromium")
     except Exception as exc:  # noqa: BLE001
         add("Chromium", False, str(exc)[:120])
+    required_ok = all(i["ok"] for i in check["items"])
     try:
         from interview_forge.services.gym_automation import deepseek_key
 
-        add("DeepSeek 认字凭据", bool(deepseek_key()), "未配置时验证码仅靠本地识别")
+        add("DeepSeek 认字凭据", bool(deepseek_key()),
+            "可选，仅 legacy 策略使用；默认候选分数匹配不调用 API")
     except Exception:  # noqa: BLE001
         add("DeepSeek 认字凭据", False, "")
-    check["ok"] = all(i["ok"] for i in check["items"])
+    check["ok"] = required_ok
     return check
 
 

@@ -9,14 +9,16 @@
   {"status": "succeeded|no_slot|failed|ambiguous", "detail": str, ...}
 退出码：0 succeeded（含当日已有有效预约）/ 2 no_slot / 3 ambiguous / 1 failed。
 
-技术栈：Playwright(Chromium) + ddddocr(点选验证码检测/双版分类) + PaddleOCR(可选行级识别)
-        + DeepSeek(约束多选认字，凭据见 deepseek_key()) + numpy(Canny 缺口匹配)。
+技术栈：Playwright(Chromium) + ddddocr(点选验证码检测/双版候选分数整体匹配)
+        + numpy(Canny 缺口匹配)。legacy 策略保留 PaddleOCR/DeepSeek 四路投票。
 安全边界：金额非 0 停止；结果不明先查订单；日志不含密码/Cookie。
 """
 import argparse
 import base64
+import itertools
 import json
 import logging
+import math
 import os
 import re
 import sys
@@ -452,7 +454,24 @@ def check_login(page, user, pwd, target_url):
 
 # ---------------------------------------------------------------- orders
 
-def _summarize_order_rows(rows, target_date):
+def _row_matches_venue(row, venue):
+    """Recognize explicit floor labels; ambiguous labels cannot prove another venue."""
+    text = re.sub(r"\s+", "", str(row))
+    basement = bool(re.search(r"负[一1][楼层]?|地下[一1][楼层]?|(?<!\d)-1[楼层]|[Bb]1", text))
+    first = bool(re.search(r"(?<!负)(?<!地下)[一1][楼层]", text))
+    if str(venue) == "162":
+        return basement
+    if str(venue) == "129":
+        return first and not basement
+    return False
+
+
+def _row_is_other_venue(row, venue):
+    other = {"129": "162", "162": "129"}.get(str(venue))
+    return bool(other and _row_matches_venue(row, other))
+
+
+def _summarize_order_rows(rows, target_date, venue=None):
     """按目标日期汇总有效预约与未支付订单，保留原始行以便解释结果。"""
     today_marks = [target_date.isoformat(), date_label_cn(target_date),
                    f"{target_date.month:02d}-{target_date.day:02d}"]
@@ -460,6 +479,8 @@ def _summarize_order_rows(rows, target_date):
     for raw_row in rows:
         row = re.sub(r"\s+", " ", str(raw_row)).strip()
         if "健身房" not in row or not any(mark in row for mark in today_marks):
+            continue
+        if venue is not None and _row_is_other_venue(row, venue):
             continue
         summary["relevant"].append(row)
         if "已支付" in row and "正常" in row:
@@ -520,12 +541,12 @@ def _wait_for_matching_order(page, target_date, slot, timeout_ms=12000):
 
 
 def _existing_booking_failure(rows):
-    """目标日已有任一有效预约时立即停止，避免继续轮询或尝试其他时段。"""
+    """目标日目标场馆已有有效预约时立即停止，避免继续轮询或尝试其他时段。"""
     labels = _format_existing_bookings(rows).split("、")
     return {
         "status": "failed",
         "existing_bookings": labels,
-        "detail": (f"当天已存在有效预约（{'、'.join(labels)}），"
+        "detail": (f"当天所选健身房已存在有效预约（{'、'.join(labels)}），"
                    "本次任务已停止，未尝试其他时段。"),
     }
 
@@ -549,21 +570,21 @@ def _daily_limit_message(text):
     return next((marker for marker in markers if marker in compact), None)
 
 
-def check_existing_orders(page, target_date):
+def check_existing_orders(page, target_date, venue=None):
     """返回目标日期订单汇总；有效预约保留时段信息，不再笼统阻断当天其它时段。"""
     robust_goto(page, ORDERS_URL)
     if not is_site_ready(page):
-        settle_after_login(page, VENUE_URL_FMT.format(venue="129"))
+        settle_after_login(page, VENUE_URL_FMT.format(venue=venue or "129"))
         robust_goto(page, ORDERS_URL)
     rows = _wait_order_list_ready(page)
     log.info("订单页读取到 %d 条记录", len(rows))
-    summary = _summarize_order_rows(rows, target_date)
+    summary = _summarize_order_rows(rows, target_date, venue)
     for row in summary["relevant"]:
         log.info("当天健身房订单：%s", _safe_order_log_label(row))
     return summary
 
 
-def _result_without_confirmation(page, target_date, slot, known_bookings=None):
+def _result_without_confirmation(page, target_date, slot, known_bookings=None, venue=None):
     """未到确认页时复核站点提示与订单，避免把日限额误报成验证码失败。"""
     try:
         body = safe_body_text(page, 1200)
@@ -572,7 +593,7 @@ def _result_without_confirmation(page, target_date, slot, known_bookings=None):
     rejection = _daily_limit_message(body)
     orders_checked = True
     try:
-        snapshot = check_existing_orders(page, target_date)
+        snapshot = check_existing_orders(page, target_date, venue)
     except Exception as exc:  # noqa: BLE001
         log.warning("未确认订单复核失败：%s", exc)
         orders_checked = False
@@ -580,7 +601,8 @@ def _result_without_confirmation(page, target_date, slot, known_bookings=None):
     booked = snapshot.get("booked") or list(known_bookings or [])
     pending = snapshot.get("pending") or []
 
-    matching = [row for row in snapshot.get("booked", []) if _row_matches_slot(row, slot)]
+    matching = [row for row in snapshot.get("booked", []) if _row_matches_slot(row, slot)
+                and (venue is None or _row_matches_venue(row, venue))]
     if matching:
         return {
             "status": "succeeded",
@@ -885,10 +907,107 @@ def assign_targets(entries, targets):
         scored.append((best_v, t, best_e))
     scored.sort(reverse=True, key=lambda x: x[0])
     for v, t, e in scored:
-        if e is not None and v > 0:
+        if e is not None and v > 0 and id(e) not in used:
             assignment[t] = e
             used.add(id(e))
     return assignment
+
+
+def _best_probability_assignment(scores):
+    """Return the best distinct box indices and the log-score runner-up margin."""
+    scores = np.asarray(scores, dtype=float)
+    if (scores.ndim != 2 or not scores.shape[0]
+            or scores.shape[1] < scores.shape[0]
+            or not np.isfinite(scores).all() or np.any(scores < 0)
+            or np.any(scores.max(axis=1) <= 0)):
+        raise ValueError("候选分数无效或检测框不足")
+    n_targets, n_boxes = scores.shape
+    if math.perm(n_boxes, n_targets) > 100_000:
+        raise ValueError("候选框组合过多，转人工核对")
+    log_scores = np.log(scores + 1e-12)
+    best_ids = None
+    best = second = -math.inf
+    for ids in itertools.permutations(range(n_boxes), n_targets):
+        value = float(sum(log_scores[t, b] for t, b in enumerate(ids)))
+        if value > best:
+            second, best, best_ids = best, value, ids
+        elif value > second:
+            second = value
+    return best_ids, None if second == -math.inf else best - second
+
+
+def match_click_targets_probability(pil_img, boxes, targets, ocr_std, ocr_beta):
+    """Match the known prompt characters jointly, requiring model agreement.
+
+    Scores are max CTC time-step values, not calibrated correctness probabilities.
+    The caller must still verify the site accepts the challenge after clicking.
+    """
+    diagnostics = {"strategy": "probability", "model_agreement": False}
+    if (not targets or len(set(targets)) != len(targets)
+            or any(len(t) != 1 for t in targets) or len(boxes) < len(targets)):
+        return {}, {**diagnostics, "reason": "目标格式无效或检测框不足"}
+    entries = []
+    model_scores = np.zeros((2, len(targets), len(boxes)), dtype=float)
+    for bi, box in enumerate(boxes):
+        x1, y1, x2, y2 = map(int, box)
+        if not (0 <= x1 < x2 <= pil_img.width and 0 <= y1 < y2 <= pil_img.height):
+            return {}, {**diagnostics, "reason": "检测框超出原图"}
+        crop = pil_img.crop((x1, y1, x2, y2))
+        entry = {"box": [x1, y1, x2, y2], "center": ((x1+x2)/2, (y1+y2)/2)}
+        for mi, (name, model) in enumerate((("std", ocr_std), ("beta", ocr_beta))):
+            result = model.classification(crop, probability=True)
+            charset = result.get("charset", result.get("charsets"))
+            probabilities = np.asarray(result["probabilities"], dtype=float)
+            if (charset is None or probabilities.ndim < 2
+                    or probabilities.shape[-1] != len(charset)
+                    or not np.isfinite(probabilities).all()
+                    or np.any(probabilities < 0)):
+                return {}, {**diagnostics, "reason": "OCR 候选分数格式无效"}
+            probabilities = probabilities.reshape((-1, probabilities.shape[-1]))
+            for ti, target in enumerate(targets):
+                if target in charset:
+                    model_scores[mi, ti, bi] = probabilities[:, charset.index(target)].max()
+            entry[name] = result.get("text") or ""
+        entries.append(entry)
+    try:
+        std_ids, _ = _best_probability_assignment(model_scores[0])
+        beta_ids, _ = _best_probability_assignment(model_scores[1])
+        scores = model_scores.mean(axis=0)
+        ids, gap = _best_probability_assignment(scores)
+    except ValueError as exc:
+        return {}, {**diagnostics, "reason": str(exc)}
+    diagnostics.update(
+        model_agreement=std_ids == beta_ids == ids,
+        log_gap=gap,
+        selected_scores=[float(scores[t, b]) for t, b in enumerate(ids)],
+        std_boxes=[entries[b]["box"] for b in std_ids],
+        beta_boxes=[entries[b]["box"] for b in beta_ids],
+    )
+    if any(score <= 0 for score in diagnostics["selected_scores"]):
+        return {}, {**diagnostics, "reason": "一对一分配中有目标缺少候选支持"}
+    if not diagnostics["model_agreement"] or gap is not None and gap <= 1e-9:
+        return {}, {**diagnostics, "reason": "双版定位不一致或存在同分分配"}
+    assignment = {target: entries[b] for target, b in zip(targets, ids)}
+    return assignment, diagnostics
+
+
+def _captcha_click_points(assignment, targets, dump):
+    """Validate a unique assignment and map original-image centers to CSS pixels."""
+    if len(assignment) != len(targets) or any(t not in assignment for t in targets):
+        raise ValueError("验证码目标未全部定位")
+    if len({tuple(assignment[t]["box"]) for t in targets}) != len(targets):
+        raise ValueError("验证码目标共用字框")
+    rx, ry, rw, rh = map(float, dump["rect"])
+    nw, nh = map(float, dump["natural"])
+    if not all(math.isfinite(v) for v in (rx, ry, rw, rh, nw, nh)) or min(rw, rh, nw, nh) <= 0:
+        raise ValueError("验证码显示尺寸无效")
+    points = []
+    for target in targets:
+        cx, cy = assignment[target]["center"]
+        if not (0 <= cx < nw and 0 <= cy < nh):
+            raise ValueError("验证码点击中心超出原图")
+        points.append((target, rx + cx/nw*rw, ry + cy/nh*rh))
+    return points
 
 
 def _confirmation_page(context, page):
@@ -932,22 +1051,23 @@ def _wait_for_manual_captcha(page, wait_s=180):
     return None
 
 
-def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
-    """点选验证码：det 出框 + 四路认字投票，贪心分配；缺字刷新换题；失败转人工等待。
+def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
+                        strategy="probability"):
+    """点选验证码：候选分数整体匹配；不一致刷新换题；失败转人工等待。
 
     返回承载订单确认页的 page（站点用新标签页打开确认页，必须监控整个
     context），失败返回 None。"""
     if manual_only:
         return _wait_for_manual_captcha(page)
+    if strategy not in {"probability", "legacy"}:
+        raise ValueError("不支持的验证码识别策略")
 
     import ddddocr
     det = ddddocr.DdddOcr(det=True, show_ad=False)
     ocr_std = ddddocr.DdddOcr(show_ad=False)
     ocr_beta = ddddocr.DdddOcr(show_ad=False, beta=True)
-    api_key = deepseek_key()
-    log.info("验证码识别：ddddocr双版%s，DeepSeek约束多选%s",
-             "+PaddleOCR" if _get_paddle() else "（PaddleOCR不可用）",
-             "已启用" if api_key else "未配置key")
+    api_key = deepseek_key() if strategy == "legacy" else None
+    log.info("验证码识别策略：%s", strategy)
 
     for attempt in range(1, max_attempts + 1):
         dump = page.evaluate(JS_CAPTCHA_DUMP)
@@ -960,51 +1080,26 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
         targets = [c for c in re.split(r"[,，、\s]+", dump["prompt"]) if c]
         log.info("点选验证码第 %d 次：依次点击 %s", attempt, targets)
         img_bytes = base64_png(dump["src"])
-        try:
-            (capture_dir / f"captcha-attempt{attempt}.png").write_bytes(img_bytes)
-        except OSError:  # noqa: BLE001
-            pass
+        if capture_dir is not None:
+            try:
+                (capture_dir / f"captcha-attempt{attempt}.png").write_bytes(img_bytes)
+            except OSError:  # noqa: BLE001
+                pass
         pil = Image.open(BytesIO(img_bytes)).convert("RGB")
         boxes = [b for b in det.detection(img_bytes)
                  if b[2] - b[0] >= 10 and b[3] - b[1] >= 10]
         log.info("检测到 %d 个字框", len(boxes))
 
-        paddle_lines = _paddle_read(pil)
-        entries = []
-        for bx in boxes:
-            x1, y1, x2, y2 = bx
-            crop = pil.crop((x1, y1, x2, y2))
-            buf = BytesIO()
-            crop.save(buf, format="PNG")
-            r_std = ocr_std.classification(buf.getvalue())
-            r_beta = ocr_beta.classification(buf.getvalue())
-            r_ds = ""
-            if api_key:
-                up = crop.resize(((x2 - x1) * 4, (y2 - y1) * 4), Image.LANCZOS)
-                buf2 = BytesIO()
-                up.save(buf2, format="PNG")
-                try:
-                    r_ds = deepseek_choice(buf2.getvalue(), targets + ["都不是"], api_key)
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("DeepSeek 多选识别失败 box=%s：%s", list(bx), exc)
-            e = {"box": list(bx), "std": r_std, "beta": r_beta, "ds": r_ds,
-                 "paddle_chars": "", "center": ((x1 + x2) / 2, (y1 + y2) / 2)}
-            cx, cy = e["center"]
-            for text, (px1, py1, px2, py2) in paddle_lines:
-                han = [c for c in text if "\u4e00" <= c <= "\u9fff"]
-                if not han:
-                    continue
-                for k, ch in enumerate(han):
-                    ccx = px1 + (px2 - px1) * (k + 0.5) / len(han)
-                    ccy = (py1 + py2) / 2
-                    if abs(ccx - cx) <= (px2 - px1) / len(han) and abs(ccy - cy) <= (py2 - py1):
-                        e["paddle_chars"] += ch
-            entries.append(e)
-        log.info("逐框识别：%s", json.dumps(
-            [{"box": e["box"], "std": e["std"], "beta": e["beta"],
-              "ds": e["ds"], "paddle": e["paddle_chars"]} for e in entries], ensure_ascii=False))
-
-        assignment = assign_targets(entries, targets)
+        if strategy == "probability":
+            try:
+                assignment, diagnostics = match_click_targets_probability(
+                    pil, boxes, targets, ocr_std, ocr_beta)
+            except Exception as exc:  # noqa: BLE001
+                assignment, diagnostics = {}, {"reason": type(exc).__name__}
+                log.warning("候选分数识别失败：%s", type(exc).__name__)
+            log.info("候选分数匹配：%s", json.dumps(diagnostics, ensure_ascii=False))
+        else:
+            assignment = _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key)
         log.info("目标分配：%s", json.dumps(
             {t: (a["box"] if a else None) for t, a in assignment.items()}, ensure_ascii=False))
         if len(assignment) < len(targets):
@@ -1024,13 +1119,17 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
                 break
             continue
 
-        rx, ry, rw, rh = dump["rect"]
-        nw, nh = dump["natural"]
-        for t in targets:
-            e = assignment[t]
-            cx, cy = e["center"]
-            px = rx + cx / nw * rw
-            py = ry + cy / nh * rh
+        latest = page.evaluate(JS_CAPTCHA_DUMP)
+        if (not latest or latest["src"] != dump["src"]
+                or latest["prompt"] != dump["prompt"]):
+            log.warning("验证码识别期间图片或提示已变化，重新读取")
+            continue
+        try:
+            points = _captcha_click_points(assignment, targets, latest)
+        except (KeyError, TypeError, ValueError) as exc:
+            log.warning("验证码点击坐标校验失败：%s", exc)
+            break
+        for t, px, py in points:
             page.mouse.click(px, py)
             log.info("已点击「%s」 @ (%.0f, %.0f)", t, px, py)
             time.sleep(0.55)
@@ -1044,7 +1143,6 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
             if "tradeNo" in page.url:
                 log.info("点选验证码通过，已进入订单确认页")
                 return page
-            # 站点可能用新标签页打开订单确认页
             for pg in page.context.pages:
                 if pg is not page and "tradeNo" in pg.url:
                     log.info("点选验证码通过，订单确认页在新标签页")
@@ -1068,21 +1166,54 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
             refresh.click(timeout=3000)
             log.info("已点击刷新换一题")
             time.sleep(1.5)
-        except Exception:  # noqa: BLE001
-            page.keyboard.press("Escape")
-            time.sleep(1)
-            try:
-                click_first_visible(page, "提交", timeout_ms=800)
-            except Exception:  # noqa: BLE001
-                pass
-            time.sleep(1.5)
-
+        except Exception:
+            break
     return _wait_for_manual_captcha(page)
+
+
+def _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key):
+    """Explicit opt-in compatibility path for the previous four-route voting."""
+    paddle_lines = _paddle_read(pil)
+    entries = []
+    for bx in boxes:
+        x1, y1, x2, y2 = bx
+        crop = pil.crop((x1, y1, x2, y2))
+        buf = BytesIO()
+        crop.save(buf, format="PNG")
+        r_std = ocr_std.classification(buf.getvalue())
+        r_beta = ocr_beta.classification(buf.getvalue())
+        r_ds = ""
+        if api_key:
+            up = crop.resize(((x2 - x1) * 4, (y2 - y1) * 4), Image.LANCZOS)
+            buf2 = BytesIO()
+            up.save(buf2, format="PNG")
+            try:
+                r_ds = deepseek_choice(buf2.getvalue(), targets + ["都不是"], api_key)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("DeepSeek 多选识别失败 box=%s：%s", list(bx), exc)
+        e = {"box": list(bx), "std": r_std, "beta": r_beta, "ds": r_ds,
+             "paddle_chars": "", "center": ((x1 + x2) / 2, (y1 + y2) / 2)}
+        cx, cy = e["center"]
+        for text, (px1, py1, px2, py2) in paddle_lines:
+            han = [c for c in text if "\u4e00" <= c <= "\u9fff"]
+            if not han:
+                continue
+            for k, ch in enumerate(han):
+                ccx = px1 + (px2 - px1) * (k + 0.5) / len(han)
+                ccy = (py1 + py2) / 2
+                if abs(ccx - cx) <= (px2 - px1) / len(han) and abs(ccy - cy) <= (py2 - py1):
+                    e["paddle_chars"] += ch
+        entries.append(e)
+    log.info("逐框识别：%s", json.dumps(
+        [{"box": e["box"], "std": e["std"], "beta": e["beta"],
+          "ds": e["ds"], "paddle": e["paddle_chars"]} for e in entries], ensure_ascii=False))
+
+    return assign_targets(entries, targets)
 
 
 # ---------------------------------------------------------------- payment
 
-def pay_and_verify(page, target_date, slot, capture_dir=None):
+def pay_and_verify(page, target_date, slot, capture_dir=None, venue=None):
     """确认页必须明确显示 0 元才允许点击支付，再核验订单状态。
     返回 (status, detail)：succeeded / ambiguous / failed。
 
@@ -1169,6 +1300,8 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
                    f"{target_date.month:02d}-{target_date.day:02d}"]
     for row in rows:
         if "健身房" not in row or not any(mk in row for mk in today_marks):
+            continue
+        if venue is not None and not _row_matches_venue(row, venue):
             continue
         if slot and not _row_matches_slot(row, slot):
             continue
@@ -1313,7 +1446,7 @@ def run(args) -> dict:
 
         existing_bookings = []
         if not args.skip_order_check:
-            order_snapshot = check_existing_orders(page, target_date)
+            order_snapshot = check_existing_orders(page, target_date, args.venue)
             existing_bookings = order_snapshot["booked"]
             if order_snapshot["pending"]:
                 result.update(
@@ -1391,16 +1524,17 @@ def run(args) -> dict:
                 page,
                 capture_dir,
                 manual_only=getattr(args, "manual_captcha", False),
+                strategy=getattr(args, "captcha_strategy", "probability"),
             )
             if order_page is None:
                 result.update(_result_without_confirmation(
-                    page, target_date, slot, known_bookings=existing_bookings))
+                    page, target_date, slot, known_bookings=existing_bookings, venue=args.venue))
                 log.error("%s", result["detail"])
                 return result
             page = order_page  # 确认页可能在新标签页，后续支付/核验切换过去
         elif "tradeNo" not in page.url:
             result.update(_result_without_confirmation(
-                page, target_date, slot, known_bookings=existing_bookings))
+                page, target_date, slot, known_bookings=existing_bookings, venue=args.venue))
             log.warning("%s", result["detail"])
             return result
 
@@ -1417,7 +1551,7 @@ def run(args) -> dict:
             result.update(status="inspected", detail=info)
             return result
 
-        status, detail = pay_and_verify(page, target_date, slot, capture_dir)
+        status, detail = pay_and_verify(page, target_date, slot, capture_dir, venue=args.venue)
         result.update(status=status, detail=detail)
         return result
 
@@ -1434,6 +1568,8 @@ def main(argv=None):
     parser.add_argument("--skip-order-check", action="store_true", help="跳过当天已有订单预检（测试用）")
     parser.add_argument("--force-slot", default=None, help="强选指定时段（含前端已禁用的，测试用）")
     parser.add_argument("--no-pay", action="store_true", help="到达支付页只检查不支付（测试用）")
+    parser.add_argument("--captcha-strategy", choices=("probability", "legacy"),
+                        default="probability", help="点选验证码策略，默认双版候选分数整体匹配")
     parser.add_argument("--manual-captcha", action="store_true",
                         help="验证码弹出后等待人工点击，不尝试自动识别")
     parser.add_argument("--check-login", action="store_true",

@@ -25,6 +25,19 @@ class GymAutomationOrderPolicyTests(unittest.TestCase):
         self.assertIn("本次任务已停止", result["detail"])
         self.assertIn("17:00-18:00", result["detail"])
 
+    def test_selected_venue_ignores_an_explicit_booking_on_the_other_floor(self) -> None:
+        rows = [
+            "健身房预约 一楼 2026-10-12 17:00-18:00 已支付 正常",
+            "健身房预约 负一楼 2026-10-12 18:00-19:00 已支付 正常",
+        ]
+        first_floor = gym_automation._summarize_order_rows(
+            rows, date(2026, 10, 12), venue="129")
+        basement = gym_automation._summarize_order_rows(
+            rows, date(2026, 10, 12), venue="162")
+
+        self.assertEqual(first_floor["booked"], [rows[0]])
+        self.assertEqual(basement["booked"], [rows[1]])
+
     def test_unpaid_order_is_not_classified_as_valid_booking(self) -> None:
         state = gym_automation._summarize_order_rows(
             ["健身房预约 2026-10-12 17:00-18:00 待支付"], date(2026, 10, 12))
@@ -221,6 +234,21 @@ class GymInterruptedJobRecoveryTests(unittest.TestCase):
             self.assertEqual(resolved["result"]["resolved_by"], "admin01")
             new_job = gym.create_job(target_date, ["17:00-18:00"], "admin01")
         self.assertEqual(new_job["status"], "pending")
+
+    def test_same_date_jobs_can_target_different_venues(self) -> None:
+        now = datetime.now(gym.SHANGHAI)
+        target_date = now.date().isoformat()
+        self._insert_job("pending", now.isoformat(timespec="seconds"), target_date)
+
+        with patch.object(gym, "credentials_status", return_value={"configured": True}):
+            job = gym.create_job(target_date, ["18:00-19:00"], "admin01", venue="162")
+
+        self.assertEqual(job["venue"], "162")
+        self.assertEqual(job["status"], "pending")
+
+    def test_job_rejects_unsupported_venue_id(self) -> None:
+        with self.assertRaisesRegex(gym.GymServiceError, "支持的一楼或负一楼"):
+            gym.create_job("2026-10-12", ["17:00-18:00"], "admin01", venue="999")
 
     def test_resolution_requires_explicit_no_order_confirmation(self) -> None:
         now = datetime.now(gym.SHANGHAI)
