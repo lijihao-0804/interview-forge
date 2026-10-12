@@ -417,7 +417,8 @@ def check_existing_orders(page, target_date):
         log.info("当天健身房订单记录：%s", row[:120])
         if "已支付" in row and "正常" in row:
             return "booked"
-        if "未支付" in row or "待支付" in row or "待付款" in row:
+        # 「未支付/已取消」是过期死单，不算待支付，可以重新预约
+        if ("未支付" in row or "待支付" in row or "待付款" in row) and "已取消" not in row:
             return "pending"
     return "none"
 
@@ -465,62 +466,47 @@ def confirm_if_popped(page, texts=("确定",), timeout_ms=2500):
 
 
 def pick_slot(page, slots):
-    """按表头匹配目标列；返回 (时段, 容量文本) 或 None。点击后处理可能出现的确认弹窗。"""
-    info = page.evaluate("""() => {
-      const tables = [...document.querySelectorAll('table')];
-      for (const tb of tables) {
-        const headerRow = tb.querySelector('thead tr') || tb.rows[0];
-        if (!headerRow) continue;
-        const headers = [...headerRow.cells].map(c => c.innerText.trim());
-        if (!headers.some(h => /^\\d{2}:\\d{2}-\\d{2}:\\d{2}$/.test(h))) continue;
-        const out = [];
-        for (const row of tb.rows) {
-          const block = row.querySelector('.reserveBlock');
-          if (!block) continue;
-          const td = block.closest('td');
-          out.push({ header: headers[td.cellIndex] || '', cls: block.className,
-                     text: block.innerText.trim() });
-        }
-        if (out.length) return out;
+    """按表头定位目标列，兼容 iview 固定列的拆分表（/129 表头与容量块分属不同
+    <table>，必须全文档找表头行、按时段块所在列号对齐）。返回 (时段, 容量) 或 None。"""
+    dump = page.evaluate("""() => {
+      const timeRe = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+      let headers = null;
+      for (const row of document.querySelectorAll('tr')) {
+        const cells = [...(row.cells || [])].map(c => (c.innerText || '').trim());
+        if (cells.some(h => timeRe.test(h))) { headers = cells; break; }
       }
-      return [];
+      const blocks = [...document.querySelectorAll('.reserveBlock')].map((b, i) => {
+        const td = b.closest('td');
+        return { i, header: td && headers ? (headers[td.cellIndex] || '') : '',
+                 cls: b.className, text: (b.innerText || '').trim() };
+      });
+      return { headers, blocks };
     }""")
-    free_blocks = page.locator(".reserveBlock.free:not(.disabled)")
-    free_count = free_blocks.count()
+    headers = (dump or {}).get("headers")
+    blocks = (dump or {}).get("blocks") or []
+    log.info("表格解析：时间表头%s，时段块 %d 个", "已找到" if headers else "未找到", len(blocks))
     for slot in slots:
-        for cell in info:
-            if cell["header"] != slot:
+        for b in blocks:
+            if b["header"] != slot:
                 continue
-            log.info("时段 %s 状态 class=%s 容量=%s", slot, cell["cls"], cell["text"])
-            if "selected" in cell["cls"]:
-                return slot, cell["text"]
-            if "disabled" in cell["cls"] or "reserved" in cell["cls"]:
-                break
-            if "free" in cell["cls"]:
-                target_idx = None
-                for i in range(free_count):
-                    blk = free_blocks.nth(i)
-                    cls_i = blk.get_attribute("class") or ""
-                    txt_i = (blk.inner_text() or "").strip()
-                    if "free" in cls_i and "disabled" not in cls_i and txt_i == cell["text"]:
-                        header_i = next((c["header"] for c in info
-                                         if c["cls"] == cls_i and c["text"] == txt_i), "")
-                        if header_i == slot:
-                            target_idx = i
-                            break
-                if target_idx is None:
-                    break
-                free_blocks.nth(target_idx).click()
+            log.info("时段 %s 状态 class=%s 容量=%s", slot, b["cls"], b["text"])
+            cls = b["cls"]
+            if "selected" in cls:
+                return slot, b["text"]
+            if "disabled" in cls or "reserved" in cls:
+                break  # 该时段不可选，试下一个备选
+            if "free" in cls:
+                page.locator(".reserveBlock").nth(b["i"]).click()
                 confirm_if_popped(page)
                 time.sleep(0.8)
                 sel = page.evaluate("""() => {
                   const b = document.querySelector('.reserveBlock.selected');
-                  return b ? { cls: b.className, text: b.innerText.trim() } : null;
+                  return b ? b.innerText.trim() : null;
                 }""")
                 if not sel:
                     raise RuntimeError(f"点击 {slot} 后未进入选中状态")
-                log.info("已选中时段 %s（%s）", slot, sel["text"])
-                return slot, sel["text"]
+                log.info("已选中时段 %s（%s）", slot, sel)
+                return slot, sel
     return None
 
 
@@ -695,7 +681,10 @@ def assign_targets(entries, targets):
 
 
 def solve_click_captcha(page, capture_dir, max_attempts=3):
-    """点选验证码：det 出框 + 四路认字投票，贪心分配；缺字刷新换题；失败转人工等待。"""
+    """点选验证码：det 出框 + 四路认字投票，贪心分配；缺字刷新换题；失败转人工等待。
+
+    返回承载订单确认页的 page（站点用新标签页打开确认页，必须监控整个
+    context），失败返回 None。"""
     import ddddocr
     det = ddddocr.DdddOcr(det=True, show_ad=False)
     ocr_std = ddddocr.DdddOcr(show_ad=False)
@@ -709,7 +698,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
         dump = page.evaluate(JS_CAPTCHA_DUMP)
         if not dump:
             log.info("未检测到点选验证码弹窗，可能已直接通过")
-            return True
+            return page
         if not dump["prompt"]:
             log.warning("未解析到提示文字，转人工")
             break
@@ -795,26 +784,39 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
             if click_first_visible(page, txt, timeout_ms=300):
                 log.info("点击验证码弹窗「%s」", txt)
                 break
-        for _ in range(20):
+        for _ in range(30):
             time.sleep(0.6)
             if "tradeNo" in page.url:
                 log.info("点选验证码通过，已进入订单确认页")
-                return True
+                return page
+            # 站点可能用新标签页打开订单确认页
+            for pg in page.context.pages:
+                if pg is not page and "tradeNo" in pg.url:
+                    log.info("点选验证码通过，订单确认页在新标签页")
+                    try:
+                        pg.bring_to_front()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    return pg
             if page.evaluate(JS_CAPTCHA_DUMP) is None:
                 time.sleep(1.5)
                 if "tradeNo" in page.url:
-                    return True
+                    return page
+                for pg in page.context.pages:
+                    if pg is not page and "tradeNo" in pg.url:
+                        return pg
                 log.info("验证码弹窗已关闭但未跳转，继续等待")
         log.warning("点选验证码第 %d 次未通过", attempt)
-        refresh = page.query_selector(".verify-refresh, .refresh, [class*='refresh']")
-        if refresh:
-            refresh.click()
+        try:
+            refresh = page.locator(".verify-refresh, .refresh, [class*='refresh']:visible").first
+            refresh.click(timeout=3000)
+            log.info("已点击刷新换一题")
             time.sleep(1.5)
-        else:
+        except Exception:  # noqa: BLE001
             page.keyboard.press("Escape")
             time.sleep(1)
             try:
-                page.get_by_text("提交", exact=True).first.click()
+                click_first_visible(page, "提交", timeout_ms=800)
             except Exception:  # noqa: BLE001
                 pass
             time.sleep(1.5)
@@ -826,12 +828,19 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
         time.sleep(2)
         if "tradeNo" in page.url:
             log.info("人工完成验证码，已进入订单确认页")
-            return True
+            return page
+        for pg in page.context.pages:
+            if pg is not page and "tradeNo" in pg.url:
+                log.info("人工完成验证码，订单确认页在新标签页")
+                return pg
         if page.evaluate(JS_CAPTCHA_DUMP) is None:
             time.sleep(2)
             if "tradeNo" in page.url:
-                return True
-    return False
+                return page
+            for pg in page.context.pages:
+                if pg is not page and "tradeNo" in pg.url:
+                    return pg
+    return None
 
 
 # ---------------------------------------------------------------- payment
@@ -1069,19 +1078,22 @@ def run(args) -> dict:
         if getattr(args, "force_slot", None):
             slot, capacity = force_select_slot(page, args.force_slot)
         else:
-            picked = pick_slot(page, slots)
+            # 不按时钟放弃：无空位时每 2 分钟重查一次，最多 15 次（约 30 分钟）
+            picked = None
+            for attempt in range(1, 16):
+                picked = pick_slot(page, slots)
+                if picked:
+                    break
+                if attempt == 15:
+                    break
+                log.info("第 %d 次查询无空位，120 秒后重查（最多 15 次）", attempt)
+                time.sleep(120)
+                robust_goto(page, target_url)
+                settle_after_login(page, target_url)
+                ensure_target_date(page, target_date)
             if not picked:
-                now = datetime.now(SHANGHAI)
-                cutoff = now.replace(hour=8, minute=4, second=0, microsecond=0)
-                if now < cutoff:
-                    log.info("首次查询无空位且未到 08:04，60 秒后复查一次")
-                    time.sleep(60)
-                    robust_goto(page, target_url)
-                    settle_after_login(page, target_url)
-                    ensure_target_date(page, target_date)
-                    picked = pick_slot(page, slots)
-            if not picked:
-                result.update(status="no_slot", detail="目标时段均无空位（已复查一次）")
+                result.update(status="no_slot",
+                              detail="多次查询均无空位（15 次，约 30 分钟）")
                 log.info(result["detail"])
                 return result
             slot, capacity = picked
@@ -1108,10 +1120,12 @@ def run(args) -> dict:
         log.info("已点击提交，等待验证码")
 
         if wait_either(page, [".verifybox img", "img[src^='data:image']"], 5000):
-            if not solve_click_captcha(page, capture_dir):
+            order_page = solve_click_captcha(page, capture_dir)
+            if order_page is None:
                 result["detail"] = "点选验证码未能通过（含人工等待窗口）"
                 log.error(result["detail"])
                 return result
+            page = order_page  # 确认页可能在新标签页，后续支付/核验切换过去
         elif "tradeNo" not in page.url:
             result["detail"] = "提交后未出现验证码也未跳转"
             log.warning(result["detail"])
