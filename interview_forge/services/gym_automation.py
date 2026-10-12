@@ -510,9 +510,27 @@ def pick_slot(page, slots):
     return None
 
 
+_ORDER_AMOUNT_RE = re.compile(
+    r"(?:订单\s*金额|应付\s*金额|实付\s*金额|支付\s*金额|请您支付(?:金额)?|请支付(?:金额)?|金额|需支付|待支付)"
+    r"\s*[：:]?\s*(?:人民币\s*)?[¥￥]?\s*"
+    r"([0-9][0-9,]*(?:\.[0-9]+)?)\s*(?:元|人民币)?"
+)
+
+
+def parse_order_amount(text):
+    """只从明确的金额标签读取金额；多个标签给出冲突值时拒绝猜测。"""
+    values = _order_amount_values(text)
+    if not values or any(value != values[0] for value in values[1:]):
+        return None
+    return values[0]
+
+
+def _order_amount_values(text):
+    return [float(match.replace(",", "")) for match in _ORDER_AMOUNT_RE.findall(text or "")]
+
+
 def read_amount(page):
-    m = re.search(r"金额[：:]\s*¥?\s*([\d.]+)", page.evaluate("() => document.body.innerText"))
-    return float(m.group(1)) if m else None
+    return parse_order_amount(page.evaluate("() => document.body.innerText"))
 
 
 # ---------------------------------------------------------------- click captcha
@@ -680,11 +698,51 @@ def assign_targets(entries, targets):
     return assignment
 
 
-def solve_click_captcha(page, capture_dir, max_attempts=3):
+def _confirmation_page(context, page):
+    """Return the order-confirmation tab if it has opened in this context."""
+    if "tradeNo" in page.url:
+        return page
+    for candidate in context.pages:
+        if candidate is not page and "tradeNo" in candidate.url:
+            try:
+                candidate.bring_to_front()
+            except Exception:  # noqa: BLE001
+                pass
+            return candidate
+    return None
+
+
+def _wait_for_manual_captcha(page, wait_s=180):
+    """Wait for a human-solved challenge and detect confirmation tabs, including popups."""
+    log.warning("等待人工完成验证码（%d 秒）", wait_s)
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        time.sleep(1)
+        confirmed = _confirmation_page(page.context, page)
+        if confirmed is not None:
+            log.info("验证码完成，订单确认页已打开")
+            return confirmed
+        try:
+            challenge_open = page.evaluate(JS_CAPTCHA_DUMP) is not None
+        except Exception:  # noqa: BLE001
+            challenge_open = False
+        if not challenge_open:
+            # Some versions close the challenge before opening the confirmation tab.
+            time.sleep(1)
+            confirmed = _confirmation_page(page.context, page)
+            if confirmed is not None:
+                return confirmed
+    return None
+
+
+def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False):
     """点选验证码：det 出框 + 四路认字投票，贪心分配；缺字刷新换题；失败转人工等待。
 
     返回承载订单确认页的 page（站点用新标签页打开确认页，必须监控整个
     context），失败返回 None。"""
+    if manual_only:
+        return _wait_for_manual_captcha(page)
+
     import ddddocr
     det = ddddocr.DdddOcr(det=True, show_ad=False)
     ocr_std = ddddocr.DdddOcr(show_ad=False)
@@ -755,18 +813,18 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
         if len(assignment) < len(targets):
             log.warning("第 %d 次有目标字未定位（%s），刷新换题",
                         attempt, [t for t in targets if t not in assignment])
-            refresh = page.query_selector(".verify-refresh, .refresh, [class*='refresh']")
-            if refresh:
-                refresh.click()
-                time.sleep(1.5)
-            else:
-                page.keyboard.press("Escape")
-                time.sleep(1)
-                try:
-                    page.get_by_text("提交", exact=True).first.click()
-                except Exception:  # noqa: BLE001
-                    pass
-                time.sleep(1.5)
+            try:
+                refresh = page.locator(
+                    ".verify-refresh:visible, .refresh:visible, [class*='refresh']:visible"
+                ).first
+                if refresh.count() and refresh.is_enabled():
+                    refresh.click(timeout=1500)
+                    time.sleep(1.5)
+                else:
+                    raise RuntimeError("验证码刷新控件不可见")
+            except Exception as exc:  # noqa: BLE001
+                log.warning("无法刷新验证码，转人工处理：%s", exc)
+                break
             continue
 
         rx, ry, rw, rh = dump["rect"]
@@ -821,43 +879,28 @@ def solve_click_captcha(page, capture_dir, max_attempts=3):
                 pass
             time.sleep(1.5)
 
-    wait_s = 180
-    log.warning("自动点选未成功，若浏览器窗口可见可人工完成验证码（等待 %d 秒）", wait_s)
-    deadline = time.time() + wait_s
-    while time.time() < deadline:
-        time.sleep(2)
-        if "tradeNo" in page.url:
-            log.info("人工完成验证码，已进入订单确认页")
-            return page
-        for pg in page.context.pages:
-            if pg is not page and "tradeNo" in pg.url:
-                log.info("人工完成验证码，订单确认页在新标签页")
-                return pg
-        if page.evaluate(JS_CAPTCHA_DUMP) is None:
-            time.sleep(2)
-            if "tradeNo" in page.url:
-                return page
-            for pg in page.context.pages:
-                if pg is not page and "tradeNo" in pg.url:
-                    return pg
-    return None
+    return _wait_for_manual_captcha(page)
 
 
 # ---------------------------------------------------------------- payment
 
 def pay_and_verify(page, target_date, slot, capture_dir=None):
-    """确认页校验金额 0 元 → 点击支付 → 到订单页核验「已支付+正常」。
+    """确认页金额非 0 时停止；金额未知时仅在找到明确支付控件后点击并核验订单。
     返回 (status, detail)：succeeded / ambiguous / failed。
 
     支付按钮从未见过真实 DOM，因此按可靠性分层定位：先按钮类元素+精确文本，
     再放宽；全程截图留证；失败时把页面文本写入日志供远程诊断。
     """
     body = page.evaluate("() => document.body.innerText")
-    m = re.search(r"金额[：:]\s*¥?\s*([\d.]+)", body)
-    amount = float(m.group(1)) if m else None
+    amount_values = _order_amount_values(body)
+    amount = parse_order_amount(body)
     log.info("确认页金额：%s 元", amount)
-    if amount != 0:
+    if len(set(amount_values)) > 1:
+        return "failed", "确认页金额标签数值冲突，按安全规则停止"
+    if amount is not None and amount != 0:
         return "failed", f"订单金额为 {amount} 元（非 0），按安全规则停止"
+    if amount is None:
+        log.warning("确认页金额未识别；仅在找到可见且可用的明确支付控件时继续")
     if capture_dir:
         try:
             page.screenshot(path=str(capture_dir / "confirm-page.png"))
@@ -872,7 +915,8 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
     clicked = False
     # 1) 按钮类元素 + 精确文本（最可靠）
     pay_texts = ["立即支付", "去支付", "支 付", "支付"]
-    for sel in ("button", "[role=button]", "a", ".btn"):
+    for sel in ("button", "[role=button]", "a", ".btn",
+                "input[type=submit]", "input[type=button]"):
         for txt in pay_texts:
             nodes = page.locator(sel).filter(has_text=txt)
             for i in range(min(nodes.count(), 5)):
@@ -880,11 +924,14 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
                 try:
                     if not node.is_visible() or not node.is_enabled():
                         continue
-                    label = (node.inner_text() or "").strip()
+                    label = (node.inner_text() or node.get_attribute("value") or "").strip()
                     # 排除倒计时/状态类文字节点
                     if re.search(r"倒计时|状态|须知|未支付", label):
                         continue
-                    if not re.fullmatch(r"(立即)?(去)?支\s*付(订单)?", label):
+                    if not re.fullmatch(
+                        r"(立即)?(去)?支\s*付(订单)?(?:\s*[（(]\s*\d+\s*(?:s|秒)?\s*[）)])?",
+                        label,
+                    ):
                         continue
                     clicked = click_pay_candidate(node, f"{sel}:{label}")
                     break
@@ -895,7 +942,7 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
         if clicked:
             break
     # 2) 兜底：任意可见元素文本恰好是支付字样
-    if not clicked:
+    if not clicked and amount == 0:
         for txt in pay_texts:
             if click_first_visible(page, txt, timeout_ms=400):
                 clicked = True
@@ -904,12 +951,13 @@ def pay_and_verify(page, target_date, slot, capture_dir=None):
     if not clicked:
         snippet = safe_body_text(page, 600)
         log.warning("确认页未找到支付按钮，页面文本片段：%s", snippet.replace("\n", " | "))
-        if capture_dir:
-            try:
-                page.screenshot(path=str(capture_dir / "confirm-page-no-button.png"))
-            except Exception:  # noqa: BLE001
-                pass
-        return "ambiguous", "确认页未找到支付按钮，订单未支付（5 分钟后将自动取消）"
+        inspection = inspect_payment(page, capture_dir)
+        if amount is None:
+            return "ambiguous", (
+                "确认页金额无法识别且未找到支付按钮，未点击支付；"
+                f"{inspection}，请人工核对（订单可能 5 分钟后自动取消）"
+            )
+        return "ambiguous", f"确认页未找到支付按钮，订单未支付；{inspection}（5 分钟后将自动取消）"
 
     time.sleep(2.5)
     # 支付后可能弹提示框（成功提示/二次确认）
@@ -989,10 +1037,12 @@ def force_select_slot(page, slot):
 def inspect_payment(page, capture_dir):
     """不支付，只采集支付页证据：截图 + 全部按钮类元素的文本/类名/位置。
     返回人类可读的候选描述，用于校准 pay_and_verify 的定位逻辑。"""
-    try:
-        page.screenshot(path=str(capture_dir / "confirm-page.png"))
-    except Exception:  # noqa: BLE001
-        pass
+    if capture_dir:
+        try:
+            capture_dir.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(capture_dir / "confirm-page.png"))
+        except Exception:  # noqa: BLE001
+            pass
     controls = page.evaluate("""() => {
       const out = [];
       for (const el of document.querySelectorAll('button, [role=button], a, .btn, input[type=submit], input[type=button]')) {
@@ -1011,11 +1061,13 @@ def inspect_payment(page, capture_dir):
     body = page.evaluate("() => document.body.innerText")
     money_lines = [ln.strip() for ln in body.splitlines() if ("金额" in ln or "支付" in ln or "倒计时" in ln)]
     payload = {"controls": controls, "money_lines": money_lines}
-    try:
-        (capture_dir / "pay-inspect.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError:  # noqa: BLE001
-        pass
+    if capture_dir:
+        try:
+            capture_dir.mkdir(parents=True, exist_ok=True)
+            (capture_dir / "pay-inspect.json").write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:  # noqa: BLE001
+            pass
     log.info("支付页金额/支付相关文本：%s", json.dumps(money_lines, ensure_ascii=False))
     log.info("支付页可见控件：\n%s", "\n".join(lines))
     return f"支付页检查完成：{len(controls)} 个可见控件，已截图与 pay-inspect.json"
@@ -1120,7 +1172,11 @@ def run(args) -> dict:
         log.info("已点击提交，等待验证码")
 
         if wait_either(page, [".verifybox img", "img[src^='data:image']"], 5000):
-            order_page = solve_click_captcha(page, capture_dir)
+            order_page = solve_click_captcha(
+                page,
+                capture_dir,
+                manual_only=getattr(args, "manual_captcha", False),
+            )
             if order_page is None:
                 result["detail"] = "点选验证码未能通过（含人工等待窗口）"
                 log.error(result["detail"])
@@ -1160,6 +1216,8 @@ def main(argv=None):
     parser.add_argument("--skip-order-check", action="store_true", help="跳过当天已有订单预检（测试用）")
     parser.add_argument("--force-slot", default=None, help="强选指定时段（含前端已禁用的，测试用）")
     parser.add_argument("--no-pay", action="store_true", help="到达支付页只检查不支付（测试用）")
+    parser.add_argument("--manual-captcha", action="store_true",
+                        help="验证码弹出后等待人工点击，不尝试自动识别")
     parser.add_argument("--check-login", action="store_true",
                         help="凭据验证模式：只跑登录（含滑块），成功即退出")
     args = parser.parse_args(argv)
