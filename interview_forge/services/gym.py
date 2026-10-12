@@ -41,11 +41,11 @@ log = logging.getLogger(__name__)
 SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
 # 站点名额 08:00 放出；任务到 08:00 才启动，执行器在 08:00:20 前等待后再进预约流程。
 RUN_EARLIEST = (8, 0)
-# 执行器无空位时最多间隔 2 分钟复查 15 次（约 28 分钟），给登录/页面加载留余量。
+# 执行器无空位时每 5 分钟复查，避免高频重新加载场馆页面。
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
-JOB_RETRY_DELAY_SECONDS = 3 * 60
+JOB_RETRY_DELAY_SECONDS = 5 * 60
 MAX_SLOTS_PER_JOB = 6
 SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")

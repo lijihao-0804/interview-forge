@@ -37,6 +37,8 @@ PREFERRED_SLOTS = ["17:00-18:00", "16:00-17:00"]
 BOOKING_RELEASE_HOUR = 8
 BOOKING_RELEASE_MINUTE = 0
 BOOKING_RELEASE_SECOND = 20
+NO_SLOT_RECHECK_DELAY_SECONDS = 5 * 60
+NO_SLOT_MAX_CHECKS = 7  # 初次查询 + 每 5 分钟复查 6 次，最长约 30 分钟
 ORDERS_URL = "https://ggtypt.nju.edu.cn/venue/orders"
 VENUE_URL_FMT = "https://ggtypt.nju.edu.cn/venue/venue-reservation/{venue}"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -161,26 +163,51 @@ class OrderPageNotReady(RuntimeError):
     """订单页未能证明列表已加载；提交预约前可安全重试。"""
 
 
-_ORDER_ROWS_JS = """() => {
-  const trs = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
-  return trs.map(tr => tr.innerText.replace(/\\s+/g, ' ').trim()).filter(t => t.length > 0);
+_ORDER_RECORD_PREDICATE_JS = r"""(rawText) => {
+  const text = String(rawText || '').replace(/\s+/g, ' ').trim();
+  const hasOrderNumber = /\bD\d{8,}\b/i.test(text);
+  const hasDate = /(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日)/.test(text);
+  const hasTime = /\d{1,2}:\d{2}/.test(text);
+  return hasOrderNumber || (hasDate && hasTime);
 }"""
 
+_ORDER_ROWS_JS = """() => {
+  const isOrderRecord = __ORDER_RECORD_PREDICATE__;
+  const candidates = [...document.querySelectorAll('table tbody tr, .order-item')];
+  return candidates.map(row => (row.innerText || '').replace(/\\s+/g, ' ').trim())
+    .filter(text => isOrderRecord(text));
+}""".replace("__ORDER_RECORD_PREDICATE__", _ORDER_RECORD_PREDICATE_JS)
+
 _ORDER_LIST_READY_JS = """() => {
-  const rows = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')]
-    .some(row => row.innerText.trim().length > 0);
-  if (rows) return true;
+  const runToken = __ORDER_READINESS_RUN_TOKEN__;
+  const isOrderRecord = __ORDER_RECORD_PREDICATE__;
+  const rows = [...document.querySelectorAll('table tbody tr, .order-item')];
+  const recordTexts = rows.map(row => (row.innerText || '').replace(/\\s+/g, ' ').trim())
+    .filter(text => isOrderRecord(text));
+  if (recordTexts.length) {
+    const signature = JSON.stringify(recordTexts);
+    const previous = window.__interviewForgeOrderReadiness;
+    if (!previous || previous.runToken !== runToken || previous.signature !== signature) {
+      window.__interviewForgeOrderReadiness = {runToken, signature, since: Date.now()};
+      return false;
+    }
+    return Date.now() - previous.since >= 1500;
+  }
+  window.__interviewForgeOrderReadiness = null;
   const text = (document.body?.innerText || '').replace(/\\s+/g, '');
   return ['暂无订单', '暂无数据', '暂无记录', '暂无预约', '暂无预约记录', '暂无健身房预约',
           '暂无健身房订单', '没有订单', '没有预约记录', '还没有预约', '无预约记录']
     .some(marker => text.includes(marker));
-}"""
+}""".replace("__ORDER_RECORD_PREDICATE__", _ORDER_RECORD_PREDICATE_JS)
 
 
 def _wait_order_list_ready(page, timeout_ms=12000):
-    """等待有订单行或明确空态；空 DOM 不等于没有预约。"""
+    """等待真实订单行稳定出现或明确空态；分页 DOM 不等于订单列表就绪。"""
+    run_token = json.dumps(str(time.time_ns()))
+    ready_script = _ORDER_LIST_READY_JS.replace(
+        "__ORDER_READINESS_RUN_TOKEN__", run_token)
     try:
-        page.wait_for_function(_ORDER_LIST_READY_JS, timeout=timeout_ms)
+        page.wait_for_function(ready_script, timeout=timeout_ms)
     except Exception as exc:  # noqa: BLE001
         raise OrderPageNotReady("订单页未确认加载完成，不能安全判断当天是否已有预约") from exc
     return page.evaluate(_ORDER_ROWS_JS)
@@ -471,6 +498,36 @@ def _row_is_other_venue(row, venue):
     return bool(other and _row_matches_venue(row, other))
 
 
+def _order_row_match_counts(rows, target_date, venue=None):
+    """返回不含订单原文的筛选计数，便于排查预检漏匹配。"""
+    marks = [target_date.isoformat(), date_label_cn(target_date),
+             f"{target_date.month:02d}-{target_date.day:02d}"]
+    counts = {
+        "total_rows": len(rows),
+        "gym_keyword_rows": 0,
+        "target_date_rows": 0,
+        "gym_and_target_date_rows": 0,
+        "selected_venue_rows": 0,
+        "other_venue_rows": 0,
+        "unclassified_venue_rows": 0,
+    }
+    for raw_row in rows:
+        row = re.sub(r"\s+", " ", str(raw_row)).strip()
+        has_gym = "健身房" in row
+        has_date = any(mark in row for mark in marks)
+        counts["gym_keyword_rows"] += int(has_gym)
+        counts["target_date_rows"] += int(has_date)
+        counts["gym_and_target_date_rows"] += int(has_gym and has_date)
+        if venue is not None and has_gym and has_date:
+            if _row_matches_venue(row, venue):
+                counts["selected_venue_rows"] += 1
+            elif _row_is_other_venue(row, venue):
+                counts["other_venue_rows"] += 1
+            else:
+                counts["unclassified_venue_rows"] += 1
+    return counts
+
+
 def _summarize_order_rows(rows, target_date, venue=None):
     """按目标日期汇总有效预约与未支付订单，保留原始行以便解释结果。"""
     today_marks = [target_date.isoformat(), date_label_cn(target_date),
@@ -525,14 +582,16 @@ def _wait_for_matching_order(page, target_date, slot, timeout_ms=12000):
              f"{target_date.month:02d}-{target_date.day:02d}"]
     target = {"dates": marks, "slot": _normalize_order_text(slot)}
     script = """(target) => {
-      const rows = [...document.querySelectorAll('table tbody tr, .order-list li, .order-item')];
+      const isOrderRecord = __ORDER_RECORD_PREDICATE__;
+      const rows = [...document.querySelectorAll('table tbody tr, .order-item')]
+        .filter(node => isOrderRecord(node.innerText || ''));
       const norm = value => value.replace(/\\s+/g, '').replace(/[—–]/g, '-');
       return rows.some(node => {
         const text = node.innerText || '';
         const compact = norm(text);
         return target.dates.some(mark => text.includes(mark)) && compact.includes(target.slot);
       });
-    }"""
+    }""".replace("__ORDER_RECORD_PREDICATE__", _ORDER_RECORD_PREDICATE_JS)
     try:
         page.wait_for_function(script, arg=target, timeout=timeout_ms)
     except Exception:  # noqa: BLE001  由下方订单状态判定返回“结果待核”
@@ -579,6 +638,8 @@ def check_existing_orders(page, target_date, venue=None):
     rows = _wait_order_list_ready(page)
     log.info("订单页读取到 %d 条记录", len(rows))
     summary = _summarize_order_rows(rows, target_date, venue)
+    log.info("订单预检筛选计数：%s", json.dumps(
+        _order_row_match_counts(rows, target_date, venue), ensure_ascii=False))
     for row in summary["relevant"]:
         log.info("当天健身房订单：%s", _safe_order_log_label(row))
     return summary
@@ -632,9 +693,13 @@ def _result_without_confirmation(page, target_date, slot, known_bookings=None, v
             "retryable": False,
         }
     return {
-        "status": "failed",
-        "detail": "订单确认页未打开，订单页也未发现本次预约；可在稍后自动重试。",
-        "retryable": True,
+        "status": "ambiguous",
+        "detail": (
+            "提交后未到达订单确认页，订单列表暂未发现匹配记录。当前结果无法确认；"
+            "为避免重复预约，系统已停止自动重试，请先刷新南大订单核对。"
+        ),
+        "retryable": False,
+        "needs_manual_check": True,
     }
 
 
@@ -1469,22 +1534,23 @@ def run(args) -> dict:
         if getattr(args, "force_slot", None):
             slot, capacity = force_select_slot(page, args.force_slot)
         else:
-            # 不按时钟放弃：无空位时每 2 分钟重查一次，最多 15 次（约 30 分钟）
+            # 不按时钟放弃：无空位时每 5 分钟重查一次，最多约 30 分钟。
             picked = None
-            for attempt in range(1, 16):
+            for attempt in range(1, NO_SLOT_MAX_CHECKS + 1):
                 picked = pick_slot(page, slots)
                 if picked:
                     break
-                if attempt == 15:
+                if attempt == NO_SLOT_MAX_CHECKS:
                     break
-                log.info("第 %d 次查询无空位，120 秒后重查（最多 15 次）", attempt)
-                time.sleep(120)
+                log.info("第 %d 次查询无空位，5 分钟后重查（最多 %d 次）",
+                         attempt, NO_SLOT_MAX_CHECKS)
+                time.sleep(NO_SLOT_RECHECK_DELAY_SECONDS)
                 robust_goto(page, target_url)
                 settle_after_login(page, target_url)
                 ensure_target_date(page, target_date)
             if not picked:
                 result.update(status="no_slot",
-                              detail="多次查询均无空位（15 次，约 30 分钟）")
+                              detail=f"多次查询均无空位（{NO_SLOT_MAX_CHECKS} 次，约 30 分钟）")
                 log.info(result["detail"])
                 return result
             slot, capacity = picked

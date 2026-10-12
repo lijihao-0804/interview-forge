@@ -11,14 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from interview_forge.ai.config import load_ai_config
-from interview_forge.ai.config_store import SUPPORTED_BUSINESS_KEYS
+from interview_forge.ai.config_store import AI_CONFIG_DB_PATH, SUPPORTED_BUSINESS_KEYS
 from interview_forge.ai.resolver import resolve_ai_runtime
 from interview_forge.ai.tools.registry import build_default_tool_registry
-from interview_forge.core.paths import DATA_DIR, PROJECT_ROOT
+from interview_forge.core.paths import DATA_DIR, GYM_DB_PATH, PROJECT_ROOT
 from interview_forge.core.runtime import server_runtime
 from interview_forge.observability.metrics import started_at, uptime_seconds
 from interview_forge.observability.system import runtime_metrics
-from interview_forge.observability.store import request_metrics
+from interview_forge.observability.store import observability_db_path, request_metrics
 from interview_forge.runtime.task_manager import task_manager
 from interview_forge.services import admin_observability as observability
 from interview_forge.services import auth
@@ -408,28 +408,70 @@ def _package_version(name: str) -> str:
         return "unavailable"
 
 
+def _sqlite_health(path: Path) -> tuple[str, str]:
+    """Inspect an existing SQLite file without creating or modifying it."""
+    if not path.is_file():
+        return "warning", "尚未初始化"
+    try:
+        uri = path.resolve().as_uri() + "?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=3)) as connection:
+            row = connection.execute("PRAGMA quick_check").fetchone()
+        if row and str(row[0]).lower() == "ok":
+            return "ok", "正常"
+        return "failed", "完整性检查未通过"
+    except (OSError, sqlite3.Error, ValueError):
+        return "failed", "无法读取或检查失败"
+
+
+def database_health() -> list[dict[str, str]]:
+    """Return privacy-safe health summaries for the app's SQLite stores."""
+    dbs: list[dict[str, str]] = []
+
+    def add(name: str, path: Path) -> tuple[str, str]:
+        status, message = _sqlite_health(Path(path))
+        dbs.append({"name": name, "status": status, "message": message})
+        return status, message
+
+    auth_path = Path(server_runtime.AUTH_DB_PATH)
+    auth_status, auth_message = add("账号数据库", auth_path)
+    usernames: list[str] = []
+    if auth_status == "ok":
+        try:
+            uri = auth_path.resolve().as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True, timeout=3)) as connection:
+                usernames = [str(row[0]) for row in connection.execute("SELECT username FROM users")]
+        except (OSError, sqlite3.Error, ValueError):
+            pass
+    user_results = [_sqlite_health(Path(auth.user_db_path(username))) for username in usernames]
+    user_ok = sum(status == "ok" for status, _ in user_results)
+    user_status = "ok" if user_ok == len(usernames) else "warning"
+    if auth_status != "ok":
+        user_status = "warning"
+    if any(status == "failed" for status, _ in user_results):
+        user_status = "failed"
+    dbs.append({"name": "用户学习数据库", "status": user_status,
+                "message": f"{user_ok}/{len(usernames)} 个可用" if auth_status == "ok" else "账号库不可用"})
+
+    add("预约任务数据库", GYM_DB_PATH)
+    ai_path = Path(os.environ.get("INTERVIEW_FORGE_AI_CONFIG_DB") or AI_CONFIG_DB_PATH)
+    add("AI 配置数据库", ai_path)
+    add("运行观测数据库", observability_db_path())
+    return dbs
+
+
 def diagnostics() -> dict[str, Any]:
     checks: list[dict[str, str]] = []
     def add(name: str, status: str, message: str) -> None:
         checks.append({"name": name, "status": status, "message": message})
     add("application", "ok", "FastAPI application is importable")
-    try:
-        with closing(auth.connect_auth()):
-            pass
-        add("auth_database", "ok", "readable")
-    except Exception:
-        add("auth_database", "failed", "not readable")
-    users = list(auth.list_users())
-    readable = 0
-    for user, path in observability.iter_user_databases():
-        if path.is_file():
-            try:
-                with closing(server_runtime.connect(path)) as connection:
-                    connection.execute("SELECT 1").fetchone()
-                readable += 1
-            except sqlite3.Error:
-                pass
-    add("user_databases", "ok" if readable == len(users) else "warning", f"{readable}/{len(users)} readable")
+    databases = database_health()
+    db_by_name = {item["name"]: item for item in databases}
+    auth_db = db_by_name["账号数据库"]
+    users_db = db_by_name["用户学习数据库"]
+    observability_db = db_by_name["运行观测数据库"]
+    add("auth_database", auth_db["status"], auth_db["message"])
+    add("user_databases", users_db["status"], users_db["message"])
+    readable = int(users_db["message"].split("/", 1)[0]) if "/" in users_db["message"] else 0
     log_dir = observability.log_paths()[0].parent
     if log_dir.exists():
         log_writable = os.access(log_dir, os.W_OK)
@@ -439,11 +481,9 @@ def diagnostics() -> dict[str, Any]:
         log_writable = parent.exists() and os.access(parent, os.W_OK)
         log_message = "will be created under writable parent" if log_writable else "parent not writable"
     add("log_directory", "ok" if log_writable else "warning", log_message)
-    try:
-        metrics = request_metrics("30d")
-        add("observability_database", "ok", f"readable; {metrics.get('totals', {}).get('request_count', 0)} aggregated requests")
-    except Exception:
-        add("observability_database", "failed", "not readable")
+    add("observability_database", observability_db["status"], observability_db["message"])
+    add("gym_database", db_by_name["预约任务数据库"]["status"], db_by_name["预约任务数据库"]["message"])
+    add("ai_config_database", db_by_name["AI 配置数据库"]["status"], db_by_name["AI 配置数据库"]["message"])
     disk = shutil.disk_usage(PROJECT_ROOT)
     add("disk_free", "ok" if disk.free > 100 * 1024 * 1024 else "warning", str(disk.free))
     route_items = {
@@ -477,7 +517,10 @@ def diagnostics() -> dict[str, Any]:
     add("sqlite_schema", "ok" if readable else "warning", "available" if readable else "no readable user database")
     statuses = {item["status"] for item in checks}
     overall = "failed" if "failed" in statuses else ("warning" if "warning" in statuses else "ok")
-    return {"status": overall, "checks": checks}
+    db_statuses = {item["status"] for item in databases}
+    db_overall = "failed" if "failed" in db_statuses else ("warning" if "warning" in db_statuses else "ok")
+    return {"status": overall, "checks": checks, "databases": databases,
+            "database_status": db_overall}
 
 
 __all__ = ["diagnostics", "governance_summary", "leetcode_health", "list_actions", "list_tasks", "memory_summary", "system_info", "user_detail"]

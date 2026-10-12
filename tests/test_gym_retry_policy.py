@@ -38,6 +38,32 @@ class GymAutomationOrderPolicyTests(unittest.TestCase):
         self.assertEqual(first_floor["booked"], [rows[0]])
         self.assertEqual(basement["booked"], [rows[1]])
 
+    def test_screenshot_shaped_paid_basement_order_matches_precheck(self) -> None:
+        row = (
+            "[在线预约] D261012001505 仙林校区仙林校区方笙体育馆负一层健身房 "
+            "2026-10-12 健身房 16:00-17:00 已支付 正常 0元"
+        )
+        state = gym_automation._summarize_order_rows(
+            [row], date(2026, 10, 12), venue="162")
+
+        self.assertEqual(state["booked"], [row])
+
+    def test_post_submit_missing_confirmation_is_ambiguous_not_retryable(self) -> None:
+        class Page:
+            def evaluate(self, _script: str) -> str:
+                return ""
+
+        with patch.object(gym_automation, "check_existing_orders", return_value={
+            "booked": [], "pending": [], "relevant": [],
+        }):
+            result = gym_automation._result_without_confirmation(
+                Page(), date(2026, 10, 12), "16:00-17:00")
+
+        self.assertEqual(result["status"], "ambiguous")
+        self.assertFalse(result["retryable"])
+        self.assertTrue(result["needs_manual_check"])
+        self.assertIn("停止自动重试", result["detail"])
+
     def test_unpaid_order_is_not_classified_as_valid_booking(self) -> None:
         state = gym_automation._summarize_order_rows(
             ["健身房预约 2026-10-12 17:00-18:00 待支付"], date(2026, 10, 12))
@@ -109,6 +135,14 @@ class GymAutomationOrderPolicyTests(unittest.TestCase):
         self.assertTrue(page.waited)
         self.assertTrue(page.extraction)
 
+    def test_order_list_readiness_ignores_pagination_and_requires_record_signature(self) -> None:
+        for script in (gym_automation._ORDER_LIST_READY_JS, gym_automation._ORDER_ROWS_JS):
+            self.assertNotIn(".order-list li", script)
+            self.assertIn(r"D\d{8,}", script)
+            self.assertIn(r"\d{4}[-/.]\d{1,2}", script)
+        self.assertIn("Date.now() - previous.since >= 1500",
+                      gym_automation._ORDER_LIST_READY_JS)
+
     def test_order_log_summary_does_not_include_personal_order_fields(self) -> None:
         summary = gym_automation._safe_order_log_label(
             "健身房 2026-10-12 李同学 17:00-18:00 已支付 正常 订单号 PRIVATE-123"
@@ -129,14 +163,19 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertFalse(gym_automation._retryable_before_submission(
             RuntimeError("南大账号或密码不正确")))
 
-    def test_retry_waits_until_three_minute_deadline(self) -> None:
+    def test_retry_waits_until_five_minute_deadline(self) -> None:
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
+        self.assertEqual(gym.JOB_RETRY_DELAY_SECONDS, 5 * 60)
         self.assertFalse(gym._retry_is_due(
-            {"retry_after": (now + timedelta(minutes=3)).isoformat()}, now))
+            {"retry_after": (now + timedelta(minutes=5)).isoformat()}, now))
         self.assertTrue(gym._retry_is_due(
-            {"retry_after": (now + timedelta(minutes=3)).isoformat()},
-            now + timedelta(minutes=3),
+            {"retry_after": (now + timedelta(minutes=5)).isoformat()},
+            now + timedelta(minutes=5),
         ))
+
+    def test_no_slot_checks_are_spaced_five_minutes_apart(self) -> None:
+        self.assertEqual(gym_automation.NO_SLOT_RECHECK_DELAY_SECONDS, 5 * 60)
+        self.assertEqual(gym_automation.NO_SLOT_MAX_CHECKS, 7)
 
     def test_only_explicitly_retryable_failed_jobs_are_deferred(self) -> None:
         job = {"id": 91, "result": {}}

@@ -64,14 +64,6 @@ transition:border-color .18s var(--ease-out),background-color .18s var(--ease-ou
 .btn.danger:hover{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--panel))}
 .btn.small{padding:4px 10px;font-size:12px}
 .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
-.checklist{display:flex;flex-direction:column;gap:8px}
-.check{display:flex;align-items:center;gap:9px;padding:8px 12px;border:1px solid var(--line);
-border-radius:var(--radius-2);background:var(--soft);font-size:13.5px}
-.check .dot{flex:none;width:9px;height:9px;border-radius:50%}
-.check .dot.ok{background:var(--success)}
-.check .dot.bad{background:var(--danger)}
-.check .name{font-weight:650}
-.check .detail{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:650}
 .badge.pending{color:var(--brand);background:var(--brand-soft)}
 .badge.running{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
@@ -79,13 +71,16 @@ border-radius:var(--radius-2);background:var(--soft);font-size:13.5px}
 .badge.failed{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .badge.ambiguous{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
 .badge.no_slot,.badge.cancelled{color:var(--muted);background:var(--soft)}
-table.jobs{width:100%;border-collapse:collapse;font-size:13.5px}
+.booking-layout{grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr);align-items:start}
+.jobs-wrap{min-width:0;overflow-x:auto}
+table.jobs{width:100%;min-width:620px;border-collapse:collapse;font-size:13.5px}
 table.jobs th{font-size:11.5px;color:var(--muted);font-weight:650;text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
 table.jobs td{padding:9px 9px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);vertical-align:top}
 table.jobs tr:last-child td{border-bottom:0}
+@media(max-width:900px){.booking-layout{grid-template-columns:1fr}}
 .slotrows{display:flex;flex-direction:column;gap:8px}
 .slotrow{display:flex;gap:8px;align-items:center}
-.slotrow input{flex:1;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);
+.slotrow select{flex:1;min-width:0;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);
 color:var(--text);padding:8px 11px;font:inherit;font-variant-numeric:tabular-nums}
 .slotrow button{flex:none}
 .msg{margin-top:11px;font-size:13px;border-radius:var(--radius-2);padding:8px 12px}
@@ -106,9 +101,8 @@ border-radius:var(--radius-3);padding:13px 17px}
 
   <div class="grid">
     <section class="card" id="card-cred">
-      <h2>🔑 南大账号凭据</h2>
-      <p class="hint">保存本机自动预约使用的统一身份认证账号。密码经 Fernet 加密后按用户隔离存库，
-      不以明文落盘、不出现在日志与任务记录里。</p>
+      <h2>🔑 南大账号</h2>
+      <p class="hint">用于登录和预约。</p>
       <div class="field">
         <label for="cred-account">学号 / 工号</label>
         <input id="cred-account" autocomplete="off" inputmode="numeric" placeholder="例如 522025230035">
@@ -118,45 +112,35 @@ border-radius:var(--radius-3);padding:13px 17px}
         <input id="cred-password" type="password" autocomplete="new-password" placeholder="输入密码以保存或更新">
       </div>
       <div class="actions">
-        <button class="btn primary" id="cred-save" type="button">保存凭据</button>
-        <button class="btn danger" id="cred-delete" type="button">删除凭据</button>
+        <button class="btn primary" id="cred-save" type="button">保存账号</button>
+        <button class="btn danger" id="cred-delete" type="button">清除账号</button>
       </div>
       <p class="hint" id="cred-state" style="margin-top:11px">加载中…</p>
       <div class="msg" id="cred-msg" hidden></div>
     </section>
 
     <section class="card" id="card-notify">
-      <h2>📬 邮件通知</h2>
-      <p class="hint">预约任务结束（成功 / 无空位 / 失败）后自动发邮件到收件邮箱。
-      发件邮箱由管理员在<b>管理后台</b>统一配置一次；这里只需填你自己收通知的邮箱。</p>
-      <p class="hint" id="notify-smtp-state">发件配置加载中…</p>
+      <h2>📬 结果通知</h2>
+      <p class="hint">预约结果将发送到此邮箱（选填）。</p>
+      <p class="hint" id="notify-smtp-state" aria-live="polite"></p>
       <div class="field">
-        <label for="notify-to">收件邮箱（可填同一个）</label>
+        <label for="notify-to">接收通知的邮箱</label>
         <input id="notify-to" autocomplete="off" placeholder="例如 12345@qq.com">
       </div>
       <div class="actions">
-        <button class="btn primary" id="notify-save" type="button">保存收件邮箱</button>
-        <button class="btn" id="notify-test" type="button">发送测试邮件</button>
+        <button class="btn primary" id="notify-save" type="button">保存邮箱</button>
+        <button class="btn" id="notify-test" type="button">发送测试</button>
         <button class="btn danger" id="notify-delete" type="button">删除</button>
       </div>
       <div class="msg" id="notify-msg" hidden></div>
     </section>
 
-    <section class="card" id="card-env">
-      <h2>🩺 执行环境自检</h2>
-      <p class="hint">自动预约在<b>运行本站后端</b>的机器上执行（浏览器真机操作）。
-      若部署到服务器，需要在服务器上安装 requirements-tools.txt 与 Chromium。</p>
-      <div class="checklist" id="env-list"><div class="empty">加载中…</div></div>
-    </section>
   </div>
 
   <section class="card" id="card-jobs" style="margin-bottom:18px">
-    <h2>📅 自动预约排程</h2>
-    <p class="hint">站点名额在<b>目标日 08:00</b> 放出（只能约当天），本工具在目标日 <b>08:00 后启动</b>，并等到 <b>08:00:20</b> 再进入预约页，避免页面尚未渲染。
-    目标日所选健身房已有有效预约就明确提示并停止；其他楼层的预约不拦截本次任务，不再轮询或尝试其他时段。无预约但无空位时每 2 分钟复查一次，最多 15 次；可恢复的瞬时失败最多间隔 3 分钟重试 2 次。
-    有空位即按下方优先级选择 → 提交并自动通过验证码 → 校验 0 元后自动支付 → 到订单页核验。
-    <b>待执行任务可以取消；任务开始后不会强行中断，以免预约是否已提交变得更不确定。若显示“结果待核”，先核对南大订单再操作。</b></p>
-    <div class="grid" style="margin-top:14px">
+    <h2>🏋️ 健身房预约</h2>
+    <p class="hint">选择场馆、日期和时间区间。任务于预约开放后自动执行，确认免费后自动完成预约。</p>
+    <div class="grid booking-layout" style="margin-top:14px">
       <div>
         <div class="field">
           <label for="job-venue">健身房</label>
@@ -170,10 +154,11 @@ border-radius:var(--radius-3);padding:13px 17px}
           <input id="job-date" type="date">
         </div>
         <div class="field">
-          <label>时段优先级（从上到下依次尝试，最多 6 个）</label>
+          <label>优先预约时间区间</label>
+          <p class="hint" style="margin-bottom:8px">可添加多个备选区间，合计最多 6 个小时段。</p>
           <div class="slotrows" id="slot-rows"></div>
           <div class="actions">
-            <button class="btn small" id="slot-add" type="button">＋ 添加备选时段</button>
+            <button class="btn small" id="slot-add" type="button">＋ 添加备选区间</button>
           </div>
         </div>
         <div class="actions">
@@ -182,21 +167,17 @@ border-radius:var(--radius-3);padding:13px 17px}
         <div class="msg" id="job-msg" hidden></div>
       </div>
       <div style="min-width:0">
-        <table class="jobs">
-          <thead><tr><th>#</th><th>日期</th><th>健身房</th><th>时段优先级</th><th>状态</th><th>结果</th><th>更新时间</th><th></th></tr></thead>
-          <tbody id="jobs-body"><tr><td colspan="8" class="empty">加载中…</td></tr></tbody>
-        </table>
+        <div class="jobs-wrap">
+          <table class="jobs">
+            <thead><tr><th>日期</th><th>健身房</th><th>预约时段</th><th>状态</th><th></th></tr></thead>
+            <tbody id="jobs-body"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
 
-  <div class="foot">
-    <b>说明</b> · 执行日志与验证码截图在 <code>data/logs/gym/</code>；任务由本站后端的调度线程
-    （每日 08:00 起扫描）以创建者的凭据执行；同一日期、同一健身房只允许一个待执行任务或结果待核任务；
-    最终确认页必须明确显示 0 元才会点击支付；金额未知或非 0 元都会停止；支付后自动到订单页核验「已支付 + 正常」才算成功。
-    结果待核任务会暂时占用目标日期，管理员确认南大订单中没有有效预约或待支付订单后，才能解除并重新排程。
-    未来更多小工具将在此页陆续上架。
-  </div>
+  <p class="hint" style="margin:0 2px 18px">每日 08:00 开始执行；执行开始后不可取消。</p>
 </div>
 
 <script>
@@ -250,49 +231,29 @@ border-radius:var(--radius-3);padding:13px 17px}
   }
   function busyButton(btn, isBusy) { if (btn) btn.disabled = isBusy; }
 
-  /* ---- 环境自检 + 凭据状态 ---- */
+  /* ---- 预约与凭据状态 ---- */
   function renderStatus(data) {
-    var list = $("env-list");
-    list.textContent = "";
-    var items = (data.environment && data.environment.items) || [];
-    if (!items.length) {
-      list.appendChild(el("div", "empty", "环境自检暂不可用"));
-    }
-    items.forEach(function (item) {
-      var row = el("div", "check");
-      var dot = el("span", "dot " + (item.ok ? "ok" : "bad"));
-      row.appendChild(dot);
-      row.appendChild(el("span", "name", item.name));
-      if (item.detail) row.appendChild(el("span", "detail", item.detail));
-      list.appendChild(row);
-    });
     var creds = data.credentials || {};
     var state = $("cred-state");
     if (creds.configured) {
-      state.textContent = "当前凭据：" + (creds.account_masked || "****") +
-        "（更新于 " + String(creds.updated_at || "").replace("T", " ").slice(0, 16) + "）";
+      state.textContent = "账号已保存";
     } else {
-      state.textContent = "尚未保存凭据：创建自动预约前请先保存南大账号密码。";
-    }
-    if (data.environment && data.environment.ok === false) {
-      state.textContent += " 注意：执行环境自检存在未通过项，任务可能失败。";
+      state.textContent = "请先保存南大账号密码。";
     }
   }
 
   /* ---- 凭据 ---- */
   function loadStatus() {
-    return api("/api/tools/gym/status").then(function (res) { renderStatus(res.data); })
+    return api("/api/tools/gym/credentials").then(function (res) { renderStatus({ credentials: res.data }); })
       .catch(function (error) { if (error.category !== "unauthorized") renderEnvError(error); });
   }
-  function renderEnvError(error) {
-    var list = $("env-list");
-    list.textContent = "";
-    list.appendChild(el("div", "empty", error.publicMessage || "环境自检失败"));
+  function renderEnvError() {
+    $("cred-state").textContent = "预约服务状态暂不可用，请稍后刷新。";
   }
   function saveCredentials() {
     var btn = $("cred-save");
     busyButton(btn, true);
-    showMsg("cred-msg", "正在真实登录验证（含滑块，约需 20-60 秒），请勿关闭页面…", true);
+    showMsg("cred-msg", "正在验证账号，请稍候…", true);
     api("/api/tools/gym/credentials", {
       method: "POST",
       timeout: 240000,
@@ -300,13 +261,12 @@ border-radius:var(--radius-3);padding:13px 17px}
     }).then(function (res) {
       var creds = res.data.credentials || {};
       var verification = creds.verification || {};
-      var mask = creds.account_masked ? "（" + creds.account_masked + "）" : "";
       if (verification.status === "ok") {
-        showMsg("cred-msg", "凭据已加密保存" + mask + "，登录验证已通过 ✓", true);
+        showMsg("cred-msg", "账号已保存，登录验证通过 ✓", true);
       } else if (verification.status === "skipped") {
-        showMsg("cred-msg", "凭据已加密保存" + mask + "，本次未执行登录验证", true);
+        showMsg("cred-msg", "账号已保存", true);
       } else {
-        showMsg("cred-msg", "凭据已保存" + mask + "，但登录验证未完成：" +
+        showMsg("cred-msg", "账号已保存，但登录验证未完成：" +
           (verification.detail || verification.status) + "（预约执行时还会再次验证）", false);
       }
       $("cred-password").value = "";
@@ -316,11 +276,11 @@ border-radius:var(--radius-3);padding:13px 17px}
     }).finally(function () { busyButton(btn, false); });
   }
   function deleteCredentials() {
-    if (!window.confirm("确定删除已保存的南大凭据？待执行的自动预约任务将无法执行。")) return;
+    if (!window.confirm("确定清除已保存的账号密码？待执行任务将无法登录。")) return;
     var btn = $("cred-delete");
     busyButton(btn, true);
     api("/api/tools/gym/credentials", { method: "DELETE" }).then(function () {
-      showMsg("cred-msg", "凭据已删除", true);
+      showMsg("cred-msg", "账号信息已清除", true);
       $("cred-account").value = "";
       return loadStatus();
     }).catch(function (error) {
@@ -333,16 +293,15 @@ border-radius:var(--radius-3);padding:13px 17px}
     var smtp = (data && data.smtp) || {};
     var smtpNode = $("notify-smtp-state");
     if (smtp.configured) {
-      smtpNode.innerHTML = "全局发件邮箱：<b>" + smtp.smtp_user + "</b>（" + smtp.smtp_host + ":" +
-        smtp.smtp_port + "）——在管理后台修改";
+      smtpNode.textContent = "邮件通知已就绪";
     } else {
-      smtpNode.textContent = "⚠️ 全局发件邮箱尚未在管理后台配置，测试邮件与任务通知将无法发送。";
+      smtpNode.textContent = "邮件通知暂不可用";
     }
     if (data && data.recipient) $("notify-to").value = data.recipient;
   }
   function loadNotify() {
     return api("/api/tools/gym/notify").then(function (res) { renderNotify(res.data); })
-      .catch(function (error) { if (error.category !== "unauthorized") $("notify-smtp-state").textContent = "通知配置加载失败"; });
+      .catch(function (error) { if (error.category !== "unauthorized") $("notify-smtp-state").textContent = "通知状态暂不可用"; });
   }
   function saveNotify() {
     var btn = $("notify-save");
@@ -360,7 +319,7 @@ border-radius:var(--radius-3);padding:13px 17px}
   function testNotify() {
     var btn = $("notify-test");
     busyButton(btn, true);
-    showMsg("notify-msg", "正在发送测试邮件…", true);
+    showMsg("notify-msg", "正在发送测试…", true);
     api("/api/tools/gym/notify/test", { method: "POST" })
       .then(function () { showMsg("notify-msg", "测试邮件已发送，请到收件邮箱查收", true); })
       .catch(function (error) {
@@ -369,7 +328,7 @@ border-radius:var(--radius-3);padding:13px 17px}
       .finally(function () { busyButton(btn, false); });
   }
   function deleteNotify() {
-    if (!window.confirm("删除自己的收件邮箱？（全局发件配置不受影响）")) return;
+    if (!window.confirm("删除通知邮箱？")) return;
     var btn = $("notify-delete");
     busyButton(btn, true);
     api("/api/tools/gym/notify", { method: "DELETE" }).then(function () {
@@ -382,41 +341,73 @@ border-radius:var(--radius-3);padding:13px 17px}
   }
 
   /* ---- 时段优先级行 ---- */
-  function addSlotRow(value) {
+  function hourLabel(hour) { return (hour < 10 ? "0" : "") + hour + ":00"; }
+  function addSlotRow(startValue, endValue) {
     var rows = $("slot-rows");
     if (rows.children.length >= 6) return;
     var row = document.createElement("div");
     row.className = "slotrow";
-    var input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = "例如 17:00-18:00";
-    input.value = value || "";
-    input.autocomplete = "off";
+    var start = document.createElement("select");
+    start.setAttribute("aria-label", "区间开始时间");
+    var end = document.createElement("select");
+    end.setAttribute("aria-label", "区间结束时间");
+    for (var h = 0; h <= 22; h++) {
+      var option = document.createElement("option");
+      option.value = String(h);
+      option.textContent = hourLabel(h);
+      start.appendChild(option);
+    }
+    function updateEnd(preferred) {
+      var firstEnd = Number(start.value) + 1;
+      end.textContent = "";
+      for (var e = firstEnd; e <= 23; e++) {
+        var option = document.createElement("option");
+        option.value = String(e);
+        option.textContent = hourLabel(e);
+        end.appendChild(option);
+      }
+      var wanted = preferred == null ? firstEnd : Number(preferred);
+      end.value = String(wanted >= firstEnd && wanted <= 23 ? wanted : firstEnd);
+    }
+    start.value = String(startValue == null ? 17 : startValue);
+    start.addEventListener("change", function () { updateEnd(end.value); });
+    updateEnd(endValue == null ? Number(start.value) + 1 : endValue);
     var remove = document.createElement("button");
     remove.type = "button";
     remove.className = "btn small danger";
-    remove.textContent = "✕";
+    remove.textContent = "移除";
+    remove.setAttribute("aria-label", "移除此备选区间");
     remove.addEventListener("click", function () {
       if (rows.children.length > 1) row.remove();
     });
-    row.appendChild(input);
+    row.appendChild(start);
+    row.appendChild(document.createTextNode(" 至 "));
+    row.appendChild(end);
     row.appendChild(remove);
     rows.appendChild(row);
   }
   function collectSlots() {
     var slots = [];
-    var inputs = $("slot-rows").querySelectorAll("input");
-    for (var i = 0; i < inputs.length; i++) {
-      var v = inputs[i].value.trim();
-      if (v && slots.indexOf(v) === -1) slots.push(v);
+    var rows = $("slot-rows").children;
+    for (var i = 0; i < rows.length; i++) {
+      var start = Number(rows[i].querySelector("select[aria-label=\"区间开始时间\"]").value);
+      var end = Number(rows[i].querySelector("select[aria-label=\"区间结束时间\"]").value);
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > 23 || end <= start) {
+        return { error: "请选择有效的起止时间区间。" };
+      }
+      for (var hour = start; hour < end; hour++) {
+        var slot = hourLabel(hour) + "-" + hourLabel(hour + 1);
+        if (slots.indexOf(slot) === -1) slots.push(slot);
+      }
     }
-    return slots;
+    if (slots.length > 6) return { error: "所选区间合计超过 6 个小时段，请缩短区间或移除备选区间。" };
+    return { slots: slots };
   }
 
   /* ---- 任务 ---- */
   var STATUS_LABEL = {
-    pending: "待执行", running: "执行中", succeeded: "成功", no_slot: "无空位",
-    ambiguous: "结果待核", failed: "失败", cancelled: "已取消"
+    pending: "待执行", running: "预约中", succeeded: "已预约", no_slot: "暂无空位",
+    ambiguous: "请核对订单", failed: "未完成", cancelled: "已取消"
   };
   function renderJobs(items) {
     var body = $("jobs-body");
@@ -424,16 +415,15 @@ border-radius:var(--radius-3);padding:13px 17px}
     if (!items.length) {
       var tr0 = document.createElement("tr");
       var td0 = document.createElement("td");
-      td0.colSpan = 8;
+      td0.colSpan = 5;
       td0.className = "empty";
-      td0.textContent = "还没有排程任务：选好健身房、日期和时段后点「创建自动预约」。";
+      td0.textContent = "暂无预约任务";
       tr0.appendChild(td0);
       body.appendChild(tr0);
       return;
     }
     items.forEach(function (job) {
       var tr = document.createElement("tr");
-      tr.appendChild(el("td", null, "#" + job.id));
       tr.appendChild(el("td", null, job.target_date));
       var venue = String(job.venue || "129");
       tr.appendChild(el("td", null, {"129": "一楼健身房", "162": "负一楼健身房"}[venue] || "场馆 " + venue));
@@ -442,9 +432,6 @@ border-radius:var(--radius-3);padding:13px 17px}
       var badge = el("span", "badge " + job.status, STATUS_LABEL[job.status] || job.status);
       tdStatus.appendChild(badge);
       tr.appendChild(tdStatus);
-      var detail = (job.result && job.result.detail) || "";
-      tr.appendChild(el("td", null, detail));
-      tr.appendChild(el("td", null, String(job.updated_at || "").replace("T", " ").slice(0, 16)));
       var tdAction = document.createElement("td");
       if (job.status === "pending") {
         var cancel = document.createElement("button");
@@ -464,12 +451,11 @@ border-radius:var(--radius-3);padding:13px 17px}
         var resolve = document.createElement("button");
         resolve.type = "button";
         resolve.className = "btn small";
-        resolve.textContent = "核对后允许重试";
+        resolve.textContent = "核对订单后重试";
         resolve.addEventListener("click", function () {
           if (!window.confirm(
-            "请先打开南大场馆订单页核对目标日期。\n\n"
-            + "只有确认没有有效预约、也没有待支付订单时，才继续解除日期占用。\n"
-            + "确认无订单并允许重新排程？"
+            "请先确认南大订单中没有该场馆的有效预约或待支付订单。\n"
+            + "确认无订单并允许重试？"
           )) return;
           api("/api/tools/gym/jobs/" + job.id + "/resolve", {
             method: "POST", body: { confirmed_no_order: true }
@@ -492,7 +478,7 @@ border-radius:var(--radius-3);padding:13px 17px}
         body.textContent = "";
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-        td.colSpan = 8;
+        td.colSpan = 5;
         td.className = "empty";
         td.textContent = error.publicMessage || "任务列表加载失败";
         tr.appendChild(td);
@@ -501,7 +487,9 @@ border-radius:var(--radius-3);padding:13px 17px}
   }
   function createJob() {
     var dateValue = $("job-date").value;
-    var slots = collectSlots();
+    var selection = collectSlots();
+    if (selection.error) { showMsg("job-msg", selection.error, false); return; }
+    var slots = selection.slots;
     if (!dateValue) { showMsg("job-msg", "请选择目标日期", false); return; }
     var btn = $("job-create");
     busyButton(btn, true);
@@ -509,7 +497,7 @@ border-radius:var(--radius-3);padding:13px 17px}
       method: "POST",
       body: { target_date: dateValue, slots: slots, venue: $("job-venue").value }
     }).then(function () {
-      showMsg("job-msg", "已创建：将于 " + dateValue + " 08:00 后自动执行（开始前可取消）", true);
+      showMsg("job-msg", "已加入预约列表，预约日 08:00 开始执行。", true);
       return loadJobs();
     }).catch(function (error) {
       if (error.category !== "unauthorized") showMsg("job-msg", error.publicMessage || "创建失败", false);
@@ -530,15 +518,15 @@ border-radius:var(--radius-3);padding:13px 17px}
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     input.min = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
   }
-  addSlotRow("17:00-18:00");
-  addSlotRow("16:00-17:00");
+  addSlotRow(17, 18);
+  addSlotRow(16, 17);
   initDateInput();
   $("cred-save").addEventListener("click", saveCredentials);
   $("cred-delete").addEventListener("click", deleteCredentials);
   $("notify-save").addEventListener("click", saveNotify);
   $("notify-test").addEventListener("click", testNotify);
   $("notify-delete").addEventListener("click", deleteNotify);
-  $("slot-add").addEventListener("click", function () { addSlotRow(""); });
+  $("slot-add").addEventListener("click", function () { addSlotRow(17, 18); });
   $("job-create").addEventListener("click", createJob);
   loadStatus();
   loadNotify();

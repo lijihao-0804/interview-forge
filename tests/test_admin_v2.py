@@ -174,7 +174,7 @@ class AdminV2BackendTests(unittest.TestCase):
         page = (root / "pages" / "admin.html").read_text(encoding="utf-8")
         script = (root / "assets" / "admin-operations.js").read_text(encoding="utf-8")
         self.assertIn("../assets/admin-operations.css?v=3", page)
-        self.assertIn("../assets/admin-operations.js?v=6", page)
+        self.assertIn("../assets/admin-operations.js?v=7", page)
         self.assertIn("data-admin-operations", page)
         self.assertNotIn("innerHTML", script)
         self.assertIn('bindChangeReload("admin-tools-window", loadTools)', script)

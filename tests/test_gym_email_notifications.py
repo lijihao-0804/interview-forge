@@ -48,7 +48,7 @@ class GymEmailNotificationTests(unittest.TestCase):
         self.assertIn("已有预约被保留", body)
 
     def test_no_slot_email_says_what_happened_and_what_user_can_do(self) -> None:
-        subject, body = self._mail("no_slot", {"detail": "多次查询均无空位（15 次，约 30 分钟）"})
+        subject, body = self._mail("no_slot", {"detail": "多次查询均无空位（7 次，约 30 分钟）"})
 
         self.assertIn("暂时没有空位", subject)
         self.assertIn("约半小时", body)

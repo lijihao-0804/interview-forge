@@ -102,7 +102,7 @@ class GymPaymentAmountTests(unittest.TestCase):
             def evaluate(self, script: str):
                 if "document.body.innerText" in script:
                     return "订单确认\n请完成支付"
-                if "const trs" in script:
+                if "const candidates" in script:
                     return []
                 if "querySelectorAll" in script:
                     return [{"tag": "BUTTON", "cls": "pay", "text": "支付",
@@ -165,7 +165,7 @@ class GymPaymentAmountTests(unittest.TestCase):
             def evaluate(self, script: str):
                 if "document.body.innerText" in script:
                     return "订单金额：¥0.00"
-                if "const trs" in script:
+                if "const candidates" in script:
                     return ["健身房预约 2026-10-12 17:00-18:00 已支付 正常 PRIVATE-ORDER-ID"]
                 raise AssertionError(f"unexpected page evaluation: {script}")
 
