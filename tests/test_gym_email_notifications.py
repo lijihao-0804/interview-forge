@@ -103,8 +103,22 @@ class GymEmailNotificationTests(unittest.TestCase):
             gym.send_test_email("student01")
 
         body = send_mail.call_args.args[2]
-        self.assertIn("收到它，说明收件邮箱和全局发件配置已经连通", body)
-        self.assertIn("祝预约顺利", body)
+        self.assertIn("手动触发的邮件文案预览", body)
+        self.assertIn("全部是模拟示例", body)
+        self.assertIn("当天已有预约（防重复）", body)
+        self.assertIn("金额异常，安全停止", body)
+        self.assertIn("页面验证未通过", body)
+        self.assertIn("账号登录未完成", body)
+        self.assertIn("预约页面加载失败且重试耗尽", body)
+        self.assertIn("不会创建预约", body)
+
+    def test_actual_result_mail_has_no_forced_reviewer_recipient(self) -> None:
+        with patch.object(gym, "send_mail") as send_mail:
+            gym.notify_job_result(JOB, "failed", {"detail": "登录后站点始终未就绪"})
+
+        self.assertEqual(send_mail.call_args.args[0], JOB["created_by"])
+        self.assertEqual(len(send_mail.call_args.args), 3)
+        self.assertEqual(send_mail.call_args.kwargs, {})
 
 
 if __name__ == "__main__":

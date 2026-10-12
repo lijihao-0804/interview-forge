@@ -362,7 +362,11 @@ def delete_notify_recipient(username: str) -> dict:
     return notify_status(username)
 
 
-def send_mail(username: str, subject: str, body: str) -> None:
+def send_mail(
+    username: str,
+    subject: str,
+    body: str,
+) -> None:
     """用全局发件配置给该用户的收件邮箱发邮件；未配置/失败抛 GymServiceError。"""
     import smtplib
     from email.header import Header
@@ -411,10 +415,11 @@ def send_mail(username: str, subject: str, body: str) -> None:
 
 
 def send_test_email(username: str) -> dict:
-    send_mail(username, "【InterviewForge】通知配置测试",
-              "你好！👋\n\n这是一封健身房预约通知测试邮件。收到它，说明收件邮箱和全局发件配置已经连通。\n\n"
-              "之后每次自动预约结束，我们都会把结果和下一步建议发到这里。\n"
-              f"测试时间：{_now()}（北京时间）\n\n祝预约顺利！")
+    send_mail(
+        username,
+        "【InterviewForge】健身房预约邮件预览（测试）",
+        _job_result_email_preview(),
+    )
     return notify_status(username)
 
 
@@ -566,6 +571,60 @@ def _gym_email_story(status: str, result: dict) -> tuple[str, str, str, str]:
         "请先到南大订单页确认目标日期是否已有有效或待支付订单。",
         "确认没有未处理订单后，可以稍后重新创建任务；如果问题重复出现，请把工具箱里的任务记录发给管理员。",
     )
+
+
+def _job_result_email_preview() -> str:
+    """Manual test-email content: preview all result narratives without running jobs."""
+    examples = (
+        ("成功示例", "succeeded", {"actual_slot": "17:00-18:00"}),
+        ("当天已有预约（防重复）", "failed", {
+            "existing_bookings": ["17:00-18:00"],
+            "detail": "当天已存在有效预约（17:00-18:00），本次任务已停止，未尝试其他时段。",
+        }),
+        ("所选时段没有空位", "no_slot", {"detail": "多次查询均无空位"}),
+        ("发现待支付订单", "ambiguous", {
+            "detail": "当天存在未支付订单，避免重复下单，请人工确认：17:00-18:00",
+        }),
+        ("金额异常，安全停止", "failed", {
+            "detail": "订单金额为 10.0 元（非 0），按安全规则停止",
+        }),
+        ("页面验证未通过", "failed", {"detail": "滑块验证未通过"}),
+        ("账号登录未完成", "failed", {"detail": "登录后站点始终未就绪"}),
+        ("预约页面加载失败且重试耗尽", "failed", {
+            "retry_exhausted": True,
+            "attempt": JOB_MAX_ATTEMPTS,
+            "detail": "已连续尝试 3 次，停止自动重试。",
+            "last_attempt_detail": "异常：场次页未渲染出时段表格/日期条",
+        }),
+        ("订单结果暂时无法核实", "ambiguous", {
+            "detail": "订单页未找到匹配的已支付记录，请人工核对",
+        }),
+    )
+    lines = [
+        "你好！这是一封手动触发的邮件文案预览 👋",
+        "",
+        "下面列出预约助手可能发送的结果类型。全部是模拟示例，不会创建预约，也不代表真实任务失败。",
+        "",
+        f"示例日期：{_email_date('2026-10-18')} · 场馆：南大健身房（一层）",
+        "示例时段：17:00-18:00、18:00-19:00",
+        "",
+        "─" * 32,
+    ]
+    for label, status, result in examples:
+        title, summary, note, next_step = _gym_email_story(status, result)
+        lines.extend((
+            "",
+            f"【{label}】",
+            title,
+            summary,
+        ))
+        if note:
+            lines.append(note)
+        if result.get("retry_exhausted"):
+            lines.append(f"自动重试：已尝试 {result['attempt']} 次，暂时停止继续重试。")
+        lines.extend((f"建议：{next_step}", "", "─" * 32))
+    lines.extend(("", "这封预览由你手动触发；真实预约通知仍只发送到工具箱中配置的收件邮箱。"))
+    return "\n".join(lines)
 
 
 def notify_job_result(job: dict, status: str, result: dict) -> None:
