@@ -918,6 +918,10 @@ JS_CAPTCHA_POPUP_TEXT = """() => {
 _CAPTCHA_RATE_LIMIT_RE = re.compile(r"次数超出限制|次数超过限制|次数已达上限|请稍后再操作|操作过于频繁")
 _CAPTCHA_COOLDOWN_SECONDS = 60
 _CAPTCHA_COOLDOWN_MAX = 2
+# 识别一张图只要 0.2 秒左右，而真人要先读题面、再在噪声图里逐个找字，通常要好几秒。
+# 「出现即点」和「三字之间 0.4 秒」都是很直白的机器特征，这里按真人节奏放宽。
+_CAPTCHA_READ_PAUSE_SECONDS = (1.5, 3.2)
+_CAPTCHA_CLICK_GAP_SECONDS = (0.9, 1.9)
 
 
 def _raise_if_captcha_rate_limited(page, popup_text):
@@ -1333,6 +1337,8 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                 break
             continue
 
+        # 先按真人节奏"读题"再动手；顺带让下面这次「图片是否已变化」的复查更有意义。
+        time.sleep(_rnd.uniform(*_CAPTCHA_READ_PAUSE_SECONDS))
         latest = page.evaluate(JS_CAPTCHA_DUMP)
         if (not latest or latest["src"] != dump["src"]
                 or latest["prompt"] != dump["prompt"]):
@@ -1347,7 +1353,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
         for t, cx, cy, box_w, box_h in regions:
             cursor = human_click(page, cx, cy, box_w, box_h, from_xy=cursor)
             log.info("已点击「%s」 @ (%.0f, %.0f)", t, cursor[0], cursor[1])
-            time.sleep(_rnd.uniform(0.35, 0.7))
+            time.sleep(_rnd.uniform(*_CAPTCHA_CLICK_GAP_SECONDS))
         time.sleep(_rnd.uniform(0.6, 1.0))
         # 站点判错时会先在弹窗里说一句话，而下面那步「确定」会把它点掉，
         # 所以要在点之前采一次——事后再读就只剩新题或空白了。
