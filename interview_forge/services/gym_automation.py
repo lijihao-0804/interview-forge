@@ -1327,12 +1327,16 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             log.info("已点击「%s」 @ (%.0f, %.0f)", t, cursor[0], cursor[1])
             time.sleep(_rnd.uniform(0.35, 0.7))
         time.sleep(_rnd.uniform(0.6, 1.0))
+        # 站点判错时会先在弹窗里说一句话，而下面那步「确定」会把它点掉，
+        # 所以要在点之前采一次——事后再读就只剩新题或空白了。
+        last_popup_text = _captcha_popup_text(page)
+        if last_popup_text:
+            log.info("验证码弹窗文本：%s", last_popup_text)
         for txt in ("确认", "确定", "验证"):
             if click_first_visible(page, txt, timeout_ms=300):
                 log.info("点击验证码弹窗「%s」", txt)
                 break
         retry_with_new_puzzle = False
-        last_popup_text = ""
         for _ in range(30):
             time.sleep(0.6)
             if "tradeNo" in page.url:
