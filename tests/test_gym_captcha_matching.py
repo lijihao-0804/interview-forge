@@ -39,6 +39,40 @@ class CaptchaMatchingTests(TestCase):
         self.assertEqual(ids, (1, 0))
         self.assertGreater(gap, 0)
 
+
+class PaddleOcr3AdapterTests(TestCase):
+    def test_normalizes_paddleocr3_polygons(self):
+        image = Image.new("RGB", (32, 24), "white")
+        result = Mock()
+        result.json = {
+            "res": {
+                "rec_texts": ["篮球", "足球"],
+                "rec_polys": [
+                    [[1, 2], [11, 2], [11, 9], [1, 9]],
+                    [[14, 3], [27, 3], [27, 12], [14, 12]],
+                ],
+            },
+        }
+        ocr = Mock()
+        ocr.predict.return_value = [result]
+
+        with patch.object(gym, "_get_paddle", return_value=ocr):
+            rows = gym._paddle_read(image)
+
+        self.assertEqual(rows, [
+            ("篮球", (1.0, 2.0, 11.0, 9.0)),
+            ("足球", (14.0, 3.0, 27.0, 12.0)),
+        ])
+        ocr.predict.assert_called_once()
+        self.assertEqual(ocr.predict.call_args.kwargs["input"].shape, (24, 32, 3))
+
+    def test_normalizes_paddleocr3_box_array_and_json_string(self):
+        rows = gym._paddle_result_lines({
+            "res": {"rec_texts": ["测试"], "rec_boxes": [[2, 4, 18, 15]]},
+        })
+        self.assertEqual(rows, [("测试", (2.0, 4.0, 18.0, 15.0))])
+        self.assertEqual(gym._paddle_result_lines('{"res":{"rec_texts":[],"rec_polys":[]}}'), [])
+
     def test_missing_character_or_bad_score_does_not_force_assignment(self):
         for scores in ([[.4], [.3]], [[.4, .5], [0, 0]],
                        [[float("nan"), .2]], [[-.1, .2]]):

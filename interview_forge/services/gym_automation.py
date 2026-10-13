@@ -1025,12 +1025,72 @@ def _get_paddle():
     global _PADDLE_OCR
     if _PADDLE_OCR is None:
         try:
+            cache_dir = ROOT / "data" / "runtime" / "paddlex-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            os.environ.setdefault("PADDLE_PDX_CACHE_HOME", str(cache_dir))
             from paddleocr import PaddleOCR
-            _PADDLE_OCR = PaddleOCR(use_angle_cls=True, lang="ch", show_log=False)
+            _PADDLE_OCR = PaddleOCR(
+                lang="ch",
+                device="cpu",
+                engine="paddle",
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=True,
+            )
         except Exception as exc:  # noqa: BLE001
             log.warning("PaddleOCR 初始化失败，跳过该路识别：%s", exc)
             _PADDLE_OCR = False
     return _PADDLE_OCR or None
+
+
+def _paddle_result_payload(result):
+    """从 PaddleOCR 3.x Result 或其 JSON 字典中取识别结果。"""
+    payload = getattr(result, "json", result)
+    if callable(payload):
+        payload = payload()
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            return {}
+    if not isinstance(payload, dict):
+        return {}
+    nested = payload.get("res")
+    return nested if isinstance(nested, dict) else payload
+
+
+def _paddle_result_lines(result):
+    """归一化 PaddleOCR 3.x 输出为 [(text, (x1,y1,x2,y2)), ...]。"""
+    payload = _paddle_result_payload(result)
+    texts = payload.get("rec_texts")
+    if texts is None:
+        texts = []
+    boxes = None
+    for key in ("rec_polys", "rec_boxes", "dt_polys"):
+        candidate = payload.get(key)
+        if candidate is not None and len(candidate) > 0:
+            boxes = candidate
+            break
+    if boxes is None:
+        return []
+
+    lines = []
+    for text, box in zip(texts, boxes):
+        if not text:
+            continue
+        try:
+            points = np.asarray(box, dtype=float)
+            if points.ndim == 1 and points.size >= 4:
+                x1, y1, x2, y2 = points[:4]
+            elif points.ndim >= 2 and points.shape[-1] >= 2:
+                xs, ys = points[..., 0], points[..., 1]
+                x1, y1, x2, y2 = xs.min(), ys.min(), xs.max(), ys.max()
+            else:
+                continue
+            lines.append((str(text), (float(x1), float(y1), float(x2), float(y2))))
+        except (TypeError, ValueError, IndexError):
+            continue
+    return lines
 
 
 def _paddle_read(pil_img):
@@ -1039,14 +1099,8 @@ def _paddle_read(pil_img):
     if not ocr:
         return []
     try:
-        res = ocr.ocr(np.asarray(pil_img), cls=True)
-        out = []
-        for line in (res[0] or []):
-            poly, (text, _score) = line[0], line[1]
-            xs = [pt[0] for pt in poly]
-            ys = [pt[1] for pt in poly]
-            out.append((text, (min(xs), min(ys), max(xs), max(ys))))
-        return out
+        results = ocr.predict(input=np.asarray(pil_img))
+        return [line for result in (results or []) for line in _paddle_result_lines(result)]
     except Exception as exc:  # noqa: BLE001
         log.warning("PaddleOCR 识别异常：%s", exc)
         return []
