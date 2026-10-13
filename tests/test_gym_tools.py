@@ -5,7 +5,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -253,6 +253,69 @@ class GymSmtpConfigTests(unittest.TestCase):
         self.assertTrue(status["configured"])
         self.assertEqual(status["smtp_user"], "old@163.com")
         self.assertEqual(status["smtp_host"], "smtp.163.com")
+
+
+class GymUserIsolationTests(unittest.TestCase):
+    """工具箱是多人共用的：任务列表、去重、取消、结果核对都必须按用户隔离。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_patch = patch.object(gym, "GYM_DB_PATH", Path(self.tmp.name) / "gym.db")
+        self.db_patch.start()
+        self.addCleanup(self.db_patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+        self.tomorrow = (datetime.now(gym.SHANGHAI).date() + timedelta(days=1)).isoformat()
+
+    def _insert_job(self, status: str, created_by: str) -> int:
+        conn = gym.connect()
+        try:
+            cur = conn.execute(
+                "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by,"
+                " created_at, updated_at, result) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (self.tomorrow, '["17:00-18:00"]', "129", status, created_by,
+                 "2026-10-13T09:00:00+08:00", "2026-10-13T09:00:00+08:00", "{}"),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+        finally:
+            conn.close()
+
+    def _create(self, created_by: str) -> dict:
+        with patch.object(gym, "credentials_status", return_value={"configured": True}):
+            return gym.create_job(self.tomorrow, ["17:00-18:00"], created_by, venue="129")
+
+    def test_one_users_schedule_does_not_block_another(self) -> None:
+        self._create("2030309470")
+        second = self._create("Zoro")          # 同一天同一场馆，另一用户仍可排
+        self.assertEqual(second["created_by"], "Zoro")
+
+    def test_the_same_user_is_still_blocked_from_double_scheduling(self) -> None:
+        self._create("2030309470")
+        with self.assertRaises(gym.GymServiceError) as ctx:
+            self._create("2030309470")
+        self.assertIn("你已有", str(ctx.exception))
+
+    def test_job_list_is_scoped_to_the_requesting_user(self) -> None:
+        mine = self._insert_job("pending", "2030309470")
+        theirs = self._insert_job("pending", "Zoro")
+        self.assertEqual([j["id"] for j in gym.list_jobs(created_by="2030309470")], [mine])
+        self.assertEqual([j["id"] for j in gym.list_jobs(created_by="Zoro")], [theirs])
+        self.assertEqual(sorted(j["id"] for j in gym.list_jobs()),
+                         sorted([mine, theirs]), "不传用户时保留全量视角")
+
+    def test_cancelling_another_users_job_is_refused(self) -> None:
+        job_id = self._insert_job("pending", "2030309470")
+        with self.assertRaises(gym.GymServiceError) as ctx:
+            gym.cancel_job(job_id, "Zoro")
+        self.assertIn("不属于当前用户", str(ctx.exception))
+        self.assertEqual(gym.list_jobs(created_by="2030309470")[0]["status"], "pending")
+
+    def test_resolving_another_users_job_is_refused(self) -> None:
+        job_id = self._insert_job("ambiguous", "2030309470")
+        with self.assertRaises(gym.GymServiceError) as ctx:
+            gym.resolve_job_for_retry(job_id, "Zoro", True)
+        self.assertIn("不属于当前用户", str(ctx.exception))
+        self.assertEqual(gym.list_jobs(created_by="2030309470")[0]["status"], "ambiguous")
 
 
 class ToolsInterpreterTests(unittest.TestCase):

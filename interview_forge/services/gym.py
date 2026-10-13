@@ -792,16 +792,16 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
         try:
             dup = conn.execute(
                 "SELECT id, status FROM gym_jobs WHERE target_date = ? AND venue = ? "
-                "AND status IN ('pending','running','ambiguous')",
-                (target_date, venue),
+                "AND created_by = ? AND status IN ('pending','running','ambiguous')",
+                (target_date, venue, created_by),
             ).fetchone()
             if dup:
                 if dup["status"] == "ambiguous":
                     raise GymServiceError(
-                        f"{target_date} 有结果待核任务（#{dup['id']}）。"
+                        f"你已有 {target_date} 的结果待核任务（#{dup['id']}）。"
                         "请先核对南大订单，并确认没有有效或待支付订单后再重新排程。"
                     )
-                raise GymServiceError(f"{target_date} 已有待执行的自动预约任务（#{dup['id']}）")
+                raise GymServiceError(f"你已有 {target_date} 的待执行自动预约任务（#{dup['id']}）")
             cur = conn.execute(
                 "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by,"
                 " created_at, updated_at, result) VALUES (?, ?, ?, 'pending', ?, ?, ?, '{}')",
@@ -815,12 +815,19 @@ def create_job(target_date: str, slots: list[str], created_by: str, venue: str =
             conn.close()
 
 
-def list_jobs(limit: int = 100) -> list[dict]:
+def list_jobs(limit: int = 100, created_by: str | None = None) -> list[dict]:
+    """任务列表。传 created_by 时只返回该用户自己的任务——用户之间互不可见。"""
     conn = connect()
     try:
-        rows = conn.execute(
-            "SELECT * FROM gym_jobs ORDER BY target_date DESC, id DESC LIMIT ?", (limit,)
-        ).fetchall()
+        if created_by is None:
+            rows = conn.execute(
+                "SELECT * FROM gym_jobs ORDER BY target_date DESC, id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM gym_jobs WHERE created_by = ?"
+                " ORDER BY target_date DESC, id DESC LIMIT ?", (created_by, limit)
+            ).fetchall()
         return [_row_to_dict(r) for r in rows]
     finally:
         conn.close()
@@ -834,6 +841,8 @@ def cancel_job(job_id: int, username: str) -> dict:
             row = conn.execute("SELECT * FROM gym_jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
                 raise GymServiceError(f"任务 #{job_id} 不存在")
+            if row["created_by"] != username:
+                raise GymServiceError(f"任务 #{job_id} 不属于当前用户，无法取消")
             if row["status"] != "pending":
                 raise GymServiceError(f"任务 #{job_id} 状态为 {row['status']}，不能取消")
             conn.execute(
@@ -858,6 +867,8 @@ def resolve_job_for_retry(job_id: int, username: str, confirmed_no_order: bool) 
             row = conn.execute("SELECT * FROM gym_jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
                 raise GymServiceError(f"任务 #{job_id} 不存在")
+            if row["created_by"] != username:
+                raise GymServiceError(f"任务 #{job_id} 不属于当前用户，无法核对")
             if row["status"] != "ambiguous":
                 raise GymServiceError(f"任务 #{job_id} 状态为 {row['status']}，无需结果核对")
             result = _row_to_dict(row).get("result") or {}

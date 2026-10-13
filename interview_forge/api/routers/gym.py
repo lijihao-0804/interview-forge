@@ -31,7 +31,8 @@ def list_gym_jobs(request: Request):
         return denied
     try:
         # 同步 handler 运行于线程池，直接调用阻塞的 SQLite 读取即可
-        return json_response({"items": gym.list_jobs()})
+        # 只列当前用户自己的任务：多个用户共用这个工具箱，彼此不互相可见。
+        return json_response({"items": gym.list_jobs(created_by=str(user["username"]))})
     except Exception as exc:  # noqa: BLE001
         denied = service_error(exc)
         return denied or error_response("读取任务失败", 500)
