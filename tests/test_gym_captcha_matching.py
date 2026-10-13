@@ -147,6 +147,51 @@ class CaptchaMatchingTests(TestCase):
         page.evaluate.side_effect = RuntimeError("页面已切换")
         self.assertEqual(gym._captcha_popup_text(page), "", "读不到不能影响判定")
 
+    def test_rate_limit_message_dismisses_the_dialog_and_raises(self):
+        """站点回“验证码次数超出限制”时要关掉提示并抛给上层冷却重试。"""
+        page = Mock()
+        with patch.object(gym, "click_first_visible", return_value=True) as clicked:
+            with self.assertRaises(gym.CaptchaRateLimited):
+                gym._raise_if_captcha_rate_limited(
+                    page, "系统提示 验证码次数超出限制，请稍后再操作！")
+        clicked.assert_called_once()
+        with patch.object(gym, "click_first_visible") as clicked:
+            gym._raise_if_captcha_rate_limited(page, "请依次点击【甲,乙,丙】")
+        clicked.assert_not_called()
+
+    def test_rate_limit_from_the_real_popup_reaches_the_caller(self):
+        buffer = BytesIO()
+        Image.new("RGB", (40, 20)).save(buffer, format="PNG")
+        dump = {"src": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),
+                "prompt": "甲,乙", "rect": [0, 0, 40, 20], "natural": [40, 20]}
+
+        class Page:
+            url = "https://ggtypt.nju.edu.cn/venue/venue-reservation/1"
+
+            def __init__(self) -> None:
+                self.mouse = Mock()
+                self.context = Mock(pages=[])
+
+            def evaluate(self, script):
+                if script is gym.JS_CAPTCHA_POPUP_TEXT:
+                    return "系统提示 验证码次数超出限制，请稍后再操作！"
+                if script is gym.JS_CAPTCHA_DUMP:
+                    return dump
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+        page = Page()
+        assignment = {"甲": {"box": [0, 0, 20, 20], "center": (10, 10)},
+                      "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
+        detector = Mock()
+        detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
+        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+                patch.object(gym, "match_click_targets_probability", return_value=(assignment, {})), \
+                patch.object(gym, "click_first_visible", return_value=True) as clicked, \
+                patch.object(gym.time, "sleep"):
+            with self.assertRaises(gym.CaptchaRateLimited):
+                gym.solve_click_captcha(page, None, max_attempts=1)
+        clicked.assert_called()
+
     def test_new_puzzle_in_the_same_popup_is_re_solved_without_refreshing(self):
         """站点判错后通常在同一弹窗换新题：应直接按新题重解。
 

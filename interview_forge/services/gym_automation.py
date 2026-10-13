@@ -183,6 +183,13 @@ class OrderPageNotReady(RuntimeError):
     """订单页未能证明列表已加载；提交预约前可安全重试。"""
 
 
+class CaptchaRateLimited(RuntimeError):
+    """站点对验证码获取做了频率限制（“验证码次数超出限制，请稍后再操作”）。
+
+    2026-10-13 观测：提交预约后站点弹出该提示（截图确认过），说明它根本没校验
+    我们点的答案。此时继续重试或刷新只会加重限制，必须立刻停。"""
+
+
 _ORDER_RECORD_PREDICATE_JS = r"""(rawText) => {
   const text = String(rawText || '').replace(/\s+/g, ' ').trim();
   const hasOrderNumber = /\bD\d{8,}\b/i.test(text);
@@ -906,6 +913,21 @@ JS_CAPTCHA_POPUP_TEXT = """() => {
   return '';
 }"""
 
+# 站点在验证码获取过于频繁时弹的提示（2026-10-13 截图确认的原文：
+# “系统提示 / 验证码次数超出限制，请稍后再操作！”）。这是冷却，不是终局。
+_CAPTCHA_RATE_LIMIT_RE = re.compile(r"次数超出限制|次数超过限制|次数已达上限|请稍后再操作|操作过于频繁")
+_CAPTCHA_COOLDOWN_SECONDS = 60
+_CAPTCHA_COOLDOWN_MAX = 2
+
+
+def _raise_if_captcha_rate_limited(page, popup_text):
+    """站点提示验证码次数超限时，关掉提示并抛出，交给上层等冷却后重来。"""
+    if not popup_text or not _CAPTCHA_RATE_LIMIT_RE.search(popup_text):
+        return
+    log.warning("站点提示验证码次数超出限制：%s", popup_text)
+    click_first_visible(page, "确定", timeout_ms=800)   # 关掉提示，页面才能继续用
+    raise CaptchaRateLimited(popup_text.strip())
+
 
 def _captcha_popup_text(page):
     """只读可见验证码弹窗自己的文本（不读整页，避免把个人信息带进日志）。
@@ -1332,6 +1354,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
         last_popup_text = _captcha_popup_text(page)
         if last_popup_text:
             log.info("验证码弹窗文本：%s", last_popup_text)
+        _raise_if_captcha_rate_limited(page, last_popup_text)
         for txt in ("确认", "确定", "验证"):
             if click_first_visible(page, txt, timeout_ms=300):
                 log.info("点击验证码弹窗「%s」", txt)
@@ -1369,6 +1392,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             if popup_text and popup_text != last_popup_text:
                 last_popup_text = popup_text
                 log.info("验证码弹窗文本：%s", popup_text)
+                _raise_if_captcha_rate_limited(page, popup_text)
         if retry_with_new_puzzle:
             log.info("第 %d 次被判错且站点已换新题，直接重解", attempt)
             continue
@@ -1734,27 +1758,47 @@ def run(args) -> dict:
 
         # 从点击开始就视为可能已产生站点副作用；后续异常不得盲目自动重跑。
         args._booking_submitted = True
-        page.get_by_text("提交", exact=True).first.click()
-        log.info("已点击提交，等待验证码")
 
-        if wait_either(page, [".verifybox img", "img[src^='data:image']"], 5000):
-            order_page = solve_click_captcha(
-                page,
-                capture_dir,
-                manual_only=getattr(args, "manual_captcha", False),
-                strategy=getattr(args, "captcha_strategy", "probability"),
-            )
+        # 站点在验证码获取过频时会回“验证码次数超出限制，请稍后再操作”。那是冷却而非
+        # 终局——等一分钟再重新提交、重新取题就能继续，所以这里做成有上限的冷却重试。
+        for cooldown in range(_CAPTCHA_COOLDOWN_MAX + 1):
+            page.get_by_text("提交", exact=True).first.click()
+            log.info("已点击提交，等待验证码")
+            if not wait_either(page, [".verifybox img", "img[src^='data:image']"], 5000):
+                if "tradeNo" in page.url:
+                    break
+                result.update(_result_without_confirmation(
+                    page, target_date, slot, known_bookings=existing_bookings, venue=args.venue))
+                log.warning("%s", result["detail"])
+                return result
+            try:
+                order_page = solve_click_captcha(
+                    page,
+                    capture_dir,
+                    manual_only=getattr(args, "manual_captcha", False),
+                    strategy=getattr(args, "captcha_strategy", "probability"),
+                )
+            except CaptchaRateLimited as exc:
+                if cooldown >= _CAPTCHA_COOLDOWN_MAX:
+                    result.update(
+                        status="ambiguous",
+                        detail=(f"站点提示验证码次数超出限制（{exc}），已冷却重试 {cooldown} 次"
+                                "仍未放行；本次未完成预约，请稍后再试。"),
+                        retryable=False,
+                    )
+                    log.error(result["detail"])
+                    return result
+                log.warning("验证码被限流，等 %d 秒冷却后重新提交（第 %d 次）",
+                            _CAPTCHA_COOLDOWN_SECONDS, cooldown + 1)
+                time.sleep(_CAPTCHA_COOLDOWN_SECONDS)
+                continue
             if order_page is None:
                 result.update(_result_without_confirmation(
                     page, target_date, slot, known_bookings=existing_bookings, venue=args.venue))
                 log.error("%s", result["detail"])
                 return result
             page = order_page  # 确认页可能在新标签页，后续支付/核验切换过去
-        elif "tradeNo" not in page.url:
-            result.update(_result_without_confirmation(
-                page, target_date, slot, known_bookings=existing_bookings, venue=args.venue))
-            log.warning("%s", result["detail"])
-            return result
+            break
 
         page.wait_for_load_state("domcontentloaded")
         _wait_confirm_page_rendered(page)
