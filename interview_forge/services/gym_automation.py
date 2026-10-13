@@ -1268,12 +1268,21 @@ def _wait_for_manual_captcha(page, wait_s=180):
     return None
 
 
+def _captcha_recognition_order(primary):
+    """先按选定策略识别，再用另一种做法在同一张图上复核一遍。
+
+    换题要重新向站点取一张验证码，而站点对取码次数是有限制的（2026-10-13 的
+    “验证码次数超出限制，请稍后再操作”），所以先在原地多试一种认字方式更划算。"""
+    return [primary] + [m for m in ("probability", "legacy") if m != primary]
+
+
 def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                         strategy="probability"):
-    """点选验证码：候选分数整体匹配；不一致刷新换题；失败转人工等待。
+    """点选验证码：候选分数整体匹配。
 
-    返回承载订单确认页的 page（站点用新标签页打开确认页，必须监控整个
-    context），失败返回 None。"""
+    同一张图上先按选定策略识别，定位不全就换另一种做法复核；复核期间站点换了题
+    就按新题重读；多轮都不成才刷新换题。返回承载订单确认页的 page（站点用新标签页
+    打开确认页，必须监控整个 context），失败返回 None。"""
     if manual_only:
         return _wait_for_manual_captcha(page)
     if strategy not in {"probability", "legacy"}:
@@ -1293,36 +1302,56 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             log.info("未检测到点选验证码弹窗，可能已直接通过")
             return page
         if not dump["prompt"]:
-            log.warning("未解析到提示文字，转人工")
+            log.warning("未解析到提示文字，停止本轮验证码")
             break
         targets = [c for c in re.split(r"[,，、\s]+", dump["prompt"]) if c]
         log.info("点选验证码第 %d 次：依次点击 %s", attempt, targets)
-        img_bytes = base64_png(dump["src"])
-        if capture_dir is not None:
-            try:
-                (capture_dir / f"captcha-attempt{attempt}.png").write_bytes(img_bytes)
-            except OSError:  # noqa: BLE001
-                pass
-        pil = Image.open(BytesIO(img_bytes)).convert("RGB")
-        boxes = [b for b in det.detection(img_bytes)
-                 if b[2] - b[0] >= 10 and b[3] - b[1] >= 10]
-        log.info("检测到 %d 个字框", len(boxes))
 
-        if strategy == "probability":
-            try:
-                assignment, diagnostics = match_click_targets_probability(
-                    pil, boxes, targets, ocr_std, ocr_beta)
-            except Exception as exc:  # noqa: BLE001
-                assignment, diagnostics = {}, {"reason": type(exc).__name__}
-                log.warning("候选分数识别失败：%s", type(exc).__name__)
-            log.info("候选分数匹配：%s", json.dumps(diagnostics, ensure_ascii=False))
-        else:
-            assignment = _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key)
-        log.info("目标分配：%s", json.dumps(
-            {t: (a["box"] if a else None) for t, a in assignment.items()}, ensure_ascii=False))
+        assignment = {}
+        puzzle_changed = False
+        for round_no, method in enumerate(_captcha_recognition_order(strategy), start=1):
+            if round_no > 1:
+                fresh = page.evaluate(JS_CAPTCHA_DUMP)
+                if not fresh or fresh["src"] != dump["src"]:
+                    puzzle_changed = True
+                    break
+                log.info("第 %d 轮改用 %s 在同一张图上复核", round_no, method)
+            img_bytes = base64_png(dump["src"])
+            if capture_dir is not None:
+                try:
+                    (capture_dir / f"captcha-attempt{attempt}.png").write_bytes(img_bytes)
+                except OSError:  # noqa: BLE001
+                    pass
+            pil = Image.open(BytesIO(img_bytes)).convert("RGB")
+            boxes = [b for b in det.detection(img_bytes)
+                     if b[2] - b[0] >= 10 and b[3] - b[1] >= 10]
+            log.info("检测到 %d 个字框", len(boxes))
+
+            if method == "probability":
+                try:
+                    assignment, diagnostics = match_click_targets_probability(
+                        pil, boxes, targets, ocr_std, ocr_beta)
+                except Exception as exc:  # noqa: BLE001
+                    assignment, diagnostics = {}, {"reason": type(exc).__name__}
+                    log.warning("候选分数识别失败：%s", type(exc).__name__)
+                log.info("候选分数匹配：%s", json.dumps(diagnostics, ensure_ascii=False))
+            else:
+                # 复核用本地投票即可：api_key 只在用户显式选了 legacy 时才带上。
+                assignment = _legacy_click_assignment(
+                    pil, boxes, targets, ocr_std, ocr_beta,
+                    api_key if strategy == "legacy" else None)
+            log.info("目标分配（%s）：%s", method, json.dumps(
+                {t: (a["box"] if a else None) for t, a in assignment.items()}, ensure_ascii=False))
+            if len(assignment) >= len(targets):
+                break
+            log.warning("第 %d 轮（%s）仍有目标字未定位（%s）",
+                        round_no, method, [t for t in targets if t not in assignment])
+
+        if puzzle_changed:
+            log.info("复核期间站点已换题，直接按新题重读（不刷新）")
+            continue
         if len(assignment) < len(targets):
-            log.warning("第 %d 次有目标字未定位（%s），刷新换题",
-                        attempt, [t for t in targets if t not in assignment])
+            log.warning("第 %d 次多轮识别都没定位全，刷新换题", attempt)
             try:
                 refresh = page.locator(
                     ".verify-refresh:visible, .refresh:visible, [class*='refresh']:visible"
@@ -1333,7 +1362,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                 else:
                     raise RuntimeError("验证码刷新控件不可见")
             except Exception as exc:  # noqa: BLE001
-                log.warning("无法刷新验证码，转人工处理：%s", exc)
+                log.warning("无法刷新验证码，停止本轮：%s", exc)
                 break
             continue
 
@@ -1410,7 +1439,10 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             time.sleep(1.5)
         except Exception:
             break
-    return _wait_for_manual_captcha(page)
+    # 不再自动等人工：生产是 GYM_HEADLESS=1 的无头运行，没有人能点那个弹窗，
+    # 白等 180 秒只会拖长任务。需要人工介入时显式用 --manual-captcha。
+    log.warning("验证码未通过，按未确认处理（不等待人工）")
+    return None
 
 
 def _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key):

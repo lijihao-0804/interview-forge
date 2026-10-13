@@ -147,6 +147,54 @@ class CaptchaMatchingTests(TestCase):
         page.evaluate.side_effect = RuntimeError("页面已切换")
         self.assertEqual(gym._captcha_popup_text(page), "", "读不到不能影响判定")
 
+    def test_recognition_order_tries_the_chosen_method_first(self):
+        self.assertEqual(gym._captcha_recognition_order("probability"),
+                         ["probability", "legacy"])
+        self.assertEqual(gym._captcha_recognition_order("legacy"),
+                         ["legacy", "probability"])
+
+    def test_recognition_rechecks_with_another_method_before_refreshing(self):
+        """同一张图上先换法复核，多轮都不成才换题——换题要重新向站点取码。"""
+        buffer = BytesIO()
+        Image.new("RGB", (40, 20)).save(buffer, format="PNG")
+        dump = {"src": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),
+                "prompt": "甲,乙", "rect": [0, 0, 40, 20], "natural": [40, 20]}
+        partial = {"甲": {"box": [0, 0, 20, 20], "center": (10, 10)}}
+        full = {"甲": {"box": [0, 0, 20, 20], "center": (10, 10)},
+                "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
+
+        class Page:
+            url = "https://ggtypt.nju.edu.cn/venue/venue-reservation/1"
+
+            def __init__(self) -> None:
+                self.mouse = Mock()
+                self.context = Mock(pages=[])
+                self.dumps = 0
+                self.locator = Mock(side_effect=AssertionError("复核期间不该点刷新"))
+
+            def evaluate(self, script):
+                if script is gym.JS_CAPTCHA_POPUP_TEXT:
+                    return ""
+                if script is gym.JS_CAPTCHA_DUMP:
+                    self.dumps += 1
+                    if self.dumps >= 4:      # 点完之后让确认页出现
+                        self.url = "https://ggtypt.nju.edu.cn/venue/orders?tradeNo=X"
+                    return dump
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+        page = Page()
+        detector = Mock()
+        detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
+        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+                patch.object(gym, "match_click_targets_probability", return_value=(partial, {})), \
+                patch.object(gym, "_legacy_click_assignment", return_value=full) as legacy, \
+                patch.object(gym, "click_first_visible", return_value=False), \
+                patch.object(gym.time, "sleep"):
+            result = gym.solve_click_captcha(page, None, max_attempts=1)
+        legacy.assert_called_once()
+        page.locator.assert_not_called()
+        self.assertIs(result, page)
+
     def test_rate_limit_message_dismisses_the_dialog_and_raises(self):
         """站点回“验证码次数超出限制”时要关掉提示并抛给上层冷却重试。"""
         page = Mock()
