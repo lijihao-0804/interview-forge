@@ -286,8 +286,9 @@ class GymInterruptedJobRecoveryTests(unittest.TestCase):
         self.assertEqual(job["status"], "pending")
 
     def test_job_rejects_unsupported_venue_id(self) -> None:
+        target_date = (datetime.now(gym.SHANGHAI).date() + timedelta(days=1)).isoformat()
         with self.assertRaisesRegex(gym.GymServiceError, "支持的一楼或负一楼"):
-            gym.create_job("2026-10-12", ["17:00-18:00"], "admin01", venue="999")
+            gym.create_job(target_date, ["17:00-18:00"], "admin01", venue="999")
 
     def test_resolution_requires_explicit_no_order_confirmation(self) -> None:
         now = datetime.now(gym.SHANGHAI)
