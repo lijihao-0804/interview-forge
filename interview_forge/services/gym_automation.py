@@ -1499,9 +1499,15 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
     return None
 
 
+# PaddleOCR 会把图片上的水印也当行读出来（本站是“场馆预约”），那些字不属于任何
+# 字框，投影进投票只会制造假票。按字面排除；站点水印换了就改这一行。
+_PADDLE_WATERMARK = ("场馆预约",)
+
+
 def _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key):
     """Explicit opt-in compatibility path for the previous four-route voting."""
-    paddle_lines = _paddle_read(pil)
+    paddle_lines = [line for line in _paddle_read(pil)
+                    if not any(mark in line[0] for mark in _PADDLE_WATERMARK)]
     entries = []
     for bx in boxes:
         x1, y1, x2, y2 = bx
@@ -1521,7 +1527,6 @@ def _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key):
                 log.warning("DeepSeek 多选识别失败 box=%s：%s", list(bx), exc)
         e = {"box": list(bx), "std": r_std, "beta": r_beta, "ds": r_ds,
              "paddle_chars": "", "center": ((x1 + x2) / 2, (y1 + y2) / 2)}
-        cx, cy = e["center"]
         for text, (px1, py1, px2, py2) in paddle_lines:
             han = [c for c in text if "\u4e00" <= c <= "\u9fff"]
             if not han:
@@ -1529,7 +1534,9 @@ def _legacy_click_assignment(pil, boxes, targets, ocr_std, ocr_beta, api_key):
             for k, ch in enumerate(han):
                 ccx = px1 + (px2 - px1) * (k + 0.5) / len(han)
                 ccy = (py1 + py2) / 2
-                if abs(ccx - cx) <= (px2 - px1) / len(han) and abs(ccy - cy) <= (py2 - py1):
+                # \u5b57\u5fc5\u987b\u843d\u5728\u8fd9\u4e2a\u5b57\u6846\u5185\u624d\u7b97\u8fd9\u4e00\u7968\u3002\u539f\u6765\u7684\u201c\u8ddd\u6846\u4e2d\u5fc3\u4e00\u4e2a\u5355\u5b57\u5bbd\u3001\u884c\u9ad8\u4ee5\u5185\u201d
+                # \u592a\u677e\uff1a\u6574\u884c\u6c34\u5370\u6216\u8de8\u6846\u7684\u6587\u5b57\u4f1a\u88ab\u644a\u5230\u76f8\u90bb\u6846\u4e0a\uff0c\u53d8\u6210\u5047\u7968\u3002
+                if x1 <= ccx <= x2 and y1 <= ccy <= y2:
                     e["paddle_chars"] += ch
         entries.append(e)
     log.info("逐框识别：%s", json.dumps(
