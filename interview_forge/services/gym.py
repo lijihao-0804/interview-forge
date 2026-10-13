@@ -700,6 +700,24 @@ def notify_job_result(job: dict, status: str, result: dict) -> None:
         log.warning("任务 #%s 邮件发送失败：%s", job["id"], exc)
 
 
+def tools_python() -> str:
+    """执行工具箱子进程用哪个解释器。
+
+    工具箱依赖（playwright/ddddocr/paddle）和站点服务依赖是两套清单：线上把两者装在
+    同一个 .venv 里，所以默认用当前解释器就够。若部署时把工具箱单独放在一个环境里
+    （本机就是这样：服务跑全局 Python，工具箱在 .venv-tools），则优先用它——
+    先看 GYM_TOOLS_PYTHON，再看仓库下的 .venv-tools。
+    """
+    override = os.environ.get("GYM_TOOLS_PYTHON", "").strip()
+    if override:
+        return override
+    for relative in ("Scripts/python.exe", "bin/python"):
+        candidate = ROOT / ".venv-tools" / relative
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
 def verify_credentials(account: str, password: str) -> dict:
     """真实验证南大凭据：子进程跑一次登录（含滑块）。返回 {status, detail}。
 
@@ -710,7 +728,7 @@ def verify_credentials(account: str, password: str) -> dict:
     stamp = int(_time.time() * 1000)
     result_path = run_dir / f"cred-check-{stamp}.json"
     log_path = run_dir / f"cred-check-{stamp}.log"
-    cmd = [sys.executable, "-m", "interview_forge.services.gym_automation",
+    cmd = [tools_python(), "-m", "interview_forge.services.gym_automation",
            "--check-login", "--json-result", str(result_path), "--credentials-stdin"]
     if os.environ.get("GYM_HEADLESS", "").strip() == "1":
         cmd.append("--headless")
@@ -1071,7 +1089,7 @@ def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     account, password = _load_credentials_decrypted(str(job["created_by"]))
     stdin_payload = json.dumps({"account": account, "password": password}, ensure_ascii=False)
     cmd = [
-        sys.executable, "-m", "interview_forge.services.gym_automation",
+        tools_python(), "-m", "interview_forge.services.gym_automation",
         "--venue", str(job.get("venue") or "129"),
         "--date", str(job["target_date"]),
         "--slots", ",".join(job["slots"]),

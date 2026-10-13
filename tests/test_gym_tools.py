@@ -1,8 +1,12 @@
 """工具箱·健身房自动预约 API 的管理员边界与排程校验测试。"""
 from __future__ import annotations
 
+import os
+import sys
+import tempfile
 import unittest
 from datetime import date, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -249,3 +253,45 @@ class GymSmtpConfigTests(unittest.TestCase):
         self.assertTrue(status["configured"])
         self.assertEqual(status["smtp_user"], "old@163.com")
         self.assertEqual(status["smtp_host"], "smtp.163.com")
+
+
+class ToolsInterpreterTests(unittest.TestCase):
+    """工具箱执行器解释器：默认跟服务一致，可用环境变量或 .venv-tools 指到单独环境。"""
+
+    def _clear_override(self):
+        os.environ.pop("GYM_TOOLS_PYTHON", None)
+
+    def test_defaults_to_the_current_interpreter(self) -> None:
+        self._clear_override()
+        with patch.object(gym, "ROOT", Path(tempfile.gettempdir()) / "no-such-root"):
+            self.assertEqual(gym.tools_python(), sys.executable)
+
+    def test_env_override_points_at_a_separate_tools_venv(self) -> None:
+        target = r"E:\interview-forge\.venv-tools\Scripts\python.exe"
+        with patch.dict(os.environ, {"GYM_TOOLS_PYTHON": target}):
+            self.assertEqual(gym.tools_python(), target)
+
+    def test_blank_override_falls_back(self) -> None:
+        with patch.dict(os.environ, {"GYM_TOOLS_PYTHON": "   "}):
+            with patch.object(gym, "ROOT", Path(tempfile.gettempdir()) / "no-such-root"):
+                self.assertEqual(gym.tools_python(), sys.executable)
+
+    def test_repo_local_tools_venv_is_picked_up_without_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / ".venv-tools" / "Scripts" / "python.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            self._clear_override()
+            with patch.object(gym, "ROOT", root):
+                self.assertEqual(gym.tools_python(), str(exe))
+
+    def test_env_override_wins_over_the_repo_local_tools_venv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / ".venv-tools" / "Scripts" / "python.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            with patch.object(gym, "ROOT", root), \
+                    patch.dict(os.environ, {"GYM_TOOLS_PYTHON": "explicit-python"}):
+                self.assertEqual(gym.tools_python(), "explicit-python")
