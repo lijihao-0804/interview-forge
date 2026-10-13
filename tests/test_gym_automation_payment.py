@@ -181,6 +181,121 @@ class GymPaymentAmountTests(unittest.TestCase):
         self.assertIn("17:00-18:00", detail)
         self.assertNotIn("PRIVATE-ORDER-ID", detail)
 
+    def test_confirmation_page_is_waited_for_before_reading_the_amount(self) -> None:
+        """确认页由站点 JS 渲染：刚拿到标签页时正文为空，不能当成「金额不可识别」。
+
+        2026-10-13 线上 08:01 就是这样拒绝支付的：日志里「支付页可见控件」为空。
+        """
+
+        class Button:
+            def __init__(self, page) -> None:
+                self.page = page
+
+            def is_visible(self) -> bool:
+                return True
+
+            def is_enabled(self) -> bool:
+                return True
+
+            def inner_text(self) -> str:
+                return "支付 （57s）"
+
+            def click(self) -> None:
+                self.page.clicked = True
+
+        class Buttons:
+            def __init__(self, page, selector: str) -> None:
+                self.page = page
+                self.selector = selector
+                self.text = ""
+
+            def filter(self, *, has_text: str):
+                self.text = has_text
+                return self
+
+            def count(self) -> int:
+                return int(self.selector == ".btn" and self.text == "支付")
+
+            def nth(self, _index: int) -> Button:
+                return Button(self.page)
+
+        class Page:
+            url = "https://ggtypt.nju.edu.cn/venue/orders"
+
+            def __init__(self, empty_reads: int, amount_text: str) -> None:
+                self.clicked = False
+                self.reads = 0
+                self.empty_reads = empty_reads
+                self.amount_text = amount_text
+
+            def evaluate(self, script: str):
+                if "document.body.innerText" in script:
+                    self.reads += 1
+                    return "" if self.reads <= self.empty_reads else self.amount_text
+                if "const candidates" in script:
+                    return ["健身房预约 2026-10-13 17:00-18:00 已支付 正常"]
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+            def locator(self, selector: str) -> Buttons:
+                return Buttons(self, selector)
+
+        cases = (
+            (2, "请您支付：\n¥\n0\n元", True, "succeeded"),
+            (2, "请您支付：\n¥\n10\n元", False, "failed"),
+        )
+        for empty_reads, amount_text, should_click, expected in cases:
+            with self.subTest(amount_text=amount_text, empty_reads=empty_reads):
+                page = Page(empty_reads, amount_text)
+                with patch.object(gym_automation.time, "sleep"), \
+                     patch.object(gym_automation, "confirm_if_popped", return_value=False):
+                    status, _detail = pay_and_verify(page, date(2026, 10, 13), "17:00-18:00")
+                self.assertEqual(page.clicked, should_click)
+                self.assertEqual(status, expected)
+                self.assertGreater(page.reads, empty_reads)
+
+    def test_blank_confirmation_page_is_captured_without_personal_data(self) -> None:
+        """空确认页没有姓名/订单信息，留一张图正好补上线上那次“页面没渲染”的盲区。"""
+
+        class EmptyLocator:
+            def filter(self, **_kwargs):
+                return self
+
+            def count(self) -> int:
+                return 0
+
+        class Page:
+            def __init__(self) -> None:
+                self.screenshots: list[str] = []
+
+            def evaluate(self, script: str):
+                if "document.body.innerText" in script:
+                    return ""
+                if "querySelectorAll" in script:
+                    return []
+                if "const candidates" in script:
+                    return []
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+            def screenshot(self, *, path: str) -> None:
+                self.screenshots.append(path)
+                Path(path).write_bytes(b"fake-png")
+
+            def locator(self, *_args, **_kwargs):
+                return EmptyLocator()
+
+            def get_by_text(self, *_args, **_kwargs):
+                return EmptyLocator()
+
+        page = Page()
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(gym_automation.time, "sleep"):
+                status, detail = pay_and_verify(page, date(2026, 10, 13), "17:00-18:00", Path(tmp))
+            self.assertEqual(status, "ambiguous")
+            self.assertIn("未点击支付", detail)
+            self.assertEqual([Path(p).name for p in page.screenshots],
+                             ["confirm-page-blank.png"])
+            self.assertTrue((Path(tmp) / "confirm-page-blank.png").exists())
+
     def test_manual_captcha_mode_accepts_confirmation_tab_without_ocr(self) -> None:
         class Page:
             url = "https://ggtypt.nju.edu.cn/venue/confirm?tradeNo=example"
@@ -192,6 +307,23 @@ class GymPaymentAmountTests(unittest.TestCase):
             gym_automation.solve_click_captcha(page, None, manual_only=True),
             page,
         )
+
+
+class GymCaptureDirTests(unittest.TestCase):
+    def test_capture_dirs_keep_only_the_newest_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("20261001-010101", "20261002-020202", "20261003-030303"):
+                (root / name).mkdir()
+                (root / name / "captcha-attempt1.png").write_bytes(b"x")
+            (root / "not-a-run").mkdir()
+            (root / "pay-inspect.json").write_text("{}", encoding="utf-8")
+
+            gym_automation._prune_capture_dirs(root, keep=2)
+
+            self.assertEqual(sorted(p.name for p in root.iterdir()),
+                             ["20261002-020202", "20261003-030303", "not-a-run",
+                              "pay-inspect.json"])
 
 
 if __name__ == "__main__":

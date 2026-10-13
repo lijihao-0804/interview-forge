@@ -113,3 +113,27 @@ class CaptchaMatchingTests(TestCase):
                 patch.object(gym, "_wait_for_manual_captcha", return_value=None):
             self.assertIsNone(gym.solve_click_captcha(page, None, max_attempts=1))
         page.mouse.click.assert_not_called()
+        page.mouse.down.assert_not_called()
+
+    def test_human_click_lands_inside_the_box_after_a_gradual_move(self):
+        page = Mock()
+        x, y, w, h = 300.0, 200.0, 40.0, 36.0
+        with patch.object(gym.time, "sleep"):
+            tx, ty = gym.human_click(page, x, y, w, h)
+        self.assertLessEqual(abs(tx - x), w * 0.2, "落点必须还在字框内")
+        self.assertLessEqual(abs(ty - y), h * 0.2, "落点必须还在字框内")
+        self.assertGreaterEqual(page.mouse.move.call_count, 5, "瞬移没有中间轨迹")
+        page.mouse.down.assert_called_once()
+        page.mouse.up.assert_called_once()
+        order = [c[0] for c in page.mock_calls if c[0] in ("mouse.down", "mouse.up")]
+        self.assertEqual(order, ["mouse.down", "mouse.up"])
+
+    def test_human_click_starts_from_the_previous_landing_point(self):
+        page = Mock()
+        with patch.object(gym.time, "sleep"):
+            first = gym.human_click(page, 100.0, 100.0, 40.0, 36.0)
+            page.mouse.move.reset_mock()
+            gym.human_click(page, 300.0, 200.0, 40.0, 36.0, from_xy=first)
+        fx, fy = page.mouse.move.call_args_list[0][0]
+        self.assertLess(abs(fx - first[0]), 60, "第二次点击应从上一次落点滑过去")
+        self.assertLess(abs(fy - first[1]), 60)

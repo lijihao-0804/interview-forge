@@ -21,6 +21,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import sys
 import time
 from datetime import date as date_cls, datetime, timedelta, timezone
@@ -45,6 +46,25 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
 # ---------------------------------------------------------------- paths / config
+
+_CAPTURE_KEEP_RUNS = 40
+
+
+def _prune_capture_dirs(capture_root, keep=_CAPTURE_KEEP_RUNS):
+    """每次运行的抓图各占一个以运行时间命名的子目录；只留最近 keep 次。
+
+    原来验证码图是固定文件名（captcha-attempt1.png 等），下一次运行直接覆盖，
+    真实样本根本攒不下来（2026-10-13 排查线上问题时就是这么卡住的）。
+    """
+    try:
+        runs = sorted((d for d in capture_root.iterdir()
+                       if d.is_dir() and re.fullmatch(r"\d{8}-\d{6}", d.name)),
+                      key=lambda d: d.name)
+    except OSError:
+        return
+    for stale in runs[:-keep]:
+        shutil.rmtree(stale, ignore_errors=True)
+
 
 def credentials_file():
     """凭据查找顺序：环境变量 > data/gym-credentials.txt > 桌面体育馆项目(本机兼容)。
@@ -809,8 +829,49 @@ def _order_amount_values(text):
     return [float(match.replace(",", "")) for match in _ORDER_AMOUNT_RE.findall(text or "")]
 
 
+_CONFIRM_RENDERED_RE = re.compile(r"请您支付|金额|需支付|待支付|支付")
+
+
+def _wait_confirm_page_rendered(page, timeout_ms=12000, interval_s=0.4):
+    """等确认页渲染出正文再读金额。
+
+    确认页由站点 JS 渲染：标签页 URL 一提交（`_confirmation_page` 就是靠
+    url 里的 tradeNo 认出它的）body 还是空的，`wait_for_load_state
+    ("domcontentloaded")` 对 SPA 也不代表内容已就绪。直接读会把渲染竞态
+    误判成「金额不可识别」而拒绝支付（2026-10-13 线上 08:01 即为此：日志里
+    「支付页可见控件」为空）。"""
+    attempts = max(1, int(timeout_ms / 1000 / interval_s))
+    body = ""
+    for _ in range(attempts):
+        try:
+            body = page.evaluate("() => document.body.innerText") or ""
+        except Exception as exc:  # noqa: BLE001 页面已切换/关闭时交由调用方判定
+            log.warning("确认页正文读取失败：%s", exc)
+            return ""
+        if body.strip() and _CONFIRM_RENDERED_RE.search(body):
+            return body
+        time.sleep(interval_s)
+    log.warning("确认页 %d 秒内未渲染出金额或支付控件（正文 %d 字），按未就绪处理",
+                timeout_ms // 1000, len(body.strip()))
+    return body
+
+
 def read_amount(page):
     return parse_order_amount(page.evaluate("() => document.body.innerText"))
+
+
+def _save_blank_confirm_capture(page, capture_dir):
+    """空白确认页上没有任何姓名/订单信息，留一张截图不违反“不留个人信息”的约定。
+
+    2026-10-13 线上那次就是确认页没渲染出来，因为当时不留任何截图，只能从
+    “支付页可见控件为空”倒推；存一张空图正好补上这个盲区。"""
+    if not capture_dir:
+        return
+    try:
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(capture_dir / "confirm-page-blank.png"))
+    except Exception as exc:  # noqa: BLE001 留证失败不能改变“不支付”的安全结论
+        log.warning("空白确认页截图失败：%s", exc)
 
 
 # ---------------------------------------------------------------- click captcha
@@ -1056,8 +1117,11 @@ def match_click_targets_probability(pil_img, boxes, targets, ocr_std, ocr_beta):
     return assignment, diagnostics
 
 
-def _captcha_click_points(assignment, targets, dump):
-    """Validate a unique assignment and map original-image centers to CSS pixels."""
+def _captcha_click_regions(assignment, targets, dump):
+    """校验一对一分配，并把每个字框映射成页面上的区域（中心 + 显示宽高）。
+
+    比只给中心点多的那两个尺寸，是给 human_click 在框内取随机落点用的。
+    """
     if len(assignment) != len(targets) or any(t not in assignment for t in targets):
         raise ValueError("验证码目标未全部定位")
     if len({tuple(assignment[t]["box"]) for t in targets}) != len(targets):
@@ -1066,13 +1130,51 @@ def _captcha_click_points(assignment, targets, dump):
     nw, nh = map(float, dump["natural"])
     if not all(math.isfinite(v) for v in (rx, ry, rw, rh, nw, nh)) or min(rw, rh, nw, nh) <= 0:
         raise ValueError("验证码显示尺寸无效")
-    points = []
+    regions = []
     for target in targets:
+        x1, y1, x2, y2 = map(float, assignment[target]["box"])
         cx, cy = assignment[target]["center"]
         if not (0 <= cx < nw and 0 <= cy < nh):
             raise ValueError("验证码点击中心超出原图")
-        points.append((target, rx + cx/nw*rw, ry + cy/nh*rh))
-    return points
+        scale_x, scale_y = rw / nw, rh / nh
+        regions.append((target, rx + cx * scale_x, ry + cy * scale_y,
+                        (x2 - x1) * scale_x, (y2 - y1) * scale_y))
+    return regions
+
+
+def _captcha_click_points(assignment, targets, dump):
+    """只要中心点（保留三元组返回，供核验与既有测试使用）。"""
+    return [(t, x, y) for t, x, y, _w, _h in _captcha_click_regions(assignment, targets, dump)]
+
+
+def human_click(page, x, y, width, height, from_xy=None):
+    """框内随机落点 + 少量中间移动 + 按下短暂停留，替代鼠标瞬移点击。
+
+    `page.mouse.click(x, y)` 是瞬移过去、按下抬起零间隔、而且每次都精确落在字框
+    正中心——三次点击的落点相对位置完全一致。这里只保留最要紧的两点：落点带框内
+    随机偏移、按下与抬起之间留一个真人级别的停顿；轨迹四五步带过即可，点选这边没有
+    证据表明站点在校验鼠标轨迹（滑块是另一种验证，那边仍用 drag_slider 的长轨迹）。
+    返回实际落点，给下一个字框当起手位置。
+    """
+    import random as _rnd
+    tx = x + width * _rnd.uniform(-0.18, 0.18)
+    ty = y + height * _rnd.uniform(-0.18, 0.18)
+    if from_xy:
+        sx, sy = from_xy
+    else:
+        sx, sy = (x - width * _rnd.uniform(1.2, 1.8), y - height * _rnd.uniform(1.2, 1.8))
+    steps = _rnd.randint(4, 7)
+    for i in range(1, steps + 1):
+        f = i / steps
+        ease = f * f * (3 - 2 * f)          # 起步慢、中段快、收尾慢
+        page.mouse.move(sx + (tx - sx) * ease + _rnd.uniform(-1.0, 1.0),
+                        sy + (ty - sy) * ease + _rnd.uniform(-1.0, 1.0))
+        time.sleep(_rnd.uniform(0.008, 0.018))
+    page.mouse.move(tx, ty)
+    page.mouse.down()
+    time.sleep(_rnd.uniform(0.04, 0.09))
+    page.mouse.up()
+    return tx, ty
 
 
 def _confirmation_page(context, page):
@@ -1128,6 +1230,7 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
         raise ValueError("不支持的验证码识别策略")
 
     import ddddocr
+    import random as _rnd
     det = ddddocr.DdddOcr(det=True, show_ad=False)
     ocr_std = ddddocr.DdddOcr(show_ad=False)
     ocr_beta = ddddocr.DdddOcr(show_ad=False, beta=True)
@@ -1190,15 +1293,16 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             log.warning("验证码识别期间图片或提示已变化，重新读取")
             continue
         try:
-            points = _captcha_click_points(assignment, targets, latest)
+            regions = _captcha_click_regions(assignment, targets, latest)
         except (KeyError, TypeError, ValueError) as exc:
             log.warning("验证码点击坐标校验失败：%s", exc)
             break
-        for t, px, py in points:
-            page.mouse.click(px, py)
-            log.info("已点击「%s」 @ (%.0f, %.0f)", t, px, py)
-            time.sleep(0.55)
-        time.sleep(1.0)
+        cursor = None
+        for t, cx, cy, box_w, box_h in regions:
+            cursor = human_click(page, cx, cy, box_w, box_h, from_xy=cursor)
+            log.info("已点击「%s」 @ (%.0f, %.0f)", t, cursor[0], cursor[1])
+            time.sleep(_rnd.uniform(0.35, 0.7))
+        time.sleep(_rnd.uniform(0.6, 1.0))
         for txt in ("确认", "确定", "验证"):
             if click_first_visible(page, txt, timeout_ms=300):
                 log.info("点击验证码弹窗「%s」", txt)
@@ -1285,7 +1389,7 @@ def pay_and_verify(page, target_date, slot, capture_dir=None, venue=None):
     支付按钮按可靠性分层定位：先按钮类元素+精确文本，再放宽。
     常规流程不持久化确认页截图或原始订单行，避免把个人/订单信息留在日志中。
     """
-    body = page.evaluate("() => document.body.innerText")
+    body = _wait_confirm_page_rendered(page)
     amount_values = _order_amount_values(body)
     amount = parse_order_amount(body)
     log.info("确认页金额：%s 元", amount)
@@ -1294,6 +1398,9 @@ def pay_and_verify(page, target_date, slot, capture_dir=None, venue=None):
     if amount is not None and amount != 0:
         return "failed", f"订单金额为 {amount} 元（非 0），按安全规则停止"
     if amount is None:
+        if not body.strip():
+            log.warning("确认页正文为空：进入确认页后正文始终未渲染")
+            _save_blank_confirm_capture(page, capture_dir)
         log.warning("确认页金额无法识别，按安全规则不点击支付")
         try:
             inspect_payment(page, None)
@@ -1481,7 +1588,9 @@ def run(args) -> dict:
     target_url = VENUE_URL_FMT.format(venue=args.venue)
     target_date = date_cls.fromisoformat(args.date) if args.date else datetime.now(SHANGHAI).date()
     slots = [s.strip() for s in args.slots.split(",")] if args.slots else list(PREFERRED_SLOTS)
-    capture_dir = ROOT / "data" / "logs" / "gym" / "captures"
+    capture_root = ROOT / "data" / "logs" / "gym" / "captures"
+    _prune_capture_dirs(capture_root)
+    capture_dir = capture_root / datetime.now(SHANGHAI).strftime("%Y%m%d-%H%M%S")
     capture_dir.mkdir(parents=True, exist_ok=True)
     result = {"status": "failed", "detail": "", "date": target_date.isoformat(),
               "slots": slots, "venue": args.venue, "actual_slot": None}
@@ -1605,6 +1714,7 @@ def run(args) -> dict:
             return result
 
         page.wait_for_load_state("domcontentloaded")
+        _wait_confirm_page_rendered(page)
         # 确认页 URL 含 tradeNo，不写入服务日志。
         log.info("已进入订单确认页")
         if "tradeNo" not in page.url:
