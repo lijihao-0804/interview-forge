@@ -894,6 +894,30 @@ JS_CAPTCHA_DUMP = """() => {
 }"""
 
 
+JS_CAPTCHA_POPUP_TEXT = """() => {
+  const boxes = [...document.querySelectorAll('.verifybox, [class*="verifybox"]')];
+  for (const box of boxes) {
+    const r = box.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      const text = (box.innerText || '').replace(/\\s+/g, ' ').trim();
+      if (text) return text.slice(0, 180);
+    }
+  }
+  return '';
+}"""
+
+
+def _captcha_popup_text(page):
+    """只读可见验证码弹窗自己的文本（不读整页，避免把个人信息带进日志）。
+
+    站点判错时会在弹窗里给出提示，而弹窗往往随后就关闭，事后再读什么都取不到，
+    所以要在点完之后立刻采一次。找不到可见弹窗就返回空串。"""
+    try:
+        return page.evaluate(JS_CAPTCHA_POPUP_TEXT) or ""
+    except Exception:  # noqa: BLE001 读不到不能影响判定流程
+        return ""
+
+
 def deepseek_key():
     """验证码识字用的 DeepSeek key 查找顺序：
     1. 环境变量 DEEPSEEK_API_KEY（显式覆盖）；
@@ -1307,6 +1331,8 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
             if click_first_visible(page, txt, timeout_ms=300):
                 log.info("点击验证码弹窗「%s」", txt)
                 break
+        retry_with_new_puzzle = False
+        last_popup_text = ""
         for _ in range(30):
             time.sleep(0.6)
             if "tradeNo" in page.url:
@@ -1320,7 +1346,8 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                     except Exception:  # noqa: BLE001
                         pass
                     return pg
-            if page.evaluate(JS_CAPTCHA_DUMP) is None:
+            latest = page.evaluate(JS_CAPTCHA_DUMP)
+            if latest is None:
                 log.info("验证码弹窗已关闭，短暂等待确认页后交由订单状态复核")
                 deadline = time.monotonic() + 4
                 while time.monotonic() < deadline:
@@ -1329,6 +1356,18 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                     if confirmed is not None:
                         return confirmed
                 return None
+            if latest["src"] != dump["src"] or latest["prompt"] != dump["prompt"]:
+                # 站点判错后通常就在同一个弹窗里换一张新题。这时应当按新题重解，
+                # 而不是白等到底再点一次刷新——那等于把站点刚给的新题又换掉。
+                retry_with_new_puzzle = True
+                break
+            popup_text = _captcha_popup_text(page)
+            if popup_text and popup_text != last_popup_text:
+                last_popup_text = popup_text
+                log.info("验证码弹窗文本：%s", popup_text)
+        if retry_with_new_puzzle:
+            log.info("第 %d 次被判错且站点已换新题，直接重解", attempt)
+            continue
         log.warning("点选验证码第 %d 次未通过", attempt)
         try:
             refresh = page.locator(".verify-refresh, .refresh, [class*='refresh']:visible").first

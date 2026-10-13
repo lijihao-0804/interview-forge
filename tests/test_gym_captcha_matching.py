@@ -137,3 +137,60 @@ class CaptchaMatchingTests(TestCase):
         fx, fy = page.mouse.move.call_args_list[0][0]
         self.assertLess(abs(fx - first[0]), 60, "第二次点击应从上一次落点滑过去")
         self.assertLess(abs(fy - first[1]), 60)
+
+    def test_captcha_popup_text_is_optional(self):
+        page = Mock()
+        page.evaluate.return_value = "验证失败，请重试"
+        self.assertEqual(gym._captcha_popup_text(page), "验证失败，请重试")
+        page.evaluate.return_value = None
+        self.assertEqual(gym._captcha_popup_text(page), "")
+        page.evaluate.side_effect = RuntimeError("页面已切换")
+        self.assertEqual(gym._captcha_popup_text(page), "", "读不到不能影响判定")
+
+    def test_new_puzzle_in_the_same_popup_is_re_solved_without_refreshing(self):
+        """站点判错后通常在同一弹窗换新题：应直接按新题重解。
+
+        老行为是白等 18 秒再点一次刷新，等于把站点刚给的新题又换掉。
+        """
+        buffer = BytesIO()
+        Image.new("RGB", (40, 20)).save(buffer, format="PNG")
+        blob = base64.b64encode(buffer.getvalue()).decode()
+        puzzle_a = {"src": "data:image/png;base64," + blob, "prompt": "甲,乙",
+                    "rect": [0, 0, 40, 20], "natural": [40, 20]}
+        puzzle_b = {**puzzle_a, "src": "data:image/png;base64," + blob + "B"}
+
+        class Page:
+            url = "https://ggtypt.nju.edu.cn/venue/venue-reservation/1"
+
+            def __init__(self) -> None:
+                self.mouse = Mock()
+                self.context = Mock(pages=[])
+                self.dump_calls = 0
+                self.locator = Mock(side_effect=AssertionError("判错换新题时不该点刷新"))
+
+            def evaluate(self, script):
+                if script is gym.JS_CAPTCHA_POPUP_TEXT:
+                    return ""
+                if script is gym.JS_CAPTCHA_DUMP:
+                    self.dump_calls += 1
+                    if self.dump_calls == 1:
+                        return puzzle_a
+                    if self.dump_calls == 4:
+                        self.url = "https://ggtypt.nju.edu.cn/venue/orders?tradeNo=X"
+                    return puzzle_b
+                raise AssertionError(f"unexpected page evaluation: {script}")
+
+        page = Page()
+        assignment = {"甲": {"box": [0, 0, 20, 20], "center": (10, 10)},
+                      "乙": {"box": [20, 0, 40, 20], "center": (30, 10)}}
+        detector = Mock()
+        detector.detection.return_value = [[0, 0, 20, 20], [20, 0, 40, 20]]
+        with patch("ddddocr.DdddOcr", side_effect=[detector, Mock(), Mock()]), \
+                patch.object(gym, "match_click_targets_probability", return_value=(assignment, {})), \
+                patch.object(gym, "click_first_visible", return_value=False), \
+                patch.object(gym, "_wait_for_manual_captcha", return_value=None), \
+                patch.object(gym.time, "sleep"):
+            result = gym.solve_click_captcha(page, None, max_attempts=2)
+        self.assertIs(result, page, "换新题后应重解并成功")
+        self.assertGreaterEqual(page.dump_calls, 4, "应当重新读过新题")
+        page.locator.assert_not_called()
