@@ -36,6 +36,21 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         ):
             self.assertIn(example, problem_page)
 
+    def test_rotated_array_minimum_statement_is_a_coherent_paragraph(self):
+        problem_page = (
+            ROOT / "books" / "hot100" / "03-题解" / "11-二分查找"
+            / "0153-寻找旋转排序数组中的最小值.html"
+        ).read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "<p>已知一个长度为 <code>n</code> 的数组，预先按照升序排列，经由 "
+            "<code>1</code> 到 <code>n</code> 次 <strong>旋转</strong> 后，得到输入数组。"
+            "例如，原数组 <code>nums = [0,1,2,4,5,6,7]</code> 在变化后可能得到：</p>",
+            problem_page,
+        )
+        self.assertNotIn("<p><code>n</code></p>", problem_page)
+        self.assertNotIn("<p><code>1</code></p>", problem_page)
+
     def test_mermaid_flowchart_renders_as_a_diagram(self):
         rendered = build_library.render_markdown(
             "```mermaid\nflowchart TD\n    query[用户问题] --> rewrite[问题改写]\n```"
