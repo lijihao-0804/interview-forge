@@ -8,6 +8,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class LibraryReaderLayoutTests(unittest.TestCase):
+    def test_language_switcher_keeps_non_language_code_examples_visible(self):
+        runtime = (ROOT / "assets" / "site.js").read_text(encoding="utf-8-sig")
+        generator = (ROOT / "scripts" / "build" / "build_html_site.py").read_text(encoding="utf-8-sig")
+        problem_page = (
+            ROOT / "books" / "hot100" / "03-题解" / "11-二分查找"
+            / "0034-在排序数组中查找元素的第一个和最后一个位置.html"
+        ).read_text(encoding="utf-8-sig")
+
+        for source in (runtime, generator):
+            self.assertIn(
+                ".filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang))",
+                source,
+            )
+            self.assertIn("if (!blocks.length) return;", source)
+        self.assertGreaterEqual(
+            generator.count(".filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang))"),
+            1,
+        )
+        self.assertIn("?v={SITE_JS_VERSION}", generator)
+        self.assertIn('site.js?v=20261014-code-block-visibility', problem_page)
+        self.assertEqual(problem_page.count('<div class="codehilite" data-lang="text">'), 3)
+        for example in (
+            "输入：nums = [5,7,7,8,8,10], target = 8",
+            "输出：[3,4]",
+            "输入：nums = [5,7,7,8,8,10], target = 6",
+            "输出：[-1,-1]",
+            "输入：nums = [], target = 0",
+        ):
+            self.assertIn(example, problem_page)
+
     def test_mermaid_flowchart_renders_as_a_diagram(self):
         rendered = build_library.render_markdown(
             "```mermaid\nflowchart TD\n    query[用户问题] --> rewrite[问题改写]\n```"

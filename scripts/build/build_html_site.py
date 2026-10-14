@@ -54,7 +54,7 @@ from interview_forge.core.problem_catalog import (
     problem_filename as hot100_problem_filename,
 )
 from scripts.build import build_cache
-from scripts.build.asset_version import ASSET_VERSION
+from scripts.build.asset_version import ASSET_VERSION, SITE_JS_VERSION
 
 # 并行渲染进程数：8（或按 CPU 核数自动收敛）。渲染是 CPU+IO 混合，进程池
 # 不受 GIL 限制；仅在逐文件渲染（render_markdown）阶段并行，聚合产物仍串行。
@@ -784,7 +784,9 @@ readerVisualFrames.forEach((frame) => {
     const main = document.querySelector('.markdown-body');
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')];
+    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')]
+      .filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
+    if (!blocks.length) return;
     const available = new Set(blocks.map((block) => block.dataset.lang));
     const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
     blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
@@ -2337,7 +2339,7 @@ def render_markdown(source: Path) -> None:
     else:
         page_heading = f"<h1>{html.escape(source.stem)}</h1>"
     css_href = web_rel(output, ROOT / "assets" / "site.css") + f"?v={ASSET_VERSION}"
-    js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={ASSET_VERSION}"
+    js_href = web_rel(output, ROOT / "assets" / "site.js") + f"?v={SITE_JS_VERSION}"
     ai_asset_base = web_rel(output, ROOT / "assets")
     ai_css_href = ai_asset_base + "/ai-launcher.css?v=5"
     ai_context_href = ai_asset_base + "/ai-page-context.js?v=1"

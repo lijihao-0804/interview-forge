@@ -139,7 +139,9 @@ readerVisualFrames.forEach((frame) => {
     const main = document.querySelector('.markdown-body');
     if (!main) return;
     if (!main.querySelector('.codehilite[data-lang], .lang-section')) return;
-    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')];
+    const blocks = [...document.querySelectorAll('.markdown-body .lang-section[data-lang], .markdown-body .codehilite[data-lang]')]
+      .filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
+    if (!blocks.length) return;
     const available = new Set(blocks.map((block) => block.dataset.lang));
     const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
     blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
