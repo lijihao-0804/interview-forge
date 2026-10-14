@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import contextlib
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -214,6 +215,63 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertTrue(result["retry_exhausted"])
         self.assertFalse(result["retryable"])
         self.assertIn("3 次", result["detail"])
+
+
+class GymSerialExecutionTests(unittest.TestCase):
+    """到点任务串行执行，并按创建时间先来先跑。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_patch = patch.object(gym, "GYM_DB_PATH", Path(self.tmp.name) / "gym.db")
+        self.db_patch.start()
+        self.addCleanup(self.db_patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+        self.today = datetime.now(gym.SHANGHAI).date().isoformat()
+
+    def _insert_pending(self, created_at: str) -> int:
+        conn = gym.connect()
+        try:
+            cur = conn.execute(
+                "INSERT INTO gym_jobs (target_date, slots, venue, status, created_by,"
+                " created_at, updated_at, result)"
+                " VALUES (?, ?, ?, 'pending', ?, ?, ?, '{}')",
+                (self.today, '["17:00-18:00"]', "129", "someone", created_at, created_at),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+        finally:
+            conn.close()
+
+    def _claim_at_9am(self) -> list[dict]:
+        # 领取有个 08:00 的门，测试不能依赖运行时刻，把“现在”固定下来。
+        fixed_now = datetime(2026, 10, 14, 9, 0, tzinfo=gym.SHANGHAI)
+        with patch.object(gym, "datetime") as fake:
+            fake.now.return_value = fixed_now
+            return gym._claim_due_jobs(self.today)
+
+    def test_due_jobs_are_claimed_earliest_created_first(self) -> None:
+        later = self._insert_pending(f"{self.today}T09:30:00+08:00")
+        earlier = self._insert_pending(f"{self.today}T09:10:00+08:00")  # id 更大、创建更早
+        self.assertGreater(earlier, later, "前提：先插入的那条 id 更小")
+        self.assertEqual([j["id"] for j in self._claim_at_9am()], [earlier, later])
+
+    def test_batch_skips_when_another_worker_holds_the_execution_lock(self) -> None:
+        with patch.object(gym, "_run_due_jobs") as run, \
+                patch.object(gym, "mutex", side_effect=TimeoutError("busy")):
+            self.assertEqual(gym._run_scheduled_batch(self.today), -1)
+        run.assert_not_called()
+
+    def test_batch_runs_the_due_jobs_when_the_lock_is_free(self) -> None:
+        with patch.object(gym, "mutex", return_value=contextlib.nullcontext()), \
+                patch.object(gym, "_run_due_jobs", return_value=2) as run:
+            self.assertEqual(gym._run_scheduled_batch(self.today), 2)
+        run.assert_called_once_with(self.today)
+
+    def test_a_timeout_inside_the_run_is_not_mistaken_for_a_busy_lock(self) -> None:
+        with patch.object(gym, "mutex", return_value=contextlib.nullcontext()), \
+                patch.object(gym, "_run_due_jobs", side_effect=TimeoutError("site slow")):
+            with self.assertRaises(TimeoutError):
+                gym._run_scheduled_batch(self.today)
 
 
 class GymInterruptedJobRecoveryTests(unittest.TestCase):

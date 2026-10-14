@@ -950,7 +950,8 @@ def _claim_due_jobs(today_iso: str) -> list[dict]:
         conn = connect()
         try:
             rows = conn.execute(
-                "SELECT * FROM gym_jobs WHERE status='pending' ORDER BY id"
+                # 先建先跑：按创建时间领取，串行执行时顺序就是排队顺序。
+                "SELECT * FROM gym_jobs WHERE status='pending' ORDER BY created_at, id"
             ).fetchall()
             for row in rows:
                 if row["target_date"] < today_iso:
@@ -1131,27 +1132,53 @@ def _run_job_subprocess(job: dict) -> tuple[str, dict]:
     return status, result
 
 
+def _run_due_jobs(today_iso: str) -> int:
+    """领取到点的任务并逐个执行；返回本轮执行了几个。调用方须持有执行锁。"""
+    executed = 0
+    for job in _claim_due_jobs(today_iso):
+        executed += 1
+        log.info("执行自动预约任务 #%s（%s %s）", job["id"], job["target_date"], job["slots"])
+        try:
+            status, result = _run_job_subprocess(job)
+        except subprocess.TimeoutExpired:
+            timeout_minutes = JOB_SUBPROCESS_TIMEOUT_SECONDS // 60
+            status, result = "failed", {"detail": f"执行超时（{timeout_minutes} 分钟）"}
+        except Exception as exc:  # noqa: BLE001
+            status, result = "failed", {"detail": f"执行异常：{exc}"}
+        if _defer_transient_retry(job, status, result):
+            continue
+        _finish_job(job["id"], status, result)
+        notify_job_result(job, status, result)
+        log.info("任务 #%s 完成：%s %s", job["id"], status, result.get("detail", "")[:120])
+    return executed
+
+
+def _run_scheduled_batch(today_iso: str) -> int:
+    """串行跑一轮到点任务；已有任务在执行时返回 -1（本轮跳过）。
+
+    预约子进程彼此串行：多个 worker 共用一把跨进程执行锁，同一时刻只允许一个任务
+    在跑。几个任务同时登录、同时加载场馆页会把站点拖慢到 8 秒页面超时——2026-10-14
+    三个用户的任务同时在 08:00 出发，前两次尝试全部因此失败。任务按创建时间领取，
+    先建先跑；拿不到锁的 worker 直接跳过本轮，下一轮再试。
+    """
+    acquired = False
+    try:
+        with mutex("gym", "executor", timeout=0.1):
+            acquired = True
+            return _run_due_jobs(today_iso)
+    except TimeoutError:
+        if acquired:            # 锁已拿到，是执行过程自身超时，交给外层记录
+            raise
+        log.info("已有预约任务在执行，本轮跳过")
+        return -1
+
+
 def _scheduler_loop() -> None:
     log.info("健身房预约调度线程已启动")
     while not _scheduler_stop.is_set():
         try:
             today_iso = datetime.now(SHANGHAI).date().isoformat()
-            for job in _claim_due_jobs(today_iso):
-                log.info("执行自动预约任务 #%s（%s %s）",
-                         job["id"], job["target_date"], job["slots"])
-                try:
-                    status, result = _run_job_subprocess(job)
-                except subprocess.TimeoutExpired:
-                    timeout_minutes = JOB_SUBPROCESS_TIMEOUT_SECONDS // 60
-                    status, result = "failed", {"detail": f"执行超时（{timeout_minutes} 分钟）"}
-                except Exception as exc:  # noqa: BLE001
-                    status, result = "failed", {"detail": f"执行异常：{exc}"}
-                if _defer_transient_retry(job, status, result):
-                    continue
-                _finish_job(job["id"], status, result)
-                notify_job_result(job, status, result)
-                log.info("任务 #%s 完成：%s %s", job["id"], status,
-                         result.get("detail", "")[:120])
+            _run_scheduled_batch(today_iso)
         except Exception:  # noqa: BLE001
             log.exception("调度循环异常")
         _scheduler_stop.wait(30)
