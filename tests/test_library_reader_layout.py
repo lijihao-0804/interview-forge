@@ -28,13 +28,11 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         )
         self.assertIn("?v={SITE_JS_VERSION}", generator)
         self.assertIn('site.js?v=20261014-code-block-visibility', problem_page)
-        self.assertEqual(problem_page.count('<div class="codehilite" data-lang="text">'), 3)
+        self.assertNotIn('<div class="codehilite" data-lang="text">', problem_page)
         for example in (
-            "输入：nums = [5,7,7,8,8,10], target = 8",
-            "输出：[3,4]",
-            "输入：nums = [5,7,7,8,8,10], target = 6",
-            "输出：[-1,-1]",
-            "输入：nums = [], target = 0",
+            "<p><strong>输入：</strong>nums = [5,7,7,8,8,10], target = 8<br/><strong>输出：</strong>[3,4]</p>",
+            "<p><strong>输入：</strong>nums = [5,7,7,8,8,10], target = 6<br/><strong>输出：</strong>[-1,-1]</p>",
+            "<p><strong>输入：</strong>nums = [], target = 0<br/><strong>输出：</strong>[-1,-1]</p>",
         ):
             self.assertIn(example, problem_page)
 
