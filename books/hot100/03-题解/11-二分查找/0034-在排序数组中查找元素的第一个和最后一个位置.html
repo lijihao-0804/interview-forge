@@ -48,66 +48,84 @@
 <div class="meta-badges"><span class="mb diff-中等"><span class="mb-k">难度</span><b>中等</b></span><span class="mb"><span class="mb-k">核心模式</span><b>左右边界二分</b></span><span class="mb"><span class="mb-k">时间复杂度</span><b>O(log n)</b></span><span class="mb"><span class="mb-k">空间复杂度</span><b>O(1)</b></span></div>
 <h2 id="_1">题目与约束</h2>
 <p>给你一个按照非递减顺序排列的整数数组 <code>nums</code> 和一个目标值 <code>target</code>，请找出 <code>target</code> 在数组中的起始位置和结束位置。如果数组中不存在 <code>target</code>，返回 <code>[-1, -1]</code>。</p>
-<p>要求算法的时间复杂度为 <code>O(log n)</code>。</p>
+<p>请设计并实现时间复杂度为 <code>O(log n)</code> 的算法。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>输入：nums = [5,7,7,8,8,10], target = 8
+输出：[3,4]
+解释：目标值 8 在数组中的起始位置是 3，结束位置是 4。
+</code></pre></div>
+<p><strong>示例 2：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>输入：nums = [5,7,7,8,8,10], target = 6
+输出：[-1,-1]
+解释：数组中不存在目标值 6。
+</code></pre></div>
+<p><strong>示例 3：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>输入：nums = [], target = 0
+输出：[-1,-1]
+解释：空数组中不存在目标值 0。
+</code></pre></div>
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>0 &lt;= nums.length &lt;= 10^5</code></li>
+<li><code>-10^9 &lt;= nums[i] &lt;= 10^9</code></li>
+<li><code>nums</code> 按非递减顺序排列。</li>
+<li><code>-10^9 &lt;= target &lt;= 10^9</code></li>
+</ul>
 <p><a href="https://leetcode.cn/problems/find-first-and-last-position-of-element-in-sorted-array/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
 <h2 id="_2">核心不变量</h2>
 <blockquote>
-<p>分别寻找第一个大于等于 target 和第一个大于 target 的位置。</p>
+<p>每次命中 <code>target</code> 都先记录当前位置，再继续向目标边界方向搜索；因此 <code>ans</code> 始终保存当前找到的最靠左（或最靠右）命中位置。</p>
 </blockquote>
 <h2 id="_3">完整推导</h2>
 <h3 id="_4">思路推导</h3>
-<p>这道题不应在找到一个 <code>target</code> 后向两侧线性扫描，因为重复值很多时会退化为 <code>O(n)</code>。可以把问题拆成两个相互独立的边界查询：</p>
+<p>找到一个 <code>target</code> 后向两侧线性扫描，重复值很多时会退化为 <code>O(n)</code>。更直接的做法是执行两次二分查找，每次都在命中后记录答案，并继续把搜索区间推向一侧：</p>
 <ol>
-<li>用一次二分查找找第一个大于等于 <code>target</code> 的位置，它就是左边界候选。</li>
-<li>用一次二分查找找第一个大于 <code>target</code> 的位置，再向左退一格，就得到右边界。</li>
-<li>如果左边界越界，或 <code>nums[left]</code> 不是 <code>target</code>，说明目标不存在。</li>
+<li>找左边界：首次命中 <code>target</code> 后记录下标，并令 <code>right = mid - 1</code>，继续在左半区查找更靠左的命中位置。</li>
+<li>找右边界：首次命中 <code>target</code> 后记录下标，并令 <code>left = mid + 1</code>，继续在右半区查找更靠右的命中位置。</li>
+<li>任一方向都没有命中时，答案保持为 <code>-1</code>；两个结果组成 <code>[leftBound, rightBound]</code>。</li>
 </ol>
-<p>二分过程中保持不变量：答案边界始终位于尚未排除的闭区间内。向左找边界时，命中目标仍继续收缩右端；向右找边界时，命中目标仍继续收缩左端。</p>
+<p>每轮仍按普通闭区间二分更新 <code>[left, right]</code>。关键差异只在命中时不立即返回：先保存 <code>mid</code>，再按本轮目标方向排除已经检查过的位置。这样既不会漏掉边界，也不需要额外扫描。</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="nf">searchRange</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lowerBound</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">);</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">left</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">};</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">upperBound</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">right</span><span class="p">};</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">findBound</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">findBound</span><span class="p">(</span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">last</span><span class="p">};</span>
 <span class="w">    </span><span class="p">}</span>
 
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">lowerBound</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">hi</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lo</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">lo</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findBound</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="n">isFirst</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
 
-<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">upperBound</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lo</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">hi</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lo</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">lo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">left</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">right</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">left</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">right</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">left</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">ans</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">isFirst</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">nums</span><span class="o">[</span><span class="n">mid</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
 <span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">hi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="p">;</span>
+<span class="w">                </span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mid</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
 <span class="w">            </span><span class="p">}</span>
 <span class="w">        </span><span class="p">}</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">lo</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ans</span><span class="p">;</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
 </div><h3 id="_5">复杂度</h3>
-<p>两次二分查找各访问 <code>O(log n)</code> 个位置，总时间复杂度为 <code>O(log n)</code>，只使用常数个变量，空间复杂度为 <code>O(1)</code>。</p>
+<p>左右边界各进行一次二分查找，时间复杂度为 <code>O(log n)</code>；只使用几个变量记录区间和答案，额外空间复杂度为 <code>O(1)</code>。</p>
 <div class="aside aside-warn"><span class="aside-title">易错点与扩展</span>
 <ul>
-<li><code>lowerBound</code> 找的是第一个 <code>&gt;= target</code> 的位置，不是任意一个命中位置。</li>
-<li><code>upperBound</code> 找的是第一个 <code>&gt; target</code> 的位置，所以右边界必须减一。</li>
-<li>使用半开区间 <code>[lo, hi)</code> 可以自然处理空数组，并避免访问 <code>nums[nums.length]</code>。</li>
+<li>命中后要先保存 <code>mid</code>，再继续搜索；如果立即返回，只能得到任意一次命中，不能保证是边界。</li>
+<li>找左边界时收缩右端（<code>right = mid - 1</code>）；找右边界时收缩左端（<code>left = mid + 1</code>）。方向写反会得到错误边界。</li>
+<li>空数组时 <code>right</code> 初始为 <code>-1</code>，循环不会执行，<code>ans</code> 保持 <code>-1</code>，因此无需额外特判。</li>
 </ul>
 </div><h2 id="_7">力扣原题</h2>
 <p><a href="https://leetcode.cn/problems/find-first-and-last-position-of-element-in-sorted-array/?envType=study-plan-v2&amp;envId=top-100-liked" target="_blank" rel="noopener noreferrer">🔗 前往力扣原题验证 →</a></p>
