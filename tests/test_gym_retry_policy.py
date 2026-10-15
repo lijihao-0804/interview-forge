@@ -7,7 +7,7 @@ import contextlib
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from interview_forge.services import gym, gym_automation
 
@@ -154,6 +154,26 @@ class GymAutomationOrderPolicyTests(unittest.TestCase):
         self.assertNotIn("PRIVATE-123", summary)
 
 
+class GymNavigationTimeoutTests(unittest.TestCase):
+    """放号瞬间站点很慢：导航不能沿用 8 秒默认超时。"""
+
+    def test_navigation_gets_a_wider_timeout_than_the_page_default(self) -> None:
+        page = Mock()
+        gym_automation.robust_goto(page, "https://example.invalid/venue/1")
+        self.assertEqual(page.goto.call_args.kwargs["timeout"],
+                         gym_automation.PAGE_NAV_TIMEOUT_MS)
+        self.assertGreater(gym_automation.PAGE_NAV_TIMEOUT_MS, 8000,
+                           "必须比页面默认的 8 秒宽，否则放号那波还是全倒在加载上")
+
+    def test_interrupted_navigation_still_retries_and_times_out_eventually(self) -> None:
+        page = Mock()
+        page.goto.side_effect = RuntimeError("Navigation interrupted by another one")
+        with patch("time.sleep"):
+            with self.assertRaises(RuntimeError):
+                gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
+        self.assertEqual(page.goto.call_count, 3)
+
+
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
         self.assertEqual(gym.RUN_EARLIEST, (8, 0))
@@ -164,9 +184,25 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
         self.assertFalse(gym_automation._retryable_before_submission(
             RuntimeError("南大账号或密码不正确")))
 
-    def test_retry_waits_until_five_minute_deadline(self) -> None:
+    def test_retry_backoff_grows_so_the_last_attempt_misses_the_0800_rush(self) -> None:
+        self.assertEqual(gym.JOB_RETRY_DELAYS_SECONDS, (5 * 60, 10 * 60))
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
-        self.assertEqual(gym.JOB_RETRY_DELAY_SECONDS, 5 * 60)
+
+        for attempt, minutes in ((1, 5), (2, 10)):
+            with self.subTest(attempt=attempt):
+                job = {"id": 90, "result": ({} if attempt == 1 else {"attempt": attempt})}
+                with patch.object(gym, "_finish_job") as finish, \
+                        patch.object(gym, "datetime") as fake:
+                    fake.now.return_value = now
+                    self.assertTrue(gym._defer_transient_retry(
+                        job, "failed", {"detail": "页面导航超时", "retryable": True}))
+                stored = finish.call_args.args[2]
+                self.assertEqual(
+                    stored["retry_after"],
+                    (now + timedelta(minutes=minutes)).isoformat(timespec="seconds"))
+
+    def test_retry_deadline_is_respected(self) -> None:
+        now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
         self.assertFalse(gym._retry_is_due(
             {"retry_after": (now + timedelta(minutes=5)).isoformat()}, now))
         self.assertTrue(gym._retry_is_due(

@@ -44,6 +44,9 @@ ORDERS_URL = "https://ggtypt.nju.edu.cn/venue/orders"
 VENUE_URL_FMT = "https://ggtypt.nju.edu.cn/venue/venue-reservation/{venue}"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+# 页面导航（goto）单独的超时。放号瞬间站点会被挤到响应很慢，8 秒的默认值让三次尝试
+# 全部倒在“页面还没加载出来”；真人用浏览器是会一直等的。
+PAGE_NAV_TIMEOUT_MS = 25000
 
 # ---------------------------------------------------------------- paths / config
 
@@ -161,10 +164,16 @@ def wait_either(page, css_list, timeout_ms):
 
 
 def robust_goto(page, url, attempts=4):
-    """站点常有自动跳转在途，主动导航可能被打断：遇到就等一下重试。"""
+    """站点常有自动跳转在途，主动导航可能被打断：遇到就等一下重试。
+
+    导航单独用宽超时：08:00 放号瞬间站点会被挤到响应很慢，真人用浏览器会一直等，
+    而我们原来沿用 8 秒的默认超时，三次尝试全倒在“页面还没加载出来”那一步
+    （2026-10-15 的失败全是 Page.goto 超时）。点击、可见性这类本地交互仍用默认短
+    超时，不至于把失败判定拖慢。
+    """
     for _ in range(attempts):
         try:
-            page.goto(url, wait_until="domcontentloaded")
+            page.goto(url, wait_until="domcontentloaded", timeout=PAGE_NAV_TIMEOUT_MS)
             return
         except Exception as exc:  # noqa: BLE001
             msg = str(exc)

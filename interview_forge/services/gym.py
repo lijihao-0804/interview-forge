@@ -45,7 +45,10 @@ RUN_EARLIEST = (8, 0)
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
-JOB_RETRY_DELAY_SECONDS = 5 * 60
+# 重试间隔递增：放号后十来分钟站点都处在过载状态（2026-10-15 两个任务的三次尝试全
+# 落在 08:00~08:12 区间，全部倒在页面导航超时），固定 5 分钟会让最后一次尝试也撞在
+# 高峰里；第二档 10 分钟把最后一次推到站点缓过来之后。
+JOB_RETRY_DELAYS_SECONDS = (5 * 60, 10 * 60)
 MAX_SLOTS_PER_JOB = 6
 SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -1075,7 +1078,8 @@ def _defer_transient_retry(job: dict, status: str, result: dict) -> bool:
                             f"最后结果：{result.get('detail', '')}")
         return False
 
-    retry_at = datetime.now(SHANGHAI) + timedelta(seconds=JOB_RETRY_DELAY_SECONDS)
+    delay = JOB_RETRY_DELAYS_SECONDS[min(attempt - 1, len(JOB_RETRY_DELAYS_SECONDS) - 1)]
+    retry_at = datetime.now(SHANGHAI) + timedelta(seconds=delay)
     result["attempt"] = attempt + 1
     result["retry_after"] = retry_at.isoformat(timespec="seconds")
     result["detail"] = (f"第 {attempt} 次遇到可恢复故障，将于 {retry_at:%H:%M} 自动重试。"
