@@ -168,9 +168,8 @@ class GymNavigationTimeoutTests(unittest.TestCase):
     def test_interrupted_navigation_still_retries_and_times_out_eventually(self) -> None:
         page = Mock()
         page.goto.side_effect = RuntimeError("Navigation interrupted by another one")
-        with patch("time.sleep"):
-            with self.assertRaises(RuntimeError):
-                gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
+        with patch("time.sleep"), self.assertRaises(RuntimeError):
+            gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
         self.assertEqual(page.goto.call_count, 3)
 
 
