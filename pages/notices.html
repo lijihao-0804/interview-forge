@@ -7,7 +7,6 @@
 <title>重要通知 · InterviewForge</title>
 <script src="../assets/time-utils.js?v=2"></script>
 <script src="../assets/ui.js?v=1"></script>
-<script src="../assets/theme-toggle.js?v=1"></script>
 <style>
 :root{
   color-scheme:light dark;
@@ -26,7 +25,9 @@ html[data-theme="dark"]{color-scheme:dark;--bg:#0f131b;--panel:#181e29;--soft:#1
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);
   font:15px/1.7 "Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}
-.shell{width:min(100% - 28px,1420px);margin:auto;padding:22px 0 56px}
+/* 底部 padding 预留右下角认证胶囊 + 反馈球 + AI 启动器的占位高度，
+ * 否则浮动控件会压住内容卡片的最后一段。 */
+.shell{width:min(100% - 28px,1420px);margin:auto;padding:22px 0 calc(64px + env(safe-area-inset-bottom))}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .top h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em}
 .top-sub{margin:2px 0 0;color:var(--muted);font-size:13px}
@@ -74,7 +75,10 @@ body{margin:0;background:var(--bg);color:var(--text);
   color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
 .frame-actions button:hover{border-color:color-mix(in srgb,var(--brand) 42%,var(--line));color:var(--brand)}
 .frame-wrap{position:relative;flex:1;min-height:520px;background:var(--soft)}
-.frame-wrap iframe{display:block;width:100%;height:100%;min-height:520px;border:0;background:var(--panel)}
+/* 内嵌页占满内容区，并按视口高度撑开；底部再留出认证胶囊/反馈球的高度，
+ * 让最后几行正文不会被右下角浮动控件压住。 */
+.frame-wrap{min-height:max(520px,calc(100vh - 236px))}
+.frame-wrap iframe{display:block;width:100%;height:100%;min-height:inherit;border:0;background:var(--panel)}
 .frame-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;text-align:center}
 .frame-fallback.show{display:flex}
 .frame-fallback p{margin:0;color:var(--muted);font-size:13.5px;max-width:420px}
@@ -83,7 +87,7 @@ body{margin:0;background:var(--bg);color:var(--text);
 @media(max-width:860px){
   .layout{grid-template-columns:1fr;min-height:0}
   .notice-list{max-height:260px}
-  .frame-wrap,.frame-wrap iframe{min-height:70vh}
+  .frame-wrap,.frame-wrap iframe{min-height:60vh}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -206,6 +210,15 @@ body{margin:0;background:var(--bg);color:var(--text);
     });
   }
 
+  /* iframe 一律带 embedded=1：服务端据此只注入导航策略，不再往内嵌页里塞认证胶囊/
+   * 反馈球/AI 启动器，主题也跟随外层。否则外层壳页已有一套 fixed 定位控件，
+   * iframe 内再来一套，就会在右下角叠成两层。 */
+  function frameSrc(file, bustCache) {
+    var query = ["embedded=1"];
+    if (bustCache) query.push("t=" + Date.now());
+    return file + (file.indexOf("?") >= 0 ? "&" : "?") + query.join("&");
+  }
+
   function select(id, pushUrl) {
     var notice = NOTICES.filter(function (item) { return item.id === id; })[0] || NOTICES[0];
     if (!notice) {
@@ -218,7 +231,7 @@ body{margin:0;background:var(--bg);color:var(--text);
     fallback.classList.remove("show");
     frameTitle.textContent = notice.title;
     frameMeta.textContent = (notice.date ? notice.date + " · " : "") + notice.file;
-    frame.src = notice.file;
+    frame.src = frameSrc(notice.file, false);
     fallbackLink.href = notice.file;
     markActive();
     if (pushUrl) {
@@ -240,7 +253,7 @@ body{margin:0;background:var(--bg);color:var(--text);
   filterEl.addEventListener("input", function () { render(filterEl.value); });
 
   document.getElementById("btnReload").addEventListener("click", function () {
-    if (current) frame.src = current.file + (current.file.indexOf("?") >= 0 ? "&" : "?") + "t=" + Date.now();
+    if (current) frame.src = frameSrc(current.file, true);
   });
   function openCurrent() {
     if (!current) return;
