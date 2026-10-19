@@ -202,7 +202,8 @@ class WeatherTests(unittest.TestCase):
         position_start = html.index("function requestCurrentWeatherPosition")
         position_end = html.index("function checkWeatherPermission", position_start)
         self.assertIn("navigator.geolocation.getCurrentPosition", html[position_start:position_end])
-        startup = html[html.index('api("/api/me")'):html.index("/* 聊天室入口")]
+        startup_start = html.index('api("/api/me")')
+        startup = html[startup_start:html.index("  tick();", startup_start)]
         self.assertNotIn("getCurrentPosition", startup)
         self.assertNotIn("permissions.query", startup)
         self.assertIn("@media(max-width:720px)", html)
