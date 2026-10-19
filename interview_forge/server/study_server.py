@@ -1042,10 +1042,14 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 pass
         # ---- 前端小部件注入：阅读页/面板 HTML 在发送前插入统一导航策略与其他小部件 ----
         # 05-可视化 页面可能被 iframe 内嵌，保持认证/反馈/主题脚本不注入，但仍需要统一导航策略。
+        # 重要通知等壳页用 iframe 内嵌子页时会带 ?embedded=1（与 ai-assistant 约定一致）：
+        # 内嵌内容同样只注入导航策略，否则外层壳页与 iframe 内各有一套 fixed 定位的
+        # 认证胶囊/反馈球，会在右下角叠成两层。
         if decoded_path.lower().endswith(".html"):
+            embedded = parse_qs(parsed.query).get("embedded") == ["1"]
             if self.serve_html_with_widget(
                 decoded_path,
-                navigation_only=decoded_path.startswith("/books/hot100/05-可视化/"),
+                navigation_only=embedded or decoded_path.startswith("/books/hot100/05-可视化/"),
             ):
                 return
         super().do_GET()

@@ -140,6 +140,11 @@ def _security_headers(path: str) -> dict[str, str]:
 def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     navigation_only = path.startswith("/books/hot100/05-可视化/")
     embedded_assistant = path == "/pages/ai-assistant.html" and embedded
+    # ?embedded=1：页面被本站 iframe 内嵌（如“重要通知”壳页的子页）。此时只保留导航策略，
+    # 认证胶囊/反馈球/AI 启动器均不注入，否则外层壳页与 iframe 内会各有一套 fixed
+    # 定位控件，在右下角叠成两层。
+    if embedded and not embedded_assistant:
+        navigation_only = True
     scripts = ("/assets/navigation-policy.js?v=2",) if navigation_only else tuple(
         script for script in _WIDGET_SCRIPTS
         if not (
