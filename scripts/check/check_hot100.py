@@ -193,9 +193,10 @@ for path in ROOT.rglob("*"):
     for raw in links:
         if "99-原稿归档" in path.parts:
             continue
-        # _raw/ 是外部面经整合的下载中转目录（中间产物，不参与发布）；
-        # 其中相对链接沿用原仓库结构，本站内必然不存在，不纳入失效链接校验。
-        if "_raw" in path.parts:
+        # _raw/ 这类下载中转目录（_raw、_wethinkin_raw 等）是整合过程的中间产物，
+        # 不参与发布；其中相对链接沿用原仓库结构，本站内必然不存在，跳过校验。
+        if any(part == "_raw" or (part.startswith("_") and part.endswith("raw"))
+               for part in path.parts):
             continue
         if "${" in raw:
             continue
@@ -205,6 +206,20 @@ for path in ROOT.rglob("*"):
         target = (path.parent / link).resolve()
         try:
             exists = target.exists()
+            # 书架源笔记（books/ 下）里的 chapter-NN.html 是构建期才生成的
+            # 站内跳转链接，源文件旁边自然没有这些页面；只要该笔记登记的
+            # 模块在 library/ 下已生成，就视为有效（产物校验由 library/ 负责）。
+            if not exists and re.fullmatch(r"chapter-\d+\.html", link):
+                try:
+                    rel_source = path.relative_to(ROOT / "books").as_posix()
+                except ValueError:
+                    rel_source = ""
+                registered = {
+                    str(d.get("source", "")).replace("\\", "/"): str(d.get("id", ""))
+                    for d in LIBRARY_MODULES
+                }
+                module_id = registered.get(rel_source)
+                exists = bool(module_id) and (ROOT / "library" / module_id).is_dir()
         except OSError:
             exists = False
         if not exists:
