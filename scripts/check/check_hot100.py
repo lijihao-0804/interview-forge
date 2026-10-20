@@ -193,6 +193,10 @@ for path in ROOT.rglob("*"):
     for raw in links:
         if "99-原稿归档" in path.parts:
             continue
+        # _raw/ 是外部面经整合的下载中转目录（中间产物，不参与发布）；
+        # 其中相对链接沿用原仓库结构，本站内必然不存在，不纳入失效链接校验。
+        if "_raw" in path.parts:
+            continue
         if "${" in raw:
             continue
         link = unquote(raw.split("#", 1)[0].split("?", 1)[0]).strip()
@@ -289,6 +293,11 @@ for path in html_files:
         visible = BeautifulSoup(str(markdown_body), "html.parser")
         for tag in visible.select("script, style, pre, code"):
             tag.decompose()
+        # 表格单元格里的孤立 $ 属于正常内容（例如成本标记 "$"、"$$$$"）；
+        # get_text(" ") 会把相邻单元格直接拼成 "$$"，被下面的公式正则误判。
+        # 因此先移除表格，只对正文做残留扫描（表格语法另有 <table> 结构校验）。
+        for table in visible.select("table"):
+            table.decompose()
         visible_text = visible.get_text(" ", strip=True)
         for paragraph in visible.find_all("p"):
             paragraph_text = paragraph.get_text(" ", strip=True)
@@ -307,6 +316,9 @@ for path in html_files:
             errors.append(f"阅读页残留 Markdown 行内代码符：{rel}")
         if re.search(r"!?\[[^\]\r\n]+\]\([^)\r\n]+\)", visible_text):
             errors.append(f"阅读页残留 Markdown 链接或图片语法：{rel}")
+        # LaTeX 判定：正文（已剔除表格）单独检查；
+        # 表格文本已用 │ 分隔单元格，因此 "$$" 只可能来自单元格内部（正常内容，
+        # 如成本标记），不会再因相邻单元格拼接而误报。
         if re.search(r"\$[^$\r\n]+\$", visible_text) or "$$" in visible_text:
             errors.append(f"阅读页残留 LaTeX 美元符：{rel}")
         if "&#x20;" in visible_text or "&amp;#x20;" in visible_text:

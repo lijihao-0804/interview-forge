@@ -1,0 +1,839 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>项目一：RAG 知识问答系统 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">6 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">导读</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">简历、STAR 与压力面</span></a><a class="shelf-topic-link current" href="chapter-03.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">项目一：RAG 知识问答系统</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">项目二：多 Agent 协作系统</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">项目三：生产级 Agent 应用</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">实操考题</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="agent-project-practice:03"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 项目实战与 STAR 表达</a><span aria-hidden="true">›</span><span aria-current="page">项目一：RAG 知识问答系统</span></nav><div class="module-meta">Agent 岗位面经 · 第 3 / 6 章 · <span class="muted">更新于 2026-10-20</span></div><h1>项目一：RAG 知识问答系统</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><h3 id="_1">一、项目概述</h3>
+<p><strong>一句话描述</strong>：基于检索增强生成（RAG）架构，将企业内部知识库（PDF/Word/网页等）转化为可智能问答的系统，用户提问后系统自动检索相关文档片段并生成准确回答。</p>
+<p><strong>技术亮点</strong>：
+- 混合检索策略（稠密向量 + 稀疏BM25），召回率提升 30%+
+- 多级分块 + 父子文档索引，兼顾语义完整性和检索精度
+- Reranking 二次排序，Top-5 准确率从 72% 提升到 89%
+- 基于 RAGAS 的自动化评估流水线，持续量化系统效果
+- 支持表格、图片等多模态文档处理
+- 流式输出 + 引用溯源，用户体验与可信度兼备</p>
+<hr />
+<h3 id="_2">二、架构设计</h3>
+<h3 id="_3">整体数据流</h3>
+<p><img loading="lazy" decoding="async" alt="RAG 混合检索与生成链路" src="assets/0f483136df-rag-hybrid-retrieval-flow.svg" /></p>
+<h3 id="_4">离线数据摄入流</h3>
+<p><img loading="lazy" decoding="async" alt="RAG 文档入库流水线" src="assets/d9b73c8944-document-ingestion-pipeline.svg" /></p>
+<hr />
+<h3 id="_5">三、技术栈选择</h3>
+<h3 id="_6">框架层</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选择</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编排框架</td>
+<td>LangChain</td>
+<td>生态最成熟，LCEL 链式调用简洁，与各组件集成度高；社区活跃，遇到问题好排查</td>
+</tr>
+<tr>
+<td>备选</td>
+<td>LlamaIndex</td>
+<td>更专注 RAG 场景，数据连接器丰富；如果项目纯做 RAG 可以考虑</td>
+</tr>
+</tbody>
+</table>
+<p><strong>面试加分</strong>：我们最初用 LlamaIndex 做 PoC，后来切到 LangChain，因为项目后期需要加 Agent 能力，LangChain 的 Agent 生态更完整。</p>
+<h3 id="_7">向量数据库</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选择</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开发/测试</td>
+<td>Chroma</td>
+<td>嵌入式、零配置、Python 原生，本地开发快</td>
+</tr>
+<tr>
+<td>生产环境</td>
+<td>Milvus</td>
+<td>分布式架构支持十亿级向量、支持 GPU 加速检索、有完善的运维工具</td>
+</tr>
+</tbody>
+</table>
+<p><strong>选型决策过程</strong>：PoC 阶段用 Chroma 快速验证，数据量到百万级后迁移到 Milvus。Milvus 支持 IVF_PQ 等多种索引类型，可以在召回率和延迟间灵活权衡。</p>
+<h3 id="embedding">Embedding 模型</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选择</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>中文场景</td>
+<td>BGE-Large-zh-v1.5</td>
+<td>中文 MTEB 榜单 Top，开源可私有化部署，1024 维向量</td>
+</tr>
+<tr>
+<td>多语言/英文</td>
+<td>OpenAI text-embedding-3-small</td>
+<td>效果好、维度可调（256/1024/3072），按 token 计费成本可控</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键考量</strong>：数据隐私要求高 → BGE 本地部署；追求效果且预算充足 → OpenAI。我们的方案是用 BGE 兜底，在效果不达标的 case 上回退到 OpenAI。</p>
+<h3 id="reranker">Reranker</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选择</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首选</td>
+<td>BGE-Reranker-v2-m3</td>
+<td>开源、多语言支持好、精度接近商业方案</td>
+</tr>
+<tr>
+<td>备选</td>
+<td>Cohere Rerank</td>
+<td>API 方式，精度最高，但有延迟和成本</td>
+</tr>
+</tbody>
+</table>
+<h3 id="llm">LLM</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>选择</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主力</td>
+<td>GPT-4o</td>
+<td>综合能力最强，长上下文支持好（128K）</td>
+</tr>
+<tr>
+<td>成本敏感</td>
+<td>GPT-4o-mini / DeepSeek</td>
+<td>简单问题走小模型降本</td>
+</tr>
+<tr>
+<td>私有化</td>
+<td>Qwen2.5-72B</td>
+<td>中文效果优秀，vLLM 部署</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_8">四、核心实现</h3>
+<h3 id="41">4.1 文档处理和分块策略</h3>
+<h4 id="_9">文档解析</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_community.document_loaders</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PyPDFLoader</span><span class="p">,</span>
+    <span class="n">UnstructuredWordDocumentLoader</span><span class="p">,</span>
+    <span class="n">UnstructuredHTMLLoader</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">langchain.schema</span> <span class="kn">import</span> <span class="n">Document</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+
+
+<span class="k">class</span> <span class="nc">DocumentProcessor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;统一文档处理器，支持多格式解析&quot;&quot;&quot;</span>
+
+    <span class="n">LOADER_MAP</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;.pdf&quot;</span><span class="p">:</span> <span class="n">PyPDFLoader</span><span class="p">,</span>
+        <span class="s2">&quot;.docx&quot;</span><span class="p">:</span> <span class="n">UnstructuredWordDocumentLoader</span><span class="p">,</span>
+        <span class="s2">&quot;.doc&quot;</span><span class="p">:</span> <span class="n">UnstructuredWordDocumentLoader</span><span class="p">,</span>
+        <span class="s2">&quot;.html&quot;</span><span class="p">:</span> <span class="n">UnstructuredHTMLLoader</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]:</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="n">file_path</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">loader_cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LOADER_MAP</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;.</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">loader_cls</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;不支持的文件格式: </span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">loader</span> <span class="o">=</span> <span class="n">loader_cls</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+        <span class="n">docs</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+
+<span class="err">﻿</span>        <span class="c1"># 添加元数据</span>
+        <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">:</span>
+            <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;source&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">file_path</span>
+            <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;doc_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">md5</span><span class="p">(</span>
+                <span class="n">file_path</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">docs</span>
+</code></pre></div>
+<h4 id="_10">智能分块策略</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.text_splitter</span> <span class="kn">import</span> <span class="n">RecursiveCharacterTextSplitter</span>
+<span class="kn">from</span> <span class="nn">langchain.schema</span> <span class="kn">import</span> <span class="n">Document</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">class</span> <span class="nc">SmartChunker</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    多级分块策略：</span>
+<span class="sd">    1. 递归字符分块（基础）</span>
+<span class="sd">    2. 父子文档索引（检索小块，返回大块上下文）</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+        <span class="n">chunk_overlap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+        <span class="n">parent_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2048</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="err">﻿</span>        <span class="c1"># 子块：用于精确检索</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">child_splitter</span> <span class="o">=</span> <span class="n">RecursiveCharacterTextSplitter</span><span class="p">(</span>
+            <span class="n">chunk_size</span><span class="o">=</span><span class="n">chunk_size</span><span class="p">,</span>
+            <span class="n">chunk_overlap</span><span class="o">=</span><span class="n">chunk_overlap</span><span class="p">,</span>
+            <span class="n">separators</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;。&quot;</span><span class="p">,</span> <span class="s2">&quot;！&quot;</span><span class="p">,</span> <span class="s2">&quot;？&quot;</span><span class="p">,</span> <span class="s2">&quot;；&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">],</span>
+            <span class="n">length_function</span><span class="o">=</span><span class="nb">len</span><span class="p">,</span>
+        <span class="p">)</span>
+<span class="err">﻿</span>        <span class="c1"># 父块：用于提供上下文</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_splitter</span> <span class="o">=</span> <span class="n">RecursiveCharacterTextSplitter</span><span class="p">(</span>
+            <span class="n">chunk_size</span><span class="o">=</span><span class="n">parent_chunk_size</span><span class="p">,</span>
+            <span class="n">chunk_overlap</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+            <span class="n">separators</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;。&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">],</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">chunk_with_parent</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">documents</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;返回 (子块列表, 父块列表)&quot;&quot;&quot;</span>
+        <span class="n">parent_docs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_splitter</span><span class="o">.</span><span class="n">split_documents</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>
+
+        <span class="n">child_docs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">parent</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">parent_docs</span><span class="p">):</span>
+            <span class="n">parent</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;parent_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;parent_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">child_splitter</span><span class="o">.</span><span class="n">split_documents</span><span class="p">([</span><span class="n">parent</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+                <span class="n">child</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;parent_id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;parent_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">child_docs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">children</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">child_docs</span><span class="p">,</span> <span class="n">parent_docs</span>
+
+    <span class="k">def</span> <span class="nf">chunk_simple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">documents</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;简单分块，适用于不需要父子索引的场景&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">child_splitter</span><span class="o">.</span><span class="n">split_documents</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>分块大小选择依据</strong>：
+- <strong>512 tokens</strong>：经实验对比，在我们的金融知识库场景下，512 在检索精度和上下文完整性间取得最佳平衡
+- 过小（128-256）：语义断裂，检索结果碎片化
+- 过大（1024+）：噪声增多，向量表示稀释
+- <strong>overlap 64</strong>：约 12.5% 的重叠率，防止关键信息在分块边界丢失</p>
+<h3 id="42-embedding">4.2 Embedding 和索引构建</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_community.embeddings</span> <span class="kn">import</span> <span class="n">HuggingFaceBgeEmbeddings</span>
+<span class="kn">from</span> <span class="nn">langchain_community.vectorstores</span> <span class="kn">import</span> <span class="n">Milvus</span>
+<span class="kn">from</span> <span class="nn">langchain.storage</span> <span class="kn">import</span> <span class="n">InMemoryStore</span>
+<span class="kn">from</span> <span class="nn">langchain.retrievers</span> <span class="kn">import</span> <span class="n">ParentDocumentRetriever</span>
+
+
+<span class="k">class</span> <span class="nc">IndexBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;向量索引构建器&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;knowledge_base&quot;</span><span class="p">):</span>
+<span class="err">﻿</span>        <span class="c1"># 初始化 Embedding 模型</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embeddings</span> <span class="o">=</span> <span class="n">HuggingFaceBgeEmbeddings</span><span class="p">(</span>
+            <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;BAAI/bge-large-zh-v1.5&quot;</span><span class="p">,</span>
+            <span class="n">model_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="s2">&quot;cuda&quot;</span><span class="p">},</span>
+            <span class="n">encode_kwargs</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;normalize_embeddings&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 初始化向量数据库</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vector_store</span> <span class="o">=</span> <span class="n">Milvus</span><span class="p">(</span>
+            <span class="n">embedding_function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">embeddings</span><span class="p">,</span>
+            <span class="n">collection_name</span><span class="o">=</span><span class="n">collection_name</span><span class="p">,</span>
+            <span class="n">connection_args</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;host&quot;</span><span class="p">:</span> <span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;port&quot;</span><span class="p">:</span> <span class="s2">&quot;19530&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">index_params</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;metric_type&quot;</span><span class="p">:</span> <span class="s2">&quot;IP&quot;</span><span class="p">,</span>  <span class="c1"># 内积（因为已归一化）</span>
+                <span class="s2">&quot;index_type&quot;</span><span class="p">:</span> <span class="s2">&quot;IVF_FLAT&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;nlist&quot;</span><span class="p">:</span> <span class="mi">1024</span><span class="p">},</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">build_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">documents</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;批量构建索引&quot;&quot;&quot;</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">500</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">documents</span><span class="p">),</span> <span class="n">batch_size</span><span class="p">):</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="n">documents</span><span class="p">[</span><span class="n">i</span> <span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">batch_size</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">vector_store</span><span class="o">.</span><span class="n">add_documents</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;已索引 </span><span class="si">{</span><span class="nb">min</span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">batch_size</span><span class="p">,</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">documents</span><span class="p">))</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">build_parent_child_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">documents</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;构建父子文档索引&quot;&quot;&quot;</span>
+        <span class="n">chunker</span> <span class="o">=</span> <span class="n">SmartChunker</span><span class="p">()</span>
+        <span class="n">child_docs</span><span class="p">,</span> <span class="n">parent_docs</span> <span class="o">=</span> <span class="n">chunker</span><span class="o">.</span><span class="n">chunk_with_parent</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 父文档存内存/Redis</span>
+        <span class="n">parent_store</span> <span class="o">=</span> <span class="n">InMemoryStore</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">parent_docs</span><span class="p">:</span>
+            <span class="n">parent_store</span><span class="o">.</span><span class="n">mset</span><span class="p">(</span>
+                <span class="p">[(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">&quot;parent_id&quot;</span><span class="p">],</span> <span class="n">doc</span><span class="p">)]</span>
+            <span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 子文档入向量库</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_index</span><span class="p">(</span><span class="n">child_docs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">parent_store</span>
+</code></pre></div>
+<h3 id="43">4.3 检索优化</h3>
+<h4 id="reranking">混合检索 + Reranking</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain.retrievers</span> <span class="kn">import</span> <span class="n">EnsembleRetriever</span>
+<span class="kn">from</span> <span class="nn">langchain_community.retrievers</span> <span class="kn">import</span> <span class="n">BM25Retriever</span>
+<span class="kn">from</span> <span class="nn">langchain.schema</span> <span class="kn">import</span> <span class="n">Document</span>
+<span class="kn">from</span> <span class="nn">FlagEmbedding</span> <span class="kn">import</span> <span class="n">FlagReranker</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">class</span> <span class="nc">HybridRetriever</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;混合检索器：稠密检索 + BM25 + Reranking&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vector_store</span><span class="p">,</span> <span class="n">corpus_docs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]):</span>
+<span class="err">﻿</span>        <span class="c1"># 稠密检索</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dense_retriever</span> <span class="o">=</span> <span class="n">vector_store</span><span class="o">.</span><span class="n">as_retriever</span><span class="p">(</span>
+            <span class="n">search_type</span><span class="o">=</span><span class="s2">&quot;similarity&quot;</span><span class="p">,</span>
+            <span class="n">search_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;k&quot;</span><span class="p">:</span> <span class="mi">20</span><span class="p">},</span>
+        <span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 稀疏检索 (BM25)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bm25_retriever</span> <span class="o">=</span> <span class="n">BM25Retriever</span><span class="o">.</span><span class="n">from_documents</span><span class="p">(</span>
+            <span class="n">corpus_docs</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">20</span>
+        <span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 融合检索（RRF - Reciprocal Rank Fusion）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ensemble_retriever</span> <span class="o">=</span> <span class="n">EnsembleRetriever</span><span class="p">(</span>
+            <span class="n">retrievers</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dense_retriever</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bm25_retriever</span><span class="p">],</span>
+            <span class="n">weights</span><span class="o">=</span><span class="p">[</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">],</span>  <span class="c1"># 稠密权重略高</span>
+        <span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># Reranker</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reranker</span> <span class="o">=</span> <span class="n">FlagReranker</span><span class="p">(</span>
+            <span class="s2">&quot;BAAI/bge-reranker-v2-m3&quot;</span><span class="p">,</span> <span class="n">use_fp16</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Document</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;完整检索流程&quot;&quot;&quot;</span>
+<span class="err">﻿</span>        <span class="c1"># Step 1: 混合检索，召回 top 20</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ensemble_retriever</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># Step 2: Reranking，精排到 top_k</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">pairs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">query</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">]</span> <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reranker</span><span class="o">.</span><span class="n">compute_score</span><span class="p">(</span><span class="n">pairs</span><span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># 排序并取 top_k</span>
+        <span class="n">scored_docs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">scores</span><span class="p">))</span>
+        <span class="n">scored_docs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">doc</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scored_docs</span><span class="p">[:</span><span class="n">top_k</span><span class="p">]]</span>
+
+
+<span class="k">class</span> <span class="nc">QueryTransformer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;查询改写，提升检索效果&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">llm</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">llm</span>
+
+    <span class="k">def</span> <span class="nf">multi_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;生成多个角度的查询&quot;&quot;&quot;</span>
+        <span class="n">prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;请将以下用户问题从3个不同角度改写，生成3个语义相近但表述不同的查询。</span>
+<span class="s2">每行一个查询，不要编号。</span>
+
+<span class="s2">原始问题：</span><span class="si">{</span><span class="n">original_query</span><span class="si">}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+        <span class="n">queries</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">q</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">original_query</span><span class="p">]</span> <span class="o">+</span> <span class="n">queries</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">hyde</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;HyDE: 先生成假设性答案，用答案去检索&quot;&quot;&quot;</span>
+        <span class="n">prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;请针对以下问题，写一段简短的假设性回答（约100字）。</span>
+<span class="s2">不需要保证准确性，只需要包含相关术语和概念。</span>
+
+<span class="s2">问题：</span><span class="si">{</span><span class="n">query</span><span class="si">}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
+</code></pre></div>
+<h3 id="44-prompt">4.4 Prompt 设计</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">RAG_PROMPT_TEMPLATE</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;你是一个专业的知识问答助手。请严格根据以下参考资料回答用户问题。</span>
+
+<span class="s2">﻿## 回答要求</span>
+<span class="s2">1. 只基于参考资料回答，不要编造信息</span>
+<span class="s2">2. 如果参考资料不足以回答，明确告知用户</span>
+<span class="s2">3. 在回答中用 [1][2] 等标注引用来源</span>
+<span class="s2">4. 回答要结构化、简洁明了</span>
+
+<span class="s2">﻿## 参考资料</span>
+<span class="si">{context}</span>
+
+<span class="s2">﻿## 用户问题</span>
+<span class="si">{question}</span>
+
+<span class="s2">﻿## 回答</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="err">﻿</span><span class="c1"># 带有引用溯源的格式化</span>
+<span class="k">def</span> <span class="nf">format_context</span><span class="p">(</span><span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;格式化检索结果，带引用编号&quot;&quot;&quot;</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">doc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">,</span> <span class="s2">&quot;未知来源&quot;</span><span class="p">)</span>
+        <span class="n">page</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;page&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] 来源: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="n">page</span><span class="p">:</span>
+            <span class="n">header</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; (第</span><span class="si">{</span><span class="n">page</span><span class="si">}</span><span class="s2">页)&quot;</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">header</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">---</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="45-rag-chain">4.5 完整 RAG Chain</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_openai</span> <span class="kn">import</span> <span class="n">ChatOpenAI</span>
+<span class="kn">from</span> <span class="nn">langchain.prompts</span> <span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
+<span class="kn">from</span> <span class="nn">langchain_core.output_parsers</span> <span class="kn">import</span> <span class="n">StrOutputParser</span>
+<span class="kn">from</span> <span class="nn">langchain_core.runnables</span> <span class="kn">import</span> <span class="n">RunnablePassthrough</span>
+
+
+<span class="k">class</span> <span class="nc">RAGSystem</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;完整 RAG 系统&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">retriever</span><span class="p">:</span> <span class="n">HybridRetriever</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retriever</span> <span class="o">=</span> <span class="n">retriever</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">llm</span> <span class="o">=</span> <span class="n">ChatOpenAI</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span>
+            <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">streaming</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prompt</span> <span class="o">=</span> <span class="n">ChatPromptTemplate</span><span class="o">.</span><span class="n">from_template</span><span class="p">(</span><span class="n">RAG_PROMPT_TEMPLATE</span><span class="p">)</span>
+
+<span class="err">﻿</span>        <span class="c1"># LCEL 链</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chain</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;context&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">format_context</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">retriever</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;question&quot;</span><span class="p">])</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s2">&quot;question&quot;</span><span class="p">],</span>
+            <span class="p">}</span>
+            <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">prompt</span>
+            <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm</span>
+            <span class="o">|</span> <span class="n">StrOutputParser</span><span class="p">()</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;同步问答&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">chain</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="n">question</span><span class="p">})</span>
+
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">ask_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">question</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;流式问答&quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">chain</span><span class="o">.</span><span class="n">astream</span><span class="p">({</span><span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="n">question</span><span class="p">}):</span>
+            <span class="k">yield</span> <span class="n">chunk</span>
+</code></pre></div>
+<h3 id="46-ragas">4.6 评估方案（RAGAS）</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">ragas</span> <span class="kn">import</span> <span class="n">evaluate</span>
+<span class="kn">from</span> <span class="nn">ragas.metrics</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">faithfulness</span><span class="p">,</span>
+    <span class="n">answer_relevancy</span><span class="p">,</span>
+    <span class="n">context_precision</span><span class="p">,</span>
+    <span class="n">context_recall</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">datasets</span> <span class="kn">import</span> <span class="n">Dataset</span>
+
+
+<span class="k">class</span> <span class="nc">RAGEvaluator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;RAG 系统评估器&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rag_system</span><span class="p">:</span> <span class="n">RAGSystem</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rag</span> <span class="o">=</span> <span class="n">rag_system</span>
+
+    <span class="k">def</span> <span class="nf">build_eval_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">test_cases</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dataset</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        test_cases 格式:</span>
+<span class="sd">        [{&quot;question&quot;: &quot;...&quot;, &quot;ground_truth&quot;: &quot;...&quot;, &quot;contexts&quot;: [...]}]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">questions</span><span class="p">,</span> <span class="n">answers</span><span class="p">,</span> <span class="n">contexts</span><span class="p">,</span> <span class="n">ground_truths</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">case</span> <span class="ow">in</span> <span class="n">test_cases</span><span class="p">:</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;question&quot;</span><span class="p">]</span>
+            <span class="n">answer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rag</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+            <span class="n">retrieved_docs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rag</span><span class="o">.</span><span class="n">retriever</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+            <span class="n">questions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+            <span class="n">answers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
+            <span class="n">contexts</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">d</span><span class="o">.</span><span class="n">page_content</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">retrieved_docs</span><span class="p">])</span>
+            <span class="n">ground_truths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">case</span><span class="p">[</span><span class="s2">&quot;ground_truth&quot;</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_dict</span><span class="p">({</span>
+            <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="n">questions</span><span class="p">,</span>
+            <span class="s2">&quot;answer&quot;</span><span class="p">:</span> <span class="n">answers</span><span class="p">,</span>
+            <span class="s2">&quot;contexts&quot;</span><span class="p">:</span> <span class="n">contexts</span><span class="p">,</span>
+            <span class="s2">&quot;ground_truth&quot;</span><span class="p">:</span> <span class="n">ground_truths</span><span class="p">,</span>
+        <span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">test_cases</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="n">dataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">build_eval_dataset</span><span class="p">(</span><span class="n">test_cases</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span>
+            <span class="n">dataset</span><span class="p">,</span>
+            <span class="n">metrics</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">faithfulness</span><span class="p">,</span>       <span class="c1"># 忠实度：答案是否基于上下文</span>
+                <span class="n">answer_relevancy</span><span class="p">,</span>   <span class="c1"># 相关性：答案是否切题</span>
+                <span class="n">context_precision</span><span class="p">,</span>  <span class="c1"># 精确率：检索结果是否相关</span>
+                <span class="n">context_recall</span><span class="p">,</span>     <span class="c1"># 召回率：是否检索到关键信息</span>
+            <span class="p">],</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+<span class="err">﻿</span><span class="c1"># 指标解读：</span>
+<span class="err">﻿</span><span class="c1"># - faithfulness &gt; 0.85：答案幻觉少</span>
+<span class="err">﻿</span><span class="c1"># - answer_relevancy &gt; 0.80：回答切题</span>
+<span class="err">﻿</span><span class="c1"># - context_precision &gt; 0.75：检索精准</span>
+<span class="err">﻿</span><span class="c1"># - context_recall &gt; 0.80：关键信息都检索到了</span>
+</code></pre></div>
+<hr />
+<h3 id="_11">五、面试话术</h3>
+<h3 id="1">1 分钟版</h3>
+<blockquote>
+<p>我做了一个企业知识问答系统，核心是 RAG 架构。文档经过解析、分块、向量化后存入 Milvus，用户提问时通过混合检索（向量+BM25）召回候选片段，再用 Reranker 精排，最后送入 GPT-4o 生成带引用的回答。主要亮点是混合检索把召回率提升了 30%，Reranking 把 Top-5 准确率从 72% 提到 89%。系统日均处理 5000+ 次查询，P95 延迟控制在 2 秒内。</p>
+</blockquote>
+<h3 id="3">3 分钟版</h3>
+<blockquote>
+<p>这个项目背景是公司内部有大量 PDF、Word 格式的技术文档和规章制度，员工经常找不到想要的信息。我们搭建了一个 RAG 知识问答系统来解决这个问题。</p>
+<p>架构上分两条线：离线数据流和在线服务流。离线这边，文档经过 Unstructured 解析后，用递归字符分块做切分，chunk_size 设为 512，实验对比过 256 和 1024，512 效果最好。然后用 BGE-Large 做向量化，存入 Milvus。</p>
+<p>在线检索时，有三个关键优化：第一是混合检索，向量检索和 BM25 通过 RRF 融合，权重 6:4，解决了纯向量检索对关键词不敏感的问题；第二是 Reranking，用 BGE-Reranker 对 Top-20 候选做二次精排，取 Top-5；第三是 Query 改写，对模糊查询做多角度展开。</p>
+<p>评估用的 RAGAS 框架，四个核心指标：faithfulness 0.88、answer_relevancy 0.85、context_precision 0.82、context_recall 0.86。我们建了 200 条标注测试集，每次迭代都跑评估。</p>
+<p>部署在 K8s 上，Milvus 集群 3 节点，服务做了水平扩容，日均 5000+ 查询，P95 在 2 秒。</p>
+</blockquote>
+<h3 id="5">5 分钟版</h3>
+<blockquote>
+<p>（在 3 分钟版基础上补充以下内容）</p>
+<p>分块策略我们迭代了三版。第一版直接按固定长度切，效果差，经常把一句话切断。第二版换成递归字符分块，按段落 → 句子 → 字符的优先级切分，效果提升明显。第三版引入了父子文档索引：用小块（512）做精确检索，命中后返回对应的大块（2048）给 LLM，既保证了检索精度又提供了充足的上下文。</p>
+<p>Embedding 模型选型也做了对比实验。在我们的中文金融文档测试集上，BGE-Large-zh 的 Hit@5 是 0.83，OpenAI text-embedding-3-small 是 0.86，差距不大但 BGE 可以本地部署、无隐私风险。最终选择 BGE 做主力，对于效果不达标的特殊 case 回退到 OpenAI。</p>
+<p>多模态处理方面，表格我们用 Unstructured 提取后转成 Markdown 格式再分块，图片用 GPT-4o 做 OCR + 描述生成。PDF 里的流程图会单独提取，用 VLM 生成文字描述后入库。</p>
+<p>成本控制上，我们做了查询分级：简单查询走 GPT-4o-mini（成本低 10 倍），复杂查询才走 GPT-4o。通过一个轻量分类器判断查询复杂度，整体 API 成本降低了 60%。</p>
+<p>上线后遇到的最大挑战是知识时效性，文档更新后索引需要同步。我们做了增量更新机制，文档变更时只重新处理变更部分，通过 doc_id 和版本号管理。</p>
+</blockquote>
+<hr />
+<h3 id="_12">六、常见追问及回答</h3>
+<h3 id="q1">Q1: 分块大小怎么选的？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>我们做了系统性实验。在 200 条标注 QA 对上分别测试了 256、512、768、1024 四种 chunk_size。评估指标用 Hit@5（Top-5 检索结果中包含正确答案的比例）和 RAGAS 的 context_recall。</p>
+<p>结果是 512 综合最优：256 语义碎片化严重，context_recall 只有 0.71；1024 噪声多，检索精度下降；512 的 Hit@5 = 0.83，context_recall = 0.86。</p>
+<p>不过这个结论是场景相关的。我们的文档偏金融合规类，段落结构清晰。如果是代码文档，可能需要更大的 chunk_size（1024+）来保持代码块完整性。</p>
+<p>另外我们还配合了 overlap = 64（约 12.5%），防止关键信息在分块边界丢失。这个比例也是实验调出来的，太大会增加冗余，太小会丢信息。</p>
+</blockquote>
+<h3 id="q2">Q2: 检索效果不好怎么优化？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>检索效果差要分阶段排查，我的经验是按这个优先级处理：</p>
+<p><strong>第一层：分块质量</strong>。检查分块是否合理，是不是把关键信息切断了。我遇到过分块把一个表格切成两半的情况，加了表格感知的分块逻辑后解决。</p>
+<p><strong>第二层：Embedding 质量</strong>。用一些典型 case 手动看向量相似度，判断 Embedding 模型是否适合当前领域。如果领域特殊（比如医学），可能需要微调 Embedding 模型。</p>
+<p><strong>第三层：检索策略</strong>。纯向量检索对精确关键词不敏感，加 BM25 做混合检索通常有 10-30% 的提升。</p>
+<p><strong>第四层：Query 端优化</strong>。用户的查询往往不清晰，做 Query 改写和多查询扩展能提升召回。HyDE（先生成假设性答案再检索）在某些场景效果很好。</p>
+<p><strong>第五层：Reranking</strong>。召回 Top-20 再精排到 Top-5，这一步通常能提升 10-15% 的精度。</p>
+<p>每一步都要有量化指标来验证效果，不能凭感觉调。</p>
+</blockquote>
+<h3 id="q3">Q3: 怎么处理表格/图片？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p><strong>表格处理</strong>：
+1. 用 Unstructured 或 Camelot 库提取 PDF 中的表格
+2. 转成 Markdown 格式保留结构
+3. 表格作为一个整体分块，不切分行
+4. 在元数据中标记 <code>type=table</code>，检索时可以区分处理</p>
+<p><strong>图片处理</strong>：
+1. 纯文字图片：OCR 提取文字，用 PaddleOCR 或 Tesseract
+2. 图表/流程图：用 GPT-4o Vision 生成文字描述
+3. 描述文字和原图路径一起存入向量库
+4. 回答时如果引用了图片，把图片链接也返回给用户</p>
+<p><strong>实际踩坑</strong>：PDF 中的扫描件表格识别率很低，我们最终对这类文档做了预处理：先用 OCR 转成可编辑格式，再走标准流程。</p>
+</blockquote>
+<h3 id="q4-rag">Q4: 如何评估 RAG 效果？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>我们用 RAGAS 框架做系统性评估，四个核心指标：</p>
+<ul>
+<li><strong>Faithfulness（忠实度）</strong>：答案是否基于检索到的上下文，不是瞎编的。&gt;0.85 算合格。</li>
+<li><strong>Answer Relevancy（答案相关性）</strong>：答案是否切题回答了用户的问题。</li>
+<li><strong>Context Precision（上下文精确率）</strong>：检索到的内容是否都是相关的。</li>
+<li><strong>Context Recall（上下文召回率）</strong>：回答需要的信息是否都被检索到了。</li>
+</ul>
+<p><strong>评估流程</strong>：
+1. 人工标注 200 条 QA 对作为测试集（领域专家标注 ground truth）
+2. 每次系统迭代后自动跑评估，CI/CD 集成
+3. 关注指标趋势，任何指标下降超过 2% 需要排查</p>
+<p>除了离线评估，还有线上指标：
+- 用户满意度（点赞/点踩）
+- 引用准确率（人工抽查 50 条/周）
+- 无法回答比例（&lt;15% 为目标）</p>
+</blockquote>
+<h3 id="q5">Q5: 线上部署架构？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p><img loading="lazy" decoding="async" alt="RAG 系统部署拓扑" src="assets/738a15ac17-rag-deployment-topology.svg" /></p>
+<ul>
+<li><strong>FastAPI</strong>：异步框架，流式输出用 SSE</li>
+<li><strong>Milvus 集群</strong>：3 节点，读写分离，数据持久化到 MinIO</li>
+<li><strong>Redis</strong>：缓存热点查询结果，命中率约 15%，TTL 1 小时</li>
+<li><strong>K8s HPA</strong>：根据 QPS 自动扩缩容，阈值设在单实例 50 QPS</li>
+<li><strong>CDN</strong>：静态资源（文档原文预览）走 CDN</li>
+</ul>
+<p>关键可靠性设计：
+- LLM API 降级：OpenAI 不可用时自动切到本地 Qwen2.5
+- 检索超时：设 3 秒超时，超时返回缓存结果或提示
+- 限流：单用户 10 QPS，防滥用</p>
+</blockquote>
+<h3 id="q6">Q6: 并发怎么处理？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>并发瓶颈主要在三个环节：</p>
+<p><strong>1. Embedding 计算</strong>：用 GPU 做 batch inference，批大小 64，单 A100 吞吐约 500 QPS。线上查询用异步队列攒批处理。</p>
+<p><strong>2. 向量检索</strong>：Milvus 本身支持高并发，单节点 1000+ QPS 没问题。瓶颈在索引类型选择——IVF_FLAT 精度高但慢，我们用 HNSW（ef=64），延迟 &lt;50ms。</p>
+<p><strong>3. LLM 生成</strong>：这是最大瓶颈。OpenAI API 有 rate limit，我们做了：
+  - 请求队列 + 令牌桶限流
+  - 多 API Key 轮询
+  - 热点问题缓存
+  - 简单问题走小模型分流</p>
+<p>整体做到日均 5000+ 查询、峰值 QPS 50、P95 延迟 &lt;2s。</p>
+</blockquote>
+<hr />
+<h3 id="_13">七、项目亮点总结（面试快速回顾）</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>检索优化</td>
+<td>混合检索(向量+BM25) + Reranking，召回率+30%，Top-5 准确率 72%→89%</td>
+</tr>
+<tr>
+<td>分块策略</td>
+<td>递归字符分块 + 父子文档索引，实验对比选定 512 tokens</td>
+</tr>
+<tr>
+<td>评估体系</td>
+<td>RAGAS 4 指标自动化评估，200 条标注测试集</td>
+</tr>
+<tr>
+<td>成本控制</td>
+<td>查询分级（大小模型分流），API 成本降低 60%</td>
+</tr>
+<tr>
+<td>生产化</td>
+<td>K8s 部署、缓存、降级、限流，日均 5000+ QPS</td>
+</tr>
+<tr>
+<td>多模态</td>
+<td>表格 Markdown 化 + 图片 VLM 描述，覆盖 90%+ 文档类型</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_14">八、项目验收标准与评分表</h3>
+<h3 id="60">最低可交付版本（60 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文档入库</td>
+<td>支持至少 20 个 Markdown/PDF/HTML 文档，保留来源元数据</td>
+</tr>
+<tr>
+<td>基础检索</td>
+<td>支持向量检索，能返回 TopK 文档片段</td>
+</tr>
+<tr>
+<td>答案生成</td>
+<td>回答中包含引用来源，不允许无来源编造</td>
+</tr>
+<tr>
+<td>基础入口</td>
+<td>提供 CLI、Web 或 HTTP API 任一种可用入口</td>
+</tr>
+<tr>
+<td>README</td>
+<td>说明数据准备、启动方式、示例问题和已知限制</td>
+</tr>
+</tbody>
+</table>
+<h3 id="80">进阶可答辩版本（80 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>混合检索</td>
+<td>Dense + BM25 双路召回，并说明融合策略</td>
+</tr>
+<tr>
+<td>Rerank</td>
+<td>接入 reranker，对比 rerank 前后的 TopK 命中率</td>
+</tr>
+<tr>
+<td>评估集</td>
+<td>至少 30 条人工问题，统计 Recall@K、Faithfulness、幻觉率</td>
+</tr>
+<tr>
+<td>多格式文档</td>
+<td>对 PDF 表格、标题层级、代码块或图片 OCR 有处理策略</td>
+</tr>
+<tr>
+<td>可观测性</td>
+<td>记录 query、召回片段、rerank 分数、最终引用</td>
+</tr>
+</tbody>
+</table>
+<h3 id="100">面试亮点版本（100 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>可量化优化</td>
+<td>有明确指标提升，例如 Recall@5、延迟、成本、幻觉率</td>
+</tr>
+<tr>
+<td>失败复盘</td>
+<td>至少 5 个 bad case，能归因到分块、召回、重排或生成层</td>
+</tr>
+<tr>
+<td>热更新</td>
+<td>新文档入库后无需重启服务即可被检索</td>
+</tr>
+<tr>
+<td>安全边界</td>
+<td>支持权限过滤、敏感信息脱敏或拒答机制</td>
+</tr>
+<tr>
+<td>生产部署</td>
+<td>Docker 化，提供本地或云端部署说明</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_15">评分表</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th style="text-align: right;">权重</th>
+<th>面试官关注点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RAG 链路完整性</td>
+<td style="text-align: right;">25%</td>
+<td>数据处理、检索、重排、生成是否闭环</td>
+</tr>
+<tr>
+<td>评估与指标</td>
+<td style="text-align: right;">25%</td>
+<td>是否能证明系统变好，而不是凭感觉</td>
+</tr>
+<tr>
+<td>工程化</td>
+<td style="text-align: right;">20%</td>
+<td>API、部署、日志、缓存、热更新</td>
+</tr>
+<tr>
+<td>复杂文档处理</td>
+<td style="text-align: right;">15%</td>
+<td>表格、PDF、长文档、多格式输入</td>
+</tr>
+<tr>
+<td>答辩表达</td>
+<td style="text-align: right;">15%</td>
+<td>能否讲清 trade-off 和失败案例</td>
+</tr>
+</tbody>
+</table>
+<h3 id="github">GitHub 项目参考</h3>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/langchain-ai/rag-from-scratch" target="_blank" rel="noopener noreferrer">langchain-ai/rag-from-scratch</a></td>
+<td>学 RAG 分块、检索、生成基本套路</td>
+</tr>
+<tr>
+<td><a href="https://github.com/run-llama/llama_index" target="_blank" rel="noopener noreferrer">run-llama/llama_index</a></td>
+<td>学文档索引、数据连接器和 query engine</td>
+</tr>
+<tr>
+<td><a href="https://github.com/explodinggradients/ragas" target="_blank" rel="noopener noreferrer">explodinggradients/ragas</a></td>
+<td>学 RAG 自动评估指标</td>
+</tr>
+<tr>
+<td><a href="https://github.com/milvus-io/milvus" target="_blank" rel="noopener noreferrer">milvus-io/milvus</a></td>
+<td>学生产级向量数据库能力</td>
+</tr>
+<tr>
+<td><a href="https://github.com/chroma-core/chroma" target="_blank" rel="noopener noreferrer">chroma-core/chroma</a></td>
+<td>学本地快速原型向量库</td>
+</tr>
+</tbody>
+</table></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-02.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-04.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">一、项目概述</a></li><li class="lv3"><a href="#_2">二、架构设计</a></li><li class="lv3"><a href="#_3">整体数据流</a></li><li class="lv3"><a href="#_4">离线数据摄入流</a></li><li class="lv3"><a href="#_5">三、技术栈选择</a></li><li class="lv3"><a href="#_6">框架层</a></li><li class="lv3"><a href="#_7">向量数据库</a></li><li class="lv3"><a href="#embedding">Embedding 模型</a></li><li class="lv3"><a href="#reranker">Reranker</a></li><li class="lv3"><a href="#llm">LLM</a></li><li class="lv3"><a href="#_8">四、核心实现</a></li><li class="lv3"><a href="#41">4.1 文档处理和分块策略</a></li><li class="lv3"><a href="#42-embedding">4.2 Embedding 和索引构建</a></li><li class="lv3"><a href="#43">4.3 检索优化</a></li><li class="lv3"><a href="#44-prompt">4.4 Prompt 设计</a></li><li class="lv3"><a href="#45-rag-chain">4.5 完整 RAG Chain</a></li><li class="lv3"><a href="#46-ragas">4.6 评估方案（RAGAS）</a></li><li class="lv3"><a href="#_11">五、面试话术</a></li><li class="lv3"><a href="#1">1 分钟版</a></li><li class="lv3"><a href="#3">3 分钟版</a></li><li class="lv3"><a href="#5">5 分钟版</a></li><li class="lv3"><a href="#_12">六、常见追问及回答</a></li><li class="lv3"><a href="#q1">Q1: 分块大小怎么选的？</a></li><li class="lv3"><a href="#q2">Q2: 检索效果不好怎么优化？</a></li><li class="lv3"><a href="#q3">Q3: 怎么处理表格/图片？</a></li><li class="lv3"><a href="#q4-rag">Q4: 如何评估 RAG 效果？</a></li><li class="lv3"><a href="#q5">Q5: 线上部署架构？</a></li><li class="lv3"><a href="#q6">Q6: 并发怎么处理？</a></li><li class="lv3"><a href="#_13">七、项目亮点总结（面试快速回顾）</a></li><li class="lv3"><a href="#_14">八、项目验收标准与评分表</a></li><li class="lv3"><a href="#60">最低可交付版本（60 分）</a></li><li class="lv3"><a href="#80">进阶可答辩版本（80 分）</a></li><li class="lv3"><a href="#100">面试亮点版本（100 分）</a></li><li class="lv3"><a href="#_15">评分表</a></li><li class="lv3"><a href="#github">GitHub 项目参考</a></li></ul></div></aside></div>'
+<script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="agent-project-practice:03",moduleId="agent-project-practice";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

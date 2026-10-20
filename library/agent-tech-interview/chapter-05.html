@@ -1,0 +1,1006 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>框架与编排 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">10 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">导读</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">核心概念与设计模式</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">Context Engineering</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">工具调用与 MCP</span></a><a class="shelf-topic-link current" href="chapter-05.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">框架与编排</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">RAG 与检索</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">模型微调：SFT / LoRA / RLHF</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">大模型推理优化与部署</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">八股文与综合题库</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">工程化与系统设计进阶</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="agent-tech-interview:05"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 技术专题面试题库</a><span aria-hidden="true">›</span><span aria-current="page">框架与编排</span></nav><div class="module-meta">Agent 岗位面经 · 第 5 / 10 章 · <span class="muted">更新于 2026-10-20</span></div><h1>框架与编排</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><blockquote>
+<p>面试必备：覆盖主流 Agent 编排框架、RAG 框架、向量数据库，含深度对比、选型实战和 15 道面试题。</p>
+</blockquote>
+<hr />
+<h3 id="agent">一、Agent 编排框架</h3>
+<hr />
+<h3 id="1-langchain">1. LangChain</h3>
+<p><strong>定位</strong>：最主流的 LLM 应用开发框架，模块化组件 + 预构建 Agent 架构。</p>
+<p><strong>核心架构（文字描述）</strong>：
+<img loading="lazy" decoding="async" alt="LangChain 核心架构" src="assets/6d0d857963-langchain-core-architecture.svg" />
+采用"链式调用"架构。核心是 <strong>LCEL（LangChain Expression Language）</strong>，用管道操作符 <code>|</code> 将 Prompt、LLM、OutputParser 等组件串联成 Runnable 链。Agent 模式下，LLM 作为推理引擎进入 ReAct 循环，动态选择 Tool 执行。</p>
+<p><strong>关键 API / 概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <strong>Chain / LCEL</strong> | <code>prompt | llm | parser</code> 管道式组合，替代旧版 <code>LLMChain</code> |
+| <strong>Agent</strong> | <code>create_react_agent()</code> / <code>create_tool_calling_agent()</code> 创建带工具调用的推理 Agent |
+| <strong>Tool</strong> | <code>@tool</code> 装饰器定义工具，支持 Pydantic schema 自动推导 |
+| <strong>Memory</strong> | <code>ConversationBufferMemory</code>、<code>ConversationSummaryMemory</code> 等多轮记忆 |
+| <strong>Retriever</strong> | 统一检索接口，桥接向量库 / BM25 / 自定义检索 |
+| <strong>Callback</strong> | <code>on_llm_start</code> / <code>on_tool_end</code> 等生命周期钩子，用于日志 / 监控 |</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>客服机器人</strong>：Prompt → LLM → 判断意图 → 调用订单查询 Tool → 返回结果。链式结构清晰，适合意图-槽位填充模式。
+- <strong>文档问答</strong>：PDF 加载 → 文本切分 → Embedding → 向量库存储 → Retriever + LLM 生成答案。LangChain 的 <code>RecursiveCharacterTextSplitter</code> + <code>VectorStoreRetriever</code> 是标准 RAG 管道。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 生态最大，集成 700+ 组件 | 抽象层过重，调试困难（"黑盒"问题） |
+| LCEL 声明式语法简洁 | 版本迭代快，API 频繁废弃 |
+| 文档和教程资源最丰富 | 复杂流程需要切换到 LangGraph |
+| 社区活跃，GitHub 95k+ star | 生产环境需额外工程化（重试/限流/可观测） |</p>
+<hr />
+<h3 id="2-langgraph">2. LangGraph</h3>
+<p><strong>定位</strong>：LangChain 生态的有状态 Agent 编排框架，用<strong>有向图</strong>建模复杂工作流。</p>
+<p><strong>核心架构（文字描述）</strong>：
+<img loading="lazy" decoding="async" alt="LangGraph StateGraph 流程" src="assets/7368eed498-langgraph-stategraph-flow.svg" />
+将工作流建模为 <strong>StateGraph</strong>，每个 Node 是一个函数，Edge 定义流转（支持条件分支和循环）。State 是全局共享的 TypedDict，每次 Node 执行后更新。Checkpointer 支持断点续跑和时光回溯。</p>
+<p><strong>关键 API / 概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>StateGraph</code> | 核心图定义，泛型参数为 State 类型 |
+| <code>add_node(name, fn)</code> | 添加节点，fn 接收 State 返回更新 |
+| <code>add_edge / add_conditional_edges</code> | 定义无条件 / 条件流转 |
+| <code>Checkpointer</code> | <code>SqliteSaver</code> / <code>PostgresSaver</code> 持久化状态快照 |
+| <code>interrupt_before / interrupt_after</code> | 人工干预（Human-in-the-loop）断点 |
+| <code>Command</code> / <code>Send</code> | 多 Agent 消息传递和并行扇出 |
+| <code>LangGraph Platform</code> | 托管部署，自带 API 服务和 Studio 可视化 |</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>多步骤代码生成</strong>：需求分析 → 代码生成 → 代码执行 → 错误检测 → 修复（循环）→ 输出。LangGraph 的循环边天然支持"生成-测试-修复"迭代。
+- <strong>客服升级系统</strong>：AI 自动回复 → 置信度低时 interrupt → 人工接管 → 继续。Checkpoint 保证中断后状态不丢失。
+- <strong>多 Agent 协作</strong>：每个 Agent 是一个子图（subgraph），通过 supervisor 节点路由分派。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 原生支持循环、条件、并行 | 学习曲线陡峭，需理解图论概念 |
+| Checkpoint 实现断点续跑 + 时光旅行 | 简单场景过度设计 |
+| Human-in-the-loop 一等公民 | 强绑定 LangChain 生态 |
+| 多 Agent 编排灵活（子图嵌套） | 调试需要 LangSmith / Studio 辅助 |</p>
+<p><strong>面试高频：LangChain vs LangGraph 如何互补？</strong></p>
+<blockquote>
+<p>LangChain 负责"组件层"（Prompt/LLM/Tool/Retriever 等乐高积木），LangGraph 负责"编排层"（积木如何拼接、何时循环、何时等人审批）。简单线性流程用 LCEL 即可；需要循环、分支、持久化状态、多 Agent 时上 LangGraph。</p>
+</blockquote>
+<hr />
+<h3 id="3-crewai">3. CrewAI</h3>
+<p><strong>定位</strong>：角色扮演多智能体框架，模拟真实团队协作。</p>
+<p><strong>核心架构（文字描述）</strong>：</p>
+<div class="codehilite"><pre><code>Crew（团队）
+ ├── Agent 1: 研究员（Role + Goal + Backstory + Tools）
+ ├── Agent 2: 写手（Role + Goal + Backstory + Tools）
+ └── Agent 3: 编辑（Role + Goal + Backstory + Tools）
+      │
+      ↓
+ Process（流程策略）
+  ├── Sequential（顺序执行）
+  ├── Hierarchical（层级管理，Manager Agent 分派）
+  └── Consensual（共识协商，实验性）
+      │
+      ↓
+ Task 1 → Task 2 → Task 3 → 最终输出
+</code></pre></div>
+<p><strong>关键 API / 概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>Agent(role, goal, backstory, tools, llm)</code> | 定义角色化 Agent |
+| <code>Task(description, agent, expected_output)</code> | 分配任务给指定 Agent |
+| <code>Crew(agents, tasks, process)</code> | 组装团队并执行 |
+| <code>Process.sequential / hierarchical</code> | 执行策略 |
+| <code>@tool</code> | 自定义工具装饰器 |
+| <code>CrewAI Flow</code> | 新增的事件驱动编排层，支持条件/循环 |</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>内容创作流水线</strong>：研究员 Agent 搜索资料 → 写手 Agent 撰写文章 → SEO Agent 优化标题关键词 → 编辑 Agent 终审。每个角色有独立的系统提示和工具集。
+- <strong>招聘筛选系统</strong>：简历解析 Agent → 技能匹配 Agent → 面试问题生成 Agent。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 角色定义直观，业务人员易理解 | 底层依赖 LangChain，调试穿透性差 |
+| Hierarchical 模式自带 Manager | 复杂流程控制不如 LangGraph 灵活 |
+| 上手极快，几十行代码跑起多 Agent | 角色设计不当会导致 Agent 互相"推诿" |
+| CrewAI Enterprise 提供托管部署 | 大规模生产环境案例还不够多 |</p>
+<hr />
+<h3 id="4-autogen">4. AutoGen（微软）</h3>
+<p><strong>定位</strong>：多 Agent 对话框架，以<strong>消息传递</strong>驱动协作。2024 年底发布 AutoGen 0.4 大重构（AgentChat + Core + Extensions）。</p>
+<p><strong>核心架构（文字描述）</strong>：
+<img loading="lazy" decoding="async" alt="AutoGen Group Chat 协作" src="assets/d835e73d94-autogen-group-chat.svg" /></p>
+<p><strong>关键 API / 概念（0.4 版）</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>AssistantAgent</code> | 带 LLM 推理和工具调用的 Agent |
+| <code>UserProxyAgent</code> | 人工代理，支持自动/手动回复 |
+| <code>RoundRobinGroupChat</code> | 轮询式多 Agent 对话 |
+| <code>SelectorGroupChat</code> | LLM 动态选择下一个发言者 |
+| <code>Swarm</code> | OpenAI Swarm 风格的 handoff 模式 |
+| <code>CodeExecutor</code> | Docker / 本地沙箱代码执行 |
+| <code>Termination</code> | <code>MaxMessageTermination</code> / <code>TextMentionTermination</code> 等停止条件 |</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>代码调试协作</strong>：AssistantAgent 生成代码 → CodeExecutor 执行 → 错误反馈 → AssistantAgent 修复。自然的"对话式调试"。
+- <strong>研究论文分析</strong>：多个专家 Agent（统计学家、领域专家、批评者）在 GroupChat 中讨论论文，涌现出更全面的分析。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 对话式交互最自然 | 对话轮次不可控，容易"聊跑偏" |
+| 代码执行能力强（Docker 沙箱） | 0.4 重构后与 0.2 API 不兼容 |
+| 支持异步、分布式 Agent | 生产部署文档和案例较少 |
+| 微软背书，研究场景丰富 | 工作流控制不如图结构框架精确 |</p>
+<hr />
+<h3 id="5-dify">5. Dify</h3>
+<p><strong>定位</strong>：LLM 应用开发平台，无代码 / 低代码，开源自部署。</p>
+<p><strong>核心架构（文字描述）</strong>：
+<img loading="lazy" decoding="async" alt="Dify 平台能力总览" src="assets/3cd0a6e3d8-dify-platform-overview.svg" /></p>
+<p><strong>关键概念</strong>：
+- <strong>应用类型</strong>：Chatbot（对话）、Text Generator（文本生成）、Agent（自主决策）、Workflow（可视化流程）
+- <strong>可视化 Workflow 编辑器</strong>：拖拽节点（LLM / 条件 / 代码 / HTTP / 知识检索）构建流程
+- <strong>知识库</strong>：上传文档 → 自动切分 → Embedding → 向量检索，内置 RAG 管道
+- <strong>多模型管理</strong>：统一接口管理 OpenAI / Claude / 本地模型等</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>企业知识库问答</strong>：上传公司文档 → 自动构建知识库 → 部署为 Chatbot。非技术人员即可操作。
+- <strong>审批工作流</strong>：用 Workflow 模式编排 LLM 判断 + 条件分支 + API 调用 + 人工审核节点。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 可视化编排，非技术人员可用 | 复杂逻辑表达受限于可视化界面 |
+| 内置 RAG、监控、标注全套 | 深度定制需 fork 源码 |
+| 开源自部署，数据可控 | 多 Agent 协作支持较弱 |
+| 中文社区活跃，国内企业友好 | 高并发性能需自行优化 |</p>
+<hr />
+<h3 id="6-openai-agents-sdk-2025">6. OpenAI Agents SDK（🔥 2025 热门）</h3>
+<p><strong>定位</strong>：OpenAI 官方发布的轻量级 Python Agent 框架（2025 年 3 月发布），前身为 Swarm 实验项目。设计哲学是<strong>"少即是多"</strong>——用最少的抽象覆盖大部分 Agent 场景。</p>
+<p><strong>核心架构（文字描述）</strong>：
+<img loading="lazy" decoding="async" alt="OpenAI Agents SDK 执行循环" src="assets/bd0a8944eb-openai-agents-loop.svg" /></p>
+<p><strong>关键 API / 概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>Agent(name, instructions, tools, model)</code> | 核心类，定义 Agent 的指令、工具和模型 |
+| <code>Runner.run(agent, messages)</code> | 执行 Agent 循环，自动处理工具调用和 Handoff |
+| <code>@function_tool</code> | 将 Python 函数注册为工具，自动推导 JSON Schema |
+| <code>Handoff</code> | Agent 间切换机制：<code>handoff(target_agent)</code> |
+| <code>Guardrail</code> | 输入/输出安全护栏，如 <code>InputGuardrail</code>、<code>OutputGuardrail</code> |
+| <code>Tracing</code> | 内置调用追踪，可对接 Logfire / 自定义 Exporter |
+| <code>RunContext</code> | 依赖注入容器，跨工具共享上下文 |
+| <code>ModelSettings</code> | 温度、top_p 等模型参数配置 |</p>
+<p><strong>核心设计原则</strong>：
+1. <strong>Agent 循环</strong>：Agent 被调用 → LLM 推理 → 工具调用或 Handoff 或最终输出 → 循环直到结束
+2. <strong>Handoff 机制</strong>：Agent A 可以"移交"控制权给 Agent B，实现多 Agent 协作（类似客服转接）
+3. <strong>护栏</strong>：在 Agent 循环外层套安全检查，异步并行执行不影响性能
+4. <strong>可观测性</strong>：内置 Tracing 支持，生产环境必备</p>
+<p><strong>真实使用场景案例</strong>：
+- <strong>智能客服分流</strong>：Triage Agent 判断意图 → Handoff 到退款 Agent / 技术支持 Agent / 销售 Agent。每个子 Agent 有独立工具集。
+- <strong>数据分析助手</strong>：Agent 接收自然语言查询 → 调用 SQL 工具 → 执行查询 → 用 Python 工具画图 → 返回分析报告。
+- <strong>代码审查</strong>：Agent 读取 PR diff → 调用静态分析工具 → 生成审查意见。</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 极简 API，30 行代码实现多 Agent | 仅原生支持 OpenAI 模型（社区适配其他模型） |
+| Handoff 机制优雅直观 | 无内置持久化状态（需自行管理） |
+| 内置 Tracing 和 Guardrails | 无可视化编排界面 |
+| OpenAI 官方维护，与 API 深度集成 | 框架较新，生态和文档还在完善 |
+| 类型安全，Pydantic 输出验证 | 复杂图结构工作流不如 LangGraph |</p>
+<p><strong>代码示例（感受简洁度）</strong>：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">agents</span> <span class="kn">import</span> <span class="n">Agent</span><span class="p">,</span> <span class="n">Runner</span><span class="p">,</span> <span class="n">function_tool</span>
+
+<span class="nd">@function_tool</span>
+<span class="k">def</span> <span class="nf">get_weather</span><span class="p">(</span><span class="n">city</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;获取城市天气&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">city</span><span class="si">}</span><span class="s2">: 晴，25°C&quot;</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;天气助手&quot;</span><span class="p">,</span>
+    <span class="n">instructions</span><span class="o">=</span><span class="s2">&quot;你是天气查询助手&quot;</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">get_weather</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">Runner</span><span class="o">.</span><span class="n">run_sync</span><span class="p">(</span><span class="n">agent</span><span class="p">,</span> <span class="s2">&quot;北京天气怎么样？&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">final_output</span><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h3 id="7-google-agent-development-kit-adk">7. Google Agent Development Kit (ADK)</h3>
+<p><strong>定位</strong>：Google 于 2025 年 4 月发布的开源 Agent 开发框架，深度集成 Gemini 模型和 Google Cloud 生态。</p>
+<p><strong>核心架构（文字描述）</strong>：</p>
+<div class="codehilite"><pre><code>Agent
+ ├── LlmAgent（LLM 驱动的推理 Agent）
+ ├── SequentialAgent（顺序编排多个子 Agent）
+ ├── ParallelAgent（并行执行子 Agent）
+ └── LoopAgent（循环执行直到满足条件）
+      │
+      ↓
+ Tools: Google Search / Code Execution / 自定义函数 / MCP 工具
+      │
+      ↓
+ Session / State / Memory（会话状态管理）
+      │
+      ↓
+ 部署: Cloud Run / Vertex AI / Agent Engine
+</code></pre></div>
+<p><strong>关键概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>LlmAgent</code> | 核心 Agent 类型，用 Gemini 或其他 LLM 推理 |
+| <code>SequentialAgent / ParallelAgent / LoopAgent</code> | 内置编排原语 |
+| <code>Tool</code> / <code>FunctionTool</code> | 工具定义，支持 MCP 协议 |
+| <code>Session</code> / <code>State</code> | 会话和状态管理 |
+| <code>Callback</code> | <code>before_agent_call</code> / <code>after_tool_call</code> 等钩子 |
+| <code>A2A Protocol</code> | Agent-to-Agent 通信协议（Google 提出的标准） |</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 深度集成 Google 生态（Search/Vertex） | Gemini 之外的模型支持有限 |
+| 内置编排原语（Sequential/Parallel/Loop） | 框架非常新，社区还小 |
+| 支持 MCP 和 A2A 协议 | 文档和示例较少 |
+| 提供 Web UI 调试界面 | 生产案例极少 |</p>
+<hr />
+<h3 id="8-mastrajsts">8. Mastra（JS/TS 生态）</h3>
+<p><strong>定位</strong>：面向 TypeScript 开发者的 AI Agent 框架，填补 JS 生态的 Agent 框架空白。</p>
+<p><strong>核心架构</strong>：</p>
+<div class="codehilite"><pre><code>Mastra Framework
+ ├── Agent（LLM + Tools + Memory）
+ ├── Workflow（基于 XState 状态机的工作流）
+ ├── RAG（内置向量检索管道）
+ ├── Syncs（第三方数据同步）
+ └── Evals（内置评估工具）
+</code></pre></div>
+<p><strong>关键特性</strong>：
+- <strong>TypeScript 原生</strong>：类型安全，适合全栈 JS 团队
+- <strong>工作流引擎</strong>：基于 XState 状态机，支持分支、循环、暂停恢复
+- <strong>内置 RAG</strong>：集成 Pinecone / pgvector 等向量库
+- <strong>工具集成</strong>：支持 MCP 协议，可直接使用 MCP 工具服务器</p>
+<p><strong>适用场景</strong>：全栈 TypeScript 团队构建 AI 应用，前后端统一技术栈。</p>
+<hr />
+<h3 id="9-pydantic-ai">9. Pydantic AI</h3>
+<p><strong>定位</strong>：由 Pydantic 团队开发的 Python Agent 框架，强调<strong>类型安全</strong>和<strong>生产就绪</strong>。</p>
+<p><strong>核心架构</strong>：</p>
+<div class="codehilite"><pre><code>PydanticAI Agent
+ ├── System Prompt（静态 + 动态）
+ ├── Tools（@agent.tool 装饰器）
+ ├── Structured Result（Pydantic Model 验证输出）
+ ├── Dependencies（依赖注入系统）
+ └── Model（统一接口：OpenAI / Anthropic / Gemini / Groq / Ollama）
+</code></pre></div>
+<p><strong>关键特性</strong>：
+- <strong>结构化输出</strong>：用 Pydantic Model 定义输出格式，自动验证
+- <strong>依赖注入</strong>：<code>RunContext[Deps]</code> 注入数据库连接、API 客户端等
+- <strong>多模型支持</strong>：统一接口覆盖主流 LLM
+- <strong>Logfire 集成</strong>：内置可观测性支持
+- <strong>流式输出</strong>：支持 <code>run_stream()</code> 流式返回</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 类型安全，Pydantic 验证输出 | 多 Agent 编排支持较弱 |
+| 依赖注入设计优雅 | 社区规模小于 LangChain |
+| 多模型统一接口 | 无可视化编排 |
+| 生产级质量（Pydantic 团队出品） | 工作流控制需自行实现 |</p>
+<hr />
+<h3 id="10-semantic-kernel">10. Semantic Kernel（微软）</h3>
+<p><strong>定位</strong>：微软开源的 AI 编排 SDK，支持 C# / Python / Java，面向企业级应用。</p>
+<p><strong>核心架构</strong>：</p>
+<div class="codehilite"><pre><code>Kernel（内核）
+ ├── AI Services（OpenAI / Azure OpenAI / Hugging Face）
+ ├── Plugins（插件 = 一组 Functions）
+ │    ├── Semantic Function（Prompt 模板）
+ │    └── Native Function（代码函数）
+ ├── Planner（自动规划执行步骤）
+ ├── Memory（向量记忆）
+ └── Filters（前置/后置过滤器）
+</code></pre></div>
+<p><strong>关键概念</strong>：
+| 概念 | 说明 |
+|------|------|
+| <code>Kernel</code> | 核心容器，注册 AI 服务和插件 |
+| <code>Plugin</code> | 功能插件，包含多个 Function |
+| <code>KernelFunction</code> | 单个可调用函数（Prompt 或代码） |
+| <code>Planner</code> | AI 自动规划多步骤执行计划 |
+| <code>Process Framework</code> | 新增的有状态工作流（类似 LangGraph） |
+| <code>Agent Framework</code> | 多 Agent 支持（ChatCompletion / OpenAI Assistant） |</p>
+<p><strong>优势 vs 局限</strong>：
+| 优势 | 局限 |
+|------|------|
+| 企业级：C# / Java 支持，.NET 生态集成 | Python 社区关注度不如 LangChain |
+| 深度集成 Azure OpenAI | 抽象概念多，上手有门槛 |
+| 插件系统可复用性强 | 社区活跃度一般 |
+| 微软长期维护保障 | 与 Azure 绑定感较强 |</p>
+<hr />
+<h3 id="11-langflow">11. Langflow</h3>
+<p><strong>定位</strong>：低代码可视化框架，用拖拽方式构建 Agent 和 RAG 工作流。</p>
+<p><strong>核心特性</strong>：
+- 可视化画布编辑器
+- 导出为 Python 代码
+- 内置组件市场
+- 一键部署为 API</p>
+<p><strong>适用场景</strong>：快速原型验证、非技术团队使用、教学演示。</p>
+<hr />
+<h3 id="rag">二、RAG 框架</h3>
+<hr />
+<h3 id="1-llamaindex">1. LlamaIndex</h3>
+<p><strong>定位</strong>：LLM 数据框架，专注数据摄取、索引、查询。</p>
+<p><strong>核心架构</strong>：</p>
+<div class="codehilite"><pre><code>数据源 → Reader/Loader → Document → Node Parser → 切分
+    → Embedding → Index（VectorStore / KG / Summary）
+    → Retriever → Response Synthesizer → 答案
+</code></pre></div>
+<p><strong>关键概念</strong>：
+- <strong>Document / Node</strong>：文档和切分后的节点
+- <strong>Index</strong>：VectorStoreIndex / KnowledgeGraphIndex / SummaryIndex 等
+- <strong>QueryEngine</strong>：封装检索+生成的查询引擎
+- <strong>Router</strong>：多索引路由查询
+- <strong>Agent</strong>：LlamaIndex 也有自己的 Agent 层（ReAct / Function Calling）</p>
+<p><strong>真实场景</strong>：复杂文档结构（PDF 表格、层级文档）的精准问答，多源异构数据的统一检索。</p>
+<p><strong>优势</strong>：数据处理能力强，索引类型丰富，适合复杂 RAG。
+<strong>局限</strong>：Agent 编排能力不如 LangGraph，主要聚焦数据层。</p>
+<hr />
+<h3 id="2-haystackdeepset">2. Haystack（Deepset）</h3>
+<p><strong>定位</strong>：企业级 RAG 框架，管道式架构。</p>
+<p><strong>核心特性</strong>：
+- 模块化 Pipeline 架构（Component → Pipeline）
+- 强大的评估工具和基准测试
+- 生产级部署支持（REST API、Docker）
+- 支持自定义 Component</p>
+<p><strong>适用场景</strong>：企业级搜索增强系统，需要严格评估和 CI/CD 的 RAG 管道。</p>
+<hr />
+<h3 id="3-ragflow">3. RAGFlow</h3>
+<p><strong>定位</strong>：深度文档理解 RAG 引擎。</p>
+<p><strong>核心特性</strong>：
+- 擅长复杂文档（PDF 表格、扫描件、多列排版）
+- 内置 OCR 和版面分析
+- 支持多种切分策略（语义切分、表格切分）</p>
+<p><strong>适用场景</strong>：金融报告、法律文书、医疗病历等复杂文档的 RAG。</p>
+<hr />
+<h3 id="4-dspy-nlp">4. DSPy（斯坦福 NLP）</h3>
+<p><strong>定位</strong>：用"编程"代替"提示"的声明式框架。</p>
+<p><strong>核心概念</strong>：
+- <strong>Signature</strong>：声明输入输出（<code>"question -&gt; answer"</code>）
+- <strong>Module</strong>：<code>dspy.ChainOfThought</code>、<code>dspy.ReAct</code> 等可组合模块
+- <strong>Optimizer</strong>：<code>BootstrapFewShot</code>、<code>MIPROv2</code> 等自动优化提示
+- <strong>Metric</strong>：定义评估指标，驱动自动优化</p>
+<p><strong>核心理念</strong>：不手写 Prompt，而是定义 Signature + Metric，让框架自动优化 Prompt 和 few-shot examples。</p>
+<p><strong>适用场景</strong>：需要系统化优化 RAG 管道效果的研究和生产场景。</p>
+<hr />
+<h3 id="5-pathway">5. Pathway</h3>
+<p><strong>定位</strong>：高吞吐量低延迟 RAG 框架。
+- 350+ 数据源连接器
+- 实时增量索引更新
+- 适合大规模部署和流式数据场景</p>
+<hr />
+<h3 id="rag_1">三、向量数据库（RAG 必备）</h3>
+<table>
+<thead>
+<tr>
+<th>数据库</th>
+<th>类型</th>
+<th>特点</th>
+<th>适用场景</th>
+<th>语言/协议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Pinecone</strong></td>
+<td>全托管 SaaS</td>
+<td>简单易用，自动扩缩容</td>
+<td>快速上手，中小规模</td>
+<td>REST / gRPC</td>
+</tr>
+<tr>
+<td><strong>Weaviate</strong></td>
+<td>开源/云</td>
+<td>混合搜索（向量+关键词），GraphQL API</td>
+<td>需要自定义部署</td>
+<td>GraphQL / REST</td>
+</tr>
+<tr>
+<td><strong>Chroma</strong></td>
+<td>开源嵌入式</td>
+<td>轻量级，pip install 即用</td>
+<td>本地开发、原型验证</td>
+<td>Python SDK</td>
+</tr>
+<tr>
+<td><strong>Milvus</strong></td>
+<td>开源分布式</td>
+<td>十亿级向量，GPU 加速</td>
+<td>大规模生产环境</td>
+<td>gRPC / REST</td>
+</tr>
+<tr>
+<td><strong>Qdrant</strong></td>
+<td>开源</td>
+<td>Rust 编写，高性能，丰富过滤</td>
+<td>性能敏感场景</td>
+<td>gRPC / REST</td>
+</tr>
+<tr>
+<td><strong>FAISS</strong></td>
+<td>库（Meta）</td>
+<td>非数据库，纯检索库</td>
+<td>研究、嵌入现有系统</td>
+<td>C++ / Python</td>
+</tr>
+<tr>
+<td><strong>pgvector</strong></td>
+<td>PG 扩展</td>
+<td>PostgreSQL 原生扩展</td>
+<td>已有 PG 基础设施</td>
+<td>SQL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_1">四、框架大对比表</h3>
+<h3 id="agent_1">Agent 编排框架横向对比</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>LangChain</th>
+<th>LangGraph</th>
+<th>CrewAI</th>
+<th>AutoGen</th>
+<th>Dify</th>
+<th>OpenAI Agents SDK</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>学习曲线</strong></td>
+<td>⭐⭐⭐ 中等</td>
+<td>⭐⭐⭐⭐ 较陡</td>
+<td>⭐⭐ 简单</td>
+<td>⭐⭐⭐ 中等</td>
+<td>⭐ 最简单</td>
+<td>⭐⭐ 简单</td>
+</tr>
+<tr>
+<td><strong>生产就绪度</strong></td>
+<td>⭐⭐⭐⭐ 高</td>
+<td>⭐⭐⭐⭐ 高</td>
+<td>⭐⭐⭐ 中等</td>
+<td>⭐⭐⭐ 中等</td>
+<td>⭐⭐⭐⭐ 高</td>
+<td>⭐⭐⭐ 中等（新）</td>
+</tr>
+<tr>
+<td><strong>多 Agent 支持</strong></td>
+<td>⭐⭐ 基础</td>
+<td>⭐⭐⭐⭐⭐ 强</td>
+<td>⭐⭐⭐⭐ 强</td>
+<td>⭐⭐⭐⭐⭐ 强</td>
+<td>⭐⭐ 基础</td>
+<td>⭐⭐⭐⭐ 强（Handoff）</td>
+</tr>
+<tr>
+<td><strong>社区活跃度</strong></td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐（增长快）</td>
+</tr>
+<tr>
+<td><strong>可视化</strong></td>
+<td>❌（需 LangSmith）</td>
+<td>✅ LangGraph Studio</td>
+<td>❌</td>
+<td>❌（AutoGen Studio）</td>
+<td>✅ 内置</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>模型绑定</strong></td>
+<td>无绑定</td>
+<td>无绑定</td>
+<td>无绑定</td>
+<td>无绑定</td>
+<td>无绑定</td>
+<td>OpenAI 优先</td>
+</tr>
+<tr>
+<td><strong>编程语言</strong></td>
+<td>Python / JS</td>
+<td>Python / JS</td>
+<td>Python</td>
+<td>Python / C#</td>
+<td>Python（后端）</td>
+<td>Python</td>
+</tr>
+<tr>
+<td><strong>状态持久化</strong></td>
+<td>❌ 需自行实现</td>
+<td>✅ Checkpointer</td>
+<td>❌ 需自行实现</td>
+<td>⚠️ 基础</td>
+<td>✅ 内置</td>
+<td>❌ 需自行实现</td>
+</tr>
+<tr>
+<td><strong>适用场景</strong></td>
+<td>线性管道、RAG、快速原型</td>
+<td>复杂有状态工作流</td>
+<td>角色协作、内容生成</td>
+<td>研究、代码任务</td>
+<td>无代码应用构建</td>
+<td>轻量多 Agent、OpenAI 生态</td>
+</tr>
+<tr>
+<td><strong>GitHub Star</strong></td>
+<td>95k+</td>
+<td>12k+</td>
+<td>25k+</td>
+<td>38k+</td>
+<td>60k+</td>
+<td>15k+（增长极快）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_2">五、框架选型实战</h3>
+<h3 id="51">5.1 按业务需求选框架</h3>
+<table>
+<thead>
+<tr>
+<th>业务需求</th>
+<th>推荐框架</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>简单聊天机器人</strong></td>
+<td>OpenAI Agents SDK / LangChain</td>
+<td>少量代码快速实现</td>
+</tr>
+<tr>
+<td><strong>企业知识库问答</strong></td>
+<td>Dify + LlamaIndex</td>
+<td>Dify 提供 UI 和 RAG，LlamaIndex 处理复杂文档</td>
+</tr>
+<tr>
+<td><strong>复杂审批工作流</strong></td>
+<td>LangGraph</td>
+<td>需要条件分支、循环、人工干预、状态持久化</td>
+</tr>
+<tr>
+<td><strong>多角色内容创作</strong></td>
+<td>CrewAI</td>
+<td>角色化设计天然匹配</td>
+</tr>
+<tr>
+<td><strong>代码生成/调试</strong></td>
+<td>AutoGen / OpenAI Agents SDK</td>
+<td>代码执行和迭代修复</td>
+</tr>
+<tr>
+<td><strong>客服分流系统</strong></td>
+<td>OpenAI Agents SDK</td>
+<td>Handoff 机制完美匹配</td>
+</tr>
+<tr>
+<td><strong>企业级 .NET 应用</strong></td>
+<td>Semantic Kernel</td>
+<td>C# 支持，Azure 集成</td>
+</tr>
+<tr>
+<td><strong>全栈 JS 团队</strong></td>
+<td>Mastra</td>
+<td>TypeScript 原生</td>
+</tr>
+<tr>
+<td><strong>研究实验</strong></td>
+<td>AutoGen / DSPy</td>
+<td>灵活、可实验</td>
+</tr>
+<tr>
+<td><strong>非技术团队快速搭建</strong></td>
+<td>Dify / Langflow</td>
+<td>可视化拖拽</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52">5.2 框架组合的最佳实践</h3>
+<p><strong>组合 1：LangChain + LangGraph（最常见）</strong>
+- LangChain 提供组件（Prompt/Tool/Retriever），LangGraph 编排工作流
+- 适合：复杂企业应用，需要精细流程控制
+- 示例：客服系统 = LangChain 工具定义 + LangGraph 状态机编排 + LangSmith 监控</p>
+<p><strong>组合 2：LlamaIndex + LangGraph</strong>
+- LlamaIndex 负责数据索引和检索，LangGraph 编排多步推理
+- 适合：复杂 RAG 需要多轮检索、验证、重写
+- 示例：法律文书分析 = LlamaIndex 多索引路由 + LangGraph 多步推理验证</p>
+<p><strong>组合 3：Dify + 自定义 Agent</strong>
+- Dify 做前端和基础 RAG，复杂逻辑通过 API 调用外部 Agent
+- 适合：团队混合技术水平，需要快速交付
+- 示例：Dify 知识库 + 外部 LangGraph Agent 处理复杂推理</p>
+<p><strong>组合 4：CrewAI + LangGraph</strong>
+- CrewAI 定义角色和任务，LangGraph 精细控制工作流
+- 适合：需要角色协作 + 复杂流程控制的场景</p>
+<h3 id="53">5.3 选型决策树</h3>
+<p><img loading="lazy" decoding="async" alt="Agent 框架选型决策树" src="assets/153c5facae-agent-framework-selection-tree.svg" /></p>
+<hr />
+<h3 id="_3">六、框架选型决策树（速查版）</h3>
+<div class="codehilite"><pre><code>需求分析
+├── 简单 RAG / 聊天机器人 → LangChain + LlamaIndex
+├── 复杂多步骤有状态工作流 → LangGraph
+├── 多 Agent 角色协作 → CrewAI
+├── 研究 / 快速原型 → AutoGen
+├── 非技术团队快速搭建 → Dify / Langflow
+├── 企业级 RAG → Haystack / Pathway
+├── 自动优化检索 → DSPy
+├── 轻量多 Agent + OpenAI 生态 → OpenAI Agents SDK
+├── Google 生态 → Google ADK
+├── TypeScript 全栈 → Mastra
+├── .NET / Java 企业 → Semantic Kernel
+└── 类型安全 Python Agent → Pydantic AI
+</code></pre></div>
+<hr />
+<h3 id="15">七、面试题 15 题 + 参考答案</h3>
+<hr />
+<h3 id="q1langchain-langgraph-langgraph">Q1：LangChain 和 LangGraph 有什么区别？什么时候该用 LangGraph？</h3>
+<p><strong>参考答案</strong>：
+LangChain 是组件库 + 线性编排（LCEL），适合简单的链式调用（Prompt → LLM → Tool → Output）。LangGraph 是图结构编排框架，用有向图建模工作流。</p>
+<p><strong>该用 LangGraph 的信号</strong>：
+1. 需要<strong>循环</strong>（如代码生成→测试→修复循环）
+2. 需要<strong>条件分支</strong>（如根据分类结果走不同路径）
+3. 需要<strong>持久化状态</strong>（如长时间运行的任务需要断点续跑）
+4. 需要<strong>Human-in-the-loop</strong>（如审批节点）
+5. 需要<strong>多 Agent 协作</strong>（每个 Agent 作为子图）</p>
+<p>两者互补而非替代：LangChain 提供乐高积木，LangGraph 提供拼装蓝图。</p>
+<hr />
+<h3 id="q2-openai-agents-sdk-handoff-agent">Q2：解释 OpenAI Agents SDK 的 Handoff 机制，和传统多 Agent 框架有什么不同？</h3>
+<p><strong>参考答案</strong>：
+Handoff 是 OpenAI Agents SDK 的核心多 Agent 机制。当 Agent A 判断当前任务应由另一个 Agent 处理时，它返回一个 <code>handoff()</code> 调用，Runner 自动将控制权和对话历史转移给目标 Agent。</p>
+<p><strong>与传统框架的区别</strong>：
+- <strong>CrewAI</strong>：预定义任务分配，Agent 按顺序/层级执行固定流程
+- <strong>AutoGen</strong>：Agent 通过消息传递对话，所有 Agent 共享聊天记录
+- <strong>OpenAI Handoff</strong>：动态切换，当前 Agent 主动判断"该谁接手"，更像客服转接</p>
+<p><strong>优势</strong>：简洁，无需定义复杂的路由逻辑或消息协议；Agent 自己决定何时、向谁 Handoff。
+<strong>劣势</strong>：控制粒度不如 LangGraph 的显式图结构。</p>
+<hr />
+<h3 id="q3crewai-sequential-hierarchical">Q3：CrewAI 的 Sequential 和 Hierarchical 模式有什么区别？各适用什么场景？</h3>
+<p><strong>参考答案</strong>：
+- <strong>Sequential</strong>：Task 按顺序依次执行，前一个 Task 的输出作为后一个的输入。适合流水线式工作（研究→写作→编辑）。
+- <strong>Hierarchical</strong>：自动创建 Manager Agent，由它决定任务分派和执行顺序。适合任务间有复杂依赖或需要动态调度的场景。</p>
+<p>选择建议：任务流程清晰固定用 Sequential；任务间需要动态协调用 Hierarchical。</p>
+<hr />
+<h3 id="q4dify-langchain">Q4：Dify 和 LangChain 分别适合什么团队？</h3>
+<p><strong>参考答案</strong>：
+- <strong>Dify</strong>：适合混合技术背景团队（产品经理 + 少量开发），需要快速搭建和迭代 AI 应用，强调可视化和开箱即用。
+- <strong>LangChain</strong>：适合纯技术团队，需要深度定制、灵活组合组件，愿意投入工程化的场景。</p>
+<p>关键区别：Dify 是"平台"（带 UI、数据库、监控），LangChain 是"框架"（纯代码库）。非技术人员能用 Dify，用不了 LangChain。</p>
+<hr />
+<h3 id="q5langgraph-checkpoint">Q5：LangGraph 的 Checkpoint 机制有什么用？怎么实现？</h3>
+<p><strong>参考答案</strong>：
+Checkpoint 是 LangGraph 的状态持久化机制，在每个节点执行后自动保存完整状态快照。</p>
+<p><strong>用途</strong>：
+1. <strong>断点续跑</strong>：长时间运行的工作流中断后可以从最后一个 Checkpoint 恢复
+2. <strong>Human-in-the-loop</strong>：在 <code>interrupt_before</code> 节点暂停，等人工审批后继续
+3. <strong>时光旅行</strong>：回溯到任意历史 Checkpoint，修改状态后重新执行
+4. <strong>错误恢复</strong>：某步失败后回退到上一步重试</p>
+<p><strong>实现</strong>：用 <code>SqliteSaver</code> / <code>PostgresSaver</code> 等 Checkpointer 作为参数传入 <code>StateGraph.compile(checkpointer=...)</code>。</p>
+<hr />
+<h3 id="q6autogen-04-02">Q6：AutoGen 0.4 和 0.2 有什么大变化？</h3>
+<p><strong>参考答案</strong>：
+AutoGen 0.4 是完全重构：
+1. <strong>架构分层</strong>：拆分为 Core（消息传递运行时）、AgentChat（高层 API）、Extensions（扩展）
+2. <strong>异步优先</strong>：原生 async/await，支持分布式 Agent
+3. <strong>新编排模式</strong>：新增 <code>SelectorGroupChat</code>（LLM 选择发言者）和 <code>Swarm</code>（Handoff 模式）
+4. <strong>API 不兼容</strong>：0.2 代码需要迁移，<code>import autogen</code> → <code>import autogen_agentchat</code></p>
+<hr />
+<h3 id="q7-mcpmodel-context-protocol">Q7：什么是 MCP（Model Context Protocol）？哪些框架支持？</h3>
+<p><strong>参考答案</strong>：
+MCP 是 Anthropic 提出的标准协议，定义了 LLM 应用与外部工具/数据源之间的通信标准（类似 USB 协议）。</p>
+<p><strong>核心组件</strong>：
+- <strong>MCP Server</strong>：暴露工具和资源（如数据库查询、API 调用）
+- <strong>MCP Client</strong>：Agent 框架内的客户端，调用 MCP Server</p>
+<p><strong>支持的框架</strong>：OpenAI Agents SDK、Google ADK、Mastra、LangChain、Cursor、Claude Desktop 等。MCP 正在成为 AI 工具集成的事实标准。</p>
+<hr />
+<h3 id="q8-agent">Q8：如何设计一个生产级 Agent 系统的错误处理？</h3>
+<p><strong>参考答案</strong>：
+1. <strong>LLM 层</strong>：重试策略（指数退避）、fallback 模型（主用 GPT-4o，降级到 GPT-4o-mini）、token 限额
+2. <strong>工具层</strong>：每个工具设置超时、错误返回格式化（让 Agent 理解错误并换策略）、沙箱执行
+3. <strong>编排层</strong>：最大循环次数限制（防止无限循环）、人工干预断点、状态回滚
+4. <strong>系统层</strong>：Guardrails（输入/输出检查）、日志追踪（Tracing）、异常告警
+5. <strong>幂等性</strong>：关键操作（如发邮件、下单）确保幂等，避免重复执行</p>
+<hr />
+<h3 id="q9-rag-llamaindex-langchain">Q9：比较 RAG 领域的 LlamaIndex 和 LangChain，各自优势是什么？</h3>
+<p><strong>参考答案</strong>：
+- <strong>LlamaIndex 优势</strong>：数据处理更专业（160+ 数据连接器、多种索引类型、子问题查询引擎）、复杂文档结构处理能力强（表格、层级文档、知识图谱）
+- <strong>LangChain 优势</strong>：生态更广（不仅是 RAG，还有 Agent、Chain 等）、社区更大、与 LangGraph 无缝集成</p>
+<p>选择建议：纯 RAG 应用用 LlamaIndex；RAG + Agent + 复杂工作流用 LangChain + LangGraph。两者也可组合使用（LlamaIndex 做数据层，LangChain/LangGraph 做编排层）。</p>
+<hr />
+<h3 id="q10dspy-prompt-engineering">Q10：DSPy 的核心理念是什么？和 Prompt Engineering 有什么区别？</h3>
+<p><strong>参考答案</strong>：
+DSPy 的核心理念是"<strong>编程，而非提示</strong>"（Programming, not Prompting）：
+- <strong>Prompt Engineering</strong>：手工编写和迭代 Prompt，依赖人的直觉和经验
+- <strong>DSPy</strong>：定义 Signature（输入→输出声明）+ Metric（评估指标），框架自动生成和优化 Prompt</p>
+<p><strong>工作流</strong>：
+1. 定义 <code>dspy.Signature</code>（如 <code>"context, question -&gt; answer"</code>）
+2. 组合 Module（如 <code>dspy.ChainOfThought(signature)</code>）
+3. 定义 Metric 和 Training Set
+4. 用 Optimizer（如 <code>MIPROv2</code>）自动搜索最优 Prompt + Few-shot Examples</p>
+<p><strong>优势</strong>：可复现、可自动优化、减少人工调参。</p>
+<hr />
+<h3 id="q11semantic-kernel-langchain">Q11：Semantic Kernel 和 LangChain 的主要区别是什么？</h3>
+<p><strong>参考答案</strong>：
+| 维度 | Semantic Kernel | LangChain |
+|------|----------------|-----------|
+| <strong>主要语言</strong> | C# / Java / Python | Python / JS |
+| <strong>目标受众</strong> | 企业 .NET 开发者 | Python 生态开发者 |
+| <strong>核心抽象</strong> | Plugin（插件）+ Kernel | Chain + Agent + Tool |
+| <strong>云绑定</strong> | Azure 深度集成 | 云无关 |
+| <strong>优势场景</strong> | 已有 .NET 基础设施的企业 | Python AI 项目 |</p>
+<p>核心区别在受众和生态：Semantic Kernel 是微软面向企业 .NET 世界的 AI 编排方案，LangChain 是 Python AI 社区的默认选择。</p>
+<hr />
+<h3 id="q12-a2aagent-to-agent-mcp">Q12：什么是 A2A（Agent-to-Agent）协议？和 MCP 有什么区别？</h3>
+<p><strong>参考答案</strong>：
+- <strong>MCP（Model Context Protocol）</strong>：Agent 与<strong>工具/数据源</strong>之间的通信协议（Agent ↔ Tool）
+- <strong>A2A（Agent-to-Agent）</strong>：Google 提出的 Agent 与<strong>Agent</strong>之间的通信协议（Agent ↔ Agent）</p>
+<p><strong>互补关系</strong>：MCP 解决"Agent 怎么用工具"，A2A 解决"Agent 之间怎么协作"。一个完整的多 Agent 系统可能同时用到两者。</p>
+<p>A2A 定义了 Agent Card（能力声明）、Task（任务传递）、Streaming（流式响应）等标准，目标是让不同框架构建的 Agent 能互相调用。</p>
+<hr />
+<h3 id="q13-rag">Q13：如何评估和对比不同 RAG 方案的效果？</h3>
+<p><strong>参考答案</strong>：
+<strong>评估维度</strong>：
+1. <strong>检索质量</strong>：Recall@K、MRR（Mean Reciprocal Rank）、NDCG
+2. <strong>生成质量</strong>：Faithfulness（忠实度）、Relevance（相关性）、Completeness（完整度）
+3. <strong>端到端</strong>：Answer Correctness（答案正确率）</p>
+<p><strong>评估工具</strong>：
+- <strong>RAGAS</strong>：开源 RAG 评估框架，自动化评分
+- <strong>LlamaIndex Evaluator</strong>：内置评估模块
+- <strong>Haystack Evaluation</strong>：管道级基准测试
+- <strong>人工评估</strong>：Golden set 人工标注 + 盲评</p>
+<p><strong>关键实践</strong>：先建立 Golden Test Set（标准问答对），再用自动化指标 + 人工抽检双重评估。</p>
+<hr />
+<h3 id="q14-agent">Q14：在生产环境中部署多 Agent 系统，最大的挑战是什么？</h3>
+<p><strong>参考答案</strong>：
+1. <strong>成本控制</strong>：多 Agent 多次 LLM 调用，token 消耗成倍增长。需要缓存策略、小模型预判、短路机制。
+2. <strong>延迟</strong>：串行多步推理导致高延迟。需要并行化、流式输出、异步架构。
+3. <strong>可靠性</strong>：LLM 输出不确定性 × Agent 数量 = 系统级不确定性。需要 Guardrails、重试、fallback、人工兜底。
+4. <strong>可观测性</strong>：多 Agent 调用链复杂，需要完整 Tracing（如 LangSmith / OpenTelemetry）。
+5. <strong>状态管理</strong>：长时间运行的 Agent 需要持久化状态，处理 crash recovery。
+6. <strong>安全性</strong>：Prompt Injection、工具滥用、数据泄露。需要输入验证、工具权限控制、输出过滤。</p>
+<hr />
+<h3 id="q15-ai-agent">Q15：如果让你从零设计一个 AI Agent 系统，你会怎么选型？请给出一个具体场景的完整方案。</h3>
+<p><strong>参考答案</strong>（以"智能客服系统"为例）：</p>
+<p><strong>需求</strong>：电商平台客服系统，处理订单查询、退款申请、商品咨询、投诉升级。</p>
+<p><strong>选型方案</strong>：
+<img loading="lazy" decoding="async" alt="客服 Agent 架构分层" src="assets/78310e97de-customer-service-agent-architecture.svg" /></p>
+<p><strong>选型理由</strong>：
+- <strong>LangGraph</strong>：客服系统需要条件分支（意图路由）、循环（澄清对话）、人工干预（退款审批）、状态持久化（跨会话记忆）
+- <strong>LlamaIndex</strong>：商品文档结构复杂（规格表、FAQ、政策文档），需要专业 RAG
+- <strong>不选 CrewAI</strong>：客服场景不需要角色扮演，需要精确流程控制
+- <strong>不选 Dify</strong>：需要深度定制和高并发，可视化平台灵活度不够</p>
+<hr />
+<p><em>本文档持续更新，最后更新：2025年3月</em></p>
+<h3 id="langchain">一、LangChain 核心架构</h3>
+<h3 id="_4">模块体系</h3>
+<div class="codehilite"><pre><code>LangChain
+├── Models（模型层）
+│   ├── LLMs（文本生成）
+│   ├── Chat Models（对话模型）
+│   └── Embedding Models（嵌入模型）
+├── Prompts（提示层）
+│   ├── PromptTemplate
+│   ├── ChatPromptTemplate
+│   └── FewShotPromptTemplate
+├── Chains（链）
+│   ├── LLMChain（基础链）
+│   ├── SequentialChain（顺序链）
+│   ├── RouterChain（路由链）
+│   └── LCEL（LangChain Expression Language）
+├── Agents（代理）
+│   ├── ReAct Agent
+│   ├── OpenAI Functions Agent
+│   └── Plan-and-Execute Agent
+├── Memory（记忆）
+│   ├── ConversationBufferMemory
+│   ├── ConversationSummaryMemory
+│   └── ConversationTokenBufferMemory
+├── Tools（工具）
+│   ├── Search, Calculator, Code Interpreter...
+│   └── 自定义 Tool
+└── Retrievers（检索器）
+    ├── VectorStoreRetriever
+    ├── MultiQueryRetriever
+    └── SelfQueryRetriever
+</code></pre></div>
+<h3 id="lcellangchain-expression-language">LCEL（LangChain Expression Language）</h3>
+<ul>
+<li>LangChain 的现代链构建方式</li>
+<li>用管道操作符 <code>|</code> 连接组件</li>
+<li>支持流式输出、批处理、异步</li>
+<li>示例：<code>prompt | llm | output_parser</code></li>
+</ul>
+<h3 id="agent_2">Agent 类型</h3>
+<ol>
+<li><strong>ReAct</strong>：推理+行动交替，最经典</li>
+<li><strong>OpenAI Functions</strong>：利用 OpenAI 函数调用能力</li>
+<li><strong>Plan-and-Execute</strong>：先规划再执行，适合复杂任务</li>
+<li><strong>Tool Calling Agent</strong>：通用工具调用（新版推荐）</li>
+</ol>
+<hr />
+<h3 id="langgraph">二、LangGraph 深度解析</h3>
+<h3 id="_5">核心概念</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">StateGraph</span><span class="p">,</span> <span class="n">END</span>
+
+<span class="err">﻿</span><span class="c1"># 1. 定义状态</span>
+<span class="k">class</span> <span class="nc">AgentState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+    <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span>
+    <span class="n">next_step</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="err">﻿</span><span class="c1"># 2. 创建图</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">AgentState</span><span class="p">)</span>
+
+<span class="err">﻿</span><span class="c1"># 3. 添加节点（每个节点是一个函数）</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;agent&quot;</span><span class="p">,</span> <span class="n">agent_node</span><span class="p">)</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="n">tool_node</span><span class="p">)</span>
+
+<span class="err">﻿</span><span class="c1"># 4. 添加边（定义流转）</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;agent&quot;</span><span class="p">,</span> <span class="s2">&quot;tool&quot;</span><span class="p">)</span>           <span class="c1"># 无条件边</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span><span class="s2">&quot;tool&quot;</span><span class="p">,</span> <span class="n">router</span><span class="p">)</span> <span class="c1"># 条件边</span>
+
+<span class="err">﻿</span><span class="c1"># 5. 设置入口</span>
+<span class="n">graph</span><span class="o">.</span><span class="n">set_entry_point</span><span class="p">(</span><span class="s2">&quot;agent&quot;</span><span class="p">)</span>
+
+<span class="err">﻿</span><span class="c1"># 6. 编译运行</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]})</span>
+</code></pre></div>
+<h3 id="_6">关键特性详解</h3>
+<h4 id="1">1. 状态管理</h4>
+<ul>
+<li>每次节点执行都会更新全局 State</li>
+<li>State 在整个图执行期间持久化</li>
+<li>支持 Checkpointing：可以保存/恢复执行状态</li>
+<li>支持 Time Travel：回到任意历史检查点</li>
+</ul>
+<h4 id="2-conditional-edges">2. 条件边（Conditional Edges）</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">def</span> <span class="nf">router</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;need_tool&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">&quot;tool_node&quot;</span>
+    <span class="k">return</span> <span class="n">END</span>
+
+<span class="n">graph</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span><span class="s2">&quot;agent&quot;</span><span class="p">,</span> <span class="n">router</span><span class="p">,</span> <span class="p">{</span>
+    <span class="s2">&quot;tool_node&quot;</span><span class="p">:</span> <span class="s2">&quot;tool_node&quot;</span><span class="p">,</span>
+    <span class="n">END</span><span class="p">:</span> <span class="n">END</span>
+<span class="p">})</span>
+</code></pre></div>
+<h4 id="3-human-in-the-loop">3. 人工干预（Human-in-the-loop）</h4>
+<ul>
+<li>在关键节点前暂停，等待人工审批</li>
+<li><code>interrupt_before</code> / <code>interrupt_after</code> 参数</li>
+<li>适用场景：敏感操作确认、Agent 决策审核</li>
+</ul>
+<h4 id="4-agent">4. 多 Agent 协作模式</h4>
+<ul>
+<li><strong>Supervisor 模式</strong>：一个主 Agent 调度多个子 Agent</li>
+<li><strong>对等模式</strong>：Agent 间直接通信</li>
+<li><strong>层级模式</strong>：多层管理结构</li>
+</ul>
+<h3 id="langgraph-vs-langchain-agent">LangGraph vs LangChain Agent</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>LangChain Agent</th>
+<th>LangGraph</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>工作流</td>
+<td>线性/简单分支</td>
+<td>任意图结构</td>
+</tr>
+<tr>
+<td>状态管理</td>
+<td>基本 Memory</td>
+<td>丰富 State + Checkpoint</td>
+</tr>
+<tr>
+<td>循环</td>
+<td>不支持</td>
+<td>原生支持</td>
+</tr>
+<tr>
+<td>人工干预</td>
+<td>有限</td>
+<td>完善</td>
+</tr>
+<tr>
+<td>多 Agent</td>
+<td>简单嵌套</td>
+<td>原生支持</td>
+</tr>
+<tr>
+<td>学习曲线</td>
+<td>低</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>生产就绪</td>
+<td>中等</td>
+<td>高</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_7">三、实战设计模式</h3>
+<h3 id="1-react-loop-agent">1. ReAct Loop（最基础的 Agent 循环）</h3>
+<div class="codehilite"><pre><code>用户输入 → Agent 推理 → 是否需要工具？
+  ├── 是 → 调用工具 → 获取结果 → 回到 Agent 推理
+  └── 否 → 输出最终答案
+</code></pre></div>
+<h3 id="2-plan-and-execute">2. Plan-and-Execute</h3>
+<p><img loading="lazy" decoding="async" alt="Plan-and-Execute 模式：规划→执行→重规划" src="assets/5ca11fdefd-plan-and-execute.svg" /></p>
+<h3 id="3-reflection">3. Reflection（自我反思）</h3>
+<div class="codehilite"><pre><code>Agent 生成答案 → Critic 评估质量
+  ├── 不满意 → Agent 重新生成（带反馈）
+  └── 满意 → 输出最终答案
+</code></pre></div>
+<h3 id="4-multi-agent-supervisor">4. Multi-Agent Supervisor</h3>
+<div class="codehilite"><pre><code>用户输入 → Supervisor Agent
+  ├── 分派给 Research Agent
+  ├── 分派给 Code Agent
+  └── 分派给 Writing Agent
+  → 汇总结果 → 输出
+</code></pre></div>
+<hr />
+<h3 id="_8">四、高频面试题</h3>
+<h3 id="langchain_1">LangChain</h3>
+<ol>
+<li>LangChain 的核心模块有哪些？各自作用？</li>
+<li>什么是 LCEL？相比传统 Chain 有什么优势？</li>
+<li>LangChain 中的 Memory 有哪几种？各自适用场景？</li>
+<li>如何在 LangChain 中自定义 Tool？需要注意什么？</li>
+<li>ReAct Agent 的工作原理是什么？</li>
+</ol>
+<h3 id="langgraph_1">LangGraph</h3>
+<ol start="6">
+<li>LangGraph 的图结构（Node, Edge, State）如何工作？</li>
+<li>什么是条件边？如何实现分支逻辑？</li>
+<li>LangGraph 如何实现 Human-in-the-loop？</li>
+<li>LangGraph 的 Checkpoint 机制是什么？有什么用？</li>
+<li>如何用 LangGraph 实现多 Agent 协作？描述 Supervisor 模式。</li>
+</ol>
+<h3 id="_9">对比与选型</h3>
+<ol start="11">
+<li>LangChain 和 LangGraph 如何互补？举一个结合使用的例子。</li>
+<li>你会在什么场景下选择 LangGraph 而不是 LangChain Agent？</li>
+<li>LangGraph vs CrewAI vs AutoGen，各自优劣？</li>
+<li>如何调试和监控基于 LangGraph 的 Agent 应用？</li>
+<li>LangGraph 在生产环境中有哪些注意事项（错误处理、超时、成本控制）？</li>
+</ol>
+<hr />
+<h3 id="_10">五、参考答案要点</h3>
+<h3 id="q5-react-agent">Q5: ReAct Agent 工作原理</h3>
+<ul>
+<li>ReAct = Reasoning + Acting</li>
+<li>循环过程：Thought → Action → Observation → Thought → ...</li>
+<li>LLM 先"思考"当前状况，决定是否需要使用工具</li>
+<li>如果需要：选择工具并提供参数 → 执行工具 → 观察结果</li>
+<li>如果不需要：直接生成最终回答</li>
+<li>核心 Prompt 格式包含 Thought/Action/Action Input/Observation</li>
+</ul>
+<h3 id="q10-supervisor-agent">Q10: Supervisor 多 Agent 模式</h3>
+<ul>
+<li>一个 Supervisor Agent 负责任务调度</li>
+<li>接收用户输入后，决定分派给哪个子 Agent</li>
+<li>子 Agent 各自完成任务后将结果返回 Supervisor</li>
+<li>Supervisor 汇总结果，决定是否需要继续或输出最终答案</li>
+<li>LangGraph 实现：Supervisor 是一个条件节点，子 Agent 是独立节点</li>
+<li>State 中维护当前进度和各 Agent 的输出</li>
+</ul></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-04.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-06.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#agent">一、Agent 编排框架</a></li><li class="lv3"><a href="#1-langchain">1. LangChain</a></li><li class="lv3"><a href="#2-langgraph">2. LangGraph</a></li><li class="lv3"><a href="#3-crewai">3. CrewAI</a></li><li class="lv3"><a href="#4-autogen">4. AutoGen（微软）</a></li><li class="lv3"><a href="#5-dify">5. Dify</a></li><li class="lv3"><a href="#6-openai-agents-sdk-2025">6. OpenAI Agents SDK（🔥 2025 热门）</a></li><li class="lv3"><a href="#7-google-agent-development-kit-adk">7. Google Agent Development Kit (ADK)</a></li><li class="lv3"><a href="#8-mastrajsts">8. Mastra（JS/TS 生态）</a></li><li class="lv3"><a href="#9-pydantic-ai">9. Pydantic AI</a></li><li class="lv3"><a href="#10-semantic-kernel">10. Semantic Kernel（微软）</a></li><li class="lv3"><a href="#11-langflow">11. Langflow</a></li><li class="lv3"><a href="#rag">二、RAG 框架</a></li><li class="lv3"><a href="#1-llamaindex">1. LlamaIndex</a></li><li class="lv3"><a href="#2-haystackdeepset">2. Haystack（Deepset）</a></li><li class="lv3"><a href="#3-ragflow">3. RAGFlow</a></li><li class="lv3"><a href="#4-dspy-nlp">4. DSPy（斯坦福 NLP）</a></li><li class="lv3"><a href="#5-pathway">5. Pathway</a></li><li class="lv3"><a href="#rag_1">三、向量数据库（RAG 必备）</a></li><li class="lv3"><a href="#_1">四、框架大对比表</a></li><li class="lv3"><a href="#agent_1">Agent 编排框架横向对比</a></li><li class="lv3"><a href="#_2">五、框架选型实战</a></li><li class="lv3"><a href="#51">5.1 按业务需求选框架</a></li><li class="lv3"><a href="#52">5.2 框架组合的最佳实践</a></li><li class="lv3"><a href="#53">5.3 选型决策树</a></li><li class="lv3"><a href="#_3">六、框架选型决策树（速查版）</a></li><li class="lv3"><a href="#15">七、面试题 15 题 + 参考答案</a></li><li class="lv3"><a href="#q1langchain-langgraph-langgraph">Q1：LangChain 和 LangGraph 有什么区别？什么时候该用 LangGraph？</a></li><li class="lv3"><a href="#q2-openai-agents-sdk-handoff-agent">Q2：解释 OpenAI Agents SDK 的 Handoff 机制，和传统多 Agent 框架有什么不同？</a></li><li class="lv3"><a href="#q3crewai-sequential-hierarchical">Q3：CrewAI 的 Sequential 和 Hierarchical 模式有什么区别？各适用什么场景？</a></li><li class="lv3"><a href="#q4dify-langchain">Q4：Dify 和 LangChain 分别适合什么团队？</a></li><li class="lv3"><a href="#q5langgraph-checkpoint">Q5：LangGraph 的 Checkpoint 机制有什么用？怎么实现？</a></li><li class="lv3"><a href="#q6autogen-04-02">Q6：AutoGen 0.4 和 0.2 有什么大变化？</a></li><li class="lv3"><a href="#q7-mcpmodel-context-protocol">Q7：什么是 MCP（Model Context Protocol）？哪些框架支持？</a></li><li class="lv3"><a href="#q8-agent">Q8：如何设计一个生产级 Agent 系统的错误处理？</a></li><li class="lv3"><a href="#q9-rag-llamaindex-langchain">Q9：比较 RAG 领域的 LlamaIndex 和 LangChain，各自优势是什么？</a></li><li class="lv3"><a href="#q10dspy-prompt-engineering">Q10：DSPy 的核心理念是什么？和 Prompt Engineering 有什么区别？</a></li><li class="lv3"><a href="#q11semantic-kernel-langchain">Q11：Semantic Kernel 和 LangChain 的主要区别是什么？</a></li><li class="lv3"><a href="#q12-a2aagent-to-agent-mcp">Q12：什么是 A2A（Agent-to-Agent）协议？和 MCP 有什么区别？</a></li><li class="lv3"><a href="#q13-rag">Q13：如何评估和对比不同 RAG 方案的效果？</a></li><li class="lv3"><a href="#q14-agent">Q14：在生产环境中部署多 Agent 系统，最大的挑战是什么？</a></li><li class="lv3"><a href="#q15-ai-agent">Q15：如果让你从零设计一个 AI Agent 系统，你会怎么选型？请给出一个具体场景的完整方案。</a></li><li class="lv3"><a href="#langchain">一、LangChain 核心架构</a></li><li class="lv3"><a href="#_4">模块体系</a></li><li class="lv3"><a href="#lcellangchain-expression-language">LCEL（LangChain Expression Language）</a></li><li class="lv3"><a href="#agent_2">Agent 类型</a></li><li class="lv3"><a href="#langgraph">二、LangGraph 深度解析</a></li><li class="lv3"><a href="#_5">核心概念</a></li><li class="lv3"><a href="#_6">关键特性详解</a></li><li class="lv3"><a href="#langgraph-vs-langchain-agent">LangGraph vs LangChain Agent</a></li><li class="lv3"><a href="#_7">三、实战设计模式</a></li><li class="lv3"><a href="#1-react-loop-agent">1. ReAct Loop（最基础的 Agent 循环）</a></li><li class="lv3"><a href="#2-plan-and-execute">2. Plan-and-Execute</a></li><li class="lv3"><a href="#3-reflection">3. Reflection（自我反思）</a></li><li class="lv3"><a href="#4-multi-agent-supervisor">4. Multi-Agent Supervisor</a></li><li class="lv3"><a href="#_8">四、高频面试题</a></li><li class="lv3"><a href="#langchain_1">LangChain</a></li><li class="lv3"><a href="#langgraph_1">LangGraph</a></li><li class="lv3"><a href="#_9">对比与选型</a></li><li class="lv3"><a href="#_10">五、参考答案要点</a></li><li class="lv3"><a href="#q5-react-agent">Q5: ReAct Agent 工作原理</a></li><li class="lv3"><a href="#q10-supervisor-agent">Q10: Supervisor 多 Agent 模式</a></li></ul></div></aside></div>'
+<script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="agent-tech-interview:05",moduleId="agent-tech-interview";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

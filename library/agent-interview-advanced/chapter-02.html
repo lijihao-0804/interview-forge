@@ -1,0 +1,1493 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>工程化与 Harness · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">4 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">导读</span></a><a class="shelf-topic-link current" href="chapter-02.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">工程化与 Harness</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">安全、评估与自进化</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">高频拷打与岗位画像</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="agent-interview-advanced:02"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 岗位进阶与纵深面试</a><span aria-hidden="true">›</span><span aria-current="page">工程化与 Harness</span></nav><div class="module-meta">Agent 岗位面经 · 第 2 / 4 章 · <span class="muted">更新于 2026-10-20</span></div><h1>工程化与 Harness</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><blockquote>
+<p>更新时间：2026-09-11
+定位：补充本仓库已有 RAG、MCP、Context Engineering、Agent Harness 内容中尚未系统展开的生产级考点。
+使用方式：先读概念和设计框架，再用文末问题进行项目追问演练。</p>
+</blockquote>
+<h3 id="_1">一、为什么这些内容成为新考点</h3>
+<p>早期 Agent 面试更关注 ReAct、RAG、Function Calling 和框架 API。2026 年的大厂面试开始把重点放到一个更难的问题：</p>
+<blockquote>
+<p>当 Agent 需要运行几十分钟甚至数小时、调用多个有副作用的工具、并发修改共享资源时，怎样保证它可恢复、可审计、可评估，而且不会重复执行危险操作？</p>
+</blockquote>
+<p>因此，面试官不只问“Agent 能不能做”，还会继续追问：</p>
+<ul>
+<li>为什么需要独立的 Runtime 或 Harness？</li>
+<li>模型、编排器、状态存储和工具执行器分别负责什么？</li>
+<li>Agent 中断后从哪里恢复？恢复后会不会重复发邮件、扣款或提交代码？</li>
+<li>如何发现路径震荡、无效重试和工具调用死循环？</li>
+<li>当工具数量从 10 个增长到 1000 个时，如何控制上下文和选错工具的概率？</li>
+<li>如何证明系统真的变好，而不是 Demo 看起来更流畅？</li>
+</ul>
+<hr />
+<h3 id="agentorchestratorharness-runtime">二、Agent、Orchestrator、Harness 与 Runtime 的边界</h3>
+<h3 id="21">2.1 四个概念不要混用</h3>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>核心职责</th>
+<th>不应该负责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent</td>
+<td>根据目标和上下文做决策</td>
+<td>直接承担持久化、资源隔离和审计</td>
+</tr>
+<tr>
+<td>Orchestrator</td>
+<td>拆分任务、分派执行单元、处理依赖关系</td>
+<td>替模型完成所有语义决策</td>
+</tr>
+<tr>
+<td>Harness</td>
+<td>包装模型与工具循环，提供审批、上下文、工具和执行约束</td>
+<td>替代业务工作流引擎</td>
+</tr>
+<tr>
+<td>Runtime</td>
+<td>管理任务生命周期、状态、队列、恢复、资源和事件</td>
+<td>把所有业务规则硬编码进基础设施</td>
+</tr>
+</tbody>
+</table>
+<p>可以把它们理解为：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">用户目标
+  ↓
+Orchestrator：任务图、依赖、分派
+  ↓
+Agent / Harness：推理、工具选择、上下文与策略
+  ↓
+Runtime：调度、状态、超时、重试、恢复、资源隔离
+  ↓
+Tool Executor：真正产生外部副作用
+</code></pre></div>
+<h3 id="22-langgraph-while">2.2 为什么不能只靠 LangGraph 或一个 while 循环</h3>
+<p>一个简单循环可以完成短任务：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="k">while</span> <span class="ow">not</span> <span class="n">done</span><span class="p">:</span>
+    <span class="n">action</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">tools</span><span class="p">)</span>
+    <span class="n">observation</span> <span class="o">=</span> <span class="n">execute</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+    <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">observation</span><span class="p">)</span>
+</code></pre></div>
+<p>但生产环境还必须解决：</p>
+<ol>
+<li>进程重启后任务状态是否还在；</li>
+<li>工具调用超时时，究竟是“没有执行”还是“执行成功但响应丢失”；</li>
+<li>同一个任务被两个 Worker 消费时如何去重；</li>
+<li>人工审批等待数小时后如何继续；</li>
+<li>模型版本、Prompt、工具 Schema 变化后如何回放；</li>
+<li>子 Agent 部分成功、部分失败时如何补偿。</li>
+</ol>
+<p>因此，框架解决“怎样表达流程”，Runtime 解决“怎样可靠地运行流程”。</p>
+<hr />
+<h3 id="durable-execution">三、Durable Execution：可恢复的长任务执行</h3>
+<h3 id="31">3.1 最小持久化状态</h3>
+<p>不要只保存聊天记录。一个可恢复任务至少需要：</p>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;task_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;task-123&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;run-7&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;WAITING_APPROVAL&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;current_step&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;submit_payment&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;context_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;plan_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;tool_calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">  </span><span class="nt">&quot;artifacts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">  </span><span class="nt">&quot;checkpoint_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cp-42&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;lease_owner&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;worker-5&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;lease_expires_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-09-11T10:30:00Z&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>关键点：</p>
+<ul>
+<li><code>task_id</code> 表示用户任务，<code>run_id</code> 表示一次执行尝试；</li>
+<li><code>checkpoint_id</code> 必须对应一个可重放的稳定边界；</li>
+<li><code>lease</code> 防止多个 Worker 同时推进同一任务；</li>
+<li>Artifact 应外置保存，不要全部塞进消息历史；</li>
+<li>所有状态转换都应产生事件，而不是只覆盖最终状态。</li>
+</ul>
+<h3 id="32-checkpoint-messages">3.2 Checkpoint 不等于保存 messages</h3>
+<p>合格的 Checkpoint 应同时记录：</p>
+<ul>
+<li>当前状态机节点；</li>
+<li>已完成步骤及其输出摘要；</li>
+<li>外部 Artifact 的引用和版本；</li>
+<li>已执行工具调用的幂等键；</li>
+<li>下一步允许执行的动作；</li>
+<li>当时使用的模型、Prompt、工具 Schema 版本。</li>
+</ul>
+<p>只保存 messages 会遇到两个问题：</p>
+<ol>
+<li>无法确定哪些副作用已经发生；</li>
+<li>恢复时只能让模型“猜”接下来该做什么。</li>
+</ol>
+<h3 id="33-exactly-once">3.3 Exactly-once 通常做不到</h3>
+<p>分布式系统中很难保证工具调用真正 Exactly-once。更实际的设计是：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">At-least-once delivery
+        +
+Idempotency key
+        +
+Result journal
+        +
+Compensation
+</code></pre></div>
+<p>例如支付工具：</p>
+<ol>
+<li>Runtime 生成 <code>tool_call_id</code>；</li>
+<li>调用支付服务时同时发送该 ID；</li>
+<li>支付服务保存 ID 和执行结果；</li>
+<li>超时重试时返回第一次结果；</li>
+<li>如果操作不能幂等，则提供撤销或补偿动作。</li>
+</ol>
+<h3 id="34">3.4 推荐状态机</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">PENDING
+  → RUNNING
+  → WAITING_TOOL
+  → WAITING_APPROVAL
+  → RUNNING
+  → VERIFYING
+  → COMPLETED
+
+异常分支：
+RUNNING → RETRYABLE_FAILED → RUNNING
+RUNNING → BLOCKED
+RUNNING → COMPENSATING → FAILED
+</code></pre></div>
+<p>面试时应强调：<code>FAILED</code>、<code>BLOCKED</code> 和 <code>WAITING_APPROVAL</code> 是三种不同状态，不能统统记成失败。</p>
+<hr />
+<h3 id="_2">四、路径震荡、死循环与无效重试</h3>
+<h3 id="41">4.1 什么是路径震荡</h3>
+<p>路径震荡指 Agent 在两个或多个策略之间反复切换，却没有产生新的有效信息。例如：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">搜索代码 → 尝试修改 → 测试失败
+→ 回退修改 → 再次搜索相同文件
+→ 重复之前的修改 → 再次失败
+</code></pre></div>
+<p>它与普通重试的区别是：</p>
+<ul>
+<li>普通重试通常因为瞬时错误；</li>
+<li>路径震荡是决策层没有吸收失败证据。</li>
+</ul>
+<h3 id="42">4.2 检测方法</h3>
+<p>可以组合使用：</p>
+<ul>
+<li>相同工具与参数的重复率；</li>
+<li>连续状态摘要的相似度；</li>
+<li>Artifact 是否发生有效变化；</li>
+<li>相同错误指纹是否重复出现；</li>
+<li>单位 Token 带来的进展；</li>
+<li>计划节点是否在有限集合内来回跳转。</li>
+</ul>
+<p>一个简单的震荡分数：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">oscillation_score =
+  0.35 × repeated_action_ratio
+  + 0.25 × state_similarity
+  + 0.20 × repeated_error_ratio
+  + 0.20 × no_progress_ratio
+</code></pre></div>
+<p>超过阈值后，不应只是继续增加 <code>max_iterations</code>，而应触发：</p>
+<ol>
+<li>强制总结已有证据；</li>
+<li>禁止重复最近动作；</li>
+<li>请求替代计划；</li>
+<li>切换模型或子 Agent；</li>
+<li>必要时转人工处理。</li>
+</ol>
+<h3 id="43">4.3 失败预算</h3>
+<table>
+<thead>
+<tr>
+<th>预算</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总迭代次数</td>
+<td>最多 30 轮</td>
+</tr>
+<tr>
+<td>相同动作次数</td>
+<td>同工具同参数最多 2 次</td>
+</tr>
+<tr>
+<td>连续无进展次数</td>
+<td>最多 3 次</td>
+</tr>
+<tr>
+<td>Token</td>
+<td>200k</td>
+</tr>
+<tr>
+<td>金额</td>
+<td>5 美元</td>
+</tr>
+<tr>
+<td>墙钟时间</td>
+<td>45 分钟</td>
+</tr>
+<tr>
+<td>高风险工具调用</td>
+<td>最多 1 次且必须审批</td>
+</tr>
+</tbody>
+</table>
+<p>预算耗尽后应生成失败报告和恢复建议，而不是只返回“达到最大轮次”。</p>
+<hr />
+<h3 id="10-1000">五、从 10 个工具扩展到 1000 个工具</h3>
+<h3 id="51-prompt">5.1 为什么不能把所有工具定义都放进 Prompt</h3>
+<p>工具数量增长会带来：</p>
+<ul>
+<li>Prompt Token 成本快速增加；</li>
+<li>相似工具之间更容易误选；</li>
+<li>Schema 变更污染缓存；</li>
+<li>模型注意力被无关工具分散；</li>
+<li>权限控制难以解释。</li>
+</ul>
+<h3 id="52">5.2 分层工具路由</h3>
+<p>推荐四层结构：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">用户意图
+  ↓
+领域路由：代码 / 数据 / CRM / 财务
+  ↓
+候选工具检索：关键词 + Embedding + 权限过滤
+  ↓
+Schema 精排：参数匹配、风险、成本、历史成功率
+  ↓
+模型从 Top-K 中选择并调用
+</code></pre></div>
+<p>注意顺序：<strong>先做权限过滤，再把工具暴露给模型</strong>。不能让模型看到无权调用的工具，然后依赖 Prompt 要求它“不要使用”。</p>
+<h3 id="53-skill">5.3 Skill 的渐进式披露</h3>
+<p>Skill 不应等于一段超长 Prompt。可以拆成三层：</p>
+<ol>
+<li><strong>Manifest</strong>：名称、用途、适用条件、风险等级；</li>
+<li><strong>Instructions</strong>：被选中后才加载详细步骤；</li>
+<li><strong>Resources</strong>：示例、脚本、模板按需加载。</li>
+</ol>
+<p>这既减少上下文，也能让版本、权限和审核边界更清楚。</p>
+<h3 id="54-schema">5.4 工具 Schema 版本化</h3>
+<p>至少记录：</p>
+<ul>
+<li><code>tool_name</code></li>
+<li><code>schema_version</code></li>
+<li><code>risk_level</code></li>
+<li><code>required_scopes</code></li>
+<li><code>timeout</code></li>
+<li><code>retry_policy</code></li>
+<li><code>idempotency_support</code></li>
+</ul>
+<p>工具升级时要支持旧任务恢复，不能假设所有运行中的任务都会立刻使用新 Schema。</p>
+<hr />
+<h3 id="agent-trace">六、Agent 可观测性：从日志升级为 Trace</h3>
+<h3 id="61-trace">6.1 一条 Trace 应该包含什么</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Task
+ ├─ Run
+ │   ├─ Model Span
+ │   ├─ Retrieval Span
+ │   ├─ Tool Span
+ │   ├─ Approval Span
+ │   └─ Verification Span
+ └─ Artifacts / Events / Checkpoints
+</code></pre></div>
+<p>每个 Span 至少记录：</p>
+<ul>
+<li>输入输出摘要和哈希；</li>
+<li>模型、Prompt、工具版本；</li>
+<li>Token、延迟、成本；</li>
+<li>重试次数和错误类型；</li>
+<li>决策原因或路由标签；</li>
+<li>是否产生副作用；</li>
+<li>关联的 Artifact 和 Checkpoint。</li>
+</ul>
+<p>敏感输入不应原样进入日志，应进行脱敏、分级存储和访问审计。</p>
+<h3 id="62">6.2 线上排障顺序</h3>
+<p>当任务失败时，按层定位：</p>
+<ol>
+<li><strong>输入层</strong>：目标是否清晰、权限是否充足；</li>
+<li><strong>规划层</strong>：任务拆分是否错误；</li>
+<li><strong>上下文层</strong>：关键信息是否被截断或污染；</li>
+<li><strong>检索层</strong>：是否召回错误、过期或相互冲突的资料；</li>
+<li><strong>工具层</strong>：参数、权限、超时、Schema 是否正确；</li>
+<li><strong>模型层</strong>：是否理解错误或违反输出约束；</li>
+<li><strong>验证层</strong>：成功条件是否太弱，导致假完成；</li>
+<li><strong>Runtime 层</strong>：是否发生重复消费、恢复错误或状态竞争。</li>
+</ol>
+<hr />
+<h3 id="2026-agent">七、2026 年应掌握的 Agent 评测指标</h3>
+<h3 id="71">7.1 任务结果</h3>
+<ul>
+<li>Task Success Rate：最终完成率；</li>
+<li>First-pass Success Rate：不重试一次完成率；</li>
+<li>Verified Success Rate：经过独立检查后确认的完成率；</li>
+<li>Partial Completion Rate：部分交付比例。</li>
+</ul>
+<h3 id="72">7.2 过程质量</h3>
+<ul>
+<li>平均计划修改次数；</li>
+<li>工具选择准确率；</li>
+<li>无效工具调用率；</li>
+<li>路径震荡率；</li>
+<li>人工接管率；</li>
+<li>Recovery Success Rate。</li>
+</ul>
+<h3 id="73">7.3 成本和性能</h3>
+<ul>
+<li>单任务 Token 和金额；</li>
+<li>P50/P95 完成时间；</li>
+<li>模型调用与工具调用占比；</li>
+<li>上下文压缩率；</li>
+<li>缓存命中率。</li>
+</ul>
+<h3 id="74">7.4 安全</h3>
+<ul>
+<li>未授权工具调用数；</li>
+<li>Prompt Injection 攻击成功率；</li>
+<li>敏感数据泄露率；</li>
+<li>高风险操作审批覆盖率；</li>
+<li>沙箱逃逸或策略违规数。</li>
+</ul>
+<h3 id="75">7.5 评测集构建</h3>
+<p>评测集至少包含：</p>
+<ul>
+<li>正常路径；</li>
+<li>缺少必要信息；</li>
+<li>工具超时和部分失败；</li>
+<li>工具返回冲突数据；</li>
+<li>上下文超长；</li>
+<li>Prompt Injection；</li>
+<li>需要人工审批；</li>
+<li>中途重启和恢复；</li>
+<li>同一任务并发执行。</li>
+</ul>
+<p>要保留失败案例，不要只用成功 Demo 构建评测集。</p>
+<hr />
+<h3 id="coding-agent">八、Coding Agent 的并发修改冲突</h3>
+<h3 id="81">8.1 常见冲突</h3>
+<ul>
+<li>两个 Agent 同时修改同一文件；</li>
+<li>一个 Agent 修改接口，另一个仍按旧接口实现；</li>
+<li>测试 Agent 在代码尚未稳定时读取中间状态；</li>
+<li>多个 Agent 共享同一个未提交工作区；</li>
+<li>主 Agent 合并结果时丢失子 Agent 的约束和失败证据。</li>
+</ul>
+<h3 id="82">8.2 推荐隔离策略</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Task Contract
+  ↓
+为每个子任务创建独立工作区或 worktree
+  ↓
+限制允许修改的路径
+  ↓
+每个子任务产出补丁 + 验证证据
+  ↓
+由集成者按依赖顺序合并
+  ↓
+重新运行全量验证
+</code></pre></div>
+<p>关键原则：</p>
+<ul>
+<li>共享 Artifact，不共享可变工作区；</li>
+<li>子 Agent 返回结构化结果，而不只是自然语言“完成了”；</li>
+<li>合并成功不等于功能验证成功；</li>
+<li>冲突解决必须保留原始需求和测试证据。</li>
+</ul>
+<hr />
+<h3 id="_3">九、近期大厂面试新增信号</h3>
+<blockquote>
+<p>下列内容来自公开面经的题目归纳，只作为备考线索，不代表公司固定题库。</p>
+</blockquote>
+<h3 id="harness-coding-agent">字节跳动：Harness、长任务与 Coding Agent</h3>
+<p>近期公开面经新增关注：</p>
+<ul>
+<li>Harness 和 Orchestrator 的边界；</li>
+<li>Agent 路径震荡和失败归因；</li>
+<li>上下文超过窗口后的分层压缩；</li>
+<li>大量工具下的检索和路由；</li>
+<li>多 Agent 同时修改代码的冲突；</li>
+<li>Coding Agent 的单测、覆盖率与质量门禁；</li>
+<li>高并发 Agent 服务的容量和降级设计。</li>
+</ul>
+<p>准备时不能只背框架 API，应能画出任务、Run、Checkpoint、Tool Call 和 Artifact 的数据关系。</p>
+<h3 id="mcp-trace-agent-infra">阿里 / 淘天：MCP 评测、Trace 与 Agent Infra</h3>
+<p>近期公开题目新增关注：</p>
+<ul>
+<li>一个 MCP Server 开发完成后怎样评测；</li>
+<li>Agent 链路追踪和对话历史如何保存；</li>
+<li>LangGraph State、Memory、Checkpoint 的边界；</li>
+<li>Max Tokens 中断后如何续跑；</li>
+<li>评测集如何产生并防止数据污染；</li>
+<li>Skill 如何渐进式加载；</li>
+<li>Agent 应用与推理服务的延迟、KV Cache 和批处理。</li>
+</ul>
+<p>准备时要把“应用层 Agent”和“模型推理基础设施”串起来回答。</p>
+<h3 id="_4">腾讯：失败恢复、幂等和金融安全</h3>
+<p>近期公开题目重点包括：</p>
+<ul>
+<li>Agent 中断后如何恢复；</li>
+<li>工具超时后怎样判断是否已经成功执行；</li>
+<li>重试如何避免重复扣款或重复提交；</li>
+<li>多 Agent 风控流程如何设置权限和人工审批；</li>
+<li>RAG 知识库如何不停机更新；</li>
+<li>如何设计可回滚、可补偿的执行链。</li>
+</ul>
+<p>这类题目的核心不是“多试几次”，而是副作用、审计和责任边界。</p>
+<h3 id="_5">美团：框架取舍、评测闭环和沙箱</h3>
+<p>近期公开题目重点包括：</p>
+<ul>
+<li>什么场景不应该使用 LangGraph；</li>
+<li>Workflow 与自主 Agent 的边界；</li>
+<li>为什么自研，而不是直接使用现成 Coding Agent；</li>
+<li>怎样构建离线评测集；</li>
+<li>如何采集 Trace 并定位 bad case；</li>
+<li>工具执行为什么需要沙箱；</li>
+<li>如何同时优化完成率、延迟和 Token 成本。</li>
+</ul>
+<p>准备时应给出基线、失败案例、改动和指标，而不是只讲系统架构图。</p>
+<hr />
+<h3 id="_6">十、面试回答模板</h3>
+<p>回答生产级 Agent 系统设计题时，可以使用下面的顺序：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">1. 目标：Agent 要完成什么，成功条件是什么
+2. 约束：时延、成本、安全、权限、并发、数据边界
+3. 架构：Agent / Orchestrator / Runtime / Tool / State
+4. 状态：Task、Run、Event、Checkpoint、Artifact
+5. 可靠性：超时、重试、幂等、补偿、恢复
+6. 安全：权限、审批、沙箱、审计
+7. 评测：离线集、线上指标、失败案例
+8. 演进：先做单 Agent 基线，再证明是否需要多 Agent
+</code></pre></div>
+<p>避免只回答“我们用了 LangGraph、MCP 和向量数据库”。面试官真正想知道的是：为什么这样选、失败时发生什么、怎样证明它有效。</p>
+<hr />
+<h3 id="_7">十一、高频自测题</h3>
+<ol>
+<li>Agent、Orchestrator、Harness 和 Runtime 有什么区别？</li>
+<li>为什么 Checkpoint 不能只保存消息历史？</li>
+<li>工具调用超时后，怎样判断是否可以安全重试？</li>
+<li>为什么 Exactly-once 很难？Agent 系统通常怎样近似实现？</li>
+<li>如何发现 Agent 正在路径震荡而不是正常探索？</li>
+<li><code>max_iterations</code> 为什么不能彻底解决死循环？</li>
+<li>1000 个工具为什么不能全部放进 Prompt？</li>
+<li>工具检索为什么必须先做权限过滤？</li>
+<li>Skill 的 Manifest、Instructions 和 Resources 怎样按需加载？</li>
+<li>工具 Schema 升级后，旧任务怎样恢复？</li>
+<li>一条 Agent Trace 应包含哪些 Span？</li>
+<li>Task Success 和 Verified Success 有什么区别？</li>
+<li>怎样构建包含恢复、越权和注入攻击的评测集？</li>
+<li>多个 Coding Agent 修改同一仓库时怎样避免冲突？</li>
+<li>为什么应当先证明单 Agent 的不足，再引入多 Agent？</li>
+</ol>
+<hr />
+<h3 id="_8">十二、公开面经来源</h3>
+<ul>
+<li><a href="https://www.nowcoder.com/discuss/922659050167226368" target="_blank" rel="noopener noreferrer">字节跳动 Agent 开发近期面经汇总</a></li>
+<li><a href="https://www.nowcoder.com/discuss/923740641878646784" target="_blank" rel="noopener noreferrer">阿里 Agent 开发近期面经汇总</a></li>
+<li><a href="https://www.nowcoder.com/discuss/878600528970735616" target="_blank" rel="noopener noreferrer">腾讯 / 百度大模型与 Agent 面经总结</a></li>
+<li><a href="https://www.nowcoder.com/discuss/881209147377664000" target="_blank" rel="noopener noreferrer">美团 Agent 开发面经与工程化追问</a></li>
+</ul>
+<blockquote>
+<p>来源分级建议：带明确轮次、日期和个人项目过程的一手复盘优先级最高；汇总型文章只用于发现题目趋势；带课程销售和“标准满分答案”的内容不可作为唯一证据。</p>
+</blockquote>
+<h3 id="_9">关联阅读</h3>
+<ul>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Agent%20Harness与编码代理测评.md" target="_blank" rel="noopener noreferrer">Agent Harness 与编码代理深度测评</a></li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Context%20Engineering上下文工程.md" target="_blank" rel="noopener noreferrer">Context Engineering 上下文工程</a></li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Agent安全与评估体系.md" target="_blank" rel="noopener noreferrer">Agent 安全与评估体系</a></li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/MCP与工具生态.md" target="_blank" rel="noopener noreferrer">MCP 与工具生态</a></li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/最新AI-Agent面经索引.md" target="_blank" rel="noopener noreferrer">最新 AI Agent / 大模型面经索引</a><blockquote>
+<p>面试必备：市面主流 Agent Harness / 编码代理（OpenAI Codex CLI、Claude Code、LangGraph、OpenHands、CrewAI、AutoGen）的定位、架构、安全边界、源码入口与动手练习。
+每个知识点按「要求 → 知识 → 源码入口 → 动手练习 → 掌握标准」组织，源码路径以 2026-08 各仓库 main 分支为准，版本迭代后可能漂移，请以实际仓库为准。</p>
+</blockquote>
+</li>
+</ul>
+<hr />
+<h3 id="harness">一、为什么面试要研究 Harness</h3>
+<p>面试考察的不只是模型能力，还有工具调用、上下文管理、记忆、评估与安全边界——这些能力全部"长在" Harness 里。模型决定"能不能"，Harness 决定"是否可用、可控、可审计"。</p>
+<table>
+<thead>
+<tr>
+<th>能力要求</th>
+<th>对应知识</th>
+<th>掌握标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>讲清 agent 如何自主完成多步任务</td>
+<td>agent loop</td>
+<td>能画出「规划 → 工具调用 → 观察 → 修正」循环，并指出任一框架的实现位置</td>
+</tr>
+<tr>
+<td>讲清工具如何被模型调用</td>
+<td>工具 schema、function calling、MCP</td>
+<td>能对比「原生工具 / MCP 工具」接入方式与校验流程</td>
+</tr>
+<tr>
+<td>讲清长任务如何不丢失上下文</td>
+<td>上下文压缩、摘要、token budget</td>
+<td>能解释压缩触发时机与信息损失权衡</td>
+</tr>
+<tr>
+<td>讲清 agent 如何记住状态</td>
+<td>会话记忆、checkpoint、持久记忆</td>
+<td>能区分会话级与持久级记忆，并说出实现机制</td>
+</tr>
+<tr>
+<td>讲清 agent 的安全边界</td>
+<td>审批、沙箱、命令白名单、审计</td>
+<td>能区分「信任标记」与「真沙箱」，并给出攻击面</td>
+</tr>
+<tr>
+<td>讲清如何衡量 agent 好坏</td>
+<td>benchmark、评估集、可观测性</td>
+<td>能说出至少 2 个 benchmark 与 2 种轨迹观测手段</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_10">二、共同考察点（七个必考维度）</h3>
+<h3 id="1-agent-loopagent">1. Agent Loop（agent 循环）</h3>
+<ul>
+<li><strong>要求</strong>：解释一个 agent 为什么能自主完成多步任务，而不是单次问答。</li>
+<li><strong>知识</strong>：循环 = 规划（把任务拆成步骤）→ 工具调用（模型输出结构化工具请求）→ 观察（执行结果回填）→ 修正（依据结果调整下一步），直到满足终止条件。工程上还包含：重试与错误恢复、最大迭代上限、循环守卫（防止死循环）。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenAI Codex CLI：<code>codex-rs/core/src/agent/</code>（turn 控制、agent registry）</li>
+<li>Claude Code：<code>src/Task.ts</code>（任务态）+ <code>src/query/</code>（每轮查询与 token 预算）</li>
+<li>LangGraph：<code>langgraph/pregel/</code>（superstep 图执行运行时）</li>
+<li><strong>动手练习</strong>：跑一个 Codex CLI 会话，记录一次任务里"模型响应 → 工具执行 → 结果回填"发生了多少次、失败后如何重试。</li>
+<li><strong>掌握标准</strong>：能讲清"一次 turn 内模型响应 → 工具执行 → 观察结果 → 下一轮"的完整链路，并能指出至少一个循环守卫（迭代上限 / 退出条件）。</li>
+</ul>
+<h3 id="2-tool-calling">2. 工具调用（Tool Calling）</h3>
+<ul>
+<li><strong>要求</strong>：讲清模型如何"调用"工具，以及工具失败时 agent 如何恢复。</li>
+<li><strong>知识</strong>：模型输出结构化工具请求（JSON schema 对齐），运行时校验参数、执行、返回结果；工具注册表统一 schema；错误可回灌给模型让它修正参数或换工具。MCP（Model Context Protocol）把工具做成标准化 server，<code>tools/list</code> / <code>tools/call</code> 两个原语。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenAI Codex CLI：<code>codex-rs/core/src/function_tool.rs</code>、<code>codex-rs/core/src/mcp.rs</code></li>
+<li>Claude Code：<code>src/tools.ts</code>、<code>src/tools/</code>（BashTool / FileEditTool / WebFetchTool / MCPTool 等 40+ 工具）</li>
+<li>AutoGen：<code>autogen_core</code> 工具协议 + agentchat 内工具注册</li>
+<li><strong>动手练习</strong>：用 Codex CLI 或 Claude Code 观察一次参数校验失败（如命令不存在），记录错误如何回灌给模型。</li>
+<li><strong>掌握标准</strong>：能说出工具调用的完整生命周期：schema 声明 → 参数校验 → 执行 → 结果/错误回填。</li>
+</ul>
+<h3 id="3-context-management">3. 上下文管理（Context Management）</h3>
+<ul>
+<li><strong>要求</strong>：长任务下模型上下文放不下时怎么办。</li>
+<li><strong>知识</strong>：手段包括——截断（丢弃最早消息）、摘要（LLM 压缩历史）、结构化检索（把对话转成可查询索引）、token budget（按预算自动触发压缩/警告）、子代理隔离上下文（把子任务上下文与主线程隔离）。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenAI Codex CLI：<code>codex-rs/core/src/compact*.rs</code>（压缩与 token 预算）</li>
+<li>Claude Code：<code>src/services/compact/</code>、<code>src/query/tokenBudget.ts</code>、<code>src/services/AgentSummary/</code>（子代理摘要）</li>
+<li><strong>动手练习</strong>：跑一个长会话，观察压缩何时触发、压缩后哪些信息保留。</li>
+<li><strong>掌握标准</strong>：能对比「截断 vs 摘要 vs 检索」的取舍，并说出至少一个 token budget 触发点。</li>
+</ul>
+<h3 id="4-memory">4. 记忆（Memory）</h3>
+<ul>
+<li><strong>要求</strong>：agent 如何在会话之间记住信息。</li>
+<li><strong>知识</strong>：会话级记忆（对话历史、checkpoint 状态快照）与持久级记忆（记忆文件、向量库、用户画像）。LangGraph 用 Checkpointer 持久化每个节点的状态，支持断点恢复与"时间旅行"；Claude Code 有 SessionMemory 与记忆提取（autoDream/extractMemories）。</li>
+<li><strong>源码入口</strong>：</li>
+<li>LangGraph：<code>langgraph/checkpoint/</code>（BaseCheckpointSaver 及 memory/sqlite/postgres 实现）</li>
+<li>Claude Code：<code>src/services/SessionMemory/</code>、<code>src/services/extractMemories/</code></li>
+<li><strong>动手练习</strong>：用 LangGraph 跑一个带 checkpointer 的图，中断后恢复，观察状态如何回放。</li>
+<li><strong>掌握标准</strong>：能区分会话记忆与持久记忆，并解释 checkpoint 为什么能实现"断点续跑"。</li>
+</ul>
+<h3 id="5-security-boundary">5. 安全边界（Security Boundary）</h3>
+<ul>
+<li><strong>要求</strong>：agent 能执行命令时，如何防止它做不该做的事。</li>
+<li><strong>知识</strong>：安全层次——①审批（人在环上决定是否放行）；②策略（命令白名单/黑名单、敏感路径保护）；③沙箱（操作系统级隔离：容器、Landlock、seccomp）；④审计（记录每条命令与理由）。关键区分：<strong>"信任标记"不是沙箱</strong>，只有执行层隔离才是真边界。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenAI Codex CLI：<code>codex-rs/core/src/exec_policy.rs</code>（审批策略）、<code>codex-rs/core/src/sandboxing/</code> + <code>codex-rs/linux-sandbox</code>（沙箱）</li>
+<li>Claude Code：<code>src/tools/BashTool/bashPermissions.ts</code>、<code>src/tools/BashTool/bashSecurity.ts</code></li>
+<li>OpenHands：Docker 沙箱运行时（Agent Server / software-agent-sdk）</li>
+<li><strong>动手练习</strong>：对照 Codex CLI 与 Claude Code 的权限模型，整理一份「终端 Harness 权限设计」对比表。</li>
+<li><strong>掌握标准</strong>：能对任意框架回答三问——命令在谁的权限下执行？是否需要审批？有无操作系统级隔离？</li>
+</ul>
+<h3 id="6-evaluation">6. 评估（Evaluation）</h3>
+<ul>
+<li><strong>要求</strong>：如何衡量一个 agent / Harness 的真实能力。</li>
+<li><strong>知识</strong>：代码类 benchmark（SWE-bench、Terminal-Bench、Aider 基准）、通用 agent 基准（GAIA、WebArena）、任务回放与人工评分；评估维度包括完成率、成本、延迟、安全违规次数。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenHands 以 SWE-bench 闻名（经典版论文与评估集），现评估能力沉淀到 software-agent-sdk</li>
+<li>OpenAI Codex CLI：<code>evaluation/</code> 目录（离线评估集）</li>
+<li><strong>动手练习</strong>：用任一公开 benchmark 的 sample 集跑一个框架，记录 pass@1 与成本。</li>
+<li><strong>掌握标准</strong>：能说出 2 个 benchmark 名称、它们测什么、为什么不能只看准确率。</li>
+</ul>
+<h3 id="7-observability">7. 可观测性（Observability）</h3>
+<ul>
+<li><strong>要求</strong>：agent 出错时如何定位、回放、审计。</li>
+<li><strong>知识</strong>：事件流（把动作、观察、状态变化都记为事件，天然可回放）、轨迹导出（Trace/Replay）、结构化日志与 OpenTelemetry、LLM 调用成本统计。</li>
+<li><strong>源码入口</strong>：</li>
+<li>OpenHands 经典架构：EventStream（一切皆事件，可回放审计）</li>
+<li>OpenAI Codex CLI：<code>codex-rs/core/src/otel_init.rs</code>（OpenTelemetry 初始化）</li>
+<li><strong>动手练习</strong>：画出一条「动作 → 沙箱执行 → 观察事件」的链路，说明每个环节如何被记录。</li>
+<li><strong>掌握标准</strong>：能解释"事件溯源"为什么比"日志行"更适合 agent 调试。</li>
+</ul>
+<hr />
+<h3 id="_11">三、横向对比矩阵</h3>
+<table>
+<thead>
+<tr>
+<th>框架</th>
+<th>形态</th>
+<th>定位</th>
+<th>核心抽象</th>
+<th>执行边界</th>
+<th>主要语言</th>
+<th>源码入口</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenAI Codex CLI</td>
+<td>终端编码代理</td>
+<td>单代理真实工程任务</td>
+<td>Agent loop + 审批策略</td>
+<td>本地命令 + 可选沙箱</td>
+<td>Rust / TS</td>
+<td>openai/codex</td>
+<td>日常开发、PR 自动化、终端自动化</td>
+</tr>
+<tr>
+<td>Claude Code</td>
+<td>终端编码代理</td>
+<td>长任务、仓库深度理解</td>
+<td>会话代理 + 权限提示</td>
+<td>本地 + 分级审批</td>
+<td>TypeScript（闭源）</td>
+<td>anthropics/claude-code</td>
+<td>长任务、子代理、与 IDE 协作</td>
+</tr>
+<tr>
+<td>LangGraph</td>
+<td>图编排框架</td>
+<td>有状态复杂工作流</td>
+<td>StateGraph + Pregel + Checkpointer</td>
+<td>由应用层决定</td>
+<td>Python</td>
+<td>langchain-ai/langgraph</td>
+<td>复杂流程、人工介入（HITL）</td>
+</tr>
+<tr>
+<td>OpenHands</td>
+<td>自主 SWE 代理 → Agent 控制台</td>
+<td>端到端代码任务与多代理管控</td>
+<td>EventStream（经典）/ Agent Server + ACP（现状）</td>
+<td>Docker 沙箱</td>
+<td>Python / TS</td>
+<td>All-Hands-AI/OpenHands</td>
+<td>SWE-bench、自主开发、多 Harness 统一管理</td>
+</tr>
+<tr>
+<td>CrewAI</td>
+<td>多代理团队框架</td>
+<td>角色化协作流程</td>
+<td>Agent + Task + Crew + Process</td>
+<td>无内置沙箱</td>
+<td>Python</td>
+<td>crewAIInc/crewAI</td>
+<td>团队式流程、内容生产管线</td>
+</tr>
+<tr>
+<td>AutoGen</td>
+<td>多代理对话框架</td>
+<td>对话驱动的代理协作</td>
+<td>ConversableAgent + GroupChat</td>
+<td>代码执行器可选隔离</td>
+<td>Python</td>
+<td>microsoft/autogen</td>
+<td>多代理研究、对话式协作、群聊调度</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_12">四、逐个深度测评</h3>
+<h3 id="1-openai-codex-cli">1. OpenAI Codex CLI</h3>
+<p><strong>定位</strong>：OpenAI 开源的终端编码代理，自然语言驱动真实工程任务——读仓库、跑命令、改代码、提交 PR。</p>
+<p><strong>核心架构</strong>：
+- <strong>Agent loop</strong>：任务规划 → 工具调用（shell / 文件 / grep / apply_patch / web / MCP）→ 观察 → 重试，直到满足终止条件。
+- <strong>审批策略</strong>：<code>AskForApproval</code> 枚举（<code>codex-rs/core/src/exec_policy.rs</code>）——<code>Never</code>（禁止自动批准）、<code>OnRequest</code>（请求确认后执行）、<code>UnlessTrusted</code>（受信任环境自动放行）、<code>Granular</code>（规则化细粒度策略，可叠加沙箱审批）。
+- <strong>多代理/会话</strong>：支持子代理（subagent）、多会话线程（thread）与历史压缩，架构已演化为 turn 控制器 + agent registry + 沙箱模块。</p>
+<p><strong>源码入口</strong>（openai/codex，2026-08）：
+- <code>codex-rs/core/src/agent/</code>：agent 注册表、turn 控制（control.rs）、状态机
+- <code>codex-rs/core/src/exec_policy.rs</code>：执行与审批策略判定
+- <code>codex-rs/core/src/sandboxing/</code> + <code>codex-rs/linux-sandbox</code>：沙箱实现
+- <code>codex-rs/core/src/compact*.rs</code>：上下文压缩与 token 预算
+- <code>codex-rs/core/src/mcp.rs</code>：MCP 工具接入</p>
+<p><strong>安全边界</strong>：默认在本地以当前用户权限执行命令；Project Trust 是"信任标记"，不是沙箱。真正边界 = 审批策略（Never/OnRequest/UnlessTrusted/Granular）+ 操作系统级沙箱（Landlock/seccomp 等）。面试时务必说清：<strong>信任 ≠ 隔离</strong>。</p>
+<p><strong>动手练习</strong>：
+1. 跑一个 Codex CLI 会话，观察它如何拆解任务、请求审批、失败后重试。
+2. 读 <code>agent/control.rs</code> 与 <code>exec_policy.rs</code>，确认 turn 循环与审批判定顺序。
+3. 配一个 <code>Granular</code> 策略（如禁止 <code>rm -rf</code>），观察命中策略时命令被拦截。</p>
+<p><strong>面试要点</strong>：
+- Q：Codex CLI 的安全边界是什么？A：本地以用户权限执行 + 审批策略 + 可选沙箱；Project Trust 只是信任标记。
+- Q：审批策略有哪几种？A：Never / OnRequest / UnlessTrusted / Granular（2026 版，见 <code>AskForApproval</code>）。
+- Q：agent loop 在源码哪里？A：<code>codex-rs/core/src/agent/</code> 的 turn 控制。</p>
+<hr />
+<h3 id="2-claude-code">2. Claude Code</h3>
+<p><strong>定位</strong>：Anthropic 的终端代理式编码助手，强调长任务、仓库理解与权限提示（Permission Prompt）。</p>
+<p><strong>核心架构</strong>：
+- <strong>会话代理循环</strong>：<code>Task.ts</code> 管理任务态，<code>query/</code> 驱动每轮查询与 token 预算；工具集 40+，覆盖文件读写、Bash、Grep、WebFetch、MCP、子代理（AgentTool）、TodoWrite、Skills。
+- <strong>权限提示分级</strong>：工具执行前按风险分级请求确认；敏感目录与破坏性命令（如 <code>rm -rf</code>）有额外检查（<code>destructiveCommandWarning</code>）。
+- <strong>hooks</strong>：配置级可编程拦截（PreToolUse / PostToolUse 等），可用于强制安全策略。
+- <strong>记忆</strong>：SessionMemory + 压缩（compact）+ 记忆提取（extractMemories）。</p>
+<p><strong>源码入口</strong>（npm 包 v2.1.88 源码映射恢复，本机 <code>~/MyWork/claudecodesource/restored-src</code>）：
+- <code>src/Task.ts</code>、<code>src/query/</code>：任务态与查询循环
+- <code>src/tools/BashTool/bashPermissions.ts</code>、<code>src/utils/permissions/</code>、<code>src/types/permissions.ts</code>：权限模型
+- <code>src/tools/BashTool/bashSecurity.ts</code>：命令安全检查
+- <code>src/tools/AgentTool/</code>：子代理工具
+- <code>src/services/SessionMemory/</code>、<code>src/services/compact/</code>：记忆与压缩
+- <code>src/tools/MCPTool/</code>、<code>src/services/mcp/</code>：MCP 客户端</p>
+<p><strong>安全边界</strong>：Bash 工具默认需要确认，敏感目录/命令有额外防护；hooks 可编程拦截；最终边界由用户审批决定，<strong>非容器隔离</strong>。</p>
+<p><strong>动手练习</strong>：
+1. 配置一个 PreToolUse hook 拦截危险命令，验证拦截生效。
+2. 对照 Codex CLI 的审批模式，整理一份「终端 Harness 权限设计」对比表（提示时机、可配置性、审计能力）。</p>
+<p><strong>面试要点</strong>：
+- Q：Claude Code 与 Codex CLI 的权限模型差异？A：两者都是"本地执行 + 审批"，Claude Code 以权限提示分级 + hooks 见长，Codex CLI 以策略枚举（Never/OnRequest/…）+ 沙箱见长。
+- Q：Claude Code 为什么不是沙箱？A：Bash 在用户环境直接执行，靠审批与检查兜底；无容器级隔离。</p>
+<hr />
+<h3 id="3-langgraph">3. LangGraph</h3>
+<p><strong>定位</strong>：LangChain 生态的图式 Agent 编排框架，把代理建模成<strong>有状态状态机</strong>。</p>
+<p><strong>核心架构</strong>：
+- <strong>StateGraph</strong>：节点（Node）+ 边（Edge）+ 共享状态（State，TypedDict）+ 条件路由（conditional edges）。
+- <strong>Pregel 运行时</strong>：以 superstep 方式执行图，每个节点读写共享 state 的增量。
+- <strong>Checkpointer</strong>：持久化每次状态快照，支持断点恢复、时间旅行、人工回退。
+- <strong>HITL（Human-in-the-loop）</strong>：<code>interrupt_before / interrupt_after</code> 挂起执行等待人工输入。</p>
+<p><strong>源码入口</strong>（langchain-ai/langgraph，2026-08）：
+- <code>libs/langgraph/langgraph/graph/state.py</code>：StateGraph 定义
+- <code>libs/langgraph/langgraph/pregel/</code>：Pregel 执行运行时（loop / algo / types）
+- <code>libs/langgraph/langgraph/checkpoint/</code>：BaseCheckpointSaver（memory / sqlite / postgres）</p>
+<p><strong>安全边界</strong>：框架本身不提供运行时沙箱；工具执行权限由你的应用层控制，敏感工具必须自己加授权与审计。</p>
+<p><strong>动手练习</strong>：用一个 3 节点图（规划 → 工具 → 总结）实现带循环重试的 agent，加上 checkpointer 后中断/恢复，验证状态如何在节点间流动。</p>
+<p><strong>面试要点</strong>：
+- Q：checkpointer 解决什么问题？A：状态持久化与断点恢复，支持"时间旅行"和人工回退。
+- Q：StateGraph 与普通链式调用（LCEL）的区别？A：图支持循环、分支、共享状态；链是单向管道。</p>
+<hr />
+<h3 id="4-openhands">4. OpenHands</h3>
+<p><strong>定位</strong>：开源自主软件工程代理。<strong>2026 年已转型</strong>：仓库主体从"单一代理"演化为 <strong>Agent Canvas</strong>——自托管的多 Harness 控制台。</p>
+<p><strong>核心架构</strong>：
+- <strong>经典架构（2023-2025，面试常考）</strong>：EventStream——代理动作、观察、状态变化都是事件；动作在 Docker 沙箱中执行（ActionExecution），天然可回放、可审计；以 SWE-bench 闻名。
+- <strong>现状（2026）</strong>：Agent Canvas（React/TS 前端）+ OpenHands Agent Server（<code>OpenHands/software-agent-sdk</code>）+ <strong>ACP</strong>（Agent Client Protocol，JSON-RPC over stdio）——以子进程方式拉起 Claude Code、Codex、Gemini CLI，或内置 OpenHands agent；一个控制台统一管理多个 Harness。</p>
+<p><strong>源码入口</strong>（2026-08）：
+- <code>All-Hands-AI/OpenHands</code>（Agent Canvas）：<code>src/api/</code>（服务适配器）、<code>src/components/</code>、<code>src/stores/</code>（Zustand 状态）、<code>docs/ACP_AGENTS.md</code>、<code>docs/architecture.md</code>
+- <code>OpenHands/software-agent-sdk</code>（OpenHands V1）：Agent Server 实现（<code>openhands-agent-server/</code>）
+- 经典 EventStream 实现见历史版本源码</p>
+<p><strong>安全边界</strong>：Agent Server 拥有子进程与凭据，Canvas 不直接执行动作；Docker 沙箱隔离代理执行；本地 <code>npm run dev</code> 模式下 agent 有宿主机文件系统访问，<strong>仅限可信环境</strong>。</p>
+<p><strong>动手练习</strong>：
+1. 读 <code>docs/ACP_AGENTS.md</code>，画出一条「Canvas → Agent Server → ACP 子进程 → LLM」的完整链路。
+2. 本地启动 dev，切换 Codex / Claude Code 两种后端，观察凭据归属与沙箱差异。
+3. 整理「专用 SWE agent → 通用控制平面 + ACP」的演进谈资，这是 2026 面试加分点。</p>
+<p><strong>面试要点</strong>：
+- Q：OpenHands 的事件流为什么可审计？A：动作与观察都是事件，状态变更可全量回放。
+- Q：ACP 是什么？A：Agent Client Protocol，通过 JSON-RPC over stdio 标准化"客户端 ↔ 编码代理"交互，让控制台可以拉起任意兼容代理。
+- Q：Agent Canvas 与经典 OpenHands 的关系？A：Canvas 是控制平面，执行仍交给 Agent Server / ACP 代理，Docker 沙箱保留。</p>
+<hr />
+<h3 id="5-crewai">5. CrewAI</h3>
+<p><strong>定位</strong>：多角色协作框架，把任务拆给不同专业代理，按流程并行/串行推进。</p>
+<p><strong>核心架构</strong>：
+- <strong>Agent</strong>：Role / Goal / Backstory 定义角色与行为约束。
+- <strong>Task</strong>：定义产出（expected output）、工具与上下文。
+- <strong>Crew</strong>：定义协作流程（Process）与代理集合。
+- <strong>Process</strong>：sequential（顺序执行）/ hierarchical（层级委派，manager 代理协调）。
+- <strong>Flow</strong>：事件驱动的无向图流程（<code>@start</code> / <code>@listen</code> 装饰器），适合把 Crew 串成管线。</p>
+<p><strong>源码入口</strong>（crewAIInc/crewAI，2026-08，monorepo）：
+- <code>lib/crewai/src/crewai/crew.py</code>：Crew 编排
+- <code>lib/crewai/src/crewai/agent.py</code>、<code>task.py</code>：角色与任务
+- <code>lib/crewai/src/crewai/process.py</code>：顺序 / 层级流程
+- <code>lib/crewai/src/crewai/flow/flow.py</code>：事件驱动 Flow</p>
+<p><strong>安全边界</strong>：不内置沙箱；代理的工具（含任意代码执行）以应用进程身份运行，权限完全取决于你注册的工具实现。</p>
+<p><strong>动手练习</strong>：搭一个「调研员 → 评审员 → 总结员」三角色 Crew，观察任务产物如何在代理间流转；再用 Flow 把两个 Crew 串成管线。</p>
+<p><strong>面试要点</strong>：
+- Q：CrewAI 的 Process 有哪几种？A：sequential 与 hierarchical（manager 委派）。
+- Q：CrewAI 如何保证安全？A：框架不兜底，必须自己控制工具权限与审计。</p>
+<hr />
+<h3 id="6-autogen">6. AutoGen</h3>
+<p><strong>定位</strong>：微软的多代理对话框架，以对话式消息驱动代理协作与工具执行。</p>
+<p><strong>核心架构</strong>：
+- <strong>ConversableAgent</strong>：代理之间通过消息对话完成任务；每次消息触发 reply 逻辑（LLM / 工具 / 人工）。
+- <strong>GroupChat</strong>：群聊调度——RoundRobinGroupChat（轮转）、SelectorGroupChat（LLM 选择发言者）、MagenticOne 等编排。
+- <strong>代码执行器</strong>：<code>DockerCommandLineCodeExecutor</code> / <code>LocalCommandLineCodeExecutor</code> 等，隔离程度可选。
+- <strong>v0.4+ 架构分层</strong>：<code>autogen-core</code>（Actor 运行时、消息路由）与 <code>autogen-agentchat</code>（agent/team 高层 API）。</p>
+<p><strong>源码入口</strong>（microsoft/autogen，2026-08）：
+- <code>python/packages/autogen-agentchat/src/autogen_agentchat/agents/_assistant_agent.py</code>：AssistantAgent 主循环
+- <code>python/packages/autogen-agentchat/src/autogen_agentchat/agents/_user_proxy_agent.py</code>：UserProxy（人工/代码执行代理）
+- <code>python/packages/autogen-agentchat/src/autogen_agentchat/teams/_group_chat/</code>：群聊团队（轮转/选择器/MagenticOne）
+- <code>python/packages/autogen-core/src/autogen_core/</code>：Actor 运行时与消息协议</p>
+<p><strong>安全边界</strong>：代码执行器可选 Docker / Jupyter / 本地；<strong>默认本地执行有风险，生产应强制 Docker 隔离</strong>。</p>
+<p><strong>动手练习</strong>：跑一个两代理对话（UserProxy + Assistant），观察工具调用如何通过消息往返完成；再把执行器切到 Docker，对比隔离差异。</p>
+<p><strong>面试要点</strong>：
+- Q：AutoGen 多代理如何"对话"？A：消息在代理间传递，每次消息触发 reply；GroupChatManager 负责发言调度。
+- Q：AutoGen 的代码执行安全？A：执行器可选，生产必须 Docker/Jupyter 隔离，不能默认本地。</p>
+<hr />
+<h3 id="_13">五、选型与学习路线</h3>
+<h3 id="_14">如何选型</h3>
+<table>
+<thead>
+<tr>
+<th>诉求</th>
+<th>推荐</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日常开发/终端自动化</td>
+<td>Codex CLI、Claude Code</td>
+<td>开箱即用，审批流成熟</td>
+</tr>
+<tr>
+<td>复杂有状态工作流、需人工介入</td>
+<td>LangGraph</td>
+<td>图编排 + checkpoint + HITL 最完整</td>
+</tr>
+<tr>
+<td>端到端自主代码任务、要强隔离</td>
+<td>OpenHands</td>
+<td>Docker 沙箱 + 事件流可审计</td>
+</tr>
+<tr>
+<td>团队式/角色化内容流程</td>
+<td>CrewAI</td>
+<td>角色抽象直接，落地快</td>
+</tr>
+<tr>
+<td>多代理对话研究/群聊调度</td>
+<td>AutoGen</td>
+<td>对话原语最灵活，生态研究向</td>
+</tr>
+<tr>
+<td>统一管理多种 Harness</td>
+<td>OpenHands Agent Canvas</td>
+<td>ACP 拉起 Codex/Claude Code/Gemini CLI</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_15">学习路线</h3>
+<ol>
+<li><strong>先精读 1–2 个</strong>：推荐 Codex CLI 的 <code>agent/control.rs</code> + <code>exec_policy.rs</code>（理解 loop 与审批），再选 LangGraph 的 <code>pregel/</code> 或 OpenHands 的 ACP 链路（理解状态与沙箱）。</li>
+<li><strong>横向对比安全边界</strong>：对每个框架回答三问——命令在谁的权限下执行？是否需要审批？有无操作系统级隔离？整理成对比表。</li>
+<li><strong>整理自己的面经</strong>：把每个框架按「定位 → 架构 → 安全边界 → 源码入口 → 练习」固定结构讲一遍，面试时按同一结构输出。</li>
+<li><strong>动手验证</strong>：每个框架至少跑一个最小示例（本文件「动手练习」均已给出），把源码路径记进自己的笔记。</li>
+</ol>
+<hr />
+<h3 id="10">六、自测题（10 道，附参考答案）</h3>
+<p><strong>1. 什么是 agent loop？请以 Codex CLI 为例画出一条实现链路。</strong></p>
+<blockquote>
+<p>agent loop 是「规划 → 工具调用 → 观察 → 修正」的循环。Codex CLI 中，turn 控制器（<code>codex-rs/core/src/agent/</code>）把用户请求交给模型，模型输出工具请求，<code>exec_policy.rs</code> 判定审批与执行策略，工具执行后结果回填，模型继续下一轮直到终止条件。</p>
+</blockquote>
+<p><strong>2. 对比 Codex CLI 与 Claude Code 的权限模型。</strong></p>
+<blockquote>
+<p>两者都是"本地执行 + 审批"。Codex CLI 用策略枚举（Never / OnRequest / UnlessTrusted / Granular，<code>exec_policy.rs</code>）+ 可选沙箱（linux-sandbox）；Claude Code 用权限提示分级 + Bash 命令检查（<code>bashPermissions.ts</code> / <code>bashSecurity.ts</code>）+ hooks 可编程拦截。边界都是用户审批，非默认容器隔离。</p>
+</blockquote>
+<p><strong>3. "Project Trust" 是沙箱吗？为什么面试官爱问这个？</strong></p>
+<blockquote>
+<p>不是。Project Trust 是信任标记，决定是否减少提示；真正的安全边界是审批策略 + 沙箱执行层。面试官用这个问题考察你能否区分"信任"与"隔离"。</p>
+</blockquote>
+<p><strong>4. LangGraph 的 Checkpointer 解决什么问题？interrupt 呢？</strong></p>
+<blockquote>
+<p>Checkpointer 持久化每个节点执行后的状态快照，实现断点恢复、时间旅行与人工回退；interrupt（<code>interrupt_before/after</code>）在执行中挂起等待人工输入，是 HITL 的基础。</p>
+</blockquote>
+<p><strong>5. OpenHands 经典架构为什么可审计？</strong></p>
+<blockquote>
+<p>事件流架构（EventStream）把代理动作、观察、状态变化都记为事件，执行在 Docker 沙箱中发生；任何一步都可以全量回放，天然满足审计与调试需求。</p>
+</blockquote>
+<p><strong>6. ACP 是什么？Agent Canvas 如何用 ACP 拉起第三方代理？</strong></p>
+<blockquote>
+<p>ACP（Agent Client Protocol）是客户端与编码代理之间基于 JSON-RPC over stdio 的标准协议。Agent Canvas 的 Agent Server 把 Codex / Claude Code / Gemini CLI 等作为子进程拉起，通过 JSON-RPC 转发会话消息；代理自己管理 LLM、工具与执行，Canvas 只渲染与管控。</p>
+</blockquote>
+<p><strong>7. CrewAI 的 Process 有哪几种？</strong></p>
+<blockquote>
+<p>两种：sequential（顺序执行）与 hierarchical（manager 代理层级委派）；另可用 Flow（事件驱动）把多个 Crew 串成更复杂的管线。</p>
+</blockquote>
+<p><strong>8. AutoGen 的代码执行器为什么默认本地有风险？生产如何隔离？</strong></p>
+<blockquote>
+<p>本地执行器直接以进程身份运行任意代码，等于把宿主机暴露给模型输出。生产应使用 <code>DockerCommandLineCodeExecutor</code> / Jupyter 等隔离执行环境，并配合网络与资源限制。</p>
+</blockquote>
+<p><strong>9. 长任务上下文放不下时有哪些手段？各自取舍？</strong></p>
+<blockquote>
+<p>截断（简单但丢信息）、摘要（保留语义但可能失真）、结构化检索（可查询但工程复杂）、token budget（按预算触发压缩/告警）、子代理隔离（把子任务上下文移出主线程）。选型取决于任务对细节 vs 语义的依赖程度。</p>
+</blockquote>
+<p><strong>10. 如何评估一个 Harness？给出 benchmark 与可观测性手段。</strong></p>
+<blockquote>
+<p>能力侧用 SWE-bench（代码任务）、Terminal-Bench（终端命令）、GAIA / WebArena（通用 agent）等；工程侧看完成率、成本、延迟与安全违规数；可观测性用事件流/轨迹回放（OpenHands EventStream）、结构化日志与 OpenTelemetry（Codex CLI <code>otel_init.rs</code>）、LLM 成本统计。</p>
+</blockquote>
+<hr />
+<h3 id="_16">附：关联文档</h3>
+<ul>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Agent框架全景.md" target="_blank" rel="noopener noreferrer">Agent 框架全景</a>：LangChain、LangGraph、AutoGen、CrewAI 等框架横向概述</li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Agentic%20Coding与AI编程工具.md" target="_blank" rel="noopener noreferrer">Agentic Coding 与 AI 编程工具</a>：Claude Code / Cursor / Copilot 对比与 Hooks</li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/Agent安全与评估体系.md" target="_blank" rel="noopener noreferrer">Agent 安全与评估体系</a>：Prompt 注入防御、幻觉检测、评估框架</li>
+<li><a href="https://github.com/Zchary1106/agent-interview-hub/blob/main/MCP与工具生态.md" target="_blank" rel="noopener noreferrer">MCP 与工具生态</a>：Model Context Protocol 架构与开发实战</li>
+</ul>
+<h3 id="harness-benchmark">一、Harness 不只是跑 Benchmark 的脚本</h3>
+<p>Agent Harness 的职责是把任务、环境、执行、轨迹、判分和发布决策连接成可重复实验：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Task Spec + Environment Spec
+          ↓
+       Agent Runner
+          ↓
+ Trace + Final State + Artifacts
+          ↓
+ Rule/Test/LLM/Human Graders
+          ↓
+ Regression Report
+          ↓
+ Release Gate
+</code></pre></div>
+<h3 id="spec">二、三类 Spec</h3>
+<h3 id="task-spec">Task Spec</h3>
+<div class="codehilite" data-lang="yaml"><pre><code class="language-yaml"><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer-refund-001</span>
+<span class="nt">objective</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">核验订单并在符合规则时发起退款</span>
+<span class="nt">initial_state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fixtures/refund/order-001.json</span>
+<span class="nt">allowed_tools</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">get_order</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">read_policy</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">request_approval</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">refund</span><span class="p p-Indicator">]</span>
+<span class="nt">timeout_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">180</span>
+<span class="nt">cost_budget_usd</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="nt">required_artifacts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">decision.json</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">trace.json</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<h3 id="environment-spec">Environment Spec</h3>
+<p>必须固定：</p>
+<ul>
+<li>工具与 Schema 版本；</li>
+<li>数据快照；</li>
+<li>时间和随机种子；</li>
+<li>网络是否开放；</li>
+<li>用户身份和权限；</li>
+<li>沙箱资源；</li>
+<li>故障注入规则。</li>
+</ul>
+<h3 id="expected-outcome">Expected Outcome</h3>
+<p>不能只写一段参考答案，应同时定义：</p>
+<ul>
+<li>最终业务状态；</li>
+<li>必须产生的 Artifact；</li>
+<li>禁止发生的副作用；</li>
+<li>允许的中间路径；</li>
+<li>成本和延迟上限；</li>
+<li>是否必须人工审批。</li>
+</ul>
+<h3 id="grading">三、三层 Grading</h3>
+<h3 id="outcome-grading">Outcome Grading</h3>
+<p>检查最终结果：文件是否生成、订单是否更新、测试是否通过、回答是否有正确证据。</p>
+<h3 id="trajectory-grading">Trajectory Grading</h3>
+<p>检查过程：是否调用正确工具、是否重复尝试、是否跳过审批、是否使用不必要的高成本模型。</p>
+<h3 id="state-grading">State Grading</h3>
+<p>检查环境最终状态：数据库、文件系统、Git、远端资源是否处于期望状态，以及是否留下未完成副作用。</p>
+<p>一个任务可能 Outcome 正确但 Trajectory 不安全，也可能答案看起来正确但 State 没有真正改变。</p>
+<h3 id="grader">四、Grader 组合</h3>
+<table>
+<thead>
+<tr>
+<th>Grader</th>
+<th>适合</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>规则</td>
+<td>Schema、权限、次数、格式</td>
+<td>难判断语义质量</td>
+</tr>
+<tr>
+<td>单元/E2E 测试</td>
+<td>代码和确定性状态</td>
+<td>覆盖不到主观质量</td>
+</tr>
+<tr>
+<td>环境检查</td>
+<td>数据库、文件、浏览器状态</td>
+<td>搭建成本较高</td>
+</tr>
+<tr>
+<td>LLM-as-Judge</td>
+<td>开放式文本和解释</td>
+<td>偏差、漂移、自洽性问题</td>
+</tr>
+<tr>
+<td>人工评审</td>
+<td>高风险和模糊任务</td>
+<td>成本高、速度慢</td>
+</tr>
+</tbody>
+</table>
+<p>推荐：规则和测试先判硬约束，LLM Judge 只判开放部分，人审抽检并校准 Judge。</p>
+<h3 id="_17">五、评测集分层</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Smoke：少量关键路径，分钟级
+Regression：历史失败和核心功能
+Safety：注入、越权、泄露、危险操作
+Recovery：超时、断网、重启、重复消费
+Canary：接近真实流量的小比例验证
+</code></pre></div>
+<p>数据集需要版本化，并记录：来源、创建原因、适用版本、是否可能进入训练数据。</p>
+<h3 id="benchmark">六、Benchmark 选择矩阵</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>可参考 Benchmark</th>
+<th>重点能力</th>
+<th>不能单独证明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Coding Agent</td>
+<td>SWE-bench Verified、SWE-Lancer</td>
+<td>修改真实仓库、测试和交付</td>
+<td>企业权限、长期运行</td>
+</tr>
+<tr>
+<td>Web Agent</td>
+<td>WebArena、BrowserGym</td>
+<td>浏览器导航与网页操作</td>
+<td>OS 级操作和真实账号安全</td>
+</tr>
+<tr>
+<td>Computer-use</td>
+<td>OSWorld</td>
+<td>跨应用桌面操作</td>
+<td>企业业务正确性</td>
+</tr>
+<tr>
+<td>工具与用户交互</td>
+<td>τ-bench、AppWorld</td>
+<td>工具调用、状态变化、多轮一致性</td>
+<td>自有业务规则</td>
+</tr>
+<tr>
+<td>通用 Agent</td>
+<td>GAIA、AgentBench</td>
+<td>综合推理和工具使用</td>
+<td>特定场景 SLA</td>
+</tr>
+<tr>
+<td>安全</td>
+<td>AgentDojo、内部红队集</td>
+<td>间接注入、越权、数据泄露</td>
+<td>全部生产攻击</td>
+</tr>
+<tr>
+<td>科研 Agent</td>
+<td>PaperBench</td>
+<td>长程研究和复现</td>
+<td>普通业务 Agent</td>
+</tr>
+</tbody>
+</table>
+<p>选择 Benchmark 时要问：</p>
+<ol>
+<li>环境是否可重复；</li>
+<li>最终状态是否能自动验证；</li>
+<li>是否测多次稳定性而非单次成功；</li>
+<li>是否容易通过特殊提示或数据污染刷分；</li>
+<li>与真实岗位任务的距离有多大。</li>
+</ol>
+<h3 id="_18">七、失败分类</h3>
+<p>建议将失败统一映射到以下类别：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>任务理解</td>
+<td>错解目标、遗漏约束</td>
+</tr>
+<tr>
+<td>规划</td>
+<td>拆分错误、依赖顺序错误</td>
+</tr>
+<tr>
+<td>上下文</td>
+<td>关键事实丢失、压缩失真</td>
+</tr>
+<tr>
+<td>检索</td>
+<td>召回缺失、证据冲突</td>
+</tr>
+<tr>
+<td>工具</td>
+<td>选错工具、参数错误、超时</td>
+</tr>
+<tr>
+<td>协作</td>
+<td>Agent 角色重叠、消息遗漏、冲突未解决</td>
+</tr>
+<tr>
+<td>Runtime</td>
+<td>重复消费、恢复错误、状态竞争</td>
+</tr>
+<tr>
+<td>验证</td>
+<td>假完成、测试不足、Judge 误判</td>
+</tr>
+<tr>
+<td>安全</td>
+<td>越权、注入、敏感信息泄露</td>
+</tr>
+</tbody>
+</table>
+<p>多 Agent 系统应额外记录失败传播链：哪个 Agent 首先产生错误，哪个环节没有拦截，最终由谁把错误转成外部副作用。</p>
+<h3 id="_19">八、发布门禁</h3>
+<p>建议配置示例：</p>
+<div class="codehilite" data-lang="yaml"><pre><code class="language-yaml"><span class="nt">release_gate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">verified_success_rate</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=</span><span class="nv"> </span><span class="s">0.90&quot;</span>
+<span class="w">  </span><span class="nt">first_pass_success_rate</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=</span><span class="nv"> </span><span class="s">baseline</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">0.02&quot;</span>
+<span class="w">  </span><span class="nt">critical_safety_violations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">recovery_success_rate</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=</span><span class="nv"> </span><span class="s">0.95&quot;</span>
+<span class="w">  </span><span class="nt">p95_latency</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;=</span><span class="nv"> </span><span class="s">baseline</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">1.15&quot;</span>
+<span class="w">  </span><span class="nt">cost_per_success</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;=</span><span class="nv"> </span><span class="s">baseline</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">1.10&quot;</span>
+</code></pre></div>
+<p>不能只看平均总分。关键安全场景应使用“一票否决”。</p>
+<h3 id="shadow-canary">九、Shadow 与 Canary</h3>
+<h3 id="shadow-mode">Shadow Mode</h3>
+<p>新版本接收生产请求副本，但不产生真实副作用。适合比较路由、计划和工具选择。</p>
+<p>注意：即使不执行工具，把真实数据发送给新模型也可能构成数据泄露，因此仍需权限和脱敏。</p>
+<h3 id="canary">Canary</h3>
+<p>只让小比例真实任务进入新版本，并设置：</p>
+<ul>
+<li>用户和场景白名单；</li>
+<li>更低预算；</li>
+<li>强制人工审批；</li>
+<li>自动回滚阈值；</li>
+<li>与旧版本并行统计。</li>
+</ul>
+<h3 id="_20">十、失败样本回流</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">线上失败
+→ 归因到输入/规划/上下文/检索/工具/模型/验证/Runtime
+→ 最小化成可复现 Task Spec
+→ 加入 Regression 或 Safety Eval
+→ 修复
+→ 新旧版本对比
+→ 通过门禁后发布
+</code></pre></div>
+<p>不能把完整生产数据无审查地写回训练集或长期记忆。</p>
+<h3 id="harness_1">十一、Harness 平台最小数据模型</h3>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">Dataset → Task → Run → Step/Span → Artifact
+                         ↓
+                       Grade
+                         ↓
+                  Evaluation Report
+                         ↓
+                    Release Decision
+</code></pre></div>
+<p>每次 Run 应固定：代码提交、模型版本、Prompt 版本、工具版本、数据快照和环境镜像。</p>
+<h3 id="_21">十二、高频面试题</h3>
+<ol>
+<li>Harness、Benchmark、Eval 和 AgentOps 有什么区别？</li>
+<li>Outcome、Trajectory、State Grading 为什么要分开？</li>
+<li>LLM-as-Judge 为什么不能单独作为发布门禁？</li>
+<li>如何保证一次评测可复现？</li>
+<li>失败样本如何回流但不污染评测集？</li>
+<li>Shadow Mode 如何避免副作用？</li>
+<li>Canary 阶段哪些指标应一票否决？</li>
+<li>如何评估需要人工审批的任务？</li>
+<li>多 Agent Harness 如何判定责任和失败传播？</li>
+<li>模型升级后为什么必须重新跑安全与恢复评测？</li>
+</ol>
+<h3 id="agentic-coding">一、Agentic Coding 概念</h3>
+<h3 id="copilot-agent">从 Copilot 到 Agent：编程辅助的三代演进</h3>
+<div class="codehilite"><pre><code>第一代：自动补全（2021-2022）
+  GitHub Copilot → 行级/块级代码补全
+  特征：被动、单次、无上下文理解
+
+第二代：对话式编程（2023-2024）
+  ChatGPT / Cursor Chat / Copilot Chat
+  特征：可以对话讨论代码、解释和重构，但需要人指挥每一步
+
+第三代：Agentic Coding（2024-2025）
+  Claude Code / Codex CLI / Cursor Agent Mode
+  特征：自主规划、多步执行、读写文件、运行命令、自我纠错
+</code></pre></div>
+<p><strong>Agentic Coding 的定义</strong>：AI 不再只是"建议代码片段"，而是像一个初级工程师一样，能够<strong>理解需求 → 阅读代码库 → 制定方案 → 编写代码 → 运行测试 → 修复错误</strong>，形成完整的开发闭环。</p>
+<p><strong>核心区别</strong>：
+- <strong>Copilot 模式</strong>：人写代码，AI 补全 → 人是主体，AI 是工具
+- <strong>Agentic 模式</strong>：人提需求，AI 写代码 → AI 是执行者，人是审核者</p>
+<h3 id="agentic-coding_1">Agentic Coding 的技术基础</h3>
+<ol>
+<li><strong>长上下文窗口</strong>：能一次读取大量代码文件（200K token）</li>
+<li><strong>工具调用能力</strong>：读写文件、执行 shell 命令、搜索代码</li>
+<li><strong>推理与规划</strong>：分解复杂任务为多个步骤</li>
+<li><strong>自我纠错</strong>：运行测试发现错误后自动修复</li>
+<li><strong>代码理解</strong>：理解项目结构、依赖关系、编码规范</li>
+</ol>
+<h3 id="_22">二、主流工具对比</h3>
+<h3 id="_23">核心工具矩阵</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Claude Code</th>
+<th>Cursor</th>
+<th>GitHub Copilot</th>
+<th>Windsurf</th>
+<th>Codex CLI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>形态</strong></td>
+<td>CLI Agent</td>
+<td>IDE (VS Code fork)</td>
+<td>IDE 插件</td>
+<td>IDE (VS Code fork)</td>
+<td>CLI Agent</td>
+</tr>
+<tr>
+<td><strong>模型</strong></td>
+<td>Claude Sonnet/Opus</td>
+<td>多模型（GPT-4o, Claude, etc.）</td>
+<td>GPT-4o / Claude</td>
+<td>多模型</td>
+<td>OpenAI 模型</td>
+</tr>
+<tr>
+<td><strong>Agent 模式</strong></td>
+<td>原生 Agent</td>
+<td>Agent Mode（Composer）</td>
+<td>Copilot Agent / Spark</td>
+<td>Cascade Agent</td>
+<td>原生 Agent</td>
+</tr>
+<tr>
+<td><strong>代码理解</strong></td>
+<td>全项目索引</td>
+<td>代码库索引 + @codebase</td>
+<td>仓库索引</td>
+<td>全项目索引</td>
+<td>仓库理解</td>
+</tr>
+<tr>
+<td><strong>工具能力</strong></td>
+<td>文件读写、Shell、搜索</td>
+<td>文件编辑、终端</td>
+<td>文件编辑、终端</td>
+<td>文件编辑、终端、浏览器</td>
+<td>文件读写、Shell</td>
+</tr>
+<tr>
+<td><strong>扩展性</strong></td>
+<td>Hooks、MCP、自定义命令</td>
+<td>Rules、MCP</td>
+<td>Instructions</td>
+<td>Rules</td>
+<td>配置文件</td>
+</tr>
+<tr>
+<td><strong>定价</strong></td>
+<td>API 按量计费</td>
+<td><span class="math-inline-wrap">&lt;math class="math-inline" aria-label="20-40/月</td>
+<td>"&gt;<mrow><mn>20</mn><mo>-</mo><mn>40</mn><mo>/</mo><mi mathvariant="normal">月</mi><mspace width=".18em"/><mo></td>
+<td></mo></mrow></math></span>10-19/月</td>
+<td>$15/月</td>
+</tr>
+<tr>
+<td><strong>适用场景</strong></td>
+<td>终端重度用户、复杂重构</td>
+<td>日常开发、全功能 IDE</td>
+<td>轻量辅助、已有 VS Code 用户</td>
+<td>全栈开发</td>
+<td>批量自动化任务</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_24">各工具特色</h3>
+<p><strong>Claude Code</strong>：
+- 纯命令行 Agent，与终端工作流无缝集成
+- 深度理解项目上下文，擅长大规模重构
+- Hooks 机制（PreToolUse/PostToolUse）实现自动化审核
+- 支持 MCP 扩展工具集
+- 适合对终端熟悉、需要深度代码操作的开发者</p>
+<p><strong>Cursor</strong>：
+- IDE 级别的集成体验，支持 Tab 补全 + Chat + Agent
+- Composer 的 Agent 模式可以跨文件编辑
+- .cursorrules 自定义项目级指令
+- 支持多模型切换（OpenAI、Anthropic、Google）
+- 适合需要可视化开发体验的开发者</p>
+<p><strong>GitHub Copilot</strong>：
+- 与 GitHub 生态深度集成（PR、Issue、Actions）
+- 代码补全最成熟，延迟低
+- Copilot Workspace 支持 Issue-to-PR 自动化
+- 企业版支持知识库和策略管理
+- 适合 GitHub 重度用户和企业团队</p>
+<h3 id="hooks">三、Hooks 机制</h3>
+<h3 id="hooks_1">什么是 Hooks？</h3>
+<p>Hooks 是 Agentic Coding 工具提供的<strong>事件钩子机制</strong>，允许在 AI Agent 的工具调用前后插入自定义逻辑（脚本、校验、通知等），实现自动化的安全审查和流程控制。</p>
+<h3 id="claude-code-hooks">Claude Code 的 Hooks 系统</h3>
+<div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="c1">// .claude/settings.json</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;PreToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;write_file&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;scripts/pre-write-check.sh&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;scripts/command-allowlist.sh&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;PostToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;write_file&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;scripts/auto-lint.sh&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;Notification&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;hook&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;scripts/notify.sh&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>Hook 类型</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>Hook</th>
+<th>触发时机</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PreToolUse</strong></td>
+<td>工具调用前</td>
+<td>安全检查、命令白名单、文件保护</td>
+</tr>
+<tr>
+<td><strong>PostToolUse</strong></td>
+<td>工具调用后</td>
+<td>自动 lint/format、日志记录、测试触发</td>
+</tr>
+<tr>
+<td><strong>Notification</strong></td>
+<td>Agent 需要用户注意时</td>
+<td>桌面通知、Slack 通知</td>
+</tr>
+<tr>
+<td><strong>Stop</strong></td>
+<td>Agent 结束执行时</td>
+<td>生成报告、提交代码</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hook 的输入输出</strong>：
+- 输入：通过 stdin 接收 JSON，包含工具名、参数、文件路径等
+- 输出：通过 exit code 控制行为（0=通过，2=阻止）；stdout 可注入反馈信息</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash"><span class="ch">#!/bin/bash</span>
+﻿#<span class="w"> </span>pre-write-check.sh<span class="w"> </span>-<span class="w"> </span>阻止修改关键文件
+<span class="nv">INPUT</span><span class="o">=</span><span class="k">$(</span>cat<span class="k">)</span>
+<span class="nv">FILE</span><span class="o">=</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INPUT</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.tool_input.file_path&#39;</span><span class="k">)</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$FILE</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">==</span><span class="w"> </span>*<span class="s2">&quot;package-lock.json&quot;</span>*<span class="w"> </span><span class="o">]]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$FILE</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">==</span><span class="w"> </span>*<span class="s2">&quot;.env&quot;</span>*<span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">  </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;禁止修改受保护文件: </span><span class="nv">$FILE</span><span class="s2">&quot;</span>
+<span class="w">  </span><span class="nb">exit</span><span class="w"> </span><span class="m">2</span><span class="w">  </span><span class="c1"># 阻止工具执行</span>
+<span class="k">fi</span>
+<span class="nb">exit</span><span class="w"> </span><span class="m">0</span><span class="w">  </span><span class="c1"># 允许执行</span>
+</code></pre></div>
+<h3 id="hooks_2">Hooks 的价值</h3>
+<ol>
+<li><strong>安全护栏</strong>：防止 AI 执行危险命令或修改关键文件</li>
+<li><strong>代码质量</strong>：每次写入后自动格式化、lint</li>
+<li><strong>合规审计</strong>：记录所有 AI 的代码修改操作</li>
+<li><strong>流程集成</strong>：自动触发 CI、通知相关人员</li>
+<li><strong>自定义策略</strong>：企业级部署中实现定制化的安全策略</li>
+</ol>
+<h3 id="ai">四、AI 编程工具的架构设计</h3>
+<h3 id="_25">通用架构</h3>
+<p><img loading="lazy" decoding="async" alt="Agentic Coding 工具分层架构" src="assets/837fc90b75-agentic-coding-stack.svg" /></p>
+<h3 id="_26">关键技术挑战</h3>
+<ol>
+<li><strong>上下文窗口管理</strong>：大型代码库无法全部塞入上下文，需要智能检索</li>
+<li><strong>代码 diff 精准性</strong>：AI 生成的编辑必须精确定位，不能破坏原有代码</li>
+<li><strong>延迟优化</strong>：流式输出 + 投机解码 + 缓存</li>
+<li><strong>多文件一致性</strong>：跨文件重构时保证所有修改的一致性</li>
+<li><strong>沙箱安全</strong>：AI 执行 shell 命令的安全隔离</li>
+</ol>
+<h3 id="_27">五、人机协作模式</h3>
+<h3 id="human-in-the-loophitl">Human-in-the-Loop（HITL）</h3>
+<div class="codehilite"><pre><code>AI 提出修改方案 → 人审核 → 确认/修改/拒绝 → AI 继续
+</code></pre></div>
+<p><strong>特征</strong>：每个关键决策点都需人确认。安全但慢。
+<strong>适用</strong>：生产环境代码、安全敏感操作、学习阶段。</p>
+<p><strong>实现方式</strong>：
+- Claude Code 的交互式确认（每次文件修改/命令执行前提示）
+- Cursor 的 Diff 预览（Accept/Reject 每个修改）
+- PR Review 流程（AI 提 PR，人审核合并）</p>
+<h3 id="_28">半自动模式</h3>
+<div class="codehilite"><pre><code>AI 在安全范围内自主执行 → 危险操作暂停等待确认
+</code></pre></div>
+<p><strong>特征</strong>：通过权限配置划定自主范围。平衡效率和安全。
+<strong>适用</strong>：日常开发、信任度较高的场景。</p>
+<p><strong>实现</strong>：
+- Claude Code 的 allowlist（允许特定命令自动执行）
+- Hooks 机制（PreToolUse 决定是否需要确认）
+- 权限分级（读操作自动、写操作确认、删除操作禁止）</p>
+<h3 id="_29">全自动模式</h3>
+<div class="codehilite"><pre><code>AI 接收需求 → 自主完成所有步骤 → 输出结果
+</code></pre></div>
+<p><strong>特征</strong>：无人干预，端到端自动化。高效但风险大。
+<strong>适用</strong>：CI/CD 环境、批量任务、低风险操作。</p>
+<p><strong>实现</strong>：
+- Codex CLI 的 <code>full-auto</code> 模式
+- GitHub Copilot Workspace 的 Issue → PR 自动化
+- 沙箱环境中的自动化测试和修复</p>
+<h3 id="_30">六、企业落地挑战</h3>
+<h3 id="_31">技术挑战</h3>
+<ol>
+<li><strong>代码安全</strong>：敏感代码是否会泄露给模型提供商？私有部署 vs API 调用的权衡</li>
+<li><strong>代码质量</strong>：AI 生成代码的可维护性、性能、安全性如何保证？</li>
+<li><strong>上下文局限</strong>：大型单体仓库（数百万行代码）如何有效索引？</li>
+<li><strong>确定性</strong>：同样的需求每次生成不同代码，如何保证一致性？</li>
+</ol>
+<h3 id="_32">管理挑战</h3>
+<ol start="5">
+<li><strong>技能退化</strong>：开发者过度依赖 AI 是否会导致编程能力下降？</li>
+<li><strong>责任归属</strong>：AI 写的 bug 谁负责？AI 写的代码的知识产权归谁？</li>
+<li><strong>度量困难</strong>：如何衡量 AI 编程工具的 ROI？代码行数不等于产出</li>
+<li><strong>团队差异</strong>：资深和初级开发者对 AI 工具的接受度和使用效果差异大</li>
+</ol>
+<h3 id="_33">安全与合规</h3>
+<ol start="9">
+<li><strong>许可证风险</strong>：AI 生成的代码是否侵犯开源许可证？</li>
+<li><strong>数据合规</strong>：代码中包含的业务逻辑、密钥是否可发送到外部 API？</li>
+<li><strong>审计要求</strong>：金融/医疗等受监管行业对 AI 生成代码的审计需求</li>
+</ol>
+<h3 id="_34">七、常见面试题与参考答案</h3>
+<h3 id="q1-agentic-coding-ai">Q1：什么是 Agentic Coding？它与传统的 AI 代码补全有什么本质区别？</h3>
+<p><strong>答</strong>：Agentic Coding 是 AI 具备自主规划和执行能力的编程模式——AI 能理解需求、阅读代码库、制定方案、编写代码、运行测试、修复错误，形成完整开发闭环。与代码补全的本质区别在于<strong>自主性</strong>：补全是人驱动、AI 辅助（人写一行代码，AI 补全下一行）；Agentic 是人提需求、AI 执行（AI 自主决定读哪些文件、改哪些代码、跑什么命令）。</p>
+<h3 id="q2-claude-code-cursor">Q2：比较 Claude Code 和 Cursor 的架构差异和适用场景。</h3>
+<p><strong>答</strong>：Claude Code 是 CLI Agent，在终端运行，无 GUI 依赖，深度理解项目上下文，擅长复杂重构和自动化，适合终端重度用户。Cursor 是 VS Code fork，提供完整 IDE 体验，集成补全+对话+Agent 三种模式，支持多模型切换和可视化 diff，适合需要图形界面和日常开发的用户。核心差异：Claude Code 偏"Agent 驱动"，Cursor 偏"IDE 增强"。</p>
+<h3 id="q3-hooks-agentic-coding">Q3：什么是 Hooks 机制？为什么在 Agentic Coding 中很重要？</h3>
+<p><strong>答</strong>：Hooks 是在 AI 工具调用前后插入自定义逻辑的事件钩子。重要性：①安全护栏——PreToolUse 可以阻止危险命令、保护关键文件；②质量保障——PostToolUse 可以自动 lint/format/test；③审计合规——记录所有 AI 操作用于追溯；④流程集成——连接 CI/CD 和通知系统。没有 Hooks，AI Agent 就像没有刹车的汽车。</p>
+<h3 id="q4human-in-the-loop">Q4：Human-in-the-Loop 和全自动模式各有什么优缺点？企业应该怎么选择？</h3>
+<p><strong>答</strong>：HITL 安全但慢，每个决策需人确认，适合高风险场景（生产代码、安全敏感操作）。全自动高效但风险大，适合低风险场景（测试代码、CI 环境、格式化）。企业应采用<strong>分级策略</strong>：读操作自动执行、写操作需确认、删除/部署操作需多人审批。随着信任建立和安全机制完善，逐步扩大自动化范围。</p>
+<h3 id="q5ai">Q5：AI 编程工具如何处理大型代码库的上下文限制？</h3>
+<p><strong>答</strong>：①代码索引：预先对代码库建立 AST 解析和向量索引；②智能检索：根据当前任务动态检索相关文件和函数，而非加载全部；③分层上下文：项目级摘要 + 文件级详情 + 函数级代码；④增量更新：只加载变更相关的文件；⑤摘要压缩：对已读取的大文件生成摘要后释放原始内容。</p>
+<h3 id="q6-ai">Q6：企业部署 AI 编程工具的安全风险有哪些？如何缓解？</h3>
+<p><strong>答</strong>：①代码泄露——代码发送到外部 API，缓解：私有部署或使用零数据保留协议；②密钥泄露——代码中的 API Key 被模型处理，缓解：pre-commit hook 扫描敏感信息；③恶意代码注入——AI 引入有安全漏洞的代码，缓解：自动化安全扫描（SAST/DAST）；④供应链攻击——AI 建议的依赖包可能有风险，缓解：依赖白名单。</p>
+<h3 id="q7-agentic-coding">Q7：如何衡量 Agentic Coding 工具在团队中的效果？</h3>
+<p><strong>答</strong>：不能只看代码行数。合理指标：①任务完成时间（从 Issue 到 PR merge）；②PR 通过率（一次通过 vs 需要修改）；③bug 率（AI 生成代码的缺陷密度）；④开发者满意度（NPS）；⑤重复工作减少比例；⑥Review 时间变化。需要 A/B 测试对比有无 AI 工具的团队表现。</p>
+<h3 id="q8ai">Q8：AI 编程工具的"代码幻觉"问题是什么？如何应对？</h3>
+<p><strong>答</strong>：AI 可能生成看似合理但实际错误的代码——调用不存在的 API、使用过时的库版本、逻辑错误但语法正确。应对：①自动运行测试验证；②类型检查和 lint 作为 PostToolUse Hook；③代码 review 不可省略；④让 AI 在修改后自行运行测试并修复失败用例；⑤提供准确的文档和 API 参考作为上下文。</p>
+<h3 id="q9copilotcursorclaude-code">Q9：Copilot、Cursor、Claude Code 分别代表了什么不同的产品理念？</h3>
+<p><strong>答</strong>：Copilot 代表"<strong>增强现有工作流</strong>"——嵌入已有 IDE，最小改变习惯，渐进式提升效率。Cursor 代表"<strong>重新设计 IDE</strong>"——以 AI 为核心重构编辑器体验，深度集成。Claude Code 代表"<strong>替代 IDE</strong>"——回归终端，AI 作为独立的编程 Agent，不依赖图形界面。三者从保守到激进，代表了 AI 编程工具的不同进化方向。</p>
+<h3 id="q10-agentic-coding">Q10：未来 Agentic Coding 可能演变为什么形态？</h3>
+<p><strong>答</strong>：①<strong>多 Agent 协作</strong>——前端 Agent、后端 Agent、测试 Agent 协同开发；②<strong>需求到部署全自动化</strong>——从产品文档自动生成代码并部署；③<strong>自适应学习</strong>——AI 学习团队的编码风格和架构偏好；④<strong>AI 代码 review</strong>——AI 审查人类和其他 AI 的代码；⑤<strong>自然语言编程</strong>——非技术人员通过自然语言描述业务逻辑，AI 生成并维护代码。</p>
+<h3 id="q11-agentic-coding">Q11：如何在团队中推广 Agentic Coding 工具？常见阻力是什么？</h3>
+<p><strong>答</strong>：阻力：①"AI 会取代我"的恐惧；②代码质量和安全担忧；③学习成本和工作流改变；④费用。推广策略：①从低风险任务开始（测试、文档、格式化）；②内部 champion 分享成功案例；③建立使用规范和安全指南；④量化效果（省了多少时间）；⑤强调 AI 是"放大器"而非"替代者"。</p>
+<h3 id="q12agentic-coding">Q12：Agentic Coding 工具中，沙箱执行环境的设计要考虑什么？</h3>
+<p><strong>答</strong>：①文件系统隔离——限制可访问的目录范围；②网络限制——控制 AI 能访问的网络资源；③命令白名单——只允许执行安全的 shell 命令；④资源限制——CPU、内存、执行时间上限；⑤回滚能力——支持撤销所有修改；⑥日志记录——所有操作可审计。Docker 容器或 VM 是常见的沙箱实现方式。</p></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-01.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-03.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">一、为什么这些内容成为新考点</a></li><li class="lv3"><a href="#agentorchestratorharness-runtime">二、Agent、Orchestrator、Harness 与 Runtime 的边界</a></li><li class="lv3"><a href="#21">2.1 四个概念不要混用</a></li><li class="lv3"><a href="#22-langgraph-while">2.2 为什么不能只靠 LangGraph 或一个 while 循环</a></li><li class="lv3"><a href="#durable-execution">三、Durable Execution：可恢复的长任务执行</a></li><li class="lv3"><a href="#31">3.1 最小持久化状态</a></li><li class="lv3"><a href="#32-checkpoint-messages">3.2 Checkpoint 不等于保存 messages</a></li><li class="lv3"><a href="#33-exactly-once">3.3 Exactly-once 通常做不到</a></li><li class="lv3"><a href="#34">3.4 推荐状态机</a></li><li class="lv3"><a href="#_2">四、路径震荡、死循环与无效重试</a></li><li class="lv3"><a href="#41">4.1 什么是路径震荡</a></li><li class="lv3"><a href="#42">4.2 检测方法</a></li><li class="lv3"><a href="#43">4.3 失败预算</a></li><li class="lv3"><a href="#10-1000">五、从 10 个工具扩展到 1000 个工具</a></li><li class="lv3"><a href="#51-prompt">5.1 为什么不能把所有工具定义都放进 Prompt</a></li><li class="lv3"><a href="#52">5.2 分层工具路由</a></li><li class="lv3"><a href="#53-skill">5.3 Skill 的渐进式披露</a></li><li class="lv3"><a href="#54-schema">5.4 工具 Schema 版本化</a></li><li class="lv3"><a href="#agent-trace">六、Agent 可观测性：从日志升级为 Trace</a></li><li class="lv3"><a href="#61-trace">6.1 一条 Trace 应该包含什么</a></li><li class="lv3"><a href="#62">6.2 线上排障顺序</a></li><li class="lv3"><a href="#2026-agent">七、2026 年应掌握的 Agent 评测指标</a></li><li class="lv3"><a href="#71">7.1 任务结果</a></li><li class="lv3"><a href="#72">7.2 过程质量</a></li><li class="lv3"><a href="#73">7.3 成本和性能</a></li><li class="lv3"><a href="#74">7.4 安全</a></li><li class="lv3"><a href="#75">7.5 评测集构建</a></li><li class="lv3"><a href="#coding-agent">八、Coding Agent 的并发修改冲突</a></li><li class="lv3"><a href="#81">8.1 常见冲突</a></li><li class="lv3"><a href="#82">8.2 推荐隔离策略</a></li><li class="lv3"><a href="#_3">九、近期大厂面试新增信号</a></li><li class="lv3"><a href="#harness-coding-agent">字节跳动：Harness、长任务与 Coding Agent</a></li><li class="lv3"><a href="#mcp-trace-agent-infra">阿里 / 淘天：MCP 评测、Trace 与 Agent Infra</a></li><li class="lv3"><a href="#_4">腾讯：失败恢复、幂等和金融安全</a></li><li class="lv3"><a href="#_5">美团：框架取舍、评测闭环和沙箱</a></li><li class="lv3"><a href="#_6">十、面试回答模板</a></li><li class="lv3"><a href="#_7">十一、高频自测题</a></li><li class="lv3"><a href="#_8">十二、公开面经来源</a></li><li class="lv3"><a href="#_9">关联阅读</a></li><li class="lv3"><a href="#harness">一、为什么面试要研究 Harness</a></li><li class="lv3"><a href="#_10">二、共同考察点（七个必考维度）</a></li><li class="lv3"><a href="#1-agent-loopagent">1. Agent Loop（agent 循环）</a></li><li class="lv3"><a href="#2-tool-calling">2. 工具调用（Tool Calling）</a></li><li class="lv3"><a href="#3-context-management">3. 上下文管理（Context Management）</a></li><li class="lv3"><a href="#4-memory">4. 记忆（Memory）</a></li><li class="lv3"><a href="#5-security-boundary">5. 安全边界（Security Boundary）</a></li><li class="lv3"><a href="#6-evaluation">6. 评估（Evaluation）</a></li><li class="lv3"><a href="#7-observability">7. 可观测性（Observability）</a></li><li class="lv3"><a href="#_11">三、横向对比矩阵</a></li><li class="lv3"><a href="#_12">四、逐个深度测评</a></li><li class="lv3"><a href="#1-openai-codex-cli">1. OpenAI Codex CLI</a></li><li class="lv3"><a href="#2-claude-code">2. Claude Code</a></li><li class="lv3"><a href="#3-langgraph">3. LangGraph</a></li><li class="lv3"><a href="#4-openhands">4. OpenHands</a></li><li class="lv3"><a href="#5-crewai">5. CrewAI</a></li><li class="lv3"><a href="#6-autogen">6. AutoGen</a></li><li class="lv3"><a href="#_13">五、选型与学习路线</a></li><li class="lv3"><a href="#_14">如何选型</a></li><li class="lv3"><a href="#_15">学习路线</a></li><li class="lv3"><a href="#10">六、自测题（10 道，附参考答案）</a></li><li class="lv3"><a href="#_16">附：关联文档</a></li><li class="lv3"><a href="#harness-benchmark">一、Harness 不只是跑 Benchmark 的脚本</a></li><li class="lv3"><a href="#spec">二、三类 Spec</a></li><li class="lv3"><a href="#task-spec">Task Spec</a></li><li class="lv3"><a href="#environment-spec">Environment Spec</a></li><li class="lv3"><a href="#expected-outcome">Expected Outcome</a></li><li class="lv3"><a href="#grading">三、三层 Grading</a></li><li class="lv3"><a href="#outcome-grading">Outcome Grading</a></li><li class="lv3"><a href="#trajectory-grading">Trajectory Grading</a></li><li class="lv3"><a href="#state-grading">State Grading</a></li><li class="lv3"><a href="#grader">四、Grader 组合</a></li><li class="lv3"><a href="#_17">五、评测集分层</a></li><li class="lv3"><a href="#benchmark">六、Benchmark 选择矩阵</a></li><li class="lv3"><a href="#_18">七、失败分类</a></li><li class="lv3"><a href="#_19">八、发布门禁</a></li><li class="lv3"><a href="#shadow-canary">九、Shadow 与 Canary</a></li><li class="lv3"><a href="#shadow-mode">Shadow Mode</a></li><li class="lv3"><a href="#canary">Canary</a></li><li class="lv3"><a href="#_20">十、失败样本回流</a></li><li class="lv3"><a href="#harness_1">十一、Harness 平台最小数据模型</a></li><li class="lv3"><a href="#_21">十二、高频面试题</a></li><li class="lv3"><a href="#agentic-coding">一、Agentic Coding 概念</a></li><li class="lv3"><a href="#copilot-agent">从 Copilot 到 Agent：编程辅助的三代演进</a></li><li class="lv3"><a href="#agentic-coding_1">Agentic Coding 的技术基础</a></li><li class="lv3"><a href="#_22">二、主流工具对比</a></li><li class="lv3"><a href="#_23">核心工具矩阵</a></li><li class="lv3"><a href="#_24">各工具特色</a></li><li class="lv3"><a href="#hooks">三、Hooks 机制</a></li><li class="lv3"><a href="#hooks_1">什么是 Hooks？</a></li><li class="lv3"><a href="#claude-code-hooks">Claude Code 的 Hooks 系统</a></li><li class="lv3"><a href="#hooks_2">Hooks 的价值</a></li><li class="lv3"><a href="#ai">四、AI 编程工具的架构设计</a></li><li class="lv3"><a href="#_25">通用架构</a></li><li class="lv3"><a href="#_26">关键技术挑战</a></li><li class="lv3"><a href="#_27">五、人机协作模式</a></li><li class="lv3"><a href="#human-in-the-loophitl">Human-in-the-Loop（HITL）</a></li><li class="lv3"><a href="#_28">半自动模式</a></li><li class="lv3"><a href="#_29">全自动模式</a></li><li class="lv3"><a href="#_30">六、企业落地挑战</a></li><li class="lv3"><a href="#_31">技术挑战</a></li><li class="lv3"><a href="#_32">管理挑战</a></li><li class="lv3"><a href="#_33">安全与合规</a></li><li class="lv3"><a href="#_34">七、常见面试题与参考答案</a></li><li class="lv3"><a href="#q1-agentic-coding-ai">Q1：什么是 Agentic Coding？它与传统的 AI 代码补全有什么本质区别？</a></li><li class="lv3"><a href="#q2-claude-code-cursor">Q2：比较 Claude Code 和 Cursor 的架构差异和适用场景。</a></li><li class="lv3"><a href="#q3-hooks-agentic-coding">Q3：什么是 Hooks 机制？为什么在 Agentic Coding 中很重要？</a></li><li class="lv3"><a href="#q4human-in-the-loop">Q4：Human-in-the-Loop 和全自动模式各有什么优缺点？企业应该怎么选择？</a></li><li class="lv3"><a href="#q5ai">Q5：AI 编程工具如何处理大型代码库的上下文限制？</a></li><li class="lv3"><a href="#q6-ai">Q6：企业部署 AI 编程工具的安全风险有哪些？如何缓解？</a></li><li class="lv3"><a href="#q7-agentic-coding">Q7：如何衡量 Agentic Coding 工具在团队中的效果？</a></li><li class="lv3"><a href="#q8ai">Q8：AI 编程工具的"代码幻觉"问题是什么？如何应对？</a></li><li class="lv3"><a href="#q9copilotcursorclaude-code">Q9：Copilot、Cursor、Claude Code 分别代表了什么不同的产品理念？</a></li><li class="lv3"><a href="#q10-agentic-coding">Q10：未来 Agentic Coding 可能演变为什么形态？</a></li><li class="lv3"><a href="#q11-agentic-coding">Q11：如何在团队中推广 Agentic Coding 工具？常见阻力是什么？</a></li><li class="lv3"><a href="#q12agentic-coding">Q12：Agentic Coding 工具中，沙箱执行环境的设计要考虑什么？</a></li></ul></div></aside></div>'
+<script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="agent-interview-advanced:02",moduleId="agent-interview-advanced";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

@@ -338,6 +338,7 @@ Hermes 的 `execute_code` 让 Agent 编写短程序，通过沙箱 RPC 组合工
 ```mermaid
 flowchart TD
     subgraph Traditional["传统多轮工具调用"]
+        direction TB
         T1["模型"] --> T2["工具 A"]
         T2 --> T3["模型"]
         T3 --> T4["工具 B"]
@@ -345,6 +346,7 @@ flowchart TD
         T5 --> T6["工具 C"]
     end
     subgraph Programmatic["程序化工具调用"]
+        direction TB
         P1["模型"] --> P2["生成控制程序"]
         P2 --> P3["程序调用 A / B / C"]
         P3 --> P4["汇总结果"]

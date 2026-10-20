@@ -580,6 +580,7 @@ public final boolean release(int arg) {
 ```mermaid
 flowchart TD
     subgraph Acquire["获取锁"]
+        direction TB
         L["lock()"] --> A["acquire(1)"]
         A --> Q{"tryAcquire 成功？"}
         Q -->|是| H["直接持有，state = 1"]
@@ -587,6 +588,7 @@ flowchart TD
         N --> P["LockSupport.park 阻塞"]
     end
     subgraph Release["释放锁"]
+        direction TB
         U["unlock()"] --> R["release(1)"]
         R --> T{"tryRelease 成功？（state 归零）"}
         T -->|是| W["唤醒队首线程"]

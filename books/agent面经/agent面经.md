@@ -2624,8 +2624,8 @@ flowchart TD
     request[用户向 Agent 提出任务请求] --> decide[大语言模型分析任务]
     decide --> needTool{是否需要调用工具？}
     needTool -->|否| answer[直接生成回答]
-    needTool -->|是| call[生成工具名称和参数]
-    call --> execute[系统执行对应工具]
+    needTool -->|是| callTool[生成工具名称和参数]
+    callTool --> execute[系统执行对应工具]
     execute --> result[工具返回执行结果]
     result --> continue[结果再次输入模型继续推理]
     continue --> complete{任务是否完成？}
@@ -5044,8 +5044,8 @@ Logging 是最基础的可观测能力，也是定位问题最直接的手段。
 flowchart TD
     request[用户请求] --> prompt[Prompt 构建]
     prompt --> reasoning[LLM 推理]
-    reasoning --> call[Tool Call]
-    call --> execute[工具执行]
+    reasoning --> callTool[Tool Call]
+    callTool --> execute[工具执行]
     execute --> second[二次推理]
     second --> response[返回结果]
 ```

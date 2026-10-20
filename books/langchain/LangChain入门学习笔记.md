@@ -1307,12 +1307,14 @@ RAG 的离线建库与在线问答有不同的失败模式：
 ```mermaid
 flowchart TB
     subgraph 离线索引
+        direction TB
       A[采集] --> B[清洗与去重]
       B --> C[结构感知切分]
       C --> D[Embedding]
       D --> E[(索引 + 元数据)]
     end
     subgraph 在线查询
+        direction TB
       Q[问题] --> R[查询改写/路由]
       R --> S[召回]
       S --> F[过滤/融合/重排]
@@ -1805,12 +1807,14 @@ LangChain 主要覆盖能力层和一部分编排、上下文接口；LangGraph 
 ```mermaid
 flowchart TD
     subgraph Single["单次生成"]
+        direction TB
         S1["用户输入"] --> S2["消息 / Prompt"]
         S2 --> S3["Chat Model"]
         S3 --> S4["AIMessage"]
         S4 --> S5["展示文本"]
     end
     subgraph Chain["确定性 Chain"]
+        direction TB
         C1["业务输入"] --> C2["Prompt"]
         C2 --> C3["Model"]
         C3 --> C4["Parser"]
@@ -1818,6 +1822,7 @@ flowchart TD
         C5 --> C6["普通业务代码"]
     end
     subgraph RAG["2-step RAG"]
+        direction TB
         R1["问题"] --> R2["Retriever"]
         R2 --> R3["Documents"]
         R3 --> R4["上下文组装"]
@@ -1825,6 +1830,7 @@ flowchart TD
         R5 --> R6["回答 + 程序绑定的引用"]
     end
     subgraph Agent["Tool Agent"]
+        direction TB
         A1["目标"] --> A2["Model"]
         A2 --> A3["工具调用建议"]
         A3 --> A4["应用校验并执行"]
@@ -4338,6 +4344,7 @@ LCEL 中的 `|` 表示把左侧输出交给右侧输入。例如 `prompt | model
 ```mermaid
 flowchart TD
     subgraph Offline["离线建库流水线"]
+        direction TB
         O1["原始文件"] --> O2["Loader"]
         O2 --> O3["Document"]
         O3 --> O4["Splitter"]
@@ -4346,6 +4353,7 @@ flowchart TD
         O6 --> O7["Vector Store"]
     end
     subgraph Online["在线问答流水线"]
+        direction TB
         Q1["用户问题"] --> Q2["查询向量"]
         Q2 --> Q3["Retriever"]
         Q3 --> Q4["相关 Documents"]

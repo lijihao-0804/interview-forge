@@ -1,0 +1,934 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>项目二：多 Agent 协作系统 · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">6 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">导读</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">简历、STAR 与压力面</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">项目一：RAG 知识问答系统</span></a><a class="shelf-topic-link current" href="chapter-04.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">项目二：多 Agent 协作系统</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">项目三：生产级 Agent 应用</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">实操考题</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="agent-project-practice:04"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">Agent 项目实战与 STAR 表达</a><span aria-hidden="true">›</span><span aria-current="page">项目二：多 Agent 协作系统</span></nav><div class="module-meta">Agent 岗位面经 · 第 4 / 6 章 · <span class="muted">更新于 2026-10-20</span></div><h1>项目二：多 Agent 协作系统</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><h3 id="_1">一、项目概述</h3>
+<p><strong>一句话描述</strong>：基于 LangGraph 构建的 Supervisor 模式多 Agent 系统，由一个调度 Agent 协调研究、代码、写作三个专业 Agent 协作完成复杂任务（如"调研某技术方案并生成带代码示例的技术报告"）。</p>
+<p><strong>技术亮点</strong>：
+- Supervisor 路由架构，动态决策任务分发，支持多轮协作
+- 基于 LangGraph 的有状态图，支持条件路由、循环、断点
+- Human-in-the-loop 机制，关键决策需人工确认
+- 结构化 State 设计，Agent 间通过共享状态通信
+- 完善的错误处理、超时控制和成本上限
+- 支持流式输出和执行过程可视化</p>
+<hr />
+<h3 id="_2">二、架构设计</h3>
+<h3 id="_3">整体架构</h3>
+<p><img loading="lazy" decoding="async" alt="Multi-Agent 协作（LangGraph Supervisor）" src="assets/0634b47a0a-multi-agent-langgraph.svg" /></p>
+<h3 id="_4">执行流程示例</h3>
+<p>用户任务："调研 RAG 的最新进展，写一个 Python 示例代码，最后生成一份技术报告"</p>
+<div class="codehilite"><pre><code>1. Supervisor 分析任务 → 先派研究 Agent
+2. 研究 Agent 搜索、总结 → 结果写入 State
+3. Supervisor 判断研究完成 → 派代码 Agent
+4. 代码 Agent 基于研究结果写代码 → 写入 State
+5. Supervisor 判断代码完成 → 派写作 Agent
+6. 写作 Agent 整合研究+代码生成报告 → 写入 State
+7. Supervisor 判断任务完成 → 进入 Human Review（可选）
+8. 返回最终结果
+</code></pre></div>
+<hr />
+<h3 id="_5">三、核心实现</h3>
+<h3 id="31-state">3.1 State 设计</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TypedDict</span><span class="p">,</span> <span class="n">Annotated</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">langchain_core.messages</span> <span class="kn">import</span> <span class="n">BaseMessage</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+
+
+<span class="k">class</span> <span class="nc">ResearchResult</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;研究结果&quot;&quot;&quot;</span>
+    <span class="n">topic</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">sources</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">key_findings</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">CodeResult</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;代码结果&quot;&quot;&quot;</span>
+    <span class="n">language</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">explanation</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">test_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">AgentState</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;全局共享状态&quot;&quot;&quot;</span>
+<span class="err">﻿</span>    <span class="c1"># 消息历史（追加模式）</span>
+    <span class="n">messages</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">BaseMessage</span><span class="p">],</span> <span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">]</span>
+
+<span class="err">﻿</span>    <span class="c1"># 任务信息</span>
+    <span class="n">task</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="c1"># Supervisor 制定的执行计划</span>
+
+<span class="err">﻿</span>    <span class="c1"># 各 Agent 的输出</span>
+    <span class="n">research</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ResearchResult</span><span class="p">]</span>
+    <span class="n">code</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">CodeResult</span><span class="p">]</span>
+    <span class="n">document</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="err">﻿</span>    <span class="c1"># 控制流</span>
+    <span class="n">next_agent</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># 下一个要执行的 Agent</span>
+    <span class="n">iteration</span><span class="p">:</span> <span class="nb">int</span>   <span class="c1"># 当前迭代次数</span>
+    <span class="n">max_iterations</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># 最大迭代次数（防无限循环）</span>
+    <span class="n">error</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="err">﻿</span>    <span class="c1"># 成本追踪</span>
+    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">total_cost</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">cost_limit</span><span class="p">:</span> <span class="nb">float</span>  <span class="c1"># 成本上限</span>
+</code></pre></div>
+<p><strong>设计要点</strong>：
+- <code>messages</code> 用 <code>Annotated[list, operator.add]</code> 实现追加语义，每个节点往里加消息
+- 每个 Agent 有独立的输出字段（<code>research</code>/<code>code</code>/<code>document</code>），避免相互覆盖
+- <code>iteration</code> + <code>max_iterations</code> 防止无限循环
+- <code>total_cost</code> 实时追踪成本，超限自动终止</p>
+<h3 id="32-agent">3.2 各 Agent 节点实现</h3>
+<h4 id="supervisor">Supervisor 节点</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_openai</span> <span class="kn">import</span> <span class="n">ChatOpenAI</span>
+<span class="kn">from</span> <span class="nn">langchain_core.messages</span> <span class="kn">import</span> <span class="n">HumanMessage</span><span class="p">,</span> <span class="n">SystemMessage</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+
+<span class="n">llm</span> <span class="o">=</span> <span class="n">ChatOpenAI</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+
+<span class="n">SUPERVISOR_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;你是一个任务调度 Supervisor。你的职责是：</span>
+<span class="s2">1. 分析用户任务，制定执行计划</span>
+<span class="s2">2. 根据当前状态，决定下一步派哪个 Agent 执行</span>
+<span class="s2">3. 判断任务是否完成</span>
+
+<span class="s2">你可以调度以下 Agent：</span>
+<span class="s2">- researcher: 负责搜索和调研，输出研究报告</span>
+<span class="s2">- coder: 负责编写和测试代码</span>
+<span class="s2">- writer: 负责撰写文档和报告</span>
+
+<span class="s2">请以 JSON 格式回复：</span>
+<span class="s2">{</span>
+<span class="s2">    &quot;next&quot;: &quot;researcher|coder|writer|FINISH&quot;,</span>
+<span class="s2">    &quot;reason&quot;: &quot;为什么选择这个 Agent&quot;,</span>
+<span class="s2">    &quot;instruction&quot;: &quot;给该 Agent 的具体指令&quot;</span>
+<span class="s2">}</span>
+
+<span class="s2">如果所有子任务都完成了，next 设为 &quot;FINISH&quot;。</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">supervisor_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Supervisor 路由决策节点&quot;&quot;&quot;</span>
+<span class="err">﻿</span>    <span class="c1"># 检查迭代次数</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;iteration&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;max_iterations&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="s2">&quot;FINISH&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;已达最大迭代次数，强制结束。&quot;</span><span class="p">)</span>
+            <span class="p">],</span>
+        <span class="p">}</span>
+
+<span class="err">﻿</span>    <span class="c1"># 检查成本</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;total_cost&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;cost_limit&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="s2">&quot;FINISH&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;已达成本上限，强制结束。&quot;</span><span class="p">)</span>
+            <span class="p">],</span>
+        <span class="p">}</span>
+
+<span class="err">﻿</span>    <span class="c1"># 构造上下文</span>
+    <span class="n">context_parts</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;用户任务: </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;task&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">):</span>
+        <span class="n">context_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;研究结果: </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;research&#39;</span><span class="p">][</span><span class="s1">&#39;summary&#39;</span><span class="p">][:</span><span class="mi">500</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">):</span>
+        <span class="n">context_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;代码结果: </span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;code&#39;</span><span class="p">][</span><span class="s1">&#39;explanation&#39;</span><span class="p">][:</span><span class="mi">300</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;document&quot;</span><span class="p">):</span>
+        <span class="n">context_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;文档: 已生成（</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;document&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">字）&quot;</span><span class="p">)</span>
+
+    <span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">SUPERVISOR_SYSTEM_PROMPT</span><span class="p">),</span>
+        <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">context_parts</span><span class="p">)),</span>
+    <span class="p">]</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span>
+    <span class="n">decision</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="n">decision</span><span class="p">[</span><span class="s2">&quot;next&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">SystemMessage</span><span class="p">(</span>
+                <span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Supervisor 决策: </span><span class="si">{</span><span class="n">decision</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;指令: </span><span class="si">{</span><span class="n">decision</span><span class="p">[</span><span class="s1">&#39;instruction&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;iteration&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;iteration&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre></div>
+<h4 id="agent">研究 Agent</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_community.tools</span> <span class="kn">import</span> <span class="n">TavilySearchResults</span>
+<span class="kn">from</span> <span class="nn">langchain_core.messages</span> <span class="kn">import</span> <span class="n">AIMessage</span>
+
+
+<span class="n">search_tool</span> <span class="o">=</span> <span class="n">TavilySearchResults</span><span class="p">(</span><span class="n">max_results</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+
+<span class="n">RESEARCHER_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;你是一个专业的研究助手。根据任务要求进行搜索和调研。</span>
+
+<span class="s2">任务: </span><span class="si">{task}</span>
+<span class="s2">Supervisor 指令: </span><span class="si">{instruction}</span>
+
+<span class="s2">请输出结构化的研究结果，包括：</span>
+<span class="s2">1. 主题概述</span>
+<span class="s2">2. 关键发现（3-5条）</span>
+<span class="s2">3. 信息来源</span>
+
+<span class="s2">搜索结果：</span>
+<span class="si">{search_results}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">researcher_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;研究 Agent：搜索 + 分析 + 总结&quot;&quot;&quot;</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">]</span>
+
+<span class="err">﻿</span>    <span class="c1"># 获取 Supervisor 的指令</span>
+    <span class="n">last_msg</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span>
+    <span class="n">instruction</span> <span class="o">=</span> <span class="n">last_msg</span> <span class="k">if</span> <span class="s2">&quot;指令:&quot;</span> <span class="ow">in</span> <span class="n">last_msg</span> <span class="k">else</span> <span class="n">task</span>
+
+<span class="err">﻿</span>    <span class="c1"># Step 1: 搜索</span>
+    <span class="n">search_results</span> <span class="o">=</span> <span class="n">search_tool</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+    <span class="n">search_text</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;content&#39;</span><span class="p">][:</span><span class="mi">200</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">search_results</span><span class="p">]</span>
+    <span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># Step 2: 分析总结</span>
+    <span class="n">prompt</span> <span class="o">=</span> <span class="n">RESEARCHER_PROMPT</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+        <span class="n">instruction</span><span class="o">=</span><span class="n">instruction</span><span class="p">,</span>
+        <span class="n">search_results</span><span class="o">=</span><span class="n">search_text</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">prompt</span><span class="p">)])</span>
+
+<span class="err">﻿</span>    <span class="c1"># Step 3: 结构化输出</span>
+    <span class="n">research_result</span><span class="p">:</span> <span class="n">ResearchResult</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;topic&quot;</span><span class="p">:</span> <span class="n">task</span><span class="p">,</span>
+        <span class="s2">&quot;summary&quot;</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">,</span>
+        <span class="s2">&quot;sources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">search_results</span><span class="p">],</span>
+        <span class="s2">&quot;key_findings&quot;</span><span class="p">:</span> <span class="p">[],</span>  <span class="c1"># 简化处理</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;research&quot;</span><span class="p">:</span> <span class="n">research_result</span><span class="p">,</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">AIMessage</span><span class="p">(</span>
+                <span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;[Researcher] 研究完成: </span><span class="si">{</span><span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">[:</span><span class="mi">200</span><span class="p">]</span><span class="si">}</span><span class="s2">...&quot;</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+</code></pre></div>
+<h4 id="agent_1">代码 Agent</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+
+
+<span class="n">CODER_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;你是一个高级 Python 开发者。根据任务要求和研究资料编写代码。</span>
+
+<span class="s2">任务: </span><span class="si">{task}</span>
+<span class="s2">Supervisor 指令: </span><span class="si">{instruction}</span>
+
+<span class="s2">研究资料:</span>
+<span class="si">{research_summary}</span>
+
+<span class="s2">请输出：</span>
+<span class="s2">1. 完整的 Python 代码</span>
+<span class="s2">2. 代码说明</span>
+<span class="s2">3. 用 ```python ``` 包裹代码块</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">coder_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;代码 Agent：编码 + 测试&quot;&quot;&quot;</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">]</span>
+    <span class="n">research</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">research_summary</span> <span class="o">=</span> <span class="n">research</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;summary&quot;</span><span class="p">,</span> <span class="s2">&quot;无研究资料&quot;</span><span class="p">)</span>
+
+    <span class="n">last_msg</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span>
+    <span class="n">instruction</span> <span class="o">=</span> <span class="n">last_msg</span> <span class="k">if</span> <span class="s2">&quot;指令:&quot;</span> <span class="ow">in</span> <span class="n">last_msg</span> <span class="k">else</span> <span class="n">task</span>
+
+    <span class="n">prompt</span> <span class="o">=</span> <span class="n">CODER_PROMPT</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+        <span class="n">instruction</span><span class="o">=</span><span class="n">instruction</span><span class="p">,</span>
+        <span class="n">research_summary</span><span class="o">=</span><span class="n">research_summary</span><span class="p">[:</span><span class="mi">1000</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">prompt</span><span class="p">)])</span>
+
+<span class="err">﻿</span>    <span class="c1"># 提取代码块</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span>
+    <span class="n">code</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">if</span> <span class="s2">&quot;```python&quot;</span> <span class="ow">in</span> <span class="n">content</span><span class="p">:</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="n">content</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;```python&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;```&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+<span class="err">﻿</span>    <span class="c1"># 沙箱执行测试（可选）</span>
+    <span class="n">test_result</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">code</span><span class="p">:</span>
+        <span class="n">test_result</span> <span class="o">=</span> <span class="n">_safe_execute</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+
+    <span class="n">code_result</span><span class="p">:</span> <span class="n">CodeResult</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;language&quot;</span><span class="p">:</span> <span class="s2">&quot;python&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="n">code</span><span class="p">,</span>
+        <span class="s2">&quot;explanation&quot;</span><span class="p">:</span> <span class="n">content</span><span class="p">,</span>
+        <span class="s2">&quot;test_result&quot;</span><span class="p">:</span> <span class="n">test_result</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="n">code_result</span><span class="p">,</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">AIMessage</span><span class="p">(</span>
+                <span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;[Coder] 代码编写完成。测试结果: </span><span class="si">{</span><span class="n">test_result</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;未执行&#39;</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">_safe_execute</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;安全沙箱执行代码&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;.py&quot;</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                <span class="p">[</span><span class="s2">&quot;python&quot;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">],</span>
+                <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;✅ 执行成功</span><span class="se">\n</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="p">[:</span><span class="mi">500</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;❌ 执行失败</span><span class="se">\n</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">stderr</span><span class="p">[:</span><span class="mi">500</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;⏰ 执行超时&quot;</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;❌ 异常: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+<h4 id="agent_2">写作 Agent</h4>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">WRITER_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;你是一个技术文档写作专家。根据研究资料和代码，撰写一份完整的技术报告。</span>
+
+<span class="s2">任务: </span><span class="si">{task}</span>
+<span class="s2">Supervisor 指令: </span><span class="si">{instruction}</span>
+
+<span class="s2">研究资料:</span>
+<span class="si">{research_summary}</span>
+
+<span class="s2">代码:</span>
+<span class="si">{code}</span>
+
+<span class="s2">请输出一份结构化的技术报告，包含：标题、摘要、正文、代码示例、结论。</span>
+<span class="s2">使用 Markdown 格式。</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">writer_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;写作 Agent：整合生成文档&quot;&quot;&quot;</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">]</span>
+    <span class="n">research</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">code_result</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+    <span class="n">last_msg</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span>
+    <span class="n">instruction</span> <span class="o">=</span> <span class="n">last_msg</span> <span class="k">if</span> <span class="s2">&quot;指令:&quot;</span> <span class="ow">in</span> <span class="n">last_msg</span> <span class="k">else</span> <span class="n">task</span>
+
+    <span class="n">prompt</span> <span class="o">=</span> <span class="n">WRITER_PROMPT</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+        <span class="n">instruction</span><span class="o">=</span><span class="n">instruction</span><span class="p">,</span>
+        <span class="n">research_summary</span><span class="o">=</span><span class="n">research</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;summary&quot;</span><span class="p">,</span> <span class="s2">&quot;无&quot;</span><span class="p">)[:</span><span class="mi">2000</span><span class="p">],</span>
+        <span class="n">code</span><span class="o">=</span><span class="n">code_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">,</span> <span class="s2">&quot;无&quot;</span><span class="p">)[:</span><span class="mi">2000</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">prompt</span><span class="p">)])</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;document&quot;</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">,</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">AIMessage</span><span class="p">(</span>
+                <span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;[Writer] 文档撰写完成，共 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="si">}</span><span class="s2"> 字。&quot;</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+</code></pre></div>
+<h3 id="33">3.3 图结构定义</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">StateGraph</span><span class="p">,</span> <span class="n">END</span>
+<span class="kn">from</span> <span class="nn">langgraph.checkpoint.memory</span> <span class="kn">import</span> <span class="n">MemorySaver</span>
+
+
+<span class="k">def</span> <span class="nf">should_continue</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;条件路由：根据 Supervisor 决策走向不同节点&quot;&quot;&quot;</span>
+    <span class="n">next_agent</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;next_agent&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">next_agent</span> <span class="o">==</span> <span class="s2">&quot;FINISH&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;end&quot;</span>
+    <span class="k">elif</span> <span class="n">next_agent</span> <span class="o">==</span> <span class="s2">&quot;researcher&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;researcher&quot;</span>
+    <span class="k">elif</span> <span class="n">next_agent</span> <span class="o">==</span> <span class="s2">&quot;coder&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;coder&quot;</span>
+    <span class="k">elif</span> <span class="n">next_agent</span> <span class="o">==</span> <span class="s2">&quot;writer&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;writer&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;end&quot;</span>  <span class="c1"># 兜底</span>
+
+
+<span class="k">def</span> <span class="nf">build_graph</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;构建 LangGraph 状态图&quot;&quot;&quot;</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">AgentState</span><span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># 添加节点</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;supervisor&quot;</span><span class="p">,</span> <span class="n">supervisor_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span> <span class="n">researcher_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;coder&quot;</span><span class="p">,</span> <span class="n">coder_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;writer&quot;</span><span class="p">,</span> <span class="n">writer_node</span><span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># 入口</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">set_entry_point</span><span class="p">(</span><span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># 条件边：Supervisor → 各 Agent 或结束</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span>
+        <span class="s2">&quot;supervisor&quot;</span><span class="p">,</span>
+        <span class="n">should_continue</span><span class="p">,</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;researcher&quot;</span><span class="p">:</span> <span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;coder&quot;</span><span class="p">:</span> <span class="s2">&quot;coder&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;writer&quot;</span><span class="p">:</span> <span class="s2">&quot;writer&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="n">END</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># 各 Agent 执行完都回到 Supervisor</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;coder&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;writer&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+
+<span class="err">﻿</span>    <span class="c1"># 编译（带 checkpoint 支持断点续跑）</span>
+    <span class="n">checkpointer</span> <span class="o">=</span> <span class="n">MemorySaver</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">)</span>
+
+
+<span class="err">﻿</span><span class="c1"># 使用</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">build_graph</span><span class="p">()</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;task&quot;</span><span class="p">:</span> <span class="s2">&quot;调研 RAG 最新进展，写示例代码，生成技术报告&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s2">&quot;plan&quot;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s2">&quot;research&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">&quot;document&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;iteration&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">&quot;max_iterations&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+        <span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">&quot;total_tokens&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">&quot;total_cost&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="s2">&quot;cost_limit&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># 成本上限 $1</span>
+    <span class="p">},</span>
+    <span class="n">config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;configurable&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;thread_id&quot;</span><span class="p">:</span> <span class="s2">&quot;task-001&quot;</span><span class="p">}},</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="34-human-in-the-loop">3.4 Human-in-the-Loop</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langgraph.graph</span> <span class="kn">import</span> <span class="n">StateGraph</span><span class="p">,</span> <span class="n">END</span>
+
+
+<span class="k">def</span> <span class="nf">build_graph_with_human</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;带人工审核的图&quot;&quot;&quot;</span>
+    <span class="n">graph</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">AgentState</span><span class="p">)</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;supervisor&quot;</span><span class="p">,</span> <span class="n">supervisor_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span> <span class="n">researcher_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;coder&quot;</span><span class="p">,</span> <span class="n">coder_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;writer&quot;</span><span class="p">,</span> <span class="n">writer_node</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;human_review&quot;</span><span class="p">,</span> <span class="n">human_review_node</span><span class="p">)</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">set_entry_point</span><span class="p">(</span><span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span>
+        <span class="s2">&quot;supervisor&quot;</span><span class="p">,</span>
+        <span class="n">should_continue_with_review</span><span class="p">,</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;researcher&quot;</span><span class="p">:</span> <span class="s2">&quot;researcher&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;coder&quot;</span><span class="p">:</span> <span class="s2">&quot;coder&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;writer&quot;</span><span class="p">:</span> <span class="s2">&quot;writer&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;human_review&quot;</span><span class="p">:</span> <span class="s2">&quot;human_review&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="n">END</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;researcher&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;coder&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;writer&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;human_review&quot;</span><span class="p">,</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">)</span>
+
+    <span class="n">checkpointer</span> <span class="o">=</span> <span class="n">MemorySaver</span><span class="p">()</span>
+<span class="err">﻿</span>    <span class="c1"># interrupt_before 让图在进入 human_review 节点前暂停</span>
+    <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+        <span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">,</span>
+        <span class="n">interrupt_before</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;human_review&quot;</span><span class="p">],</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">human_review_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;人工审核节点 - 实际由外部系统提供输入&quot;&quot;&quot;</span>
+<span class="err">﻿</span>    <span class="c1"># LangGraph 的 interrupt 机制会在这里暂停</span>
+<span class="err">﻿</span>    <span class="c1"># 外部系统通过 graph.update_state() 提供审核结果</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;人工审核已通过&quot;</span><span class="p">)</span>
+        <span class="p">]</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">should_continue_with_review</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">next_agent</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;next_agent&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">next_agent</span> <span class="o">==</span> <span class="s2">&quot;FINISH&quot;</span><span class="p">:</span>
+<span class="err">﻿</span>        <span class="c1"># 完成前先过人工审核</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;human_reviewed&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s2">&quot;human_review&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;end&quot;</span>
+    <span class="k">return</span> <span class="n">next_agent</span>
+
+
+<span class="err">﻿</span><span class="c1"># 使用 Human-in-the-Loop</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">build_graph_with_human</span><span class="p">()</span>
+<span class="n">config</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;configurable&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;thread_id&quot;</span><span class="p">:</span> <span class="s2">&quot;task-002&quot;</span><span class="p">}}</span>
+
+<span class="err">﻿</span><span class="c1"># 第一次运行，会在 human_review 前暂停</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">initial_state</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+
+<span class="err">﻿</span><span class="c1"># 查看当前状态</span>
+<span class="n">snapshot</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">get_state</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;暂停在: </span><span class="si">{</span><span class="n">snapshot</span><span class="o">.</span><span class="n">next</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># (&#39;human_review&#39;,)</span>
+
+<span class="err">﻿</span><span class="c1"># 人工审核后，更新状态并继续</span>
+<span class="n">app</span><span class="o">.</span><span class="n">update_state</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">,</span>
+    <span class="p">{</span><span class="s2">&quot;human_reviewed&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;审核通过，可以输出&quot;</span><span class="p">)]},</span>
+<span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>  <span class="c1"># 继续执行</span>
+</code></pre></div>
+<h3 id="35">3.5 错误处理和超时</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+
+
+<span class="k">def</span> <span class="nf">with_error_handling</span><span class="p">(</span><span class="n">node_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Agent 节点错误处理装饰器&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">error_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">node_name</span><span class="si">}</span><span class="s2">] 执行失败: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="k">return</span> <span class="p">{</span>
+                    <span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="n">error_msg</span><span class="p">,</span>
+                    <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">error_msg</span><span class="p">)</span>
+                    <span class="p">],</span>
+<span class="err">﻿</span>                    <span class="c1"># 失败后回到 Supervisor 重新决策</span>
+                    <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="s2">&quot;supervisor&quot;</span><span class="p">,</span>
+                <span class="p">}</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+    <span class="k">return</span> <span class="n">decorator</span>
+
+
+<span class="k">def</span> <span class="nf">with_timeout</span><span class="p">(</span><span class="n">timeout_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Agent 节点超时控制装饰器&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">async</span> <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span>
+                    <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">state</span><span class="p">),</span>
+                    <span class="n">timeout</span><span class="o">=</span><span class="n">timeout_seconds</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="n">result</span>
+            <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">{</span>
+                    <span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;执行超时（</span><span class="si">{</span><span class="n">timeout_seconds</span><span class="si">}</span><span class="s2">s）&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;节点执行超时&quot;</span><span class="p">)</span>
+                    <span class="p">],</span>
+                <span class="p">}</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+    <span class="k">return</span> <span class="n">decorator</span>
+
+
+<span class="err">﻿</span><span class="c1"># 应用装饰器</span>
+<span class="nd">@with_error_handling</span><span class="p">(</span><span class="s2">&quot;researcher&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">researcher_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="err">﻿</span>    <span class="c1"># ... 原有逻辑</span>
+    <span class="k">pass</span>
+
+
+<span class="err">﻿</span><span class="c1"># Supervisor 中处理错误</span>
+<span class="k">def</span> <span class="nf">supervisor_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">):</span>
+<span class="err">﻿</span>        <span class="c1"># 有错误，决定是重试还是跳过</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span>
+        <span class="n">retry_prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">上一步执行出错: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span>
+<span class="s2">请决定：</span>
+<span class="s2">1. 重试同一个 Agent</span>
+<span class="s2">2. 跳过，继续下一步</span>
+<span class="s2">3. 终止任务</span>
+
+<span class="s2">以 JSON 格式回复 </span><span class="se">{{</span><span class="s2">&quot;action&quot;: &quot;retry|skip|abort&quot;, &quot;next&quot;: &quot;agent_name|FINISH&quot;</span><span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+<span class="err">﻿</span>        <span class="c1"># ... 调用 LLM 决策</span>
+        <span class="k">pass</span>
+</code></pre></div>
+<h3 id="36">3.6 成本追踪</h3>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">langchain_core.callbacks</span> <span class="kn">import</span> <span class="n">BaseCallbackHandler</span>
+
+
+<span class="k">class</span> <span class="nc">CostTracker</span><span class="p">(</span><span class="n">BaseCallbackHandler</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Token 和成本追踪&quot;&quot;&quot;</span>
+
+    <span class="n">PRICING</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;gpt-4o&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;input&quot;</span><span class="p">:</span> <span class="mf">2.5</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="mi">10</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">},</span>
+        <span class="s2">&quot;gpt-4o-mini&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;input&quot;</span><span class="p">:</span> <span class="mf">0.15</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="mf">0.6</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">},</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_tokens</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_cost</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="k">def</span> <span class="nf">on_llm_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">usage</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">llm_output</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;token_usage&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;invocation_params&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;model_name&quot;</span><span class="p">,</span> <span class="s2">&quot;gpt-4o&quot;</span>
+        <span class="p">)</span>
+        <span class="n">pricing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">PRICING</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PRICING</span><span class="p">[</span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">])</span>
+
+        <span class="n">input_cost</span> <span class="o">=</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;prompt_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">pricing</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">]</span>
+        <span class="n">output_cost</span> <span class="o">=</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;completion_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">pricing</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_tokens</span> <span class="o">+=</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;total_tokens&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_cost</span> <span class="o">+=</span> <span class="n">input_cost</span> <span class="o">+</span> <span class="n">output_cost</span>
+
+
+<span class="err">﻿</span><span class="c1"># 在 Supervisor 中检查成本</span>
+<span class="k">def</span> <span class="nf">supervisor_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;total_cost&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;cost_limit&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;next_agent&quot;</span><span class="p">:</span> <span class="s2">&quot;FINISH&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="n">SystemMessage</span><span class="p">(</span>
+                    <span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;成本已达上限 $</span><span class="si">{</span><span class="n">state</span><span class="p">[</span><span class="s1">&#39;cost_limit&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">，任务终止&quot;</span>
+                <span class="p">)</span>
+            <span class="p">],</span>
+        <span class="p">}</span>
+<span class="err">﻿</span>    <span class="c1"># ... 正常路由逻辑</span>
+</code></pre></div>
+<hr />
+<h3 id="_6">四、面试话术</h3>
+<h3 id="1">1 分钟版</h3>
+<blockquote>
+<p>我做了一个基于 LangGraph 的多 Agent 协作系统，Supervisor 模式。一个 Supervisor Agent 负责任务规划和调度，下面有研究、代码、写作三个专业 Agent。用户输入复杂任务后，Supervisor 拆解任务、动态选择 Agent 执行，Agent 间通过共享 State 通信。关键设计包括：条件路由实现灵活调度、Human-in-the-loop 做关键审核、成本追踪防止失控、错误重试机制保证健壮性。</p>
+</blockquote>
+<h3 id="3">3 分钟版</h3>
+<blockquote>
+<p>项目背景是团队需要一个能处理复杂任务的 AI 助手，比如"调研某个技术方案，写 demo 代码，出一份技术报告"这种涉及多个步骤的任务。单个 LLM 直接做效果不好，所以设计了多 Agent 协作方案。</p>
+<p>架构上选择了 LangGraph 的 Supervisor 模式。核心是一个有状态图：Supervisor 节点做路由决策，通过条件边分发到研究、代码、写作三个 Agent 节点，每个 Agent 执行完回到 Supervisor 做下一步决策，形成一个循环直到任务完成。</p>
+<p>State 设计是关键。用 TypedDict 定义全局状态，每个 Agent 有独立的输出字段（research/code/document），消息历史用 operator.add 做追加。Supervisor 根据 State 中各字段的填充情况判断进度。</p>
+<p>几个工程重点：第一，错误处理——任何 Agent 失败都回到 Supervisor 重新决策（重试/跳过/终止）；第二，成本控制——通过 callback 实时追踪 token 用量，超限自动终止；第三，Human-in-the-loop——用 LangGraph 的 interrupt_before 在关键节点暂停，等人工确认后继续。</p>
+<p>这套系统现在每天处理 200+ 复杂任务请求，平均单任务涉及 3-5 次 Agent 调用，整体满意度 85%。</p>
+</blockquote>
+<h3 id="5">5 分钟版</h3>
+<blockquote>
+<p>（在 3 分钟版基础上补充）</p>
+<p>选 LangGraph 而不是 CrewAI 有几个原因。第一，LangGraph 是底层框架，对图结构有完全控制权，可以实现复杂的条件路由和循环；CrewAI 封装程度高但灵活性不足，比如我们需要根据中间结果动态改变执行计划，CrewAI 做不到。第二，LangGraph 的 checkpoint 机制天然支持断点续跑，这对长任务很重要。第三，LangGraph 和 LangChain 生态无缝集成。</p>
+<p>调试多 Agent 系统是个挑战。我们做了三件事：一是结构化日志，每个节点入出都打日志，包括 State 快照；二是用 LangSmith 做 Tracing，可以看到完整的调用链和每步的 token 消耗；三是搭了一个简单的可视化 UI，实时展示图的执行路径。</p>
+<p>状态管理踩过一个坑：最初所有 Agent 都往 messages 里写，消息太长导致 Supervisor 的 context 爆了。后来改成 Agent 的详细输出写到独立字段（research/code/document），messages 里只放摘要。这样 Supervisor 看的上下文可控。</p>
+<p>还有一个有意思的问题是 Agent 间的"沟通效率"。比如代码 Agent 需要用到研究 Agent 的成果，最初是通过 Supervisor 中转指令，效率低。后来改成代码 Agent 直接读 State 中的 research 字段，减少了不必要的 Supervisor 调度轮次。</p>
+</blockquote>
+<hr />
+<h3 id="_7">五、常见追问及回答</h3>
+<h3 id="q1-langgraph-crewai">Q1: 为什么用 LangGraph 不用 CrewAI？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>选型时两个都评估了，最终选 LangGraph 有三个原因：</p>
+<p><strong>1. 控制力</strong>：LangGraph 是底层图框架，节点、边、路由全部自定义。CrewAI 是高层封装，适合标准场景但遇到特殊需求（如动态改变执行计划、复杂条件分支）就很受限。</p>
+<p><strong>2. 状态管理</strong>：LangGraph 的 State 是类型安全的 TypedDict，支持 Annotated 的 reducer 语义（追加/覆盖），checkpoint 支持持久化和断点续跑。CrewAI 的状态管理相对简单。</p>
+<p><strong>3. 生态集成</strong>：LangGraph 和 LangChain 无缝集成，工具、LLM、Embedding 等组件可以直接复用。我们已有的 RAG 系统就是 LangChain 搭的，用 LangGraph 扩展成本最低。</p>
+<p>CrewAI 的优势是上手快、API 简洁，适合快速原型。如果项目简单且不需要复杂路由，CrewAI 是更好的选择。</p>
+</blockquote>
+<h3 id="q2-agent">Q2: Agent 间如何共享状态？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>LangGraph 的核心就是 <strong>共享 State</strong>。所有节点（Agent）操作同一个 State 对象。</p>
+<p>具体设计：
+- State 是一个 TypedDict，定义了所有字段
+- 每个节点函数接收 State，返回要更新的字段（部分更新）
+- 特殊字段（如 messages）用 Annotated + reducer 实现追加语义
+- 各 Agent 有独立输出字段，不会互相覆盖</p>
+<p>比如研究 Agent 把结果写到 <code>state["research"]</code>，代码 Agent 直接读 <code>state["research"]</code> 获取研究成果。不需要额外的消息传递机制。</p>
+<p>这比消息传递模式简单很多，缺点是所有 Agent 必须在同一进程内。如果需要跨进程/跨机器协作，需要用 Redis 或数据库做 State 持久化层。</p>
+</blockquote>
+<h3 id="q3-agent">Q3: 某个 Agent 失败了怎么办？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>我们做了三层错误处理：</p>
+<p><strong>第一层：节点级 try-catch</strong>。每个 Agent 节点用装饰器包裹，异常不会导致整个图崩溃。失败后将错误信息写入 State，流程回到 Supervisor。</p>
+<p><strong>第二层：Supervisor 决策</strong>。Supervisor 看到 error 字段后，调用 LLM 决策：重试（最多 2 次）、跳过（用已有结果继续）、或终止（错误不可恢复）。</p>
+<p><strong>第三层：全局兜底</strong>。<code>max_iterations</code> 限制总轮次（默认 10），<code>cost_limit</code> 限制总成本。无论什么原因死循环，最终都会触发终止。</p>
+<p>实际案例：搜索 API 偶尔超时，研究 Agent 失败后 Supervisor 会重试一次，如果还失败就跳过研究阶段，让写作 Agent 基于已有信息输出一个"信息有限"的报告，比直接报错好很多。</p>
+</blockquote>
+<h3 id="q4">Q4: 如何控制成本？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>成本控制做了四件事：</p>
+<p><strong>1. 实时追踪</strong>：通过 LangChain 的 callback 机制追踪每次 LLM 调用的 token 消耗，换算成美元。State 中有 <code>total_cost</code> 字段实时更新。</p>
+<p><strong>2. 成本上限</strong>：每个任务设成本上限（默认 $1），Supervisor 每轮检查，超限自动终止并返回已有结果。</p>
+<p><strong>3. 模型分级</strong>：Supervisor 路由决策用 GPT-4o（需要强推理），研究总结用 GPT-4o-mini（够用即可），简单格式化走更便宜的模型。</p>
+<p><strong>4. 控制轮次</strong>：<code>max_iterations</code> 限制为 10，避免 Agent 来回"踢皮球"。Supervisor 的 prompt 里也明确要求"尽量减少不必要的迭代"。</p>
+<p>实际效果：平均单任务成本 <span class="math-inline-wrap"><math class="math-inline" aria-label="0.15-0.30，极端情况不超过"><mrow><mn>0.15</mn><mo>-</mo><mn>0.30</mn><mo>，</mo><mi mathvariant="normal">极</mi><mi mathvariant="normal">端</mi><mi mathvariant="normal">情</mi><mi mathvariant="normal">况</mi><mi mathvariant="normal">不</mi><mi mathvariant="normal">超</mi><mi mathvariant="normal">过</mi></mrow></math></span>1。</p>
+</blockquote>
+<h3 id="q5-agent">Q5: 怎么调试多 Agent 系统？</h3>
+<p><strong>回答</strong>：</p>
+<blockquote>
+<p>多 Agent 调试比单 Agent 复杂很多，我们用了三个工具：</p>
+<p><strong>1. LangSmith Tracing</strong>：每次执行生成完整的 trace，可以看到每个节点的输入输出、token 消耗、延迟。是最重要的调试工具。</p>
+<p><strong>2. 结构化日志</strong>：每个节点入出打日志，包括 State 的关键字段快照。日志格式统一，方便 grep。
+</p>
+</blockquote>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;multi_agent&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">supervisor_node</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s2">&quot;supervisor_enter&quot;</span><span class="p">,</span>
+        <span class="n">extra</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;iteration&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;iteration&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;has_research&quot;</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;has_code&quot;</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;cost&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;total_cost&quot;</span><span class="p">],</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+<span class="err">﻿</span>    <span class="c1"># ... 逻辑</span>
+</code></pre></div>
+<blockquote>
+<p><strong>3. 可视化回放</strong>：把 State 的每步快照存到 JSON 文件，前端做了一个简单的时间线 UI，可以回放整个执行过程，看每步 State 怎么变化的。</p>
+<p><strong>4. 单节点测试</strong>：每个 Agent 节点可以单独测试，传入 mock State 验证逻辑。图的结构（边和路由）也可以用 unit test 验证。</p>
+</blockquote>
+<hr />
+<h3 id="_8">六、项目亮点总结</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>架构</td>
+<td>LangGraph Supervisor 模式，有状态图 + 条件路由</td>
+</tr>
+<tr>
+<td>Agent 设计</td>
+<td>3 个专业 Agent + 共享 State 通信</td>
+</tr>
+<tr>
+<td>人工介入</td>
+<td>interrupt_before 实现 Human-in-the-loop</td>
+</tr>
+<tr>
+<td>健壮性</td>
+<td>三层错误处理 + 迭代上限 + 成本上限</td>
+</tr>
+<tr>
+<td>可观测</td>
+<td>LangSmith Tracing + 结构化日志 + 可视化回放</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>模型分级 + 实时追踪 + 上限控制，平均 $0.15/任务</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="_9">七、项目验收标准与评分表</h3>
+<h3 id="60">最低可交付版本（60 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent 分工</td>
+<td>至少包含 Supervisor + 2 个 Worker Agent</td>
+</tr>
+<tr>
+<td>状态管理</td>
+<td>使用结构化 State 保存任务、消息和各 Agent 输出</td>
+</tr>
+<tr>
+<td>路由逻辑</td>
+<td>Supervisor 能根据状态决定下一步执行者</td>
+</tr>
+<tr>
+<td>终止条件</td>
+<td>支持最大轮次、任务完成、错误终止</td>
+</tr>
+<tr>
+<td>示例任务</td>
+<td>能完成一个端到端复杂任务，例如“调研 + 写代码 + 输出报告”</td>
+</tr>
+</tbody>
+</table>
+<h3 id="80">进阶可答辩版本（80 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LangGraph 状态图</td>
+<td>使用 Node / Edge / Conditional Edge 实现流程</td>
+</tr>
+<tr>
+<td>错误处理</td>
+<td>Agent 失败后能重试、跳过或终止</td>
+</tr>
+<tr>
+<td>成本控制</td>
+<td>记录 token 和成本，并支持 cost_limit</td>
+</tr>
+<tr>
+<td>Human-in-the-loop</td>
+<td>关键节点可人工审批或修改</td>
+</tr>
+<tr>
+<td>可观测性</td>
+<td>输出每轮调度、Agent 输入输出和状态变化</td>
+</tr>
+</tbody>
+</table>
+<h3 id="100">面试亮点版本（100 分）</h3>
+<table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>标准</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>并行探索</td>
+<td>支持多个 Agent 并行处理子任务并合并结果</td>
+</tr>
+<tr>
+<td>任务规划</td>
+<td>Supervisor 能先生成 plan，再动态 replan</td>
+</tr>
+<tr>
+<td>防循环机制</td>
+<td>能识别重复状态、重复工具调用或无进展循环</td>
+</tr>
+<tr>
+<td>质量评估</td>
+<td>对最终报告做事实核查、引用检查或 reviewer 评分</td>
+</tr>
+<tr>
+<td>产品化 Demo</td>
+<td>提供 Web/CLI 可视化运行轨迹</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_10">评分表</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th style="text-align: right;">权重</th>
+<th>面试官关注点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>多 Agent 设计合理性</td>
+<td style="text-align: right;">30%</td>
+<td>为什么要多 Agent，边界是否清晰</td>
+</tr>
+<tr>
+<td>状态与控制流</td>
+<td style="text-align: right;">25%</td>
+<td>State、路由、checkpoint、终止条件是否可靠</td>
+</tr>
+<tr>
+<td>错误与成本控制</td>
+<td style="text-align: right;">20%</td>
+<td>是否能防止失控、循环和成本爆炸</td>
+</tr>
+<tr>
+<td>可观测性</td>
+<td style="text-align: right;">15%</td>
+<td>能否 replay 每一步决策</td>
+</tr>
+<tr>
+<td>答辩表达</td>
+<td style="text-align: right;">10%</td>
+<td>能否讲清多 Agent 的 trade-off</td>
+</tr>
+</tbody>
+</table>
+<h3 id="github">GitHub 项目参考</h3>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/langchain-ai/langgraph" target="_blank" rel="noopener noreferrer">langchain-ai/langgraph</a></td>
+<td>学 StateGraph、checkpoint、human-in-the-loop</td>
+</tr>
+<tr>
+<td><a href="https://github.com/microsoft/autogen" target="_blank" rel="noopener noreferrer">microsoft/autogen</a></td>
+<td>学多 Agent 对话和代码执行沙箱</td>
+</tr>
+<tr>
+<td><a href="https://github.com/crewAIInc/crewAI" target="_blank" rel="noopener noreferrer">crewAIInc/crewAI</a></td>
+<td>学角色/任务/Crew 抽象</td>
+</tr>
+<tr>
+<td><a href="https://github.com/openai/openai-agents-python" target="_blank" rel="noopener noreferrer">openai/openai-agents-python</a></td>
+<td>学 handoff、guardrails、tracing</td>
+</tr>
+<tr>
+<td><a href="https://github.com/NirDiamant/GenAI_Agents" target="_blank" rel="noopener noreferrer">NirDiamant/GenAI_Agents</a></td>
+<td>学不同 Agent 模式的代码实现</td>
+</tr>
+</tbody>
+</table></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-03.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-05.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">一、项目概述</a></li><li class="lv3"><a href="#_2">二、架构设计</a></li><li class="lv3"><a href="#_3">整体架构</a></li><li class="lv3"><a href="#_4">执行流程示例</a></li><li class="lv3"><a href="#_5">三、核心实现</a></li><li class="lv3"><a href="#31-state">3.1 State 设计</a></li><li class="lv3"><a href="#32-agent">3.2 各 Agent 节点实现</a></li><li class="lv3"><a href="#33">3.3 图结构定义</a></li><li class="lv3"><a href="#34-human-in-the-loop">3.4 Human-in-the-Loop</a></li><li class="lv3"><a href="#35">3.5 错误处理和超时</a></li><li class="lv3"><a href="#36">3.6 成本追踪</a></li><li class="lv3"><a href="#_6">四、面试话术</a></li><li class="lv3"><a href="#1">1 分钟版</a></li><li class="lv3"><a href="#3">3 分钟版</a></li><li class="lv3"><a href="#5">5 分钟版</a></li><li class="lv3"><a href="#_7">五、常见追问及回答</a></li><li class="lv3"><a href="#q1-langgraph-crewai">Q1: 为什么用 LangGraph 不用 CrewAI？</a></li><li class="lv3"><a href="#q2-agent">Q2: Agent 间如何共享状态？</a></li><li class="lv3"><a href="#q3-agent">Q3: 某个 Agent 失败了怎么办？</a></li><li class="lv3"><a href="#q4">Q4: 如何控制成本？</a></li><li class="lv3"><a href="#q5-agent">Q5: 怎么调试多 Agent 系统？</a></li><li class="lv3"><a href="#_8">六、项目亮点总结</a></li><li class="lv3"><a href="#_9">七、项目验收标准与评分表</a></li><li class="lv3"><a href="#60">最低可交付版本（60 分）</a></li><li class="lv3"><a href="#80">进阶可答辩版本（80 分）</a></li><li class="lv3"><a href="#100">面试亮点版本（100 分）</a></li><li class="lv3"><a href="#_10">评分表</a></li><li class="lv3"><a href="#github">GitHub 项目参考</a></li></ul></div></aside></div>'
+<script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="agent-project-practice:04",moduleId="agent-project-practice";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

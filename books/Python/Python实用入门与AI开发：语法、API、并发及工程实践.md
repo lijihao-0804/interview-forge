@@ -4734,11 +4734,13 @@ RAG（Retrieval-Augmented Generation，检索增强生成）解决“模型不�
 ```mermaid
 flowchart TD
     subgraph Offline["离线建库"]
+        direction TB
         D1["文档"] --> D2["分块 (chunking)"]
         D2 --> D3["嵌入 (embedding)"]
         D3 --> D4["存入向量库"]
     end
     subgraph Online["在线问答"]
+        direction TB
         Q1["用户问题"] --> Q2["嵌入"]
         Q2 --> Q3["检索最相似的块"]
         Q3 --> Q4["拼进 prompt"]
