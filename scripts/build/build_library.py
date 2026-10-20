@@ -875,6 +875,52 @@ def highlight_code(lang: str, source: str) -> str:
 # 图表(→@@MMD n@@)的自定义 HTML；先把围栏整体替换成带编号的占位符文本，
 # 渲染完成后再按编号还原，语言标记就不会在转换中丢失。
 # ---------------------------------------------------------------------------
+def autolink_bare_urls(text: str) -> str:
+    """把正文里的裸 URL 转成 Markdown 链接，让读者可以直接点击。
+
+    为什么放在渲染管线里而不是逐篇改源笔记：裸 URL 是笔记的常见写法
+    （尤其是“原始链接”清单），逐处手工包 []() 既容易漏、也会让源笔记
+    变脏。这里在 markdown 渲染前统一转换，一次修复全站。
+
+    跳过范围（避免破坏代码/已有链接）：
+      · 行内代码 `...`（反引号包裹的内容原样保留）
+      · 已有 Markdown 链接/图片 [text](url) 的目标部分
+      · 尖括号自动链接 <https://...>
+      · 图片/附件以外的纯文本行内出现（本函数只处理裸文本）
+    """
+    # 1) 先把行内代码与已有链接整体挪走，处理完再放回，避免误伤。
+    stash: list[str] = []
+
+    def stash_it(match: re.Match[str]) -> str:
+        stash.append(match.group(0))
+        return f"\x00{len(stash) - 1}\x00"
+
+    # 只保护“行内代码”与“Markdown 链接/图片”，代码围栏此时已是占位符。
+    text = re.sub(r"`[^`\n]+`", stash_it, text)
+    text = re.sub(r"!?\[[^\]]*\]\([^)]*\)", stash_it, text)
+    text = re.sub(r"<https?://[^>\s]+>", stash_it, text)
+
+    # 2) 裸 URL 转为 [url](url)。结尾的标点（中英文句号/逗号/括号）不属于 URL。
+    def linkify(match: re.Match[str]) -> str:
+        url = match.group(0)
+        tail = ""
+        while url and url[-1] in ".,;:!?)]}>，。；：！？、）】」”’":
+            tail = url[-1] + tail
+            url = url[:-1]
+        if not url or len(url) < 10:
+            return match.group(0)
+        return f"[{url}]({url}){tail}"
+
+    text = re.sub(r"https?://[^\s<>\"'\x00]+", linkify, text)
+
+    # 3) 还原被保护的内容。
+    def restore(match: re.Match[str]) -> str:
+        idx = int(match.group(1))
+        return stash[idx] if idx < len(stash) else match.group(0)
+
+    return re.sub(r"\x00(\d+)\x00", restore, text)
+
+
 def render_markdown(text: str) -> str:
     prepared = render_math_in_markdown(text)
     # 渲染前把所有 ``` 围栏换成占位符：Mermaid 走图表，其余代码走 Pygments，
@@ -897,6 +943,9 @@ def render_markdown(text: str) -> str:
         return f"\n\n@@CODE{len(code_blocks) - 1}@@\n\n"
 
     prepared = FENCE_BLOCK.sub(protect_fence, prepared)
+    # 裸 URL 自动转链接：此时代码围栏已换成占位符，行内代码由本函数自行保护，
+    # 因此不会把代码里的 URL 变成链接。
+    prepared = autolink_bare_urls(prepared)
     # 标准扩展组合；代码围栏此时已被占位符顶替，fenced_code 只兜底处理
     # 极少数没被正则捕获的裸围栏。
     rendered = markdown.markdown(

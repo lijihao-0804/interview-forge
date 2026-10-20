@@ -684,7 +684,12 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if not self._access_gate(decoded_path):
             return
         user = getattr(self, "_gate_user", None)
-        if decoded_path == "/pages/admin.html" or decoded_path.startswith("/api/admin/"):
+        # 管理后台与工具箱（含 /pages/tools/ 下的工具子页面）都仅限管理员；
+        # 工具箱会随工具增加而扩展子页面，因此按前缀判定，避免新工具漏掉鉴权。
+        if (decoded_path == "/pages/admin.html"
+                or decoded_path == "/pages/tools.html"
+                or decoded_path.startswith("/pages/tools/")
+                or decoded_path.startswith("/api/admin/")):
             if user is None or str(user["role"]) != "admin":
                 if decoded_path.startswith("/api/"):
                     self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)

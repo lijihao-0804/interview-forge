@@ -27,8 +27,16 @@ _PUBLIC_GET = {"/pages/login.html", "/pages/register.html", "/favicon.ico", "/ap
 # 成 HTML，登录/注册页的主题切换、导航策略全部静默失效。
 _PUBLIC_PREFIXES = ("/assets/",)
 _ADMIN_PAGE = "/pages/admin.html"
-# 工具箱页：与管理后台同级的仅管理员页面
+# 工具箱页：与管理后台同级的仅管理员页面。
+# 工具箱是「列表页 + 若干工具子页面」结构：/pages/tools.html 是入口，
+# /pages/tools/<tool>.html 是各工具，两者都必须同样限定管理员。
 _TOOLS_PAGE = "/pages/tools.html"
+_TOOLS_PREFIX = "/pages/tools/"
+
+
+def _is_admin_only(path: str) -> bool:
+    """管理后台与工具箱（含工具子页面）都仅限管理员访问。"""
+    return path == _ADMIN_PAGE or path == _TOOLS_PAGE or path.startswith(_TOOLS_PREFIX)
 _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
@@ -214,7 +222,7 @@ def static_path(request: Request, path: str):
             next_value = decoded + (f"?{request.url.query}" if request.url.query else "")
         next_suffix = f"?next={quote(next_value)}" if next_value else ""
         return RedirectResponse(f"/pages/login.html{next_suffix}", status_code=307, headers={"Cache-Control": "no-store"})
-    if decoded in (_ADMIN_PAGE, _TOOLS_PAGE) and (user is None or str(user["role"]) != "admin"):
+    if _is_admin_only(decoded) and (user is None or str(user["role"]) != "admin"):
         return error_response("Forbidden", 403)
     target = (ROOT / decoded.lstrip("/")).resolve()
     if not target.is_file() or not str(target).startswith(str(ROOT.resolve())):
