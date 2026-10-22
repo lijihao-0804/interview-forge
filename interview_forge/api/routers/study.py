@@ -214,7 +214,9 @@ def mock(request: Request):
         return denied
     try:
         try:
-            count = max(1, min(int(request.query_params.get("count", "10") or "10"), 50))
+            # 默认 5 题 / 60 分钟，与前端「限时模拟」的默认设置保持一致
+            # （一场模拟约等于 5 题 60 分钟，贴近真实面试节奏）。
+            count = max(1, min(int(request.query_params.get("count", "5") or "5"), 50))
         except ValueError as exc:
             raise ValueError("count 必须是整数") from exc
         return json_response(mock_exam(count=count, category=request.query_params.get("category", ""),
