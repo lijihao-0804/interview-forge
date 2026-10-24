@@ -230,10 +230,33 @@
   var KEEP = { "题目与约束": 1, "核心不变量": 1, "力扣原题": 1 };
   var toggle = document.getElementById("selftestToggle");
   if (!toggle) return;
+
+  // 一次性 URL 开关：从「限时模拟」点进来时地址带 ?selftest=1，
+  // 只对本次打开生效——不写 localStorage，因此从书架/搜索等其它入口
+  // 进入的题解页不会被连带打开自测。
+  // 参数读取后立即从地址栏移除：刷新、前进后退、复制分享都不会重复触发，
+  // 即"进来自动自测，刷新回到普通模式"。
+  var sessionOn = false;
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("selftest") === "1") {
+      sessionOn = true;
+      params.delete("selftest");
+      var search = params.toString();
+      var next = window.location.pathname + (search ? "?" + search : "") + window.location.hash;
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", next);
+      }
+    }
+  } catch (error) { sessionOn = false; }
+
   function modeOn() {
+    if (sessionOn) return true;
     try { return localStorage.getItem(KEY) === "1"; } catch (error) { return false; }
   }
   function writeMode(on) {
+    // 用户手动点击按钮后，转为由全局开关掌控（一次性参数随即失效）
+    sessionOn = false;
     try { localStorage.setItem(KEY, on ? "1" : "0"); } catch (error) {}
   }
   function unwrapAll() {
