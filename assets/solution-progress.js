@@ -185,7 +185,7 @@
         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
         .then(function (res) {
           paintFav(res.favorited);
-          notify(res.favorited ? "已加入收藏，可在学习书架 › 收藏中心查看" : "已取消收藏");
+          notify(res.favorited ? "已加入收藏，可在「我的收藏」查看" : "已取消收藏");
         })
         .catch(function () { notify("操作失败，请重试", "error"); })
         .finally(function () { favButton.disabled = false; });
