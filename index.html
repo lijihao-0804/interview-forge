@@ -293,8 +293,8 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
   <section class="review-section" aria-labelledby="mockTitle">
     <div class="review-head"><h2 id="mockTitle">限时模拟</h2><span id="mockStatus" class="review-summary">随机组卷，模拟考试节奏</span></div>
     <details id="mockSettings" class="mock-settings"><summary>模拟设置</summary><div class="mock-setup">
-      <div class="field"><label for="mockCount">题目数</label><select id="mockCount"><option value="5">5 题</option><option value="10" selected>10 题</option><option value="20">20 题</option></select></div>
-      <div class="field"><label for="mockMinutes">时长（分钟）</label><select id="mockMinutes"><option value="10">10</option><option value="20" selected>20</option><option value="30">30</option></select></div>
+      <div class="field"><label for="mockCount">题目数</label><select id="mockCount"><option value="3">3 题</option><option value="5" selected>5 题</option><option value="10">10 题</option></select></div>
+      <div class="field"><label for="mockMinutes">时长（分钟）</label><select id="mockMinutes"><option value="30">30</option><option value="60" selected>60</option><option value="90">90</option></select></div>
       <div class="field"><label for="mockCategory">专题</label><select id="mockCategory"><option value="">全部专题</option></select></div>
       <div class="field"><label for="mockDifficulty">难度</label><select id="mockDifficulty"><option value="">全部难度</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option></select></div>
     </div></details>
@@ -885,7 +885,11 @@ function mockRender(){
   if(!mockState)return;
   const list=document.getElementById('mockList');
   const current=mockState.problems[mockState.index];
-    list.innerHTML=`<div class="mock-item"><a href="${esc(current.note)}" target="_blank" rel="noopener noreferrer">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
+  // 模拟题一律新标签页打开，并附带 ?selftest=1 让题解页自动进入自测模式。
+  // data-navigation-policy="new-tab" 是强制策略：navigation-policy.js 会把
+  // 单纯 target="_blank" 视为 user-preference 并可能改写成同页跳转，必须显式声明。
+  const mockHref=`${current.note}${current.note.indexOf('?')>=0?'&':'?'}selftest=1`;
+    list.innerHTML=`<div class="mock-item"><a class="mock-problem-link" href="${esc(mockHref)}" target="_blank" rel="noopener noreferrer" data-navigation-policy="new-tab">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
   list.querySelector('[data-mock="done"]').addEventListener('click',()=>{mockState.done.push(current.id);mockNext()});
   list.querySelector('[data-mock="skip"]').addEventListener('click',()=>{mockState.skip.push(current.id);mockNext()});
 }
@@ -918,7 +922,30 @@ async function mockFinish(timeout){
 }
 document.getElementById('mockStart').addEventListener('click',mockStart);
 document.getElementById('mockAbandon').addEventListener('click',()=>mockAbandon());
-window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟面试仍在进行，离开将中断当前页面。'}});
+// beforeunload 只在「当前页真的要走」时提示。
+// 点击新标签页链接（模拟题等）不会离开本页，不该弹「离开此网站？」——
+// 浏览器一旦弹出该确认框，会打断默认的 target=_blank 行为，导致题解页
+// 在当前标签打开、模拟进度丢失。这里用点击标记区分两种情况。
+let navigatingAway=false;
+document.addEventListener('click',event=>{
+  navigatingAway=false;                    // 每次点击先复位，避免标记残留
+  const link=event.target.closest&&event.target.closest('a[href]');
+  if(!link)return;
+  const target=(link.getAttribute('target')||'').toLowerCase();
+  const policy=link.getAttribute('data-navigation-policy')||'';
+  // 新标签页打开、或带修饰键点击：本页都不会卸载
+  if(target==='_blank'||policy==='new-tab')return;
+  if(event.ctrlKey||event.metaKey||event.shiftKey||event.button===1)return;
+  navigatingAway=true;
+},true);
+// 用户点了「取消」留在本页时，下一次离开仍要正常提示
+window.addEventListener('focus',()=>{setTimeout(()=>{navigatingAway=false},0)});
+window.addEventListener('beforeunload',event=>{
+  navigatingAway=false;
+  if(!mockState||mockState.finished)return;
+  event.preventDefault();
+  event.returnValue='模拟面试仍在进行，离开将中断当前页面。';
+});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&mockState)mockTick()});
 restoreMockSession();
 document.getElementById('serverRetry').addEventListener('click',()=>refresh());
