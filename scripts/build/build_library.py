@@ -181,6 +181,27 @@ color:var(--text);font:inherit;font-size:13px;cursor:pointer;display:inline-flex
 .chip-group{display:contents}
 .chip-group[hidden]{display:none}
 .shelf-result{margin:0;color:var(--muted);font-size:12.5px;min-height:18px}
+
+/* ===== 章节内容搜索结果 ===== */
+.chapter-hits{margin:26px 0 0;padding:18px 20px;border:1px solid var(--line);border-radius:var(--radius-3);
+background:var(--panel);box-shadow:0 7px 22px rgba(31,42,68,.04)}
+.chapter-hits[hidden]{display:none}
+.hits-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.hits-head h2{margin:0;font-size:16px;font-weight:750}
+.hits-count{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+.hits-body{display:flex;flex-direction:column;gap:16px}
+.hit-group{border-top:1px solid var(--line);padding-top:12px}
+.hit-group:first-child{border-top:0;padding-top:0}
+.hit-mod{color:var(--muted);font-size:12px;font-weight:650;margin-bottom:8px;letter-spacing:.01em}
+.hit-item{display:flex;flex-direction:column;gap:3px;padding:8px 11px;border-radius:10px;
+color:var(--text);text-decoration:none;transition:background-color .16s ease}
+.hit-item:hover{background:var(--brand-soft);text-decoration:none}
+.hit-title{font-size:14px;font-weight:650;line-height:1.5}
+.hit-snip{color:var(--muted);font-size:12.5px;line-height:1.6;overflow:hidden;display:-webkit-box;
+-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.chapter-hits mark{background:color-mix(in srgb,var(--brand) 22%,transparent);color:inherit;
+border-radius:3px;padding:0 1px}
+@media(max-width:640px){.chapter-hits{padding:14px}.hit-snip{-webkit-line-clamp:3}}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 @media(max-width:760px){.track-row{grid-template-columns:1fr}.track-card{padding:14px}}
 
@@ -2054,7 +2075,79 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
   </div>
 </div>
-<main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);if(st.q)p.push("搜索\u201c"+st.q+"\u201d");result.textContent=shown===0?"没有找到匹配「"+st.q+"」的课程，试试换个关键词":(st.q?"搜索「"+st.q+"」找到 "+shown+" 个模块":(p.length?p.join(" · ")+"：":"")+"共 "+shown+" 个模块");}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();if(st.q){{st.track="";st.cat="";}}apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+<main class="module-grid" id="moduleGrid">{module_cards}</main><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});document.dispatchEvent(new Event("shelf-filter-change"));window.__shelfState={{track:st.track,cat:st.cat}};if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);var scopeLbl=p.length?p.join(" · "):"";result.textContent=shown===0?(st.q?"当前范围没有匹配「"+st.q+"」的课程名"+(scopeLbl?"，"+st.q+" 的章节内容见下方":""):"当前范围没有课程"):(st.q?(scopeLbl?"在「"+scopeLbl+"」内搜索「"+st.q+"」":"全局搜索「"+st.q+"」")+"：匹配 "+shown+" 个课程":(scopeLbl?scopeLbl+"："+shown+" 个模块":"共 "+shown+" 个模块 · 点上方学习形态可按类型收窄"));}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();
+(function(){{
+  var idx=null, loading=false, timer=null;
+  var hits=document.getElementById("chapterHits"), hitsBody=document.getElementById("hitsBody"),
+      hitsCount=document.getElementById("hitsCount");
+  var box=document.getElementById("shelfSearch");
+  if(!box)return;
+  function esc(s){{return String(s).replace(/[&<>"']/g,function(c){{return {{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}}[c]}})}}
+  function hl(s,q){{var t=String(s),i=t.toLowerCase().indexOf(q);if(i<0)return esc(t);
+    return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length))}}
+  // 范围：当前可见的模块（由形态/分类筛选决定）
+  function scope(){{
+    // 直接从卡片属性 + 当前筛选状态计算，避免依赖 DOM 渲染时序
+    var st=window.__shelfState||{{track:"",cat:""}};
+    var allow=[];
+    [].slice.call(document.querySelectorAll("#moduleGrid .module-card")).forEach(function(c){{
+      var okT=!st.track||c.dataset.track===st.track;
+      var okC=!st.cat||c.dataset.category===st.cat;
+      if(okT&&okC){{var a=c.querySelector("a");if(a)allow.push(a.getAttribute("href").split("/")[0]);}}
+    }});
+    return allow;
+  }}
+  function score(e,q){{
+    var t=(e.title||"").toLowerCase(),m=(e.module_title||"").toLowerCase(),x=(e.text||"").toLowerCase(),s=0;
+    if(t.indexOf(q)>=0)s+=60;
+    if(m.indexOf(q)>=0)s+=20;
+    var at=x.indexOf(q);if(at>=0)s+=30+Math.max(0,10-Math.floor(at/200));
+    return s;
+  }}
+  function render(q){{
+    if(!hits||!hitsBody)return;
+    if(!q||!idx){{hits.hidden=true;return;}}
+    var allow=scope();
+    var list=idx.filter(function(e){{return (allow.indexOf(e.module_id)>=0)&&score(e,q)>0;}})
+                .sort(function(a,b){{return score(b,q)-score(a,q);}});
+    if(!list.length){{hits.hidden=true;return;}}
+    var shown=list.slice(0,30);
+    if(hitsCount)hitsCount.textContent="共 "+list.length+" 章"+(list.length>shown.length?"，显示前 30 条":"");
+    var groups={{}};
+    shown.forEach(function(e){{(groups[e.module_title]=groups[e.module_title]||[]).push(e);}});
+    hitsBody.innerHTML=Object.keys(groups).map(function(mod){{
+      return '<div class="hit-group"><div class="hit-mod">'+esc(mod)+' · '+groups[mod].length+'</div>'+
+        groups[mod].map(function(e){{
+          var txt=(e.text||"").replace(/\s+/g," ").trim(),at=txt.toLowerCase().indexOf(q);
+          var snip=at<0?"":(at>0?"…":"")+hl(txt.slice(Math.max(0,at-40),at+q.length+70),q)+(at+q.length+70<txt.length?"…":"");
+          return '<a class="hit-item" href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">'+
+                 '<span class="hit-title">'+hl(e.title,q)+'</span>'+
+                 (snip?'<span class="hit-snip">'+snip+'</span>':'')+'</a>';
+        }}).join('')+'</div>';
+    }}).join('');
+    hits.hidden=false;
+  }}
+  function ensure(cb){{
+    if(idx){{cb();return;}}
+    if(loading)return;
+    loading=true;
+    if(hitsCount)hitsCount.textContent="正在加载全文索引…";
+    fetch("search-index.json").then(function(r){{return r.ok?r.json():Promise.reject();}})
+      .then(function(d){{idx=d;loading=false;cb();}})
+      .catch(function(){{loading=false;if(hitsCount)hitsCount.textContent="索引加载失败，请稍后重试";}});
+  }}
+  box.addEventListener("input",function(){{
+    var q=box.value.trim().toLowerCase();
+    clearTimeout(timer);
+    if(!q){{if(hits)hits.hidden=true;return;}}
+    timer=setTimeout(function(){{ensure(function(){{render(q);}});}},220);
+  }});
+  // 形态/分类切换后，若有关键词就按新范围重算
+  document.addEventListener("shelf-filter-change",function(){{
+    var q=box.value.trim().toLowerCase();
+    if(q&&idx)render(q);
+  }});
+}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
 
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。
