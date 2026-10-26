@@ -148,6 +148,42 @@ LIBRARY_CSS = r"""@font-face{font-family:"Inter";src:url("../../assets/fonts/Int
 .module-progress-row{display:flex;align-items:center;gap:9px;margin:7px 0 12px}
 .module-progress-pct{flex:0 0 34px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .module-progress{flex:1;height:7px;margin:7px 0 12px;overflow:hidden;border-radius:999px;background:var(--line)}.module-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--success))}.module-link{margin-top:auto}.chapter-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:20px;align-items:start}.chapter-list,.reader,.chapter-side{border:1px solid var(--line);border-radius:var(--radius-4);background:var(--panel);box-shadow:var(--shadow)}.chapter-list{padding:18px}.chapter-list h1{margin:0 0 8px;font-size:28px}.chapter-list>p{color:var(--muted)}.chapters{list-style:none;margin:18px 0 0;padding:0}.chapters li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.chapters li:last-child{border-bottom:0}.chapter-no{color:var(--muted);font-variant-numeric:tabular-nums}.rounds{padding:2px 7px;border-radius:999px;color:var(--success);background:var(--success-soft);font-size:12px}.reader{min-width:0;padding:clamp(24px,5vw,52px)}.reader h1{margin:0 0 27px;font-size:clamp(29px,5vw,42px);line-height:1.25}.reader h2{margin:42px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:25px}.reader h3{margin:30px 0 12px;font-size:20px}.reader h4{margin:24px 0 9px;font-size:17px}.reader p{margin:13px 0}.reader ul,.reader ol{padding-left:1.55em}.reader li{margin:5px 0}.reader blockquote{margin:20px 0;padding:12px 16px;border-left:4px solid var(--brand);border-radius:0 10px 10px 0;background:var(--brand-soft)}.reader code{padding:.14em .36em;border-radius:var(--radius-1);color:var(--brand);background:var(--brand-soft);font: .91em/1.5 var(--font-mono);font-variant-ligatures:none}.reader pre{max-width:100%;overflow:auto;padding:17px;border-radius:var(--radius-2);color:#e9edf7;background:#151a24}.reader pre code{padding:0;color:inherit;background:transparent;font-variant-ligatures:none}.reader table{width:100%;border-collapse:collapse;display:block;overflow:auto}.reader th,.reader td{padding:9px 11px;border:1px solid var(--line);text-align:left}.reader img,.reader video{display:block;max-width:100%;height:auto;margin:20px auto;border-radius:var(--radius-2)}.reader math{font-family:"Cambria Math","STIX Two Math",serif;vertical-align:baseline}.plain-math{white-space:nowrap}.plain-math sup,.plain-math sub{font-size:.72em;line-height:0}.math-inline-wrap{display:inline-block;overflow-x:auto;overflow-y:hidden;vertical-align:-.12em;line-height:1.1}.math-display-wrap{display:block;margin:18px 0;padding:12px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft);text-align:center}.mermaid-diagram{max-width:100%;margin:24px 0;overflow-x:auto;overflow-y:hidden;border:1px solid color-mix(in srgb,var(--brand) 18%,var(--line));border-radius:var(--radius-3);background:linear-gradient(145deg,color-mix(in srgb,var(--brand) 5%,var(--panel)),var(--panel));box-shadow:0 9px 28px rgba(31,42,68,.05)}.reader pre.mermaid{display:flex;min-height:150px;align-items:center;justify-content:center;margin:0;padding:24px;overflow:visible;border-radius:0;color:var(--text);background:transparent;font-family:inherit;white-space:pre-wrap}.reader pre.mermaid svg{display:block;width:auto;max-width:100%!important;height:auto;margin:auto}.mermaid-diagram.is-rendered .mermaid{white-space:normal}.mermaid-error{display:none;margin:0;padding:12px 16px;border-top:1px solid var(--line);color:var(--warning);background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.mermaid-diagram.is-error .mermaid-error{display:block}.chapter-side{padding:16px}.chapter-side h2{margin:0 0 10px;font-size:16px}.chapter-side p{color:var(--muted);font-size:13px}.complete-button{width:100%;padding:9px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:var(--radius-2);color:var(--brand);background:var(--brand-soft);cursor:pointer}.complete-button:disabled{cursor:not-allowed;opacity:.5}.chapter-nav{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:34px;padding-top:20px;border-top:1px solid var(--line)}.chapter-nav .nav-toc{padding:6px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:var(--radius-1);color:var(--brand);background:var(--brand-soft);font-weight:650}.chapter-nav .nav-toc:hover{text-decoration:none;border-color:var(--brand)}.breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:-8px 0 18px;color:var(--muted);font-size:13px}.breadcrumb a{color:var(--brand);font-weight:650}.breadcrumb a:hover{text-decoration:underline}.breadcrumb span[aria-current]{color:var(--text)}.notice{margin:12px 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line));border-radius:var(--radius-2);background:color-mix(in srgb,var(--warning) 7%,var(--panel));font-size:13px}.toast{min-height:24px;margin-top:10px;color:var(--success);font-size:13px}.empty{padding:38px 15px;color:var(--muted);text-align:center}
+/* ===== 书架两层导航：学习形态 + 分类胶囊 + 搜索 ===== */
+.shelf-nav{margin:0 0 22px}
+.track-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px}
+.track-card{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;text-align:left;
+border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);color:var(--text);
+cursor:pointer;font:inherit;transition:border-color .18s var(--ease-out,ease),box-shadow .22s ease,transform .18s ease}
+.track-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));transform:translateY(-1px);
+box-shadow:0 10px 26px color-mix(in srgb,var(--brand) 12%,transparent)}
+.track-card.active{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 1px var(--brand) inset}
+.track-ico{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;
+background:color-mix(in srgb,var(--brand) 11%,transparent);font-size:20px;line-height:1}
+.track-body{min-width:0;display:flex;flex-direction:column;gap:3px}
+.track-body strong{font-size:15.5px;font-weight:750;line-height:1.4}
+.track-desc{color:var(--muted);font-size:12.5px;line-height:1.55}
+.track-meta{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.track-card.active .track-meta,.track-card.active .track-desc{color:color-mix(in srgb,var(--brand) 62%,var(--muted))}
+.track-go{margin-left:auto;align-self:center;color:var(--muted);font-size:16px}
+.track-card.active .track-go{color:var(--brand)}
+.shelf-tools{display:flex;flex-direction:column;gap:12px}
+.shelf-search{display:block}
+.shelf-search input{width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:12px;
+background:var(--panel);color:var(--text);font:inherit;font-size:14px}
+.shelf-search input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent)}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap}.chip-row[hidden]{display:none}
+.chip-row>button{padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);
+color:var(--text);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.chip-row>button:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));color:var(--brand)}
+.chip-row>button.active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:650}
+.chip-n{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip-row>button.active .chip-n{color:color-mix(in srgb,var(--brand) 70%,var(--muted))}
+.chip-group{display:contents}
+.chip-group[hidden]{display:none}
+.shelf-result{margin:0;color:var(--muted);font-size:12.5px;min-height:18px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media(max-width:760px){.track-row{grid-template-columns:1fr}.track-card{padding:14px}}
+
 #results.chapter-grid{display:block}
 .search-group{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:13px;margin-bottom:22px}
 .search-group-title{grid-column:1/-1}
@@ -1929,14 +1965,97 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     #   显隐)；页面 JS 启动时 fetch /api/library 填进度条、/api/daily 填
     #   “全书架待复习”汇总与各模块角标上的待复习数；接口不可达时静默降级
     #   (进度条保持 0、汇总区保持提示文案)，保证静态打开也能浏览。
-    _module_icons = {'Java 语言': ('☕', '#f59e0b'), '计算机基础': ('🖥️', '#0ea5e9'), '数据存储': ('🗄️', '#3b82f6'), 'Web 与框架': ('🌿', '#22c55e'), '分布式与工程': ('🌐', '#06b6d4'), '算法刷题': ('🧩', '#8b5cf6'), '校招冲刺': ('🎯', '#ef4444'), '编程基础': ('📘', '#6366f1'), '基础认知': ('💡', '#eab308'), '模型与训练': ('🤖', '#a855f7'), '大模型应用': ('✨', '#d946ef'), 'Agent 工程': ('🛠️', '#14b8a6'), '系统与基础设施': ('⚙️', '#64748b')}
+    # 分类图标与主色：学习形态决定整体观感，分类图标用于卡片与筛选胶囊。
+    _module_icons = {
+        # 系统学习
+        'Java 语言': ('☕', '#f59e0b'), '计算机基础': ('🖥️', '#0ea5e9'),
+        '数据存储': ('🗄️', '#3b82f6'), 'Web 与框架': ('🌿', '#22c55e'),
+        '分布式与工程': ('🌐', '#06b6d4'), '编程基础与训练': ('📘', '#6366f1'),
+        '大模型应用': ('✨', '#d946ef'),
+        # 面试题库
+        'Agent 面试题': ('🛠️', '#14b8a6'), '大模型面试题': ('🎓', '#a855f7'),
+        '后端与算法题': ('🧩', '#8b5cf6'), '面试方法论': ('🎯', '#ef4444'),
+        # 面经与实战
+        '公司面经': ('📰', '#22c55e'), '产品与框架拆解': ('🔍', '#0ea5e9'),
+        '项目与手撕': ('💻', '#f59e0b'), '岗位与进阶': ('🚀', '#d946ef'),
+    }
     _cat_default = ('📗', '#22c55e')
+
+    # 学习形态：顶层分组。分类归属决定它出现在哪一组下。
+    _TRACKS = [
+        ('系统学习', '从零开始连续阅读的课程，适合打基础', '📚'),
+        ('面试题库', '问答式题库，适合临考前集中背诵', '🎯'),
+        ('面经与实战', '真实面经、产品拆解与项目表达', '📰'),
+    ]
+    _CAT_TRACK = {
+        'Java 语言': '系统学习', '计算机基础': '系统学习', '数据存储': '系统学习',
+        'Web 与框架': '系统学习', '分布式与工程': '系统学习',
+        '编程基础与训练': '系统学习', '大模型应用': '系统学习',
+        'Agent 面试题': '面试题库', '大模型面试题': '面试题库',
+        '后端与算法题': '面试题库', '面试方法论': '面试题库',
+        '公司面经': '面经与实战', '产品与框架拆解': '面经与实战',
+        '项目与手撕': '面经与实战', '岗位与进阶': '面经与实战',
+    }
+    _cat_icon_default = _cat_default
     def _cat_icon(cat):
         return _module_icons.get(cat, _cat_default)
-    module_cards = "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
-    categories = ["全部", *dict.fromkeys(str(module["category"]) for module in modules)]
-    filters = "".join(f'<button type="button" data-filter="{html.escape(category)}" class="{"active" if category == "全部" else ""}">{html.escape(category)}</button>' for category in categories)
-    index_body = f'''<div class="shell">{topbar(".", "学习书架")}<section class="hero"><h1>学习书架</h1><p>算法、Python、模型训练、RAG、Agent 与基础设施统一分成可追踪课程；每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section><div class="filters" aria-label="课程分类">{filters}</div><main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{{document.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));const match=button.dataset.filter==='全部'?()=>true:card=>card.dataset.category===button.dataset.filter;document.querySelectorAll('.module-card').forEach(card=>{{card.hidden=!match(card);card.style.display=card.hidden?'none':''}});}}));fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+    def _track_of(cat):
+        return _CAT_TRACK.get(cat, '系统学习')
+    module_cards = "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
+    # ---- 两层导航数据：学习形态（顶层）+ 分类（第二层）----
+    # 每个形态下的分类按「模块数从多到少」排，常用的靠前。
+    track_stats = []          # [(track, icon, desc, [(cat, count), ...], module_count, chapter_count)]
+    for track_name, track_desc, track_icon in _TRACKS:
+        cats = [c for c in dict.fromkeys(str(m["category"]) for m in modules)
+                if _track_of(c) == track_name]
+        # 先统计每个分类的模块数，再按数量降序（同数量按名称）排列。
+        cat_counts = {}
+        for cat_name in cats:
+            cat_counts[cat_name] = 0
+        for m in modules:
+            cat_key = str(m["category"])
+            if cat_key in cat_counts:
+                cat_counts[cat_key] += 1
+        cat_items = sorted(cat_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        mod_n = len([m for m in modules if _track_of(m["category"]) == track_name])
+        ch_n = sum(m["chapter_count"] for m in modules if _track_of(m["category"]) == track_name)
+        track_stats.append((track_name, track_icon, track_desc, cat_items, mod_n, ch_n))
+
+    track_cards = "".join(
+        f'<button type="button" class="track-card" data-track-filter="{html.escape(name)}">'
+        f'<span class="track-ico" aria-hidden="true">{icon}</span>'
+        f'<span class="track-body"><strong>{html.escape(name)}</strong>'
+        f'<span class="track-desc">{html.escape(desc)}</span>'
+        f'<span class="track-meta">{mod_n} 个模块 · {ch_n} 章 · '
+        f'{html.escape("、".join(c for c, _ in cat_items[:3]))}</span></span>'
+        f'<span class="track-go" aria-hidden="true">→</span></button>'
+        for name, icon, desc, cat_items, mod_n, ch_n in track_stats
+    )
+
+    # 分类胶囊按形态分组渲染：切到某个形态时只显示该形态的分类，减少干扰。
+    cat_groups = []
+    for name, _, _, cat_items, _, _ in track_stats:
+        chips = "".join(
+            f'<button type="button" data-cat-filter="{html.escape(cat)}">'
+            f'{_cat_icon(cat)[0]} {html.escape(cat)}<span class="chip-n">{n}</span></button>'
+            for cat, n in cat_items
+        )
+        cat_groups.append(
+            f'<div class="chip-group" data-track-group="{html.escape(name)}" hidden>{chips}</div>'
+        )
+    cat_groups_html = "".join(cat_groups)
+
+    index_body = f'''<div class="shell">{topbar(".", "学习书架")}<section class="hero"><h1>学习书架</h1><p>按「学习形态」找到想看的内容：系统学习打基础、面试题库临考背、面经实战看真实情况。每个章节都支持多轮学习记录与到期复习。</p></section><section id="shelfDueSummary" class="shelf-due-summary" aria-label="全书架待复习"><span>正在读取全书架待复习…</span></section>
+<div class="shelf-nav" aria-label="书架导航">
+  <div class="track-row">{track_cards}</div>
+  <div class="shelf-tools">
+    <label class="shelf-search"><span class="sr-only">搜索课程</span><input id="shelfSearch" type="search" placeholder="搜索课程名或分类…" autocomplete="off"></label>
+    <div class="chip-row" id="chipRow" aria-label="分类筛选" hidden><button type="button" data-cat-filter="" class="active">本类全部<span class="chip-n" id="chipAllCount"></span></button>{cat_groups_html}</div>
+    <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
+  </div>
+</div>
+<main class="module-grid" id="moduleGrid">{module_cards}</main></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);if(st.q)p.push("搜索\u201c"+st.q+"\u201d");result.textContent=shown===0?"没有找到匹配「"+st.q+"」的课程，试试换个关键词":(st.q?"搜索「"+st.q+"」找到 "+shown+" 个模块":(p.length?p.join(" · ")+"：":"")+"共 "+shown+" 个模块");}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();if(st.q){{st.track="";st.cat="";}}apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。
     index_body = index_body.replace(
