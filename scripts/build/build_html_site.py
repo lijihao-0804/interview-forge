@@ -2402,7 +2402,7 @@ def render_markdown(source: Path) -> None:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>{html.escape(title)} · Hot 100</title>
+  <title>{html.escape(title)} · InterviewForge</title>
   <link rel="stylesheet" href="{html.escape(css_href)}">
   <link rel="stylesheet" data-interviewforge-ai href="{html.escape(ai_css_href)}">
   <script src="{html.escape(policy_href)}" defer></script>
