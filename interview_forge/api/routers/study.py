@@ -324,9 +324,12 @@ async def mark(request: Request):
 @router.get("/api/favorites")
 async def favorites_list(request: Request):
     """收藏中心数据：条目列表 + 按模块统计（供筛选胶囊显示计数）。"""
-    user = await async_require_user(request)
-    if not user:
-        return error_response("未登录", status=401)
+    # async_require_user 返回 (user, denied) 二元组，必须解包：
+    # 直接赋值会把元组当 user 传给 user_db()，触发 TypeError 后被
+    # service_error 转成 400「请求参数不正确」，造成收藏页读取失败。
+    user, denied = await async_require_user(request)
+    if denied is not None:
+        return denied
 
     def load():
         module_id = str(request.query_params.get("module", "") or "")
@@ -341,7 +344,7 @@ async def favorites_list(request: Request):
     try:
         return json_response(await run_in_threadpool(load))
     except Exception as exc:  # noqa: BLE001
-        return service_error(exc)
+        return service_error(exc) or error_response("读取收藏失败", status=500)
 
 
 @router.post("/api/favorites/toggle")

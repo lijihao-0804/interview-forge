@@ -204,27 +204,53 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
     errEl.hidden = true;
     countEl.textContent = "正在读取…";
     fetch("/api/favorites", {cache: "no-store"})
-      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)) })
+      .then(function(r){
+        if (r.ok) return r.json();
+        // 把 HTTP 状态也带出来，便于区分「未登录 401」「服务端 500」等
+        return r.text().then(function(t){
+          var msg = "HTTP " + r.status;
+          try { var j = JSON.parse(t); if (j && j.error) msg += "：" + j.error; } catch (e) {}
+          throw new Error(msg);
+        });
+      })
       .then(function(d){
         items = Array.isArray(d.items) ? d.items : [];
         stats = d.stats || {};
         ids = Array.isArray(d.ids) ? d.ids : [];
-        // 章节收藏没有标题时，用搜索索引补全（只补空标题，避免额外请求）
-        var needTitle = items.some(function(it){ return !it.title });
-        if (needTitle) fillTitles().then(function(){ renderFilters(); render(); });
-        else { renderFilters(); render(); }
+        // 先渲染列表——标题补全是锦上添花，不能因为它失败就整页报错。
+        renderFilters();
+        render();
+        // 只有存在「没有标题」的条目时才去补，且失败静默降级
+        if (items.some(function(it){ return !it.title })) {
+          fillTitles().then(function(){ renderFilters(); render(); }).catch(function(){});
+        }
       })
       .catch(function(e){
         errEl.hidden = false;
-        errEl.textContent = "读取收藏失败：" + (e && e.message ? e.message : "网络异常") + "。请确认已登录并稍后重试。";
+        var detail = (e && e.message) ? e.message : "网络异常";
+        var hint = "";
+        if (/HTTP 401/.test(detail)) hint = "登录状态已失效，请重新登录。";
+        else if (/HTTP 5/.test(detail)) hint = "服务端暂时异常，请稍后重试。";
+        else if (/Failed to fetch|NetworkError/i.test(detail)) hint = "无法连接服务，请检查网络或服务是否运行。";
+        else hint = "请稍后重试。";
+        errEl.innerHTML = esc("读取收藏失败：" + detail + "。" + hint)
+          + ' <button type="button" id="retryLoad" class="btn" style="margin-left:8px">重试</button>';
         countEl.textContent = "读取失败";
+        var rb = document.getElementById("retryLoad");
+        if (rb) rb.addEventListener("click", load);
       });
   }
 
   function fillTitles(){
     if (searchIndexOfFav) return Promise.resolve();
-    return fetch(SEARCH_INDEX_URL, {cache: "force-cache"})
-      .then(function(r){ return r.ok ? r.json() : [] })
+    // 索引约 1.9MB，加超时避免弱网时长时间挂起拖住收藏列表
+    var controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = controller ? setTimeout(function(){ controller.abort(); }, 8000) : null;
+    return fetch(SEARCH_INDEX_URL, {
+      cache: "force-cache",
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function(r){ return r.ok ? r.json() : []; })
       .then(function(idx){
         searchIndexOfFav = {};
         (idx || []).forEach(function(e){
@@ -238,7 +264,11 @@ opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;z-i
           else if (!it.title) it.title = it.target_id;
         });
       })
-      .catch(function(){});
+      .catch(function(){
+        // 索引拉不到不影响收藏本身：标题回落到 target_id
+        items.forEach(function(it){ if (!it.title) it.title = it.target_id; });
+      })
+      .finally(function(){ if (timer) clearTimeout(timer); });
   }
 
   // ---- 事件 ----
