@@ -1,180 +1,209 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">22 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">什么是 CoT？为啥效果好？它有什么缺点或局限性？</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">大模型生成文本时的解码策略有哪些？贪心、Beam Search、采样分别什么时候用？</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">大模型的 DPO 和 PPO 的区别是什么？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">大模型能力评测指标有哪些？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">大模型微调的方案有哪些？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">大模型为什么会出现幻觉？怎么缓解？</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">KV Cache 是什么？Prompt Caching 的原理是什么？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">大模型是怎么训练出来的？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">请讲一下 LoRA 技术，除了减少参数量，它还有哪些优点？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">多头注意力（MHA）有哪些局限？MQA、GQA、Flash Attention 怎么解决？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">对比使用过哪些主流大模型？你们项目中最终选用了哪个模型？为什么？</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></a><a class="shelf-topic-link current" href="chapter-14.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">SFT 之后还有哪些 Post-Training？RLHF、DPO、GRPO、拒绝采样什么关系？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">如何写好 Prompt？分享下 Prompt 工程实践经验？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">大模型量化是什么？INT8/INT4/AWQ/GPTQ 怎么选？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">什么是 Scaling Law？大模型的「涌现能力」是怎么回事？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">大模型的参数：温度值、Top-P、Top-K 分别是什么？各个场景下的最佳设置是什么？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">什么是大模型项目的分词器？原理是什么？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">讲讲 Transformer 架构基本原理？Encoder 和 Decoder 是什么？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">什么是大语言模型？和传统 NLP 模型有什么区别？</span></a></nav></details>
- <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-llm:14"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></nav><div class="module-meta">大模型应用 · 第 14 / 22 章 · <span class="muted">更新于 2026-09-01</span></div><h1>大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>👔面试官：来讲讲大模型为什么需要位置编码？sin/cos、RoPE、ALiBi 这几种各有什么区别？</p>
-<p>🙋‍♂️我：位置编码就是让模型知道每个词在第几个位置，用 sin 和 cos 函数算一下加到 token embedding 上就行。</p>
-<p>👔面试官：……「加到 embedding 上」是怎么加？是直接做加法还是别的什么操作？为什么要用 sin 和 cos 而不是 1, 2, 3, 4 这种简单序号？再说，RoPE 你也是「加到 embedding 上」吗？那它不就和 sin/cos 一样了？</p>
-<p>🙋‍♂️我：哦哦，RoPE 是相对位置编码，跟 sin/cos 不一样，是给 Q 和 K 做旋转。</p>
-<p>👔面试官：「做旋转」？怎么旋转？为什么旋转能表达位置？为什么相对位置编码比绝对位置编码强？还有 ALiBi 是什么思路？为什么 Llama 选 RoPE 不选 ALiBi？</p>
-<p>🙋‍♂️我：呃……ALiBi 我有点忘了……反正都是位置编码嘛，效果应该差不多吧？</p>
-<p>👔面试官：「效果差不多」？那为什么主流模型都换成 RoPE 了？为什么长上下文外推 RoPE 比 sin/cos 强？为什么 ALiBi 有它的支持者但没成主流？这些问题没搞清楚，面试就是被怼。回去补一下。</p>
-<p>从这几个反问里能听出，位置编码这道题真正想问的是「为什么 LLM 不用 sin/cos 而都跑去用 RoPE 了」。三种方案的设计思路、各自的外推上限、对长上下文的影响，把这条主线讲透，分高低自然就出来了。</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-compact-diagrams"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">23 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">为什么长上下文会出现 Lost in the Middle？上下文窗口越大越好吗？</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">什么是 CoT？为啥效果好？它有什么缺点或局限性？</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">大模型生成文本时的解码策略有哪些？贪心、Beam Search、采样分别什么时候用？</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">大模型的 DPO 和 PPO 的区别是什么？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">大模型能力评测指标有哪些？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">大模型微调的方案有哪些？</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">大模型为什么会出现幻觉？怎么缓解？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">KV Cache 是什么？Prompt Caching 的原理是什么？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">大模型是怎么训练出来的？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">请讲一下 LoRA 技术，除了减少参数量，它还有哪些优点？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">多头注意力（MHA）有哪些局限？MQA、GQA、Flash Attention 怎么解决？</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">对比使用过哪些主流大模型？你们项目中最终选用了哪个模型？为什么？</span></a><a class="shelf-topic-link current" href="chapter-14.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">SFT 之后还有哪些 Post-Training？RLHF、DPO、GRPO、拒绝采样什么关系？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">如何写好 Prompt？分享下 Prompt 工程实践经验？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">大模型量化是什么？INT8/INT4/AWQ/GPTQ 怎么选？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">什么是 Scaling Law？大模型的「涌现能力」是怎么回事？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">大模型的参数：温度值、Top-P、Top-K 分别是什么？各个场景下的最佳设置是什么？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">什么是大模型项目的分词器？原理是什么？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">讲讲 Transformer 架构基本原理？Encoder 和 Decoder 是什么？</span></a><a class="shelf-topic-link" href="chapter-23.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">23</span><span class="shelf-topic-label">什么是大语言模型？和传统 NLP 模型有什么区别？</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-llm:14"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></nav><div class="module-meta">大模型应用 · 第 14 / 23 章 · <span class="muted">更新于 2026-10-26</span></div><h1>MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>👔面试官：来讲讲什么是 MoE（Mixture of Experts，混合专家）？为什么一些公开模型和模型家族会采用它？</p>
+<p>🙋‍♂️我：MoE 就是把多个小模型合在一起，每次用一个，效果好。</p>
+<p>👔面试官：……「合在一起」是怎么合的？「每次用一个」具体是哪个组件决定的？再说，MoE 在大模型流行前就有研究，为什么近几年才在 LLM 领域受到更多关注？</p>
+<p>🙋‍♂️我：哦哦，应该是有个 Router 来选用哪个专家。火起来是因为 DeepSeek？</p>
+<p>👔面试官：Router 我接受，DeepSeek 也对，但你只说了「火起来」，没说「为什么火起来」。MoE 解决了什么 Dense 模型解决不了的问题？为什么 DeepSeek V3 总参数 671B 但激活只有 37B？这种「671B / 37B」的设计哲学是什么？</p>
+<p>🙋‍♂️我：呃……我没仔细看过 DeepSeek 的论文。</p>
+<p>👔面试官：MoE 的常见卖点是「<strong>总参数大但每个 token 激活的计算路径较小</strong>」，但显存、通信、负载和吞吐不一定按激活参数同比下降。这个 trade-off 你能讲清楚吗？还有，MoE 训练有什么坑？专家不平衡是什么意思？</p>
+<p>🙋‍♂️我：呃……</p>
+<p>👔面试官：专家不平衡（Expert Imbalance）是 MoE 训练的著名难题，意思是 Router 可能偏爱某几个专家，导致其他专家根本没被训过。这种问题不知道，去面试就是被怼。回去补一下。</p>
+<p>问到这里 MoE 这道题的真面目才浮出来，它的核心思想不是「拼几个小模型」，而是「稀疏激活换便宜推理」。Router 怎么挑专家、训练为什么会塌、推理为什么便宜，这几条得一条条拆。</p>
 <h3 id="_1">💡 简要回答</h3>
-<p>我理解位置编码要解决的问题，本质上是 Self-Attention 的「位置盲」缺陷。Attention 的计算是对称的，不管词序怎么变，注意力分数都一样。「我打你」和「你打我」对模型来说是一回事，所以必须显式注入位置信息。</p>
-<p>三种主流位置编码各有不同的设计哲学。</p>
-<p>第一种是 <strong>sin/cos 绝对位置编码</strong>（原始 Transformer 用的）。给每个位置算一组固定的 sin/cos 值，加到 token embedding 上。优点是简单、不需要训练参数；缺点是「绝对位置」太死板，模型实际关心的是「相对距离」，而且训练时见过的最长位置之外的位置（比如训练 2K，推理时上 4K），效果会断崖下跌。</p>
-<p>第二种是 <strong>RoPE（旋转位置编码）</strong>。它不是把位置信息「加」到 embedding 上，而是「旋转」Q 和 K 向量。每个位置对应一个旋转角度，位置越靠后旋转的角度越大。两个 token 做注意力时，它们 Q/K 的点积自然带上了「相对距离」的信息。优点是相对位置直接编进了点积里、长上下文外推能力强，配合 NTK、YaRN 等扩展技巧，以及必要的继续训练或长上下文校准，可以把上下文推到更长。所以 Llama、Qwen、DeepSeek 等主流开源模型大量使用 RoPE。</p>
-<p>第三种是 <strong>ALiBi（Attention with Linear Biases）</strong>。最简单粗暴，直接在注意力分数里加一个「距离惩罚」，离得越远扣分越多，斜率随 head 不同。优点是不引入任何可学习参数、长上下文外推天然就好；缺点是表达力弱一些，对位置的精细建模不如 RoPE。MosaicML 的 MPT、BLOOM 用过 ALiBi，但没成主流。</p>
-<p>最关键的一句话是，<strong>主流大模型几乎全部选择了 RoPE</strong>，因为它在「相对位置编码 + 长上下文外推 + 兼容现代推理优化」三个维度上都最均衡。</p>
+<p>我理解 MoE（Mixture of Experts，混合专家）的核心思想是把部分 Transformer 的 FFN（前馈网络）层替换成 N 个并行的专家网络，再加一个 Router 为 token 选择一个或多个专家；具体是 token routing、expert routing 还是其他稀疏结构，要以模型实现为准。</p>
+<p>核心设计哲学是「<strong>总参数与每 token 的激活计算解耦</strong>」。某些公开模型报告了类似 671B 总参数、约 37B 激活参数的配置，但这些数字属于特定模型版本和统计口径；激活参数不等于总延迟、显存或实际成本。</p>
+<p>具体看 MoE 三个核心组件。</p>
+<p><strong>1. 多个专家（Experts）</strong>：把部分 Transformer FFN 复制成 N 份，每份参数独立；专家可能形成不同的使用模式，但通常不是预先指定“某个专家专门负责数学/代码”。</p>
+<p><strong>2. Router（路由器）</strong>：每个 token 进到 MoE 层时，Router 计算门控分数，选择一个或多个专家。Top-K 是常见形式，但 K、容量限制、共享专家和路由位置由模型决定；部分公开配置使用 routed experts 加 shared expert。</p>
+<p><strong>3. 负载均衡</strong>：需要通过辅助损失、门控偏置、容量限制或其他机制避免 Router 过度偏爱少数专家；“均匀”也不是越强越好，要兼顾路由质量。</p>
+<p>为什么 DeepSeek V3、Mixtral、部分 Qwen 模型都在用 MoE？</p>
+<ul>
+<li><strong>容量/计算折中</strong>：在合适的训练与路由条件下，可以增加总容量而控制每 token 的部分计算；效果和性价比需要同算力基准比较</li>
+<li><strong>推理潜力</strong>：每个 token 只走部分专家，但实际速度还受专家权重加载、通信、batch、负载均衡、kernel 和调度影响</li>
+<li><strong>可扩展性</strong>：增加专家数可以沿着稀疏维度扩大容量，但会同时增加权重存储、路由、通信和调度复杂度</li>
+</ul>
+<p>但 MoE 也有挑战：训练难度高（专家不平衡、Router 训练不稳、并行化复杂）；权重存储通常仍接近总参数规模，若把专家分片、卸载或按需加载，便会用额外通信和延迟换显存；分布式部署时 token 路由还可能产生跨卡通信。</p>
+<p>MoE 是一种持续演进的架构路线，多个公开模型/模型家族采用过不同变体；它不是唯一答案，Dense 模型在中小规模、部署简单和延迟可控场景仍常见。具体模型名称、参数统计和路由配置都要以对应版本的模型卡或论文为准，不要把某个版本的数字当成通用规律。</p>
+<figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
+    X[Token 表示] --&gt; R[Router / 门控打分]
+    R --&gt; S[Top-K、容量限制与负载控制]
+    S --&gt; E1[选中的专家 1]
+    S --&gt; E2[选中的专家 2…K]
+    E1 --&gt; M[按路由权重聚合]
+    E2 --&gt; M
+    M --&gt; Y[回到 Transformer 主干]
+    R -.监控/损失.-&gt; B[负载均衡与溢出处理]</pre><figcaption class="mermaid-error">图表未能渲染，请重新打开本页。</figcaption></figure>
+<p>上图只表达通用数据流；专家数量、K、是否有 shared expert、容量溢出策略和跨卡通信方式都属于具体实现。</p>
 <h3 id="_2">📝 详细解析</h3>
-<h4 id="attention">为什么 Attention 必须有位置编码</h4>
-<p>要理解位置编码，得先搞清楚 Attention 本身有什么毛病。</p>
-<p>Self-Attention 的核心计算是 <code>softmax(QK^T/√d) · V</code>，每个 token 通过 Q 去和所有 token 的 K 做点积、算注意力权重，然后按权重加权聚合所有 token 的 V。这个过程有一个致命特点：<strong>它是对位置不敏感的</strong>，也就是俗称的「位置盲」。</p>
-<p>什么意思呢？看个例子。</p>
-<p>假如输入是「我打你」，每个字都被转成 embedding 向量。Attention 计算时，「我」会去看「打」和「你」，「打」会去看「我」和「你」，「你」会去看「我」和「打」。这个过程里，模型只知道「这三个字之间互相算了注意力」，但<strong>完全不知道谁在前谁在后</strong>。</p>
-<p>如果把输入换成「你打我」，这三个 embedding 一模一样（只是位置变了），Attention 算出来的结果和「我打你」<strong>几乎完全相同</strong>。但这两句话语义是反的。模型如果分不清位置，就分不清主语和宾语，根本没法理解语言。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f16e2d07f3-ff5b8e416db64c67439327c7.png" /></p>
-<p>那为什么不能直接用「1, 2, 3, 4」这种位置序号？</p>
-<p>因为序号是离散的整数，加到连续的 embedding 向量上会很别扭：第 1000 位的「1000」会把原本的 embedding 数值整个拉爆（embedding 通常是 -1 到 1 之间的小数）；而且整数序号对长序列没法泛化，训练时见过 1-2048，推理时来了 4096，这个数字模型从来没见过，效果一定崩。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/bc62cc5e4d-e0f3637ec76b7fd5443d3eeb.png" /></p>
-<p>所以位置编码必须满足三个要求：</p>
+<h4 id="moe-dense">MoE 是什么？为什么 Dense 模型不够用了</h4>
+<p>要理解 MoE，得先看清楚传统 Dense 模型的瓶颈。</p>
+<p>Dense 模型（标准 Transformer）的特点是：<strong>模型主体的每个 token 通常都走同一套参数路径</strong>。因此每层的权重都会参与前向计算；具体参数统计还可能包含嵌入、输出头等不在每一步完全相同的部分。</p>
+<p>这就带来一个棘手的权衡：</p>
 <ul>
-<li><strong>数值范围合理</strong>，不能把 token embedding 给覆盖掉</li>
-<li><strong>能区分不同位置</strong>，每个位置都有独特的「指纹」</li>
-<li><strong>能泛化到长序列</strong>，最好支持外推到训练时没见过的长度</li>
+<li>想提升模型容量，通常需要增加参数或更有效的数据/训练方法</li>
+<li>Dense 模型的主体参数会在每个 token 的前向路径上参与计算，因此计算、显存、带宽和延迟会一起成为约束</li>
+<li>能否在某台服务器上运行取决于权重精度、并行方式、上下文长度、KV cache、批量和框架，不能只按参数量或卡数下结论</li>
 </ul>
-<p>带着这三个要求，再来看三种主流方案就好理解了。</p>
-<h4 id="sincos-transformer">sin/cos 绝对位置编码：原始 Transformer 的方案</h4>
-<p>2017 年的 Transformer 论文用的就是 sin/cos 位置编码，简称 <strong>Sinusoidal PE</strong>。它的核心思路是用一组不同频率的 sin/cos 函数，给每个位置生成一个独特的「指纹向量」。</p>
-<p>公式不展开背，直觉上这样理解。模型 embedding 维度有 d 维（比如 d=512），把这 d 维分成 d/2 对，每对用一组 sin/cos：</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/c472ded4ed-193ef70b3dc17d2ba9c19e84.png" /></p>
+<p>MoE 的核心创新是<strong>打破「知识量」和「推理成本」的绑定</strong>。它的思路是：</p>
 <ul>
-<li>第 1 对的频率最快（高频），相邻位置之间区别明显，适合区分近距离的位置</li>
-<li>第 d/2 对的频率最慢（低频），相邻位置几乎一样，但跨越很远的位置才能区分开</li>
+<li>模型有 N 个专家，每个专家是一份独立的 FFN</li>
+<li>每个 token 进来时，Router 只挑 K 个专家来处理（K 远小于 N）</li>
+<li>专家部分的总参数量约为 N × 单专家参数量；完整模型还包括注意力、嵌入、归一化等共享部分</li>
+<li>激活参数量只描述本 token 走过的专家路径；专家部分的理论比例大致受 K/N 影响，但实际计算、通信和内存访问不等于这个比例</li>
 </ul>
-<p>类比一下：就像几个不同频率的振子叠加，高频振子记录「精细位置」，低频振子记录「粗略位置」。每个位置在 d 维空间里都有一个独特的 sin/cos 组合，就是它的「身份证」。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/fd8a4ae6df-c3758ea0139243f0620f33a6.png" /></p>
-<p>这个方案怎么用？把每个位置的 sin/cos 指纹向量直接<strong>加到对应 token 的 embedding 上</strong>。即「最终输入向量 = token embedding + position embedding」。</p>
-<p>为什么是「加」而不是「拼接」？因为加法不增加维度，结构上更省事。神经网络强大到可以从相加的结果里把这两部分信息「自动解开」。</p>
-<p>sin/cos 编码的优点是显而易见的：</p>
+<p>直观的类比：Dense 像一本厚厚的百科全书，你查一个词要把整本书过一遍；MoE 像一个图书馆，前台咨询员（Router）听到你的问题，告诉你去 3 楼的「数学专家区」就好，不用整个图书馆都搜索。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.png" /></p>
+<p>这个设计提供了在相近的专家计算预算下扩大总容量的可能性，但是否更快、更便宜要通过同硬件、同精度、同上下文和同吞吐目标的基准测试验证。这是 MoE 受到关注的主要原因之一，而不是无条件的速度保证。</p>
+<h4 id="moe">MoE 的三个核心组件</h4>
+<p>理解了核心思想，下面拆解 MoE 的三个具体组件。</p>
+<p><strong>1. 多个专家（Experts）</strong></p>
+<p>MoE 把 Transformer 每一层的 FFN 替换成 N 个并行的 FFN。每个 FFN 结构完全一样，但参数独立，在训练中各自学会不同的「擅长方向」。</p>
+<p>具体专家数 N 的选择是个工程权衡：</p>
 <ul>
-<li><strong>零参数</strong>：完全是数学公式算出来的，不占模型参数</li>
-<li><strong>泛化性看起来不错</strong>：理论上 sin/cos 可以算到任意位置的指纹</li>
+<li>N 太小：稀疏化带来的容量收益有限；N 太大：路由、容量、通信和每个专家获得的训练信号都会变得更难控制</li>
+<li>具体 N 的跨度很大；公开架构中可以见到从个位数到数百个专家的配置，但不能把某个模型的 N 当作“业界主流”或质量排序</li>
 </ul>
-<p>但它的致命问题是<strong>长上下文外推能力差</strong>。</p>
-<p>虽然理论上 sin/cos 可以算任意长度，但实际效果会在训练时见过的最长位置之外迅速恶化。如果模型只在 2K 长度上训练过，推理时给它 4K 输入，模型表现会断崖下跌。原因是模型在训练时只学过「2K 以内的相对位置关系」，超出 2K 的相对距离它从来没见过，注意力权重的分布会乱掉。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/41d59344b1-701fd2cecab3c55235cf3ba6.png" /></p>
-<p>所以 sin/cos 编码在小模型时代还行，到了大模型时代（要支持几十 K 甚至上百 K 长上下文）就明显不够用了。</p>
-<h4 id="vs">绝对位置 vs 相对位置：模型真正想要什么</h4>
-<p>在讨论 RoPE 之前，先想一个特别生活化的问题：<strong>你跟别人介绍你坐在哪儿，是说「我坐在前排第 3 个座位」，还是说「我坐在 XX 旁边」？</strong></p>
-<p>大部分时候你会选第二种，因为「相对位置」比「绝对位置」更有信息量。同样在 NLP 里，模型理解语言时关心的也是相对位置，不是绝对位置。</p>
-<p>举个例子。中文里「主语动词宾语」这种句法关系，关键的不是「主语在第 3 位、动词在第 5 位」这种绝对编号，而是「主语和动词之间隔了 2 个词」这种相对距离。一句话不管前面加了多少修饰语、语气词，主语和动词的相对关系是稳定的。同样的「我吃饭」，不管你前面加「今天」「中午」「饿了所以」，主谓宾的相对距离都没变。</p>
-<p>绝对位置编码（比如 sin/cos）的问题就在这里。它给每个位置发一个独立的「身份证」，要让模型自己从「位置 3 的身份证」和「位置 5 的身份证」推断出「相对距离是 2」。这个推断完全靠模型在训练里慢慢碰运气学到，没有显式的归纳偏置。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/7cf15ad2d6-68ad20edbe64d1c532286e3c.png" /></p>
-<p>相对位置编码的思路就是把「相对距离」这个信息显式地编进注意力计算里，让模型不用自己算。具体做法是让两个 token 的位置编码只取决于它们的差值 m-n，跟 m 和 n 各自的绝对值无关。这就是 RoPE 和 ALiBi 共同的出发点，它们走的是不同的实现路线，但目标一致。</p>
-<h4 id="rope">RoPE：用旋转把相对位置编进点积</h4>
-<p>RoPE（Rotary Position Embedding，旋转位置编码）是 2021 年中国学者苏剑林（@bojone）提出的，现在已经是大模型的标配。核心思路一句话：<strong>不把位置信息加到 embedding 上，而是旋转 Q 和 K 向量</strong>。</p>
-<p>什么意思？</p>
-<p>在 Attention 计算里，每个 token 都会被投影成 Q（Query）和 K（Key）。RoPE 在这一步动手脚：每个 token 的 Q/K 向量根据它的位置 m，被旋转一个对应角度 mθ（θ 是预设常数）。位置 0 的 token 不旋转，位置 1 的旋转 θ，位置 2 的旋转 2θ，依此类推。</p>
-<p>类比一下：把 Q/K 向量想象成钟表的指针，每个位置对应一个不同时刻的指针朝向。位置越靠后，指针转得越多。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8a3c10edfb-367846bc10969a2c09b935ee.png" /></p>
-<p>为什么旋转能表达位置？关键的数学性质是：<strong>两个旋转后的向量做点积，结果只依赖于它们的「旋转角度差」</strong>。</p>
-<p>具体说，位置 m 的 Q 和位置 n 的 K 做点积，旋转之后的点积结果只跟 (m-n) 这个相对距离有关，跟 m 和 n 各自的绝对值无关。这就把「相对位置」信息天然地编进了 Attention 计算里，模型不用自己学。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b3446b438e-8a44ec2b26987739429ecd24.png" /></p>
-<p>RoPE 的优点非常突出，几个层面叠加起来才让它成为现在的标配。</p>
-<p>最直观的优点是<strong>天然的相对位置编码</strong>，不用模型自己学相对关系，直接编进点积。这是 RoPE 区别于 sin/cos 的核心。然后是<strong>零参数</strong>，整个操作就是数学上的旋转，不引入任何可学习参数，对模型容量没有额外开销。还有一个被忽视的细节是<strong>保留 token 向量的长度</strong>，旋转操作不改变向量的模长只改变方向，所以不会破坏原本 embedding 的数值范围，训练稳定性更好。最后是<strong>和现代推理优化的兼容性</strong>，RoPE 是在 Q/K 上做的旋转，跟 KV Cache、Flash Attention、MQA/GQA 这些主流推理优化都能无缝叠加，不会产生冲突。</p>
-<p>更关键的是 RoPE 的<strong>长上下文外推能力</strong>远好于 sin/cos。原因是 RoPE 的旋转是连续的角度变化，本身没有「训练截止」这个概念。即使训练时只见过 2K，推理时来了 4K，多出来的位置也只是更大的旋转角度而已，模型不会「彻底懵」，效果衰减比 sin/cos 平缓很多。</p>
-<p>再加上后来发明的 NTK Scaling、YaRN、Position Interpolation 等扩展技巧（核心都是调整 RoPE 的频率参数），可以把训练时的 2K 推到 32K、100K 甚至更长。但这里别说成「几乎无损」的银弹，外推效果取决于模型、任务、长度倍率和是否做过继续训练。推得越远，越需要专门评测长文检索、多跳推理和位置敏感任务。</p>
-<p>谁在用 RoPE？基本上 2023 年之后所有主流开源大模型都用：</p>
+<p>每个专家学到的「擅长方向」<strong>通常不是预先指定的</strong>，而是在训练中由路由和数据分布共同形成；是否出现稳定、可解释的分工要看模型与分析方法，不能简单宣称某个专家固定负责数学、代码或中文。</p>
+<p><strong>2. Router（路由器）</strong></p>
+<p>Router 是 MoE 最关键的组件，决定每个 token 该去哪个专家。结构通常是一个简单的线性层：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># Router 的核心计算（简化版）</span>
+<span class="n">gate_logits</span> <span class="o">=</span> <span class="n">token_embedding</span> <span class="o">@</span> <span class="n">W_router</span>   <span class="c1"># 算每个专家的偏好分数</span>
+<span class="n">expert_weights</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">gate_logits</span><span class="p">)</span>      <span class="c1"># 归一化成概率</span>
+<span class="n">top_k_experts</span> <span class="o">=</span> <span class="n">topk</span><span class="p">(</span><span class="n">expert_weights</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># 选 Top-K 个专家</span>
+</code></pre></div>
+<p>每个 token 进来时，Router 根据当前表示算出各专家的分数，挑分数最高的 K 个专家来处理这个 token。K 是模型配置，不同架构差异很大，以下只是帮助理解的例子：</p>
 <ul>
-<li><strong>Llama 1/2/3</strong> 全系</li>
-<li><strong>Qwen 1/2/3</strong> 全系</li>
-<li><strong>DeepSeek V1/V2/V3/R1</strong> 全系</li>
-<li><strong>Mistral / Mixtral</strong> 全系</li>
-<li><strong>GLM 系列</strong></li>
+<li><strong>K=1</strong>：每个 token 只去 1 个专家，路由最稀疏，但对单个专家的负载和容量更敏感</li>
+<li><strong>K=2</strong>：每个 token 去 2 个专家，通常需要按权重聚合多个输出</li>
+<li>更大的 K：可能增加路由容量和计算，也可能改善表达能力；必须结合具体模型配置与基准测试判断</li>
 </ul>
-<p>可以说 RoPE 已经是大模型架构的事实标准。</p>
-<h4 id="alibi">ALiBi：直接给注意力加距离惩罚</h4>
-<p>ALiBi（Attention with Linear Biases）是另一种相对位置编码方案，2022 年提出，思路比 RoPE 更暴力：<strong>根本不动 Q、K、V，直接在注意力分数里加一个「距离惩罚项」</strong>。</p>
-<p>具体做法：在 <code>softmax(QK^T)</code> 这一步之前，给每对 token 的注意力分数加上一个偏置项，偏置值是 <code>-m × |i-j|</code>，其中 |i-j| 是两个 token 之间的距离，m 是一个固定的斜率（每个 head 不同）。</p>
-<p>直观理解：离得越远，注意力分数被扣得越多，模型越倾向于关注近邻的 token。每个 head 用不同的斜率，等于让不同的 head 关注不同范围的距离（有的 head 关注近邻，有的 head 关注远处）。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1000feab94-df9c1e581ab7613187685290.png" /></p>
-<p>ALiBi 的优点：</p>
-<ul>
-<li><strong>零参数</strong>：和 RoPE 一样不引入可学习参数</li>
-<li><strong>极简实现</strong>：就是加一个偏置矩阵，比 RoPE 还简单</li>
-<li><strong>天然支持长上下文外推</strong>：因为距离惩罚是线性的，不存在训练截止，理论上多长都行</li>
-</ul>
-<p>但 ALiBi 也有明显短板：</p>
-<ul>
-<li><strong>表达力弱</strong>：所有位置信息都靠「距离惩罚」这一个机制传递，对精细的位置关系（比如「主语动词宾语的语序」）建模不如 RoPE 灵活</li>
-<li><strong>过强的局部偏置</strong>：线性距离惩罚会让模型过度关注近邻，对需要捕捉长距离依赖的任务不利</li>
-</ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1389876747-016b955a8c0d4bbc1e935124.png" /></p>
-<p>谁用过 ALiBi？</p>
-<ul>
-<li><strong>MosaicML 的 MPT 系列</strong></li>
-<li><strong>BLOOM 的某些版本</strong></li>
-</ul>
-<p>但这些模型都不是主流大模型，ALiBi 没能在大厂主力模型上推广开。</p>
-<h4 id="rope_1">三种方案对比：为什么 RoPE 赢了</h4>
-<p>把三种方案放到一起比较：</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3e975bede0-4d1bb294155c7e5e44323b68.png" /></p>
+<p><strong>3. 负载均衡与容量控制</strong></p>
+<p>朴素的 Router 训练有个著名问题：<strong>专家不平衡（Expert Imbalance）</strong>。</p>
+<p>什么意思？训练初期 Router 的偏差可能让少数专家收到过多 token，其他专家收到的训练信号不足；如果容量和路由控制失效，负载会进一步偏斜，造成溢出、吞吐下降或专家利用率很低。极端程度取决于实现，不应把“只剩 1–2 个专家工作”当作必然结果。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4eb8dbc425-7de0b886bfeee591b8352e0a.png" /></p>
+<p>为了解决这个问题，MoE 可以使用<strong>负载均衡损失（Load Balancing Loss）</strong>，也可以使用门控偏置、容量约束或其他路由策略。下面的代码只是把“惩罚不均衡”抽象成方差的直觉示意，不代表所有模型的真实损失公式：</p>
+<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 负载均衡损失（直觉版）</span>
+<span class="n">expert_load</span> <span class="o">=</span> <span class="n">mean</span><span class="p">(</span><span class="n">expert_probability_distribution</span><span class="p">)</span>  <span class="c1"># 每个专家的平均使用率</span>
+<span class="n">balance_loss</span> <span class="o">=</span> <span class="n">variance</span><span class="p">(</span><span class="n">expert_load</span><span class="p">)</span>                  <span class="c1"># 使用率的方差（越大越不平衡）</span>
+
+<span class="n">total_loss</span> <span class="o">=</span> <span class="n">main_loss</span> <span class="o">+</span> <span class="n">α</span> <span class="err">×</span> <span class="n">balance_loss</span>             <span class="c1"># 加到主损失里</span>
+</code></pre></div>
+<p>这个损失项把「专家使用率不均」的方差作为惩罚加进总损失，鼓励 Router 改善利用率；真实实现还会区分路由概率、实际 token 计数、容量溢出等因素，并不要求所有专家严格均匀。α 是个超参，平衡主任务和均衡性。</p>
+<p>一些公开工作报告过 <strong>Auxiliary-Loss-Free Load Balancing</strong> 一类策略：通过动态调整专家偏置等方式控制负载，而不是把同一种辅助损失直接加到主目标中。具体公式和效果应以对应论文、实现和复现实验为准。</p>
+<h4 id="vs-moe">总参数 vs 激活参数：MoE 的设计哲学</h4>
+<p>MoE 最反直觉、也最容易在面试踩坑的概念，是「<strong>总参数 vs 激活参数</strong>」的区别。</p>
+<p>来看一个具体计算：</p>
+<div class="codehilite"><pre><code>Dense 模型 70B：
+  推理一个 token 要算 70B 参数
+  显存（FP16）：140GB
+  推理速度：以 70B 参数的延迟为基准
+
+某些公开 MoE 配置会同时报告“总参数 / 激活参数”，例如 671B / 37B；
+  37B 只是该配置下的激活参数统计口径，不等于端到端计算量或延迟
+  权重存储至少受总参数、精度和分片方式影响；若把专家卸载或按需加载，还要支付通信与调度成本
+  实际速度需要在目标硬件、上下文、batch、并行策略和框架上实测
+</code></pre></div>
+<p>注意三个边界：</p>
+<p><strong>第一</strong>，总参数与激活参数是两种统计口径。总参数描述模型权重规模，激活参数描述某个 token 经过的部分路径；它们都不能直接等价为“学过的知识量”。</p>
+<p><strong>第二</strong>，如果所有专家常驻显存，权重容量大致按总参数和精度计算，还要加量化元数据、运行时缓冲、KV cache 和并行副本；如果不常驻，则用加载、卸载或远程访问换取显存空间。</p>
+<p><strong>第三</strong>，延迟既受激活路径影响，也受路由、通信、内存带宽、batch 和 kernel 影响；“激活参数接近某个 Dense 模型”不能推出端到端延迟接近。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.png" /></p>
+<p>这种“总容量扩大、专家路径稀疏”的组合，是 MoE 受到关注的原因之一。它也把权重存储、跨卡通信、负载均衡和服务调度推到了更重要的位置，不能简单概括为“学得多、跑得快”。</p>
+<h4 id="moe_1">如何比较不同 MoE 模型</h4>
+<p>不同公司的 MoE 设计差别很大。公开资料中的“总参数 / 激活参数 / 专家数 / Top-K”必须绑定具体模型版本、统计口径和是否包含共享模块，不能只背一组数字。面试时可以这样比较：</p>
 <table>
 <thead>
 <tr>
-<th>维度</th>
-<th>sin/cos</th>
-<th>ALiBi</th>
-<th>RoPE</th>
+<th>比较维度</th>
+<th>要确认的问题</th>
+<th>对系统的影响</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>编码类型</td>
-<td>绝对位置</td>
-<td>相对位置（距离惩罚）</td>
-<td>相对位置（旋转）</td>
+<td>路由</td>
+<td>token 级还是其他粒度？Top-K、容量因子和溢出如何处理？</td>
+<td>影响计算量、丢 token 风险与负载均衡</td>
 </tr>
 <tr>
-<td>是否可学习参数</td>
-<td>否</td>
-<td>否</td>
-<td>否</td>
+<td>专家</td>
+<td>专家数、专家 FFN 规模、是否有 shared expert？</td>
+<td>影响总权重、专家粒度和路由通信</td>
 </tr>
 <tr>
-<td>注入方式</td>
-<td>加到 token embedding</td>
-<td>加到注意力分数</td>
-<td>旋转 Q/K 向量</td>
+<td>激活口径</td>
+<td>统计的是专家参数，还是包含注意力和共享部分？</td>
+<td>防止把激活参数误当成端到端 FLOPs</td>
 </tr>
 <tr>
-<td>长上下文外推</td>
-<td>较差（容易断崖）</td>
-<td>好（线性外推）</td>
-<td>很强（配合 NTK/YaRN，常需校准或继续训练）</td>
+<td>并行</td>
+<td>是否使用 Expert Parallel、Tensor Parallel 或跨节点 All-to-All？</td>
+<td>影响显存切分、带宽、尾延迟和运维复杂度</td>
 </tr>
 <tr>
-<td>表达力</td>
-<td>中等</td>
-<td>弱（过强局部偏置）</td>
-<td>强</td>
-</tr>
-<tr>
-<td>主流采用</td>
-<td>原始 Transformer</td>
-<td>MPT、BLOOM</td>
-<td>Llama / Qwen / DeepSeek 全系</td>
+<td>质量与成本</td>
+<td>在同数据、精度、上下文和服务目标下如何测？</td>
+<td>决定 MoE 是否真的优于 Dense</td>
 </tr>
 </tbody>
 </table>
-<p>为什么 RoPE 最终赢了？三个理由。</p>
-<p><strong>第一，长上下文外推能力</strong>。这是 2023 年之后最重要的需求之一。RoPE 配合 NTK/YaRN 这套生态，外推能力很强，但真正上线前还要看长上下文评测，不是把参数一改就天然无损。</p>
-<p><strong>第二，相对位置 + 表达力的平衡</strong>。ALiBi 虽然外推也好，但表达力不够；sin/cos 表达力够，但外推差。RoPE 是唯一兼顾两者的方案。</p>
-<p><strong>第三，工程兼容性</strong>。RoPE 只在 Q/K 上做旋转，不改变其他计算，和 KV Cache、Flash Attention、MQA/GQA 都能无缝叠加。这一点对工业界部署至关重要。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/2c6a725f8e-4e4f6041f0b4105ecbe367cd.png" /></p>
-<h4 id="ntk-yarn">拓展：长上下文外推（NTK / YaRN 简介）</h4>
-<p>最后简单提一下 RoPE 的外推扩展技巧，因为这一块面试时容易被追问。</p>
-<p>RoPE 训练时见过 2K，怎么推到 100K？直接喂 100K 输入是不行的，因为旋转角度超过 2K 之外，模型从来没见过那么大的角度，效果还是会衰减。所以业界搞出了几个「调整 RoPE 频率参数」的技巧：</p>
+<p>可以把公开模型作为例子来说明差异：有的架构采用少量专家和较大的 Top-K，有的采用大量细粒度专家和更小的 Top-K，有的还加入 shared expert。具体数字应现场打开对应版本的配置或论文核对；不要把“专家越多”或“激活率越低”直接等价为更先进。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d284f0619b-a7249a23a3c2921e0be76dae.png" /></p>
+<p>不同架构可能沿着“更多专家、更细粒度路由”发展，也可能选择更简单的路由以降低服务复杂度；不存在只由专家数或激活率决定的单调趋势。最终要把质量、吞吐、尾延迟、显存、通信和故障恢复一起比较。</p>
+<h4 id="moe_2">MoE 的三大训练挑战</h4>
+<p>MoE 看起来很美，但训练起来比 Dense 难得多。三个最大的坑：</p>
+<p><strong>挑战 1：专家不平衡</strong></p>
+<p>前面讲过，Router 容易陷入「只用几个专家」的恶性循环。除了负载均衡损失，业界还发展出几种应对：</p>
 <ul>
-<li><strong>Position Interpolation（PI）</strong>：把 100K 的位置「等比例缩小」到 2K 范围，比如位置 50000 当作位置 1000 处理。简单粗暴但有效，代价是「精细距离信息被压缩」</li>
-<li><strong>NTK-aware Scaling</strong>：调整 RoPE 不同维度的频率，让高频维度（精细位置）几乎不动，低频维度（粗略位置）按比例缩小。比 PI 更精细</li>
-<li><strong>YaRN（Yet another RoPE extensioN）</strong>：在 NTK 基础上做了进一步精细化，引入温度参数和分段策略，目前是大厂用得最多的方案</li>
+<li><strong>Expert Choice Routing</strong>：让专家或容量约束参与 token 分配，目标是控制每个专家接收的 token 数；具体是否采用要看架构</li>
+<li><strong>无辅助损失的偏置调节</strong>：一些公开工作报告过动态调整专家偏置的做法，但不能泛化为所有 MoE</li>
+<li><strong>探索与容量策略</strong>：噪声、温度或其他训练策略可能帮助探索，但都需要验证对稳定性和质量的影响</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ea1bcb5666-bf01aafb77072cc20155a993.png" /></p>
-<p>需要强调的是，这些外推技巧有些可以在推理时直接改 RoPE 参数就看到收益，但要做到稳定的 100K+ 长上下文，很多模型还会配合长上下文继续训练、校准数据或专门的评测筛选。RoPE 在长上下文时代地位稳固，不是因为它能无成本无限外推，而是因为它给了社区一个很好调、很好扩展的基础。</p>
+<p><strong>挑战 2：Router 训练不稳定</strong></p>
+<p>Router 是带离散选择的门控网络。Top-K 的选择本身是离散的，但被选中的路由权重仍可通过相应路径获得梯度；容量截断、分数尖锐化和负载偏斜仍可能造成训练不稳定。常见的稳定化思路包括：</p>
+<ul>
+<li><strong>Noisy Top-K Gating</strong>：训练时给 Router 输出加噪声，鼓励探索</li>
+<li><strong>Z-loss</strong>：限制 Router logits 的范数，防止极端化</li>
+<li><strong>软/硬路由的近似或逐步切换</strong>：可在训练中用近似目标帮助优化，但“加权所有专家”会显著增加计算，不是免费的通用方案</li>
+</ul>
+<p><strong>挑战 3：分布式并行复杂</strong></p>
+<p>MoE 模型的并行方式通常比 Dense 复杂。Dense 也可能同时使用多种并行方式，MoE 还要额外考虑：</p>
+<ul>
+<li><strong>Expert Parallel</strong>：不同专家分配到不同 GPU，token 在 GPU 之间路由</li>
+<li><strong>All-to-All 通信</strong>：每个 token 选了几个专家后，可能要把 token 发送到对应专家所在的 GPU，处理完再发回来；这往往是重要的通信瓶颈，但是否成为最大开销取决于拓扑、batch 和实现</li>
+</ul>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.png" /></p>
+<p>通信开销会让 MoE 在多机训练时更依赖拓扑和调度优化。公开工作中也有把通信与计算重叠的方案；具体算法、收益和适用条件要以对应实现及基准为准。</p>
+<h4 id="moe_3">MoE 的部署挑战</h4>
+<p>训练完之后，部署 MoE 还有自己的挑战。</p>
+<p><strong>挑战 1：显存占用按总参数走</strong></p>
+<p>虽然每个 token 只激活部分专家，但如果追求稳定低延迟，通常需要让相关专家权重可快速访问；可以选择全量常驻、分片、卸载或远程专家服务。显存还要容纳运行时缓冲、KV cache、量化元数据和并行副本，因此不能只用总参数乘字节数估算部署门槛，也不能从某个模型的卡数配置推出所有 MoE 的最低硬件。</p>
+<p><strong>挑战 2：批量推理时通信开销大</strong></p>
+<p>批量推理时，不同 token 可能选择不同专家，跨卡通信和动态聚合会变得明显；但吞吐结果并不固定，必须和同质量、同显存预算、同 batch/上下文的 Dense 基线实测。</p>
+<p><strong>挑战 3：专家不均衡导致负载不均</strong></p>
+<p>部署时，如果某个专家热门（被很多 token 路由到），它所在的 GPU 就会过载，其他 GPU 空闲。需要动态负载均衡机制（专家迁移、复制热门专家等），这又是一个工程坑。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.png" /></p>
+<p>应对这些挑战，主流推理框架会提供不同程度的 MoE 并行、量化和调度支持，但具体能力随框架版本、模型结构和硬件而变。很多团队仍会在部署简单、负载稳定或尾延迟敏感的场景选择 Dense；这属于工程权衡，不是 MoE 的绝对劣势。</p>
+<h4 id="moe-llm">为什么近几年 MoE 在 LLM 领域受到更多关注</h4>
+<p>MoE 不是新思想；它在大模型中的普及是多项条件叠加的结果，不能归因于某一个模型或某一个年份：</p>
+<p>三个原因：</p>
+<p><strong>1. 训练经验积累到位了</strong></p>
+<p>早期 MoE 训练容易受到专家不平衡、容量溢出和 loss 震荡影响，需要负载均衡、容量控制和并行训练方面的经验；不同团队的公开工作逐步丰富了可复现的设计空间。</p>
+<p><strong>2. 推理框架支持完善了</strong></p>
+<p>推理框架需要同时处理专家并行、路由聚合、量化和跨设备通信。框架支持不断完善降低了落地门槛，但能力仍与版本、模型和硬件绑定，不能用一个年份概括。</p>
+<p><strong>3. DeepSeek V3 把成本打下来了</strong></p>
+<p>一些公开模型展示了大总参数、较小激活路径的组合，并报告了自己的训练成本和效果。这类公开结果让社区更容易评估 MoE 的工程价值，但成本与质量结论必须连同数据、训练硬件、评测协议和统计口径一起阅读，不能直接迁移到另一个项目。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/98730b86fd-259035155d88268756730870.png" /></p>
+<p>更稳的说法是：<strong>MoE 适合在可接受的路由和通信复杂度下扩大总容量；Dense 通常更容易部署、调度和预测延迟</strong>。到底选哪一种，要由目标质量、吞吐、尾延迟、显存、网络拓扑和运维能力共同决定。</p>
 <h3 id="_3">🎯 面试总结</h3>
-<p>回到开头那段对话，问到位置编码，最重要的是先讲清楚为什么需要它。Self-Attention 是「位置盲」的，「我打你」和「你打我」算出来的注意力是一样的，所以必须显式注入位置信息。而且不能直接用 1, 2, 3, 4 这种序号，因为数值范围会破坏 embedding，长序列还没法泛化。这一句铺垫先讲到，面试官就知道你理解为什么需要位置编码这件事。</p>
-<p>讲完铺垫之后，再把三种主流方案的设计哲学讲明白。sin/cos 是绝对位置编码，加到 token embedding 上，简单但长上下文外推差；RoPE 是相对位置编码，通过旋转 Q/K 向量把相对距离编进点积，外推能力强，是当前主流；ALiBi 是另一种相对位置编码，直接在注意力分数上加距离惩罚，零参数极简，但表达力弱、局部偏置过强，没成主流。三种方案的设计哲学和工业界采用情况都点出来，体现你对这条技术路线有完整的视角。</p>
-<p>最关键的一句话是：<strong>RoPE 赢在「相对位置 + 长上下文扩展 + 工程兼容性」三个维度的均衡</strong>。配合 NTK Scaling、YaRN 等扩展技巧，再加上必要的长上下文训练或校准，能把上下文扩到很长，所以 Llama、Qwen、DeepSeek、Mistral 等主流开源模型大量使用 RoPE。</p>
-<p>如果还想再加分，可以提一句长上下文外推的具体方案（PI / NTK / YaRN），或者点出 RoPE 兼容 KV Cache、Flash Attention、MQA/GQA 等现代推理优化，这才是它能在工业界站稳脚跟的关键。能讲到这一层，面试官基本就没什么追问的了。</p>
+<p>回到开头那段对话，问到 MoE，最重要的是先把<strong>核心思想</strong>讲清楚。MoE 把 Transformer 中的部分 FFN 替换为多个专家，加一个 Router 为每个 token 选择一个或多个专家。最关键的设计哲学是<strong>总参数与激活路径解耦</strong>：可以扩大专家容量，同时让单个 token 只经过部分专家；但实际成本还包括共享层、通信、权重存储和调度。</p>
+<p>接下来把<strong>三个核心组件</strong>讲清：多个专家、Router，以及负载均衡/容量控制。专家可能形成不同使用模式，但不要在没有分析证据时把它们命名为固定领域专家；Router 计算分数并选择路径；负载控制防止少数专家过载或其他专家训练信号不足。某些公开工作还报告了不依赖同一种辅助损失的偏置调节方案，不能泛化为所有实现。</p>
+<p>然后说明<strong>如何比较模型</strong>：核对总参数和激活参数的统计口径、专家数与 Top-K、容量/溢出策略、并行通信和同条件基准。能解释“为什么激活参数不等于显存和延迟”，比背一组脱离版本的数字更能体现工程理解。</p>
+<p>最关键的一句话是讲清 MoE 的训练 + 部署挑战。训练上有专家不平衡、Router 不稳、All-to-All 通信复杂这些坑；部署上显存按总参数走、批量推理通信开销大、热门专家负载不均。能讲出「<strong>显存按总参数走，但推理速度按激活参数走</strong>」这一句反直觉但精确的话，面试官就知道你真的理解 MoE 在工程上的取舍。</p>
+<p>如果还想再加分，可以指出 MoE 是较早就出现的稀疏建模思路，近几年因为训练方法、并行硬件、推理框架和公开模型案例共同成熟而受到关注。它是可选架构路线，但不是唯一方向；能够同时讲清收益和边界，更像真实工程师。</p>
 <hr /></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-13.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-15.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_3">🎯 面试总结</a></li></ul></div></aside></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="xiaolin-llm:14",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
@@ -191,4 +220,4 @@ var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[hre
 if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
-loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-compact-diagrams');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script><script src="../assets/mermaid-11.16.1.min.js?v=20261010-compact-flowcharts"></script><script src="../assets/library-mermaid.js?v=20261010-compact-flowcharts"></script></body></html>

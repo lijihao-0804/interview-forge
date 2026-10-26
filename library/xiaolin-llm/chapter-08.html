@@ -1,220 +1,158 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>KV Cache 是什么？Prompt Caching 的原理是什么？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">22 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">什么是 CoT？为啥效果好？它有什么缺点或局限性？</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">大模型生成文本时的解码策略有哪些？贪心、Beam Search、采样分别什么时候用？</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">大模型的 DPO 和 PPO 的区别是什么？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">大模型能力评测指标有哪些？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">大模型微调的方案有哪些？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">大模型为什么会出现幻觉？怎么缓解？</span></a><a class="shelf-topic-link current" href="chapter-08.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">KV Cache 是什么？Prompt Caching 的原理是什么？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">大模型是怎么训练出来的？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">请讲一下 LoRA 技术，除了减少参数量，它还有哪些优点？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">多头注意力（MHA）有哪些局限？MQA、GQA、Flash Attention 怎么解决？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">对比使用过哪些主流大模型？你们项目中最终选用了哪个模型？为什么？</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></a><a class="shelf-topic-link" href="chapter-14.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">SFT 之后还有哪些 Post-Training？RLHF、DPO、GRPO、拒绝采样什么关系？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">如何写好 Prompt？分享下 Prompt 工程实践经验？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">大模型量化是什么？INT8/INT4/AWQ/GPTQ 怎么选？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">什么是 Scaling Law？大模型的「涌现能力」是怎么回事？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">大模型的参数：温度值、Top-P、Top-K 分别是什么？各个场景下的最佳设置是什么？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">什么是大模型项目的分词器？原理是什么？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">讲讲 Transformer 架构基本原理？Encoder 和 Decoder 是什么？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">什么是大语言模型？和传统 NLP 模型有什么区别？</span></a></nav></details>
- <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-llm:08"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">KV Cache 是什么？Prompt Caching 的原理是什么？</span></nav><div class="module-meta">大模型应用 · 第 8 / 22 章 · <span class="muted">更新于 2026-09-01</span></div><h1>KV Cache 是什么？Prompt Caching 的原理是什么？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>👔面试官：来讲讲什么是 KV Cache？Prompt Caching 又是怎么回事？这两个有什么关系？</p>
-<p>🙋‍♂️我：KV Cache 是 Transformer 里的一个东西，存的是 K 和 V 矩阵。Prompt Caching 是 Claude 的一个 API 功能，能减少 token 费用。</p>
-<p>👔面试官：……你只说了表面。KV Cache 具体是缓存什么、为了解决什么问题？为什么自回归生成必须要 KV Cache？没有 KV Cache 推理速度会变成什么样？</p>
-<p>🙋‍♂️我：哦哦，因为每次生成新 token 都要重新计算前面所有 token 的 attention，KV Cache 就是把前面算过的存起来。</p>
-<p>👔面试官：对了一半。那 Prompt Caching 和 KV Cache 是同一个东西吗？两者具体什么关系？为什么 OpenAI、Anthropic 都把 Prompt Caching 作为新功能大力推广？</p>
-<p>🙋‍♂️我：呃……KV Cache 是模型内部的，Prompt Caching 是 API 层面的？</p>
-<p>👔面试官：方向对，但具体差别能讲清楚吗？KV Cache 是「<strong>单次推理内</strong>」的优化（同一次生成的不同 token 之间复用），Prompt Caching 是「<strong>跨请求</strong>」的优化（不同请求之间复用相同前缀）。这两个是同一个底层机制在不同时间尺度上的应用，没搞清楚这层关系，就讲不出 Prompt Caching 的真正价值。</p>
-<p>把这几个反问串起来其实就一句话，KV Cache 和 Prompt Caching 是<strong>同一套缓存思路在两个时间尺度上的延伸</strong>，前者是单次推理内的、后者是跨请求的。理解这一层，省钱和加速到底怎么发生的就清楚了。</p>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>大模型为什么会出现幻觉？怎么缓解？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">23 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">为什么长上下文会出现 Lost in the Middle？上下文窗口越大越好吗？</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">什么是 CoT？为啥效果好？它有什么缺点或局限性？</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">大模型生成文本时的解码策略有哪些？贪心、Beam Search、采样分别什么时候用？</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">大模型部署有哪些主流方案？vLLM、TGI、llama.cpp、SGLang 实际项目里怎么选？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">大模型的 DPO 和 PPO 的区别是什么？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">大模型能力评测指标有哪些？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">大模型微调的方案有哪些？</span></a><a class="shelf-topic-link current" href="chapter-08.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">大模型为什么会出现幻觉？怎么缓解？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">KV Cache 是什么？Prompt Caching 的原理是什么？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">大模型是怎么训练出来的？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">请讲一下 LoRA 技术，除了减少参数量，它还有哪些优点？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">多头注意力（MHA）有哪些局限？MQA、GQA、Flash Attention 怎么解决？</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">对比使用过哪些主流大模型？你们项目中最终选用了哪个模型？为什么？</span></a><a class="shelf-topic-link" href="chapter-14.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">MoE 混合专家模型是什么？DeepSeek V3、Qwen 为什么用 MoE？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">大模型的位置编码是干什么用的？sin/cos、RoPE、ALiBi 有什么区别？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">SFT 之后还有哪些 Post-Training？RLHF、DPO、GRPO、拒绝采样什么关系？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">如何写好 Prompt？分享下 Prompt 工程实践经验？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">大模型量化是什么？INT8/INT4/AWQ/GPTQ 怎么选？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">什么是 Scaling Law？大模型的「涌现能力」是怎么回事？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">大模型的参数：温度值、Top-P、Top-K 分别是什么？各个场景下的最佳设置是什么？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">什么是大模型项目的分词器？原理是什么？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">讲讲 Transformer 架构基本原理？Encoder 和 Decoder 是什么？</span></a><a class="shelf-topic-link" href="chapter-23.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">23</span><span class="shelf-topic-label">什么是大语言模型？和传统 NLP 模型有什么区别？</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-llm:08"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：大模型工程面试题</a><span aria-hidden="true">›</span><span aria-current="page">大模型为什么会出现幻觉？怎么缓解？</span></nav><div class="module-meta">大模型应用 · 第 8 / 23 章 · <span class="muted">更新于 2026-10-26</span></div><h1>大模型为什么会出现幻觉？怎么缓解？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>👔面试官：来讲讲大模型为什么会出现幻觉？怎么缓解？</p>
+<p>🙋‍♂️我：幻觉就是模型胡说八道嘛，主要是训练数据有错误，所以模型学错了。缓解办法是用 RAG 加上外部知识库。</p>
+<p>👔面试官：……「训练数据有错误」？那如果训练数据 100% 正确，模型就不会幻觉了吗？再说，RAG 是工程方案，但你现在让我从「模型本身」角度讲幻觉的根因，不是让你讲 RAG 系统。</p>
+<p>🙋‍♂️我：哦哦，那可能是模型的概率采样有随机性，所以会乱选词？</p>
+<p>👔面试官：那把 Temperature 调到 0 是不是就不会幻觉了？为什么很多 LLM 在 Temperature=0 的时候也会一本正经地胡说八道？这个根因你能讲出来吗？</p>
+<p>🙋‍♂️我：呃……不太清楚。</p>
+<p>👔面试官：我再换个角度问你。同一个事实问题，比如「鲁迅是谁的笔名」，模型有时候答对、有时候答错。这两次答案对应模型概率分布的什么不同？模型对「自己不知道的事」内部有没有信号？为什么模型不会主动说「我不知道」？这些都搞清楚了，再来谈缓解方案。</p>
+<p>这一通追问下来才发现，「幻觉」根本不是「模型乱说」这一层能糊弄过去的。它的根源在 LLM 是概率续写器不是数据库，缓解也得训练、推理、系统三层一起上，少哪层都不行。</p>
 <h3 id="_1">💡 简要回答</h3>
-<p>我理解 KV Cache 和 Prompt Caching 是同一个机制在两个时间尺度上的应用。</p>
-<p><strong>KV Cache</strong> 是「<strong>单次推理内</strong>」的优化。自回归生成时，每次生成新 token 都要让模型重新对前面所有 token 算 attention。如果每次都从零开始算，N 个 token 的总计算量是 O(N³)，根本不可接受。KV Cache 把前面所有 token 的 K 和 V 矩阵缓存在 GPU 显存里，每次新 token 只算自己的 Q、K、V，然后跟缓存的 K/V 做 attention，把总计算量从 O(N³) 降到 O(N²)。</p>
-<p><strong>Prompt Caching</strong> 是「<strong>跨请求</strong>」的优化。把上面 KV Cache 的概念从「单次生成内」扩展到「不同请求之间」。如果两个请求的 Prompt 前缀完全相同（比如都用同样的 System Prompt），第一个请求算完的 KV Cache 在 API 服务器上保留下来，第二个请求遇到相同前缀直接跳过计算、复用已有 KV Cache，只算新增的部分。</p>
-<p>价值上的区别：</p>
-<ul>
-<li><strong>KV Cache</strong> 解决的是「<strong>让自回归生成可行</strong>」，是 Transformer 推理的基本盘</li>
-<li><strong>Prompt Caching</strong> 解决的是「<strong>降低 API 成本和延迟</strong>」，是工程层面的 ROI 优化。不同厂商的计费规则不一样，比如 Claude 的缓存读取价格可以低到普通输入 token 的 10%，OpenAI 等平台也有自己的缓存折扣；延迟收益也和前缀长度、命中率、服务端负载有关，不能死记一个固定比例</li>
-</ul>
-<p>最关键的认知是，<strong>Prompt Caching 不是新发明，是 KV Cache 这个底层机制的工程级延伸</strong>。理解了 KV Cache，Prompt Caching 几乎是自然推论。</p>
-<p>实际工程使用 Prompt Caching 的核心要点是：<strong>固定内容在前、动态内容在后</strong>，前缀只要差一个字符就缓存 miss。</p>
+<p>我理解大模型的幻觉本质是：<strong>模型生成了听起来很合理但实际是错的内容</strong>，这是 LLM 的固有缺陷，不是某个 bug。</p>
+<p>幻觉的根因可以归到三个层面。</p>
+<p>第一是<strong>训练数据层面</strong>：互联网语料本身就有错误、矛盾、过时的信息，模型把这些都「学进去」当作事实记忆。</p>
+<p>第二是<strong>生成机制层面</strong>：LLM 本质是「按概率续写下一个 token」，不是「查询知识库」。模型对「自己知不知道某件事」没有显式信号，碰到不熟悉的问题，会按训练时见过的相似上下文「编一个看起来合理的答案」。这就是为什么 Temperature=0 也会幻觉，因为概率最高的那条路径本身就是错的。</p>
+<p>第三是<strong>对齐目标层面</strong>：SFT 和 RLHF 训练时，「自信地回答」往往比「我不知道」得分更高，模型被无形中训练成了「不会拒答」。</p>
+<p>幻觉分三类：<strong>事实性幻觉</strong>（编造不存在的事实，把人物事件张冠李戴）、<strong>推理性幻觉</strong>（推理链条错乱、前后矛盾）、<strong>上下文不一致</strong>（违背用户给的明确条件）。</p>
+<p>缓解方案要分三层组合用。</p>
+<p><strong>训练层</strong>：对齐数据里专门加入「不知道就说不知道」的样例，做校准（Calibration）训练，让模型学会拒答。</p>
+<p><strong>推理层</strong>：让模型先做必要的分步分析再答（最终可以只展示简要依据）、Temperature 调低减少随机偏差、Self-Consistency 多次采样投票（错误答案不一定容易收敛）、约束解码（限制只能输出特定 vocabulary）。</p>
+<p><strong>系统层</strong>：RAG 接入外部知识库（让模型「看着资料答」而不是「凭记忆答」）、答案后处理核查、强制带引用来源。</p>
+<p>最关键的认知是，<strong>幻觉不可能完全消除</strong>，因为它是 LLM 概率生成机制的固有副产物。工程上的目标是「降低发生率 + 让用户能识别」，不是「彻底消灭」。</p>
 <h3 id="_2">📝 详细解析</h3>
-<h4 id="_3">自回归生成里隐藏的低效问题</h4>
-<p>要理解 KV Cache，得先看清楚自回归生成本身的低效在哪里。</p>
-<p>LLM 是自回归生成的，每次只产出一个新 token，把它拼到序列末尾，再让模型对<strong>整个新序列</strong>重新计算一遍 attention，得到下一个 token。听起来很自然，但隐藏着一个巨大的浪费。</p>
-<p>假设要生成 10 个 token，朴素实现的过程是：</p>
-<div class="codehilite"><pre><code>第 1 步：输入 [P]（Prompt），算 attention，输出 token 1
-第 2 步：输入 [P, t1]，算 attention，输出 token 2
-第 3 步：输入 [P, t1, t2]，算 attention，输出 token 3
-...
-第 10 步：输入 [P, t1, t2, ..., t9]，算 attention，输出 token 10
-</code></pre></div>
-<p>每一步都把前面所有 token 重新算一遍 attention，包括 P 这个长 Prompt（可能几千 tokens）。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b1736b1f2c-7725d8a8402b94a80cda0225.png" /></p>
-<p>总计算量分析：第 i 步要对 i 个 token 做 attention，attention 复杂度是 O(i²)，总计算量是 Σ i² 从 1 到 N，约 O(N³)。生成一个 1000 token 的回答，等于做 10 亿次单 token 计算量的运算。这个开销在 GPT-2 时代可能还能忍，到了大模型时代根本跑不动。</p>
-<p>注意一件事：<strong>第 2 步算的「P」的 attention，和第 1 步算的「P」的 attention 是完全一样的</strong>（因为输入和模型参数都没变）。每一步重算前缀，是纯粹的浪费。</p>
-<p>KV Cache 就是为了消除这个浪费而生的。</p>
-<h4 id="kv-cache">KV Cache：单次推理内的优化</h4>
-<p>KV Cache 的核心思路一句话：<strong>把前面所有 token 的 K 和 V 矩阵缓存起来，每次新 token 只算自己的部分</strong>。</p>
-<p>具体怎么做？要先回到 attention 公式：</p>
-<div class="codehilite"><pre><code>Attention(Q, K, V) = softmax(Q · K^T / √d_k) · V
-</code></pre></div>
-<p>注意这里：</p>
+<h4 id="llm">幻觉到底是什么？为什么 LLM 必然会幻觉</h4>
+<p>要讲清楚幻觉，得先把它的定义说精确。学术界对 LLM 幻觉的定义是：</p>
+<blockquote>
+<p><strong>模型生成了与训练事实、用户输入、或者已知世界不一致的内容，但语言上看起来很流畅合理。</strong></p>
+</blockquote>
+<p>关键的两个特征：第一，<strong>内容错</strong>；第二，<strong>听起来对</strong>。如果只是错但一眼看出来错（比如语法错乱），那是普通的生成质量问题，不算幻觉。幻觉特别指那种「读起来很顺、引用看起来很专业、但仔细查证发现是编的」的输出。</p>
+<p>举几个真实的例子：</p>
 <ul>
-<li>新 token 只是一个 Q（它在「问」前面所有 token）</li>
-<li>它做点积的对象 K^T 和加权求和的对象 V，<strong>都来自前面所有 token</strong></li>
-<li>但前面所有 token 的 K 和 V 是<strong>固定的</strong>，不会随新 token 而变（因为 K 和 V 是从已有 token 的 embedding 算的，新 token 不影响它们）</li>
+<li>让 ChatGPT 推荐一本书，它给出书名「《时间之河》by 王小波」，听起来像那么回事，但王小波从没写过这本书</li>
+<li>让模型解释「2026 年北京冬奥会有哪些项目」，模型一本正经列出十几项，但 2026 年根本没有冬奥会</li>
+<li>让模型写一篇医学综述，文章里引用了「Smith et al., 2018」这个文献，去 PubMed 查根本不存在</li>
 </ul>
-<p>所以<strong>前面所有 token 的 K 和 V 完全可以缓存</strong>，每次只算新 token 自己的 Q、K、V，然后跟缓存的 K/V 拼起来做 attention。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/5a1708903f-f1bc35af9cae8f6ba0f867e8.png" /></p>
-<p>工作流程详细看：</p>
-<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 朴素实现（无 KV Cache）</span>
-<span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_tokens</span><span class="p">):</span>
-    <span class="n">K_all</span><span class="p">,</span> <span class="n">V_all</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">compute_KV</span><span class="p">(</span><span class="n">全部已有</span> <span class="n">token</span><span class="p">)</span>  <span class="c1"># 重复算前面的</span>
-    <span class="n">Q_new</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">compute_Q</span><span class="p">(</span><span class="n">全部已有</span> <span class="n">token</span><span class="p">)</span>
-    <span class="n">attention_out</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">Q_new</span> <span class="o">@</span> <span class="n">K_all</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">))</span> <span class="o">@</span> <span class="n">V_all</span>
-    <span class="n">next_token</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span><span class="n">attention_out</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
-
-<span class="c1"># 带 KV Cache 的实现</span>
-<span class="n">kv_cache</span> <span class="o">=</span> <span class="p">[]</span>
-<span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_tokens</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="c1"># 首次：处理整个 Prompt，把 K/V 全部缓存</span>
-        <span class="n">K</span><span class="p">,</span> <span class="n">V</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">compute_KV</span><span class="p">(</span><span class="n">prompt_tokens</span><span class="p">)</span>
-        <span class="n">kv_cache</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">K</span><span class="p">,</span> <span class="n">V</span><span class="p">))</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># 后续：只算新 token 的 Q、K、V</span>
-        <span class="n">K_new</span><span class="p">,</span> <span class="n">V_new</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">compute_KV</span><span class="p">([</span><span class="n">new_token</span><span class="p">])</span>
-        <span class="n">kv_cache</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">K_new</span><span class="p">,</span> <span class="n">V_new</span><span class="p">))</span>
-    
-    <span class="n">Q_new</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">compute_Q</span><span class="p">([</span><span class="n">current_token</span><span class="p">])</span>
-    <span class="n">K_all</span> <span class="o">=</span> <span class="n">concat</span><span class="p">(</span><span class="n">kv_cache</span><span class="o">.</span><span class="n">K</span><span class="p">)</span>  <span class="c1"># 缓存里取出来用</span>
-    <span class="n">V_all</span> <span class="o">=</span> <span class="n">concat</span><span class="p">(</span><span class="n">kv_cache</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
-    <span class="n">attention_out</span> <span class="o">=</span> <span class="n">softmax</span><span class="p">(</span><span class="n">Q_new</span> <span class="o">@</span> <span class="n">K_all</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">d_k</span><span class="p">))</span> <span class="o">@</span> <span class="n">V_all</span>
-    <span class="n">next_token</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span><span class="n">attention_out</span><span class="p">)</span>
-</code></pre></div>
-<p>关键变化：每一步只算 1 个 token 的 K/V（O(1) 工作量），而不是 N 个 token（O(N) 工作量）。总计算量：</p>
-<table>
-<thead>
-<tr>
-<th>实现</th>
-<th>第 i 步开销</th>
-<th>N 步总开销</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>朴素（无 KV Cache）</td>
-<td>O(i²)</td>
-<td>O(N³)</td>
-</tr>
-<tr>
-<td>带 KV Cache</td>
-<td>O(i)</td>
-<td>O(N²)</td>
-</tr>
-</tbody>
-</table>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0005757f02-6508d2d4cd6a1693c8b62a46.png" /></p>
-<p>KV Cache 不是「锦上添花的优化」，是「<strong>让自回归生成可行的基本盘</strong>」。所有现代 LLM 推理框架（vLLM、SGLang、TGI、llama.cpp）都默认开启 KV Cache，没人会关掉它。</p>
-<h4 id="kv-cache_1">KV Cache 的显存代价</h4>
-<p>KV Cache 让计算速度大幅提升，但代价是显存占用。前面所有 token 的 K/V 都要常驻显存，长上下文下这是个不小的负担。</p>
-<p>KV Cache 显存大小公式：</p>
-<div class="codehilite"><pre><code>KV Cache 显存 = 2（K 和 V 各一份）× B（batch size）× N（序列长）× L（层数）× H（头数）× d_k（每头维度）× 2 字节（FP16）
-</code></pre></div>
-<p>对一个 7B 模型（L=32、H=32、d_k=128），跑 batch=1、N=32K：</p>
-<div class="codehilite"><pre><code>2 × 1 × 32000 × 32 × 32 × 128 × 2 ≈ 17 GB
-</code></pre></div>
-<p>光 KV Cache 就要 17GB，加上模型权重 14GB，总共 31GB，一张 4090（24GB）根本放不下。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0e26f753e7-23fd478109f8ec22213f067c.png" /></p>
-<p>这就是为什么大模型部署有一系列围绕 KV Cache 的优化（PagedAttention、KV Cache 量化、MQA/GQA 共享 K/V 等），目标都是把 KV Cache 显存压下来。这些优化是另一个层面的话题，本节不展开，只需要知道 <strong>KV Cache 的显存压力是 LLM 工程的核心议题之一</strong>。</p>
-<h4 id="kv-cache-prompt-caching">从 KV Cache 到 Prompt Caching：同一机制的扩展</h4>
-<p>到这里，KV Cache 解决的是「<strong>单次生成内</strong>」的重复计算问题。但还有一个更隐蔽的浪费：<strong>不同请求之间的重复计算</strong>。</p>
-<p>考虑一个真实场景：你做了一个客服 AI，System Prompt 写了 3000 tokens 的产品知识、对话规则、Few-shot 示例，所有用户的请求都用这同一个 System Prompt 开头。一天 10 万次对话，每次请求都从零开始处理这 3000 tokens 的 System Prompt，重新算 3000 个 token 的 KV Cache 才能开始生成。这就是巨大的算力浪费。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/3caf55716b-9ffeb68673140e3640f32e1c.png" /></p>
-<p>Prompt Caching 的核心思路就是：<strong>把 KV Cache 的复用范围从「单次推理内」扩展到「不同请求之间」</strong>。</p>
-<p>具体机制：</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/eff3e3c310-0571492ed9fa880c4593f8dc.png" /></p>
+<p>要理解为什么 LLM 会幻觉，得记住一句关键的话：<strong>模型不是数据库</strong>。</p>
+<p>数据库的工作模式是「输入查询 -&gt; 返回精确匹配的记录 -&gt; 找不到就明确报错」。LLM 不是这样，它的工作模式是「输入上下文 -&gt; 按概率续写最可能的下一个 token -&gt; 一直续写直到结束」。模型从来没有「查询失败」这个状态，它永远会输出点什么，因为它的全部使命就是「续写」。</p>
+<p>这是幻觉的元根源。再往下，可以拆成三个具体的成因层面。</p>
+<h4 id="_3">根因一：训练数据本身就有错</h4>
+<p>最容易理解的一层是训练数据问题。</p>
+<p>LLM 的训练数据来自互联网（Common Crawl）+ 各种公开语料 + 书籍 + 代码仓库。数据量是 TB 级别的，里面什么货色都有：</p>
 <ul>
-<li>API 服务器维护一个 KV Cache 池子，按「Prompt 前缀的哈希值」索引</li>
-<li>第一个请求来时，正常计算 System Prompt 的 KV Cache，<strong>额外把这份 KV Cache 保留在显存池子里几分钟</strong></li>
-<li>第二个请求来时，如果 Prompt 前缀和池子里某份缓存一致，<strong>直接复用那份 KV Cache</strong>，只算用户新增的部分</li>
+<li>维基百科里有过时的、错误的、被破坏的版本</li>
+<li>新闻里有谣言、虚假报道、带立场的扭曲叙述</li>
+<li>论坛、博客、社交媒体里满是民科、阴谋论、错误的常识</li>
+<li>不同来源之间互相矛盾（同一个事件的不同说法、同一个数据的不同版本）</li>
+<li>时间过期的信息（2020 年的「今年是 2020 年」、十年前的「最新研究」）</li>
 </ul>
-<p>技术上这就是 KV Cache 在「<strong>时间维度</strong>」的延伸：单次内的 KV Cache 在 token 之间共享，Prompt Caching 在请求之间共享。底层的「缓存 K/V 矩阵避免重复计算」机制完全一样。</p>
-<h4 id="api-prompt-caching">主流 API 的 Prompt Caching 实现</h4>
-<p>不同的 API 厂商对 Prompt Caching 的实现方式不太一样，主要分两派。</p>
-<p><strong>Claude（Anthropic）：显式标记缓存断点</strong></p>
-<p>Claude 的做法是要用户显式告诉 API「我希望缓存到这里」。在希望缓存的内容末尾加一个 <code>cache_control</code> 标记：</p>
-<div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">import</span> <span class="nn">anthropic</span>
-<span class="n">client</span> <span class="o">=</span> <span class="n">anthropic</span><span class="o">.</span><span class="n">Anthropic</span><span class="p">()</span>
-
-<span class="c1"># System Prompt 带缓存断点：把「到这里为止的内容」标记为可缓存</span>
-<span class="n">SYSTEM_WITH_CACHE</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">{</span>
-        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;text&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;你是一位专业的劳动法顾问。</span><span class="se">\n\n</span><span class="s2">以下是完整的《劳动合同法》条文：</span><span class="se">\n\n</span><span class="s2">[数千字的法律条文内容...]&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;cache_control&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ephemeral&quot;</span><span class="p">}</span>  <span class="c1"># 断点：这份法律条文会被缓存</span>
-    <span class="p">}</span>
-<span class="p">]</span>
-
-<span class="c1"># 第一次请求：建立缓存（会有约 1.25x 的写入费用）</span>
-<span class="n">response1</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;你的 Claude 模型 ID&quot;</span><span class="p">,</span>
-    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
-    <span class="n">system</span><span class="o">=</span><span class="n">SYSTEM_WITH_CACHE</span><span class="p">,</span>
-    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;员工试用期最长可以是多久？&quot;</span><span class="p">}]</span>
-<span class="p">)</span>
-
-<span class="c1"># 第二次请求：system 前缀完全一致，命中缓存（只需支付 10% 的 token 费用）</span>
-<span class="n">response2</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">messages</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;你的 Claude 模型 ID&quot;</span><span class="p">,</span>
-    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
-    <span class="n">system</span><span class="o">=</span><span class="n">SYSTEM_WITH_CACHE</span><span class="p">,</span>
-    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;劳动合同必须包含哪些必备条款？&quot;</span><span class="p">}]</span>
-<span class="p">)</span>
-</code></pre></div>
-<p>显式标记的好处是用户清楚控制哪些内容缓存、哪些不缓存。代价是要改代码、加配置。</p>
-<p><strong>OpenAI：自动缓存</strong></p>
-<p>OpenAI 的做法更轻量：只要请求中的 Prompt 前缀超过一定长度（1024 tokens），系统会自动尝试缓存。命中时不需要额外操作，API 响应里会告诉你有多少 token 命中了缓存。</p>
-<p>自动缓存的好处是开发者不用改代码就能享受到，缺点是控制粒度不如显式标记精细。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/6c7cbe60c1-bad95130dbd56e91a6fd8646.png" /></p>
-<p><strong>价格优势</strong>：</p>
-<p>以 Claude 的 ephemeral prompt cache 为例：</p>
+<p>模型在预训练时把这些<strong>全都学进了参数里</strong>，没有「真假区分」机制。等推理时它说出来的，可能就是某个 2015 年错误论坛帖子的回声。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d921ac0418-4dd5493119d90deb04288c70.png" /></p>
+<p>但要注意，<strong>训练数据问题只是冰山一角</strong>。即使数据 100% 正确干净，模型还是会幻觉。下面是更深层的根因。</p>
+<h4 id="_4">根因二：生成机制是「续写」不是「查询」</h4>
+<p>这是幻觉最深的根因，也是面试里最容易问倒人的地方。</p>
+<p>LLM 的本质训练目标通常包含 <strong>next-token prediction</strong>：给定上下文，模型输出下一个 token 的 logits/概率分布，再由解码器逐步生成。这个概率过程本身不等于事实查询或证明系统。</p>
+<p>这里有一个被很多人忽略的事实：<strong>模型对「自己知不知道某件事」根本没有显式信号</strong>。</p>
+<p>你问「鲁迅是谁的笔名？」，模型的处理流程不是「查一下知识库 -&gt; 找到周树人 -&gt; 输出周树人」，而是根据参数和上下文计算下一个 token 的分布。若知识过时、冲突、粒度不足或上下文触发了相似但错误的模式，模型就可能续出听起来合理但错误的答案；不能把记忆次数或某个 token 概率简单等同于事实置信度。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/3f407c4a06-c303ee42bd42ff5bc258660e.png" /></p>
+<p>模型这种「永远会输出点什么」的特性带来一个反直觉的结果：<strong>Temperature=0 也会幻觉</strong>。</p>
+<p>为什么？许多 API 的 <code>Temperature=0</code> 会近似采用贪心，但具体后端语义可能不同。即使选到最高 logit，“最可能”也不等于“事实正确”；错误可以稳定地重复输出。</p>
+<p>这就是为什么把温度调低不能根除幻觉。<strong>温度只能减少「同一个错误重复出现的随机性」，不能修正「错误本身」</strong>。模型记错了就是记错了，温度调低反而让错误答案更稳定地输出。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/fa735d4ab5-f40fa7c02d508a49baf89885.png" /></p>
+<p>更进一步的是「<strong>参数化知识 vs 检索式知识</strong>」的对比。</p>
+<p>LLM 的大量知识以分布式方式编码在参数中（参数化知识），这种存储方式是：</p>
 <ul>
-<li>命中 Prompt Cache 的 token 费用是正常输入 token 的 <strong>10%</strong>（便宜 90%）</li>
-<li>写入缓存的那次请求会有少量额外费用（约为正常的 <strong>1.25x</strong>）</li>
-<li>后续只要有 2 次以上命中，总体就是省钱的</li>
+<li><strong>模糊的</strong>：知识不是 key-value 存的，是分布式编码在权重里的，记得多准取决于训练时见过多少次</li>
+<li><strong>不可检索的</strong>：模型自己不知道某条知识在哪几个权重里</li>
+<li><strong>不可验证的</strong>：模型输出一个事实时，没法回过头标「这条来自训练数据的某段」</li>
 </ul>
-<p>延迟优势：命中缓存时首 token 延迟通常会下降，因为 Prompt 部分不用重算了。具体能降多少，要看缓存前缀长度、模型、并发和服务端调度，工程上要用真实链路压测。</p>
-<h4 id="prompt-caching">适合用 Prompt Caching 的场景</h4>
-<p>Prompt Caching 最适合「<strong>前面固定、后面变化</strong>」的使用模式，三类典型场景：</p>
-<p><strong>场景 1：固定 System Prompt 的应用</strong></p>
-<p>客服系统、AI 助手、代码 Review 工具，System Prompt 包含大量产品知识、规则说明、Few-shot 示例。用户每次发消息，System Prompt 都是固定的，可以一直命中缓存。这是最常见、收益最大的场景。</p>
-<p><strong>场景 2：基于同一份长文档的多次问答</strong></p>
-<p>比如「把合同文本放进 Prompt，然后问 10 个不同的问题」。第一次问问题时建立缓存，后续 9 次都命中缓存，节省了大量重复处理文档的成本。法律 AI、金融 AI、医疗 AI 这种场景特别多。</p>
-<p><strong>场景 3：大量 Few-shot 示例</strong></p>
-<p>如果你的 Prompt 里有 10-20 组 Few-shot 示例（用于引导模型输出特定格式），这部分内容非常适合缓存。每次用户的实际问题不同，但 Few-shot 部分一样。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1a511b6a72-954ebc911e107d774eab41ff.png" /></p>
-<h4 id="_4">工程陷阱：固定内容在前、动态内容在后</h4>
-<p>Prompt Caching 听起来很美，但实战中有一个最常见的陷阱：<strong>前缀必须完全一致才能命中缓存，哪怕多了一个空格、改了一个字符，就算缓存 miss、重新计算</strong>。</p>
-<p>最经常踩的雷是把日期、用户名这类动态内容放在固定内容<strong>前面</strong>：</p>
-<p>❌ <strong>会让缓存失效的结构（动态内容在前）：</strong></p>
-<div class="codehilite"><pre><code>今天是 2026-03-07，当前用户：张三
-
-[数千字的系统提示 + 产品知识库]
-← cache_control 断点
-
-用户问题：我想退换货
-</code></pre></div>
-<p>问题：日期和用户名每次都不同，导致整个前缀每次都变了，缓存永远 miss。每次还是要从零开始算几千字的系统提示。</p>
-<p>✅ <strong>正确结构（固定内容在前，动态内容在后）：</strong></p>
-<div class="codehilite"><pre><code>[数千字的系统提示 + 产品知识库]
-← cache_control 断点放这里
-
-今天是 2026-03-07，当前用户：张三
-用户问题：我想退换货
-</code></pre></div>
-<p>把所有固定内容集中到断点之前，动态内容放在断点之后。前缀稳定不变，每次都能命中缓存。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/4359d7be8d-f35a7af0588ab054836f8963.png" /></p>
-<p>第二个常见陷阱是<strong>缓存的时效性</strong>。Claude 的 ephemeral 缓存默认有效期是 5 分钟，如果超过 5 分钟没有命中过，缓存就会失效。这意味着：</p>
+<p>而 RAG（Retrieval-Augmented Generation，检索增强生成）把检索到的证据放入上下文。它可以提供出处和“无结果”路径，但检索错、文档过期、上下文冲突或模型误读时仍会产生幻觉；“有引用”也不自动等于“被引用内容支持结论”。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2c734f6576-fcb940f64aefd16eb4008bf3.png" /></p>
+<h4 id="_5">根因三：对齐目标的副作用</h4>
+<p>第三层根因更隐蔽：<strong>某些对齐数据和评分偏好可能奖励流畅、完整的回答，却没有充分奖励校准的不确定性</strong>。</p>
+<p>什么意思？SFT 的训练数据是（指令，期望回答）对，但绝大多数标注员写期望回答时，都会写「自信、详细、专业」的回答，很少写「我不知道」。结果是模型学到了「碰到问题就要给出详细回答」的行为模式，根本没学过「碰到不会的就拒答」。</p>
+<p>如果偏好标注没有可靠事实核验，详细、自信的错误回答可能被误选；这不是所有 RLHF 流程的必然结果，而是数据与奖励设计风险。</p>
+<p>奖励模型可能把流畅度、详尽度等表面特征当作质量代理，导致过度自信或拒答校准不足；因此需要不确定性、事实性和安全切片评测，不能直接断言某个训练流程一定造成“永远不拒答”。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/daf703ed93-26536e0e5c08d2e32a5030fb.png" /></p>
+<p>相关研究讨论过「<strong>Calibrated Refusal（校准的拒答）</strong>」：让模型在证据不足时表达不确定并请求核验。至于具体产品的训练配方，公开资料通常不足以还原内部流程，不能把某篇论文直接等同于某个产品。</p>
+<p>到这里，三个根因层面都讲完了：训练数据有噪声、生成机制是「续写不是查询」、对齐目标鼓励「不拒答」。下面看看具体能产生哪些类型的幻觉。</p>
+<h4 id="_6">三类幻觉的典型表现</h4>
+<p>工程上可以按错误来源把幻觉分为几类；不同论文的 taxonomy 不完全一致：</p>
+<p><strong>1. 事实性幻觉（Factual Hallucination）</strong></p>
+<p>模型编造不存在的事实，或把已知事实张冠李戴。最常见、最容易被识破：</p>
 <ul>
-<li>高流量应用（每分钟几十次以上请求）通常能自然保持缓存活跃</li>
-<li>低流量应用（几小时一次请求）会频繁失效，反而省不了多少</li>
+<li>编造不存在的人物（「李白曾担任唐朝丞相」）</li>
+<li>编造不存在的论文（「Zhang et al. 2019 在 Nature 发表」）</li>
+<li>时间错误（把发生在 2010 年的事说成 2015 年）</li>
+<li>地理错误（「乌克兰的首都是莫斯科」）</li>
 </ul>
-<p>如果你的应用是低流量场景，Prompt Caching 的收益可能不如预期，甚至因为「写入缓存的 1.25x 费用」反而更贵。这是需要在使用前评估清楚的。</p>
-<h4 id="kv-cache-pagedattention">进阶：KV Cache 量化与 PagedAttention</h4>
-<p>最后简单提两个 KV Cache 的进阶优化方向，作为面试加分项。</p>
-<p><strong>KV Cache 量化</strong>：把 KV Cache 从 FP16 量化到 INT8 甚至 INT4，显存占用减半到 1/4。但 KV Cache 对量化误差比权重更敏感，特别是长链路推理（数学题、代码题），所以这是 2024-2026 年研究热点，主流方案还在演进。</p>
-<p><strong>PagedAttention</strong>：vLLM 框架的核心创新，灵感来自操作系统虚拟内存。把 KV Cache 切成固定大小的「Block」（典型 16 个 token 一块），每个请求拿到的是逻辑 Block 列表，由一张 Block Table 映射到物理显存。这样消除了 KV Cache 的显存碎片，部署时显存利用率从 30-40% 拉到 90%+。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/42a1f8cb58-1c2365716d968b1a91dd26d8.png" /></p>
-<p>这两个方向的具体细节是另一个层面的话题，但能在面试里提一句，会显示你对 KV Cache 这个核心机制有深入跟进。</p>
-<h3 id="_5">🎯 面试总结</h3>
-<p>回到开头那段对话，问到 KV Cache 和 Prompt Caching，最重要的是先把<strong>核心关系</strong>讲清楚：这两个不是不相关的优化，是<strong>同一个底层机制在两个时间尺度上的应用</strong>。KV Cache 是「单次推理内」的优化（同一次生成里不同 token 之间复用），Prompt Caching 是「跨请求」的优化（不同请求之间复用相同前缀）。这一句话能讲清楚，就已经比绝大多数候选人深刻了。</p>
-<p>接下来把 KV Cache 的来龙去脉讲明白。自回归生成的朴素实现是 O(N³)，每步都重算前面所有 token 的 attention。KV Cache 把前面所有 token 的 K/V 矩阵缓存起来，每步只算新 token 的部分，总计算量降到 O(N²)。这不是「锦上添花的优化」，是让自回归生成<strong>可行</strong>的基本盘，所有现代推理框架（vLLM、SGLang、TGI）默认都开。</p>
-<p>然后讲 Prompt Caching 的工程价值。把 KV Cache 复用范围扩展到不同请求之间，让 N 个用户共用一个 System Prompt 的 KV Cache。Claude 用显式断点（cache_control），OpenAI 用自动缓存，本质都是同一个机制，只是触发方式和计费规则不同。面试里说「能显著降低重复前缀成本和首 token 延迟」就够稳，不要把某一家价格比例说成全行业通用。</p>
-<p>最关键的一句话是讲清<strong>工程陷阱</strong>：<strong>固定内容在前、动态内容在后</strong>，前缀差一个字符就 miss。这是最容易踩的雷，把日期、用户名这种动态内容放前面，会让缓存永远失效。还有一条是低流量应用可能省不到，因为缓存通常只有 5 分钟时效性，没有持续命中的话写入费用反而更贵。</p>
-<p>如果还想再加分，可以提一句 KV Cache 量化和 PagedAttention 这种进阶优化方向，让面试官知道你对这个核心机制有持续跟进。能讲到这一层，已经是面试里很难追问的水平了。</p>
-<hr /></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-09.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_5">🎯 面试总结</a></li></ul></div></aside></div>'
+<p><strong>2. 推理性幻觉（Reasoning Hallucination）</strong></p>
+<p>事实层面没问题，但推理过程错乱、前后矛盾、逻辑跳跃。在数学题、代码题里尤其常见：</p>
+<ul>
+<li>数学题前面算对了，后面突然算错</li>
+<li>代码生成里前半段定义了变量 x，后半段引用了从来没定义过的 y</li>
+<li>推理链断了一步，最后结论强行得出</li>
+</ul>
+<p><strong>3. 上下文不一致（Faithfulness Hallucination）</strong></p>
+<p>最隐蔽的一类，不违反客观事实，但<strong>违反用户在 Prompt 里给的明确条件</strong>：</p>
+<ul>
+<li>用户说「我已经吃饱了」，模型还推荐你去吃饭</li>
+<li>用户给了一段文档说「请只根据下面的资料回答」，模型答的是它自己脑袋里的知识，不是文档里的</li>
+<li>系统 Prompt 写了「不要泄露内部信息」，模型还是把内部 Prompt 复述了出来</li>
+</ul>
+<p><img loading="lazy" decoding="async" alt="" src="assets/b842d80b39-ec099fb47fc06a38e2b8c0e7.png" /></p>
+<p>理解了根因和分类，缓解方案就有了对症下药的落点。下面分三层来看。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/0818eed43d-01dde73b33ffee33c92a68e8.png" /></p>
+<h4 id="_7">缓解方案：训练层</h4>
+<p>最根本的缓解办法是在训练阶段就教会模型「不知道就说不知道」。具体有几种做法：</p>
+<p><strong>1. 在 SFT 数据里加入大量「拒答样例」</strong></p>
+<p>主动加入证据不足时的澄清、拒答和引用核验样例，让模型学到“拒答/澄清也可能是合格行为”；具体产品是否大量采用某种数据配方，不应臆断。</p>
+<p><strong>2. 校准（Calibration）训练</strong></p>
+<p>用专门的偏好数据，让标注员对「正确且自信」「错误但谨慎」「错误且自信」打分，让奖励模型学到「错误且自信」要严厉扣分。这样训出来的模型会主动避免「自信地说错话」。</p>
+<p><strong>3. 用奖励模型筛掉幻觉回答</strong></p>
+<p>收集模型回答，用可核验来源、程序规则或人工进行事实核查，把错误和证据不足的回答纳入负样本/偏好数据；不要把这一通用策略直接归因于某个厂商的特定训练流程。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6568743743-24e68de775565faf2e63b0ae.png" /></p>
+<p>训练层缓解的优点是治本，但代价是训练成本高，且效果上限受训练数据质量限制。所以工程上还需要推理层和系统层的辅助。</p>
+<h4 id="_8">缓解方案：推理层</h4>
+<p>推理层缓解不需要改模型，只需要在推理时调整解码行为或提示工程：</p>
+<p><strong>1. CoT（链式思考）暴露推理错误</strong></p>
+<p>让模型先做分步分析，再给出最终结论。这样模型更不容易跳步，最终答案错的时候也更容易通过简要依据追溯问题。对外产品里不一定展示完整 CoT，可以展示关键推理步骤或检查结果。CoT 对推理性幻觉有帮助，但不能保证一定正确。</p>
+<p><strong>2. Temperature 调低</strong></p>
+<p>虽然前面说过低温不能根除幻觉，但降低随机性有时能减少采样波动；它也可能让错误更稳定。温度范围不是“事实问答标配”，应按模型/API 行为和业务验证集调参。</p>
+<p><strong>3. Self-Consistency 多次采样投票</strong></p>
+<p>对同一个问题，在预算内采样多次，再对可比较的最终答案投票或交给验证器。正确路径可能更容易收敛，但共享偏差也会造成一致错误；采样数、温度和收益应通过任务集评估。</p>
+<p><strong>4. 约束解码（Constrained Decoding）</strong></p>
+<p>如果输出格式有严格约束（比如 JSON、SQL、特定 schema），可用结构化输出/约束解码并在服务端再次解析校验，降低格式错误；约束格式不等于保证事实正确，也不是所有框架/模型/流式模式都支持同样的约束。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9a21f89133-fe74a24ce5aa70198a9ae436.png" /></p>
+<p>推理层缓解的优点是不改模型、可以即插即用，缺点是上限有限，对「模型记忆模糊」这种根本问题没办法。</p>
+<h4 id="_9">缓解方案：系统层</h4>
+<p>系统层缓解是最工程化的方案，把 LLM 当成「会犯错的组件」，外面加防护栏：</p>
+<p><strong>1. RAG：让模型「看着资料答」</strong></p>
+<p>RAG 是常用的系统层方案：生成前检索相关资料，把证据放进上下文并要求按证据回答。它能改善有可靠知识源的事实问答，但效果取决于召回、排序、文档版本、上下文长度、提示约束和引用校验，不保证减少固定比例，也不适合替代所有推理或权限判断。</p>
+<p><strong>2. 后处理事实核查（Fact-Checking）</strong></p>
+<p>模型输出后，用另一个 LLM 或者检索系统去核查里面提到的事实声明。比如模型说「Smith et al. 2018 在 Nature 发表了 X」，后处理系统去 PubMed 查这篇论文是否存在。如果核查不过，把这部分内容标红或删掉。</p>
+<p><strong>3. 强制带引用来源</strong></p>
+<p>在 Prompt/输出 schema 中要求事实声明关联检索证据，并由服务端检查引用是否真的支持声明；用户可点击核验。引用应来自可信、权限正确且版本明确的来源，不能把“带编号”当作事实保证。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d843363958-545137a755433895778b7bd3.png" /></p>
+<p>系统层缓解的优点是工程上最有效、可观测、可追溯，缺点是引入了额外的延迟和系统复杂度。但对企业级应用来说，几乎是必选项。</p>
+<h4 id="_10">工程实践：为什么幻觉不可能完全消除</h4>
+<p>最后讲一个面试里很容易加分的点：<strong>幻觉永远不会被「彻底消灭」</strong>。</p>
+<p>原因回到最开始那句话，<strong>LLM 的本质是按概率续写下一个 token</strong>，这个机制天然就带着「会编」的可能性。无论你再怎么对齐、怎么 RAG、怎么核查，只要模型还是按概率生成的，就一定有概率生成错误内容。</p>
+<p>工程上现实的目标是：</p>
+<ul>
+<li><strong>降低发生率</strong>（从 30% 降到 5% 是巨大的胜利）</li>
+<li><strong>让用户能识别</strong>（带引用、加可信度标记、对不确定回答主动声明）</li>
+<li><strong>限定使用场景</strong>（高风险场景如医疗、法律必须有人类把关）</li>
+</ul>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8ff0b830a6-1864c2b03c952793d6db2649.png" /></p>
+<p>讲到这里，能在面试里说出「幻觉不可能消除，工程目标是降低发生率 + 让用户识别」这句话，就比绝大多数候选人深刻一个层次了。这个认知背后是「LLM 的概率本质」，是面试官想听到的。</p>
+<h3 id="_11">🎯 面试总结</h3>
+<p>回到开头那段对话，问到大模型为什么会出现幻觉、怎么缓解，最重要的是先讲清楚<strong>幻觉的定义和元根源</strong>。幻觉不是简单的「模型出错」，而是「生成了流畅合理但实际错误的内容」。元根源是 <strong>LLM 不是数据库，是续写器</strong>，它的全部使命就是按概率输出下一个 token，没有「查询失败」这个状态，永远会输出点什么。这一句先讲到，就把幻觉的本质点出来了。</p>
+<p>接下来讲<strong>三个具体根因</strong>。训练数据本身有错（互联网语料里有噪声、矛盾、过时信息）；生成机制是「续写不是查询」（参数化记忆模糊，所以 Temperature=0 也会幻觉）；对齐目标的副作用（RLHF 训练时人类标注偏好「自信回答」，模型被无形训练成「不会拒答」）。这三层根因层层递进，<strong>第二层和第三层是面试里能加分的关键</strong>，能讲出来比一般候选人深刻。</p>
+<p>然后讲<strong>缓解方案分三层组合用</strong>。训练层（拒答数据增强、Calibration 校准、奖励模型筛幻觉），推理层（分步分析、温度调低、Self-Consistency、约束解码），系统层（RAG、事实核查、强制带引用）。每一层都不是银弹，工业级应用通常组合用。这里不要硬说某个闭源模型具体用了哪几招，公开资料没写的就保持谨慎。</p>
+<p>最关键的一句话是：<strong>幻觉不可能完全消除，因为它是 LLM 概率生成机制的固有产物</strong>。工程目标是「降低发生率 + 让用户能识别」，不是「彻底消灭」。能讲到这一层，面试官就知道你不是在背工具，是真的理解 LLM 的本质。</p>
+<hr /></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-07.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-09.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_11">🎯 面试总结</a></li></ul></div></aside></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="xiaolin-llm:08",moduleId="xiaolin-llm";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';

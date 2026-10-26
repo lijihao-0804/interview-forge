@@ -1,325 +1,171 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Claude Code 代码检索图解：为什么用 grep 而不用 RAG？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
-<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">19 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">Claude Code 工程化指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins 一篇讲透</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">Claude Code /powerup 教程：18 个官方互动课程全解析</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">Claude Code 使用教程：新手入门必学的基础技巧</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">Claude 5 上下文工程：为什么提示词越写越少？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">Anthropic 40 万次会话研究：用好 AI 编程的关键不是会写代码</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">CLAUDE.md 指南：Claude Code 的项目记忆该怎么写？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">Claude Code 大型代码库实战：百万行代码怎么扛得住？</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">Claude Code Skill 揭秘：Skill 真的只是一份 markdown 吗？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">grill-me 使用指南：写代码前，先让 Claude Code 审问你的需求</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">SDD 规约驱动开发实战：在 Claude Code 里跑通先规约后编码</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">superpowers vs grill-me：同一个需求实测，差距到底在哪？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">Claude Fable 5 系统提示词详解：1600 行泄漏 prompt 里的工程干货</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">Claude Code 上下文管理图解：Compact 压缩机制怎么实现？</span></a><a class="shelf-topic-link current" href="chapter-14.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">Claude Code 记忆机制图解：为什么不用向量数据库？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">Claude Code 主循环 Query 图解：一轮对话是怎么跑起来的？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">Claude Code Skill 原理图解：几个 Markdown 文件，怎么做到按需加载？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">Claude Code 源码拆解：51 万行泄漏代码里的架构设计</span></a></nav></details>
- <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-tujie-claude-code:14"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</span></nav><div class="module-meta">Agent 工程 · 第 14 / 19 章 · <span class="muted">更新于 2026-10-10</span></div><h1>Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>大家好，我是小林。</p>
-<p>前阵子，有个林友跟我聊起他面试字节 AI Agent 岗的经历。</p>
-<p>被面试官问了一个问题：「为什么 Claude Code 不用 RAG 检索代码，而是直接用 grep？」</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c754b00ff8-7dc357ccc02ad6658b762786.png" /></p>
-<p>我一愣。</p>
-<p>是啊，这两年 RAG 火成这样，几乎成了 Agent 的标配。谁去做个 AI 编程工具不上 RAG？</p>
-<p>结果 Claude Code 这么个被业内认证「最好用的 AI 编程工具之一」，反其道而行，连 embedding 和向量数据库的影子都没有，就靠 grep 加读文件这种最朴素的方式来获取代码上下文。</p>
-<p>是 Anthropic 没钱搞向量库吗？显然不是。</p>
-<p>是工程师水平不够吗？更不可能。</p>
-<p>那这背后到底是什么设计哲学？为什么他们偏偏不用 RAG？</p>
-<p>我把 Claude Code 的检索相关源码翻了个底朝天，越看越觉得这个选择很有意思。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/4f51752890-199bc1bc2ad333850d782fb5.png" /></p>
-<p>今天就从源码视角，带你一层层拆开这个问题我会按这个顺序展开：</p>
-<ul>
-<li>先搞懂代码检索到底要解决什么？</li>
-<li>看 RAG 派是怎么干的？ RAG 在代码场景有什么坑 ？</li>
-<li>Claude Code 是怎么反向思考的？</li>
-<li>Claude Code 检索三件套怎么组合 ？</li>
-<li>Claude Code 派子 agent 去检索是怎么回事？</li>
-</ul>
-<p>读完这篇文章，你不光能答出这道面试题，还能理解 Anthropic 对「Agent 应该长成什么样」的整套思路。</p>
-<hr />
-<h3 id="_1">一、先搞懂「代码检索」到底要解决什么问题</h3>
-<p>很多人一上来就跳进 RAG 和 grep 的对比，但我觉得这样讲很容易让人迷糊。</p>
-<p>不如咱们先退一步，把问题本身搞清楚：什么叫代码检索？为什么 Agent 写代码非得有这一步？</p>
-<p>你想啊，你打开 Claude Code，跟它说「帮我把 UserService 里那个登录方法改一下，加个验证码逻辑」。模型要完成这个任务，第一件事得是什么？</p>
-<p>得是「找到 UserService 这个文件、找到登录方法的具体代码」。代码都没看到，怎么改？</p>
-<p>但问题来了：模型自己又不能直接「看」磁盘上的代码，它只能看到你塞进上下文里的文字。</p>
-<p>那你说，那把整个项目的代码全塞进去不就完了？</p>
-<p>理论上是这么个理。但 LLM 的上下文窗口是有限的。就算用 Claude Opus 4.7 这种已经支持 1M token 的超长上下文模型，听着是真的大对吧？换算一下大概有 200 多万字。但你想想，一个稍微像样点的项目动辄几百万行代码，再算上依赖库源码就更夸张了，光是这些就远超模型的承载量，更别说还要留位置给系统提示、对话历史、工具调用结果。</p>
-<p>塞不下，还是塞不下。</p>
-<p><img loading="lazy" decoding="async" alt="上下文窗口 vs 代码库体积对比图" src="assets/85fe1db92f-4eb72038aa5132a7a6707f0e.png" /></p>
-<p><em>上下文窗口 vs 代码库体积对比图</em></p>
-<p>所以代码检索这一步就出来了：从一堆代码里，<strong>精准地捞出和当前任务相关的几个片段，再塞给模型</strong>。</p>
-<p>这有点像你查字典。一本汉语词典几千页，你不会从头读到尾，而是先翻目录、看拼音索引，定位到「龘」这个字所在的那一页，然后只读那一页。代码检索干的就是这个活儿。</p>
-<p><img loading="lazy" decoding="async" alt="字典查目录类比图" src="assets/b1b3f2c0c2-6392ef1d2bfe34a4bbfb2549.png" /></p>
-<p><em>字典查目录类比图</em></p>
-<p>那「怎么查目录」、「怎么定位到那一页」，就是不同方案的差异所在了。</p>
-<hr />
-<h3 id="rag">二、绕不开的 RAG：「先建库再查」的经典思路</h3>
-<p>说到检索，做过 AI 应用的同学第一反应肯定是 RAG。这玩意儿现在是 Agent 圈的「网红技术」，几乎一提到「让 LLM 用外部知识」，就想到它。</p>
-<p>那 RAG 到底是怎么做的？我用一个图书馆的故事给你讲明白。</p>
-<p>想象你是一个图书馆的管理员。馆里有几十万本书，读者来问「我想看一本关于宋代茶文化的书」，你怎么办？</p>
-<p>你不可能跑遍整个馆每本书翻一遍。最聪明的做法是：<strong>提前把每本书都做好分类卡片</strong>。卡片上写清楚书名、作者、关键词、内容摘要，按主题归类好放进抽屉里。读者一来，你照着卡片找对应的抽屉，几分钟就能把书翻出来。</p>
-<p>RAG 在代码场景下，干的就是这个事儿。它的工作流可以拆成四步。</p>
-<p><strong>第一步，切片（Chunking）。</strong></p>
-<p>先把代码文件按某种规则切成小片段。常见的切法是按函数切、按类切，或者按固定行数切，比如每 100 行一段。这相当于把厚厚的书拆成一篇篇文章。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/71e98d5167-a71925392b886f48974fc171.png" /></p>
-<p><strong>第二步，向量化（Embedding）。</strong></p>
-<p>每个代码片段过一遍 embedding 模型，转成一串数字（一个高维向量）。你可以理解成给每个片段算了一个「语义指纹」，意思相近的片段，指纹也相近。</p>
-<p><img loading="lazy" decoding="async" alt="Embedding 演示：代码经过模型变成数字向量" src="assets/4064a1ed45-712468c4c5af3823cc992fe7.png" /></p>
-<p><em>Embedding 演示：代码经过模型变成数字向量</em></p>
-<p><strong>第三步，建索引（Indexing）。</strong></p>
-<p>把所有的向量存到一个专门的向量数据库里，比如 Faiss、Pinecone、Milvus 这些。这一步就是「把分类卡片整理好，按抽屉摆放」。</p>
-<p><strong>第四步，召回（Retrieval）。</strong></p>
-<p>用户提问的时候，把问题也向量化一下，去库里找最相似的 Top-K 个片段，比如最像的 5 个，然后把这几段代码拼到 prompt 里，丢给 LLM。</p>
-<p><img loading="lazy" decoding="async" alt="向量召回 Top-K 示意图" src="assets/20c1fa9678-c718fbc1dc5a1008616b2488.png" /></p>
-<p><em>向量召回 Top-K 示意图</em></p>
-<p>讲到这里，你可能已经看出 RAG 的核心套路了。</p>
-<p><strong>它把「找代码」这件事，转成了「算相似度」</strong>。所有的检索逻辑，最后都归结为「在向量空间里找最近的几个邻居」。</p>
-<p>这套思路在很多场景下确实好使。比如你做一个客服机器人，公司内部有一万篇 FAQ 文档，用户问问题，RAG 拍拍脑袋就能给你召回最相关的几篇，效果妥妥的。</p>
-<p>那放到代码上呢？是不是也一样无敌？</p>
-<p>别急，下一节咱们就来扒它的痛处。</p>
-<hr />
-<h3 id="rag_1">三、RAG 在代码场景下的「水土不服」</h3>
-<p>如果 RAG 真的完美适合代码场景，那 Claude Code 早就上了。问题是它有一堆坑，咱们一个一个看。</p>
-<h4 id="1">痛点 1：代码不像散文，切不动</h4>
-<p>文章是流式的，你拦腰切一刀，损失不大，前后段都还能独立读。但代码不一样，代码是有严格结构的。</p>
-<p>举个例子，一个函数 200 行，按 100 行一段切了。结果上半段是个 <code>if</code> 的开头，下半段是 <code>else</code> 的结尾，模型看到的两个片段，一个少了 else，一个少了 if，这玩意儿压根没法用。</p>
-<p>更糟糕的是，函数 A 调用了函数 B，但是 A 和 B 在不同片段里。模型只看到 A，根本不知道 B 是干嘛的，幻觉概率直接拉满。</p>
-<p><img loading="lazy" decoding="async" alt="函数被切两半示意图" src="assets/fb3912d393-c2e6fef6804ab3950474d663.png" /></p>
-<p><em>函数被切两半示意图</em></p>
-<h4 id="2">痛点 2：精确匹配的活，向量干不了</h4>
-<p>向量召回的本质是「找相似的」，不是「找对的」。这在代码场景就麻烦了。</p>
-<p>你跟 Claude Code 说：「帮我看下 <code>getUserById</code> 这个函数的实现」。</p>
-<p>向量召回会怎么干？它会找一堆「跟用户相关的查询函数」给你：<code>getUserByName</code>、<code>getUserByEmail</code>、<code>fetchUserInfo</code>、<code>queryUser</code>，啥都来一遍。但你要的就是 <code>getUserById</code> 这一个具体的函数啊。</p>
-<p>这就好比你跟同事说「帮我叫一下张三」，结果他把李四王五马六全叫过来了，因为他们都是同事。</p>
-<p>向量擅长「模糊」，但代码很多时候要的就是「精确」。</p>
-<blockquote>
-<p>配图意见：向量召回错误示意，用户问「找张三」，结果向量库返回「李四王五马六」</p>
-</blockquote>
-<p><img loading="lazy" decoding="async" alt="向量召回错误示意图" src="assets/5225db899c-adc7d7ecdbb94a8e6ba5948e.png" /></p>
-<p><em>向量召回错误示意图</em></p>
-<h4 id="3">痛点 3：代码每天在变，索引咋办</h4>
-<p>这是 RAG 在代码场景的另一个噩梦。</p>
-<p>你建好索引了，开发同学一个 commit 改了 20 个文件，新增 3 个函数。索引怎么办？</p>
-<p>要重建？整个项目重新切片、重新 embedding，成本不低，频繁 commit 直接性能爆炸。</p>
-<p>不重建？模型查到的全是旧版本，用过期信息写新代码，bug 不写都难。</p>
-<p>要做增量更新？听着合理，但实现起来一堆边界情况：哪些 chunk 要删、哪些要重新算、跨文件的引用关系怎么同步。说白了，简单事情搞复杂了。</p>
-<p><img loading="lazy" decoding="async" alt="索引重建成本图" src="assets/521048b5a9-9784911cfe6a834b44f8babc.png" /></p>
-<p><em>索引重建成本图</em></p>
-<h4 id="4">痛点 4：冷启动慢得要命</h4>
-<p>你在一个百万行的代码库上跑 RAG，光是建索引就要十几分钟甚至更久。</p>
-<p>用户打开工具，看着进度条转，等几分钟才能开始用？这体验直接劝退一半人。Claude Code 的设计理念是「打开就能用」，RAG 这套显然不答应。</p>
-<p><img loading="lazy" decoding="async" alt="冷启动等待图" src="assets/ade24b11f2-f82a2af963732616c5f5d756.png" /></p>
-<p><em>冷启动等待图</em></p>
-<h4 id="5">痛点 5：黑盒，不可解释</h4>
-<p>这点我觉得最关键。</p>
-<p>向量召回回来 5 个片段，你问为什么是这 5 个？没人答得上来。是因为 cosine 相似度高？那为什么这 5 个比那 5 个高？模型说不清，工程师也说不清，因为这玩意儿是黑盒。</p>
-<p>出了 bug 你都不知道从哪儿查起。模型答错了，是召回错了？还是召回对了但模型理解错了？追溯链路非常痛苦。</p>
-<p>总结一下：RAG 在「静态文档、自然语言、模糊匹配」这种场景是利器，但代码恰好是反过来的，是动态、结构化、需要精确的。RAG 在代码上不是不能用，是用得很别扭。</p>
-<p>那不用 RAG，又怎么搞代码检索呢？</p>
-<hr />
-<h3 id="claude-code">四、Claude Code 的反向思路：把检索还给模型自己</h3>
-<p>在讲 Claude Code 的方案之前，我想先抛个反问：你是怎么定位代码的？</p>
-<p>我猜大部分程序员的工作流是这样的。</p>
-<p>接手一个陌生项目，第一件事先看下目录结构，<code>ls</code> 一下心里有个数。要找某个功能在哪实现，第一反应是 <code>grep -r</code> 全局搜个关键字。grep 出一堆候选文件，挨个 <code>cat</code> 看下哪个最像。找到了，再用编辑器跳转打开，前后翻翻看上下文。</p>
-<p>整个过程就是「找文件 → 找内容 → 看具体代码」三件套，循环往复，直到你找到目标。</p>
-<p>注意一下：你没有提前给整个项目建索引、做向量化吧？没有。你就是「现用现找」。</p>
-<p>那你猜 Claude Code 的检索哲学是什么？</p>
-<p>简单到让人意外：<strong>让模型像程序员一样，自己去找。</strong></p>
-<p>不预处理、不建库、不算向量，每次需要代码就实时去现场查。工具就给三个：</p>
-<ul>
-<li><strong>Glob</strong>：按文件名 pattern 找文件（对应你的 <code>find</code>）</li>
-<li><strong>Grep</strong>：按内容关键字找代码（对应你的 <code>grep -r</code>）</li>
-<li><strong>Read</strong>：按需读文件内容（对应你的 <code>cat</code> 和编辑器跳转）</li>
-</ul>
-<p><img loading="lazy" decoding="async" alt="程序员工作流与 Claude Code 三件套对应关系" src="assets/92044985ee-e058c079364fb035e7b2d297.png" /></p>
-<p><em>程序员工作流与 Claude Code 三件套对应关系</em></p>
-<p>看似原始，但本质上是把「找代码」的决策权还给了 LLM。你不需要提前猜模型会问什么，也不需要给它装个「智能召回引擎」，模型自己想搜什么就搜什么，搜完看一眼结果，再决定下一步。</p>
-<p>这思路简单到让你怀疑人生：就这？真的够用？</p>
-<p>我一开始也这么想。但后面越扒源码越发现，这套「土味」工具背后藏着一堆精巧设计。下一节我们就把三件套挨个拆开。</p>
-<p>不过先别急，这里我先埋个伏笔：单纯靠主 agent 自己一边 grep 一边 read，遇到大型项目会不会上下文爆炸？这个问题第六节再揭开。</p>
-<hr />
-<h3 id="claude-code_1">五、Claude Code 检索三件套，到底怎么组合？</h3>
-<p>这一节有点长，因为三件套每个都有讲究。咱们先讲原理，最后再贴源码加深理解。</p>
-<h4 id="51-grep-ripgrep">5.1 Grep：基于 ripgrep，但绝不是简单封装</h4>
-<p>讲 Grep 工具之前，我想先问你一个问题：既然 Claude Code 已经给模型开放了 Bash 工具，模型完全可以自己跑 <code>grep -r "xxx" .</code>，为啥还要单独包一个 Grep 工具？</p>
-<p>这问题很多人没认真想过。但你仔细品，这里面有三层考虑。</p>
-<p><strong>第一层，权限统一管控。</strong></p>
-<p>Bash 是个万能工具，模型理论上能跑任何命令。如果让它自己跑 grep，那 rm 也能跑、curl 也能跑、git push 也能跑。Claude Code 把 grep 单独包成工具，相当于在这个高频操作上单独画了一道权限闸门，更安全。</p>
-<p><strong>第二层，输出格式可控。</strong></p>
-<p>你直接跑 bash grep，输出就是一坨纯文本。但 Grep 工具可以提供结构化输出：行号、上下文行、按文件分组、甚至支持「只返回匹配文件名」、「只返回匹配数量」三种粒度。模型按需选择，token 浪费少很多。</p>
-<p><strong>第三层，性能。</strong></p>
-<p>Claude Code 的 Grep 底层用的是 ripgrep，不是传统 grep。ripgrep 是 Rust 写的，多线程并行、自动尊重 .gitignore（不去搜 node_modules 这种垃圾目录），性能甩老牌 grep 几条街。</p>
-<p>设计意图都讲完了，咱们看下源码 <code>src/tools/GrepTool/prompt.ts</code> 里的工具描述（这段会出现在模型的 system prompt 里，直接告诉模型怎么用）：</p>
-<div class="codehilite"><pre><code>A powerful search tool built on ripgrep
-
-- ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash 
-  command. The Grep tool has been optimized for correct permissions and access.
-- Output modes: &quot;content&quot; shows matching lines, &quot;files_with_matches&quot; shows 
-  only file paths (default), &quot;count&quot; shows match counts
-- Use Agent tool for open-ended searches requiring multiple rounds
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>superpowers vs grill-me：同一个需求实测，差距到底在哪？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">25 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">Claude Code 工程化指南：CLAUDE.md、Skills、Subagents、MCP、Hooks、Plugins 一篇讲透</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">Claude Code /powerup 教程：课程与使用边界解析</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">Claude Code 使用教程：新手入门必学的基础技巧</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">Claude 5 上下文工程：为什么提示词越写越少？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">Claude 文字水印原理图解：看不见的水印是怎么工作的？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">Anthropic 40 万次会话研究：用好 AI 编程的关键不是会写代码</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">CLAUDE.md 指南：Claude Code 的项目记忆该怎么写？</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">AI 原生研发流程图解：从需求到上线，Claude Code 怎么参与六个阶段？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">Claude Code 大型代码库实战：百万行代码怎么扛得住？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">Claude Code Skill 揭秘：Skill 真的只是一份 markdown 吗？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">grill-me 使用指南：写代码前，先让 Claude Code 审问你的需求</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">SDD 规约驱动开发实战：在 Claude Code 里跑通先规约后编码</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">Claude Code 老项目改造指南：怎样让 AI 稳妥地升级旧系统？</span></a><a class="shelf-topic-link current" href="chapter-14.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">superpowers vs grill-me：同一个需求实测，差距到底在哪？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">Claude Fable 5 系统提示词详解：1600 行泄漏 prompt 里的工程干货</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">ELI5 Skill 使用指南：让 Claude Code 把复杂知识画给你看</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">Claude Code 上下文管理图解：Compact 压缩机制怎么实现？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">Claude Code 代码检索图解：为什么用 grep 而不用 RAG？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">Claude Opus 5.5 使用指南：怎样让 Claude 更好地完成任务？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">Claude Code 记忆机制图解：为什么不用向量数据库？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">Claude Code 多 Agent 图解：SubAgent 实现机制怎么做？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">Claude Code 主循环 Query 图解：一轮对话是怎么跑起来的？</span></a><a class="shelf-topic-link" href="chapter-23.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">23</span><span class="shelf-topic-label">Claude Code Skill 原理图解：几个 Markdown 文件，怎么做到按需加载？</span></a><a class="shelf-topic-link" href="chapter-24.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">24</span><span class="shelf-topic-label">Claude Opus 5 系统提示词详解：如何设计更可靠的 Agent？</span></a><a class="shelf-topic-link" href="chapter-25.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">25</span><span class="shelf-topic-label">Claude Code 源码拆解：51 万行泄漏代码里的架构设计</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-tujie-claude-code:14"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：图解 Claude Code</a><span aria-hidden="true">›</span><span aria-current="page">superpowers vs grill-me：同一个需求实测，差距到底在哪？</span></nav><div class="module-meta">Agent 工程 · 第 14 / 25 章 · <span class="muted">更新于 2026-10-26</span></div><h1>superpowers vs grill-me：同一个需求实测，差距到底在哪？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>大家好，我是小林。</p>
+<p>之前给大家分享过一篇 vibe coding 神器 <a href="https://mp.weixin.qq.com/s/2EKy7kaRzvuRdadG46p2zw" target="_blank" rel="noopener noreferrer">grill-me</a> 的文章，发出去之后，评论区有读者问了个问题，superpowers 和 grill-me，在具体应用场景和使用体验上应该怎么比较？</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2c646a17c7-88e77c863ea5fe1ba8cff2f6.png" /></p>
+<p>底下还有好几位同学蹲后续，那这篇就是来还债的。</p>
+<p>说实话，这个问题问到点子上了。这俩经常被放一起提，都是「让 AI 动手写代码之前，先跟你把需求聊清楚」的路子。</p>
+<p>但要真让我说清楚差在哪，我当时心里也没有特别硬的答案，因为 superpowers 我装是装了，但是还没有具体对比过。</p>
+<p>于是趁着周末，我把对比实验跑完了。过程先放一边，直接看结果。</p>
+<p>同一句需求，「我想做一个网页版的地铁跑酷式小游戏，人物一直往前跑，躲障碍、吃金币那种」，丢给同一个 Claude Code，同一个模型（claude fable 5），唯一的区别就是分别用了这两个 skill。</p>
+<p>grill-me 交出来的游戏长这样。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7689915dcb-be967b97958ae18ea233d0ff.png" /></p>
+<p>superpowers 交出来的长这样。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1b5dd13e7d-e88007f3611b8666e8779c75.png" /></p>
+<p>一边蓝天白云，戴红帽的小人连影子都画了。另一边深蓝夜色里，绿方块小人躲着黄方块障碍。</p>
+<p>需求一字不差，成品隔着一个次元。</p>
+<p>差距哪来的？先卖个关子，不是哪边模型更聪明，是有一个关键决定，一边专门停下来问了我，另一边替我做了主。看到后面你就知道是哪个决定了。</p>
+<p>对了，那句需求是我故意说得很模糊的，视角、操作、美术风格、难度曲线全部留白，就看它俩各自怎么把这些空缺问出来。</p>
+<h3 id="_1">这俩压根不是一个物种？</h3>
+<p>讲过程之前，得先掰清一个误会，很多人以为 superpowers 和 grill-me 是同类工具。</p>
+<p>其实不是。</p>
+<p>grill-me 上篇讲过了，一个只有三句话的 skill，核心就是「往死里盘问你，一次只问一个，能翻代码搞清楚的别来烦我」。它是一把手术刀，单点，锋利，干完一件事就收。</p>
+<p>superpowers 完全是另一个量级的东西。它是海外一位资深开发者 Jesse Vincent 做的，这个插件里塞了二十多个 skill，覆盖一条完整的开发流水线，brainstorming 先跟你聊需求，聊完写设计文档，然后 writing-plans 把活拆成一个个小任务，再派子代理逐个实现，中间还强制走测试驱动开发和代码审查。</p>
+<p>说人话就是，grill-me 是一个工具，superpowers 是一整套工作方法论。装 grill-me 是多了个帮手，装 superpowers 是给 Claude Code 请了一位流程严格的工程经理。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/23c9143a85-63f334fcf51d3ace6c31c17a.png" /></p>
+<p>装法也不一样。grill-me 是社区 skill，上篇讲过，一行 npx 命令，跑完在列表里勾上 grill-me 就行。</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">npx<span class="w"> </span>skills@latest<span class="w"> </span>add<span class="w"> </span>mattpocock/skills
 </code></pre></div>
-<p>中文意思大致是：</p>
-<div class="codehilite"><pre><code>基于 ripgrep 打造的强力搜索工具
-
-- 搜索任务请永远使用 Grep。绝对不要用 Bash 命令调用 `grep` 或 `rg`。
-  Grep 工具已经针对权限和访问做过优化。
-- 输出模式：&quot;content&quot; 返回匹配的具体行，&quot;files_with_matches&quot; 只返回
-  文件路径（默认），&quot;count&quot; 只返回匹配数量
-- 开放式、需要多轮迭代的搜索，请用 Agent 工具
+<p>superpowers 现在进了 Claude Code 官方插件市场，也是一行命令的事。</p>
+<div class="codehilite" data-lang="bash"><pre><code class="language-bash">/plugin<span class="w"> </span>install<span class="w"> </span>superpowers@claude-plugins-official
 </code></pre></div>
-<p>注意第二行那句话，「ALWAYS use Grep ... NEVER invoke grep or rg as a Bash command」，语气特别强硬对不对？</p>
-<p>这就是 Anthropic 在用 system prompt 强制模型走专用工具，不许用 bash 抄近路。</p>
-<p>最后一行也埋了个伏笔，「open-ended 多轮搜索请用 Agent 工具」，这个咱们第六节细聊。</p>
-<blockquote>
-<p>配图意见：Grep 三种输出模式示意，content 模式给行号+内容，files 模式只给文件名列表，count 模式只给数字</p>
-</blockquote>
-<p><img loading="lazy" decoding="async" alt="Grep 三种输出模式示意图" src="assets/734702c270-4ffb2c326387211350f6df18.png" /></p>
-<p><em>Grep 三种输出模式示意图</em></p>
-<h4 id="52-glob">5.2 Glob：按文件名找，按修改时间排序</h4>
-<p>Grep 是按内容找，那 Glob 是干啥的？是按文件名找。</p>
-<p>举个场景：你想看下项目里所有的 <code>.tsx</code> 文件有哪些。用 Grep 是不行的，因为你没有内容关键字，你只知道扩展名。这时候 Glob 就上场了，它支持 <code>**/*.tsx</code> 这种 pattern。</p>
-<p>Glob 工具还有两个小巧思。</p>
-<p><strong>第一，结果按修改时间倒序排列。</strong> 也就是说，最近改过的文件排在前面。为啥这样？因为大部分时候，「最近改过的」就是「跟当前任务最相关的」。这是个很朴素但很有效的启发式规则。</p>
-<p><strong>第二，结果有 100 文件硬上限。</strong> 超出会截断，避免输出爆炸把上下文塞满。模型如果还想看更多，可以收紧 pattern 再搜一次。</p>
-<p>是不是很像你平时用 IDE 的「最近打开文件」列表？设计哲学是相通的。</p>
-<p><img loading="lazy" decoding="async" alt="Glob pattern 示意图" src="assets/33b27431c7-5de3d4f8b1a813388475c3a3.png" /></p>
-<p><em>Glob pattern 示意图</em></p>
-<h4 id="53-read">5.3 Read：按需读取，绝不贪心</h4>
-<p>找到文件了，下一步就是看内容。Read 工具就是干这个的。</p>
-<p>但 Read 的设计有个反直觉的地方：它<strong>默认只读 2000 行</strong>，超出会截断。</p>
-<p>你可能要问：那要是文件 5000 行咋办？</p>
-<p>很简单，模型可以指定 <code>offset</code> 和 <code>limit</code> 参数，分段读取。比如先读 1 到 2000 行看看大概结构，确定要看的具体位置，再 <code>offset=3500, limit=500</code> 精准读那一段。</p>
-<p>这套设计的核心思想就一句话：<strong>模型应该按需读取，不要贪心</strong>。</p>
-<p>源码 <code>src/tools/FileReadTool/FileReadTool.ts</code> 的工具描述里有这么一段原文：</p>
-<div class="codehilite"><pre><code>By default, it reads up to 2000 lines starting from the beginning of the file.
-When you already know which part of the file you need, only read that part.
-This can be important for larger files.
+<p>所以这场对比里，真正跟 grill-me 同台的是 superpowers 里负责问需求的那个 skill，叫 brainstorming。它俩干的是同一件事，都是在写代码之前，把你脑子里的糊涂账逼出来。</p>
+<p>好，上需求。</p>
+<h3 id="_2">同一个小游戏，两边各审一遍</h3>
+<h4 id="grill-me">先看 grill-me 怎么审</h4>
+<p>先测 grill-me，把那句需求原样丢给 <code>/grill-me</code>。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/a11dda0b97-a9c071a49cdba6dffad6d323.png" /></p>
+<p>它的第一个动作还是老规矩，先翻家底。发现目录是空的，它说了句「全新项目，没有可以探索的代码，那我们从头把设计聊透」，然后开问。</p>
+<p>第一问就是最上游的岔口，伪 3D 三车道，还是 2D 横版？它推荐前者，理由是「三车道左右切换是这个玩法的灵魂」。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/88b1353347-79388ad9fdbc79dd8aa939f6.png" /></p>
+<p>接下来的节奏，熟悉 grill-me 的同学都知道了，一次一问，每问带推荐答案，顺着设计树一根枝丫一根枝丫往下走。视角定了才问渲染技术，动作集定了才问障碍种类，前一问的答案框住后一问的选项。这次它总共问了我 12 个问题，我有 11 次直接回「同意」。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/e748f65b7c-6f68e29304a127593657dad0.png" /></p>
+<p>唯一一次没同意，是第 9 问，美术风格。</p>
+<p>这一问值得单独说。它给了三个选项，明快日间卡通、霓虹夜跑、像素风。它推荐霓虹夜跑，理由说得相当诚实，「坦白说这是扬长避短的选择，我们没有美术资源，全靠代码画，夜色也天然隐藏远处细节的缺失。」</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/236ec88317-46ad33fdad21cc886dd6f388.png" /></p>
+<p>讲真，这个理由说服我了一半。但我就是想要地铁跑酷原版那种阳光明媚的感觉，于是全场唯一一次，我拒绝了它的推荐，选了日间卡通。</p>
+<p>它也没硬劝，回了一句「好，那我在细节上多下功夫补质感，人物和障碍加投影，列车画窗户和光泽线，天空做渐变加云」。</p>
+<p>记住这个瞬间，后面有用。</p>
+<p>12 问用了 16 分钟。问完它给了一张「设计共识总览」，把定下来的东西和明确不做的东西（排行榜、角色商店、迎面列车，全部留二期）列了一遍，我回「确认」。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9af305e7a9-f8c0c5ad76ffedfd8ec6e759.png" /></p>
+<p>然后等待不到十分钟，一个 51KB 的 index.html 一次成型。从发需求到验证完毕，全程 30+ 分钟，其中有一半时间花在审问上了。</p>
+<p>成品就是开头你看到的那版蓝天白云，下面这一张就是开始界面，蓝天白云，戴红帽的小人，连操作说明都排得整整齐齐。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2602877495-9e306b051acfb11b2cfb6960.png" /></p>
+<p>有一点让我觉得很好笑的是，做出来的下滑操作的动作设计，有一种很滑稽的感觉。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/cc187043fd-4742d48445454aea736e3e2b.png" /></p>
+<p>撞到障碍物的时候，也会有挂掉的表情。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4188d4cb04-188eadb42fd7da0b06e90236.png" /></p>
+<p>游戏玩起来没有啥问题</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7689915dcb-be967b97958ae18ea233d0ff.png" /></p>
+<p>对了，收工之后我特意看了眼目录，除了这一个 html 文件，什么都没有。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bab9a7a3b3-e800c5f82ab975f87c1115c8.png" /></p>
+<p>没有 git，没有文档，没有计划。</p>
+<p>也就是说，前面 12 问敲定的那一堆设计决定，它一个字都没落到文件里，全部只存在于我和它的这场对话里。</p>
+<p>对话在，共识就在。哪天对话记录没了，这些决定就只剩代码本身能证明了。</p>
+<h4 id="superpowers">再看 superpowers 怎么审</h4>
+<p>轮到 superpowers。另开一个空目录，敲 <code>/superpowers:brainstorming</code>，同一句需求原样发出。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/71b09447c2-679d416459cd99663bb13072.png" /></p>
+<p>它也是先翻目录再开问，但问法完全是另一个画风。不是一行行的文字问答，是选项卡片，光标挑一个回车就行，还有多选题。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/dc2551caa5-123841dcdd6998ffff911fd6.png" /></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/09f818971c-8b738fa245688c8381663c93.png" /></p>
+<p>最关键的差别是数量，它只问了 4 个问题。视角、目标设备、要哪些附加功能、技术栈，完事。</p>
+<p>你以为它问得少是漏了？其实不是，它把很多决定悄悄打包进选项里了。就说技术栈这一问，推荐项的说明文字里带了一句「美术全部用 Canvas 程序绘制，不需要图片素材」。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/d7249cd4f4-5a811a8395afa259538448a3.png" /></p>
+<p>看清楚了吗？grill-me 拿美术风格专门问了我一整轮、还被我否了一次的那个决定，在这里就是选项说明里的半句话。我的游戏长什么样，它替我定了。</p>
+<p>开头卖的那个关子，谜底就在这半句话里。两版游戏一个次元的颜值差距，不是能力问题，是一边把美术风格当成了必须问你的决定，另一边把它当成了不值得打扰你的默认值。</p>
+<p>4 问之后，它先甩出三个技术方案让我挑，然后一口气输出了完整设计，文件结构、玩法机制、渲染方案、错误处理、测试策略，一屏都放不下。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/efc2788e66-85f64ab46f41cff0f5e4e1b2.png" /></p>
+<p>我回「确认」。接下来发生的事，grill-me 那边一件都没有。</p>
+<p>它先把设计写成文档，提交到 <code>docs/superpowers/specs/</code> 目录，还自查了一遍有没有前后矛盾。注意，我从头到尾没提过 git，它自己 git init、自己 commit，提交信息还写得规规矩矩。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/17409222c1-578333739706d99bb72b6646.png" /></p>
+<p>然后自动进入下一个 skill 写实施计划，10 个任务，54 项单元测试，16 项浏览器人工验证清单，每个任务都是「先写失败的测试，再写实现」的完整循环。写完问我，执行方式选哪种？我选了它推荐的子代理模式。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/bceed5f121-686ed83695773636bda2a867.png" /></p>
+<p>之后它开了条功能分支，开始流水作业。每个任务派一个子代理实现，完成后再派一个子代理审查，审出问题就派第三个去修。整个晚上它一共派了 24 个子代理。</p>
+<p>我基本插不上手，也不需要插手。</p>
+<p>然后，到了半夜，它在第 5 个任务上卡死了。子代理没了动静，接着连 API 都断了。我等了一会没恢复，睡觉去了。</p>
+<p>第二天早上我喊了句「任务继续」，它清掉残留文件重新派了个子代理，一分钟干完卡住的任务，接着往下跑。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/9fe32fb13b-b6251dce6104b9ba4ed0057f.png" /></p>
+<p>全部跑完，成品就是开头那个深蓝夜色版。下面这一张是游戏开始介绍页，相对比较简陋</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ed41317db2-c758842176cd268074df6969.png" /></p>
+<p>游戏是真能玩，跳跃下滑换道都利索，但跟 grill-me 那版放一起看，就是几个纯色几何块在跑，一眼素颜。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1b5dd13e7d-e88007f3611b8666e8779c75.png" /></p>
+<p>对了，跟 grill-me 一样，收工后我也看了眼它的目录。这边完全是另一番景象，一套正经的工程结构。</p>
+<div class="codehilite"><pre><code>game2/
+├── index.html
+├── package.json
+├── css/
+├── js/            # 10 个模块，玩家、碰撞、渲染、音效…各管各的
+├── tests/         # 8 个测试文件，55 个用例全过
+├── docs/
+│   └── superpowers/
+│       ├── specs/    # 聊需求聊出来的设计文档
+│       └── plans/    # 拆好的 10 个任务实施计划
+└── .superpowers/
+    └── sdd/          # 每个子代理的任务简报、完成报告、审查 diff
 </code></pre></div>
-<p>中文意思大致是：</p>
-<div class="codehilite"><pre><code>默认从文件开头读取，最多读 2000 行。
-如果你已经知道需要文件的哪一部分，就只读那一部分。
-对大文件来说，这一点特别重要。
-</code></pre></div>
-<p>「需要哪部分就只读哪部分」，这就是 Anthropic 在引导模型形成节约 token 的习惯。</p>
-<p>还有一个非常关键的细节：Read 工具每次都直接 stat 磁盘文件、读取最新内容，<strong>不缓存、不索引、不预处理</strong>。</p>
-<p>这意味着什么？意味着只要你刚改了文件，下一次 Read 立刻能看到新内容。这就是 Claude Code 实时性的来源。没有索引层，就没有索引滞后。</p>
-<p><img loading="lazy" decoding="async" alt="磁盘实时读取 vs 索引缓存对比图" src="assets/b419db8f0d-521524393275db35a47c5689.png" /></p>
-<p><em>磁盘实时读取 vs 索引缓存对比图</em></p>
-<h4 id="54">5.4 三件套的组合用法</h4>
-<p>讲完单个工具，最关键的是看它们怎么组合。</p>
-<p>我举一个真实场景：你跟 Claude Code 说「这个项目登录功能在哪实现的？」</p>
-<p>它的检索过程大概是这样：</p>
-<p>第一步，先用 Glob 找候选文件，比如 <code>**/*login*.{ts,tsx,js}</code>，可能拉回来 5 个候选文件。</p>
-<p>第二步，用 Grep 在这些文件里搜关键字，比如 <code>passport|auth|login</code>，定位到具体的几个命中行。</p>
-<p>第三步，用 Read 读命中文件的相关行段，看具体实现。</p>
-<p>整个过程是模型一步步推进的：每一步看到上一步的结果，决定下一步搜什么、读什么。</p>
-<p><img loading="lazy" decoding="async" alt="Glob Grep Read 三件套组合工作流" src="assets/93b2ff71e2-5d41292755b253ab96781dda.png" /></p>
-<p><em>Glob Grep Read 三件套组合工作流</em></p>
-<p>注意没有，这里没有「一次性召回所有相关代码」的步骤，而是「每一步都基于上一步的结果调整方向」。这是和 RAG 范式最大的不同点，我们第七节再细讲。</p>
-<p>但是有个问题：如果是更复杂的任务呢？比如「调研一下整个项目的认证模块流程」，这种活儿三件套循环几次就能搞定吗？</p>
-<p>下一节揭晓。</p>
-<hr />
-<h3 id="agent">六、当三件套不够用：派子 agent 去探索</h3>
-<p>来想象这么一个场景：你跟 Claude Code 说「调研一下这个项目的认证模块整体流程」。</p>
-<p>这种「调研」类任务有什么特点？需要看的东西多，要 grep 好几个关键词、读好几个文件、来回比对、最后总结成一段结论。整个过程可能要十几个工具调用。</p>
-<p>如果让主 agent 自己一边 grep 一边 read 地干，会发生什么？</p>
-<p>主 agent 的上下文很快就会被一堆 grep 输出加文件片段塞满。等它好不容易想清楚「认证流程」、要回头给你写代码的时候，发现真正要解决的问题已经被检索过程的中间结果挤到角落里了，模型注意力被分散，质量直线下降。</p>
-<p>这就是大型探索任务的最大敌人：<strong>上下文污染</strong>。</p>
-<p><img loading="lazy" decoding="async" alt="主 agent 上下文被污染示意图" src="assets/87b0aff83f-7c33b380fa669828c2f598a1.png" /></p>
-<p><em>主 agent 上下文被污染示意图</em></p>
-<p>Claude Code 的解决办法很妙：<strong>派一个子 agent 出去探索</strong>。</p>
-<p>类比一下：老板要做战略决策，他要看大量的市场数据。他不会自己一头扎进 Excel 里翻几个小时，而是把这事派给秘书：「你帮我调研一下，明天给我一份精简报告」。秘书看了一堆资料，最后只把结论给老板。老板的注意力（对应主 agent 的上下文）就被保护起来了。</p>
-<p>子 agent 的派遣机制具体是这样。</p>
-<p><strong>第一，主 agent 通过 Agent 工具派子 agent。</strong> 子 agent 是一个独立的运行实例，有自己的对话上下文，跟主 agent 完全隔离。</p>
-<p><strong>第二，子 agent 拿到一个精简的工具池。</strong> 通常是只读工具：Grep、Glob、Read、Bash（只读命令），但不能 Edit、不能 Write、不能再派子 agent（防止层层嵌套递归）。这种 agent 在源码里有个名字叫 Explore agent。</p>
-<p><strong>第三，子 agent 在自己的上下文里多轮迭代。</strong> 它可以 grep 几十次、read 几十次，过程中产生的中间结果都留在它自己的上下文里，跟主 agent 无关。</p>
-<p><strong>第四，子 agent 完成后，只把最终结论返回给主 agent。</strong> 主 agent 的上下文里只多了一段「认证流程是这样的：……」的精简结论，所有的搜索过程都被压缩没了。</p>
-<p><img loading="lazy" decoding="async" alt="派子 agent 隔离与结论压缩示意图" src="assets/e842fa3c61-23f1a4e7d617d1728efd61d2.png" /></p>
-<p><em>派子 agent 隔离与结论压缩示意图</em></p>
-<p>这就是「上下文压缩」的精髓：<strong>用一个隔离的子 agent 把脏活儿干了，主 agent 只接收干净的结论</strong>。</p>
-<p>源码 <code>src/tools/AgentTool/prompt.ts</code> 里有明确的引导规则：</p>
-<div class="codehilite"><pre><code>For simple, directed codebase searches use Grep/Glob/Read directly.
-For broader codebase exploration and deep research, use the Agent tool 
-with subagent_type=Explore. ... use this only when ... your task will 
-clearly require more than 3 queries.
-</code></pre></div>
-<p>中文意思大致是：</p>
-<div class="codehilite"><pre><code>对简单、明确目标的代码搜索，直接用 Grep/Glob/Read。
-对范围更广的代码库探索和深度研究，请使用 Agent 工具，并指定
-subagent_type=Explore。……只有当你的任务明显需要超过 3 次查询时，
-才用这种方式。
-</code></pre></div>
-<p>简单定向搜索（你知道要找啥）就直接用 Grep/Glob/Read；开放式探索（你不太确定要找啥）就派 Explore 子 agent。临界点大概是「预期超过 3 次查询」。</p>
-<p>这是个非常实用的工程经验：少于 3 次就别折腾派 agent，多于 3 次就别污染主 agent 上下文。</p>
-<p>还有一个加分项：<strong>子 agent 可以并行派多个</strong>。比如你要同时调研「认证模块」、「支付模块」、「订单模块」三块，主 agent 可以一次性派出三个子 agent 各干一块，干完同时回来报告。这种并发探索能极大缩短整体时延。</p>
-<p><img loading="lazy" decoding="async" alt="并行派多个 Explore 子 agent 示意图" src="assets/36def6969e-5f2f883ebe1e0f2b87cda6dd.png" /></p>
-<p><em>并行派多个 Explore 子 agent 示意图</em></p>
-<p>到这里，你应该能看出 Claude Code 检索系统的层次感了：</p>
-<ul>
-<li><strong>底层</strong>：Grep / Glob / Read 三件套，处理简单定向检索</li>
-<li><strong>中层</strong>：派 Explore 子 agent，处理开放式探索和上下文隔离</li>
-<li><strong>上层</strong>：主 agent 编排整体任务</li>
-</ul>
-<p>每一层都有自己的职责，不互相干扰。</p>
-<hr />
-<h3 id="llm-driven">七、再深一层：LLM-driven 的多轮迭代循环</h3>
-<p>到这儿你可能心里还有个疑问：到底是什么让 Claude Code 能「自己探索」？三件套加子 agent 都讲了，但好像还差一层东西没说透。</p>
-<p>差的就是「<strong>多轮迭代</strong>」这层。</p>
-<p>我用一个对比讲清楚。</p>
-<p><strong>RAG 的范式是「考试发卷子」</strong>：用户提问 → 系统一次性召回 Top-K 个片段 → 模型基于这些片段一次性生成答案。中间没有循环，没有反悔，没有「等等再看看」。这是一锤子买卖。</p>
-<p><strong>Claude Code 的范式是「现场探案」</strong>：用户提问 → 模型说「我先 Grep 一下」→ 系统执行 Grep 返回结果 → 模型看到结果说「嗯，看起来 UserService 比较像，我 Read 一下」→ 系统执行 Read 返回内容 → 模型说「找到了，逻辑是这样的：……」。这是循环、是边查边推理。</p>
-<p><img loading="lazy" decoding="async" alt="RAG 一锤子 vs Agent 多轮循环对比图" src="assets/eacd90bee5-bf0c449ea2891dd083624d89.png" /></p>
-<p><em>RAG 一锤子 vs Agent 多轮循环对比图</em></p>
-<p>这个循环本质上就是 query 主流程里的一个 while 死循环，源码 <code>src/query.ts</code> 里的核心逻辑大概长这样：</p>
-<div class="codehilite" data-lang="javascript"><pre><code class="language-javascript"><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">callLLM</span><span class="p">(</span><span class="nx">messages</span><span class="p">)</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">没有</span><span class="w"> </span><span class="nx">tool_use</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="w">  </span><span class="c1">// 模型不再调工具了，循环结束</span>
-<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">toolUse</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">toolUses</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">executeTool</span><span class="p">(</span><span class="nx">toolUse</span><span class="p">)</span>
-<span class="w">    </span><span class="nx">messages</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">result</span><span class="p">)</span><span class="w">  </span><span class="c1">// 把结果回填到对话历史</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-<p>每一轮：模型说话 → 可能带 tool_use → 执行工具 → 把结果回填到对话历史 → 模型继续说话。直到模型自己说「我搞定了」，循环才停下来。</p>
-<p><img loading="lazy" decoding="async" alt="query 多轮循环示意图" src="assets/6803a9d78c-2735ce3f02d3ed9ff0eebeaf.png" /></p>
-<p><em>query 多轮循环示意图</em></p>
-<p>这个看似简单的循环，其实是 Agent 范式的灵魂：<strong>它给了模型在每一步根据上一步结果调整方向的能力</strong>。</p>
-<p>你看到 Grep 结果是空的？那就改个关键字再搜。</p>
-<p>你看到 Read 出来的代码逻辑不像你以为的？那就再 Grep 几个相关函数看看。</p>
-<p>你发现这个文件引用了另一个文件？那就跟过去看下那个文件。</p>
-<p>这种「走一步看一步」的能力，是 RAG 的「一次召回」给不了的。RAG 召回错了就是错了，模型只能将错就错。Agent 召回错了，下一轮自己就调整了。</p>
-<p>所以你看，Claude Code 用看起来很原始的 grep + read，能做出 RAG 都做不到的事，根本原因就在这层 LLM-driven 的多轮迭代上。</p>
-<p>grep 本身不强，但「让 LLM 自己决定每一轮 grep 什么」就强了。</p>
-<hr />
-<h3 id="claude-code-rag">八、回到原题：到底为什么 Claude Code 不用 RAG？</h3>
-<p>讲了这么多，咱们把答案串起来。Claude Code 不用 RAG 主要有六个原因。</p>
-<p>第一，<strong>冷启动</strong>。grep 是毫秒级响应，开箱即用；RAG 要先建索引，分钟级冷启动，劝退一半用户。</p>
-<p>第二，<strong>实时性</strong>。grep 每次现读磁盘最新版本；RAG 索引会滞后，文件改了得重建。</p>
-<p>第三，<strong>精确性</strong>。grep 是确定性的字符正则匹配，要找 <code>getUserById</code> 就只有它；RAG 是向量近似匹配，会把一堆相似函数糊在一起。</p>
-<p>第四，<strong>Token 经济</strong>。grep 加 Read 按需读取，模型只看真正需要的几行；RAG 一上来就要给整个代码库做 embedding，存储和计算成本都不小。</p>
-<p>第五，<strong>可解释性</strong>。grep 每一步检索过程都对用户透明可审计；RAG 的 Top-K 召回是黑盒，出 bug 没法 debug。</p>
-<p>第六，<strong>决策权</strong>。grep 让 LLM 自己决定每一轮搜什么、读什么，多轮迭代逐步逼近答案；RAG 是一次性把材料丢给模型，模型只能将错就错。</p>
-<p><img loading="lazy" decoding="async" alt="Claude Code grep 与 RAG 六大原因对比表" src="assets/57cf38f94d-62c5d5dfc3058b4a818fc6c0.png" /></p>
-<p><em>Claude Code grep 与 RAG 六大原因对比表</em></p>
-<p>但如果再升一层，我觉得这背后还有更根本的东西：<strong>两种方案代表了两种不同的设计哲学</strong>。</p>
-<p>RAG 派的潜台词是：<strong>LLM 不够强，所以我们要用工程手段帮它把材料准备好</strong>。chunking、embedding、向量召回，本质都是「替模型做决定」。</p>
-<p>Claude Code 派的潜台词是：<strong>LLM 已经足够强，工程的角色是给它准备好工具，把决策权还给它</strong>。grep 不替模型做任何决定，它只是个工具。用还是不用、什么时候用、怎么用，全是模型说了算。</p>
-<p>Anthropic 押注的是「模型会越来越强」，所以他们选择信任模型的判断能力。这是个长期主义的选择。</p>
-<p><img loading="lazy" decoding="async" alt="RAG 与 Claude Code 设计哲学对比图" src="assets/45791d76f0-dbd4a7afc635b1b00dbccb86.png" /></p>
-<p><em>RAG 与 Claude Code 设计哲学对比图</em></p>
-<hr />
-<h3 id="rag_2">九、那 RAG 是不是该被淘汰了？</h3>
-<p>讲到这儿，可能有朋友要给我发消息了：「林哥你这是黑 RAG 啊？我们项目还在用 RAG 呢！」</p>
-<p>别急，我没说 RAG 该淘汰。RAG 仍然有它的舞台，只是不在 Claude Code 这种场景里。</p>
-<p>什么场景适合 RAG？</p>
-<p>第一种，<strong>巨型代码库加跨仓库检索</strong>。比如一些大公司有几十个 monorepo、上千万行代码，靠 grep 在整个公司代码库里搜，性能扛不住，这时候建好索引的 RAG 就有用武之地。</p>
-<p>第二种，<strong>纯语义查询</strong>。比如「找一下处理用户认证相关的代码」这种描述性、模糊性的问题，用关键字 grep 反而不好搜，向量召回这时候反而有优势。</p>
-<p>第三种，<strong>多人协作的知识库类查询</strong>。代码加文档加 Wiki 全部混合检索，这种场景 RAG 是合适的。</p>
-<p>而 Claude Code 这套方案，最适合的是<strong>单项目、探索式开发、需要精确性、要求实时性</strong>的场景，恰好是大部分 AI 编程工具的主战场。</p>
-<p>工具是为场景服务的，没有银弹。</p>
-<p>最后留一个开放问题给你思考：如果未来 LLM 的上下文窗口能到 1 亿 token，整个代码库都能塞进去，RAG 还有意义吗？grep 还有意义吗？我自己也没想得特别清楚，欢迎你在评论区跟我聊聊。</p>
-<p><img loading="lazy" decoding="async" alt="grep 与 RAG 场景适配对比图" src="assets/09891ce19a-ea6fe88c720e5cb99eb794b0.png" /></p>
-<p><em>grep 与 RAG 场景适配对比图</em></p>
-<hr />
-<h3 id="_2">结尾：回到面试题</h3>
-<p>文章开头那个面试题，现在你应该能漂亮地答出来了。我给你一个三句话的精炼版：</p>
-<blockquote>
-<p>Claude Code 不用 RAG 是基于三层考虑。
- 第一，代码场景下 RAG 有切片破坏结构、向量近似不准、索引滞后等本质问题；
- 第二，Claude Code 用 Grep 加 Glob 加 Read 三件套加上派子 agent 探索的设计，本质上是把检索决策权还给 LLM 自己，配合多轮迭代循环实现精准定位；
- 第三，更深层是 Anthropic 信任 LLM 的能力，押注模型会越来越强，所以选择「不替模型做决定」的设计哲学。</p>
-</blockquote>
-<p>这道题表面是问技术选型，实际上问的是「你对 Agent 设计哲学的理解」。</p>
-<p>Anthropic 这套思路其实在告诉我们一件事：<strong>Agent 不是带工具的聊天机器人，而是会自己做决策的执行体</strong>。工程师的职责是给它一套好用的工具，而不是替它做决策。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/18b8cdafbe-7bbff95269c5357b92b2e24e.png" /></p>
-<p>如果你觉得这篇文章有收获，记得点个赞、转发给身边做 Agent 的朋友。</p>
-<p>我们下篇见。</p></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-13.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-15.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">一、先搞懂「代码检索」到底要解决什么问题</a></li><li class="lv3"><a href="#rag">二、绕不开的 RAG：「先建库再查」的经典思路</a></li><li class="lv3"><a href="#rag_1">三、RAG 在代码场景下的「水土不服」</a></li><li class="lv3"><a href="#claude-code">四、Claude Code 的反向思路：把检索还给模型自己</a></li><li class="lv3"><a href="#claude-code_1">五、Claude Code 检索三件套，到底怎么组合？</a></li><li class="lv3"><a href="#agent">六、当三件套不够用：派子 agent 去探索</a></li><li class="lv3"><a href="#llm-driven">七、再深一层：LLM-driven 的多轮迭代循环</a></li><li class="lv3"><a href="#claude-code-rag">八、回到原题：到底为什么 Claude Code 不用 RAG？</a></li><li class="lv3"><a href="#rag_2">九、那 RAG 是不是该被淘汰了？</a></li><li class="lv3"><a href="#_2">结尾：回到面试题</a></li></ul></div></aside></div>'
+<p>重点看 docs 目录，当时聊需求定下来的每个设计决定、后来拆出来的任务计划，全都变成文档留在了项目里。</p>
+<p>再配上 14 个 git 提交，这个游戏是怎么一步步做出来的，整个过程随时可以翻旧账。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/76660f4f2c-d4ef6aad7da44bf163522aab.png" /></p>
+<p>哪天我想改玩法，把设计文档丢给一个新会话接着聊就行，不用从头再讲一遍需求。</p>
+<p>所以论后续的可维护性，superpowers 这版是会更好的，因为有设计文档的落地。</p>
+<p>过几个月回来接着改，人早忘了当初为什么这么设计，设计文档翻开就有答案，当初定了什么、明确不做什么，白纸黑字。哪次改动出了问题，14 个提交记录一步一个脚印，回头一查就能定位到。</p>
+<p>这些东西对人有用，对 AI 更有用，新会话里的 Claude 把档案一读，对项目的理解直接就位，改起来不容易跑偏。</p>
+<p>grill-me 是问完就走、片纸不留，superpowers 是把整个开发过程给你归了档。</p>
+<h3 id="_3">体验到底差在哪？</h3>
+<p>两边跑完，数据摆在一起是这样的。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>grill-me</th>
+<th>superpowers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提问数</td>
+<td>12 问，一次一问</td>
+<td>4 问，选项卡片</td>
+</tr>
+<tr>
+<td>我拍板的次数</td>
+<td>13 次</td>
+<td>8 次</td>
+</tr>
+<tr>
+<td>留代码下的东西</td>
+<td>只有代码文件</td>
+<td>代码文件+测试文件+设计文档+git提交记录</td>
+</tr>
+<tr>
+<td>耗时</td>
+<td>32 分钟</td>
+<td>约 2 小时（不算卡死那一晚）</td>
+</tr>
+</tbody>
+</table>
+<p>但数字背后的差别，我觉得是三层。</p>
+<p>最直观的一层，是<strong>问的目的不一样</strong>。</p>
+<p>grill-me 的 12 问，是要把每个决定都逼到你面前，逼你亲手拍板每一处细节。</p>
+<p>superpowers 的 4 问，是为了凑齐开工所需的最少信息，剩下的它用「合理默认值」补齐。所以我那两版游戏的颜值差距，根源不在模型能力，在于一个问了、一个没问。</p>
+<p>再往下挖，是<strong>问完之后活归谁</strong>。</p>
+<p>grill-me 问完就退场，不写文件不碰 git，设计共识只活在对话里，接下来是直接开干还是转身进 Plan Mode，你自己定。</p>
+<p>superpowers 问完才刚刚开始，spec 文档、任务计划、强制 TDD、双重审查，一整条流水线等着你。它留下的那堆文档和提交记录，海外用户管这个叫 paper trail，纸质痕迹，事后翻旧账、换个会话接着聊都靠它。</p>
+<p>最根子上的一条，是<strong>谁配合谁</strong>。</p>
+<p>grill-me 招之即来挥之即去，你的工作习惯一点不用改。</p>
+<p>superpowers 是有自己规矩的，它自作主张 git init，它决定开分支，它要求测试先行。装了它，等于接受它那套工作方式。</p>
+<p>而且按它的设计，这套流程还是自动触发的，我这次是手动敲的命令，但正常情况下你只要说一句「我想做个什么」，它就自己跳出来接管了。</p>
+<p>也有人说它最狠的就是这点，没有复杂度阈值，改个小东西它也想给你走全套流程。</p>
+<p>有个老哥的总结很到位，大意是「干大活是真行，干小活是真折磨」。</p>
+<h3 id="_4">最后，到底装哪个？</h3>
+<p>先说我的答案，大多数人先装 grill-me。</p>
+<p>它轻，不侵入，不改变你任何习惯，需要时喊一声，问完就走。我们可以先用「grill-me 捋清楚想法，再进 Plan Mode 开干」，日常的活基本够用了。这次实测它半小时出的东西，完成度真不低。</p>
+<p>superpowers 适合另一种时刻，正经项目，动的地方多，返工代价高，或者你就是想要那份 paper trail，要文档、要测试、要提交记录齐齐整整，方便日后回溯和团队交接。这种时候它那套仪式感就不是负担了，是保险。但拿它做小需求，你会被它的流程烦死，这不是它不好，是杀鸡用了牛刀还非要走宰牛的流程。</p>
+<p>要我用一句话收这个对比，就是下面这句。</p>
+<p>grill-me 问完，活还是你的。superpowers 问完，活就是它的了。</p>
+<p>一个逼你把心思想清楚，一个只需要你点头。</p>
+<p>哪个更好？看你那天想当谁。</p>
+<p>今天分享就到这里，我们下一篇见！</p></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-13.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-15.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">这俩压根不是一个物种？</a></li><li class="lv3"><a href="#_2">同一个小游戏，两边各审一遍</a></li><li class="lv3"><a href="#_3">体验到底差在哪？</a></li><li class="lv3"><a href="#_4">最后，到底装哪个？</a></li></ul></div></aside></div>'
 <script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="xiaolin-tujie-claude-code:14",moduleId="xiaolin-tujie-claude-code";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';

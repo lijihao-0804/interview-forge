@@ -1,0 +1,179 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>如何设计一个完整的 Agent Harness？ · 学习书架</title><link rel="stylesheet" href="../assets/library.css?v=20261010-heading-scale"><script src="../../assets/time-utils.js?v=2"></script><script src="../../assets/ui.js?v=20260929-review-polish" defer></script><script src="../../assets/navigation-policy.js?v=2" defer></script><link rel="stylesheet" data-interviewforge-ai href="../assets/ai-launcher.css?v=5"><script src="../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script><script src="../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script></head><body><div class="shell chapter-shell site-shell-cols"><header class="topbar"><a class="brand" href="../index.html" aria-current="page" target="_blank" rel="noopener noreferrer">学习书架</a><nav aria-label="主导航"><a href="../../cockpit.html" target="_blank" rel="noopener noreferrer">🎛️ 中控台</a><a href="../search.html" target="_blank" rel="noopener noreferrer">全文搜索</a><a href="../../index.html" target="_blank" rel="noopener noreferrer">Hot 100</a></nav></header>
+<details class="shelf-topic-rail" open><summary><span>本专题目录</span><span class="shelf-topic-count">30 章</span></summary><nav class="shelf-topic-links" aria-label="本专题章节"><a class="shelf-topic-link" href="chapter-01.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">01</span><span class="shelf-topic-label">什么是 Agent？与大模型有什么本质不同？</span></a><a class="shelf-topic-link" href="chapter-02.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">02</span><span class="shelf-topic-label">Agent 的基本架构由哪些核心组件构成？</span></a><a class="shelf-topic-link" href="chapter-03.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">03</span><span class="shelf-topic-label">Workflow，Agent，Tools 这三个的概念和区别介绍一下？</span></a><a class="shelf-topic-link" href="chapter-04.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">04</span><span class="shelf-topic-label">了解哪些其他的 Agent 设计范式？Agent 和 Workflow的区别是什么？</span></a><a class="shelf-topic-link" href="chapter-05.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">05</span><span class="shelf-topic-label">Agent 推理模式有哪些？ReAct 是啥？具体是怎么实现的？</span></a><a class="shelf-topic-link" href="chapter-06.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">06</span><span class="shelf-topic-label">ReAct、Plan-and-Execute、Reflection 三种范式有什么核心区别？实际项目中该如何选型？</span></a><a class="shelf-topic-link" href="chapter-07.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">07</span><span class="shelf-topic-label">复杂任务怎么做的任务拆分？为什么要拆分？效果如何提升？</span></a><a class="shelf-topic-link" href="chapter-08.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">08</span><span class="shelf-topic-label">请你介绍一下 AI Agent 的记忆机制，并说明在实际开发中应该如何设计记忆模块？</span></a><a class="shelf-topic-link" href="chapter-09.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">09</span><span class="shelf-topic-label">Agent 的长短期记忆系统怎么做的？记忆是怎么存的？粒度是多少？怎么用的？</span></a><a class="shelf-topic-link" href="chapter-10.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">10</span><span class="shelf-topic-label">什么是 Multi-Agent？</span></a><a class="shelf-topic-link" href="chapter-11.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">11</span><span class="shelf-topic-label">说说 Single-Agent 和 Multi-Agent 的设计方案？</span></a><a class="shelf-topic-link" href="chapter-12.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">12</span><span class="shelf-topic-label">Agent 记忆压缩通常有哪些方法？</span></a><a class="shelf-topic-link" href="chapter-13.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">13</span><span class="shelf-topic-label">在工程实践中，为什么有时候选择「手搓」Agent，而不是直接用成熟框架？</span></a><a class="shelf-topic-link" href="chapter-14.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">14</span><span class="shelf-topic-label">如何赋予 LLM 规划能力？</span></a><a class="shelf-topic-link" href="chapter-15.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">15</span><span class="shelf-topic-label">讲讲 Agent 的反思机制？为什么要用反思？具体怎么实现？</span></a><a class="shelf-topic-link" href="chapter-16.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">16</span><span class="shelf-topic-label">如何设计多 Agent 的协作与动态切换机制？</span></a><a class="shelf-topic-link" href="chapter-17.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">17</span><span class="shelf-topic-label">Agent 的上下文工程怎么设计？</span></a><a class="shelf-topic-link" href="chapter-18.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">18</span><span class="shelf-topic-label">Agent 的多轮对话状态如何管理？如何防止跑偏并支持中断恢复？</span></a><a class="shelf-topic-link" href="chapter-19.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">19</span><span class="shelf-topic-label">如何评估一个 Agent 的效果？评测集和指标怎么设计？</span></a><a class="shelf-topic-link" href="chapter-20.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">20</span><span class="shelf-topic-label">Agent 为什么会出现路径震荡、重复调用和死循环？怎么检测和治理？</span></a><a class="shelf-topic-link" href="chapter-21.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">21</span><span class="shelf-topic-label">线上 Agent 延迟明显升高时，如何通过 Trace 定位和优化？</span></a><a class="shelf-topic-link" href="chapter-22.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">22</span><span class="shelf-topic-label">Multi-Agent 系统如何处理子 Agent 超时、失联和并发修改冲突？</span></a><a class="shelf-topic-link" href="chapter-23.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">23</span><span class="shelf-topic-label">Agent 的「任务幻觉」是什么？如何避免没有执行工具却声称任务已经完成？</span></a><a class="shelf-topic-link" href="chapter-24.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">24</span><span class="shelf-topic-label">大模型或 Agent 连接数据库时，如何防止越权、敏感数据泄漏和查询幻觉？</span></a><a class="shelf-topic-link" href="chapter-25.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">25</span><span class="shelf-topic-label">Agent Harness 是什么？</span></a><a class="shelf-topic-link current" href="chapter-26.html" aria-current="page" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">26</span><span class="shelf-topic-label">如何设计一个完整的 Agent Harness？</span></a><a class="shelf-topic-link" href="chapter-27.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">27</span><span class="shelf-topic-label">Agent 的自进化机制如何实现？</span></a><a class="shelf-topic-link" href="chapter-28.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">28</span><span class="shelf-topic-label">Agent 应该在什么情况下请求人工确认？</span></a><a class="shelf-topic-link" href="chapter-29.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">29</span><span class="shelf-topic-label">Agent 的上下文压缩阈值应该如何确定？</span></a><a class="shelf-topic-link" href="chapter-30.html" target="_blank" rel="noopener noreferrer"><span class="shelf-topic-number">30</span><span class="shelf-topic-label">相同输入为什么会得到不同的 Agent 执行结果？</span></a></nav></details>
+ <main class="reader" data-page-type="library/chapter" data-content-id="xiaolin-agent:26"><nav class="breadcrumb" aria-label="面包屑"><a href="../index.html" target="_blank" rel="noopener noreferrer">学习书架</a><span aria-hidden="true">›</span><a href="index.html" target="_blank" rel="noopener noreferrer">小林：Agent 面试题</a><span aria-hidden="true">›</span><span aria-current="page">如何设计一个完整的 Agent Harness？</span></nav><div class="module-meta">Agent 工程 · 第 26 / 30 章 · <span class="muted">更新于 2026-10-26</span></div><h1>如何设计一个完整的 Agent Harness？</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid"><div class="reader-body"><p>👔面试官：如果让你设计一个完整的 Agent Harness，你会怎么做？</p>
+<p>🙋‍♂️我：给模型接上读文件、改代码、运行测试的工具，它就能自己完成任务了。</p>
+<p>👔面试官：模型返回一个工具调用之后，谁来执行？执行失败以后，又是谁让任务继续？</p>
+<p>🙋‍♂️我：那就写个 while 循环，把工具结果一直交回模型，直到它说完成。</p>
+<p>👔面试官：测试日志越来越多，上下文放不下了怎么办？服务重启以后，之前的修改和进度还找得回来吗？</p>
+<p>🙋‍♂️我：把聊天记录存进数据库，再让模型自己判断任务有没有做完。</p>
+<p>👔面试官：聊天里说「准备修改」和文件已经改好，是两件事。模型说「修复完成」和测试真的通过，也是两件事。你的程序怎样区分这些状态？</p>
+<p>咱们拿「修复一个登录 Bug」来搭这套运行程序，看看每一部分是怎样从实际问题里长出来的。</p>
+<h3 id="_1">💡 简要回答</h3>
+<p>我会把 Harness 的核心做成一个执行循环：程序准备上下文，调用模型，接住它的工具请求，执行后把结果交回去，再让模型决定下一步。比如修复 Bug，模型负责判断要读哪些代码、怎么改，程序负责读文件、应用修改和运行测试。</p>
+<p>每轮调用前，我会保留任务目标、约束、当前进度和相关材料。完整日志放在外部，需要时再读，避免把所有历史都塞给模型。工具执行要在允许的工作区和权限范围内，还要限制耗时，并把成功、失败或结果未知的情况传回来。</p>
+<p>长任务的进度需要单独持久化，包括已经做过的操作、产物和未解决的问题。中断以后先核对实际文件和未决操作，再恢复执行。任务结束则以事先确定的验收条件为准，比如修改符合需求、相关测试通过；模型说完成时，程序还要检查这些证据。</p>
+<p>另外，我会给整个任务设步数、时间和费用预算，并记录每轮输入、工具结果和状态变化。这样既能控制循环，也能在失败时查清问题出在模型决策、工具执行还是运行程序。最初这些模块可以放在一个服务里，接口分清楚以后，再按需要拆分。</p>
+<h3 id="_2">📝 详细解析</h3>
+<h4 id="bug">从修复一个 Bug，看清要搭建哪些运行部分</h4>
+<p>假设用户提出这样一个需求：</p>
+<p>「登录接口在密码为空时返回了 500，帮我修复，但不要改变现有的接口字段。」</p>
+<p>模型能分析这个问题，但仓库里的文件、终端里的测试进程，都在模型之外。它生成一句「读取登录源码」，程序还得打开文件；它生成一个补丁，程序还得把补丁写进去。</p>
+<p>你要设计的 Harness，就是负责组织这些操作的运行程序，以及配合它工作的上下文、状态和执行控制机制。</p>
+<p>先把最基本的关系画出来：用户把任务交给运行程序，程序给模型提供材料；模型返回下一步请求，程序调用工具，再把结果交回模型。</p>
+<p>在这个过程中，模型可以决定先看源码还是先跑测试。开发者规定的是动作怎样执行、结果怎样返回，以及哪些动作允许执行。具体的排查顺序可以随着观察结果变化。</p>
+<p>比如读完登录函数，模型发现问题可能来自参数转换，就继续读取转换函数。读取哪个文件由模型选择，读取流程由程序提供。这样既保留了模型的判断能力，又能让每次操作按规定的接口运行。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/7603aedc46-250d5a6bfe4f1ec2b231a199.png" /></p>
+<p>一开始不需要把系统拆成许多服务。一个程序里放模型调用、工具注册和运行循环，就可以开始做。但这些部分应当有各自的接口，否则以后增加暂停、恢复或权限检查时，就容易把所有逻辑挤进同一个函数。</p>
+<h4 id="_3">用执行循环，把一次推理接成多步任务</h4>
+<p>现在来看这个程序最核心的部分：一次模型调用结束以后，程序接着做什么？</p>
+<p>第一轮，模型收到需求和工具说明，提出读取登录函数。程序执行读取，把源码交回去。第二轮，模型看到源码，提出修改参数检查。程序应用补丁，回传是否修改成功。第三轮，模型提出运行相关测试，程序启动测试进程，回传退出状态和报错。</p>
+<p>如果测试仍然失败，下一轮模型可以继续排查。这里每轮新增的工具结果，都会影响后续选择。</p>
+<p>负责安排下一轮调用的模块，可以叫「运行协调器」。名字听着抽象，其实它做的就是：接收模型输出，判断应该走哪个分支，再安排对应操作。</p>
+<p>至少要区分三种情况。</p>
+<p>模型请求调用工具，就进入执行分支。模型缺少必要信息，比如无法确定用户指的是哪个接口，就进入等待用户的分支。模型提出任务完成，就进入结果检查分支。</p>
+<p>不要把所有文本都当作命令。模型说「我打算查看源码」只是文字；通过约定接口返回的工具名和参数，才是程序可以解析的请求。</p>
+<p>下面这段流程描述了一个顺序执行工具的最小循环，其中每行注释说明程序承担的职责：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">循环，直到任务进入结束状态：
+    # 每轮都从当前任务记录准备输入，避免使用过期进度
+    上下文 = 装配上下文(任务状态)
+    模型输出 = 调用模型(上下文)
+
+    # 工具请求进入执行器，实际结果再写回任务
+    如果模型输出是工具请求：
+        工具结果 = 校验并执行(工具请求)
+        保存工具结果，更新任务状态
+        继续下一轮
+
+    # 缺少必要信息时保存进度，等待用户回复
+    如果模型输出需要用户补充：
+        保存待解决问题，把任务设为等待
+        返回
+
+    # 完成声明进入验证；通过才结束，未通过则反馈差距
+    如果模型输出提出完成：
+        检查验收条件，更新任务状态
+</code></pre></div>
+<p>这里只展示了主流程。真实程序还要处理模型接口失败、任务预算和取消请求，但它们都围绕这个循环工作。</p>
+<p>有些模型一次会请求多个工具。程序可以先顺序执行；需要提高速度时，再让互不依赖的读取操作并行。修改文件和验证修改之间有依赖，测试必须看到对应版本的代码，不能为了并行把这个顺序打乱。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/42eb787ff0-510b8b7cc4e0bf6eaa425688.png" /></p>
+<p>有了这个循环，任务能够向前推进。不过，循环只规定了「接下来调用谁」，下一轮模型具体看到什么，还需要单独设计。</p>
+<h4 id="_4">每轮装配上下文，让模型看见当前有效的信息</h4>
+<p>第一次调用时，输入很简单：用户需求、操作约束和工具说明。</p>
+<p>运行几轮以后，已经积累了源码、补丁和几份测试日志。如果程序每轮都拼接所有材料，上下文会越来越大。更麻烦的是，旧报错和新结果放在一起，模型可能继续围绕已经修好的问题工作。</p>
+<p>所以需要一个「上下文装配」的步骤。它根据当前任务，选择这轮调用需要的内容。</p>
+<p>比如密码为空的异常已经修好，但原有正常登录测试出现了回归。下一轮应该重点放当前失败测试、相关代码和接口约束。旧的空值异常可以保留一句处理结论，原始日志留在外部，需要时再取。</p>
+<p>这里要分清三类信息。</p>
+<p>用户目标和限制决定任务范围，例如「保持接口字段不变」。任务进度说明已经做了什么、还有什么没完成。源码和日志提供判断依据，它们可能很长，也可能随着执行而更新。</p>
+<p>这三类信息不必都以聊天消息的形式保存。程序可以从任务记录中读取进度，从工作区读取当前源码，再选取最近相关的消息，一起组成模型输入。</p>
+<p>工具调用记录还需要遵守模型接口的消息格式。请求和结果通常通过调用编号关联，不能删掉请求，只留下一段不知属于哪次调用的结果。整理历史时，要保持必要的对应关系。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/674ea073ba-2fe704c93e16c5e9dbe624d2.png" /></p>
+<p>工具返回也应该控制大小。测试可能生成几万行日志，可以把完整日志写进文件，只返回失败用例、关键报错和日志路径。模型想查某一段，再调用读取工具。</p>
+<p>调用前还要检查输入占用，为输出留出空间。接近容量边界时，可以减少无关材料，或把已经结束的过程整理成摘要。摘要必须保留任务约束和未解决状态，原始资料也要能够找回。</p>
+<p>这些做法的共同目的，是让模型拿到眼前这一步所需的材料。模型需要继续判断时，仍然有工具可以补查，而不用依赖一份可能丢掉细节的历史概括。</p>
+<h4 id="_5">通过工具执行器，把模型请求变成真实操作</h4>
+<p>模型已经提出「修改登录函数」。运行协调器可以直接把这段输出丢给系统执行吗？</p>
+<p>还差一个工具执行器。它把模型请求转换成实际操作，并负责检查动作是否符合运行规则。</p>
+<p>以应用补丁为例，执行器先确认工具存在、参数格式正确，再检查目标路径是否在允许的工作区。还要核对待修改内容与当前文件是否匹配，避免模型基于旧源码生成补丁，覆盖别人刚做的修改。</p>
+<p>校验通过以后，执行器才写入文件，然后返回实际结果。补丁没匹配上，就明确告诉模型修改未应用，让它重新读取当前源码；不能只回一句「操作完成」，把失败藏起来。</p>
+<p>运行测试也是一样。执行器记录工作目录和命令，启动进程，取得退出码、输出和耗时。模型据此判断失败来自代码断言，还是环境没有安装依赖。</p>
+<p>这两种失败需要不同处理。如果断言失败，模型可以调整实现；如果执行环境缺少依赖，反复改登录函数没有意义。结果表达得越清楚，后续决策越有依据。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/38546490a4-c506faf31dd9393b91716dcb.png" /></p>
+<p>对命令执行，还需要限制文件访问、网络访问和资源使用。可以通过受限账号、容器或其他隔离环境落实这些约束。只在 Prompt 里写「不要访问其他目录」，不能形成操作系统层面的隔离。</p>
+<p>等待时间也要有上限。测试进程卡住以后，程序需要取消或终止它，并确认处理结果。如果只是等待超时，却没有终止进程，后台任务可能还在运行。</p>
+<p>因此，工具结果有时要表达「尚未完成」或「结果未知」。遇到这类状态，程序先查询进程、文件或外部系统，确认动作是否发生，再决定下一步。</p>
+<p>如果工具会发邮件、创建订单或支付，还需要业务侧的幂等和结果查询。幂等的意思是同一项业务动作重复提交，系统按约定避免重复产生效果。它需要接口配合，Harness 不能只靠重试逻辑就保证动作只发生一次。</p>
+<h4 id="_6">单独保存任务状态，才能暂停和恢复</h4>
+<p>前面的循环已经能读代码、改文件、跑测试。但这些操作可能持续几分钟，甚至跨越多次运行。只把进度放在程序内存里，进程一退出就丢了。</p>
+<p>所以任务需要一份持久化状态，可以存在数据库，也可以在简单实现里保存到文件。关键是状态能够描述当前进度，并指向已经产生的结果。</p>
+<p>对于这个登录 Bug，某一时刻的记录可能是：</p>
+<div class="codehilite" data-lang="text"><pre><code class="language-text">任务目标：空密码不再触发 500，保持接口字段不变。
+运行状态：等待用户补充。
+已完成：定位登录函数，应用参数检查补丁。
+验证情况：空密码测试通过，正常登录测试未通过。
+待解决问题：测试环境要求的配置从哪里获取。
+产物位置：补丁记录、当前工作区与两份测试日志。
+未决操作：无。
+</code></pre></div>
+<p>这份记录与聊天历史的区别，在于它明确区分了「做过什么」和「验证到了哪里」。聊天里的一句「接下来跑测试」，不能当作已经执行测试。</p>
+<p>工具请求、开始执行和返回结果，也应该分别记录。这样服务重启时，程序才能识别哪次操作没有最终结果，需要进一步核对。</p>
+<p>为了恢复方便，可以在关键步骤保存状态快照，通常叫 checkpoint。它记录保存时的进度，程序恢复后就有一个继续工作的起点。</p>
+<p>但快照与实际工作区是两份东西。假设补丁已经写入磁盘，程序还没来得及保存成功状态就崩溃了，快照仍然停在「准备修改」。恢复程序如果原样再应用一次，可能匹配失败，也可能造成重复修改。</p>
+<p>正确的恢复过程要先读取记录，检查未决操作，再核对当前文件或业务结果。确认补丁已经应用，就补齐记录；确认没有应用，才重新执行；暂时无法确认，就保留未知状态。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/4ee67bf7ae-773b98a5381b46edd0c2aa6d.png" /></p>
+<p>等待用户时，也可以保存状态后释放工作进程。用户回复再根据任务编号唤醒任务，补充信息，核对当前环境，继续循环。任务在等待，进程不必一直占着资源。</p>
+<p>如果同一个任务可能由多个工作进程接手，还需要限制同时运行的实例，或者对状态更新做版本检查。否则两个进程可能同时基于旧进度修改同一份代码。并发控制应当落在程序和存储层，不能让模型靠聊天约定互相避让。</p>
+<h4 id="_7">把完成条件和运行预算放进循环</h4>
+<p>任务能持续执行以后，还要确定什么时候结束。</p>
+<p>模型说「登录 Bug 已修好」，程序可以把它当成结束建议，再执行验收。对于当前任务，至少要核对空密码场景、原有正常登录行为，以及接口字段是否保持不变。</p>
+<p>验收依据来自用户需求和事先确定的业务规则。模型可以提出需要补充哪些测试，但不能通过改掉失败断言，把原本错误的结果算成成功。</p>
+<p>测试结果还要对应当前修改。如果模型跑完测试又改了文件，旧的通过结果就不能直接证明新代码也通过。验证器需要核对代码版本和验证记录，必要时重新运行相关检查。</p>
+<p>检查通过，任务可以标记完成；没有通过，就把具体差距交回模型继续处理。遇到环境阻塞或无法核验的部分，则说明已经完成的范围和剩余问题。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5dc710a418-547f92c18e758b19210fb23c.png" /></p>
+<p>另一种结束来自运行限制。模型可能反复读同一个文件，或者连续几次提出同样的修改，任务一直没有新进展。</p>
+<p>可以给整条任务设置步数、总耗时和费用预算，给单次模型调用与工具执行设置等待上限。程序还可以结合重复动作和相同结果，识别卡住的情况，再决定暂停、换一种处理方式或请求必要信息。</p>
+<p>这些限制不是完成证据。达到步数上限，只说明这次运行该停了；测试通过，才是验收中的一项证据。所以状态里要区分成功、失败、等待、取消和预算耗尽，并保存对应原因。</p>
+<h4 id="_8">记录每轮过程，让架构能够被检查和改进</h4>
+<p>到这里，系统已经有运行循环、上下文装配、工具执行、状态保存和完成验证。上线以后，你还需要知道它们实际怎样工作。</p>
+<p>比如 Agent 改错了文件，只看最终回复很难找出原因。模型是否从一开始就选错了路径？上下文装配时是否放入旧源码？还是执行器没有核对补丁对应的版本？</p>
+<p>需要沿同一个任务编号，把各轮模型调用、工具请求、执行结果和状态变化串起来。这类关联记录通常叫 Trace，可以理解为一份按时间排列的任务操作记录。</p>
+<p>每次模型调用记录实际使用的模型、输入材料或可复原的引用、输出和用量。每次工具执行记录参数、开始与结束时间、结果位置和错误。验收阶段再记录检查项、对应版本和判断依据。</p>
+<p>凭这些记录，你就能看到两次执行从哪一步开始不同，也能确定等待主要花在模型调用还是某个工具上。敏感信息需要脱敏或受控存储，调试记录不能变成一个额外的数据泄露入口。</p>
+<p>把前面设计的部分放到一起，模块之间的交接就清楚了：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>接收什么，交出什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>运行协调器</td>
+<td>接收任务和模型输出，安排下一步调用或状态转换</td>
+</tr>
+<tr>
+<td>上下文装配器</td>
+<td>读取当前状态和相关材料，生成这一轮模型输入</td>
+</tr>
+<tr>
+<td>模型适配器</td>
+<td>调用模型，把返回内容解析成回复、工具请求等事件</td>
+</tr>
+<tr>
+<td>工具执行器</td>
+<td>校验并执行请求，返回实际状态与结果引用</td>
+</tr>
+<tr>
+<td>状态存储</td>
+<td>保存任务进度、操作记录和产物位置，供恢复使用</td>
+</tr>
+<tr>
+<td>验证器</td>
+<td>核对验收条件与实际证据，给出完成或未完成的依据</td>
+</tr>
+</tbody>
+</table>
+<p>Trace 穿过这些模块，记录每次交接。它与任务状态用途不同：任务状态方便程序继续执行，Trace 方便追查这个状态怎样产生。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/5a7cdd2fed-ffb6bc8a617d249ca060ce84.png" /></p>
+<p>后续优化也有了依据。工具返回太长，就调整返回内容和按需读取方式；经常中断后从头探索，就检查恢复记录；模型提前宣布完成，就检查验收是否落实。改完以后用同一批任务比较完成情况、耗时和成本，才能判断这次调整是否有用。</p>
+<h3 id="_9">🎯 面试总结</h3>
+<p>开头只接工具，缺少的是工具结果怎样进入下一轮；只写循环，又没有解决输入越来越长、任务中断和结束判断的问题。完整的 Harness 要围绕执行过程，把这些部分接起来。</p>
+<p>执行循环负责推进任务，上下文装配提供当前材料，工具执行器落实真实操作和权限边界。状态记录保存做过什么、验证到哪里，恢复时再核对实际产物，避免把「准备执行」误当成「已经执行」。</p>
+<p>模型提出完成以后，程序还要按照任务要求检查结果；达到运行预算，则明确保存停止原因。最后用关联记录追查每轮输入、动作和状态变化，这套系统才既能运行，也能恢复和解释结果。</p>
+<hr /></div></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html" target="_blank" rel="noopener noreferrer">目录</a><a href="chapter-25.html" target="_blank" rel="noopener noreferrer">← 上一章</a><a href="chapter-27.html" target="_blank" rel="noopener noreferrer">下一章 →</a></nav></main><aside class="sol-rail sol-rail-right shelf-page-rail" aria-label="本页目录"><div class="sol-rail-title">本页目录</div><div class="toc"><ul><li class="lv3"><a href="#_1">💡 简要回答</a></li><li class="lv3"><a href="#_2">📝 详细解析</a></li><li class="lv3"><a href="#_9">🎯 面试总结</a></li></ul></div></aside></div>'
+<script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}function readableError(error,fallback){return error&&error.name==='AbortError'?'请求超时，请检查网络后重试':(error&&error.message)||fallback;}const topicRail=document.querySelector('.shelf-topic-rail');if(topicRail&&window.matchMedia('(max-width: 1280px)').matches)topicRail.open=false;const contentId="xiaolin-agent:26",moduleId="xiaolin-agent";const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');let chapterRounds=0;const notify=(message,kind)=>{if(window.InterviewForgeUI)window.InterviewForgeUI.showToast(toast,message,kind,0);else toast.textContent=message};const shortTime=(value)=>{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})};async function loadStatus(){try{const [libraryResponse,dailyResponse]=await Promise.all([fetchWithTimeout('/api/library',{cache:'no-store'}),fetchWithTimeout(`/api/daily?module=${encodeURIComponent(moduleId)}`,{cache:'no-store'})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{rounds:0,last_activity_at:null};chapterRounds=Number(info.rounds||0);status.textContent=`已完成 ${info.rounds||0} 轮${info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${String(dueItem.due_date).slice(5)}${overdue?'（已逾期）':''}`;dueLine.classList.toggle('due-overdue',overdue)}else{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}catch(_){status.textContent='暂时无法读取本章记录';button.disabled=true;notice.hidden=false;notice.textContent='暂时无法连接学习服务，请检查网络后重试。';toast.textContent=readableError(_, '暂时无法连接学习服务');dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}button.addEventListener('click',async()=>{if(!button.dataset.fsrsRating){const picker=document.createElement('div');picker.className='review-rating-picker';picker.setAttribute('role','group');picker.setAttribute('aria-label','本次复习记忆情况');const prompt=document.createElement('span');prompt.textContent='回忆得怎样？';picker.appendChild(prompt);[['1','忘了'],['2','有点困难'],['3','记得'],['4','很轻松']].forEach(([grade,label])=>{const choice=document.createElement('button');choice.type='button';choice.textContent=label;choice.addEventListener('click',()=>{picker.remove();button.hidden=false;button.dataset.fsrsRating=grade;button.click()});picker.appendChild(choice)});button.hidden=true;button.parentNode.insertBefore(picker,button.nextSibling);return}const rating=Number(button.dataset.fsrsRating);delete button.dataset.fsrsRating;const previousStatus=status.textContent,previousDue=dueLine.textContent;chapterRounds+=1;status.textContent=`已完成 ${chapterRounds} 轮 · 正在同步…`;button.disabled=true;button.textContent='记录中…';notify('学习记录正在保存…','');try{const response=await fetchWithTimeout('/api/content/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_id:moduleId,content_id:contentId,rating:rating})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'记录失败，请检查网络后重试');const next=result.next_due?`（下次复习 ${String(result.next_due).slice(5)}）`:'';chapterRounds=Number(result.round_no||chapterRounds);const ratingName={again:'忘了',hard:'有点困难',good:'记得',easy:'很轻松'}[result.rating_name]||'当前评分';notify(result.already_reviewed_today?`今天已记录过本章评分，沿用「${ratingName}」${next}`:`已记录第 ${result.round_no} 轮（${ratingName}）${next}`,'success');button.textContent='完成本章一轮';await loadStatus()}catch(error){chapterRounds=Math.max(0,chapterRounds-1);status.textContent=previousStatus;dueLine.textContent=previousDue;notify(readableError(error,'记录失败，请检查网络后重试'),'error');button.disabled=false;button.textContent='完成本章一轮'}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){
+pre.style.position='relative';
+var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
+btn.addEventListener('click',function(){
+var code=pre.querySelector('code');var text=(code||pre).innerText;
+var done=function(ok){btn.textContent=ok?'已复制':'复制失败';setTimeout(function(){btn.textContent='复制'},1200)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)})}
+else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}
+});
+pre.appendChild(btn);
+});
+var otpLinks=[].slice.call(document.querySelectorAll('.sol-rail-right .toc a[href^="#"]'));
+if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAttribute('href').slice(1),a]}));
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
+otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
+loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{try{const cssResponse=await fetchWithTimeout('../assets/library.css?v=20261010-heading-scale');if(!cssResponse.ok)throw new Error('样式加载失败');const css=await cssResponse.text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}catch(error){toast.textContent='导出失败：'+readableError(error,'请检查网络后重试')}});</script></body></html>

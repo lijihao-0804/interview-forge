@@ -1,20 +1,5 @@
 # LangChain 框架面试题
 
-> 校订说明：本汇总页与同目录编号章节保持同一套概念边界；版本化 API、集成能力和实验性标记以项目锁定版本及官方文档为准。阅读时先判断问题属于固定数据流、动态 Agent、状态编排、数据检索还是 Java 生态，再进入对应章节。
-
-```mermaid
-flowchart LR
-    A[业务问题] --> B{控制权在哪里?}
-    B -->|步骤固定| C[Runnable/LCEL]
-    B -->|模型选择工具| D[LangChain Agent]
-    B -->|长流程/恢复/审批| E[LangGraph]
-    B -->|数据接入/检索| F[LlamaIndex 或 RAG 组件]
-    D --> E
-    F -->|封装为 Tool/服务| D
-```
-
-图表示可组合的职责边界，不是能力排名；引入框架前仍要验证权限、状态、评估、延迟、成本和失败回退。
-
 ## 你了解过哪些 AI Agent 开发框架？
 
 👔面试官：你了解过哪些 AI Agent 开发框架？
@@ -44,6 +29,18 @@ LangGraph 更偏底层的状态与流程编排。面对循环、分支、并行�
 LlamaIndex 的优势集中在数据接入、文档解析、索引和检索，适合企业知识库、文档问答和复杂 RAG 等数据密集型应用。
 
 除此之外，我也了解 OpenAI Agents SDK 和 CrewAI。前者适合以 OpenAI 模型为主的轻量 Agent，后者擅长使用角色和任务表达多 Agent 协作。不过在通用 Python Agent 开发岗位中，我会优先掌握 LangChain、LangGraph 和 LlamaIndex，再根据公司的技术栈补充其他框架。
+
+```mermaid
+flowchart LR
+    A[先定义业务难点] --> B{主要难点}
+    B -->|模型/工具接入| C[LangChain]
+    B -->|复杂状态与恢复| D[LangGraph]
+    B -->|数据接入与检索| E[LlamaIndex]
+    C --> D
+    E -->|封装为受控 Tool| C
+```
+
+图中的箭头表示可组合关系，不是“功能越多越该选”的排名：先找主要瓶颈，再决定是否引入额外框架。
 
 ### 📝 详细解析
 
@@ -196,6 +193,23 @@ AutoGen、Semantic Kernel 和 Microsoft Agent Framework 更偏微软生态或存
 
 第七，先单测 Tool，再测试 Agent 的工具选择与调用轨迹，最后通过 Trace 观察模型调用、工具参数、耗时、Token 和异常。
 
+```mermaid
+flowchart TD
+    A[任务边界：目标、范围、权限与停止条件] --> B[选择模型与 Tool Schema]
+    B --> C[设计 Prompt 与输出格式]
+    C --> D[create_agent：组装模型、Tools 与参数]
+    D --> E[配置 State、Checkpointer 与 Middleware]
+    E --> F[选择调用方式：同步、异步或流式]
+    F --> G{模型是否请求 Tool}
+    G -->|是| H[运行时校验权限与参数]
+    H --> I[执行 Tool 并记录结果]
+    I --> G
+    G -->|否| J[结构化结果或最终答复]
+    J --> K[测试、Trace、成本与 SLO]
+```
+
+图中运行时校验位于模型决策与真实副作用之间；Prompt 或 Schema 只能帮助模型选对，不能替代服务端鉴权和幂等控制。
+
 ### 📝 详细解析
 
 #### 什么才算完整 Agent？
@@ -203,17 +217,6 @@ AutoGen、Semantic Kernel 和 Microsoft Agent Framework 更偏微软生态或存
 模型成功调用一次天气工具，只能说明 Demo 跑通了。真正进入业务后，我们先要知道它能做什么、不能做什么；模型选中工具后，还要检查参数是否正确，失败或重复调用会不会带来副作用。
 
 流程跑得更久时，新的问题又会出现：会话中断后能否恢复，最终结果能否稳定进入业务系统，线上出错后能不能复现？因此，完整 Agent 不是一次模型调用，而是一条从任务设计、能力接入、运行控制走到测试监控的工程链路。
-
-```mermaid
-flowchart TD
-    A[任务边界：目标、范围、约束] --> B[选择模型与 Tools]
-    B --> C[设计 Prompt 与输出格式]
-    C --> D[配置 Agent：模型、Tools 与参数]
-    D --> E[设计状态与 Middleware：记忆、拦截与增强]
-    E --> F[确定调用方式：本地、API 或异步任务]
-    F --> G[测试与监控：用例、告警、日志与追踪]
-    G -.根据测试和线上反馈迭代.-> A
-```
 
 #### 第一步：明确任务边界
 
@@ -424,6 +427,18 @@ Agent 输出具有概率性，所以测试不能只比较最终文本。
 
 确定性的线性或分支流程可以用 Runnable 和 LCEL，Agent 让模型在运行时动态决定下一步；带循环、持久状态和人工审批的复杂工作流，则更适合用 LangGraph。
 
+```mermaid
+flowchart LR
+    A{下一步是否在编码时确定?} -->|是| B[Runnable/LCEL]
+    A -->|否，需要模型选择 Tool| C[Agent]
+    B --> D{是否需要显式状态、恢复或审批?}
+    C --> D
+    D -->|是| E[LangGraph 编排]
+    D -->|否| F[保持较简单的高层入口]
+```
+
+这张图按控制权和恢复要求选型；Chain、Agent 和 LangGraph 可以嵌套，不是互斥的产品标签。
+
 ### 📝 详细解析
 
 #### 为什么需要 Chain？
@@ -449,11 +464,9 @@ Chain 解决的就是这个问题。它先让每个零件暴露相对统一的�
 ```mermaid
 flowchart TD
     subgraph Fixed[固定数据流：线性 Chain]
-        direction TB
         U1[用户输入] --> P1[Prompt 模板] --> M1[Chat Model] --> X1[输出解析器] --> A1[字符串答案]
     end
     subgraph Branch[固定数据流：检索分支与汇合]
-        direction TB
         U2[用户输入] --> R2[检索上下文]
         U2 --> Q2[保留原问题]
         R2 --> P2[Prompt 模板]
@@ -461,7 +474,6 @@ flowchart TD
         P2 --> M2[Chat Model] --> X2[输出解析器] --> A2[字符串答案]
     end
     subgraph Agent[运行时决策：Agent]
-        direction TB
         L[Agent] --> D{选择下一步}
         D -->|搜索| S[搜索工具]
         D -->|查数据| DB[数据库工具]
@@ -701,6 +713,23 @@ Supervisor 会检查证据是否覆盖研究目标，发现空白就继续补搜
 
 生产环境必须限制并发、迭代、Token 和搜索预算，并对网页提示词注入、来源可信度和高风险结论进行人工复核。
 
+```mermaid
+flowchart TD
+    A[澄清问题与范围] --> B[Research Brief]
+    B --> C[拆分独立子课题]
+    C --> D1[Researcher A]
+    C --> D2[Researcher B]
+    C --> D3[Researcher C]
+    D1 --> E[证据、来源、冲突与缺口]
+    D2 --> E
+    D3 --> E
+    E --> F{覆盖充分且预算允许?}
+    F -->|否| C
+    F -->|是| G[统一写作与引用审查]
+```
+
+并行的是相互独立的搜证据任务，不是无条件并行写最终章节；循环还必须受预算、停止条件和人工复核约束。
+
 ### 📝 详细解析
 
 #### Deep Research 是什么？
@@ -826,7 +855,7 @@ Deep Research 的成本同时受到「宽度」和「深度」影响。宽度是
 
 🙋‍♂️我：用注解定义一个接口，框架就会把所有事情自动做好，所以接入 LangChain4j 以后，模型切换、安全、记忆和生产监控都不用关心了。
 
-👔面试官：框架减少的是重复胶水代码，不会消灭供应商差异，也不会替你承担权限、数据隔离、评测和运维责任。Guardrails 和部分可观测能力的稳定性还要按目标版本核对，这些边界不说清楚，怎么做生产选型？
+👔面试官：框架减少的是重复胶水代码，不会消灭供应商差异，也不会替你承担权限、数据隔离、评测和运维责任。某些 Guardrails 或可观测模块可能带有 beta/experimental 状态，必须按目标版本核对，这些边界不说清楚，怎么做生产选型？
 
 这道题真正考的不是你记住了多少类名，而是能不能说清「为什么 Java 项目需要这一层抽象，以及这一层抽象不能替你做什么」。
 
@@ -844,7 +873,19 @@ Deep Research 的成本同时受到「宽度」和「深度」影响。宽度是
 
 不过我不会说用了它就能无成本切换所有模型。不同厂商在工具调用、JSON Schema、多模态和流式能力上仍然有差异，Chat Memory 也不等于完整聊天记录，复杂长事务仍需业务系统或专门编排层兜底。
 
-选型时还要看模块成熟度。某些模块可能带 beta 或实验性标记，具体状态会随版本变化；接入前应锁定依赖并核对对应文档。
+选型时还要看模块成熟度。某些模块可能带 beta 或 experimental 标记，具体状态会随版本变化；接入前应锁定依赖，并核对对应文档、回归测试、性能和故障恢复行为。
+
+```mermaid
+flowchart LR
+    A[Java 业务服务] --> B[AI Services/模型接口]
+    B --> C[ChatModel/EmbeddingModel]
+    B --> D[Tools与业务权限]
+    B --> E[ChatMemory/RAG]
+    D --> F[确定性鉴权、幂等、审计]
+    E --> G[文档/检索/版本与 ACL]
+```
+
+框架负责连接和类型化调用，业务服务仍负责权限、副作用、数据治理和事实校验；这些边界不能由注解自动消除。
 
 ### 📝 详细解析
 
@@ -1107,6 +1148,21 @@ Guardrails 可用于在模型调用前后校验输入和输出，例如检测越
 
 一句话概括：LangChain 用标准协议统一组件，用 `create_agent` 提供高层 Agent 入口，再由 LangGraph 承担有状态的执行运行时。
 
+```mermaid
+flowchart TD
+    A[用户消息] --> B[Message/Model 协议]
+    B --> C{固定流程还是动态决策?}
+    C -->|固定| D[Runnable/LCEL]
+    C -->|动态| E[create_agent]
+    E --> F[LangGraph State/Node/Edge]
+    F --> G[Tool执行、Checkpointer、Middleware]
+    G --> E
+    D --> H[结果/Trace]
+    E --> H
+```
+
+Message 统一数据表达，Runnable 统一执行方式，Tool 隔开模型与业务副作用，LangGraph 负责需要显式状态的运行时；它们不是同一个抽象层。
+
 ### 📝 详细解析
 
 #### LangChain 解决了什么？
@@ -1266,13 +1322,24 @@ LangChain 与 LangGraph 不是简单的二选一关系。LangChain 提供高层�
 
 LangGraph 则是低层的 Agent 编排框架与运行时，让开发者直接设计状态、节点、路由、并行、中断和恢复。
 
-两者最关键的关系是，LangChain v1 的 `create_agent` 构建在 LangGraph 之上，返回一个编译后的图。也就是说，LangChain Agent 不是脱离 LangGraph 运行的另一套引擎，它已经继承了 LangGraph 的状态、持久化、流式输出、durable execution 和 human-in-the-loop 等运行能力。
+两者最关键的关系是：按 LangChain v1 当前文档，`create_agent` 使用 LangGraph 作为运行时基础并返回可执行图。可用的状态、持久化、流式输出、durable execution 和 human-in-the-loop 能力仍取决于具体配置、集成包和目标版本；不能把“底层使用 LangGraph”理解成所有能力都自动开启。
 
 真正的区别不在于「有没有图」或「能不能分支」，而在于开发者控制哪一层。若需求是常见的「模型判断 -> 调用工具 -> 返回模型」循环，我会优先用 LangChain，再借助 middleware 做提示词、重试、护栏和审批等定制。
 
 若业务需要显式控制多个阶段，让确定性步骤与 Agent 步骤混排，或者要处理复杂并行、长期暂停和多 Agent 协作，我会直接用 LangGraph。`create_agent` 生成的 Agent 仍然可以作为图中的节点或子图复用。
 
 所以一句话概括：LangChain 帮我快速得到一个好用的 Agent，LangGraph 帮我精确控制整个 Agent 系统怎么运行。
+
+```mermaid
+flowchart LR
+    A[LangChain 高层入口] --> B[模型、Tools、Middleware、Structured Output]
+    A --> C[create_agent]
+    C --> D[编译后的 LangGraph 运行时]
+    D --> E[State、路由、Checkpoint、Interrupt、恢复]
+    F[自定义 LangGraph] --> E
+```
+
+LangChain 与 LangGraph 可以在同一系统中组合；差别主要是预构建程度和控制粒度，不是某个功能“有/没有”的二元划分。
 
 ### 📝 详细解析
 
@@ -1530,6 +1597,18 @@ LlamaIndex 更偏数据与上下文增强。它在数据接入、文档解析、
 
 选型时应看项目的主要难点：如果难点是模型与工具集成，优先评估 LangChain；如果难点是私有数据处理和检索质量，优先评估 LlamaIndex；如果两边都复杂，可以让 LlamaIndex 负责数据层，把检索能力封装成 Tool，再由 LangChain Agent 或 LangGraph 调度。
 
+```mermaid
+flowchart LR
+    A[业务问题] --> B{主要复杂度}
+    B -->|模型/工具/Agent 组装| C[LangChain]
+    B -->|数据接入/索引/检索| D[LlamaIndex]
+    B -->|状态图/恢复/审批| E[LangGraph]
+    D -->|Query Engine封装为 Tool| C
+    C --> E
+```
+
+组合框架时要让每一层拥有清晰的输入输出、权限和 Trace 边界；如果两套框架没有解决独立问题，额外依赖只会增加升级与排错成本。
+
 ### 📝 详细解析
 
 #### 为什么容易混淆？
@@ -1693,6 +1772,19 @@ Checkpointer 保存线程内状态快照，Store 保存跨线程长期记忆；`
 如果需求只是常见的「模型选择工具 -> 调用工具 -> 返回模型」循环，我会优先使用 LangChain `create_agent`，再用 middleware 完成提示词、重试、护栏和审批等定制。
 
 只有当业务拓扑、恢复边界或多角色协作成为主要复杂度时，我才直接使用 LangGraph，也常把 LangChain Agent 作为图中的节点或子图复用。
+
+```mermaid
+flowchart TD
+    A[请求] --> B[State]
+    B --> C[节点：模型/工具/规则]
+    C --> D{路由}
+    D -->|继续| C
+    D -->|需要审批| E[interrupt并保存Checkpoint]
+    E -->|resume| C
+    D -->|完成| F[输出]
+```
+
+图的价值在于把状态更新、路由、暂停和恢复变成执行语义；仍需开发者定义 Reducer、幂等边界、错误路径和权限。
 
 ### 📝 详细解析
 
@@ -2063,6 +2155,20 @@ LangGraph 更底层，不等于更适合所有项目。一个只需要查天气�
 
 长对话还需要控制上下文：裁剪只减少本次模型输入，删除会真正移除持久状态，摘要则用更短文本保留主要语义。生产环境要使用数据库型 Checkpointer 和 Store，并做好租户隔离、写入幂等、记忆更正、过期删除、敏感信息保护和检索评测。
 
+```mermaid
+flowchart LR
+    A[当前请求] --> B[thread_id]
+    B --> C[State + Checkpointer]
+    A --> D[可信 user/tenant context]
+    D --> E[namespace/key + Store]
+    C --> F[短期上下文]
+    E --> G[跨线程长期事实]
+    F --> H[模型输入]
+    G --> H
+```
+
+Checkpointer 保存线程状态，Store 保存跨线程数据；二者都要经过租户隔离、访问控制和生命周期治理，不能把“能持久化”当作“应该记住”。
+
 ### 📝 详细解析
 
 #### 应该记住什么？
@@ -2276,6 +2382,18 @@ LangChain 中注册 Tool 的本质，是同时向模型提供一份工具说明�
 
 生产环境还要关注参数校验、权限检查、超时、重试、幂等和错误分类。只有网络超时等临时故障适合自动重试，参数错误和业务拒绝应该返回清楚的信息，程序 Bug 则不应该被统一吞掉。
 
+```mermaid
+flowchart LR
+    A[函数/服务] --> B[名称、描述、Schema]
+    B --> C[模型选择并生成 Tool Call]
+    C --> D[运行时校验身份、权限、参数]
+    D --> E[执行并记录副作用]
+    E --> F[ToolMessage回传模型]
+    F --> C
+```
+
+Schema 帮模型理解调用合同，Runtime 和业务服务才是安全边界；对有副作用的工具还要有幂等键、审批、审计和超时策略。
+
 ### 📝 详细解析
 
 #### Tool 注册了什么？
@@ -2476,6 +2594,17 @@ LangChain 的版本演进可以抓住四条主线。
 第四是 LangChain v1 进一步聚焦 Agent。`create_agent` 成为高层入口，middleware 负责动态提示词、工具控制、摘要、重试和人工介入等横切能力，旧 Chain 等接口进入 `langchain-classic`。
 
 这些变化的共同方向不是「增加更多类」，而是稳定核心抽象、解耦第三方集成、统一组合协议，并把复杂 Agent 交给可持久化、可恢复的图运行时。
+
+```mermaid
+flowchart LR
+    A[旧版大而全依赖] --> B[核心协议与集成拆分]
+    B --> C[Runnable/LCEL组合固定流程]
+    C --> D[LangGraph承载有状态运行时]
+    D --> E[v1高层 Agent + Middleware]
+    E --> F[迁移验证：工具、流式、持久化、幂等]
+```
+
+这条链路表示架构关注点的迁移，不表示所有旧 API 在同一天消失；升级仍要以目标版本迁移指南、锁定依赖和回归结果为准。
 
 ### 📝 详细解析
 
