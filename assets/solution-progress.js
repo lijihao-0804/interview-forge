@@ -147,6 +147,51 @@
 
   markSelect.addEventListener("change", function () { saveMark(markSelect.value); });
   weakButton.addEventListener("click", function () { saveMark(currentMark === "weak" ? "" : "weak"); });
+
+  // ---- 收藏 ----
+  // 与「标记薄弱」同属个人状态，但走独立的 favorites 表：
+  // 标记表达掌握程度，收藏表达「想再回来看」，两者互不影响。
+  var favButton = document.getElementById("solutionFavoriteToggle");
+  if (favButton) {
+    var favOn = false;
+    function paintFav(on) {
+      favOn = !!on;
+      favButton.setAttribute("aria-pressed", favOn ? "true" : "false");
+      favButton.textContent = favOn ? "⭐ 已收藏" : "⭐ 收藏";
+      favButton.classList.toggle("on", favOn);
+    }
+    // 初始状态：从收藏列表判断本题是否已收藏
+    fetch("/api/favorites", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (d) {
+        paintFav(Array.isArray(d.ids) && d.ids.indexOf("problem:" + problemId) >= 0);
+      })
+      .catch(function () {});
+    favButton.addEventListener("click", function () {
+      favButton.disabled = true;
+      var titleEl = document.querySelector("h1");
+      fetch("/api/favorites/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_type: "problem",
+          target_id: String(problemId),
+          module_id: "hot100",
+          module_title: "Hot 100 算法刷题",
+          title: titleEl ? titleEl.textContent.trim() : ("题目 " + problemId),
+          url: location.pathname + location.search
+        })
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (res) {
+          paintFav(res.favorited);
+          notify(res.favorited ? "已加入收藏，可在学习书架 › 收藏中心查看" : "已取消收藏");
+        })
+        .catch(function () { notify("操作失败，请重试", "error"); })
+        .finally(function () { favButton.disabled = false; });
+    });
+  }
+
   Array.prototype.forEach.call(ratingButtons, function (button) {
     button.addEventListener("click", function () {
       recordReview(Number(button.getAttribute("data-review-rating")), button);

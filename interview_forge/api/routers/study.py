@@ -14,6 +14,9 @@ from starlette.concurrency import run_in_threadpool
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
 from interview_forge.services.auth import effective_ai_daily_limit, get_fsrs_desired_retention
+from interview_forge.services.favorites import (
+    favorite_ids, favorite_stats, list_favorites, remove_favorite, toggle_favorite,
+)
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.observability.logging import log_event
 from interview_forge.services.study import (
@@ -316,6 +319,52 @@ async def content_complete(request: Request):
 @router.post("/api/mark")
 async def mark(request: Request):
     return await _write_json(request, lambda p, db: set_mark(str(p["target_type"]), str(p["target_id"]), str(p.get("mark", "")), db))
+
+
+@router.get("/api/favorites")
+async def favorites_list(request: Request):
+    """收藏中心数据：条目列表 + 按模块统计（供筛选胶囊显示计数）。"""
+    user = await async_require_user(request)
+    if not user:
+        return error_response("未登录", status=401)
+
+    def load():
+        module_id = str(request.query_params.get("module", "") or "")
+        target_type = str(request.query_params.get("type", "") or "")
+        db = user_db(user)
+        return {
+            "items": list_favorites(module_id=module_id, target_type=target_type, db_path=db),
+            "stats": favorite_stats(db_path=db),
+            "ids": favorite_ids(db_path=db),
+        }
+
+    try:
+        return json_response(await run_in_threadpool(load))
+    except Exception as exc:  # noqa: BLE001
+        return service_error(exc)
+
+
+@router.post("/api/favorites/toggle")
+async def favorites_toggle(request: Request):
+    return await _write_json(
+        request,
+        lambda p, db: toggle_favorite(
+            str(p["target_type"]), str(p["target_id"]),
+            module_id=str(p.get("module_id", "")),
+            module_title=str(p.get("module_title", "")),
+            title=str(p.get("title", "")),
+            url=str(p.get("url", "")),
+            db_path=db,
+        ),
+    )
+
+
+@router.post("/api/favorites/remove")
+async def favorites_remove(request: Request):
+    return await _write_json(
+        request,
+        lambda p, db: remove_favorite(str(p["target_type"]), str(p["target_id"]), db),
+    )
 
 
 @router.post("/api/settings")

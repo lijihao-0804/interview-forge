@@ -75,6 +75,22 @@ CREATE TABLE IF NOT EXISTS marks (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (target_type, target_id)
 );
+-- 收藏：题目（problem）与书架章节（content）共用一张表。
+-- module_id 冗余存储：收藏中心要按「来自哪个模块」筛选（如只看 hot100），
+-- 每次查询再回表解析模块归属代价高，写入时一并记下来更直接。
+CREATE TABLE IF NOT EXISTS favorites (
+    target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
+    target_id TEXT NOT NULL,
+    module_id TEXT NOT NULL DEFAULT '',
+    module_title TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS ix_favorites_created ON favorites(created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_favorites_module ON favorites(module_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

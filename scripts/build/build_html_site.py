@@ -2294,6 +2294,7 @@ def transform_solution_page(
                         '<option value="reviewing">复习中</option><option value="weak">薄弱</option>'
                         '</select></label>'
                         '<button type="button" id="solutionWeakToggle" aria-pressed="false" disabled>标记薄弱</button>'
+                        '<button type="button" id="solutionFavoriteToggle" class="solution-fav-toggle" aria-pressed="false" data-problem-id="{problem_id}">⭐ 收藏</button>'
                         '<div class="solution-review-ratings" role="group" aria-label="本次复习记忆情况">'
                         '<span>本次复习：</span>'
                         '<button type="button" data-review-rating="1" disabled>忘了</button>'

@@ -198,6 +198,13 @@ from interview_forge.services.submissions import (
     submission_summary,
     submissions_for_problem,
 )
+from interview_forge.services.favorites import (
+    favorite_ids,
+    favorite_stats,
+    list_favorites,
+    remove_favorite,
+    toggle_favorite,
+)
 from interview_forge.services.auth import (
     AUTH_SCHEMA,
     _NicknameTrie,
@@ -387,6 +394,8 @@ _ANALYTICS_WRITE_PATHS = frozenset({
     "/api/complete",
     "/api/content/complete",
     "/api/mark",
+    "/api/favorites/toggle",
+    "/api/favorites/remove",
     "/api/settings",
     "/api/submit",
     "/api/plan/pin",
@@ -865,6 +874,20 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/library":
             self.send_json(library_data(db))
             return
+        # /api/favorites：收藏中心 —— 条目列表 + 按模块统计；
+        # ?module= 指定模块（如 hot100）、?type=problem/content 指定类型。
+        if parsed.path == "/api/favorites":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            self.send_json({
+                "items": list_favorites(
+                    module_id=params.get("module", ""),
+                    target_type=params.get("type", ""),
+                    db_path=db,
+                ),
+                "stats": favorite_stats(db_path=db),
+                "ids": favorite_ids(db_path=db),
+            })
+            return
         # /api/admin/codes：注册码清单（管理员）。
         if parsed.path == "/api/admin/codes":
             self.send_json({"items": list_invite_codes()})
@@ -1119,6 +1142,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             "/api/logout", "/api/password", "/api/profile", "/api/chat/send", "/api/complete",
             "/api/weather/preferences",
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
+            "/api/favorites/toggle", "/api/favorites/remove",
             "/api/plan/pin",
             "/api/coach/context",
             "/api/coach/analyze",
@@ -1431,6 +1455,19 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/mark：设置/清除标记 —— mastered/reviewing/weak，'' 表示删除标记。
             elif path == "/api/mark":
                 result = set_mark(str(payload["target_type"]), str(payload["target_id"]), str(payload.get("mark", "")), db)
+            # /api/favorites/toggle：收藏/取消收藏（幂等，返回切换后的状态）。
+            elif path == "/api/favorites/toggle":
+                result = toggle_favorite(
+                    str(payload["target_type"]), str(payload["target_id"]),
+                    module_id=str(payload.get("module_id", "")),
+                    module_title=str(payload.get("module_title", "")),
+                    title=str(payload.get("title", "")),
+                    url=str(payload.get("url", "")),
+                    db_path=db,
+                )
+            # /api/favorites/remove：直接从收藏中心移除。
+            elif path == "/api/favorites/remove":
+                result = remove_favorite(str(payload["target_type"]), str(payload["target_id"]), db)
             # /api/settings：更新设置 KV（目前为每日目标轮次）。
             elif path == "/api/settings":
                 result = set_setting(str(payload.get("key", "")), str(payload.get("value", "")), db)

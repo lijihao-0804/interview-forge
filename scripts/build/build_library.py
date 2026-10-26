@@ -201,6 +201,24 @@ color:var(--text);text-decoration:none;transition:background-color .16s ease}
 .chapter-hits mark{background:color-mix(in srgb,var(--brand) 22%,transparent);color:inherit;
 border-radius:3px;padding:0 1px}
 @media(max-width:640px){.chapter-hits{padding:14px}.hit-snip{-webkit-line-clamp:3}}
+
+/* ===== 书架底部：收藏中心入口 ===== */
+.fav-entry{margin:30px 0 0;padding-top:22px;border-top:1px solid var(--line)}
+.fav-entry-card{display:flex;align-items:center;gap:14px;padding:16px 20px;border:1px solid var(--line);
+border-radius:var(--radius-3);background:var(--panel);color:var(--text);text-decoration:none;
+transition:border-color .18s ease,box-shadow .22s ease,transform .18s ease}
+.fav-entry-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));text-decoration:none;
+box-shadow:0 10px 26px color-mix(in srgb,var(--brand) 12%,transparent);transform:translateY(-1px)}
+.fav-entry-ico{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:12px;
+background:color-mix(in srgb,var(--brand) 11%,transparent);font-size:20px;line-height:1}
+.fav-entry-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fav-entry-body strong{font-size:15px;font-weight:750;line-height:1.4}
+.fav-entry-body span{color:var(--muted);font-size:12.5px;line-height:1.5}
+.fav-entry-count{flex:none;padding:2px 10px;border-radius:999px;background:var(--brand-soft);
+color:var(--brand);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.fav-entry-go{margin-left:auto;color:var(--muted);font-size:17px}
+.fav-entry-card:hover .fav-entry-go{color:var(--brand)}
+@media(max-width:600px){.fav-entry-card{padding:14px}}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 @media(max-width:760px){.track-row{grid-template-columns:1fr}.track-card{padding:14px}}
 
@@ -414,7 +432,7 @@ a{overflow-wrap:anywhere}
   .reader th,.reader td{padding:8px 9px}
   .reader table{font-size:13px;margin:18px auto}
   .chapter-status{font-size:12px;padding:8px 10px;gap:8px 10px}
-  .chapter-status .complete-button{min-height:40px;padding:6px 14px}
+  .chapter-status .complete-button{min-height:40px;padding:6px 14px}.chapter-status .fav-chapter[aria-pressed="true"]{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--panel));font-weight:650}
   .chapter-nav a{padding:9px 14px}
   .math-display-wrap{padding:10px;font-size:.95em}
   .demo-embed iframe{height:420px;min-height:320px}
@@ -1085,6 +1103,7 @@ def topbar(prefix: str = "..", current: str = "") -> str:
     brand_current = ' aria-current="page"' if current == "学习书架" else ""
     links = (
         ("学习书架", f"{prefix}/index.html"),
+        ("收藏中心", f"{prefix}/../pages/favorites.html"),
         ("全文搜索", f"{prefix}/search.html"),
         ("Hot 100", f"{prefix}/../index.html"),
     )
@@ -1884,7 +1903,7 @@ def build() -> None:
             otp_class = " has-otp" if otp_items else ""
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
- <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><span class="auto-read-hint" title="停留 3 分钟且读到文末会自动记一轮，无需手动点击">读满 3 分钟并读到文末会自动记录</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
+ <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><span class="auto-read-hint" title="停留 3 分钟且读到文末会自动记一轮，无需手动点击">读满 3 分钟并读到文末会自动记录</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><button id="favoriteChapter" class="complete-button fav-chapter" type="button" aria-pressed="false">⭐ 收藏</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});
 // ---- Ctrl+← / Ctrl+→ 切换上下章（与力扣一致）----
 (function(){{
@@ -1979,6 +1998,48 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
   }});
   window.addEventListener('beforeunload',function(){{tick();}});
   progress();
+}})();
+
+// ---- 章节收藏：写入 favorites 表，收藏中心按模块筛选 ----
+(function(){{
+  var btn=document.getElementById('favoriteChapter');
+  if(!btn)return;
+  var URL_KEY='/library/'+moduleId+'/chapter-'+(contentId.indexOf(':')>=0?contentId.split(':').pop():contentId)+'.html';
+  function paint(on){{
+    btn.setAttribute('aria-pressed',on?'true':'false');
+    btn.textContent=on?'⭐ 已收藏':'⭐ 收藏';
+  }}
+  function key(){{ return 'content:'+moduleId+':'+contentId; }}
+  // 初始状态
+  fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}})
+    .then(function(d){{
+      var k='content:'+contentId;
+      var list=Array.isArray(d.ids)?d.ids:[];
+      // 章节 target_id 形如 "<module>:<chapter>"，ids 里拼成 content:<module>:<chapter>
+      paint(list.indexOf('content:'+moduleId+':'+contentId)>=0 || list.indexOf(k)>=0);
+    }}).catch(function(){{}});
+  btn.addEventListener('click',function(){{
+    btn.disabled=true;
+    var h1=document.querySelector('.reader h1')||document.querySelector('h1');
+    fetch('/api/favorites/toggle',{{
+      method:'POST',headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{
+        target_type:'content',
+        target_id:moduleId+':'+contentId,
+        module_id:moduleId,
+        module_title:(document.querySelector('.breadcrumb a:nth-of-type(3)')||{{}}).textContent||moduleId,
+        title:h1?h1.textContent.trim():contentId,
+        url:URL_KEY
+      }})
+    }}).then(function(r){{return r.ok?r.json():Promise.reject()}})
+      .then(function(res){{
+        paint(res.favorited);
+        var t=document.getElementById('chapterToast');
+        if(t){{t.style.color=res.favorited?'var(--success)':'';t.textContent=res.favorited?'已收藏，可在学习书架 › 收藏中心找到':'已取消收藏';}}
+      }})
+      .catch(function(){{var t=document.getElementById('chapterToast');if(t)t.textContent='收藏失败，请重试';}})
+      .finally(function(){{btn.disabled=false;}});
+  }});
 }})();
 loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{{try{{const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{{type:'text/html'}});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}}catch(_){{toast.textContent='导出失败，请检查网络后重试'}}}});</script>'''
             reader = apply_chapter_reader_layout(reader, topic_nav_html)
@@ -2182,7 +2243,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     <p class="shelf-result" id="shelfResult" aria-live="polite"></p>
   </div>
 </div>
-<main class="module-grid" id="moduleGrid">{module_cards}</main><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});document.dispatchEvent(new Event("shelf-filter-change"));window.__shelfState={{track:st.track,cat:st.cat}};if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);var scopeLbl=p.length?p.join(" · "):"";result.textContent=shown===0?(st.q?"当前范围没有匹配「"+st.q+"」的课程名"+(scopeLbl?"，"+st.q+" 的章节内容见下方":""):"当前范围没有课程"):(st.q?(scopeLbl?"在「"+scopeLbl+"」内搜索「"+st.q+"」":"全局搜索「"+st.q+"」")+"：匹配 "+shown+" 个课程":(scopeLbl?scopeLbl+"："+shown+" 个模块":"共 "+shown+" 个模块 · 点上方学习形态可按类型收窄"));}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();
+<main class="module-grid" id="moduleGrid">{module_cards}</main><section class="fav-entry" aria-label="收藏中心"><a class="fav-entry-card" href="../pages/favorites.html"><span class="fav-entry-ico" aria-hidden="true">⭐</span><span class="fav-entry-body"><strong>收藏中心</strong><span>集中查看你在题目和章节里收藏的内容，可按来源筛选</span></span><span class="fav-entry-count" id="favEntryCount" hidden></span><span class="fav-entry-go" aria-hidden="true">→</span></a></section><section id="chapterHits" class="chapter-hits" aria-label="章节搜索结果" hidden><div class="hits-head"><h2>章节内容匹配</h2><span id="hitsCount" class="hits-count"></span></div><div id="hitsBody" class="hits-body"></div></section></div><script>(function(){{var cards=[].slice.call(document.querySelectorAll("#moduleGrid .module-card"));var trackCards=[].slice.call(document.querySelectorAll("[data-track-filter]"));var catButtons=[].slice.call(document.querySelectorAll("[data-cat-filter]"));var groups=[].slice.call(document.querySelectorAll("[data-track-group]"));var search=document.getElementById("shelfSearch");var result=document.getElementById("shelfResult");var st={{track:"",cat:"",q:""}};function apply(){{var shown=0;cards.forEach(function(c){{var okT=!st.track||c.dataset.track===st.track;var okC=!st.cat||c.dataset.category===st.cat;var okQ=!st.q||(c.dataset.search||"").indexOf(st.q)>=0;var ok=okT&&okC&&okQ;c.hidden=!ok;c.style.display=ok?"":"none";if(ok)shown++;}});trackCards.forEach(function(b){{b.classList.toggle("active",b.dataset.trackFilter===st.track);}});groups.forEach(function(g){{g.hidden=!st.track||!!st.q||g.dataset.trackGroup!==st.track;}});var chipRow=document.getElementById("chipRow");if(chipRow){{chipRow.hidden=!st.track||!!st.q;}}var chipAll=document.getElementById("chipAllCount");if(chipAll&&st.track){{chipAll.textContent=cards.filter(function(c){{return c.dataset.track===st.track;}}).length;}}catButtons.forEach(function(b){{b.classList.toggle("active",(b.dataset.catFilter||"")===st.cat);}});document.dispatchEvent(new Event("shelf-filter-change"));window.__shelfState={{track:st.track,cat:st.cat}};if(result){{var p=[];if(st.track)p.push(st.track);if(st.cat)p.push(st.cat);var scopeLbl=p.length?p.join(" · "):"";result.textContent=shown===0?(st.q?"当前范围没有匹配「"+st.q+"」的课程名"+(scopeLbl?"，"+st.q+" 的章节内容见下方":""):"当前范围没有课程"):(st.q?(scopeLbl?"在「"+scopeLbl+"」内搜索「"+st.q+"」":"全局搜索「"+st.q+"」")+"：匹配 "+shown+" 个课程":(scopeLbl?scopeLbl+"："+shown+" 个模块":"共 "+shown+" 个模块 · 点上方学习形态可按类型收窄"));}}}}trackCards.forEach(function(b){{b.addEventListener("click",function(){{var n=b.dataset.trackFilter;st.track=st.track===n?"":n;if(st.track)st.cat="";apply();}});}});catButtons.forEach(function(b){{b.addEventListener("click",function(){{st.cat=b.dataset.catFilter||"";apply();}});}});if(search){{search.addEventListener("input",function(){{st.q=search.value.trim().toLowerCase();apply();}});search.addEventListener("keydown",function(e){{if(e.key==="Escape"){{search.value="";st.q="";apply();}}}});}}try{{var u=new URLSearchParams(location.search);var t=u.get("track"),c=u.get("cat");if(t)st.track=t;if(c)st.cat=c;}}catch(e){{}}apply();}})();
 (function(){{
   var idx=null, loading=false, timer=null;
   var hits=document.getElementById("chapterHits"), hitsBody=document.getElementById("hitsBody"),
@@ -2254,7 +2315,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     var q=box.value.trim().toLowerCase();
     if(q&&idx)render(q);
   }});
-}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
+}})();</script><script>function fetchWithTimeout(input,options,timeout=12000){{const controller=new AbortController();const request=Object.assign({{}},options||{{}},{{signal:controller.signal}});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}}fetch('/api/library',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{{const info=data.modules[bar.dataset.moduleProgress]||{{completed:0,total:1}};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${{pct}}%`;const pctEl=document.querySelector(`[data-module-pct="${{bar.dataset.moduleProgress}}"]`);if(pctEl)pctEl.textContent=pct+'%'}})).catch(()=>{{}});fetch('/api/favorites',{{cache:'no-store'}}).then(function(r){{return r.ok?r.json():Promise.reject()}}).then(function(d){{var n=(d.stats&&d.stats.__total__)||0;var el=document.getElementById('favEntryCount');if(el&&n){{el.textContent=n+' 条';el.hidden=false;}}}}).catch(function(){{}});fetch('/api/daily',{{cache:'no-store'}}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{{const summary=daily.summary||{{}};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){{el.innerHTML=total?`<span><strong>全书架待复习 ${{total}} 章</strong>${{overdue?`（逾期 ${{overdue}}）`:''}}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}}document.querySelectorAll('[data-module-due]').forEach(badge=>{{const info=(summary.modules||{{}})[badge.dataset.moduleDue];if(info&&info.due){{badge.hidden=false;badge.textContent=`待复习 ${{info.due}}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}}}})}}).catch(()=>{{}});</script>'''
 
     # 书架总页的两次状态请求使用统一超时，并在失败时给出可重试的可见提示；
     # 这里集中后处理长模板字符串，避免维护难以阅读的单行 HTML。
