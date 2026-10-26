@@ -1080,6 +1080,20 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 )
             ]
         widget = "".join(f'<script src="{s}" defer></script>' for s in scripts).encode()
+        # Favicon 与 PWA manifest 注入：与 FastAPI 版 static.py 的行为保持一致。
+        # 页面自身没有写 <link rel="icon">，不注入时浏览器标签页只能显示默认图标。
+        head_extra = b""
+        if b'rel="icon"' not in body and b"rel='icon'" not in body:
+            head_extra += (
+                b'<link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">'
+                b'<link rel="apple-touch-icon" href="/assets/icons/icon-180.png">'
+            )
+        if b"manifest.webmanifest" not in body:
+            head_extra += b'<link rel="manifest" href="/manifest.webmanifest">'
+        if head_extra:
+            head_idx = body.lower().find(b"</head>")
+            if head_idx >= 0:
+                body = body[:head_idx] + head_extra + body[head_idx:]
         idx = body.lower().rfind(b"</body>")
         body = body[:idx] + widget + body[idx:] if idx != -1 else body + widget
         self.send_response(HTTPStatus.OK)

@@ -172,12 +172,11 @@ background:color-mix(in srgb,var(--brand) 11%,transparent);font-size:20px;line-h
 background:var(--panel);color:var(--text);font:inherit;font-size:14px}
 .shelf-search input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent)}
 .chip-row{display:flex;gap:8px;flex-wrap:wrap}.chip-row[hidden]{display:none}
-.chip-row>button{padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);
-color:var(--text);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.chip-row>button:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));color:var(--brand)}
-.chip-row>button.active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:650}
-.chip-n{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
-.chip-row>button.active .chip-n{color:color-mix(in srgb,var(--brand) 70%,var(--muted))}
+.chip-row button{flex:none;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--text);font:inherit;font-size:13px;font-weight:550;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color .16s ease,background-color .16s ease,color .16s ease,box-shadow .16s ease,transform .12s ease}
+.chip-row button:hover{border-color:color-mix(in srgb,var(--brand) 42%,var(--line));color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--soft))}
+.chip-row button.active{border-color:var(--brand);font-weight:700;background:color-mix(in srgb,var(--brand) 88%,#000);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--brand) 34%,transparent);transform:translateY(-1px)}.chip-row button.active .chip-n{color:rgba(255,255,255,.82)}
+.chip-n{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,var(--text) 7%,transparent);line-height:1.5}
+.chip-row button.active .chip-n{color:color-mix(in srgb,var(--brand) 70%,var(--muted))}
 .chip-group{display:contents}
 .chip-group[hidden]{display:none}
 .shelf-result{margin:0;color:var(--muted);font-size:12.5px;min-height:18px}
