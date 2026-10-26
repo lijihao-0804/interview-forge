@@ -79,4 +79,29 @@
     var q=box.value.trim().toLowerCase();
     if(q&&idx)render(q);
   });
-})();</script><script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}fetchWithTimeout('/api/library',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{const info=data.modules[bar.dataset.moduleProgress]||{completed:0,total:1};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${pct}%`;const pctEl=document.querySelector(`[data-module-pct="${bar.dataset.moduleProgress}"]`);if(pctEl)pctEl.textContent=pct+'%'})).catch(()=>{const el=document.getElementById('shelfDueSummary');if(el)el.innerHTML='<span>暂时无法读取学习记录，请检查网络后重试。</span> <button type="button" onclick="location.reload()">重试</button>';});fetchWithTimeout('/api/daily',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{const summary=daily.summary||{};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){el.innerHTML=total?`<span><strong>全书架待复习 ${total} 章</strong>${overdue?`（逾期 ${overdue}）`:''}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}document.querySelectorAll('[data-module-due]').forEach(badge=>{const info=(summary.modules||{})[badge.dataset.moduleDue];if(info&&info.due){badge.hidden=false;badge.textContent=`待复习 ${info.due}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}})}).catch(()=>{const el=document.getElementById('shelfDueSummary');if(el)el.innerHTML='<span>暂时无法读取学习记录，请检查网络后重试。</span> <button type="button" onclick="location.reload()">重试</button>';});</script></body></html>
+})();</script><script>function fetchWithTimeout(input,options,timeout=12000){const controller=new AbortController();const request=Object.assign({},options||{},{signal:controller.signal});const timer=setTimeout(()=>controller.abort(),timeout);return fetch(input,request).finally(()=>clearTimeout(timer));}fetchWithTimeout('/api/library',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(data=>document.querySelectorAll('[data-module-progress]').forEach(bar=>{const info=data.modules[bar.dataset.moduleProgress]||{completed:0,total:1};const pct=Math.round(info.completed/info.total*100);bar.style.width=`${pct}%`;const pctEl=document.querySelector(`[data-module-pct="${bar.dataset.moduleProgress}"]`);if(pctEl)pctEl.textContent=pct+'%'})).catch(()=>{const el=document.getElementById('shelfDueSummary');if(el)el.innerHTML='<span>暂时无法读取学习记录，请检查网络后重试。</span> <button type="button" onclick="location.reload()">重试</button>';});fetchWithTimeout('/api/daily',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(daily=>{const summary=daily.summary||{};const total=summary.contents||0,overdue=summary.overdue_contents||0;const el=document.getElementById('shelfDueSummary');if(el){el.innerHTML=total?`<span><strong>全书架待复习 ${total} 章</strong>${overdue?`（逾期 ${overdue}）`:''}，完成一轮后自动推进下次复习</span><a class="shelf-due-go" href="#moduleGrid">去各模块复习 →</a>`:`<span>今日全书架没有到期章节，可以继续学习新内容。</span>`}document.querySelectorAll('[data-module-due]').forEach(badge=>{const info=(summary.modules||{})[badge.dataset.moduleDue];if(info&&info.due){badge.hidden=false;badge.textContent=`待复习 ${info.due}`;badge.classList.toggle('overdue',(info.overdue||0)>0)}})}).catch(()=>{const el=document.getElementById('shelfDueSummary');if(el)el.innerHTML='<span>暂时无法读取学习记录，请检查网络后重试。</span> <button type="button" onclick="location.reload()">重试</button>';});</script>
+<script>
+/* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
+(function(){
+  function parentOf(){
+    var path=location.pathname;
+    // 顺序很重要：先匹配更具体的章节页，再搜模块页，最后才是搜索页
+    // 章节页：/library/<module>/chapter-NN.html → 同目录模块首页
+    if(/\/library\/[^/]+\/chapter-\d+\.html$/.test(path))return 'index.html';
+    // 搜索页：/library/search.html → 书架
+    if(/\/library\/search\.html$/.test(path))return 'index.html';
+    // 模块首页：/library/<module>/index.html → 书架（注意是两层）
+    if(/\/library\/[^/]+\/index\.html$/.test(path))return '../index.html';
+    return null;
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    if(document.querySelector('[role="dialog"]:not([hidden])'))return;
+    var el=document.activeElement,tag=el?(el.tagName||'').toLowerCase():'';
+    if(tag==='input'||tag==='textarea'||tag==='select'||(el&&el.isContentEditable))return;
+    var target=parentOf();
+    if(target){e.preventDefault();location.href=target;}
+  });
+})();
+</script>
+</body></html>

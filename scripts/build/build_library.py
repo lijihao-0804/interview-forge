@@ -210,7 +210,7 @@ border-radius:3px;padding:0 1px}
 .search-group-title{grid-column:1/-1}
 .search-group-title{margin:0 0 10px;color:var(--muted);font-size:13px;font-weight:700}
 mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--brand);border-radius:3px;padding:0 2px}
-.search-kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--panel);color:var(--muted);font-size:12px;font-family:var(--font-mono,monospace)}@media(max-width:860px){.chapter-layout{grid-template-columns:1fr}.chapter-side{order:-1}.reader{padding:24px}.reader pre.mermaid{padding:18px}}@media(max-width:560px){.shell{width:calc(100% - 20px);padding-top:14px}.chapters li{grid-template-columns:auto minmax(0,1fr)}.rounds{grid-column:2}.topbar{align-items:flex-start}.reader pre.mermaid{min-height:110px;padding:12px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+.search-note{margin-top:8px!important;padding:8px 12px;border:1px solid color-mix(in srgb,var(--brand) 20%,var(--line));border-radius:var(--radius-1);background:var(--brand-soft);font-size:13px!important;color:var(--muted)!important}.search-note a{color:var(--brand);font-weight:650}.search-kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--panel);color:var(--muted);font-size:12px;font-family:var(--font-mono,monospace)}@media(max-width:860px){.chapter-layout{grid-template-columns:1fr}.chapter-side{order:-1}.reader{padding:24px}.reader pre.mermaid{padding:18px}}@media(max-width:560px){.shell{width:calc(100% - 20px);padding-top:14px}.chapters li{grid-template-columns:auto minmax(0,1fr)}.rounds{grid-column:2}.topbar{align-items:flex-start}.reader pre.mermaid{min-height:110px;padding:12px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 /* 表格居中：按内容宽度自适应并居中，宽表内部横向滚动 */
 .reader table{width:max-content;max-width:100%;margin:20px auto;border-collapse:collapse;display:block;overflow:auto}
@@ -1128,7 +1128,32 @@ def document(
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=3" defer data-interviewforge-ai></script>'
     )
-    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{ai_assets}</head><body>{body}{scripts}</body></html>'''
+    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{ai_assets}</head><body>{body}
+<script>
+/* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
+(function(){{
+  function parentOf(){{
+    var path=location.pathname;
+    // 顺序很重要：先匹配更具体的章节页，再搜模块页，最后才是搜索页
+    // 章节页：/library/<module>/chapter-NN.html → 同目录模块首页
+    if(/\/library\/[^/]+\/chapter-\d+\.html$/.test(path))return 'index.html';
+    // 搜索页：/library/search.html → 书架
+    if(/\/library\/search\.html$/.test(path))return 'index.html';
+    // 模块首页：/library/<module>/index.html → 书架（注意是两层）
+    if(/\/library\/[^/]+\/index\.html$/.test(path))return '../index.html';
+    return null;
+  }}
+  document.addEventListener('keydown',function(e){{
+    if(e.key!=='Escape')return;
+    if(document.querySelector('[role="dialog"]:not([hidden])'))return;
+    var el=document.activeElement,tag=el?(el.tagName||'').toLowerCase():'';
+    if(tag==='input'||tag==='textarea'||tag==='select'||(el&&el.isContentEditable))return;
+    var target=parentOf();
+    if(target){{e.preventDefault();location.href=target;}}
+  }});
+}})();
+</script>
+{scripts}</body></html>'''
     return mark_cross_page_links(page)
 
 
@@ -1571,7 +1596,7 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
 # ---------------------------------------------------------------------------
 def search_page(chapter_count: int) -> str:
     body = '''<div class="shell">__TOPBAR__
-<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文。</p><p style="margin-top:6px"><span class="search-kbd">Ctrl</span> / <span class="search-kbd">⌘</span> + <span class="search-kbd">K</span> 快速聚焦搜索框</p></section>
+<section class="hero"><h1>全文搜索</h1><p>跨全部书架模块（__CHAPTER_COUNT__ 个章节）搜索标题与正文，返回最多 60 条带摘要的结果，适合深度检索。</p><p class="search-note">只想快速定位某个课程或章节？<a href="index.html">回学习书架</a>用顶部搜索框，边搜边收窄范围更快。</p><p style="margin-top:6px"><span class="search-kbd">Ctrl</span> / <span class="search-kbd">⌘</span> + <span class="search-kbd">K</span> 快速聚焦搜索框</p></section>
 <div class="module-controls"><div class="field"><label for="searchInput">关键词</label><input id="searchInput" type="search" placeholder="输入关键词，如 循环依赖、MVCC、线程池、Kafka" autocomplete="off"></div></div>
 <p id="searchSummary" class="muted" role="status" aria-live="polite">输入关键词开始搜索。</p>
 <main id="results" class="chapter-grid" aria-live="polite"></main>
@@ -1830,8 +1855,8 @@ def build() -> None:
                 next_link, next_label = f"chapter-{index + 1:02d}.html", "下一章 →"
             else:
                 next_link, next_label = "", ""
-            previous_html = f'<a href="{previous_link}">{previous_label}</a>' if previous_link else ""
-            next_html = f'<a href="{next_link}">{next_label}</a>' if next_link else ""
+            previous_html = f'<a class="nav-prev" data-chapter-nav="prev" href="{previous_link}">{previous_label}</a>' if previous_link else ""
+            next_html = f'<a class="nav-next" data-chapter-nav="next" href="{next_link}">{next_label}</a>' if next_link else ""
             # 章节页 HTML 模板(reader)组成：
             #   面包屑 书架 › 模块 › 本章(aria 标注当前页)；页面顶部状态条内嵌“学习记录
             #   轮次/下次复习日期/完成一章/导出本章”控件；正文由 render_markdown
@@ -1861,7 +1886,31 @@ def build() -> None:
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
  <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><button id="exportChapter" class="complete-button" type="button">导出本章</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
-<script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){{
+<script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});
+// ---- Ctrl+← / Ctrl+→ 切换上下章（与力扣一致）----
+(function(){{
+  // 仅章节页：页面上必须有章节导航容器
+  if(!document.querySelector('.chapter-nav'))return;
+  function isTyping(){{
+    var el=document.activeElement;
+    if(!el)return false;
+    var tag=(el.tagName||'').toLowerCase();
+    return tag==='input'||tag==='textarea'||tag==='select'||el.isContentEditable;
+  }}
+  document.addEventListener('keydown',function(e){{
+    if(!(e.ctrlKey||e.metaKey))return;
+    if(e.altKey||e.shiftKey)return;
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+    if(isTyping())return;
+    var dir=e.key==='ArrowRight'?'next':'prev';
+    var link=document.querySelector('[data-chapter-nav="'+dir+'"]');
+    // 没有上一章/下一章时不拦截、不跳转
+    if(!link||!link.getAttribute('href'))return;
+    e.preventDefault();
+    link.click();
+  }});
+}})();
+document.querySelectorAll('.reader-body pre:not(.mermaid)').forEach(function(pre){{
 pre.style.position='relative';
 var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='复制';
 btn.addEventListener('click',function(){{
