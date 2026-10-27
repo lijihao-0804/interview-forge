@@ -1999,14 +1999,21 @@ SELFTEST_CSS = """
 .selftest-reveal{width:100%;display:flex;align-items:center;justify-content:center;min-height:44px;margin:8px 0;padding:12px 16px;border:1px dashed color-mix(in srgb,var(--brand) 40%,var(--line));border-radius:12px;color:var(--brand-strong);background:color-mix(in srgb,var(--brand) 6%,var(--panel));cursor:pointer;font:inherit;font-size:14px}
 .selftest-reveal:hover{background:var(--brand-soft)}
 .selftest-reveal:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 45%,transparent);outline-offset:2px}
+
+/* 自测模式：右侧目录隐藏后，正文占满整行 */
+.selftest-active .reader-grid{grid-template-columns:minmax(0,1fr) !important}
+.selftest-active .sol-rail-right{display:none !important}
 @media print{.selftest-bar,.selftest-reveal{display:none}.selftest-content[hidden]{display:block}}
 """
 SELFTEST_JS = """
 (function () {
   "use strict";
   var KEY = "forgeSelfTestMode";
-  // 永不遮罩的分区：题面与核心不变量（允许先记住的骨架）、力扣链接、演示入口
-  var KEEP = { "题目与约束": 1, "核心不变量": 1, "力扣原题": 1 };
+  // 自测模式下必须遮罩的分区：推导、代码、解析、模板、复杂度、易错点、延伸。
+  // 「核心不变量」虽然看起来像"题面骨架"，但它往往直接点出了解法关键
+  //（如「滑动窗口内元素互不相同」），自测时同样会泄露思路，故一并遮罩。
+  // 只保留：题目与约束（题面）、力扣原题（链接）。
+  var KEEP = { "题目与约束": 1, "力扣原题": 1 };
   var toggle = document.getElementById("selftestToggle");
   if (!toggle) return;
 
@@ -2088,6 +2095,22 @@ SELFTEST_JS = """
     var on = modeOn();
     toggle.setAttribute("aria-pressed", on ? "true" : "false");
     toggle.textContent = on ? "退出自测" : "自测模式";
+    document.body.classList.toggle("selftest-active", on);
+    // 右侧目录列出的是各节标题（如「双指针收缩」「哈希表优化」），
+    // 本身就是解题思路提示，自测时必须隐藏；退出自测再恢复。
+    // 左侧「本专题题目」是题目列表，不含解法信息，保留不动。
+    var rails = document.querySelectorAll(".sol-rail-right, .otp-rail, .chapter-side");
+    Array.prototype.forEach.call(rails, function (rail) {
+      if (on) {
+        rail.setAttribute("data-selftest-hidden", "1");
+        rail.style.display = "none";
+      } else {
+        if (rail.getAttribute("data-selftest-hidden") === "1") {
+          rail.style.display = "";
+          rail.removeAttribute("data-selftest-hidden");
+        }
+      }
+    });
     if (!on) return;
     collectSections().forEach(function (section, index) {
       // 第一段兜底保留（题面），其余按白名单；打印/复制场景不受影响

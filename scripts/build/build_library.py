@@ -300,6 +300,23 @@ mark{background:color-mix(in srgb,var(--brand) 26%,transparent);color:var(--bran
 .chapter-status .auto-read-hint{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--brand) 7%,transparent);border:1px dashed color-mix(in srgb,var(--brand) 24%,var(--line))}.chapter-status .complete-button{width:auto;margin-left:auto;padding:5px 12px;border:1px solid color-mix(in srgb,var(--brand) 34%,var(--line));border-radius:999px;color:var(--brand);background:var(--brand-soft);font-size:12px;cursor:pointer}
 .chapter-status .complete-button:disabled{cursor:not-allowed;opacity:.5}
 .chapter-status .notice,.chapter-status .toast{margin:0}
+
+/* ===== 章节底部「完成本章」按钮 ===== */
+.chapter-complete-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;
+margin:44px 0 8px;padding:22px 16px;border-top:1px solid var(--line)}
+.complete-bottom-btn{padding:11px 30px;border:1px solid color-mix(in srgb,var(--brand) 40%,var(--line));
+border-radius:999px;background:var(--brand-soft);color:var(--brand);font:inherit;font-size:14.5px;
+font-weight:700;cursor:pointer;transition:background-color .16s ease,border-color .16s ease,
+box-shadow .2s ease,transform .14s ease}
+.complete-bottom-btn:hover{background:color-mix(in srgb,var(--brand) 16%,var(--panel));
+border-color:var(--brand);box-shadow:0 8px 22px color-mix(in srgb,var(--brand) 20%,transparent);
+transform:translateY(-1px)}
+.complete-bottom-btn:active{transform:translateY(0)}
+.complete-bottom-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.complete-bottom-btn.done{background:color-mix(in srgb,var(--success) 14%,var(--panel));
+border-color:color-mix(in srgb,var(--success) 45%,var(--line));color:var(--success)}
+.complete-bottom-hint{color:var(--muted);font-size:12px;text-align:center}
+@media(max-width:640px){.complete-bottom-btn{width:100%;padding:12px 18px}}
 .reader-body h2,.reader-body h3{scroll-margin-top:72px}
 
 /* 阅读排版宽松化：加大行距、段距与留白，页面够宽不必挤 */
@@ -1903,7 +1920,7 @@ def build() -> None:
             otp_class = " has-otp" if otp_items else ""
             topic_nav_html = chapter_topic_navigation(raw_chapters, index)
             reader = f'''<div class="shell">{topbar("..", "学习书架")}
- <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><span class="auto-read-hint" title="停留 3 分钟且读到文末会自动记一轮，无需手动点击">读满 3 分钟并读到文末会自动记录</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><button id="favoriteChapter" class="complete-button fav-chapter" type="button" aria-pressed="false">⭐ 收藏</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
+ <main class="reader" data-page-type="library/chapter" data-content-id="{html.escape(chapter_id)}"><nav class="breadcrumb" aria-label="面包屑"><a href="../../cockpit.html">🎛️ 中控台</a><span aria-hidden="true">›</span><a href="../index.html">学习书架</a><span aria-hidden="true">›</span><a href="index.html">{html.escape(definition['title'])}</a><span aria-hidden="true">›</span><span aria-current="page">{html.escape(raw_chapter['title'])}</span></nav><div class="module-meta">{html.escape(definition['category'])} · 第 {index} / {len(raw_chapters)} 章 · <span class="muted">更新于 {book_updated}</span></div><h1>{html.escape(raw_chapter['title'])}</h1><div class="chapter-status" aria-label="学习记录"><span id="chapterStatus">正在读取本章记录</span><span id="chapterDue" class="due-line">下次复习：—</span><div id="chapterNotice" class="notice" hidden>暂时无法连接学习服务，恢复连接后才能记录学习进度。</div><button id="completeChapter" class="complete-button" type="button">完成本章一轮</button><span class="auto-read-hint" title="停留 20 秒且读到文末会自动记一轮，无需手动点击">读满 20 秒并读到文末会自动记录</span><button id="exportChapter" class="complete-button" type="button">导出本章</button><button id="favoriteChapter" class="complete-button fav-chapter" type="button" aria-pressed="false">⭐ 收藏</button><div id="chapterToast" class="toast" aria-live="polite"></div></div><div class="reader-grid{otp_class}"><div class="reader-body">{content}</div>{otp_html}</div><div class="chapter-complete-bottom"><button type="button" id="completeChapterBottom" class="complete-bottom-btn">✓ 完成本章一轮</button><span class="complete-bottom-hint">读完点一下即可记录；停留 20 秒并读到文末也会自动记一次</span></div><nav class="chapter-nav" aria-label="章节导航"><a class="nav-toc" href="index.html">目录</a>{previous_html}{next_html}</nav></main></div>'
 <script>const contentId={json.dumps(chapter_id, ensure_ascii=False)},moduleId={json.dumps(definition['id'], ensure_ascii=False)};const button=document.getElementById('completeChapter'),status=document.getElementById('chapterStatus'),notice=document.getElementById('chapterNotice'),toast=document.getElementById('chapterToast'),dueLine=document.getElementById('chapterDue');const shortTime=(value)=>{{if(!value)return '';return InterviewForgeTime.formatDateTime(value,{{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}})}};async function loadStatus(){{try{{const [libraryResponse,dailyResponse]=await Promise.all([fetch('/api/library',{{cache:'no-store'}}),fetch(`/api/daily?module=${{encodeURIComponent(moduleId)}}`,{{cache:'no-store'}})]);if(!libraryResponse.ok||!dailyResponse.ok)throw new Error();const data=await libraryResponse.json();const daily=await dailyResponse.json();const info=data.contents[contentId]||{{rounds:0,last_activity_at:null}};status.textContent=`已完成 ${{info.rounds||0}} 轮${{info.last_activity_at?' · 最近 '+shortTime(info.last_activity_at):''}}`;button.disabled=false;notice.hidden=true;const dueItem=daily.contents.find(item=>item.content_id===contentId);if(dueItem){{const overdue=dueItem.due_date<daily.today;dueLine.textContent=`下次复习：${{String(dueItem.due_date).slice(5)}}${{overdue?'（已逾期）':''}}`;dueLine.classList.toggle('due-overdue',overdue)}}else{{dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}catch(_){{status.textContent='当前是静态浏览模式';button.disabled=true;notice.hidden=false;dueLine.textContent='下次复习：—';dueLine.classList.remove('due-overdue')}}}}button.addEventListener('click',async()=>{{button.disabled=true;button.textContent='记录中…';try{{const response=await fetch('/api/content/complete',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{module_id:moduleId,content_id:contentId}})}});const result=await response.json();if(!response.ok)throw new Error(result.error||'记录失败');const next=result.next_due?`（下次复习 ${{String(result.next_due).slice(5)}}）`:'';toast.textContent=`已记录第 ${{result.round_no}} 轮${{next}}`;button.textContent='完成本章一轮';await loadStatus()}}catch(error){{toast.textContent=error.message;button.disabled=false;button.textContent='完成本章一轮'}}}});
 // ---- Ctrl+← / Ctrl+→ 切换上下章（与力扣一致）----
 (function(){{
@@ -1947,7 +1964,8 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
 // ---- 自动判定「已看过」：停留满 3 分钟 + 滚动到 80% ----
 (function(){{
   if(!document.querySelector('.chapter-status'))return;
-  var READ_MS=3*60*1000;      // 需要累计可见阅读时长
+  // 短章节 3 分钟读不完，改为 20 秒：只要认真读完就自动记一轮
+  var READ_MS=20*1000;        // 需要累计可见阅读时长
   var SCROLL_GOAL=0.8;        // 需要滚动到的文档深度
   var visibleMs=0, lastTick=0, maxScroll=0, done=false, autoTried=false;
 
@@ -1981,7 +1999,7 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
       .then(function(res){{
         done=true;
         if(toast){{toast.style.color='var(--success)';
-          toast.textContent='已读满 '+Math.round(READ_MS/60000)+' 分钟且读到文末，自动记为第 '+res.round_no+' 轮';}}
+          toast.textContent='已读满 '+Math.round(READ_MS/1000)+' 秒且读到文末，自动记为第 '+res.round_no+' 轮';}}
         if(typeof loadStatus==='function')loadStatus();
       }})
       .catch(function(){{autoTried=false;}});
@@ -2040,6 +2058,21 @@ otpMap.forEach(function(a,id){{var h=document.getElementById(id);if(h)io.observe
       .catch(function(){{var t=document.getElementById('chapterToast');if(t)t.textContent='收藏失败，请重试';}})
       .finally(function(){{btn.disabled=false;}});
   }});
+}})();
+
+// 底部「完成本章」按钮：与顶部状态条按钮行为一致，点击后同步状态
+(function(){{
+  var bottom=document.getElementById('completeChapterBottom');
+  var topBtn=document.getElementById('completeChapter');
+  if(!bottom||!topBtn)return;
+  bottom.addEventListener('click',function(){{ topBtn.click(); }});
+  // 顶部按钮状态变化时同步底部（进行中/已完成/禁用）
+  var obs=new MutationObserver(function(){{
+    bottom.disabled=topBtn.disabled;
+    bottom.textContent=topBtn.textContent.indexOf('完成')>=0?'✓ 完成本章一轮':'已完成 ✓';
+    bottom.classList.toggle('done',topBtn.textContent.indexOf('完成')<0);
+  }});
+  obs.observe(topBtn,{{childList:true,characterData:true,subtree:true,attributes:true}});
 }})();
 loadStatus();document.getElementById('exportChapter').addEventListener('click',async()=>{{try{{const css=await (await fetch('../assets/library.css?v={ASSET_VERSION}')).text();const reader=document.querySelector('main.reader');const html='<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+document.title+'</title><style>'+css+'</style></head><body>'+reader.outerHTML+'</body></html>';const blob=new Blob([html],{{type:'text/html'}});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=document.title.replace(/[\\\\/:*?"<>|]/g,'_')+'.html';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast.textContent='已导出本章 HTML'}}catch(_){{toast.textContent='导出失败，请检查网络后重试'}}}});</script>'''
             reader = apply_chapter_reader_layout(reader, topic_nav_html)

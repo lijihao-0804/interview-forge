@@ -477,6 +477,7 @@ from interview_forge.services.study import (
     record_content_view,
     complete_content,
     ac_problem_progress,
+    problem_progress,
     problem_review_state,
     library_data,
     daily_data,
@@ -873,6 +874,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
         # /api/library：书架进度 —— 各模块 total/completed 进度条 + 每章节轮次与最近活动。
         if parsed.path == "/api/library":
             self.send_json(library_data(db))
+            return
+        # /api/problem/{id}/progress：题解页顶部状态条（轮次/提交/标记/下次复习）。
+        # 之前本地服务缺这条路由，题解页会拿到 404 → loadProgress 走 catch 分支
+        # → 标记薄弱与评分按钮被禁用，看起来像「按钮点不了」。
+        problem_progress_match = re.fullmatch(r"/api/problem/(\d+)/progress", parsed.path)
+        if problem_progress_match:
+            try:
+                self.send_json(problem_progress(int(problem_progress_match.group(1)), db))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         # /api/favorites：收藏中心 —— 条目列表 + 按模块统计；
         # ?module= 指定模块（如 hot100）、?type=problem/content 指定类型。
