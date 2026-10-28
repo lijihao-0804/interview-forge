@@ -160,8 +160,17 @@ class StudyServerHardeningTests(unittest.TestCase):
             )
             connection.commit()
 
-        advanced = backfill_leetcode_ac_reviews(self.db_path)
-        repeated = backfill_leetcode_ac_reviews(self.db_path)
+        runtime_provider = server.server_runtime._provider
+        server.server_runtime.bind_provider(None)
+        try:
+            with patch(
+                "interview_forge.services.auth.get_fsrs_desired_retention",
+                return_value=0.9,
+            ):
+                advanced = backfill_leetcode_ac_reviews(self.db_path)
+                repeated = backfill_leetcode_ac_reviews(self.db_path)
+        finally:
+            server.server_runtime.bind_provider(runtime_provider)
         with server.closing(server.connect(self.db_path)) as connection:
             card = connection.execute(
                 """SELECT last_reviewed_at, due_date FROM review_cards

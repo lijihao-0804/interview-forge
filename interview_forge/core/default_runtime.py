@@ -146,6 +146,9 @@ _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 # imported directly.  Each callback is lazy so importing the app does not
 # initialize optional providers or a user's SQLite file.
 connect_auth = _load_service_function("interview_forge.services.auth", "connect_auth")
+get_fsrs_desired_retention = _load_service_function(
+    "interview_forge.services.auth", "get_fsrs_desired_retention"
+)
 validate_nickname = _load_service_function("interview_forge.services.auth", "validate_nickname")
 get_ai_quota = _load_service_function("interview_forge.ai.quota", "get_ai_quota")
 reset_ai_quota = _load_service_function("interview_forge.ai.quota", "reset_ai_quota")
