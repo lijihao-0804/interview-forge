@@ -15,7 +15,10 @@ from http.server import ThreadingHTTPServer
 from http.client import HTTPConnection
 
 from tools import study_server as server
-from interview_forge.services.study import _apply_review_rating
+from interview_forge.services.study import (
+    _apply_review_rating,
+    backfill_leetcode_ac_reviews,
+)
 
 
 class StudyServerHardeningTests(unittest.TestCase):
@@ -142,6 +145,66 @@ class StudyServerHardeningTests(unittest.TestCase):
         self.assertTrue(automatic["already_reviewed_today"])
         self.assertEqual(automatic["next_due"], manual["next_due"])
         self.assertEqual((log["rating_name"], log["source"]), ("easy", "manual"))
+
+    def test_historical_ac_backfill_advances_stale_card_once_from_latest_real_ac(self) -> None:
+        server.complete_round(1, self.db_path, rating=3)
+        with server.closing(server.connect(self.db_path)) as connection:
+            connection.executemany(
+                """INSERT INTO submissions(
+                       problem_id, status, submitted_at, source, lc_id
+                   ) VALUES (1, 'ac', ?, 'sync', ?)""",
+                [
+                    ("2026-09-09T12:00:00+08:00", 9001),
+                    ("2026-09-10T12:00:00+08:00", 9002),
+                ],
+            )
+            connection.commit()
+
+        advanced = backfill_leetcode_ac_reviews(self.db_path)
+        repeated = backfill_leetcode_ac_reviews(self.db_path)
+        with server.closing(server.connect(self.db_path)) as connection:
+            card = connection.execute(
+                """SELECT last_reviewed_at, due_date FROM review_cards
+                   WHERE target_type = 'problem' AND target_id = '1'"""
+            ).fetchone()
+            logs = connection.execute(
+                """SELECT rating_name, source FROM review_logs
+                   WHERE target_type = 'problem' AND target_id = '1' ORDER BY id"""
+            ).fetchall()
+
+        self.assertEqual(advanced, 1)
+        self.assertEqual(repeated, 0)
+        self.assertEqual(card["last_reviewed_at"], "2026-09-10T12:00:00+08:00")
+        self.assertGreater(card["due_date"], "2026-09-10")
+        self.assertEqual(
+            [(row["rating_name"], row["source"]) for row in logs],
+            [("good", "manual"), ("good", "leetcode_ac")],
+        )
+
+    def test_historical_ac_backfill_preserves_same_day_manual_rating(self) -> None:
+        manual = server.complete_round(1, self.db_path, rating=1)
+        with server.closing(server.connect(self.db_path)) as connection:
+            connection.execute(
+                """INSERT INTO submissions(
+                       problem_id, status, submitted_at, source, lc_id
+                   ) VALUES (1, 'ac', ?, 'sync', ?)""",
+                ("2026-09-07T13:00:00+08:00", 9003),
+            )
+            connection.commit()
+
+        advanced = backfill_leetcode_ac_reviews(self.db_path)
+        with server.closing(server.connect(self.db_path)) as connection:
+            card = connection.execute(
+                "SELECT due_date, last_reviewed_at FROM review_cards "
+                "WHERE target_type = 'problem' AND target_id = '1'"
+            ).fetchone()
+            logs = connection.execute(
+                "SELECT rating_name, source FROM review_logs WHERE target_id = '1'"
+            ).fetchall()
+        self.assertEqual(advanced, 0)
+        self.assertEqual(card["due_date"], manual["next_due"])
+        self.assertEqual(card["last_reviewed_at"], manual["studied_at"])
+        self.assertEqual([(row["rating_name"], row["source"]) for row in logs], [("again", "manual")])
 
     def test_default_review_retention_reads_current_admin_setting(self) -> None:
         with patch.object(server, "get_fsrs_desired_retention", return_value=0.95):

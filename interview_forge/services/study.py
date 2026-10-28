@@ -329,6 +329,77 @@ def _apply_review_rating(
         "already_reviewed_today": False,
     }
 
+
+def advance_review_cards_from_leetcode_ac(
+    connection: sqlite3.Connection,
+    problem_ids: set[int] | list[int] | tuple[int, ...],
+    desired_retention: float,
+) -> int:
+    """Apply one Good review from each problem's latest real Accepted submit."""
+    business_tz = server_runtime.BUSINESS_TZ
+    advanced = 0
+    for problem_id in sorted({int(value) for value in problem_ids}):
+        latest = connection.execute(
+            """SELECT submitted_at FROM submissions
+               WHERE problem_id = ? AND status = 'ac' AND lc_id IS NOT NULL
+               ORDER BY submitted_at DESC, lc_id DESC LIMIT 1""",
+            (problem_id,),
+        ).fetchone()
+        if latest is None:
+            continue
+        latest_at = str(latest["submitted_at"] or "")
+        card = connection.execute(
+            """SELECT last_reviewed_at FROM review_cards
+               WHERE target_type = 'problem' AND target_id = ?""",
+            (str(problem_id),),
+        ).fetchone()
+        if card is not None:
+            try:
+                latest_datetime = datetime.fromisoformat(latest_at)
+                card_datetime = datetime.fromisoformat(str(card["last_reviewed_at"]))
+                if latest_datetime.tzinfo is None or latest_datetime.utcoffset() is None:
+                    latest_datetime = latest_datetime.replace(tzinfo=business_tz)
+                if card_datetime.tzinfo is None or card_datetime.utcoffset() is None:
+                    card_datetime = card_datetime.replace(tzinfo=business_tz)
+                if latest_datetime.astimezone(business_tz) <= card_datetime.astimezone(business_tz):
+                    continue
+            except (TypeError, ValueError, OverflowError):
+                # An unparseable historical card timestamp is left intact.
+                continue
+        review_state = _apply_review_rating(
+            connection, "problem", str(problem_id), 3, latest_at,
+            desired_retention=desired_retention, source="leetcode_ac",
+        )
+        if not review_state["already_reviewed_today"]:
+            advanced += 1
+    return advanced
+
+
+def backfill_leetcode_ac_reviews(
+    db_path: Path = DB_PATH,
+    desired_retention: float | None = None,
+) -> int:
+    """Idempotently reconcile stored LeetCode ACs with each FSRS review card."""
+    if desired_retention is None:
+        desired_retention = server_runtime.get_fsrs_desired_retention()
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        problem_ids = {
+            int(row["problem_id"])
+            for row in connection.execute(
+                "SELECT DISTINCT problem_id FROM submissions "
+                "WHERE status = 'ac' AND lc_id IS NOT NULL"
+            ).fetchall()
+        }
+        advanced = advance_review_cards_from_leetcode_ac(
+            connection, problem_ids, float(desired_retention)
+        )
+        connection.commit()
+    if advanced:
+        server_runtime._invalidate_learning_caches(db_path)
+    return advanced
+
+
 def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     """记录一次题目浏览（view 事件）：60 秒内对同一题去重，防止翻页/刷接口产生垃圾记录。"""
     if problem_id not in PROBLEM_BY_ID:

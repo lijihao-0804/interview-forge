@@ -644,49 +644,16 @@ def leetcode_sync(
             )
             results["solved_added"] = int(results["solved_added"]) + 1
 
-        # A real Accepted submission is a Good review signal. Only inspect the
-        # newest page: continuation pages are historical backfill and must not
-        # replay old reviews. Comparing the latest real AC with the card also
-        # repairs a recent AC imported before this logic existed.
-        from interview_forge.services.study import _apply_review_rating
+        # Incremental sync only considers the newest provider page. The
+        # dedicated backfill uses this same idempotent rule across stored ACs.
+        from interview_forge.services.study import advance_review_cards_from_leetcode_ac
 
-        reviews_advanced = 0
-        for problem_id in sorted(review_candidate_pids):
-            latest = connection.execute(
-                """SELECT submitted_at FROM submissions
-                   WHERE problem_id = ? AND status = 'ac' AND lc_id IS NOT NULL
-                   ORDER BY submitted_at DESC, lc_id DESC LIMIT 1""",
-                (problem_id,),
-            ).fetchone()
-            if latest is None:
-                continue
-            latest_at = str(latest["submitted_at"] or "")
-            card = connection.execute(
-                """SELECT last_reviewed_at FROM review_cards
-                   WHERE target_type = 'problem' AND target_id = ?""",
-                (str(problem_id),),
-            ).fetchone()
-            if card is not None:
-                try:
-                    latest_datetime = datetime.fromisoformat(latest_at)
-                    card_datetime = datetime.fromisoformat(str(card["last_reviewed_at"]))
-                    business_tz = runtime.BUSINESS_TZ
-                    if latest_datetime.tzinfo is None:
-                        latest_datetime = latest_datetime.replace(tzinfo=business_tz)
-                    if card_datetime.tzinfo is None:
-                        card_datetime = card_datetime.replace(tzinfo=business_tz)
-                    if latest_datetime.astimezone(business_tz) <= card_datetime.astimezone(business_tz):
-                        continue
-                except (TypeError, ValueError, OverflowError):
-                    # An unparseable historical card timestamp is left intact.
-                    continue
-            review_state = _apply_review_rating(
-                connection, "problem", str(problem_id), 3, latest_at,
-                desired_retention=float(review_desired_retention),
-                source="leetcode_ac",
+        reviews_advanced = (
+            advance_review_cards_from_leetcode_ac(
+                connection, review_candidate_pids, float(review_desired_retention)
             )
-            if not review_state["already_reviewed_today"]:
-                reviews_advanced += 1
+            if review_candidate_pids else 0
+        )
         results["reviews_advanced"] = reviews_advanced
         connection.commit()
         if progress is not None:
