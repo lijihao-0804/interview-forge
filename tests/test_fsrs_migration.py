@@ -8,6 +8,48 @@ from interview_forge.db.connection import _migrate_legacy_review_cards, connect
 
 
 class FSRSStateMigrationTests(unittest.TestCase):
+    def test_connect_adds_source_to_existing_review_logs_as_manual(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "pre-source.db"
+            connection = sqlite3.connect(path)
+            try:
+                connection.executescript(
+                    """
+                    CREATE TABLE review_logs (
+                        id INTEGER PRIMARY KEY,
+                        target_type TEXT NOT NULL,
+                        target_id TEXT NOT NULL,
+                        rating INTEGER NOT NULL,
+                        rating_name TEXT NOT NULL,
+                        reviewed_at TEXT NOT NULL,
+                        elapsed_days INTEGER NOT NULL,
+                        previous_stability REAL,
+                        next_stability REAL NOT NULL,
+                        previous_difficulty REAL,
+                        next_difficulty REAL NOT NULL,
+                        scheduled_days INTEGER NOT NULL,
+                        due_date TEXT NOT NULL
+                    );
+                    INSERT INTO review_logs(
+                        target_type, target_id, rating, rating_name, reviewed_at,
+                        elapsed_days, next_stability, next_difficulty, scheduled_days, due_date
+                    ) VALUES ('problem', '1', 3, 'good', '2026-09-01T12:00:00+08:00',
+                              0, 4, 5, 4, '2026-09-05');
+                    """
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            initialized = connect(path)
+            try:
+                row = initialized.execute(
+                    "SELECT source FROM review_logs WHERE target_type = 'problem' AND target_id = '1'"
+                ).fetchone()
+                self.assertEqual(row["source"], "manual")
+            finally:
+                initialized.close()
+
     def test_connect_seeds_fsrs_cards_from_an_existing_legacy_database(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "legacy.db"

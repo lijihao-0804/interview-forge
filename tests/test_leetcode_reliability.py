@@ -268,6 +268,75 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertEqual(rows[0]["lc_id"], 9001)
         self.assertNotEqual(rows[0]["submitted_at"], "")
 
+    def test_newest_real_ac_advances_fsrs_once_and_repeated_sync_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "learning.db"
+            payload = {
+                "submissions_dump": [{
+                    "id": 9002,
+                    "title": "两数之和",
+                    "status_display": "Accepted",
+                    "is_pending": "Not Pending",
+                    "timestamp": "1780000000",
+                    "lang": "python3",
+                }],
+                "has_next": False,
+            }
+
+            def fake_fetch(url, headers, *args, **kwargs):
+                if "problems/all" in url:
+                    return {"user_name": "alice", "stat_status_pairs": []}
+                return payload
+
+            with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
+                first = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path)
+                second = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path)
+
+            with closing(leetcode.server_runtime.connect(db_path)) as connection:
+                card = connection.execute(
+                    "SELECT due_date, last_reviewed_at, scheduled_days FROM review_cards "
+                    "WHERE target_type = 'problem' AND target_id = '1'"
+                ).fetchone()
+                logs = connection.execute(
+                    "SELECT rating_name, source FROM review_logs WHERE target_type = 'problem' AND target_id = '1'"
+                ).fetchall()
+
+        self.assertEqual(first["reviews_advanced"], 1)
+        self.assertEqual(second["reviews_advanced"], 0)
+        self.assertEqual(first["submissions_added"], 1)
+        self.assertEqual(second["submissions_added"], 0)
+        self.assertEqual(card["last_reviewed_at"], "2026-05-29T04:26:40+08:00")
+        self.assertEqual(card["due_date"], "2026-06-02")
+        self.assertEqual(card["scheduled_days"], 4)
+        self.assertEqual([(row["rating_name"], row["source"]) for row in logs], [("good", "leetcode_ac")])
+
+    def test_full_sync_continuation_does_not_replay_historical_ac_reviews(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "learning.db"
+
+            def fake_fetch(url, headers, *args, **kwargs):
+                if "problems/all" in url:
+                    return {"user_name": "alice", "stat_status_pairs": []}
+                return {"submissions_dump": [{
+                    "id": 9003,
+                    "title": "两数之和",
+                    "status_display": "Accepted",
+                    "is_pending": "Not Pending",
+                    "timestamp": "1780000000",
+                    "lang": "python3",
+                }], "has_next": False}
+
+            with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
+                result = leetcode.leetcode_sync(
+                    {"leetcode_session": "session-secret"}, db_path=db_path, full=True, offset=100
+                )
+            with closing(leetcode.server_runtime.connect(db_path)) as connection:
+                log_count = connection.execute("SELECT COUNT(*) FROM review_logs").fetchone()[0]
+
+        self.assertEqual(result["submissions_added"], 1)
+        self.assertEqual(result["reviews_advanced"], 0)
+        self.assertEqual(log_count, 0)
+
 
 class LeetCodeTaskReliabilityTests(unittest.TestCase):
     def setUp(self):

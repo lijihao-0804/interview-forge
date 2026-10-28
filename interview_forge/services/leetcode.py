@@ -132,6 +132,7 @@ def _record_sync_action_background_result(
             background["submissions_seen"] = int(result.get("submissions_seen") or 0)
             background["submissions_added"] = int(result.get("submissions_added") or 0)
             background["solved_added"] = int(result.get("solved_added") or 0)
+            background["reviews_advanced"] = int(result.get("reviews_advanced") or 0)
         ActionRequestStore().update_background_result(
             user_db=db_path,
             action_id=action_id,
@@ -549,6 +550,7 @@ def leetcode_sync(
                 "memory_kb": runtime._parse_kb(str(item.get("memory") or "")),
                 "submitted_at": submitted_at,
                 "lc_id": int(lc_id) if str(lc_id).isdigit() else None,
+                "page_offset": offset,
             })
         results["submissions_seen"] = int(results["submissions_seen"]) + len(dump)
         if progress is not None:
@@ -568,6 +570,14 @@ def leetcode_sync(
         time.sleep(0.8)
         offset = next_offset
 
+    review_candidate_pids = {
+        int(item["pid"])
+        for item in collected
+        if item["status"] == "ac" and item["lc_id"] is not None and item["page_offset"] == 0
+    }
+    review_desired_retention = (
+        runtime.get_fsrs_desired_retention() if review_candidate_pids else None
+    )
     with closing(runtime.connect(db_path)) as connection:
         # Serialize the read/merge/write sequence with the background sync
         # writer.  This also lets us repair an older synthetic AC row in the
@@ -633,6 +643,51 @@ def leetcode_sync(
                    VALUES (?, 'ac', '', ?, 'sync', NULL)""", (pid, runtime.now_parts()[0]),
             )
             results["solved_added"] = int(results["solved_added"]) + 1
+
+        # A real Accepted submission is a Good review signal. Only inspect the
+        # newest page: continuation pages are historical backfill and must not
+        # replay old reviews. Comparing the latest real AC with the card also
+        # repairs a recent AC imported before this logic existed.
+        from interview_forge.services.study import _apply_review_rating
+
+        reviews_advanced = 0
+        for problem_id in sorted(review_candidate_pids):
+            latest = connection.execute(
+                """SELECT submitted_at FROM submissions
+                   WHERE problem_id = ? AND status = 'ac' AND lc_id IS NOT NULL
+                   ORDER BY submitted_at DESC, lc_id DESC LIMIT 1""",
+                (problem_id,),
+            ).fetchone()
+            if latest is None:
+                continue
+            latest_at = str(latest["submitted_at"] or "")
+            card = connection.execute(
+                """SELECT last_reviewed_at FROM review_cards
+                   WHERE target_type = 'problem' AND target_id = ?""",
+                (str(problem_id),),
+            ).fetchone()
+            if card is not None:
+                try:
+                    latest_datetime = datetime.fromisoformat(latest_at)
+                    card_datetime = datetime.fromisoformat(str(card["last_reviewed_at"]))
+                    business_tz = runtime.BUSINESS_TZ
+                    if latest_datetime.tzinfo is None:
+                        latest_datetime = latest_datetime.replace(tzinfo=business_tz)
+                    if card_datetime.tzinfo is None:
+                        card_datetime = card_datetime.replace(tzinfo=business_tz)
+                    if latest_datetime.astimezone(business_tz) <= card_datetime.astimezone(business_tz):
+                        continue
+                except (TypeError, ValueError, OverflowError):
+                    # An unparseable historical card timestamp is left intact.
+                    continue
+            review_state = _apply_review_rating(
+                connection, "problem", str(problem_id), 3, latest_at,
+                desired_retention=float(review_desired_retention),
+                source="leetcode_ac",
+            )
+            if not review_state["already_reviewed_today"]:
+                reviews_advanced += 1
+        results["reviews_advanced"] = reviews_advanced
         connection.commit()
         if progress is not None:
             progress("提交记录已写入本地数据库")

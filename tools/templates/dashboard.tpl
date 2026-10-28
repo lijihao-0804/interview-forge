@@ -396,6 +396,8 @@ function leetcodeSyncSummary(data){
   const partial=Boolean(data.partial||data.degraded);
   let text=`${partial?'同步部分完成':'同步成功'}。本次处理 ${seen} 条提交，新增 ${added} 条记录。`;
   if(solvedAdded)text+=` 另补充 ${solvedAdded} 条已解决记录。`;
+  const reviewsAdvanced=Number(data.reviews_advanced||0);
+  if(reviewsAdvanced)text+=` 其中 ${reviewsAdvanced} 道题的新 AC 已更新复习计划。`;
   if(warningCount)text+=` 有 ${warningCount} 项暂未读取，可稍后再次同步。`;
   if(data.has_more&&Number.isSafeInteger(Number(data.next_offset)))text+=' 还有更早的历史提交未读取，建议到力扣连接页做一次全量同步。';
   return text;

@@ -39,6 +39,17 @@ def _prepare_legacy_study_events_schema(connection: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_review_log_source_column(connection: sqlite3.Connection) -> None:
+    """Tag existing review history as manual while supporting old user DBs."""
+    columns = {
+        str(row[1]) for row in connection.execute("PRAGMA table_info(review_logs)")
+    }
+    if "source" not in columns:
+        connection.execute(
+            "ALTER TABLE review_logs ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+        )
+
+
 def _legacy_business_date(
     timestamp: object,
     fallback: object = "",
@@ -208,6 +219,7 @@ def connect(
                 connection.execute("PRAGMA journal_mode = WAL")
                 _prepare_legacy_study_events_schema(connection)
                 connection.executescript(SCHEMA)
+                _ensure_review_log_source_column(connection)
                 ensure_ai_schema(connection)
                 try:
                     connection.execute("ALTER TABLE submissions ADD COLUMN lc_id INTEGER")

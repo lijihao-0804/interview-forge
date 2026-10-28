@@ -48,6 +48,7 @@ class DashboardLeetcodeSyncTests(unittest.TestCase):
         self.assertIn("LEETCODE_SESSION 已过期或无效", script)
         self.assertIn("同步暂时失败，请检查网络后重试", script)
         self.assertIn("${partial?'同步部分完成':'同步成功'}。本次处理 ${seen} 条提交，新增 ${added} 条记录。", script)
+        self.assertIn("其中 ${reviewsAdvanced} 道题的新 AC 已更新复习计划。", script)
         self.assertIn("category==='not_configured'", script)
         self.assertIn("category==='session_invalid'", script)
         self.assertNotIn("${task.error}", script)

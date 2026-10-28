@@ -15,6 +15,7 @@ from http.server import ThreadingHTTPServer
 from http.client import HTTPConnection
 
 from tools import study_server as server
+from interview_forge.services.study import _apply_review_rating
 
 
 class StudyServerHardeningTests(unittest.TestCase):
@@ -101,6 +102,46 @@ class StudyServerHardeningTests(unittest.TestCase):
             self.assertEqual(connection.execute("SELECT rating FROM review_logs").fetchone()[0], 1)
         finally:
             connection.close()
+
+    def test_manual_rating_replaces_same_day_automatic_ac_rating(self) -> None:
+        with server.closing(server.connect(self.db_path)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            automatic = _apply_review_rating(
+                connection, "problem", "1", 3, "2026-09-07T10:00:00+08:00",
+                desired_retention=0.9, source="leetcode_ac",
+            )
+            connection.commit()
+
+        manual = server.complete_round(1, self.db_path, rating=1)
+        self.assertFalse(automatic["already_reviewed_today"])
+        self.assertFalse(manual["already_reviewed_today"])
+        self.assertEqual(manual["rating_name"], "again")
+        with server.closing(server.connect(self.db_path)) as connection:
+            logs = connection.execute(
+                "SELECT rating_name, source FROM review_logs WHERE target_id = '1'"
+            ).fetchall()
+            card = connection.execute(
+                "SELECT reps, due_date FROM review_cards WHERE target_type = 'problem' AND target_id = '1'"
+            ).fetchone()
+        self.assertEqual([(row["rating_name"], row["source"]) for row in logs], [("again", "manual")])
+        self.assertEqual(card["reps"], 1)
+        self.assertEqual(card["due_date"], manual["next_due"])
+
+    def test_manual_rating_blocks_same_day_automatic_ac_rating(self) -> None:
+        manual = server.complete_round(1, self.db_path, rating=4)
+        with server.closing(server.connect(self.db_path)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            automatic = _apply_review_rating(
+                connection, "problem", "1", 3, "2026-09-07T13:00:00+08:00",
+                desired_retention=0.9, source="leetcode_ac",
+            )
+            connection.commit()
+            log = connection.execute(
+                "SELECT rating_name, source FROM review_logs WHERE target_id = '1'"
+            ).fetchone()
+        self.assertTrue(automatic["already_reviewed_today"])
+        self.assertEqual(automatic["next_due"], manual["next_due"])
+        self.assertEqual((log["rating_name"], log["source"]), ("easy", "manual"))
 
     def test_default_review_retention_reads_current_admin_setting(self) -> None:
         with patch.object(server, "get_fsrs_desired_retention", return_value=0.95):

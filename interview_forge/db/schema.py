@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS review_logs (
     previous_difficulty REAL,
     next_difficulty REAL NOT NULL,
     scheduled_days INTEGER NOT NULL,
-    due_date TEXT NOT NULL
+    due_date TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'leetcode_ac'))
 );
 CREATE INDEX IF NOT EXISTS ix_review_logs_target ON review_logs(target_type, target_id, id DESC);
 CREATE TABLE IF NOT EXISTS marks (

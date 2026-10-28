@@ -185,10 +185,13 @@ def _apply_review_rating(
     rating: int,
     reviewed_at: str,
     desired_retention: float,
+    source: str = "manual",
 ) -> dict[str, object]:
-    """Atomically advance the FSRS card and append its auditable rating log."""
+    """Atomically advance the FSRS card and write its auditable rating log."""
     if target_type not in {"problem", "content"}:
         raise ValueError("未知复习目标")
+    if source not in {"manual", "leetcode_ac"}:
+        raise ValueError("未知复习记录来源")
     business_tz = server_runtime.BUSINESS_TZ
     reviewed_datetime = datetime.fromisoformat(reviewed_at).astimezone(business_tz)
     today = reviewed_datetime.date()
@@ -199,10 +202,13 @@ def _apply_review_rating(
         (target_type, target_id),
     ).fetchone()
     previous_log = connection.execute(
-        """SELECT rating, rating_name, reviewed_at FROM review_logs
+        """SELECT id, rating, rating_name, reviewed_at, source, elapsed_days,
+                  previous_stability, previous_difficulty
+           FROM review_logs
            WHERE target_type = ? AND target_id = ? ORDER BY id DESC LIMIT 1""",
         (target_type, target_id),
     ).fetchone()
+    replace_auto_log_id: int | None = None
     if previous_log:
         try:
             previous_log_date = (
@@ -212,24 +218,47 @@ def _apply_review_rating(
         except (TypeError, ValueError, OverflowError):
             previous_log_date = None
         if previous_log_date == today and current:
-            return {
-                "rating": int(previous_log["rating"]),
-                "rating_name": str(previous_log["rating_name"]),
-                "next_due": str(current["due_date"]),
-                "interval_days": int(current["scheduled_days"]),
-                "stability": float(current["stability"]),
-                "difficulty": float(current["difficulty"]),
-                "reps": int(current["reps"]),
-                "lapses": int(current["lapses"]),
-                "already_reviewed_today": True,
-            }
+            previous_source = str(previous_log["source"] or "manual")
+            if source == "leetcode_ac" or previous_source == "manual":
+                return {
+                    "rating": int(previous_log["rating"]),
+                    "rating_name": str(previous_log["rating_name"]),
+                    "next_due": str(current["due_date"]),
+                    "interval_days": int(current["scheduled_days"]),
+                    "stability": float(current["stability"]),
+                    "difficulty": float(current["difficulty"]),
+                    "reps": int(current["reps"]),
+                    "lapses": int(current["lapses"]),
+                    "already_reviewed_today": True,
+                }
+            # A manual answer on the same day supersedes the automatic Good
+            # inferred from AC. Recalculate from the state before that event.
+            replace_auto_log_id = int(previous_log["id"])
     previous_stability = float(current["stability"]) if current else None
     previous_difficulty = float(current["difficulty"]) if current else None
-    last_review_date = (
-        datetime.fromisoformat(str(current["last_reviewed_at"]))
-        .astimezone(business_tz).date()
-        if current else None
-    )
+    previous_lapses = int(current["lapses"]) if current else 0
+    previous_reps = int(current["reps"]) if current else 0
+    if replace_auto_log_id is not None:
+        previous_stability = (
+            float(previous_log["previous_stability"])
+            if previous_log["previous_stability"] is not None else None
+        )
+        previous_difficulty = (
+            float(previous_log["previous_difficulty"])
+            if previous_log["previous_difficulty"] is not None else None
+        )
+        previous_reps = max(previous_reps - 1, 0)
+        last_review_date = (
+            today - timedelta(days=int(previous_log["elapsed_days"] or 0))
+            if previous_stability is not None else None
+        )
+    elif current:
+        last_review_date = (
+            datetime.fromisoformat(str(current["last_reviewed_at"]))
+            .astimezone(business_tz).date()
+        )
+    else:
+        last_review_date = None
     elapsed_days = max((today - last_review_date).days, 0) if last_review_date else 0
     # Admin changes affect only future ratings; existing due dates are not rewritten.
     result = fsrs_review(
@@ -238,7 +267,7 @@ def _apply_review_rating(
         stability=previous_stability,
         difficulty=previous_difficulty,
         last_review_date=last_review_date,
-        lapses=int(current["lapses"]) if current else 0,
+        lapses=previous_lapses,
         desired_retention=desired_retention,
     )
     rating_value = int(result["rating"])
@@ -248,17 +277,28 @@ def _apply_review_rating(
     next_stability = float(result["stability"])
     next_difficulty = float(result["difficulty"])
     lapses = int(result["lapses"])
-    reps = (int(current["reps"]) if current else 0) + 1
-    connection.execute(
-        """INSERT INTO review_logs(
-               target_type, target_id, rating, rating_name, reviewed_at, elapsed_days,
-               previous_stability, next_stability, previous_difficulty,
-               next_difficulty, scheduled_days, due_date
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (target_type, target_id, rating_value, rating_name, reviewed_at, elapsed_days,
-         previous_stability, next_stability, previous_difficulty, next_difficulty,
-         interval, due_date),
-    )
+    reps = previous_reps + 1
+    if replace_auto_log_id is not None:
+        connection.execute(
+            """UPDATE review_logs SET rating = ?, rating_name = ?, reviewed_at = ?,
+                   elapsed_days = ?, previous_stability = ?, next_stability = ?,
+                   previous_difficulty = ?, next_difficulty = ?, scheduled_days = ?,
+                   due_date = ?, source = 'manual' WHERE id = ?""",
+            (rating_value, rating_name, reviewed_at, elapsed_days,
+             previous_stability, next_stability, previous_difficulty,
+             next_difficulty, interval, due_date, replace_auto_log_id),
+        )
+    else:
+        connection.execute(
+            """INSERT INTO review_logs(
+                   target_type, target_id, rating, rating_name, reviewed_at, elapsed_days,
+                   previous_stability, next_stability, previous_difficulty,
+                   next_difficulty, scheduled_days, due_date, source
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (target_type, target_id, rating_value, rating_name, reviewed_at, elapsed_days,
+             previous_stability, next_stability, previous_difficulty, next_difficulty,
+             interval, due_date, source),
+        )
     connection.execute(
         """INSERT INTO review_cards(
                target_type, target_id, stability, difficulty, due_date,
