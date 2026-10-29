@@ -41,13 +41,13 @@ Agent 岗位的实际面试里，后端问题通常不是单独一轮，而是**
 
 为了满足不同的业务场景，Redis 内置了多种数据类型实现（比如 String、Hash、Sorted Set、Bitmap、HyperLogLog、GEO）。并且，Redis 还支持事务、持久化、Lua 脚本、发布订阅模型、多种开箱即用的集群方案（Redis Sentinel、Redis Cluster）。
 
-（图：Redis 数据类型概览）
+![Redis 数据类型概览](images/redis-overview-of-data-types-2023-09-28-6335ecff.jpg)
 
 Redis 没有外部依赖，Linux 和 OS X 是 Redis 开发和测试最多的两个操作系统，官方推荐生产环境使用 Linux 部署 Redis。
 
 个人学习的话，你可以自己本机安装 Redis 或者通过 Redis 官网提供的[在线 Redis 环境](https://try.redis.io/)（少部分命令无法使用）来实际体验 Redis。
 
-（图：try-redis）
+![try-redis](images/try.redis.io-34d730cc.png)
 
 全世界有非常多的网站使用到了 Redis，[techstacks.io](https://techstacks.io/) 专门维护了一个[使用 Redis 的热门站点列表](https://techstacks.io/tech/redis)，感兴趣的话可以看看。
 
@@ -62,7 +62,7 @@ Redis 内部做了非常多的性能优化，比较重要的有下面 4 点：
 
 > 下面这张图片总结的挺不错的，分享一下，出自 [Why is Redis so fast?](https://twitter.com/alexxubyte/status/1498703822528544770)。
 
-（图：why-redis-so-fast）
+![why-redis-so-fast](images/why-redis-so-fast-c4e8975b.png)
 
 那既然都这么快了，为什么不直接用 Redis 当主数据库呢？主要是因为内存成本太高，并且 Redis 提供的数据持久化仍然有数据丢失的风险。
 
@@ -336,7 +336,7 @@ struct sdshdr {
 - 用户 id 为 key
 - 商品 id 为 field，商品数量为 value
 
-（图：Hash维护简单的购物车信息）
+![Hash维护简单的购物车信息](images/hash-shopping-cart-ba56bc6c.png)
 
 那用户购物车信息的维护具体应该怎么操作呢？
 
@@ -390,7 +390,7 @@ Bitmap 存储的是连续的二进制数字（0 和 1），通过 Bitmap，只�
 
 你可以将 Bitmap 看作是一个存储二进制数字（0 和 1）的数组，数组中每个元素的下标叫做 offset（偏移量）。
 
-（图：img）
+![img](images/image-20220720194154133-ab812d2d.png)
 
 如果想要使用 Bitmap 统计活跃用户的话，可以使用日期（精确到天）作为 key，然后用户 ID 为 offset，如果当日活跃过就设置为 1。
 
@@ -469,7 +469,7 @@ PFCOUNT PAGE_1:UV
 
 Bloom Filter 的简单原理图如下：
 
-（图：Bloom Filter 的简单原理示意图）
+![Bloom Filter 的简单原理示意图](images/bloom-filter-simple-schematic-diagram-ecf8f3d1.png)
 
 当字符串存储要加入到布隆过滤器中时，该字符串首先由多个哈希函数生成不同的哈希值，然后将对应的位数组的下标设置为 1（当位数组初始化时，所有位置均为 0）。当第二次存储相同字符串时，因为先前的对应位置已设置为 1，所以很容易知道此值已经存在（去重非常方便）。
 
@@ -511,7 +511,7 @@ Redis 通过 **IO 多路复用程序** 来监听来自客户端的大量连接�
 - 文件事件分派器（将 socket 关联到相应的事件处理器）
 - 事件处理器（连接应答处理器、命令请求处理器、命令回复处理器）
 
-（图：文件事件处理器（file event handler））
+![文件事件处理器（file event handler）](images/redis-event-handler-2997bc21.png)
 
 #### Redis6.0 之前为什么不使用多线程？
 
@@ -525,7 +525,7 @@ Redis 通过 **IO 多路复用程序** 来监听来自客户端的大量连接�
 - `FLUSHALL ASYNC`：用于清空所有数据库的所有键，不限于当前 `SELECT` 的数据库。
 - `FLUSHDB ASYNC`：用于清空当前 `SELECT` 数据库中的所有键。
 
-（图：redis4.0 more thread）
+![redis4.0 more thread](images/redis4.0-more-thread-0ffdad94.png)
 
 总的来说，直到 Redis 6.0 之前，Redis 的主要操作仍然是单线程处理的。
 
@@ -631,7 +631,7 @@ OK
 
 Redis 通过一个叫做过期字典（可以看作是 hash 表）来保存数据过期的时间。过期字典的键指向 Redis 数据库中的某个 key（键），过期字典的值是一个 long long 类型的整数，这个整数保存了 key 所指向的数据库键的过期时间（毫秒精度的 UNIX 时间戳）。
 
-（图：Redis 过期字典）
+![Redis 过期字典](images/redis-expired-dictionary-28e28389.png)
 
 过期字典是存储在 redisDb 这个结构里的：
 
@@ -696,7 +696,7 @@ hz 的取值范围为 1~500。增大 hz 参数的值会提升定期删除的频�
 
 下面是 hz 参数的官方注释，我翻译了其中的重要信息（Redis 7.2 版本）。
 
-（图：redis.conf 对于 hz 的注释）
+![redis.conf 对于 hz 的注释](images/redis.conf-hz-262948fc.png)
 
 类似的参数还有一个 **dynamic-hz**，这个参数开启之后 Redis 就会在 hz 的基础上动态计算一个值。Redis 提供并默认启用了使用自适应 hz 值的能力，
 
@@ -925,7 +925,7 @@ QUEUED
 
 Redis 官网相关介绍 [https://redis.io/topics/transactions](https://redis.io/topics/transactions) 如下：
 
-（图：Redis 事务）
+![Redis 事务](images/redis-transactions-a08b8862.png)
 
 #### Redis 事务支持原子性吗？
 
@@ -940,7 +940,7 @@ Redis 事务在运行错误的情况下，除了执行过程中出现错误的�
 
 Redis 官网也解释了自己为啥不支持回滚。简单来说就是 Redis 开发者们觉得没必要支持回滚，这样更简单便捷并且性能更好。Redis 开发者觉得即使命令执行错误也应该在开发过程中就被发现而不是生产过程中。
 
-（图：Redis 为什么不支持回滚）
+![Redis 为什么不支持回滚](images/redis-rollback-b66d7587.png)
 
 **相关 issue**：
 
@@ -1073,7 +1073,7 @@ Lua 脚本同样支持批量操作多条命令。一段 Lua 脚本可以视作�
 - String 类型的 value 超过 1MB
 - 复合类型（List、Hash、Set、Sorted Set 等）的 value 包含的元素超过 5000 个（不过，对于复合类型的 value 来说，不一定包含的元素越多，占用的内存就越多）。
 
-（图：bigkey 判定标准）
+![bigkey 判定标准](images/bigkey-criterion-e36d656b.png)
 
 #### bigkey 是怎么产生的？有什么危害？
 
@@ -1158,7 +1158,7 @@ Biggest string found '"ballcat:oauth:refresh_auth:f6cdb384-9a9d-4f2f-af01-dc3f28
 
 这里以阿里云 Redis 为例说明，它支持 bigkey 实时分析、发现，文档地址：。
 
-（图：阿里云Key分析）
+![阿里云Key分析](images/aliyun-key-analysis-0a8d83ea.png)
 
 #### 如何处理 bigkey？
 
@@ -1243,7 +1243,7 @@ OK
 
 京东零售的 [hotkey](https://gitee.com/jd-platform-opensource/hotkey) 这个项目不光支持 hotkey 的发现，还支持 hotkey 的处理。
 
-（图：京东零售开源的 hotkey）
+![京东零售开源的 hotkey](images/jd-hotkey-76fb6236.png)
 
 **4、根据业务情况提前预估。**
 
@@ -1261,7 +1261,7 @@ OK
 
 这里以阿里云 Redis 为例说明，它支持 hotkey 实时分析、发现，文档地址：。
 
-（图：阿里云Key分析）
+![阿里云Key分析](images/aliyun-key-analysis-0a8d83ea.png)
 
 **7、在服务端统计热点。**
 
@@ -1298,7 +1298,7 @@ hotkey 的常见处理以及优化办法如下（这些方法可以配合起来�
 
 这里以阿里云 Redis 为例说明，它支持通过代理查询缓存功能（Proxy Query Cache）优化热点 Key 问题。
 
-（图：通过阿里云的Proxy Query Cache优化热点Key问题）
+![通过阿里云的Proxy Query Cache优化热点Key问题](images/aliyun-hotkey-proxy-query-cache-5a9f16f3.png)
 
 #### 慢查询命令
 
@@ -1417,7 +1417,7 @@ OK
 
 缓存穿透说简单点就是大量请求的 key 是不合理的，**根本不存在于缓存中，也不存在于数据库中**。这就导致这些请求直接到了数据库上，根本没有经过缓存这一层，对数据库造成了巨大的压力，可能直接就被这么多请求弄宕机了。
 
-（图：缓存穿透）
+![缓存穿透](images/redis-cache-penetration-c8f04a78.png)
 
 举个例子：某个黑客故意制造一些非法的 key 发起大量请求，导致大量请求落到数据库，结果数据库上也没有查到对应的数据。也就是说这些请求最终都落到了数据库上，对数据库造成了巨大的压力。
 
@@ -1458,17 +1458,17 @@ public Object getObjectInclNullById(Integer id) {
 
 布隆过滤器是一个非常神奇的数据结构，通过它我们可以非常方便地判断一个给定数据是否存在于海量数据中。我们可以把它看作由二进制向量（或者说位数组）和一系列随机映射函数（哈希函数）两部分组成的数据结构。相比于我们平时常用的 List、Map、Set 等数据结构，它占用空间更少并且效率更高，但是缺点是其返回的结果是概率性的，而不是非常准确的。理论情况下添加到集合中的元素越多，误报的可能性就越大。并且，存放在布隆过滤器的数据不容易删除。
 
-（图：Bloom Filter 的简单原理示意图）
+![Bloom Filter 的简单原理示意图](images/bloom-filter-simple-schematic-diagram-ecf8f3d1.png)
 
 Bloom Filter 会使用一个较大的 bit 数组来保存所有的数据，数组中的每个元素都只占用 1 bit ，并且每个元素只能是 0 或者 1（代表 false 或者 true），这也是 Bloom Filter 节省内存的核心所在。这样来算的话，申请一个 100w 个元素的位数组只占用 1000000Bit / 8 = 125000 Byte = 125000/1024 KB ≈ 122KB 的空间。
 
-（图：位数组）
+![位数组](images/bloom-filter-bit-table-b8f56b57.png)
 
 具体是这样做的：把所有可能存在的请求的值都存放在布隆过滤器中，当用户请求过来，先判断用户发来的请求的值是否存在于布隆过滤器中。不存在的话，直接返回请求参数错误信息给客户端，存在的话才会走下面的流程。
 
 加入布隆过滤器之后的缓存处理流程图如下：
 
-（图：加入布隆过滤器之后的缓存处理流程图）
+![加入布隆过滤器之后的缓存处理流程图](images/redis-cache-penetration-bloom-filter-878a8a50.png)
 
 更多关于布隆过滤器的详细介绍可以看看我的这篇原创：[不了解布隆过滤器？一文给你整的明明白白！](https://javaguide.cn/cs-basics/data-structure/bloom-filter.html)，强烈推荐。
 
@@ -1486,7 +1486,7 @@ Bloom Filter 会使用一个较大的 bit 数组来保存所有的数据，数�
 
 缓存击穿中，请求的 key 对应的是 **热点数据**，该数据 **存在于数据库中，但不存在于缓存中（通常是因为缓存中的那份数据已经过期）**。这就可能会导致瞬时大量的请求直接打到了数据库上，对数据库造成了巨大的压力，可能直接就被这么多请求弄宕机了。
 
-（图：缓存击穿）
+![缓存击穿](images/redis-cache-breakdown-1a847904.png)
 
 举个例子：秒杀进行过程中，缓存中的某个秒杀商品的数据突然过期，这就导致瞬时大量对该商品的请求直接落到数据库上，对数据库造成了巨大的压力。
 
@@ -1512,7 +1512,7 @@ Bloom Filter 会使用一个较大的 bit 数组来保存所有的数据，数�
 
 另外，缓存服务宕机也会导致缓存雪崩现象，导致所有的请求都落到了数据库上。
 
-（图：缓存雪崩）
+![缓存雪崩](images/redis-cache-avalanche-2585e3bd.png)
 
 举个例子：缓存中的大量数据在同一时间过期，这个时候突然有大量的请求需要访问这些过期的数据。这就导致大量的请求直接落到数据库上，对数据库造成了巨大的压力。
 
@@ -1649,7 +1649,7 @@ Bloom Filter 会使用一个较大的 bit 数组来保存所有的数据，数�
 
 关系型数据库中，我们的数据都被存放在了各种表中（比如用户表），表中的每一行就存放着一条数据（比如一个用户的信息）。
 
-（图：关系型数据库表关系）
+![关系型数据库表关系](images/5e3c1a71724a38245aa43b02_99bf70d46cc247be878de9d3a88f0c44-25cda5c4.png)
 
 大部分关系型数据库都使用 SQL 来操作数据库中的数据。并且，大部分关系型数据库都支持事务的四大特性(ACID)。
 
@@ -1865,7 +1865,7 @@ MySQL 中没有专门的布尔类型，`BOOL` 和 `BOOLEAN` 是 `TINYINT(1)` 的
 
 MySQL 支持多种存储引擎，你可以通过 `SHOW ENGINES` 命令来查看 MySQL 支持的所有存储引擎。
 
-（图：查看 MySQL 提供的所有存储引擎）
+![查看 MySQL 提供的所有存储引擎](images/image-20220510105408703-1ff77737.png)
 
 从上图我们可以查看出， MySQL 当前默认的存储引擎是 InnoDB。并且，所有的存储引擎中只有 InnoDB 是事务性存储引擎，也就是说只有 InnoDB 支持事务。
 
@@ -1911,7 +1911,7 @@ MySQL 存储引擎采用的是 **插件式架构** ，支持多种存储引擎�
 
 下图展示了具有可插拔存储引擎的 MySQL 架构：
 
-（图：MySQL architecture diagram showing connectors, interfaces, pluggable storage engines, the file system with files and logs.）
+![MySQL architecture diagram showing connectors, interfaces, pluggable storage engines, the file system with files and logs.](images/mysql-architecture-a9cf127e.png)
 
 你还可以根据 MySQL 定义的存储引擎实现标准接口来编写一个属于自己的存储引擎。这些非官方提供的存储引擎可以称为第三方存储引擎，区别于官方存储引擎。像目前最常用的 InnoDB 其实刚开始就是一个第三方存储引擎，后面由于过于优秀，其被 Oracle 直接收购了。
 
@@ -1977,7 +1977,7 @@ InnoDB 引擎中，其数据文件本身就是索引文件。相比 MyISAM，索
 
 InnoDB 的性能比 MyISAM 更强大，不管是在读写混合模式下还是只读模式下，随着 CPU 核数的增加，InnoDB 的读写能力呈线性增长。MyISAM 因为读写不能并发，它的处理能力跟核数没关系。
 
-（图：InnoDB 和 MyISAM 性能对比）
+![InnoDB 和 MyISAM 性能对比](images/innodb-myisam-performance-comparison-c12f5364.png)
 
 **8、数据缓存策略和机制实现不同。**
 
@@ -1995,7 +1995,7 @@ InnoDB 使用缓冲池（Buffer Pool）缓存数据页和索引页，MyISAM 使�
 
 最后，再分享一张图片给你，这张图片详细对比了常见的几种 MySQL 存储引擎。
 
-（图：常见的几种 MySQL 存储引擎对比）
+![常见的几种 MySQL 存储引擎对比](images/comparison-of-common-mysql-storage-engines-5d055dea.png)
 
 #### MyISAM 和 InnoDB 如何选择？
 
@@ -2197,7 +2197,7 @@ SELECT sql_no_cache COUNT(*) FROM usr;
 
 MySQL 5.6 开始，查询缓存已默认禁用。MySQL 8.0 开始，已经不再支持查询缓存了（具体可以参考这篇文章：[MySQL 8.0: Retiring Support for the Query Cache](https://dev.mysql.com/blog-archive/mysql-8-0-retiring-support-for-the-query-cache/)）。
 
-（图：MySQL 8.0: Retiring Support for the Query Cache）
+![MySQL 8.0: Retiring Support for the Query Cache](images/mysql8.0-retiring-support-for-the-query-cache-56234f85.png)
 
 ### 【⭐️MySQL 日志】
 
@@ -2205,7 +2205,7 @@ MySQL 5.6 开始，查询缓存已默认禁用。MySQL 8.0 开始，已经不再
 
 上诉问题的答案可以在[《Java 面试指北》(付费，点击链接领取优惠卷)](https://javaguide.cn/zhuanlan/java-mian-shi-zhi-bei.html) 的 **「技术面试题篇」** 中找到。
 
-（图：《Java 面试指北》技术面试题篇）
+![《Java 面试指北》技术面试题篇](images/technical-interview-questions-41fe5561.png)
 
 文章地址： （密码获取：）。
 
@@ -2231,7 +2231,7 @@ MySQL 5.6 开始，查询缓存已默认禁用。MySQL 8.0 开始，已经不再
 
 事务会把这两个操作就可以看成逻辑上的一个整体，这个整体包含的操作要么都成功，要么都要失败。这样就不会出现小明余额减少而小红的余额却并没有增加的情况。
 
-（图：事务示意图）
+![事务示意图](images/_E4_BA_8B_E5_8A_A1_E7_A4_BA_E6_84_8F_E5_9B_BE-a0059ccb.png)
 
 #### 什么是数据库事务？
 
@@ -2252,11 +2252,11 @@ SQL1,SQL2...
 COMMIT;
 ```
 
-（图：数据库事务示意图）
+![数据库事务示意图](images/_E6_95_B0_E6_8D_AE_E5_BA_93_E4_BA_8B_E5_8A_A1_E7_A4_BA_E6_84-34ac1d2d.png)
 
 另外，关系型数据库（例如：`MySQL`、`SQL Server`、`Oracle` 等）事务都有 **ACID** 特性：
 
-（图：ACID）
+![ACID](images/ACID-ad1efa4f.png)
 
 1. **原子性**（`Atomicity`）：事务是最小的执行单位，不允许分割。事务的原子性确保动作要么全部完成，要么完全不起作用；
 2. **一致性**（`Consistency`）：执行事务前后，数据保持一致，例如转账业务中，无论事务是否成功，转账者和收款人的总额应该是不变的；
@@ -2265,7 +2265,7 @@ COMMIT;
 
 🌈 这里要额外补充一点：**只有保证了事务的持久性、原子性、隔离性之后，一致性才能得到保障。也就是说 A、I、D 是手段，C 是目的！** 想必大家也和我一样，被 ACID 这个概念被误导了很久! 我也是看周志明老师的公开课[《周志明的软件架构课》](https://time.geekbang.org/opencourse/intro/100064201)才搞清楚的（多看好书！！！）。
 
-（图：AID->C）
+![AID->C](images/AID-_3EC-78c67e55.png)
 
 另外，DDIA 也就是 [《Designing Data-Intensive Application（数据密集型应用系统设计）》](https://book.douban.com/subject/30329536/) 的作者在他的这本书中如是说：
 
@@ -2288,7 +2288,7 @@ COMMIT;
 
 例如：事务 1 读取某表中的数据 A=20，事务 1 修改 A=A-1，事务 2 读取到 A = 19,事务 1 回滚导致对 A 的修改并未提交到数据库， A 的值还是 20。
 
-（图：脏读）
+![脏读](images/concurrency-consistency-issues-dirty-reading-25db2e8b.png)
 
 #### 丢失修改（Lost to modify）
 
@@ -2296,7 +2296,7 @@ COMMIT;
 
 例如：事务 1 读取某表中的数据 A=20，事务 2 也读取 A=20，事务 1 先修改 A=A-1，事务 2 后来也修改 A=A-1，最终结果 A=19，事务 1 的修改被丢失。
 
-（图：丢失修改）
+![丢失修改](images/concurrency-consistency-issues-missing-modifications-daf6a627.png)
 
 #### 不可重复读（Unrepeatable read）
 
@@ -2304,7 +2304,7 @@ COMMIT;
 
 例如：事务 1 读取某表中的数据 A=20，事务 2 也读取 A=20，事务 1 修改 A=A-1，事务 2 再次读取 A =19，此时读取的结果和第一次读取的结果不同。
 
-（图：不可重复读）
+![不可重复读](images/concurrency-consistency-issues-unrepeatable-read-66118df3.png)
 
 #### 幻读（Phantom read）
 
@@ -2312,7 +2312,7 @@ COMMIT;
 
 例如：事务 2 读取某个范围的数据，事务 1 在这个范围插入了新的数据，事务 2 再次读取这个范围的数据发现相比于第一次读取的结果多了新的数据。
 
-（图：幻读）
+![幻读](images/concurrency-consistency-issues-phantom-read-96030f2a.png)
 
 #### 不可重复读和幻读有什么区别？
 
@@ -2565,7 +2565,7 @@ MySQL 提供了两个方法来处理 ip 地址
 
 [《Java 面试指北》(付费)](https://javaguide.cn/zhuanlan/java-mian-shi-zhi-bei.html) 的 **「技术面试题篇」** 有一篇文章详细介绍了常见的 SQL 优化手段，非常全面，清晰易懂！
 
-（图：常见的 SQL 优化手段）
+![常见的 SQL 优化手段](images/javamianshizhibei-sql-optimization-3cdc5f03.png)
 
 文章地址：https://www.yuque.com/snailclimb/mf2z3k/abc2sv （密码获取：）。
 
@@ -2731,7 +2731,7 @@ Kafka 主要有两大应用场景：
 
 #### 队列模型：早期的消息模型
 
-（图：队列模型）
+![队列模型](images/_E9_98_9F_E5_88_97_E6_A8_A1_E5_9E_8B23-109f70ce.png)
 
 **使用队列（Queue）作为消息通信载体，满足生产者与消费者模式，一条消息只能被一个消费者使用，未被消费的消息在队列中保留直到被消费或超时。** 比如：我们生产者发送 100 条消息的话，两个消费者来消费一般情况下两个消费者会按照消息发送的顺序各自消费一半（也就是你一个我一个的消费。）
 
@@ -2745,7 +2745,7 @@ Kafka 主要有两大应用场景：
 
 发布-订阅模型主要是为了解决队列模型存在的问题。
 
-（图：发布订阅模型）
+![发布订阅模型](images/_E5_8F_91_E5_B8_83_E8_AE_A2_E9_98_85_E6_A8_A1_E5_9E_8B-4648478c.png)
 
 发布订阅模型（Pub-Sub） 使用**主题（Topic）** 作为消息通信载体，类似于**广播模式**；发布者发布一条消息，该消息通过主题传递给所有的订阅者，**在一条消息广播之后才订阅的用户则是收不到该条消息的**。
 
@@ -2793,7 +2793,7 @@ Kafka 将生产者发布的消息发送到 **Topic（主题）** 中，需要这
 
 下图就是我的本地 ZooKeeper，它成功和我本地的 Kafka 关联上（以下文件夹结构借助 idea 插件 ZooKeeper tool 实现）。
 
-（图：ZooKeeper 中与 Kafka 相关的节点信息）
+![ZooKeeper 中与 Kafka 相关的节点信息](images/zookeeper-kafka-cb4e2468.jpg)
 
 ZooKeeper 主要为 Kafka 提供元数据的管理的功能。
 
@@ -2879,7 +2879,7 @@ if (sendResult.getRecordMetadata() != null) {
 
 我们知道消息在被追加到 Partition(分区)的时候都会分配一个特定的偏移量（offset）。偏移量（offset)表示 Consumer 当前消费到的 Partition(分区)的所在的位置。Kafka 通过偏移量（offset）可以保证消息在分区内的顺序性。
 
-（图：kafka offset）
+![kafka offset](images/kafka-offset-c3444a1d.jpg)
 
 当消费者拉取到了分区的某个消息之后，消费者会自动提交了 offset。自动提交的话会有一个问题，试想一下，当消费者刚拿到这个消息准备进行真正消费的时候，突然挂掉了，消息实际上并没有被消费，但是 offset 却被自动提交了。
 
@@ -3284,7 +3284,7 @@ flowchart LR
 
 #### RocketMQ 是什么？
 
-（图：RocketMQ 官网介绍）
+![RocketMQ 官网介绍](images/16ef383014430799-3c55e73e.jpg)
 
 在讨论上述问题的解决方案之前，我们先来了解一下 RocketMQ 的内部构造。建议带着问题去阅读和了解。
 
@@ -4919,7 +4919,7 @@ RabbitMQ 中通过 **Binding(绑定)** 将 **Exchange(交换器)** 与 **Queue(�
 
 RabbitMQ 常用的 Exchange Type 有 **fanout**、**direct**、**topic**、**headers** 这四种（AMQP 规范里还提到两种 Exchange Type，分别为 system 与自定义，这里不予以描述）。
 
-（图：RabbitMQ Exchange 四种类型对比）
+![RabbitMQ Exchange 四种类型对比](images/rabbitmq-exchange-types-7f9832f1.png)
 
 | 类型    | 路由规则                                           | 常见场景                                     |
 | ------- | -------------------------------------------------- | -------------------------------------------- |
@@ -5024,7 +5024,7 @@ Classic Queue 可以通过 `x-max-priority` 参数声明优先级队列，Quorum
 
 #### 如何保证消息的可靠性？
 
-（图：RabbitMQ 4.0 消息可靠性与队列架构全景图）
+![RabbitMQ 4.0 消息可靠性与队列架构全景图](images/rabbitmq-message-reliability-and-queue-architecture-overview-8c876432.png)
 
 消息可能在三个环节出问题：生产者到 Broker、Broker 存储期间、Broker 到消费者。
 
@@ -5271,7 +5271,7 @@ channel.basicQos(20);
 
 **OSI 七层模型** 是国际标准化组织提出的一个网络分层模型，其大体结构以及每一层提供的功能如下图所示：
 
-（图：OSI 七层模型各层功能划分）
+![OSI 七层模型各层功能划分](images/osi-7-model-955bfdf5.png)
 
 每一层都专注做一件事情，并且每一层都需要使用下一层提供的功能比如传输层需要使用网络层提供的路由和寻址功能，这样传输层才知道把数据传输到哪里去。
 
@@ -5279,7 +5279,7 @@ channel.basicQos(20);
 
 上面这种图可能比较抽象，再来一个比较生动的图片。下面这个图片是我在国外的一个网站上看到的，非常赞！
 
-（图：osi七层模型2）
+![osi七层模型2](images/osi____2-8a5da370.png)
 
 #### ⭐️ TCP/IP 四层模型是什么？每一层的作用是什么？
 
@@ -5292,7 +5292,7 @@ channel.basicQos(20);
 
 需要注意的是，我们并不能将 TCP/IP 四层模型 和 OSI 七层模型完全精确地匹配起来，不过可以简单将两者对应起来，如下图所示：
 
-（图：TCP/IP 四层模型与 OSI 模型的对应关系）
+![TCP/IP 四层模型与 OSI 模型的对应关系](images/tcp-ip-4-model-6284e045.png)
 
 关于每一层作用的详细介绍，请看 [OSI 和 TCP/IP 网络分层模型详解（基础）](https://javaguide.cn/cs-basics/network/osi-and-tcp-ip-model.html) 这篇文章。
 
@@ -5320,7 +5320,7 @@ channel.basicQos(20);
 
 #### ⭐️ 应用层有哪些常见的协议？
 
-（图：应用层常见协议）
+![应用层常见协议](images/application-layer-protocol-3c7d8468.png)
 
 - **HTTP（Hypertext Transfer Protocol，超文本传输协议）**：是一种用于传输超文本和多媒体内容的应用层协议，主要为 Web 客户端与服务器之间的通信而设计。HTTP/1.x 和 HTTP/2 通常基于 TCP，HTTP/3 则运行在基于 UDP 的 QUIC 之上。
 - **SMTP（Simple Mail Transfer Protocol，简单邮件发送协议）**：基于 TCP 协议，是一种用于发送电子邮件的协议。注意 ⚠️：SMTP 协议只负责邮件的发送，而不是接收。要从邮件服务器接收邮件，需要使用 POP3 或 IMAP 协议。
@@ -5335,14 +5335,14 @@ channel.basicQos(20);
 
 #### 传输层有哪些常见的协议？
 
-（图：传输层常见协议）
+![传输层常见协议](images/transport-layer-protocol-77ea5f52.png)
 
 - **TCP（Transmission Control Protocol，传输控制协议）**：提供 **面向连接** 的，**可靠** 的数据传输服务。
 - **UDP（User Datagram Protocol，用户数据协议）**：提供 **无连接** 的，**尽最大努力** 的数据传输服务（不保证数据传输的可靠性），简单高效。
 
 #### 网络层有哪些常见的协议？
 
-（图：网络层常见协议）
+![网络层常见协议](images/nerwork-layer-protocol.png)
 
 - **IP（Internet Protocol，网际协议）**：TCP/IP 协议中最重要的协议之一，属于网络层的协议，主要作用是定义数据包的格式、对数据包进行路由和寻址，以便它们可以跨网络传播并到达正确的目的地。目前 IP 协议主要分为两种，一种是过去的 IPv4，另一种是较新的 IPv6，目前这两种协议都在使用，但后者已经被提议来取代前者。
 - **ARP（Address Resolution Protocol，地址解析协议）**：ARP 协议解决的是网络层地址和链路层地址之间的转换问题。因为一个 IP 数据报在物理上传输的过程中，总是需要知道下一跳（物理上的下一个目的地）该去往何处，但 IP 地址属于逻辑地址，而 MAC 地址才是物理地址，ARP 协议解决了 IP 地址转 MAC 地址的一些问题。
@@ -5378,7 +5378,7 @@ channel.basicQos(20);
 
 HTTP 状态码用于描述 HTTP 请求的结果，比如 2xx 就代表请求被成功处理。
 
-（图：常见 HTTP 状态码）
+![常见 HTTP 状态码](images/http-status-code-4a9382f4.png)
 
 关于 HTTP 状态码更详细的总结，可以看我写的这篇文章：[HTTP 常见状态码总结（应用层）](https://javaguide.cn/cs-basics/network/http-status-codes.html)。
 
@@ -5421,7 +5421,7 @@ HTTP 状态码用于描述 HTTP 请求的结果，比如 2xx 就代表请求被�
 
 #### ⭐️ HTTP 和 HTTPS 有什么区别？（重要）
 
-（图：HTTP 和 HTTPS 对比）
+![HTTP 和 HTTPS 对比](images/http-vs-https-99f29ca0.png)
 
 - **端口号**：HTTP 默认是 80，HTTPS 默认是 443。
 - **URL 前缀**：HTTP 的 URL 前缀是 `http://`，HTTPS 的 URL 前缀是 `https://`。
@@ -5465,7 +5465,7 @@ HTTP 能调服务，RPC 也能调服务。真正的区别在于，你是想把�
 
 #### HTTP/1.0 和 HTTP/1.1 有什么区别？
 
-（图：HTTP/1.0 和 HTTP/1.1 对比）
+![HTTP/1.0 和 HTTP/1.1 对比](images/http1.0-vs-http1.1-4e93892e.png)
 
 - **连接方式**：HTTP/1.0 为短连接，HTTP/1.1 支持长连接。HTTP 协议的长连接和短连接，实质上是 TCP 协议的长连接和短连接。
 - **状态响应码**：HTTP/1.1 中新加入了大量的状态码，光是错误响应状态码就新增了 24 种。比如说，`100 (Continue)`——允许客户端在发送较大请求体前确认服务器愿意继续接收，`206 (Partial Content)`——范围请求的标识码，`409 (Conflict)`——请求与当前资源的规定冲突，`410 (Gone)`——目标资源已不再可用，这种状态很可能是永久的，并且服务器不知道可用的转发地址。
@@ -5477,7 +5477,7 @@ HTTP 能调服务，RPC 也能调服务。真正的区别在于，你是想把�
 
 #### ⭐️ HTTP/1.1 和 HTTP/2.0 有什么区别？
 
-（图：HTTP/1.0 和 HTTP/1.1 对比）
+![HTTP/1.0 和 HTTP/1.1 对比](images/http1.1-vs-http2.0-c5f37e83.png)
 
 - **多路复用（Multiplexing）**：HTTP/2.0 在同一连接上可以同时传输多个请求和响应（可以看作是 HTTP/1.1 中长链接的升级版本），互不干扰。HTTP/1.1 则使用串行方式，每个请求和响应都需要独立的连接，而浏览器为了控制资源会有 6-8 个 TCP 连接的限制。这使得 HTTP/2.0 在处理多个请求时更加高效，减少了网络延迟和提高了性能。
 - **二进制帧（Binary Frames）**：HTTP/2.0 使用二进制帧进行数据传输，而 HTTP/1.1 则使用文本格式的报文。二进制帧更加紧凑和高效，减少了传输的数据量和带宽消耗。
@@ -5487,13 +5487,13 @@ HTTP 能调服务，RPC 也能调服务。真正的区别在于，你是想把�
 
 HTTP/2.0 多路复用效果图（图源： [HTTP/2 For Web Developers](https://blog.cloudflare.com/http-2-for-web-developers/)）：
 
-（图：HTTP/2 在单个 TCP 连接上多路复用多个请求和响应）
+![HTTP/2 在单个 TCP 连接上多路复用多个请求和响应](images/http2.0-multiplexing-5b8a007d.png)
 
 可以看到，HTTP/2 的多路复用机制允许多个请求和响应共享一个 TCP 连接，从而避免了 HTTP/1.1 在应对并发请求时需要建立多个并行连接的情况，减少了重复连接建立和维护的额外开销。而在 HTTP/1.1 中，尽管支持持久连接，但为了缓解队头阻塞问题，浏览器通常会为同一域名建立多个并行连接。
 
 #### HTTP/2.0 和 HTTP/3.0 有什么区别？
 
-（图：HTTP/2.0 和 HTTP/3.0 对比）
+![HTTP/2.0 和 HTTP/3.0 对比](images/http2.0-vs-http3.0-6ad26f15.png)
 
 - **传输协议**：HTTP/2 基于 TCP，HTTP/3 则把 HTTP 语义映射到 QUIC。QUIC 构建在 UDP 之上，在传输层实现可靠交付、拥塞控制、流量控制和 TLS 1.3 安全保护。
 - **连接建立**：HTTP/2 的 HTTPS 连接需要先建立 TCP 连接，再完成 TLS 握手；HTTP/3 把传输参数协商和 TLS 1.3 握手结合在 QUIC 建连过程中。新的 QUIC 连接通常使用 1-RTT；0-RTT 只适用于客户端持有先前连接状态的恢复场景，而且早期数据存在重放风险。比较延迟时还要统一采用“何时可发送首个请求”或“何时收到首字节”等同一个指标。
@@ -5505,11 +5505,11 @@ HTTP/2.0 多路复用效果图（图源： [HTTP/2 For Web Developers](https://b
 
 HTTP/1.0、HTTP/2.0 和 HTTP/3.0 的协议栈比较：
 
-（图：HTTP/1、HTTP/2 和 HTTP/3 协议栈对比）
+![HTTP/1、HTTP/2 和 HTTP/3 协议栈对比](images/http-3-implementation-ab73b085.png)
 
 下图是一个更详细的 HTTP/2.0 和 HTTP/3.0 对比图：
 
-（图：HTTP/2.0 和 HTTP/3.0 详细对比图）
+![HTTP/2.0 和 HTTP/3.0 详细对比图](images/http2-and-http3-stacks-comparison-164f4e33.png)
 
 从上图可以看出：
 
@@ -5549,7 +5549,7 @@ HTTP 协议本身是 **无状态的（stateless）**。这意味着服务器默�
 
 **方案一：Session（会话）配合 Cookie（主流方式）：**
 
-（图：Session 配合 Cookie 保存用户登录状态的流程）
+![Session 配合 Cookie 保存用户登录状态的流程](images/session-cookie-authentication-process-bd689be9.png)
 
 这可以说是最经典也是最常用的方法了。基本流程是这样的：
 
@@ -5585,7 +5585,7 @@ Session 数据本身存储在服务器端。常见的存储方式有：
 
 这是一种越来越流行的无状态认证方式，尤其适用于前后端分离的架构和微服务。
 
-（图：JWT 身份验证示意图）
+![JWT 身份验证示意图](images/jwt-authentication_20process-c0784a69.png)
 
 以 JWT 为例（普通 Token 方案也可以），简化后的步骤如下：
 
@@ -5637,7 +5637,7 @@ WebSocket 协议在 2008 年诞生，2011 年成为国际标准，几乎所有�
 
 WebSocket 协议本质上是应用层的协议，用于弥补 HTTP 协议在持久通信能力上的不足。客户端和服务器仅需一次握手，两者之间就直接可以创建持久性的连接，并进行双向数据传输。
 
-（图：WebSocket 建立持久连接实现双向通信）
+![WebSocket 建立持久连接实现双向通信](images/1460000042192394-99b6e344.png)
 
 下面是 WebSocket 的常见应用场景：
 
@@ -5703,7 +5703,7 @@ WebSocket 的工作过程可以分为以下几个步骤：
   - **使用限制**：需要服务器和客户端都支持 WebSocket 协议。对连接管理有一定要求（如心跳保活、断线重连等）。
   - **实现麻烦**：实现起来比短轮询和长轮询要更麻烦一些。
 
-（图：WebSocket 与短轮询和长轮询的通信方式对比）
+![WebSocket 与短轮询和长轮询的通信方式对比](images/1460000042192394-99b6e344.png)
 
 #### ⭐️ SSE 与 WebSocket 有什么区别？
 
@@ -5729,9 +5729,9 @@ SSE（Server-Sent Events）和 WebSocket 都是用来实现服务器向浏览器
 
 这里以 DeepSeek 为例，我们发送一个请求并打开浏览器控制台验证一下：
 
-（图：DeepSeek 响应标头）
+![DeepSeek 响应标头](images/deepseek-sse-575a911b.png)
 
-（图：DeepSeek SSE 响应使用 text/event-stream 持续传输事件）
+![DeepSeek SSE 响应使用 text/event-stream 持续传输事件](images/deepseek-sse-eventstream-f35c5785.png)
 
 可以看到，响应头里包含了 `text/event-stream`，说明使用的确实是 SSE。并且，响应数据也确实是持续分块传输。
 
@@ -5787,7 +5787,7 @@ PING 用到的 ICMP Echo Request（类型为 8）和 ICMP Echo Reply（类型为
 
 Ping 使用 ICMP（网络层），TCP 连接使用 TCP（传输层），两者可能经过同一条网络路径，但中间设备会按协议类型、端口、连接状态和安全策略分别处理。你能 Ping 通，只能说明 ICMP Echo 这条路径能往返，不等于目标 TCP 端口一定可达。
 
-（图：ICMP与TCP路径差异）
+![ICMP与TCP路径差异](images/can-ping-but-tcp-may-not-connect-icmp-and-tcp-path-differenc-5e8a0530.png)
 
 常见原因有这几种：
 
@@ -5800,7 +5800,7 @@ Ping 使用 ICMP（网络层），TCP 连接使用 TCP（传输层），两者�
 
 排查建议：先看 DNS（域名场景），再用 `ping` 看 ICMP，然后用 `nc` 测端口，最后用 `curl` 或 `openssl s_client` 看 HTTPS / TLS。别用一个命令过早下结论。
 
-（图：HTTPS连接排查层次）
+![HTTPS连接排查层次](images/can-ping-but-tcp-may-not-connect-https-connection-troublesho-3fcb5151.png)
 
 详细介绍：[能 Ping 通，TCP 就一定能连通吗？](https://github.com/Snailclimb/JavaGuide/blob/main/docs/can-ping-but-tcp-may-not-connect.md)
 
@@ -5810,7 +5810,7 @@ Ping 使用 ICMP（网络层），TCP 连接使用 TCP（传输层），两者�
 
 DNS（Domain Name System）域名管理系统，是当用户使用浏览器访问网址之后，使用的第一个重要协议。DNS 要解决的是**域名和 IP 地址的映射问题**。
 
-（图：DNS 将域名解析为 IP 地址的系统概览）
+![DNS 将域名解析为 IP 地址的系统概览](images/dns-overview-4619e349.png)
 
 在一台电脑上，可能存在浏览器 DNS 缓存，操作系统 DNS 缓存，路由器 DNS 缓存。如果以上缓存都查询不到，那么 DNS 就闪亮登场了。
 
@@ -5917,7 +5917,7 @@ HTTP/3.0 之前是基于 TCP 协议的，而 HTTP/3.0 将弃用 TCP，改用 **�
 - **HTTP/1.x 和 HTTP/2.0**：这两个版本的 HTTP 协议都明确建立在 TCP 之上。TCP 提供了可靠的、面向连接的传输，确保数据按序、无差错地到达，这对于网页内容的正确展示非常重要。发送 HTTP 请求前，需要先通过 TCP 的三次握手建立连接。
 - **HTTP/3.0**：这是一个重大的改变。HTTP/3 弃用了 TCP，转而使用 QUIC 协议，而 QUIC 是构建在 UDP 之上的。
 
-（图：HTTP/1、HTTP/2 和 HTTP/3 协议栈对比）
+![HTTP/1、HTTP/2 和 HTTP/3 协议栈对比](images/http-3-implementation-ab73b085.png)
 
 **为什么 HTTP/3 要做这个改变呢？主要有两大原因：**
 
@@ -5941,16 +5941,16 @@ HTTP/2 的 HTTPS 连接需要先建立 TCP 连接，再完成 TLS 握手。HTTP/
 
 #### 为什么 TCP 是面向字节流，UDP 是面向报文？
 
-（图：TCP 与 UDP 的消息边界）
+![TCP 与 UDP 的消息边界](images/tcp-udp-byte-stream-tcp-udp-message-boundary-ff2c1ad3.png)
 
 TCP 是面向字节流的。应用层写入的数据会进入内核缓冲区，TCP 只保证这些字节可靠、有序地到达对端，不保证一次 `send()` 对应一次 `recv()`，也不保留应用层消息边界。因此接收方可能一次读到多条消息，也可能只读到半条消息，这就是常说的粘包、拆包现象。
-（图：TCP 粘包 / 拆包为什么会出现？）
+![TCP 粘包 / 拆包为什么会出现？](images/tcp-udp-byte-stream-tcp-sticky-split-causes-3dc840f6.png)
 
 UDP 是面向报文的。应用层交给 UDP 的一次数据会作为一个 UDP 数据报发送，接收端也是按数据报读取，所以天然保留消息边界。不过 UDP 不保证可靠到达，也不保证顺序。
 
 解决 TCP 粘包/拆包，本质是应用层协议自己定义消息边界。常见方案有固定长度、分隔符、长度头。工程里更常用长度头，因为它对二进制协议和变长消息更友好，但要处理字节序、最大长度限制、半包缓存和异常连接关闭等问题。
 
-（图：应用层如何定义消息边界？）
+![应用层如何定义消息边界？](images/tcp-udp-byte-stream-tcp-message-boundary-solutions-86186610.png)
 
 详细介绍：[为什么 TCP 是面向字节流，UDP 是面向报文？](https://github.com/Snailclimb/JavaGuide/blob/main/docs/tcp-byte-stream-udp-datagram.md)
 
@@ -6006,7 +6006,7 @@ TCP（传输控制协议）和 UDP（用户数据报协议）是互联网传输�
 
 **不同 HTTP 版本里，Keep-Alive 的默认行为不一样**：
 
-（图：不同 HTTP 版本里，Keep-Alive 的默认行为不一样）
+![不同 HTTP 版本里，Keep-Alive 的默认行为不一样](images/different-http-versions-have-different-default-keep-alive-be-f743d0f1.png)
 
 如果从“谁来决定关连接”的角度看，两个机制的态度完全相反：
 
@@ -6014,9 +6014,9 @@ HTTP Keep-Alive 是“主动回收”——服务器到了超时或请求次数�
 
 TCP Keepalive 是“被动回收”——它必须先发探测包去问“你还在吗？”。只要对方在线、能回 ACK，服务器就只能继续维持连接，刷新定时器。只有确认对方已经不在了，才能释放资源。这是一种温和的回收策略。
 
-（图：TCP Keepalive 工作原理）
+![TCP Keepalive 工作原理](images/tcp-keepalive-vs-http-keepalive-tcp-keepalive-working-princi-7f50afab.png)
 
-（图：TCP Keepalive 探测机制）
+![TCP Keepalive 探测机制](images/tcp-keepalive-vs-http-keepalive-tcp-keepalive-detection-mech-306c79b5.png)
 
 实际项目中，两者经常同时在跑，各管各的。HTTP Keep-Alive 管的是“一条连接最多用多久、服务多少次请求”，TCP Keepalive 管的是“如果长时间没数据，检查一下对方是不是已经消失了”。两者互不干扰，也不能互相替代。
 
@@ -6056,13 +6056,13 @@ TCP Keepalive 是“被动回收”——它必须先发探测包去问“你还
 
 内核收到 IP 包后，会先看 IP 层的协议标识（TCP 协议号是 `6`，UDP 是 `17`），根据协议号把报文交给对应的 TCP 或 UDP 协议栈，然后再在各自协议栈内按地址和端口分发。所以 `TCP/8080` 和 `UDP/8080` 可以共存，内核压根不会把它们当成同一条通信。
 
-（图：内核协议分发流程）
+![内核协议分发流程](images/can-tcp-and-udp-use-the-same-port-kernel-protocol-dispatchin-09d025cf.png)
 
 真正容易冲突的是**同一协议**下的重复绑定，比如两个 TCP 服务通常不能同时监听同一个本地 IP 和端口；这时才涉及 `SO_REUSEADDR`、`SO_REUSEPORT` 这类 socket 复用选项。
 
 经典例子：DNS 同时使用 `UDP/53`（日常查询）和 `TCP/53`（响应过大、区域传送）；HTTP/3 常见部署是 `UDP/443`（QUIC），可以和传统 HTTPS 的 `TCP/443` 同时存在。
 
-（图：DNS 和 HTTP/3 同时使用 TCP 与 UDP 端口的实际案例）
+![DNS 和 HTTP/3 同时使用 TCP 与 UDP 端口的实际案例](images/can-tcp-and-udp-use-the-same-port-practical-application-exam-ab70afb0.png)
 
 详细介绍：[TCP 和 UDP 可以使用同一个端口吗？](https://github.com/Snailclimb/JavaGuide/blob/main/docs/can-tcp-and-udp-use-the-same-port.md)
 
@@ -6072,7 +6072,7 @@ TCP Keepalive 是“被动回收”——它必须先发探测包去问“你还
 
 TCP 连接靠四元组区分：源 IP、源端口、目的 IP、目的端口。只要四元组不同，内核就识别为不同连接。服务端监听同一个端口时，只要客户端 IP 或客户端端口不同，连接就可以继续增加。
 
-（图：TCP 连接靠四元组区分和真正的限制）
+![TCP 连接靠四元组区分和真正的限制](images/maximum-number-of-tcp-connections-per-host-tcp-four-tuple-an-4d337232.png)
 
 真正限制连接数的因素：
 
@@ -6102,7 +6102,7 @@ IP 地址通常分配给网络接口，用于在特定作用域和路由上下�
 
 这种基于 IP 地址的寻址方式是互联网通信的基础，它允许数据包在不同网络之间传递。地址是否唯一、能否全局路由取决于地址类型和作用域，不能笼统地把 IP 地址描述为每台设备全球唯一的身份证。
 
-（图：IP 地址使数据包到达其目的地）
+![IP 地址使数据包到达其目的地](images/internet_protocol_ip_address_diagram-ec6271a2.png)
 
 #### 什么是 IP 地址过滤？
 
@@ -6114,11 +6114,11 @@ IP 地址过滤是一种简单的网络安全措施，实际应用中一般会�
 
 **IPv4（Internet Protocol version 4）** 是目前广泛使用的 IP 地址版本，其格式是四组由点分隔的数字，例如：123.89.46.72。IPv4 使用 32 位地址作为其 Internet 地址，这意味着共有约 42 亿（2^32）个可用 IP 地址。
 
-（图：IPv4 地址使用点分十进制格式表示 32 位地址）
+![IPv4 地址使用点分十进制格式表示 32 位地址](images/Figure-1-IPv4Addressformatwithdotteddecimalnotation-29c824f6-233c4843.png)
 
 这么少当然不够用啦！为了解决 IP 地址耗尽的问题，最根本的办法是采用具有更大地址空间的新版本 IP 协议 - **IPv6（Internet Protocol version 6）**。IPv6 地址使用更复杂的格式，该格式使用由单或双冒号分隔的一组数字和字母，例如：2001:0db8:85a3:0000:0000:8a2e:0370:7334。IPv6 使用 128 位互联网地址，这意味着越有 2^128（3 开头的 39 位数字，恐怖如斯）个可用 IP 地址。
 
-（图：IPv6 地址使用十六进制冒号分隔格式表示 128 位地址）
+![IPv6 地址使用十六进制冒号分隔格式表示 128 位地址](images/Figure-2-IPv6Addressformatwithhexadecimalnotation-7da3a419bd-78d646ff.png)
 
 除了更大的地址空间之外，IPv6 的优势还包括：
 
@@ -6153,7 +6153,7 @@ IP 地址过滤是一种简单的网络安全措施，实际应用中一般会�
 
 NAT 不光可以缓解 IPv4 地址资源短缺的问题，还会隐藏内部地址和拓扑。许多 NAT 设备的过滤行为使没有既有映射的外部流量难以直接到达内部主机，但决定哪些入站报文可以通过的是过滤策略，而不是地址转换本身。NAT 不能替代状态防火墙、访问控制和主机安全措施。
 
-（图：NAT 实现 IP地址转换）
+![NAT 实现 IP地址转换](images/network-address-translation-f95898ff.png)
 
 相关阅读：[NAT 协议详解（网络层）](https://javaguide.cn/cs-basics/network/nat.html)。
 
@@ -6163,7 +6163,7 @@ NAT 不光可以缓解 IPv4 地址资源短缺的问题，还会隐藏内部地�
 
 MAC 地址的全称是 **媒体访问控制地址（Media Access Control Address）**，用于标识链路层接口并在本地网络中传输数据帧。它属于网络接口，而不是整台设备的永久身份证；一台设备可以有多个网络接口，每个接口可以使用不同的 MAC 地址。
 
-（图：路由器的背面就会注明 MAC 位址）
+![路由器的背面就会注明 MAC 位址](images/router-back-will-indicate-mac-address-8fe99cd5.png)
 
 MAC 地址也常被称为 LAN 地址、物理地址或以太网地址。与用于网络层路由的 IP 地址不同，MAC 地址主要在当前链路或广播域内使用。
 
@@ -6213,7 +6213,7 @@ ARP 协议，全称 **地址解析协议（Address Resolution Protocol）**，�
 
 如下图所示，在 Windows 中通过查看任务管理器的方式，我们就可以清楚看到 Windows 当前运行的进程（`.exe` 文件的运行）。
 
-（图：进程示例图片-Windows）
+![进程示例图片-Windows](images/_E8_BF_9B_E7_A8_8B_E7_A4_BA_E4_BE_8B_E5_9B_BE_E7_89_87-Windo-4993191f.png)
 
 #### 何为线程？
 
@@ -6267,7 +6267,7 @@ public class MultiThread {
 2. 多对一（多个用户线程映射到一个内核线程）
 3. 多对多（多个用户线程映射到多个内核线程）
 
-（图：常见的三种线程模型）
+![常见的三种线程模型](images/three-types-of-thread-models-6adf6f60.png)
 
 在 Windows 和 Linux 等主流操作系统中，HotSpot 的平台线程通常采用一对一模型，也就是一个平台线程对应一个操作系统线程。虚拟线程不采用这种一对一映射，而是由 JVM 调度到一组平台线程上执行。
 
@@ -6275,7 +6275,7 @@ public class MultiThread {
 
 下图是 Java 内存区域，通过下图我们从 JVM 的角度来说一下线程和进程之间的关系。
 
-（图：Java 运行时数据区域（JDK1.8 之后））
+![Java 运行时数据区域（JDK1.8 之后）](images/java-runtime-data-areas-jdk1.8-6401fdf0.png)
 
 从上图可以看出：一个进程中可以有多个线程，多个线程共享进程的**堆**和**方法区（JDK1.8 之后的元空间）**资源，但是每个线程有自己的**程序计数器**、**虚拟机栈** 和 **本地方法栈**。
 
@@ -6330,7 +6330,7 @@ Java 线程在运行的生命周期中的指定时刻只可能处于下面 6 种
 
 Java 线程状态变迁图(图源：[挑错 |《Java 并发编程的艺术》中关于线程状态的三处错误](https://mp.weixin.qq.com/s/0UTyrJpRKaKhkhHcQtXAiA))：
 
-（图：Java 线程状态变迁图）
+![Java 线程状态变迁图](images/640-8103777c.png)
 
 由上图可以看出：线程创建之后它将处于 **NEW（新建）** 状态，调用 `start()` 方法后开始运行，线程这时候处于 **READY（可运行）** 状态。可运行状态的线程获得了 CPU 时间片（timeslice）后就处于 **RUNNING（运行）** 状态。
 
@@ -6338,7 +6338,7 @@ Java 线程状态变迁图(图源：[挑错 |《Java 并发编程的艺术》中
 >
 > **为什么 JVM 没有区分这两种状态呢？** Java 的 `Thread.State` 描述的是 JVM 层面的线程状态，不用于反映操作系统调度器的全部内部状态。具体调度策略、时间片长度和是否采用轮转方式都由操作系统及其配置决定，不能固定概括为 10～20 ms 的轮转调度。
 
-（图：RUNNABLE-VS-RUNNING）
+![RUNNABLE-VS-RUNNING](images/RUNNABLE-VS-RUNNING-497c7636.png)
 
 - 当线程执行 `wait()` 方法之后，线程进入 **WAITING（等待）** 状态。进入等待状态的线程需要依靠其他线程的通知才能够返回到运行状态。
 - **TIMED_WAITING（超时等待）** 状态相当于在等待状态的基础上增加了超时限制，比如通过 `sleep（long millis）` 方法或 `wait（long millis）` 方法可以将线程置于 TIMED_WAITING 状态。当超时时间结束后，线程将会返回到 RUNNABLE 状态。
@@ -6454,7 +6454,7 @@ Java 使用的线程调度是抢占式的。也就是说，JVM 本身不负责�
 
 如下图所示，线程 A 持有资源 2，线程 B 持有资源 1，他们同时都想申请对方的资源，所以这两个线程就会互相等待而进入死锁状态。
 
-（图：死锁场景示意图：线程 A 持有 resource1 并等待 resource2，线程 B 持有 resource2 并等待 resource1，等待链形成闭环）
+![死锁场景示意图：线程 A 持有 resource1 并等待 resource2，线程 B 持有 resource2 并等待 resource1，等待链形成闭环](images/dead-lock-deadlock-scenario-13be7e13.png)
 
 下面通过一个例子来说明线程死锁，代码模拟了上图的死锁的情况（代码来源于《并发编程之美》）：
 
@@ -6524,7 +6524,7 @@ Thread[线程 2,5,main]waiting get resource1
 
 首先，我们要找到 JDK 的 bin 目录，找到 jconsole 并双击打开。
 
-（图：jconsole）
+![jconsole](images/jdk-home-bin-jconsole-2cf07489.png)
 
 对于 MAC 用户来说，可以通过 `/usr/libexec/java_home -V` 查看 JDK 安装目录，找到后通过 `open . + 文件夹地址` 打开即可。例如，我本地的某个 JDK 的路径是：
 
@@ -6534,9 +6534,9 @@ Thread[线程 2,5,main]waiting get resource1
 
 打开 jconsole 后，连接对应的程序，然后进入线程界面选择检测死锁即可！
 
-（图：jconsole 检测死锁）
+![jconsole 检测死锁](images/jconsole-check-deadlock-29a7f927.png)
 
-（图：jconsole 检测到死锁）
+![jconsole 检测到死锁](images/jconsole-check-deadlock-done-3ff1d402.png)
 
 #### 如何预防和避免线程死锁？
 
@@ -6602,9 +6602,9 @@ JMM（Java 内存模型）相关的问题比较多，也比较重要，于是我
 
 在 Java 中，`volatile` 关键字可以保证变量的可见性。对某个 `volatile` 变量的写入 happens-before 于后续对同一变量的读取，因此读线程能够看到该写入以及写入前按 happens-before 传递过来的结果。这是 JMM 规定的语义，不等同于要求每次访问都绕过 CPU 缓存、直接读写物理主存。
 
-（图：JMM(Java 内存模型)）
+![JMM(Java 内存模型)](images/jmm-36d9b6ac.png)
 
-（图：JMM(Java 内存模型)强制在主存中进行读取）
+![JMM(Java 内存模型)强制在主存中进行读取](images/jmm2-a87c38b6.png)
 
 `volatile` 关键字并非 Java 语言特有，但不同语言中的语义并不相同。Java 的 `volatile` 由 JMM 定义可见性和有序性保证，不能解释为“禁用 CPU 缓存”。
 
@@ -6887,7 +6887,7 @@ try {
 乐观锁总是假设最好的情况，认为共享资源每次被访问的时候不会出现问题，线程可以不停地执行，无需加锁也无需等待，只是在提交修改的时候去验证对应的资源（也就是数据）是否被其它线程修改了（具体方法可以使用版本号机制或 CAS 算法）。
 
 在 Java 中 `java.util.concurrent.atomic` 包下面的原子变量类（比如 `AtomicInteger`、`LongAdder`）就是使用了乐观锁的一种实现方式 **CAS** 实现的。
-（图：JUC原子类概览）
+![JUC原子类概览](images/JUC_E5_8E_9F_E5_AD_90_E7_B1_BB_E6_A6_82_E8_A7_88-20230814005-8956b754.png)
 
 ```java
 // LongAdder 在高并发场景下会比 AtomicInteger 和 AtomicLong 的性能更好
@@ -7002,7 +7002,7 @@ JDK 8 中 `Unsafe` 的这些 CAS 方法是 `native` 方法。Java 代码通过�
 
 `java.util.concurrent.atomic` 包提供了一些用于原子操作的类。这些类利用底层的原子指令，确保在多线程环境下的操作是线程安全的。
 
-（图：JUC原子类概览）
+![JUC原子类概览](images/JUC_E5_8E_9F_E5_AD_90_E7_B1_BB_E6_A6_82_E8_A7_88-064976d1.png)
 
 关于这些 Atomic 原子类的介绍和使用，可以阅读这篇文章：[Atomic 原子类总结](https://javaguide.cn/java/concurrent/atomic-classes.html)。
 
@@ -7209,7 +7209,7 @@ public class SynchronizedDemo {
 
 通过 JDK 自带的 `javap` 命令查看 `SynchronizedDemo` 类的相关字节码信息：首先切换到类的对应目录执行 `javac SynchronizedDemo.java` 命令生成编译后的 .class 文件，然后执行 `javap -c -s -v -l SynchronizedDemo.class`。
 
-（图：synchronized关键字原理）
+![synchronized关键字原理](images/synchronized-principle-21da6a40.png)
 
 从上面我们可以看出：**`synchronized` 同步语句块的实现使用的是 `monitorenter` 和 `monitorexit` 指令，其中 `monitorenter` 指令指向同步代码块的开始位置，`monitorexit` 指令则指明同步代码块的结束位置。**
 
@@ -7223,11 +7223,11 @@ public class SynchronizedDemo {
 
 在执行 `monitorenter` 时，会尝试获取对象的锁，如果锁的计数器为 0 则表示锁可以被获取，获取后将锁计数器设为 1 也就是加 1。
 
-（图：执行 monitorenter 获取锁）
+![执行 monitorenter 获取锁](images/synchronized-get-lock-code-block-34a3fbdb.png)
 
 对象锁的拥有者线程才可以执行 `monitorexit` 指令来释放锁。在执行 `monitorexit` 指令后，将锁计数器设为 0，表明锁被释放，其他线程可以尝试获取锁。
 
-（图：执行 monitorexit 释放锁）
+![执行 monitorexit 释放锁](images/synchronized-release-lock-block-2fb4fd02.png)
 
 如果获取对象锁失败，那当前线程就要阻塞等待，直到锁被另外一个线程释放为止。
 
@@ -7242,7 +7242,7 @@ public class SynchronizedDemo2 {
 
 ```
 
-（图：synchronized关键字原理）
+![synchronized关键字原理](images/synchronized_E5_85_B3_E9_94_AE_E5_AD_97_E5_8E_9F_E7_90_862-870792d9.png)
 
 `synchronized` 修饰的方法并没有 `monitorenter` 指令和 `monitorexit` 指令，取而代之的是 `ACC_SYNCHRONIZED` 标识，该标识指明了该方法是一个同步方法。JVM 通过该 `ACC_SYNCHRONIZED` 访问标志来辨别一个方法是否声明为同步方法，从而执行相应的同步调用。
 
@@ -7721,11 +7721,11 @@ ThreadLocalMap(ThreadLocal<?> firstKey, Object firstValue) {
 
 `ThreadLocal` 数据结构如下图所示：
 
-（图：ThreadLocal 数据结构）
+![ThreadLocal 数据结构](images/threadlocal-data-structure-8af53b95.png)
 
 `ThreadLocalMap` 是 `ThreadLocal` 的静态内部类。
 
-（图：ThreadLocal内部类）
+![ThreadLocal内部类](images/thread-local-inner-class-7a342442.png)
 
 #### ⭐️ ThreadLocal 内存泄露问题是怎么导致的？
 
@@ -7871,7 +7871,7 @@ Thread → ThreadLocalMap → Entry(ThreadLocal, value)
 
 `ThreadLocal` 数据结构如下图所示：
 
-（图：ThreadLocal 数据结构）
+![ThreadLocal 数据结构](images/threadlocal-data-structure-8af53b95.png)
 
 异步执行往往意味着任务会从当前线程切换到另一个线程（例如线程池中的工作线程）执行。由于不同线程各自维护独立的 `ThreadLocalMap`，默认情况下 `ThreadLocal` 的上下文无法在异步执行中自动传递。
 
@@ -7933,7 +7933,7 @@ TTL 的核心逻辑可以概括为三个阶段（CRR）：
 
 这张图是 TTL 官方提供的 CRR 整个过程的时序图：
 
-（图：TTL 官方提供的 CRR 整个过程的时序图）
+![TTL 官方提供的 CRR 整个过程的时序图](images/ttl-crr-timing-diagram-622e8efd.png)
 
 不太好理解吧？可以看下我绘制的这张 CRR 时序图，更清晰直观一些：
 
@@ -8211,7 +8211,7 @@ public ScheduledThreadPoolExecutor(int corePoolSize) {
 
 下面这张图可以加深你对线程池中各个参数的相互关系的理解（图片来源：《Java 性能调优实战》）：
 
-（图：线程池各个参数的关系）
+![线程池各个参数的关系](images/relationship-between-thread-pool-parameters-8e02c62d.png)
 
 #### 线程池的核心线程会被回收吗？
 
@@ -8415,7 +8415,7 @@ public class ThreadPoolTest {
 
 为了充分利用 CPU，我们还可以调整线程池的 `maximumPoolSize`（最大线程数）参数，这样可以提高任务处理速度，避免累计在 `BlockingQueue` 的任务过多导致内存用完。
 
-（图：调整阻塞队列大小和最大线程数）
+![调整阻塞队列大小和最大线程数](images/threadpool-reject-2-threadpool-reject-01-fd0146c1.png)
 
 如果服务器资源已达到可利用的极限，这就意味我们要在设计策略上改变线程池的调度了，我们都知道，导致主线程卡死的本质就是因为我们不希望任何一个任务被丢弃。换个思路，有没有办法既能保证任务不被丢弃且在服务器有余力时及时处理呢？
 
@@ -8430,7 +8430,7 @@ public class ThreadPoolTest {
 1. 实现 `RejectedExecutionHandler` 接口自定义拒绝策略，自定义拒绝策略负责将线程池暂时无法处理（此时阻塞队列已满）的任务入库（保存到 MySQL 中）。注意：线程池暂时无法处理的任务会先被放在阻塞队列中，阻塞队列满了才会触发拒绝策略。
 2. 继承 `BlockingQueue` 实现一个混合式阻塞队列，该队列包含 JDK 自带的 `ArrayBlockingQueue`。另外，该混合式阻塞队列需要修改取任务处理的逻辑，也就是重写 `take()` 方法，取任务时优先从数据库中读取最早的任务，数据库中无任务时再从 `ArrayBlockingQueue` 中去取任务。
 
-（图：将一部分任务保存到MySQL中）
+![将一部分任务保存到MySQL中](images/threadpool-reject-2-threadpool-reject-02-e532728d.png)
 
 整个实现逻辑还是比较简单的，核心在于自定义拒绝策略和阻塞队列。如此一来，一旦我们的线程池中线程达到满载时，我们就可以通过拒绝策略将最新任务持久化到 MySQL 数据库中，等到线程池有了有余力处理所有任务时，让其优先处理数据库中的任务以避免“饥饿”问题。
 
@@ -8484,7 +8484,7 @@ new RejectedExecutionHandler() {
 
 #### ⭐️ 线程池处理任务的流程了解吗？
 
-（图：图解线程池实现原理）
+![图解线程池实现原理](images/thread-pool-principle-aa009a67.png)
 
 1. 如果当前运行的线程数小于核心线程数，那么就会新建一个线程来执行任务。
 2. 如果当前运行的线程数等于或大于核心线程数，但是小于最大线程数，那么就把该任务放入到任务队列里等待执行。
@@ -8620,11 +8620,11 @@ CPU 密集型简单理解就是利用 CPU 计算能力的任务比如你在内�
 
 最终实现的可动态修改线程池参数效果如下。👏👏👏
 
-（图：动态配置线程池参数最终效果）
+![动态配置线程池参数最终效果](images/meituan-dynamically-configuring-thread-pool-parameters-d0b95441.png)
 
 还没看够？我在[《后端面试高频系统设计&场景题》](https://javaguide.cn/zhuanlan/back-end-interview-high-frequency-system-design-and-scenario-questions.html)中详细介绍了如何设计一个动态线程池，这也是面试中常问的一道系统设计题。
 
-（图：《后端面试高频系统设计&场景题》）
+![《后端面试高频系统设计&场景题》](images/back-end-interview-high-frequency-system-design-and-scenario-d512d87a.png)
 
 如果我们的项目也想要实现这种效果的话，可以借助现成的开源项目：
 
@@ -8639,7 +8639,7 @@ CPU 密集型简单理解就是利用 CPU 计算能力的任务比如你在内�
 
 假如我们需要实现一个优先级任务线程池的话，那可以考虑使用 `PriorityBlockingQueue`（优先级阻塞队列）作为任务队列（`ThreadPoolExecutor` 的构造函数有一个 `workQueue` 参数可以传入任务队列）。
 
-（图：ThreadPoolExecutor构造函数）
+![ThreadPoolExecutor构造函数](images/common-parameters-of-threadpool-workqueue-654c3310.jpg)
 
 `PriorityBlockingQueue` 是一个支持优先级的无界阻塞队列，可以看作是线程安全的 `PriorityQueue`，两者底层都是使用小顶堆形式的二叉堆，即值最小的元素优先出队。不过，`PriorityQueue` 不支持阻塞操作。
 
@@ -8830,7 +8830,7 @@ AQS 核心思想是，如果被请求的共享资源空闲，则将当前请求�
 
 **CLH 锁** 对自旋锁进行了改进，是基于单链表的自旋锁。在多线程场景下，会将请求获取锁的线程组织成一个单向队列，每个等待的线程会通过自旋访问前一个线程节点的状态，前一个节点释放锁之后，当前节点才可以获取锁。**CLH 锁** 的队列结构如下图所示。
 
-（图：CLH 锁的队列结构）
+![CLH 锁的队列结构](images/clh-lock-queue-structure-229709df.png)
 
 AQS 中使用的 **等待队列** 是 CLH 锁队列的变体（接下来简称为 CLH 变体队列）。
 
@@ -8843,11 +8843,11 @@ AQS 将每条请求共享资源的线程封装成一个 CLH 变体队列的一�
 
 AQS 中的 CLH 变体队列结构如下图所示：
 
-（图：CLH 变体队列结构）
+![CLH 变体队列结构](images/clh-queue-structure-bianti-877c7ae8.png)
 
 AQS(`AbstractQueuedSynchronizer`)的核心原理图：
 
-（图：CLH 变体队列）
+![CLH 变体队列](images/clh-queue-state-7830440b.png)
 
 AQS 使用 **int 成员变量 `state` 表示同步状态**，通过内置的 **线程等待队列** 来完成获取资源线程的排队工作。
 
