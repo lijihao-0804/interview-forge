@@ -931,6 +931,7 @@ LoadStore 屏障
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">ReentrantLock</span><span class="w"> </span><span class="kd">implements</span><span class="w"> </span><span class="n">Lock</span><span class="p">,</span><span class="w"> </span><span class="n">java</span><span class="p">.</span><span class="na">io</span><span class="p">.</span><span class="na">Serializable</span><span class="w"> </span><span class="p">{}</span>
 </code></pre></div>
 <p><code>ReentrantLock</code> 里面有一个内部类 <code>Sync</code>，<code>Sync</code> 继承 AQS（<code>AbstractQueuedSynchronizer</code>），添加锁和释放锁的大部分操作实际上都是在 <code>Sync</code> 中实现的。<code>Sync</code> 有公平锁 <code>FairSync</code> 和非公平锁 <code>NonfairSync</code> 两个子类。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6e2b0fe4bc-reentrantlock-class-diagram-ce92bdf7.png" /></p>
 <p><code>ReentrantLock</code> 默认使用非公平锁，也可以通过构造器来显式的指定使用公平锁。</p>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 传入一个 boolean 值，true 时为公平锁，false 时为非公平锁</span>
 <span class="kd">public</span><span class="w"> </span><span class="nf">ReentrantLock</span><span class="p">(</span><span class="kt">boolean</span><span class="w"> </span><span class="n">fair</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -1079,6 +1080,7 @@ lock<span class="w"> </span>count<span class="w"> </span>:0
 </ul>
 <p><code>ReentrantReadWriteLock</code> 其实是两把锁，一把是 <code>WriteLock</code>（写锁），一把是 <code>ReadLock</code>（读锁）。读锁是共享锁，写锁是独占锁。读锁可以被同时读，可以同时被多个线程持有，而写锁最多只能同时被一个线程持有。</p>
 <p>和 <code>ReentrantLock</code> 一样，<code>ReentrantReadWriteLock</code> 底层也是基于 AQS 实现的。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8d11e310df-reentrantreadwritelock-class-diagram-9a13b98c.png" /></p>
 <p><code>ReentrantReadWriteLock</code> 也支持公平锁和非公平锁，默认使用非公平锁，可以通过构造器来显式地指定。</p>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="c1">// 传入一个 boolean 值，true 时为公平锁，false 时为非公平锁</span>
 <span class="kd">public</span><span class="w"> </span><span class="nf">ReentrantReadWriteLock</span><span class="p">(</span><span class="kt">boolean</span><span class="w"> </span><span class="n">fair</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -1522,10 +1524,12 @@ java<span class="w"> </span>-javaagent:path/to/transmittable-thread-local-2.x.y.
 <h4 id="_46">如何创建线程池？</h4>
 <p>在 Java 中，创建线程池主要有两种方式：</p>
 <p><strong>方式一：通过 <code>ThreadPoolExecutor</code> 构造函数直接创建（推荐）</strong></p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/1b60ba9a70-threadpoolexecutor-construtors-c8527210.png" /></p>
 <p>图中的“默认线程工厂”和“默认拒绝策略”，指的是当前构造函数没有显式传入对应参数时，<code>ThreadPoolExecutor</code> 会使用默认实现，并不是方法和说明错位。</p>
 <p>这是最推荐的方式，因为它允许开发者明确指定线程池的核心参数，对线程池的运行行为有更精细的控制，从而避免资源耗尽的风险。</p>
 <p><strong>方式二：通过 <code>Executors</code> 工具类创建（不推荐用于生产环境）</strong></p>
 <p><code>Executors</code> 工具类提供的创建线程池的方法如下图所示：</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/2a4a7176f0-executors-new-thread-pool-methods-49624012.png" /></p>
 <p>可以看出，通过 <code>Executors</code> 工具类可以创建多种类型的线程池，包括：</p>
 <ul>
 <li><code>FixedThreadPool</code>：正常运行时最多使用固定数量的工作线程。线程可以因异常终止后被替换，线程池关闭时也会退出，因此并非在整个生命周期中数量始终不变。当有一个新的任务提交时，线程池中若有空闲线程，则立即执行。若没有，则新的任务会被暂存在一个任务队列中，待有线程空闲时，便处理在任务队列中的任务。</li>
@@ -1938,6 +1942,7 @@ java<span class="w"> </span>-javaagent:path/to/transmittable-thread-local-2.x.y.
 <p><strong>为什么是这三个参数？</strong></p>
 <p>我在<a href="https://javaguide.cn/java/concurrent/java-thread-pool-summary.html" target="_blank" rel="noopener noreferrer">Java 线程池详解</a> 这篇文章中就说过这三个参数是 <code>ThreadPoolExecutor</code> 最重要的参数，它们基本决定了线程池对于任务的处理策略。</p>
 <p><strong>如何支持参数动态配置？</strong> 且看 <code>ThreadPoolExecutor</code> 提供的下面这些方法。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/8f20f021b0-threadpoolexecutor-methods-f0149ec2.png" /></p>
 <p>格外需要注意的是 <code>corePoolSize</code>。运行期间调小该参数后，超过新核心线程数的现有线程会在下一次空闲时终止；调大时，如果队列中已有任务，线程池会按需启动新线程处理。</p>
 <p>另外，你也看到了上面并没有动态指定队列长度的方法，美团的方式是自定义了一个叫做 <code>ResizableCapacityLinkedBlockingQueue</code> 的队列（主要就是把 <code>LinkedBlockingQueue</code> 的 capacity 字段的 final 关键字修饰给去掉了，让它变为可变的）。</p>
 <p>最终实现的可动态修改线程池参数效果如下。👏👏👏</p>
@@ -2006,6 +2011,7 @@ java<span class="w"> </span>-javaagent:path/to/transmittable-thread-local-2.x.y.
 <span class="n">Future</span><span class="o">&lt;?&gt;</span><span class="w"> </span><span class="n">submit</span><span class="p">(</span><span class="n">Runnable</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
 </code></pre></div>
 <p><code>FutureTask</code> 不光实现了 <code>Future</code> 接口，还实现了 <code>Runnable</code> 接口，因此可以作为任务直接被线程执行。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/eb22760a8d-completablefuture-class-diagram-f01a3bb2.jpg" /></p>
 <p><code>FutureTask</code> 有两个构造函数，可传入 <code>Callable</code> 或者 <code>Runnable</code> 对象。实际上，传入 <code>Runnable</code> 对象也会在方法内部转换为 <code>Callable</code> 对象。</p>
 <div class="codehilite" data-lang="java"><pre><code class="language-java"><span class="kd">public</span><span class="w"> </span><span class="nf">FutureTask</span><span class="p">(</span><span class="n">Callable</span><span class="w"> </span><span class="n">callable</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">callable</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span>
@@ -2029,8 +2035,10 @@ java<span class="w"> </span>-javaagent:path/to/transmittable-thread-local-2.x.y.
 <span class="p">}</span>
 </code></pre></div>
 <p>可以看到，<code>CompletableFuture</code> 同时实现了 <code>Future</code> 和 <code>CompletionStage</code> 接口。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/eb22760a8d-completablefuture-class-diagram-f01a3bb2.jpg" /></p>
 <p><code>CompletionStage</code> 接口描述了一个异步计算的阶段。很多计算可以分成多个阶段或步骤，此时可以通过它将所有步骤组合起来，形成异步计算的流水线。</p>
 <p><code>CompletionStage</code> 接口中的方法比较多，<code>CompletableFuture</code> 的函数式能力就是这个接口赋予的。从这个接口的方法参数你就可以发现其大量使用了 Java8 引入的函数式编程。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/91a6fe5a4f-image-20210902093026059-f1354d4c.png" /></p>
 <h4 id="_60">⭐️ 一个任务需要依赖另外两个任务执行完之后再执行，怎么设计？</h4>
 <p>这种任务编排场景非常适合通过 <code>CompletableFuture</code> 实现。这里假设要实现 T3 在 T2 和 T1 执行完后执行。</p>
 <p>代码如下（这里为了简化代码，用到了 Hutool 的线程工具类 <code>ThreadUtil</code> 和日期时间工具类 <code>DateUtil</code>）：</p>

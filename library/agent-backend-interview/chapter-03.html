@@ -312,7 +312,9 @@
 <h4 id="redis_13">使用 Redis 实现一个排行榜怎么做？</h4>
 <p>Redis 中有一个叫做 <code>Sorted Set</code>（有序集合）的数据类型经常被用在各种排行榜的场景，比如直播间送礼物的排行榜、朋友圈的微信步数排行榜、王者荣耀中的段位排行榜、话题热度排行榜等等。</p>
 <p>相关的一些 Redis 命令：<code>ZRANGE</code>（从小到大排序）、<code>ZREVRANGE</code>（从大到小排序）、<code>ZREVRANK</code>（指定元素排名）。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/6909960bff-2021060714195385-ae2278e1.png" /></p>
 <p><a href="https://javaguide.cn/zhuanlan/java-mian-shi-zhi-bei.html" target="_blank" rel="noopener noreferrer">《Java 面试指北》</a> 的「技术面试题篇」就有一篇文章详细介绍如何使用 Sorted Set 来设计制作一个排行榜，感兴趣的小伙伴可以看看。</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/93298f2d43-image-20220719071115140-61c4235c.png" /></p>
 <h4 id="redis-b">Redis 的有序集合底层为什么要用跳表，而不用平衡树、红黑树或者 B+ 树？</h4>
 <p>这道面试题很多大厂比较喜欢问，难度还是有点大的。</p>
 <ul>
@@ -814,6 +816,7 @@ appendfsync<span class="w"> </span>no<span class="w">        </span><span class=
 <blockquote>
 <p>事务可以看作是一个原子操作，但其实并不满足原子性。当我们提到 Redis 中的原子操作时，主要指的是这个操作（比如事务、Lua 脚本）不会被其他操作（比如其他事务、Lua 脚本）打扰，并不能完全保证这个操作中的所有写命令要么都执行要么都不执行。这主要也是因为 Redis 是不支持回滚操作。</p>
 </blockquote>
+<p><img loading="lazy" decoding="async" alt="" src="assets/865c52ccb7-redis-pipeline-vs-transaction-4997418c.png" /></p>
 <p>另外，pipeline 不适用于执行顺序有依赖关系的一批命令。就比如说，你需要将前一个命令的结果给后续的命令使用，pipeline 就没办法满足你的需求了。对于这种需求，我们可以使用 <strong>Lua 脚本</strong>。</p>
 <h4 id="lua">Lua 脚本</h4>
 <p>Lua 脚本同样支持批量操作多条命令。一段 Lua 脚本可以视作一条命令执行，可以看作是 <strong>原子操作</strong>。也就是说，一段 Lua 脚本执行过程中不会有其他脚本或 Redis 命令同时执行，保证了操作不会被其他指令插入或打扰，这是 pipeline 所不具备的。</p>
@@ -1212,6 +1215,8 @@ OK
   2. 提交成功后，再删除缓存中对应的数据。</li>
 </ul>
 <p>图解如下：</p>
+<p><img loading="lazy" decoding="async" alt="" src="assets/ad13a2fe72-cache-aside-write-9faa322c.png" />
+<img loading="lazy" decoding="async" alt="" src="assets/e38675148a-cache-aside-read-166ab345.png" /></p>
 <p>这个顺序仍需处理以下问题：</p>
 <ul>
 <li><strong>删除失败</strong>：通过可恢复的任务重试失效操作；如果用 MQ，需要考虑“DB 已提交、消息尚未发出”时宕机的缺口，必要时使用事务消息表或 CDC 衔接，并监控补偿任务。</li>
