@@ -1,10 +1,10 @@
 """术语词典（服务端权威数据源）。
 
 设计原则：
-  · 词典由开发/服务端维护，用户不能自行添加（避免污染与不可控内容）
+  · 词典由开发/服务端维护，用户不能自行添加
   · 每条术语：term / abbr / aliases / definition / detail / category / spread
-  · 别名要避开歧义过大的通用词（如「容器」「对齐」「this」「token」小写），
-    宁可少标也不错标
+  · 别名避开歧义过大的通用词；跨领域高频词（索引/回溯/分区/队列/向量）
+    的定义写成通用表述，避免在另一语境下误导
 
 构建时由 scripts/build/build_library.py 导出为 assets/glossary.json。
 """
@@ -140,9 +140,9 @@ GLOSSARY: list[dict[str, str]] = [
     {
         "term": 'Chunking',
         "abbr": '分块',
-        "definition": '把长文档切成适合检索的小片段。',
-        "detail": '策略有固定长度、按标题/段落、语义切分；块太大噪声多，太小上下文不足，需要 overlap 衔接。',
-        "category": '检索增强',
+        "definition": '把大块内容按规则切成小块。',
+        "detail": 'RAG 中指文档切分（分块大小与重叠是关键参数）；存储/传输中也指按块处理以适配容量或提升并行。',
+        "category": '通用',
         "spread": 'multi',
         "aliases": ['Chunking', '分块', '文档切分'],
     },
@@ -505,9 +505,9 @@ GLOSSARY: list[dict[str, str]] = [
     {
         "term": '回溯',
         "abbr": 'Backtracking',
-        "definition": '通过「选择 → 递归 → 撤销选择」穷举所有可能解的搜索方法。',
-        "detail": '本质是 DFS；关键在于剪枝，否则复杂度爆炸。',
-        "category": '算法',
+        "definition": '沿着路径/历史向前返回的过程。',
+        "detail": '算法中指搜索到尽头后退回尝试其他分支（回溯法）；消息消费中指把 offset 回退到更早位置重新消费。',
+        "category": '通用',
         "spread": 'once',
         "aliases": ['回溯', '回溯法'],
     },
@@ -2314,9 +2314,9 @@ GLOSSARY: list[dict[str, str]] = [
     },
     {
         "term": 'Partition',
-        "definition": 'Kafka 中 Topic 的分片，是并行与顺序的最小单位。',
-        "detail": '同一分区内有序，不同分区之间无序；分区数决定最大并行度。',
-        "category": '消息队列',
+        "definition": '把一个整体按规则切分成多个部分。',
+        "detail": '消息队列中指 Topic 的分片；数据库/磁盘中指数据分区。分区可提升并行度，但增加管理与一致性成本。',
+        "category": '通用',
         "spread": 'once',
         "aliases": ['Partition', '分区'],
     },
@@ -2819,9 +2819,9 @@ GLOSSARY: list[dict[str, str]] = [
     },
     {
         "term": '索引',
-        "definition": '为加速查询而建立的额外数据结构，以空间换时间。',
-        "detail": 'MySQL 用 B+ 树索引；合理建索引能大幅提升查询性能，过多则拖慢写入。',
-        "category": '数据库',
+        "definition": '为加速查询而建立的辅助数据结构，以额外空间换取查询速度。',
+        "detail": '数据库用 B+ 树索引加速检索；搜索引擎/向量库用倒排索引、向量索引；写入增多会拖慢更新。',
+        "category": '通用',
         "spread": 'once',
         "aliases": ['索引'],
     },
@@ -2835,9 +2835,9 @@ GLOSSARY: list[dict[str, str]] = [
     },
     {
         "term": '队列',
-        "definition": '先进先出（FIFO）的线性结构，用于 BFS、任务排队、消息缓冲。',
-        "detail": '变体：双端队列、优先队列、循环队列。',
-        "category": '数据结构',
+        "definition": '按先后顺序排队处理的数据结构或机制。',
+        "detail": '数据结构中是先进先出（FIFO）；系统中指任务队列、消息队列，用于异步与削峰。',
+        "category": '通用',
         "spread": 'once',
         "aliases": ['队列'],
     },
@@ -2851,9 +2851,9 @@ GLOSSARY: list[dict[str, str]] = [
     },
     {
         "term": '向量',
-        "definition": '一串有序数值，用于表示文本/图片等对象的语义特征。',
-        "detail": 'Embedding 的输出就是向量；相似度常用余弦距离衡量。',
-        "category": '检索增强',
+        "definition": '一串有序数值，用来表示对象的特征。',
+        "detail": 'Embedding 输出即语义向量；布隆过滤器用二进制向量；相似度常用余弦距离衡量。',
+        "category": '通用',
         "spread": 'once',
         "aliases": ['向量', '向量化'],
     },
