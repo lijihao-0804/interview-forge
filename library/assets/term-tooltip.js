@@ -68,17 +68,28 @@
     return false;
   }
 
+  // 按 h2 小节分组收集文本节点：返回 [{node, section}]。
+  // section 从 0 开始，每遇到一个 h2 递增，用于实现「一节最多标一次」。
   function collectTextNodes(root) {
     var out = [];
-    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: function (node) {
-        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        if (isSkipped(node)) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
+    var ctx = { section: 0 };
+    function walk(el) {
+      if (el.nodeType === 3) {
+        if (el.nodeValue && el.nodeValue.trim() && !isSkipped(el)) {
+          out.push({ node: el, section: ctx.section });
+        }
+        return;
       }
-    });
-    var n;
-    while ((n = walker.nextNode())) out.push(n);
+      if (el.nodeType !== 1) return;
+      // 先判断标题：小节边界必须在「跳过标签」之前处理，
+      // 否则 h3 会被 SKIP_TAGS 拦掉、section 永远停在 0。
+      if (el.tagName === "H2" || el.tagName === "H3") { ctx.section++; return; }
+      if (SKIP_TAGS.has(el.tagName)) return;                       // code/pre/a 等整体跳过
+      if (el.classList && el.classList.contains("glossary-term")) return;
+      var kids = el.childNodes;
+      for (var i = 0; i < kids.length; i++) walk(kids[i]);
+    }
+    walk(root);
     return out;
   }
 
@@ -86,11 +97,12 @@
     if (!state.root || !state.index) return 0;
     var re = buildRegex(state.index);
     if (!re) return 0;
-    var nodes = collectTextNodes(state.root);
+    var items = collectTextNodes(state.root);
     var count = 0;
-    var seenFirst = {};   // 本章内是否已出现过，供 inline 风格首现高亮
-    var seen = state.density === "all" ? null : loadSeen();   // 跨章节累计次数
-    nodes.forEach(function (node) {
+    var seenFirst = {};   // 「小节序号 + 术语」→ 是否已标注，控制每节最多一次
+    items.forEach(function (item) {
+      var node = item.node;
+      var secIdx = item.section;
       var text = node.nodeValue;
       re.lastIndex = 0;
       var m, last = 0, frag = null;
@@ -100,24 +112,18 @@
         var word = m[0];
         var entry = state.index[word] || {};
         var mainTerm0 = entry.term || word;
-        // 章内去重：同一章里同一术语只标一次（保证单页不会满屏标记）
-        if (seenFirst[mainTerm0]) {
+        // 去重粒度：一个小节（h2 之间）内，同一术语最多标注一次；
+        // density=all 时不做去重（用于用户主动查看全部）。
+        // 去重粒度：整章内同一术语最多标注一次。
+        // 既满足「一节最多一次」，又避免长文每节各标一遍导致整页过密。
+        // density=all 时不去重（用户主动查看全部）。
+        var secKey = mainTerm0;
+        if (state.density !== "all" && seenFirst[secKey]) {
           frag.appendChild(document.createTextNode(word));
           last = m.index + word.length;
           continue;
         }
-        // 跨章额度：偏门词(multi)一本书内最多 3 章标注，普通词(once)只标第一次。
-        if (seen) {
-          var cap = entry.spread === "multi" ? 3 : 1;
-          var used = seen[mainTerm0] || 0;
-          if (used >= cap) {
-            frag.appendChild(document.createTextNode(word));
-            last = m.index + word.length;
-            continue;
-          }
-          seen[mainTerm0] = used + 1;
-        }
-        seenFirst[mainTerm0] = 1;
+        seenFirst[secKey] = 1;
         var span = document.createElement("span");
         span.className = "glossary-term " + (STYLE_CLASS[state.style] || "gt-underline");
         span.textContent = word;
@@ -139,7 +145,6 @@
         node.parentNode.replaceChild(frag, node);
       }
     });
-    if (seen) saveSeen(seen);
     return count;
   }
 
@@ -278,9 +283,9 @@
     ctlPanel.innerHTML =
       '<div class="gc-title">术语注释</div>' +
       '<button type="button" class="gc-opt' + (!isAll ? " on" : "") + '" data-d="once">' +
-        '<b>仅首次（推荐）</b><span>一本书里每个术语只标一次，最清爽</span></button>' +
+        '<b>每节一次（推荐）</b><span>每个小节里同一术语只标一次，最清爽</span></button>' +
       '<button type="button" class="gc-opt' + (isAll ? " on" : "") + '" data-d="all">' +
-        '<b>每章都标</b><span>不受跨章节限制（同章内仍只标一次）</span></button>' +
+        '<b>全部显示</b><span>所有出现处都标注（含同一小节内重复）</span></button>' +
       '<button type="button" class="gc-reset">重置本书已读标记</button>';
     ctlPanel.querySelectorAll(".gc-opt").forEach(function (b) {
       b.addEventListener("click", function () {

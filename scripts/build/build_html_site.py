@@ -1795,22 +1795,49 @@ def math_html(source: str, display: bool = False) -> str:
 # 复用点：build_library.py 直接 import 本函数渲染学习书架的数学笔记，保证全站
 # 公式输出完全一致（本文件中少有的被外部模块引用的函数之一）。
 def render_math_in_markdown(text: str) -> str:
-    """只处理代码围栏和行内代码之外的数学标记，保证 Java 代码中的 $ 不受影响。"""
+    """只处理代码围栏和行内代码之外的数学标记，保证 Java 代码中的 $ 不受影响。
+
+    额外支持 ```math 围栏：抓取来的资料里有的用该围栏包裹 LaTeX，
+    不转换会被当成普通代码块原样显示（\\text{Agent}=... 裸露在正文）。
+    这里改写为 $$...$$，交给统一公式渲染。
+    """
     output: list[str] = []
     in_fence = False
     fence = ""
+    in_math_fence = False
+    math_lines: list[str] = []
     for line in text.splitlines():
         stripped = line.lstrip()
         if stripped.startswith(("```", "~~~")):
             marker = stripped[:3]
+            lang = stripped[3:].strip().lower()
             if not in_fence:
+                if lang == "math":
+                    in_fence, fence = True, marker
+                    in_math_fence = True
+                    math_lines = []
+                    continue
                 in_fence, fence = True, marker
-            elif marker == fence:
+                output.append(line)
+                continue
+            if marker == fence:
+                if in_math_fence:
+                    body = " ".join(x.strip() for x in math_lines if x.strip())
+                    output.append(math_html(body, display=True) if body else "")
+                    in_math_fence = False
+                    in_fence, fence = False, ""
+                    math_lines = []
+                    continue
                 in_fence, fence = False, ""
+                output.append(line)
+                continue
             output.append(line)
             continue
         if in_fence:
-            output.append(line)
+            if in_math_fence:
+                math_lines.append(line)
+            else:
+                output.append(line)
             continue
         parts = re.split(r"(`+[^`]*?`+)", line)
         for index in range(0, len(parts), 2):
@@ -1819,6 +1846,9 @@ def render_math_in_markdown(text: str) -> str:
             part = re.sub(r"(?<!\\)\$([^$\r\n]+?)\$", lambda match: math_html(match.group(1)), part)
             parts[index] = part
         output.append("".join(parts))
+    if in_math_fence and math_lines:   # 未闭合兜底
+        body = " ".join(x.strip() for x in math_lines if x.strip())
+        output.append(math_html(body, display=True) if body else "")
     return "\n".join(output)
 
 

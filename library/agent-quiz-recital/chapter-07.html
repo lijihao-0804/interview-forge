@@ -42,13 +42,8 @@
 <h3 id="_5">余弦相似度、欧几里得距离和曼哈顿距离有什么区别？</h3>
 <p><strong>难度评分：⭐⭐⭐⭐ (4/5)  |  考察频率：⭐⭐⭐⭐ (4/5)</strong></p>
 <p>余弦相似度衡量方向，欧几里得距离衡量直线距离，曼哈顿距离衡量各坐标绝对差之和。对向量 x、y，可写为：</p>
-<div class="codehilite" data-lang="math"><pre><code class="language-math">\begin{aligned}
-\mathrm{cos}(x,y)&amp;=\frac{x^\top y}{\lVert x\rVert_2\lVert y\rVert_2},\\
-d_2(x,y)&amp;=\sqrt{\sum_i(x_i-y_i)^2},\\
-d_1(x,y)&amp;=\sum_i\lvert x_i-y_i\rvert.
-\end{aligned}
-</code></pre></div>
-<p>余弦要求非零向量；若向量都已单位归一化，则平方 L2 距离等于 <code>2 - 2 × 余弦相似度</code>，两者排序等价。未归一化时，向量长度会改变 L2 和内积的排序，这个等价关系不再成立。L1 的几何性质也不能简单替代模型训练所用的度量。</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="aligned mathrmcos(x,y)&amp;=x^top ylVert xrVert_2lVert yrVert_2, d_2(x,y)&amp;=sum_i(x_i-y_i)^2, d_1(x,y)&amp;=sum_ilvert x_i-y_irvert. aligned"><mrow><mrow><mo>(</mo><mtable><mtr><mtd><mrow><mi mathvariant="normal">mathrm</mi><mrow><mi>cos</mi></mrow><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo></mrow></mtd><mtd><mrow><mo>=</mo><mfrac><mrow><msup><mi>x</mi><mi mathvariant="normal">top</mi></msup><mspace width=".18em"/><mi>y</mi></mrow><mrow><mi mathvariant="normal">lVert</mi><mspace width=".18em"/><mi>x</mi><msub><mi mathvariant="normal">rVert</mi><mn>2</mn></msub><mi mathvariant="normal">lVert</mi><mspace width=".18em"/><mi>y</mi><msub><mi mathvariant="normal">rVert</mi><mn>2</mn></msub></mrow></mfrac><mo>,</mo></mrow></mtd></mtr><mtr><mtd><mrow><msub><mi>d</mi><mn>2</mn></msub><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo></mrow></mtd><mtd><mrow><mo>=</mo><msqrt><mrow><msub><mo>∑</mo><mi>i</mi></msub><mo>(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>-</mo><msub><mi>y</mi><mi>i</mi></msub><msup><mo>)</mo><mn>2</mn></msup></mrow></msqrt><mo>,</mo></mrow></mtd></mtr><mtr><mtd><mrow><msub><mi>d</mi><mn>1</mn></msub><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo></mrow></mtd><mtd><mrow><mo>=</mo><msub><mo>∑</mo><mi>i</mi></msub><mi mathvariant="normal">lvert</mi><mspace width=".18em"/><msub><mi>x</mi><mi>i</mi></msub><mo>-</mo><msub><mi>y</mi><mi>i</mi></msub><mi mathvariant="normal">rvert</mi><mo>.</mo></mrow></mtd></mtr></mtable><mo>)</mo></mrow></mrow></math></span>
+余弦要求非零向量；若向量都已单位归一化，则平方 L2 距离等于 <code>2 - 2 × 余弦相似度</code>，两者排序等价。未归一化时，向量长度会改变 L2 和内积的排序，这个等价关系不再成立。L1 的几何性质也不能简单替代模型训练所用的度量。</p>
 <p>检索时按模型推荐度量及验证结果选择，并区分相似度越大越好与距离越小越好。pgvector 的余弦距离 <code>&lt;=&gt;</code> 通常可由 <code>1 - distance</code> 转成余弦相似度；L2 使用 <code>&lt;-&gt;</code>，L1 使用 <code>&lt;+&gt;</code>。索引是否支持所选类型和度量，应按实际扩展版本确认。</p>
 <p><strong>零向量与缺失向量应在入库时显式处理。</strong> 余弦分母为零时没有定义，不能悄悄返回“相似度为 1”。对空文本、编码失败、NaN 和无穷值，应保留失败原因并阻止无效向量进入检索。归一化也应只对范数满足要求的向量进行，且与模型使用契约一致。</p>
 <p>单位化后的 L2 与余弦排序等价，是关于相同候选向量和精确数学距离的结论。两种 ANN 索引采用不同参数或近似搜索路径时，实际返回集合未必逐项一致；工程评估需要把度量关系与近似算法误差分开。</p>
@@ -128,9 +123,8 @@ d_1(x,y)&amp;=\sum_i\lvert x_i-y_i\rvert.
 <h3 id="rrf">RRF 是什么？为什么不直接把向量分数和全文检索分数相加？</h3>
 <p><strong>难度评分：⭐⭐⭐⭐ (4/5)  |  考察频率：⭐⭐⭐⭐ (4/5)</strong></p>
 <p>RRF（Reciprocal Rank Fusion）按各检索列表中的名次融合候选，避免直接混合量纲不同的原始分值。对候选 d，可定义：</p>
-<div class="codehilite" data-lang="math"><pre><code class="language-math">\mathrm{RRF}(d)=\sum_{j:d\in L_j}\frac{w_j}{c+\mathrm{rank}_j(d)}.
-</code></pre></div>
-<p>名次从 1 开始，未出现在某一路的候选在该路贡献为零，c 为平滑常数，w 为可选权重。常见的 c=60 只是经验设置，并非普适最优值。c 较大时高低名次差异被压缩，权重也应通过验证集调整。</p>
+<p><span class="math-display-wrap"><math class="math-display" display="block" aria-label="mathrmRRF(d)=sum_j:din L_jw_jc+mathrmrank_j(d)."><mrow><mi mathvariant="normal">mathrm</mi><mrow><mi>RRF</mi></mrow><mo>(</mo><mi>d</mi><mo>)</mo><mo>=</mo><msub><mo>∑</mo><mrow><mi>j</mi><mo>:</mo><mi>d</mi><mi mathvariant="normal">in</mi><mspace width=".18em"/><msub><mi>L</mi><mi>j</mi></msub></mrow></msub><mfrac><mrow><msub><mi>w</mi><mi>j</mi></msub></mrow><mrow><mi>c</mi><mo>+</mo><mi mathvariant="normal">mathrm</mi><msub><mrow><mi>rank</mi></mrow><mi>j</mi></msub><mo>(</mo><mi>d</mi><mo>)</mo></mrow></mfrac><mo>.</mo></mrow></math></span>
+名次从 1 开始，未出现在某一路的候选在该路贡献为零，c 为平滑常数，w 为可选权重。常见的 c=60 只是经验设置，并非普适最优值。c 较大时高低名次差异被压缩，权重也应通过验证集调整。</p>
 <p>向量距离通常越小越好，全文 rank 通常越大越好，而且分布随查询变化，直接相加既可能方向错，也可能被某一路数值范围支配。经过校准的加权分数也可使用，但必须解释校准方法。融合前在每一路按文档块标识去重，保持稳定的并列排序，防止重复条目虚增投票。</p>
 <p><strong>一个可直接运行的等权 RRF 实现。</strong> 下面只处理已经按相关性排序的字符串块 ID。每一路先去重，再从 1 开始计数；同分时按 ID 排序，保证重放稳定。教学实现采用等权融合，不读取原始相似度分数。</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
