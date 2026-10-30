@@ -52,6 +52,9 @@
       var esc2 = escapeReg(k);
       // 纯英文/数字开头的词加词边界，避免词中命中
       if (/^[A-Za-z0-9]/.test(k)) return "\\b" + esc2 + "\\b";
+      // 两个汉字的短词极易成为其他词的子串（如「字节流」里的「节流」），
+      // 要求其前面不是汉字，宁可少标也不错标。
+      if (/^[\u4e00-\u9fff]{2}$/.test(k)) return "(?<![\u4e00-\u9fff])" + esc2;
       return esc2;
     });
     return new RegExp("(" + parts.join("|") + ")", "g");
