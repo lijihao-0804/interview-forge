@@ -1688,6 +1688,116 @@ if(otpLinks.length){var otpMap=new Map(otpLinks.map(function(a){return [a.getAtt
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){otpLinks.forEach(function(a){a.classList.remove('active')});var a=otpMap.get(e.target.id);if(a)a.classList.add('active')}})},{rootMargin:'-12% 0px -78% 0px'});
 otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(h)});}
 
+// ---- 记住上次浏览位置 ----
+// 只存滚动位置，不存正文；用 localStorage 按「模块:章节」记录。
+// 上限：最近 30 条 + 7 天有效期，两者任一超出即清理，避免无限增长。
+(function(){
+  if(!document.querySelector('.reader-body'))return;
+  var KEY='readingPos:v1';
+  var MAX_ITEMS=30;
+  var MAX_AGE_MS=7*24*60*60*1000;
+  var here=moduleId+':'+contentId;
+  var saveTimer=null, restored=false, hintEl=null, fixTimer=null;
+
+  function readAll(){
+    try{var s=localStorage.getItem(KEY);return s?JSON.parse(s):{};}catch(e){return {};}
+  }
+  function writeAll(obj){
+    try{
+      var now=Date.now();
+      var entries=Object.keys(obj).map(function(k){return [k,obj[k]];})
+        .filter(function(e){return e[1]&&typeof e[1].ratio==='number'&&(now-(e[1].ts||0))<MAX_AGE_MS;})
+        .sort(function(a,b){return (b[1].ts||0)-(a[1].ts||0);})
+        .slice(0,MAX_ITEMS);
+      if(!entries.length){localStorage.removeItem(KEY);return;}
+      var out={};
+      entries.forEach(function(e){out[e[0]]=e[1];});
+      localStorage.setItem(KEY,JSON.stringify(out));
+    }catch(e){}
+  }
+  function docTotal(){
+    var el=document.documentElement;
+    return Math.max(el.scrollHeight-window.innerHeight,1);
+  }
+  function currentPos(){
+    var total=docTotal();
+    return {y:Math.round(window.scrollY),ratio:Math.min(1,Math.max(0,window.scrollY/total))};
+  }
+  function save(){
+    if(!restored)return;
+    var p=currentPos();
+    var all=readAll();
+    if(p.y<40){ if(all[here]){delete all[here];writeAll(all);} return; }
+    all[here]={y:p.y,ratio:p.ratio,ts:Date.now()};
+    writeAll(all);
+  }
+  function scheduleSave(){
+    if(!restored)return;
+    if(saveTimer)clearTimeout(saveTimer);
+    saveTimer=setTimeout(save,600);
+  }
+  function scrollToQuiet(y){
+    // 页面全局的 scroll-behavior:smooth 会让 scrollTo 变成动画，
+    // 恢复位置与「回到顶部」都需要瞬时跳转，故显式用 instant 并兜底。
+    try{
+      window.scrollTo({top:y,left:0,behavior:'instant'});
+    }catch(e){
+      var el=document.documentElement;
+      var prev=el.style.scrollBehavior;
+      el.style.scrollBehavior='auto';
+      window.scrollTo(0,y);
+      el.style.scrollBehavior=prev;
+    }
+  }
+  function showHint(){
+    if(hintEl||!document.body)return;
+    hintEl=document.createElement('div');
+    hintEl.className='reading-pos-hint';
+    hintEl.innerHTML='<span>已回到上次阅读位置</span><button type="button">回到顶部</button>';
+    hintEl.querySelector('button').addEventListener('click',function(){
+      if(fixTimer){clearInterval(fixTimer);fixTimer=null;}
+      window.__readingPosRestoreUntil=0;   // 恢复结束，后续滚动正常计进度
+      scrollToQuiet(0);
+      hintEl.classList.remove('show');
+    });
+    document.body.appendChild(hintEl);
+    requestAnimationFrame(function(){hintEl.classList.add('show');});
+    setTimeout(function(){ if(hintEl) hintEl.classList.remove('show'); },4200);
+  }
+
+  function restore(){
+    var all=readAll();
+    var rec=all[here];
+    if(!rec||typeof rec.ratio!=='number'){restored=true;return;}
+    if(Date.now()-(rec.ts||0)>MAX_AGE_MS){restored=true;return;}
+    var total=docTotal();
+    var target=Math.round((rec.ratio||0)*total);
+    // 图片懒加载会让 scrollHeight 变化；若按像素与按比例差太多，优先按比例
+    if(target<40){restored=true;return;}
+    // 标记：恢复期间的滚动不计入自动判定的阅读进度
+    window.__readingPosRestoreUntil=Date.now()+1600;
+    scrollToQuiet(target);
+    restored=true;
+    showHint();
+    // 图片陆续加载后高度会变，短时间内多次校正，直到稳定或用户主动滚动
+    var tries=0, userScrolled=false;
+    function onUserScroll(){userScrolled=true;}
+    window.addEventListener('wheel',onUserScroll,{passive:true,once:true});
+    window.addEventListener('touchmove',onUserScroll,{passive:true,once:true});
+    fixTimer=setInterval(function(){
+      tries++;
+      if(userScrolled||tries>8){clearInterval(fixTimer);fixTimer=null;return;}
+      var t2=Math.round((rec.ratio||0)*docTotal());
+      if(Math.abs(window.scrollY-t2)>60)scrollToQuiet(t2);
+    },250);
+  }
+
+  window.addEventListener('scroll',scheduleSave,{passive:true});
+  document.addEventListener('visibilitychange',function(){ if(document.hidden)save(); });
+  window.addEventListener('pagehide',save);
+  restore();
+})();
+
 // ---- 自动判定「已看过」：停留满 3 分钟 + 滚动到 80% ----
 (function(){
   if(!document.querySelector('.chapter-status'))return;
@@ -1702,6 +1812,9 @@ otpMap.forEach(function(a,id){var h=document.getElementById(id);if(h)io.observe(
     return Math.min(1,Math.max(0,window.scrollY/total));
   }
   function progress(){
+    // 若刚由「上次浏览位置」恢复滚动，这一次不算用户阅读进度，
+    // 否则一进页面就满足 80% 会立刻误判已读。
+    if(window.__readingPosRestoreUntil && Date.now() < window.__readingPosRestoreUntil)return;
     maxScroll=Math.max(maxScroll,docDepth());
   }
 
