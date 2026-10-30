@@ -935,18 +935,29 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         # /api/mock：模拟组卷 —— 按 ?category/?difficulty 过滤后随机抽 count 道（上限 50，无放回）。
+        # ?scope=recent/stale/unseen 按学习状态筛范围；?days= 控制「近期」天数；
+        # ?avoid=0 关闭降重。默认 count 5，与前端「限时模拟」默认一致。
         if parsed.path == "/api/mock":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             try:
-                count = max(1, min(int(params.get("count", "10") or "10"), 50))
+                count = max(1, min(int(params.get("count", "5") or "5"), 50))
             except ValueError:
                 self.send_json({"error": "count 必须是整数"}, HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                recent_days = int(params.get("days", "3") or "3")
+            except ValueError:
+                self.send_json({"error": "days 必须是整数"}, HTTPStatus.BAD_REQUEST)
                 return
             try:
                 self.send_json(mock_exam(
                     count=count,
                     category=params.get("category", ""),
                     difficulty=params.get("difficulty", ""),
+                    scope=params.get("scope", ""),
+                    recent_days=recent_days,
+                    avoid_repeat=params.get("avoid", "1") != "0",
+                    db_path=db,
                 ))
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)

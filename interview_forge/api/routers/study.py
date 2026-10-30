@@ -222,8 +222,19 @@ def mock(request: Request):
             count = max(1, min(int(request.query_params.get("count", "5") or "5"), 50))
         except ValueError as exc:
             raise ValueError("count 必须是整数") from exc
-        return json_response(mock_exam(count=count, category=request.query_params.get("category", ""),
-                                       difficulty=request.query_params.get("difficulty", "")))
+        try:
+            recent_days = int(request.query_params.get("days", "3") or "3")
+        except ValueError as exc:
+            raise ValueError("days 必须是整数") from exc
+        return json_response(mock_exam(
+            count=count,
+            category=request.query_params.get("category", ""),
+            difficulty=request.query_params.get("difficulty", ""),
+            scope=request.query_params.get("scope", ""),
+            recent_days=recent_days,
+            avoid_repeat=request.query_params.get("avoid", "1") != "0",
+            db_path=user_db(user),
+        ))
     except BaseException as exc:
         return _handled(exc)
 

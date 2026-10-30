@@ -297,6 +297,14 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--panel-so
       <div class="field"><label for="mockMinutes">时长（分钟）</label><select id="mockMinutes"><option value="30">30</option><option value="60" selected>60</option><option value="90">90</option></select></div>
       <div class="field"><label for="mockCategory">专题</label><select id="mockCategory"><option value="">全部专题</option></select></div>
       <div class="field"><label for="mockDifficulty">难度</label><select id="mockDifficulty"><option value="">全部难度</option><option value="简单">简单</option><option value="中等">中等</option><option value="困难">困难</option></select></div>
+      <div class="field"><label for="mockScope">抽题范围</label><select id="mockScope">
+        <option value="all" selected>全部题目</option>
+        <option value="today">今天学过的</option>
+        <option value="recent">近 3 天学过的</option>
+        <option value="recent7">近 7 天学过的</option>
+        <option value="stale">需要复习的（逾期）</option>
+        <option value="unseen">从未做过的</option>
+      </select></div>
     </div></details>
     <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="mockStart" class="round-button" data-online-action type="button">开始模拟</button><button id="mockAbandon" class="round-button" type="button" hidden>放弃本次</button><span id="mockTimer" class="mock-timer" role="timer" aria-live="off"></span></div>
     <div id="mockList" class="mock-list"></div>
@@ -870,17 +878,33 @@ async function mockStart(){
   const minutes=Number(document.getElementById('mockMinutes').value);
   const category=document.getElementById('mockCategory').value;
   const difficulty=document.getElementById('mockDifficulty').value;
+  // 抽题范围 → scope + days 两个后端参数
+  const scopeRaw=document.getElementById('mockScope').value;
+  const scopeMap={today:['recent',1],recent:['recent',3],recent7:['recent',7],stale:['stale',3],unseen:['unseen',3],all:['all',3]};
+  const [scope,days]=scopeMap[scopeRaw]||['all',3];
   document.getElementById('mockStatus').textContent='组卷中…';
   try{
-    const response=await fetchWithTimeout(`/api/mock?count=${count}&category=${encodeURIComponent(category)}&difficulty=${encodeURIComponent(difficulty)}`,{cache:'no-store'});
+    const response=await fetchWithTimeout(`/api/mock?count=${count}&category=${encodeURIComponent(category)}&difficulty=${encodeURIComponent(difficulty)}&scope=${scope}&days=${days}`,{cache:'no-store'});
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'组卷失败');
     mockState={problems:data.problems,index:0,done:[],skip:[],startedAt:Date.now(),deadline:Date.now()+minutes*60000,finished:false};
     persistMockState();setMockActive(true);document.getElementById('mockSettings').open=false;
-    document.getElementById('mockStatus').textContent=`${data.count} 题 · ${minutes} 分钟`;
+    // 状态条显示：题数 · 时长 · 范围（候选池大小 / 本轮重复题数）
+    const scopeLbl=data.scope_label&&data.scope!=='all'?` · ${data.scope_label}（候选 ${data.scope_pool}）`:'';
+    const repeatLbl=data.repeated_count>0?` · 重复 ${data.repeated_count}`:'';
+    document.getElementById('mockStatus').textContent=`${data.count} 题 · ${minutes} 分钟${scopeLbl}${repeatLbl}`;
     document.getElementById('mockReport').innerHTML='';
     mockTimerId=setInterval(mockTick,1000);mockTick();mockRender();
-  }catch(error){if(!mockState)setMockActive(false);document.getElementById('mockStatus').textContent=`组卷失败：${error.message}`}
+  }catch(error){
+    if(!mockState)setMockActive(false);
+    // 范围太窄导致无题时，给出可操作的替代建议，而不是干巴巴的报错
+    const msg=error.message||'组卷失败';
+    if(/没有可用|没有匹配/.test(msg)){
+      document.getElementById('mockStatus').textContent=`${msg}。换个范围试试：近 7 天学过的 / 全部题目`;
+    }else{
+      document.getElementById('mockStatus').textContent=`组卷失败：${msg}`;
+    }
+  }
   finally{mockInFlight=false}
 }
 function mockRender(){

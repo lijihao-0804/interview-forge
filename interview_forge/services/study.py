@@ -1402,13 +1402,102 @@ def pick_problem(
     }
 
 
+# 模拟考「降重」历史：记录最近若干轮出过的题号，抽题时优先避开。
+# 存在 settings 表内部 key 下，不暴露给前端；只保留最近 N 轮控制体积。
+_MOCK_HISTORY_KEY = "mock_recent_rounds"
+_MOCK_HISTORY_ROUNDS = 3
+
+
+def _mock_problem_state(db_path: Path) -> dict[int, dict[str, object]]:
+    """汇总每题的学习状态，供模拟考按「近期/逾期/未做」筛选用。
+
+    返回 {problem_id: {last_activity_date, due_date, rounds}}：
+      · last_activity_date：最近一次浏览或 AC 的日期（YYYY-MM-DD），从未学习为空串
+      · due_date：间隔重复的下次复习日期，未建立复习卡为空串
+      · rounds：已完成的复习轮次
+    """
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute("BEGIN")
+        ac = _ac_problem_progress_from_connection(connection)
+        view_rows = connection.execute(
+            """SELECT problem_id,
+                      substr(MAX(studied_at), 1, 10) AS last_view_date
+               FROM study_events WHERE action = 'view' GROUP BY problem_id"""
+        ).fetchall()
+        due_map = {
+            str(row["target_id"]): str(row["due_date"] or "")
+            for row in connection.execute(
+                "SELECT target_id, due_date FROM review_cards WHERE target_type = 'problem'"
+            ).fetchall()
+        }
+        connection.execute("COMMIT")
+
+    state: dict[int, dict[str, object]] = {}
+    for row in view_rows:
+        pid = int(row["problem_id"])
+        state[pid] = {"last_activity_date": str(row["last_view_date"] or ""),
+                      "due_date": due_map.get(str(pid), ""), "rounds": 0}
+    for pid, progress in ac.items():
+        entry = state.setdefault(pid, {"last_activity_date": "", "due_date": due_map.get(str(pid), ""), "rounds": 0})
+        completed_date = str(progress.get("last_completed_at") or "")[:10]
+        if completed_date > str(entry["last_activity_date"]):
+            entry["last_activity_date"] = completed_date
+        entry["rounds"] = int(progress.get("rounds", 0))
+    return state
+
+
+def _mock_load_history(db_path: Path) -> list[list[int]]:
+    """读取最近几轮模拟出题的题号分组。"""
+    with closing(server_runtime.connect(db_path)) as connection:
+        row = connection.execute(
+            "SELECT value FROM settings WHERE key = ?", (_MOCK_HISTORY_KEY,)
+        ).fetchone()
+    if not row:
+        return []
+    try:
+        data = json.loads(str(row["value"]))
+        rounds = data.get("rounds") if isinstance(data, dict) else None
+        if not isinstance(rounds, list):
+            return []
+        return [[int(x) for x in r] for r in rounds if isinstance(r, list)]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+
+
+def _mock_save_history(db_path: Path, rounds: list[list[int]]) -> None:
+    """把本轮题号并入历史，只保留最近 N 轮。"""
+    rounds = rounds[-_MOCK_HISTORY_ROUNDS:]
+    payload = json.dumps({"rounds": rounds}, ensure_ascii=False)
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute(
+            """INSERT INTO settings(key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (_MOCK_HISTORY_KEY, payload),
+        )
+        connection.commit()
+
+
 def mock_exam(
     count: int = 10,
     category: str = "",
     difficulty: str = "",
+    scope: str = "",
+    recent_days: int = 3,
+    avoid_repeat: bool = True,
+    db_path: Path = DB_PATH,
 ) -> dict[str, object]:
-    """限时模拟组卷：按条件随机抽 count 道不重复题目。"""
-    # 候选集：按专题/难度过滤题目清单；条件为空表示不限制（pick_problem 与 mock_exam 共用过滤逻辑）。
+    """限时模拟组卷。
+
+    抽题分层（scope）：
+      · ""/"all"：全部题目
+      · "recent"：最近 recent_days 天有学习活动（浏览或 AC）的题
+      · "stale" ：需要复习的题（复习到期日 <= 今天，即面板上的红色逾期题）
+      · "unseen"：从未学习过的题（无浏览、无 AC 记录）
+
+    降重（avoid_repeat）：记录最近几轮出过的题，优先从「近期没考过」的题里抽，
+    不够时才按「最久未出现」顺序补足，避免连续几轮反复考同一批题。
+    """
+    # 1) 基础候选：按专题/难度过滤
     candidates = [
         p for p in PROBLEM_BY_ID.values()
         if (not category or str(p["category"]) == category)
@@ -1416,11 +1505,82 @@ def mock_exam(
     ]
     if not candidates:
         raise ValueError("没有匹配的题目")
-    # 抽题量夹逼到 1~候选数；random.sample 无放回，保证组卷不重复。
-    count = max(1, min(count, len(candidates)))
-    chosen = random.sample(candidates, count)
+
+    today = server_runtime.business_now().date()
+    state = _mock_problem_state(db_path)
+    norm_scope = (scope or "").strip().lower()
+
+    # 2) 按学习状态筛范围
+    if norm_scope == "recent":
+        days = max(1, min(int(recent_days or 3), 60))
+        since = (today - timedelta(days=days - 1)).isoformat()
+        filtered = [p for p in candidates
+                    if str(state.get(int(p["id"]), {}).get("last_activity_date", "")) >= since]
+        scope_label = "近 %d 天学过" % days
+    elif norm_scope == "stale":
+        today_str = today.isoformat()
+        filtered = [p for p in candidates
+                    if (lambda d: bool(d) and d <= today_str)(str(state.get(int(p["id"]), {}).get("due_date", "")))]
+        # 兜底：没有到期题时，退化为「有学习记录、且最久没碰」的前若干题
+        if not filtered:
+            learned = [p for p in candidates
+                       if str(state.get(int(p["id"]), {}).get("last_activity_date", ""))]
+            learned.sort(key=lambda p: str(state.get(int(p["id"]), {}).get("last_activity_date", "")))
+            filtered = learned
+        scope_label = "需要复习"
+    elif norm_scope == "unseen":
+        filtered = [p for p in candidates
+                    if not str(state.get(int(p["id"]), {}).get("last_activity_date", ""))
+                    and int(state.get(int(p["id"]), {}).get("rounds", 0)) == 0]
+        scope_label = "从未做过"
+    elif norm_scope in ("", "all"):
+        filtered = list(candidates)
+        scope_label = "全部"
+    else:
+        raise ValueError("未知的抽题范围")
+
+    if not filtered:
+        raise ValueError("该范围内没有可用的题目（%s）" % scope_label)
+
+    # 3) 降重：优先抽近期没考过的题
+    recent_ids: set[int] = set()
+    history: list[list[int]] = []
+    if avoid_repeat:
+        history = _mock_load_history(db_path)
+        for rnd in history:
+            recent_ids.update(int(x) for x in rnd)
+
+    fresh = [p for p in filtered if int(p["id"]) not in recent_ids]
+    repeated = [p for p in filtered if int(p["id"]) in recent_ids]
+    # 重复池按「最久未出」排序：越早出现在历史里的越先补
+    if repeated:
+        rank: dict[int, int] = {}
+        for idx, rnd in enumerate(history):
+            for pid in rnd:
+                rank[int(pid)] = idx   # 越靠后越新，覆盖旧值
+        repeated.sort(key=lambda p: rank.get(int(p["id"]), -1))
+
+    # 4) 从 fresh 抽，不够再补 repeated
+    count = max(1, min(count, len(filtered)))
+    chosen = []
+    if len(fresh) >= count:
+        chosen = random.sample(fresh, count)
+    else:
+        chosen = list(fresh)
+        need = count - len(chosen)
+        chosen += repeated[:need]
+
+    # 5) 记录本轮历史（只记录实际抽中的题）
+    if avoid_repeat:
+        history.append([int(p["id"]) for p in chosen])
+        _mock_save_history(db_path, history)
+
     return {
         "count": len(chosen),
+        "scope": norm_scope or "all",
+        "scope_label": scope_label,
+        "scope_pool": len(filtered),
+        "repeated_count": sum(1 for p in chosen if int(p["id"]) in recent_ids),
         "problems": [
             {
                 "id": int(p["id"]),
