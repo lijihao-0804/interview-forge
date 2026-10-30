@@ -115,11 +115,9 @@
         var word = m[0];
         var entry = state.index[word] || {};
         var mainTerm0 = entry.term || word;
-        // 去重粒度：一个小节（h2 之间）内，同一术语最多标注一次；
-        // density=all 时不做去重（用于用户主动查看全部）。
-        // 去重粒度：整章内同一术语最多标注一次。
-        // 既满足「一节最多一次」，又避免长文每节各标一遍导致整页过密。
-        // density=all 时不去重（用户主动查看全部）。
+        // 去重粒度：同一页面内，同一术语最多标注一次。
+        // 这样单页不会满屏标记，且每次打开页面都能重新看到注释（不落盘）。
+        // density=all 时不做去重（用户主动查看全部）。
         var secKey = mainTerm0;
         if (state.density !== "all" && seenFirst[secKey]) {
           frag.appendChild(document.createTextNode(word));
@@ -134,11 +132,8 @@
         span.setAttribute("role", "button");
         span.setAttribute("tabindex", "0");
         span.setAttribute("aria-label", word + "：查看术语解释");
-        var mainTerm = entry.term || word;
-        if (!seenFirst[mainTerm]) {
-          seenFirst[mainTerm] = 1;
-          span.setAttribute("data-first", "1");
-        }
+        // 页内首次出现（去重后必然首次），供 inline 风格高亮
+        span.setAttribute("data-first", "1");
         frag.appendChild(span);
         last = m.index + word.length;
         count++;
@@ -289,7 +284,7 @@
         '<b>每节一次（推荐）</b><span>每个小节里同一术语只标一次，最清爽</span></button>' +
       '<button type="button" class="gc-opt' + (isAll ? " on" : "") + '" data-d="all">' +
         '<b>全部显示</b><span>所有出现处都标注（含同一小节内重复）</span></button>' +
-      '<button type="button" class="gc-reset">重置本书已读标记</button>';
+      '<button type="button" class="gc-reset">重新标注本页</button>';
     ctlPanel.querySelectorAll(".gc-opt").forEach(function (b) {
       b.addEventListener("click", function () {
         state.density = b.dataset.d;
@@ -300,7 +295,6 @@
     });
     var reset = ctlPanel.querySelector(".gc-reset");
     if (reset) reset.addEventListener("click", function () {
-      try { localStorage.removeItem(seenKey()); } catch (e) {}
       reannotate();
     });
   }

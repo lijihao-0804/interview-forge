@@ -2512,6 +2512,22 @@ def render_markdown(source: Path) -> None:
             page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href)
         except Exception:
             pass  # 转换失败不阻断构建，页面保持原样
+        # 题解页也接入术语注释（与书架章节页共用同一份服务端词典）
+        _tc = web_rel(output, ROOT / "assets" / "term-tooltip.css") + f"?v={ASSET_VERSION}"
+        _tj = web_rel(output, ROOT / "assets" / "term-tooltip.js") + f"?v={ASSET_VERSION}"
+        _tg = web_rel(output, ROOT / "assets" / "glossary.json")
+        page = page.replace("</head>", f'<link rel="stylesheet" href="{_tc}">\n</head>', 1)
+        page = page.replace(
+            "</body>",
+            f'<script src="{_tj}" defer></script>\n'
+            f'<script>(function(){{function go(){{if(!window.GlossaryEngine)return;'
+            f'GlossaryEngine.init({{root:document.querySelector(".markdown-body"),'
+            f'glossaryUrl:"{_tg}",style:"underline",trigger:"hover",'
+            f'scopeKey:"hot100-solution"}});}}'
+            f'if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",go);}}'
+            f'else{{go();}}}})();</script>\n</body>',
+            1,
+        )
     page = mark_cross_page_links(page)
     output.write_text(page, encoding="utf-8")
 
