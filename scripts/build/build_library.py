@@ -2276,7 +2276,8 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 f'<script>(function(){{'
                 f'function go(){{if(!window.GlossaryEngine)return;'
                 f'GlossaryEngine.init({{root:document.querySelector(".reader-body"),'
-                f'glossaryUrl:"../assets/glossary.json",style:"underline",trigger:"hover"}});}}'
+                f'glossaryUrl:"../assets/glossary.json",style:"underline",trigger:"hover",'
+                f'scopeKey:moduleId}});}}'
                 f'if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",go);}}'
                 f'else{{go();}}}})();</script>'
             )

@@ -21,9 +21,21 @@
   var SKIP_TAGS = new Set(["CODE", "PRE", "A", "H1", "H2", "H3", "H4", "H5", "H6",
                            "SCRIPT", "STYLE", "TEXTAREA", "INPUT", "BUTTON", "SVG"]);
 
-  var state = { glossary: null, index: null, style: "underline", trigger: "hover", root: null };
+  var state = { glossary: null, index: null, style: "underline", trigger: "hover", root: null,
+              scopeKey: "", density: "once" };   // density: once=一本书一次 | all=全部标注
   var pop = null;       // 单例浮层
   var activeEl = null;  // 当前打开的术语
+
+
+  // ---- 已标注次数记录：让「一本书只标一次」跨章节生效 ----
+  var SEEN_PREFIX = "glossarySeen:v1:";
+  function seenKey() { return SEEN_PREFIX + (state.scopeKey || "global"); }
+  function loadSeen() {
+    try { return JSON.parse(localStorage.getItem(seenKey()) || "{}"); } catch (e) { return {}; }
+  }
+  function saveSeen(obj) {
+    try { localStorage.setItem(seenKey(), JSON.stringify(obj)); } catch (e) {}
+  }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -76,7 +88,8 @@
     if (!re) return 0;
     var nodes = collectTextNodes(state.root);
     var count = 0;
-    var seenFirst = {};   // 记录每个主词是否已出现过，供 inline 风格首现高亮
+    var seenFirst = {};   // 本章内是否已出现过，供 inline 风格首现高亮
+    var seen = state.density === "all" ? null : loadSeen();   // 跨章节累计次数
     nodes.forEach(function (node) {
       var text = node.nodeValue;
       re.lastIndex = 0;
@@ -86,6 +99,25 @@
         if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
         var word = m[0];
         var entry = state.index[word] || {};
+        var mainTerm0 = entry.term || word;
+        // 章内去重：同一章里同一术语只标一次（保证单页不会满屏标记）
+        if (seenFirst[mainTerm0]) {
+          frag.appendChild(document.createTextNode(word));
+          last = m.index + word.length;
+          continue;
+        }
+        // 跨章额度：偏门词(multi)一本书内最多 3 章标注，普通词(once)只标第一次。
+        if (seen) {
+          var cap = entry.spread === "multi" ? 3 : 1;
+          var used = seen[mainTerm0] || 0;
+          if (used >= cap) {
+            frag.appendChild(document.createTextNode(word));
+            last = m.index + word.length;
+            continue;
+          }
+          seen[mainTerm0] = used + 1;
+        }
+        seenFirst[mainTerm0] = 1;
         var span = document.createElement("span");
         span.className = "glossary-term " + (STYLE_CLASS[state.style] || "gt-underline");
         span.textContent = word;
@@ -107,6 +139,7 @@
         node.parentNode.replaceChild(frag, node);
       }
     });
+    if (seen) saveSeen(seen);
     return count;
   }
 
@@ -217,6 +250,61 @@
     });
   }
 
+
+  // ---- 密度切换控件：右下角小浮标 + 弹出面板 ----
+  var ctl = null, ctlPanel = null;
+  function mountControls() {
+    if (ctl) return;
+    ctl = document.createElement("div");
+    ctl.className = "glossary-ctl";
+    ctl.innerHTML = '<button type="button" class="gc-btn" aria-label="术语注释设置" title="术语注释设置">Aa</button>';
+    ctlPanel = document.createElement("div");
+    ctlPanel.className = "gc-panel";
+    ctlPanel.hidden = true;
+    ctl.appendChild(ctlPanel);
+    document.body.appendChild(ctl);
+    renderPanel();
+    ctl.querySelector(".gc-btn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      ctlPanel.hidden = !ctlPanel.hidden;
+    });
+    document.addEventListener("click", function (e) {
+      if (ctl && !ctl.contains(e.target)) ctlPanel.hidden = true;
+    });
+  }
+  function renderPanel() {
+    if (!ctlPanel) return;
+    var isAll = state.density === "all";
+    ctlPanel.innerHTML =
+      '<div class="gc-title">术语注释</div>' +
+      '<button type="button" class="gc-opt' + (!isAll ? " on" : "") + '" data-d="once">' +
+        '<b>仅首次（推荐）</b><span>一本书里每个术语只标一次，最清爽</span></button>' +
+      '<button type="button" class="gc-opt' + (isAll ? " on" : "") + '" data-d="all">' +
+        '<b>每章都标</b><span>不受跨章节限制（同章内仍只标一次）</span></button>' +
+      '<button type="button" class="gc-reset">重置本书已读标记</button>';
+    ctlPanel.querySelectorAll(".gc-opt").forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.density = b.dataset.d;
+        try { localStorage.setItem("glossaryDensity:v1", state.density); } catch (e) {}
+        renderPanel();
+        reannotate();
+      });
+    });
+    var reset = ctlPanel.querySelector(".gc-reset");
+    if (reset) reset.addEventListener("click", function () {
+      try { localStorage.removeItem(seenKey()); } catch (e) {}
+      reannotate();
+    });
+  }
+  // 重新标注：还原原文后重建（依赖原始 HTML 备份）
+  function reannotate() {
+    if (window.__glossaryOriginalHTML && state.root) {
+      state.root.innerHTML = window.__glossaryOriginalHTML;
+    }
+    var n = annotate();
+    return n;
+  }
+
   function loadGlossary(url) {
     return fetch(url, { cache: "force-cache" })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
@@ -229,11 +317,19 @@
       state.root = opts.root || document.querySelector(".reader-body") || document.body;
       state.style = opts.style || "underline";
       state.trigger = opts.trigger || "hover";
+      state.scopeKey = opts.scopeKey || "";
+      // 密度偏好存本地：用户切到「全部显示」后，同一本书后续章节沿用
+      var savedDensity = null;
+      try { savedDensity = localStorage.getItem("glossaryDensity:v1"); } catch (e) {}
+      state.density = opts.density || savedDensity || "once";
+      if (opts.controls !== false) mountControls();
       ensurePop();
       var p = opts.glossary
         ? Promise.resolve().then(function () { state.glossary = opts.glossary.entries || []; state.index = opts.glossary.index || {}; })
         : loadGlossary(opts.glossaryUrl || "/assets/glossary.json");
       return p.then(function () {
+        // 备份原始 HTML，切密度/重置时可无损还原
+        window.__glossaryOriginalHTML = state.root ? state.root.innerHTML : "";
         var n = annotate();
         bind();
         return { annotated: n, terms: (state.glossary || []).length };
