@@ -1158,6 +1158,7 @@ def document(
     scripts: str = "",
     *,
     css_version: str | None = None,
+    extra_head: str = "",
 ) -> str:
     # 图片懒加载：章节/模块页配图多（小林笔记单页可达 10+ 张截图），
     # 统一加 loading=lazy 让视口外图片滚动到才加载。
@@ -1177,7 +1178,7 @@ def document(
         f'<script src="{asset_base}/ai-page-context.js?v=1" defer data-interviewforge-ai></script>'
         f'<script src="{asset_base}/ai-launcher.js?v=3" defer data-interviewforge-ai></script>'
     )
-    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{ai_assets}</head><body>{body}
+    page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>{html.escape(title)}</title><link rel="stylesheet" href="{css_href}?v={css_version}">{extra_head}{ai_assets}</head><body>{body}
 <script>
 /* Esc 返回上级：章节→模块→书架→中控台。输入框/弹窗内不触发。 */
 (function(){{
@@ -1758,13 +1759,26 @@ def build() -> None:
     # 第 0 步：固定资产落盘。library.css / library-mermaid.js 只 strip 首尾空白再写
     # (与常量内容逐字节一致，便于 check 脚本比对)；版本号 ?v= 在页面引用处统一。
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    # 术语词典导出：以 interview_forge/data/glossary.py 为唯一权威源，
+    # 每次构建重新生成 assets/glossary.json，保证前端词条与服务端一致。
+    try:
+        from interview_forge.data.glossary import GLOSSARY, glossary_map
+        (HOT100_ROOT / "assets" / "glossary.json").write_text(
+            json.dumps({"entries": GLOSSARY, "index": glossary_map()}, ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
+    except ImportError:
+        pass
     # 增量构建缓存：脚本自身哈希或资源版本变化时整体失效（详见 build_cache）。
     cache = build_cache.load_cache(HOT100_ROOT)
     cache = build_cache.invalidate_on_tool_change(cache, Path(__file__).resolve())
     (OUTPUT_ROOT / "assets").mkdir(parents=True, exist_ok=True)
     (OUTPUT_ROOT / "assets" / "library.css").write_text(LIBRARY_CSS.strip() + "\n", encoding="utf-8")
     (OUTPUT_ROOT / "assets" / "library-mermaid.js").write_text(MERMAID_JS.strip() + "\n", encoding="utf-8")
-    for asset_name in ("ai-launcher.css", "ai-page-context.js", "ai-launcher.js"):
+    # 术语注释 assets：词典(glossary.json) + 引擎(js) + 样式(css) 一并复制到
+    # library/assets/，供章节页以 ../assets/ 相对路径直接引用。
+    for asset_name in ("ai-launcher.css", "ai-page-context.js", "ai-launcher.js",
+                       "term-tooltip.css", "term-tooltip.js", "glossary.json"):
         shutil.copy2(HOT100_ROOT / "assets" / asset_name, OUTPUT_ROOT / "assets" / asset_name)
     # 【沉浸脚本下线说明】早期版本曾在 assets 里输出 immersive.js(沉浸阅读增强)，
     # 学习记录/沉浸交互已内联进各章节页的 <script>(见下方 reader 模板)，
@@ -2255,7 +2269,21 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             diagram_scripts = ""
             if 'class="mermaid-diagram"' in content:
                 diagram_scripts = f'<script src="../assets/mermaid-11.16.1.min.js?v={LIBRARY_MERMAID_VERSION}"></script><script src="../assets/library-mermaid.js?v={LIBRARY_MERMAID_VERSION}"></script>'
-            chapter_scripts = diagram_scripts
+            # 术语注释：词典由服务端维护（assets/glossary.json 由
+            # interview_forge/data/glossary.py 导出），前端只做匹配与展示。
+            glossary_scripts = (
+                f'<script src="../assets/term-tooltip.js?v={ASSET_VERSION}"></script>'
+                f'<script>(function(){{'
+                f'function go(){{if(!window.GlossaryEngine)return;'
+                f'GlossaryEngine.init({{root:document.querySelector(".reader-body"),'
+                f'glossaryUrl:"../assets/glossary.json",style:"underline",trigger:"hover"}});}}'
+                f'if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",go);}}'
+                f'else{{go();}}}})();</script>'
+            )
+            chapter_scripts = diagram_scripts + glossary_scripts
+            glossary_head = (
+                f'<link rel="stylesheet" href="../assets/term-tooltip.css?v={ASSET_VERSION}">'
+            )
             (module_dir / filename).write_text(
                 document(
                     f'{raw_chapter["title"]} · InterviewForge',
@@ -2263,6 +2291,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                     "../assets/library.css",
                     chapter_scripts,
                     css_version=chapter_style_version,
+                    extra_head=glossary_head,
                 ),
                 encoding="utf-8",
             )
