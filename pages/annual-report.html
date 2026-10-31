@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261031b">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -83,28 +83,64 @@
     var cal = d.daily_calendar || {};
     var days = Object.keys(cal);
     if (!days.length) return "";
-    // 以全年 365 格铺开，按日期定位
     var year = Number(d.year);
     var start = new Date(year, 0, 1);
     var end = new Date(year, 11, 31);
-    var total = Math.round((end - start) / 86400000) + 1;
+
     var values = days.map(function (k) { return cal[k]; });
     var max = Math.max.apply(null, values.concat([1]));
+
+    // GitHub 风格：从当年第一个周日开始，每列一周、从上到下七天
+    var first = new Date(start.getTime());
+    first.setDate(first.getDate() - first.getDay());
+    var totalDays = Math.round((end - first) / 86400000) + 1;
+    var weeks = Math.ceil(totalDays / 7);
+
     var cells = [];
-    for (var i = 0; i < total; i++) {
-      var dt = new Date(start.getTime() + i * 86400000);
-      var key = dt.getFullYear() + "-" +
-        String(dt.getMonth() + 1).padStart(2, "0") + "-" +
-        String(dt.getDate()).padStart(2, "0");
-      var v = cal[key] || 0;
-      var level = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
-      cells.push('<i data-level="' + level + '" title="' + key + "：" + v + ' 次"></i>');
+    var monthMarks = [];
+    var lastMonth = -1;
+    for (var w = 0; w < weeks; w++) {
+      for (var day = 0; day < 7; day++) {
+        var dt = new Date(first.getTime() + (w * 7 + day) * 86400000);
+        if (dt.getFullYear() !== year) {
+          cells.push("<i></i>");
+          continue;
+        }
+        var key = dt.getFullYear() + "-" +
+          String(dt.getMonth() + 1).padStart(2, "0") + "-" +
+          String(dt.getDate()).padStart(2, "0");
+        var v = cal[key] || 0;
+        var level = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
+        cells.push('<i data-level="' + level + '" title="' + key + "：" + v + ' 次"></i>');
+      }
+      var weekStart = new Date(first.getTime() + w * 7 * 86400000);
+      if (weekStart.getFullYear() === year && weekStart.getMonth() !== lastMonth) {
+        monthMarks.push('<span style="grid-column:' + (w + 1) + '">' +
+          (weekStart.getMonth() + 1) + "月</span>");
+        lastMonth = weekStart.getMonth();
+      }
     }
-    return chapter(2, "出勤", "颜色越深，那天打开得越多。",
-      '<div class="calendar">' + cells.join("") + '</div>' +
+
+    var weekdays = ["", "一", "", "三", "", "五", ""].map(function (label) {
+      return "<span>" + label + "</span>";
+    }).join("");
+
+    return chapter(2, "出勤", "每一列是一周，颜色越深，那天打开得越多。",
+      '<div class="calendar">' +
+        '<div class="calendar-weekdays" aria-hidden="true">' + weekdays + '</div>' +
+        '<div class="calendar-scroll">' +
+          '<div class="calendar-months" aria-hidden="true">' + monthMarks.join("") + '</div>' +
+          '<div class="calendar-grid" role="img" aria-label="' + esc(year) + ' 年学习热力图">' +
+            cells.join("") +
+          '</div>' +
+        '</div>' +
+      '</div>' +
       '<p class="calendar-note">' +
         '<span>有记录 <b>' + d.active_days + '</b> 天</span>' +
         '<span>最长连续 <b>' + (d.longest_streak || 0) + '</b> 天</span>' +
+        '<span class="calendar-legend">少' +
+          '<i data-level="0"></i><i data-level="1"></i><i data-level="2"></i>' +
+          '<i data-level="3"></i><i data-level="4"></i>多</span>' +
       '</p>');
   }
 
