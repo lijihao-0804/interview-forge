@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css?v=20261031e">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261031f">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -46,8 +46,11 @@
   }
 
   function figures(list) {
+    // 会做滚动动画时先渲染 0，避免「先看到最终值、再跳回 0 重播」的闪烁
+    var animated = !reduceMotion();
     return '<div class="figures">' + list.map(function (f) {
-      return '<div><div class="figure-value" data-value="' + f.value + '">' + f.value +
+      var shown = animated ? 0 : f.value;
+      return '<div><div class="figure-value" data-value="' + f.value + '">' + shown +
         (f.unit ? '<small>' + esc(f.unit) + '</small>' : '') +
         '</div><p class="figure-label">' + esc(f.label) + '</p></div>';
     }).join("") + "</div>";
@@ -174,7 +177,9 @@
     var peakHour = keys.reduce(function (a, b) { return hours[a] >= hours[b] ? a : b; });
     for (var h = 0; h < 24; h++) {
       var v = hours[h] || 0;
-      var height = v ? Math.max(4, Math.round((v / max) * 100)) : 2;
+      // 平方根缩放：学习时段天然是「少数高峰 + 大量零散」，线性缩放会让低值几乎看不见，
+      // 平方根能让 1 次和 69 次都读得出来（精确次数仍在 tooltip 里）。
+      var height = v ? Math.max(9, Math.round(Math.sqrt(v / max) * 100)) : 2;
       bars.push('<i style="--h:' + h + ';height:' + height + '%" class="' +
         (String(h) === String(peakHour) ? "is-peak" : "") +
         '" title="' + h + ' 点：' + v + ' 次"></i>');
@@ -295,7 +300,7 @@
           entry.target.querySelectorAll(".figure-value").forEach(countUp);
           var bars = entry.target.querySelector(".bars");
           if (bars) bars.classList.add("is-in");
-        }, 320);
+        }, 450);
         io.unobserve(entry.target);
       });
     }, { threshold: 0.15 });
@@ -306,7 +311,7 @@
     var mediaIo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        setTimeout(function () { entry.target.classList.add("is-in"); }, 320);
+        setTimeout(function () { entry.target.classList.add("is-in"); }, 450);
         mediaIo.unobserve(entry.target);
       });
     }, { threshold: 0.15 });
