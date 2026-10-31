@@ -56,8 +56,9 @@ class StudyServerHardeningTests(unittest.TestCase):
         self.assertEqual(result["round_no"], 1)
         self.assertEqual(duplicate["round_no"], 1)
         self.assertEqual(result["rating_name"], "good")
-        self.assertEqual(result["interval_days"], 4)
-        self.assertEqual(result["next_due"], "2026-09-11")
+        # 非 hot100 模块的章节保留率降 0.1（0.9 → 0.8），间隔由 4 天变为 9 天
+        self.assertEqual(result["interval_days"], 9)
+        self.assertEqual(result["next_due"], "2026-09-16")
         connection = sqlite3.connect(self.db_path)
         try:
             self.assertEqual(connection.execute(
@@ -220,8 +221,9 @@ class StudyServerHardeningTests(unittest.TestCase):
             problem = server.complete_round(1, self.db_path, rating=4)
             with patch.object(server, "valid_content", return_value=True):
                 content = server.complete_content("module", "module:01", self.db_path, rating=4)
-        self.assertEqual(problem["interval_days"], 6)
-        self.assertEqual(content["interval_days"], 6)
+        self.assertEqual(problem["interval_days"], 6)   # problem 用全局 0.95
+        # content 在全局基础上降 0.1 → 0.85，间隔更长（23 天）
+        self.assertEqual(content["interval_days"], 23)
 
     def test_content_duplicate_rating_preserves_card_and_review_log(self) -> None:
         with patch.object(server, "valid_content", return_value=True):

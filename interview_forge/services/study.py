@@ -930,7 +930,14 @@ def complete_content(
     if not server_runtime.valid_content(module_id, content_id):
         raise ValueError("未知课程章节")
     if desired_retention is None:
-        desired_retention = server_runtime.get_fsrs_desired_retention()
+        base = server_runtime.get_fsrs_desired_retention()
+        # 阅读类章节不像刷题那样需要高频复习：非 hot100 模块把目标保留率在全局设置
+        # 基础上再降 0.1（下限 0.8），FSRS 会据此给出更长的复习间隔
+        # （0.9 → 0.8 约让间隔长 2 倍）。hot100 题解沿用全局值，与力扣刷题一致。
+        # 保留「读管理后台设置」的语义：管理员调整全局值时，章节也跟着动。
+        desired_retention = (
+            base if module_id == "hot100" else max(0.8, round(base - 0.1, 2))
+        )
     studied_at, study_date = server_runtime.now_parts()
     duplicate_round: int | None = None
     with closing(server_runtime.connect(db_path)) as connection:

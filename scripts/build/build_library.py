@@ -373,7 +373,7 @@ border-color:color-mix(in srgb,var(--success) 45%,var(--line));color:var(--succe
 .due-head h2{margin:0}
 .due-summary{color:var(--muted);font-size:13px;margin:0 0 10px}
 .due-summary strong{color:var(--warning)}
-.due-list{display:grid;gap:8px}
+.due-list{display:grid;gap:8px}.due-list.is-scrollable{max-height:164px;overflow-y:auto;padding-right:6px;scrollbar-width:thin;overscroll-behavior:contain}.due-list.is-scrollable::-webkit-scrollbar{width:6px}.due-list.is-scrollable::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 40%,transparent);border-radius:999px}
 .due-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-2);background:var(--soft)}
 .due-item a{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:650}
 .due-item a:hover{color:var(--brand)}
@@ -1399,6 +1399,7 @@ function renderDue(){
   const overdueCount=items.filter(item=>item.overdue).length;
   const head=moduleDue.querySelector('.due-summary');
   if(head)head.textContent=items.length?`本模块 ${items.length} 章到期${overdueCount?`（逾期 ${overdueCount}）`:''}，完成一轮后自动推进下次复习。`:'';
+  moduleDueList.className='due-list'+(items.length>3?' is-scrollable':'');
   moduleDueList.innerHTML=items.length?items.map(item=>`<div class="due-item ${item.overdue?'due-overdue':''}"><a href="${esc(item.href)}" target="_blank" rel="noopener noreferrer" title="${esc(item.title)}">${esc(item.title)}</a><span class="due-date">${item.overdue?`逾期 ${esc(item.due)}`:`今日 ${esc(item.due)}`}</span></div>`).join(''):'<div class="due-empty">本模块暂无到期章节，完成一轮后会自动出现在这里。</div>';
 }
 function updateStats(){
