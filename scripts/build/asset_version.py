@@ -3,6 +3,6 @@
 # Increment this value whenever generated pages reference changed CSS/JS.
 # The service worker has its own JavaScript constant because it cannot import
 # Python, but the two values intentionally share the same release date.
-ASSET_VERSION = "20261031-engagement"
+ASSET_VERSION = "20261101-ctl-layout"
 SITE_JS_VERSION = "20261014-code-block-visibility"
-SERVICE_WORKER_VERSION = "hot100-v15-20261031"
+SERVICE_WORKER_VERSION = "hot100-v16-20261101"
