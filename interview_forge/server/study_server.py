@@ -888,6 +888,15 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        # /api/report/annual：年度报告完整数据（日历/时段/人格/彩蛋/体育馆）
+        if parsed.path == "/api/report/annual":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            from interview_forge.services.annual_report import build_annual_report
+            try:
+                self.send_json(build_annual_report(year=params.get("year") or None))
+            except Exception as exc:  # noqa: BLE001
+                self.send_json({"error": f"年度报告数据生成失败：{exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
         # /api/report/summary：年度报告全站汇总（?year=2026）
         if parsed.path == "/api/report/summary":
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年度学习卷宗 · InterviewForge</title>
+<link rel="stylesheet" href="../assets/annual-report.css">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<main id="app" class="loading" aria-live="polite">正在整理这一年的记录…</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var CN_NUM = ["", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+  var app = document.getElementById("app");
+
+  function esc(text) {
+    return String(text == null ? "" : text).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})[T ]?(\d{2}:\d{2})?/);
+    if (!m) return esc(iso);
+    var out = Number(m[2]) + "月" + Number(m[3]) + "日";
+    return m[4] ? out + " " + m[4] : out;
+  }
+
+  function fmtClock(iso) {
+    var m = String(iso || "").match(/T(\d{2}):(\d{2})/);
+    return m ? m[1] + ":" + m[2] : "";
+  }
+
+  function chapter(no, title, lede, body) {
+    return '<section class="chapter">' +
+      '<div class="chapter-head">' +
+        '<span class="chapter-no">' + CN_NUM[no] + '</span>' +
+        '<div><h2 class="chapter-title">' + esc(title) + '</h2>' +
+        (lede ? '<p class="chapter-lede">' + lede + '</p>' : '') +
+        '</div></div>' + body + '</section>';
+  }
+
+  function figures(list) {
+    return '<div class="figures">' + list.map(function (f) {
+      return '<div><div class="figure-value">' + f.value +
+        (f.unit ? '<small>' + esc(f.unit) + '</small>' : '') +
+        '</div><p class="figure-label">' + esc(f.label) + '</p></div>';
+    }).join("") + "</div>";
+  }
+
+  // 一句话总结：用真实数据拼，避免空泛
+  function claim(d) {
+    var parts = [];
+    if (d.active_days > 0) parts.push("你在 <em>" + d.active_days + "</em> 天里回到过这里");
+    if (d.total_contents > 0) parts.push("翻过 <em>" + d.total_contents + "</em> 章内容");
+    if (d.total_problems > 0) parts.push("碰过 <em>" + d.total_problems + "</em> 道题");
+    if (parts.length === 0) return "这一年还没有留下太多记录，明年从这里开始。";
+    return parts.join("，") + "。";
+  }
+
+  function renderCover(d) {
+    return '<header class="cover">' +
+      '<div class="cover-mark">' +
+        '<p class="cover-year">' + esc(d.year) + '</p>' +
+        '<div class="cover-side"><span class="cover-title">年度学习卷宗</span></div>' +
+      '</div>' +
+      '<p class="cover-claim">' + claim(d) + '</p>' +
+      '<ul class="cover-meta">' +
+        '<li>累计 <b>' + (d.total_hours || 0) + '</b> 小时</li>' +
+        '<li>最长连续 <b>' + (d.longest_streak || 0) + '</b> 天</li>' +
+        '<li>提交 <b>' + (d.total_submissions || 0) + '</b> 次</li>' +
+        '<li>复习 <b>' + (d.total_reviews || 0) + '</b> 次</li>' +
+      '</ul>' +
+    '</header>';
+  }
+
+  function renderCalendar(d) {
+    var cal = d.daily_calendar || {};
+    var days = Object.keys(cal);
+    if (!days.length) return "";
+    // 以全年 365 格铺开，按日期定位
+    var year = Number(d.year);
+    var start = new Date(year, 0, 1);
+    var end = new Date(year, 11, 31);
+    var total = Math.round((end - start) / 86400000) + 1;
+    var values = days.map(function (k) { return cal[k]; });
+    var max = Math.max.apply(null, values.concat([1]));
+    var cells = [];
+    for (var i = 0; i < total; i++) {
+      var dt = new Date(start.getTime() + i * 86400000);
+      var key = dt.getFullYear() + "-" +
+        String(dt.getMonth() + 1).padStart(2, "0") + "-" +
+        String(dt.getDate()).padStart(2, "0");
+      var v = cal[key] || 0;
+      var level = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
+      cells.push('<i data-level="' + level + '" title="' + key + "：" + v + ' 次"></i>');
+    }
+    return chapter(2, "出勤", "颜色越深，那天打开得越多。",
+      '<div class="calendar">' + cells.join("") + '</div>' +
+      '<p class="calendar-note">' +
+        '<span>有记录 <b>' + d.active_days + '</b> 天</span>' +
+        '<span>最长连续 <b>' + (d.longest_streak || 0) + '</b> 天</span>' +
+      '</p>');
+  }
+
+  function renderModules(d) {
+    var mods = d.module_distribution || {};
+    var keys = Object.keys(mods);
+    if (!keys.length) return "";
+    var max = Math.max.apply(null, keys.map(function (k) { return mods[k]; }));
+    var rows = keys.slice(0, 8).map(function (k) {
+      var pct = Math.round((mods[k] / max) * 100);
+      var name = (d.module_titles && d.module_titles[k]) || k;
+      return '<div class="bar-row">' +
+        '<span class="bar-name" title="' + esc(name) + '">' + esc(name) + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" data-w="' + pct + '"></span></span>' +
+        '<span class="bar-count">' + mods[k] + '</span>' +
+      '</div>';
+    }).join("");
+    var top = (d.module_titles && d.module_titles[keys[0]]) || keys[0];
+    return chapter(3, "方向", "力气主要花在了「" + esc(top) + "」上。",
+      '<div class="bars">' + rows + '</div>');
+  }
+
+  function renderClock(d) {
+    var hours = d.hour_histogram || {};
+    var keys = Object.keys(hours);
+    if (!keys.length) return "";
+    var max = Math.max.apply(null, keys.map(function (k) { return hours[k]; }));
+    var bars = [];
+    var axis = [];
+    var peakHour = keys.reduce(function (a, b) { return hours[a] >= hours[b] ? a : b; });
+    for (var h = 0; h < 24; h++) {
+      var v = hours[h] || 0;
+      var height = v ? Math.max(4, Math.round((v / max) * 100)) : 2;
+      bars.push('<i style="height:' + height + '%" class="' + (String(h) === String(peakHour) ? "is-peak" : "") +
+        '" title="' + h + ' 点：' + v + ' 次"></i>');
+      axis.push("<span>" + h + "</span>");
+    }
+    return chapter(4, "作息", "最集中的时段是 <b>" + peakHour + " 点</b>。",
+      '<div class="clock">' + bars.join("") + '</div>' +
+      '<div class="clock-axis">' + axis.join("") + '</div>');
+  }
+
+  function renderRecords(d) {
+    var items = [
+      { value: d.total_submissions || 0, label: "提交次数" },
+      { value: d.total_problems || 0, label: "碰过的题目" },
+      { value: d.total_contents || 0, label: "读过的章节" },
+      { value: d.mock_exams || 0, label: "模拟考试" }
+    ];
+    return chapter(5, "战绩", "这些数字构成了你今年的底稿。", figures(items));
+  }
+
+  function renderMemory(d) {
+    var items = [
+      { value: d.total_reviews || 0, label: "复习次数" },
+      { value: d.favorites || 0, label: "收藏内容" }
+    ];
+    var text = d.total_reviews > 0
+      ? "复习是把学过的东西真正留下来的那一步。"
+      : "还没有开始复习，明年可以把这一步补上。";
+    return chapter(6, "记忆", text, figures(items));
+  }
+
+  function renderPersona(d) {
+    var tags = d.persona || [];
+    if (!tags.length) return "";
+    return chapter(7, "你这个人", "根据这一年留下的痕迹推断。",
+      '<ul class="persona">' + tags.map(function (t) {
+        return '<li><b>' + esc(t.label) + '</b><span>' + esc(t.detail) + '</span></li>';
+      }).join("") + '</ul>');
+  }
+
+  function renderMoments(d) {
+    var f = d.firsts || {};
+    var items = [];
+    if (f.first_ac) items.push([f.first_ac, "第一次在力扣通过，从这道题开始算起。"]);
+    if (f.first_view) items.push([f.first_view, "第一次在这里留下学习记录。"]);
+    if (f.first_favorite) items.push([f.first_favorite, "第一次把内容收进收藏。"]);
+    if (f.first_review) items.push([f.first_review, "第一次复习。"]);
+    if (f.first_gym) items.push([f.first_gym, "第一次约到南大体育馆。"]);
+    if (d.latest_activity) {
+      var la = d.latest_activity;
+      items.push([la.date + "T" + la.clock, "全年最晚的一次，<em>" + esc(la.clock) + "</em> 还在看「" + esc(la.title || "") + "」。"]);
+    }
+    var g = d.gym || {};
+    if (g.total > 0) {
+      var gymText = "一年约到 <b>" + g.total + "</b> 次体育馆";
+      if (g.favorite_slot) gymText += "，最常在 <em>" + esc(g.favorite_slot) + "</em>";
+      gymText += "。";
+      items.push([null, gymText]);
+    }
+    if (!items.length) return "";
+    return chapter(8, "时刻", "几个值得记住的瞬间。",
+      '<ul class="moments">' + items.map(function (pair) {
+        return '<li class="moment">' +
+          '<span class="moment-when">' + esc(fmtDate(pair[0])) + '</span>' +
+          '<p class="moment-what">' + pair[1] + '</p></li>';
+      }).join("") + '</ul>');
+  }
+
+  function renderOutro(d) {
+    return '<section class="outro">' +
+      '<p class="outro-line">卷宗到这里就结束了。<br>明年这一页，还是你自己写。</p>' +
+      '<div class="outro-actions">' +
+        '<a class="btn btn-primary" href="../library/index.html">去书架</a>' +
+        '<a class="btn" href="../cockpit.html">回中控台</a>' +
+        '<button class="btn" type="button" id="printBtn">打印 / 存为 PDF</button>' +
+      '</div></section>';
+  }
+
+  function animateBars() {
+    requestAnimationFrame(function () {
+      document.querySelectorAll(".bar-fill").forEach(function (el) {
+        el.style.width = (el.getAttribute("data-w") || 0) + "%";
+      });
+    });
+  }
+
+  function render(d) {
+    app.className = "";
+    app.innerHTML =
+      renderCover(d) +
+      chapter(1, "总览", "把这一年压缩成四个数字。", figures([
+        { value: d.active_days || 0, unit: "天", label: "有学习记录" },
+        { value: d.total_hours || 0, unit: "小时", label: "累计投入" },
+        { value: d.total_problems || 0, unit: "道", label: "碰过的题目" },
+        { value: d.total_contents || 0, unit: "章", label: "读过的章节" }
+      ])) +
+      renderCalendar(d) +
+      renderModules(d) +
+      renderClock(d) +
+      renderRecords(d) +
+      renderMemory(d) +
+      renderPersona(d) +
+      renderMoments(d) +
+      renderOutro(d);
+    animateBars();
+    var printBtn = document.getElementById("printBtn");
+    if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
+  }
+
+  function fail(message) {
+    app.className = "error";
+    app.innerHTML = esc(message) +
+      '<button type="button" onclick="location.reload()">重试</button>';
+  }
+
+  fetch("/api/report/annual?year=" + new Date().getFullYear(), {
+    cache: "no-store",
+    credentials: "same-origin"
+  }).then(function (res) {
+    if (res.status === 401) { location.href = "/pages/login.html?next=" + encodeURIComponent(location.pathname); return null; }
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }).then(function (data) {
+    if (!data) return;
+    if (data.error) { fail(data.error); return; }
+    render(data);
+  }).catch(function (err) {
+    fail("暂时读不到年度数据（" + err.message + "）");
+  });
+})();
+</script>
+</body>
+</html>
