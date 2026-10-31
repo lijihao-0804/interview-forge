@@ -547,7 +547,7 @@ border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .chapter-shell.site-shell-cols>.topbar{grid-column:1/-1;margin-bottom:0}
 .chapter-shell.site-shell-cols>.reader{grid-column:2;width:100%;max-width:none;min-width:0;padding:clamp(32px,4vw,56px)}
 .chapter-shell .shelf-topic-rail,.chapter-shell .sol-rail-right{position:sticky;top:14px;min-width:0;max-height:calc(100vh - 32px);overflow:auto;padding:14px 12px;border:1px solid var(--line);border-radius:var(--radius-3);background:var(--panel);box-shadow:var(--shadow)}
-.chapter-shell .shelf-topic-rail{grid-column:1;overflow:hidden}
+.chapter-shell .shelf-topic-rail{grid-column:1;overflow:hidden;view-transition-name:topic-rail}@view-transition{navigation:auto}@media (prefers-reduced-motion: reduce){@view-transition{navigation:none}}
 .chapter-shell .sol-rail-right{grid-column:3}
 .chapter-shell .sol-rail-title{margin:0 0 9px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em}
 .shelf-topic-rail summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;color:var(--muted);font-size:12px;font-weight:700;list-style:none}
@@ -2287,7 +2287,25 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             engagement_scripts = (
                 f'<script src="../assets/engagement-tracker.js?v={ASSET_VERSION}" defer></script>'
             )
-            chapter_scripts = diagram_scripts + glossary_scripts + engagement_scripts
+            # 左侧「本专题目录」自动定位到当前章节并居中。
+            # 目录链接是 target=_blank（新标签打开）或同页跳转，两种情况下新页面的
+            # 目录都会从顶部开始 —— 把当前章节滚到中间，一眼就能看到自己在第几章。
+            rail_scripts = (
+                '<script>(function(){'
+                'var rail=document.querySelector(".shelf-topic-links");if(!rail)return;'
+                'function focusCurrent(){'
+                'var cur=rail.querySelector(".shelf-topic-link.current");if(!cur)return;'
+                'var rr=rail.getBoundingClientRect(),cr=cur.getBoundingClientRect();'
+                'var target=rail.scrollTop+(cr.top-rr.top)-rr.height/2+cr.height/2;'
+                'rail.scrollTop=Math.max(0,target);}'
+                'if(document.readyState==="loading")'
+                'document.addEventListener("DOMContentLoaded",focusCurrent);'
+                'else focusCurrent();'
+                'window.addEventListener("load",focusCurrent);'
+                '})();</script>'
+            )
+            chapter_scripts = (diagram_scripts + glossary_scripts
+                               + engagement_scripts + rail_scripts)
             glossary_head = (
                 f'<link rel="stylesheet" href="../assets/term-tooltip.css?v={ASSET_VERSION}">'
             )
