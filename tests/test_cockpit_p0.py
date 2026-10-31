@@ -8,8 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class CockpitP0Tests(unittest.TestCase):
     def test_service_worker_version_and_update_contract(self):
+        from scripts.build.asset_version import SERVICE_WORKER_VERSION
         source = (ROOT / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn('const VERSION = "hot100-v12-20260929"', source)
+        # 版本号以 asset_version.py 为唯一权威源，避免每次发布都要手改测试
+        self.assertIn(f'const VERSION = "{SERVICE_WORKER_VERSION}"', source)
         self.assertIn("self.clients.claim()", source)
         self.assertIn('event.data.type === "SKIP_WAITING"', source)
         self.assertIn("caches.delete(key)", source)

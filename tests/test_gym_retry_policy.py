@@ -172,6 +172,22 @@ class GymNavigationTimeoutTests(unittest.TestCase):
             gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
         self.assertEqual(page.goto.call_count, 3)
 
+    def test_navigation_timeout_retries_in_place_before_giving_up(self) -> None:
+        """导航超时要就地重试，而不是直接抛出等下一轮 4~6 分钟。"""
+        page = Mock()
+        page.goto.side_effect = RuntimeError("Page.goto: Timeout 25000ms exceeded.")
+        with patch("time.sleep"), self.assertRaises(RuntimeError):
+            gym_automation.robust_goto(page, "https://example.invalid/x", attempts=3)
+        self.assertEqual(page.goto.call_count, 3, "超时应在函数内重试满 attempts 次")
+
+    def test_navigation_timeout_recovers_within_same_attempt(self) -> None:
+        """首次超时、后续成功：函数应直接返回而不抛错。"""
+        page = Mock()
+        page.goto.side_effect = [RuntimeError("Page.goto: Timeout 25000ms exceeded."), None]
+        with patch("time.sleep"):
+            gym_automation.robust_goto(page, "https://example.invalid/x", attempts=4)
+        self.assertEqual(page.goto.call_count, 2)
+
 
 class GymSchedulerRetryPolicyTests(unittest.TestCase):
     def test_scheduler_does_not_start_before_0800(self) -> None:
@@ -184,10 +200,10 @@ class GymSchedulerRetryPolicyTests(unittest.TestCase):
             RuntimeError("南大账号或密码不正确")))
 
     def test_retry_backoff_grows_so_the_last_attempt_misses_the_0800_rush(self) -> None:
-        self.assertEqual(gym.JOB_RETRY_DELAYS_SECONDS, (5 * 60, 10 * 60))
+        self.assertEqual(gym.JOB_RETRY_DELAYS_SECONDS, (4 * 60, 6 * 60))
         now = datetime(2026, 10, 12, 8, 0, tzinfo=gym.SHANGHAI)
 
-        for attempt, minutes in ((1, 5), (2, 10)):
+        for attempt, minutes in ((1, 4), (2, 6)):
             with self.subTest(attempt=attempt):
                 job = {"id": 90, "result": ({} if attempt == 1 else {"attempt": attempt})}
                 with patch.object(gym, "_finish_job") as finish, \

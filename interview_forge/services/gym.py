@@ -45,10 +45,11 @@ RUN_EARLIEST = (8, 0)
 JOB_SUBPROCESS_TIMEOUT_SECONDS = 35 * 60
 JOB_RUNNING_STALE_GRACE_SECONDS = 5 * 60
 JOB_MAX_ATTEMPTS = 3
-# 重试间隔递增：放号后十来分钟站点都处在过载状态（2026-10-15 两个任务的三次尝试全
-# 落在 08:00~08:12 区间，全部倒在页面导航超时），固定 5 分钟会让最后一次尝试也撞在
-# 高峰里；第二档 10 分钟把最后一次推到站点缓过来之后。
-JOB_RETRY_DELAYS_SECONDS = (5 * 60, 10 * 60)
+# 重试间隔（在「导航超时就地重试」之外，任务级的兜底重试）：
+# 放号后十来分钟站点都处在过载状态（2026-10-15 两个任务的三次尝试全落在 08:00~08:12，
+# 全部倒在页面导航超时）。改为 4/6 分钟：既能较早做第二次、第三次兜底，又能避开
+# 08:00 那一刻的绝对高峰。配合 robust_goto 的就地重试，多数任务可在 08:04 前成功。
+JOB_RETRY_DELAYS_SECONDS = (4 * 60, 6 * 60)
 MAX_SLOTS_PER_JOB = 6
 SUPPORTED_VENUES = frozenset({"129", "162"})
 SLOT_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d-(?:[01]\d|2[0-3]):[0-5]\d$")

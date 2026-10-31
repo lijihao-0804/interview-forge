@@ -170,15 +170,25 @@ def robust_goto(page, url, attempts=4):
     而我们原来沿用 8 秒的默认超时，三次尝试全倒在“页面还没加载出来”那一步
     （2026-10-15 的失败全是 Page.goto 超时）。点击、可见性这类本地交互仍用默认短
     超时，不至于把失败判定拖慢。
+
+    导航超时同样在函数内快速重试：此前对超时直接 raise，只能等下一轮 4~6 分钟的
+    任务重试；实测放号后 1~2 分钟内站点会短暂恢复，就地重试几次往往能直接成功，
+    把「等 20 分钟」压缩到「几秒到一两分钟」。
     """
-    for _ in range(attempts):
+    for attempt in range(1, attempts + 1):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=PAGE_NAV_TIMEOUT_MS)
             return
         except Exception as exc:  # noqa: BLE001
             msg = str(exc)
+            # 被页面自身的跳转打断：稍等后重试
             if "interrupted" in msg or "Execution context" in msg:
                 time.sleep(2)
+                continue
+            # 导航超时：放号高峰站点极慢，短暂等待后就地重试（最后一次仍失败才抛出）
+            if "Timeout" in msg and attempt < attempts:
+                log.warning("导航超时（第 %d/%d 次），3 秒后重试：%s", attempt, attempts, url)
+                time.sleep(3)
                 continue
             raise
     raise RuntimeError(f"导航 {url} 连续 {attempts} 次被打断")
