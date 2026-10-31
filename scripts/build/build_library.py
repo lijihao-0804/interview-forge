@@ -1778,7 +1778,8 @@ def build() -> None:
     # 术语注释 assets：词典(glossary.json) + 引擎(js) + 样式(css) 一并复制到
     # library/assets/，供章节页以 ../assets/ 相对路径直接引用。
     for asset_name in ("ai-launcher.css", "ai-page-context.js", "ai-launcher.js",
-                       "term-tooltip.css", "term-tooltip.js", "glossary.json"):
+                       "term-tooltip.css", "term-tooltip.js", "glossary.json",
+                       "engagement-tracker.js"):
         shutil.copy2(HOT100_ROOT / "assets" / asset_name, OUTPUT_ROOT / "assets" / asset_name)
     # 【沉浸脚本下线说明】早期版本曾在 assets 里输出 immersive.js(沉浸阅读增强)，
     # 学习记录/沉浸交互已内联进各章节页的 <script>(见下方 reader 模板)，
@@ -2281,7 +2282,11 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                 f'if(document.readyState==="loading"){{document.addEventListener("DOMContentLoaded",go);}}'
                 f'else{{go();}}}})();</script>'
             )
-            chapter_scripts = diagram_scripts + glossary_scripts
+            # 学习时长埋点：每 30 秒心跳 + 页面隐藏补报（年度报告用）
+            engagement_scripts = (
+                f'<script src="../assets/engagement-tracker.js?v={ASSET_VERSION}" defer></script>'
+            )
+            chapter_scripts = diagram_scripts + glossary_scripts + engagement_scripts
             glossary_head = (
                 f'<link rel="stylesheet" href="../assets/term-tooltip.css?v={ASSET_VERSION}">'
             )
@@ -2521,6 +2526,10 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     )
     # Windows 上索引页可能被浏览器/杀毒软件短暂占用；先写同目录临时文件再
     # 原子替换，避免直接截断写入偶发 OSError 后留下半个页面。
+    # 书架首页也要加载埋点脚本（搜索关键词上报）
+    index_body += (
+        f'<script src="assets/engagement-tracker.js?v={ASSET_VERSION}" defer></script>'
+    )
     index_path = OUTPUT_ROOT / "index.html"
     index_tmp = OUTPUT_ROOT / "index.html.building"
     index_tmp.write_text(document("学习书架 · InterviewForge", index_body, "assets/library.css"), encoding="utf-8")

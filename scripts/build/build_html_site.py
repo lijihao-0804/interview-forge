@@ -2515,7 +2515,10 @@ def render_markdown(source: Path) -> None:
         # 题解页也接入术语注释（与书架章节页共用同一份服务端词典）
         _tc = web_rel(output, ROOT / "assets" / "term-tooltip.css") + f"?v={ASSET_VERSION}"
         _tj = web_rel(output, ROOT / "assets" / "term-tooltip.js") + f"?v={ASSET_VERSION}"
+        _te = web_rel(output, ROOT / "assets" / "engagement-tracker.js") + f"?v={ASSET_VERSION}"
         _tg = web_rel(output, ROOT / "assets" / "glossary.json")
+        # 学习时长埋点：题解页也计入「今天学了多久」
+        page = page.replace("</body>", f'<script src="{_te}" defer></script>\n</body>', 1)
         page = page.replace("</head>", f'<link rel="stylesheet" href="{_tc}">\n</head>', 1)
         page = page.replace(
             "</body>",
