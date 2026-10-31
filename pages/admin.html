@@ -71,7 +71,7 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
 .page-nav span[aria-current]{color:var(--text);font-weight:600}
 .page-nav>span[aria-hidden]{opacity:.45}
 </style>
-<link rel="stylesheet" href="../assets/admin-observability.css?v=3">
+<link rel="stylesheet" href="../assets/admin-observability.css?v=4">
 <link rel="stylesheet" href="../assets/admin-operations.css?v=3">
 <link rel="stylesheet" href="../assets/admin-ai-config.css?v=4">
 </head>
@@ -90,16 +90,38 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
   </div>
 
   <div id="panel" hidden>
-    <nav class="admin-topic-nav" aria-label="管理员后台主题导航">
-      <a href="#admin-overview">总览 Overview</a>
-      <a href="#admin-traffic">流量与性能 Traffic</a>
-      <a href="#admin-ai">AI 运行 AI</a>
-      <a href="#admin-tools">工具与任务 Tools</a>
-      <a href="#admin-system">系统与存储 System</a>
-      <a href="#admin-fsrs-settings">复习调度</a>
-      <a href="#admin-logs">日志与诊断 Logs</a>
-      <a href="#admin-users">用户与权限 Users</a>
-    </nav>
+    <div class="admin-layout">
+      <aside class="admin-sidebar">
+        <nav class="admin-topic-nav" aria-label="管理后台导航">
+          <p class="nav-group">运行观测</p>
+          <button type="button" data-goto="obs:overview">运行总览</button>
+          <button type="button" data-goto="obs:traffic">流量与性能</button>
+          <button type="button" data-goto="obs:usage">AI 运行</button>
+          <button type="button" data-goto="obs:traces">AI Trace</button>
+          <button type="button" data-goto="obs:logs">日志与诊断</button>
+
+          <p class="nav-group">运维</p>
+          <button type="button" data-goto="ops:tasks">工具与任务</button>
+          <button type="button" data-goto="ops:actions">Action 审计</button>
+          <button type="button" data-goto="ops:users">用户详情</button>
+          <button type="button" data-goto="ops:memory">记忆管理</button>
+          <button type="button" data-goto="ops:system">系统与存储</button>
+
+          <p class="nav-group">用户与权限</p>
+          <button type="button" data-goto="section:admin-users">用户管理</button>
+          <button type="button" data-goto="section:admin-registration">注册码</button>
+          <button type="button" data-goto="section:admin-account-security">账号安全</button>
+          <button type="button" data-goto="section:admin-feedback">Bug 反馈</button>
+
+          <p class="nav-group">配置</p>
+          <button type="button" data-goto="section:admin-ai-config">AI 配置</button>
+          <button type="button" data-goto="section:admin-fsrs-settings">复习调度</button>
+
+          <p class="nav-group">集成</p>
+          <button type="button" data-goto="section:admin-gym-smtp">体育馆邮件</button>
+        </nav>
+      </aside>
+      <div class="admin-main">
     <section id="admin-registration">
       <h2>签发注册码（一次性，白名单注册凭证）</h2>
       <div class="row">
@@ -306,6 +328,8 @@ padding:2px 8px;border-radius:6px;transition:background-color .15s ease}
         <div class="ai-dialog-actions"><button type="button" class="ghost" data-close-dialog="admin-ai-route-dialog">取消</button><button type="submit" id="admin-ai-profile-save">保存路由</button></div>
       </form>
     </dialog>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -735,6 +759,56 @@ api("/api/me").then(function (res) {
     if(target){{e.preventDefault();location.href=target;}}
   }});
 }})();
+</script>
+<script data-admin-sidebar-nav>
+(function(){
+  var nav = document.querySelector('.admin-topic-nav');
+  if (!nav) return;
+  var suppressUntil = 0;
+  function setCurrent(target){
+    Array.prototype.forEach.call(nav.querySelectorAll('button'), function(b){ b.removeAttribute('aria-current'); });
+    var btn = nav.querySelector('[data-goto="' + target + '"]');
+    if (btn) btn.setAttribute('aria-current','page');
+  }
+  function activateTab(container, attr, name){
+    if (!container) return;
+    var btn = container.querySelector('[' + attr + '="' + name + '"]');
+    if (btn && !btn.classList.contains('active')) btn.click();
+  }
+  function go(target){
+    suppressUntil = Date.now() + 900;  // 点击后短暂屏蔽滚动高亮，避免被子 section 覆盖
+    var parts = (target || '').split(':');
+    var kind = parts[0], name = parts[1], el;
+    if (kind === 'obs'){ el = document.getElementById('admin-observability'); if (el) activateTab(el,'data-admin-tab',name); }
+    else if (kind === 'ops'){ el = document.getElementById('admin-operations'); if (el) activateTab(el,'data-ops-tab',name); }
+    else { el = document.getElementById(name); }
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    setCurrent(target);
+  }
+  nav.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-goto]');
+    if (!btn) return;
+    go(btn.getAttribute('data-goto'));
+  });
+  if ('IntersectionObserver' in window){
+    var map = [
+      ['admin-observability','obs:overview'], ['admin-operations','ops:tasks'],
+      ['admin-users','section:admin-users'], ['admin-registration','section:admin-registration'],
+      ['admin-account-security','section:admin-account-security'], ['admin-feedback','section:admin-feedback'],
+      ['admin-ai-config','section:admin-ai-config'], ['admin-fsrs-settings','section:admin-fsrs-settings'],
+      ['admin-gym-smtp','section:admin-gym-smtp']
+    ];
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (Date.now() < suppressUntil) return;
+        if (!en.isIntersecting) return;
+        for (var i=0;i<map.length;i++){ if (map[i][0] === en.target.id){ setCurrent(map[i][1]); break; } }
+      });
+    }, {rootMargin:'-15% 0px -70% 0px'});
+    map.forEach(function(m){ var el = document.getElementById(m[0]); if (el) io.observe(el); });
+  }
+  setCurrent('obs:overview');
+})();
 </script>
 </body>
 </html>
