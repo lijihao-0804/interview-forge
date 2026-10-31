@@ -35,3 +35,17 @@ class PaymentVerificationPollingTests(TestCase):
         sig = inspect.signature(gym_automation._wait_for_matching_order)
         self.assertEqual(sig.parameters["timeout_ms"].default, 7000,
                          "支付后轮询上限应为 7 秒，订单通常 2~3 秒出现")
+
+
+class SlotCapacityParseTests(TestCase):
+    """从选中块文本解析「本时段已约 N/总 M」，用于记录本次是第几个。"""
+
+    def test_parses_common_capacity_text(self) -> None:
+        self.assertEqual(
+            gym_automation._parse_slot_capacity("16:00-17:00（11/50）"), (11, 50))
+        self.assertEqual(
+            gym_automation._parse_slot_capacity("15:00-16:00 (3/50)"), (3, 50))
+
+    def test_returns_none_when_no_capacity(self) -> None:
+        for text in ("", None, "16:00-17:00", "已满"):
+            self.assertIsNone(gym_automation._parse_slot_capacity(text))

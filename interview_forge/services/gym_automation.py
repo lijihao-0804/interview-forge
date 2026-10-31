@@ -839,6 +839,14 @@ def pick_slot(page, slots):
     return None
 
 
+def _parse_slot_capacity(text) -> tuple[int, int] | None:
+    """从选中块文本「16:00-17:00（11/50）」解析出 (已预约数, 总名额)。"""
+    m = re.search(r"(\d+)\s*/\s*(\d+)", str(text or ""))
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
 _ORDER_AMOUNT_RE = re.compile(
     r"(?:订单\s*金额|应付\s*金额|实付\s*金额|支付\s*金额|请您支付(?:金额)?|请支付(?:金额)?|金额|需支付|待支付)"
     r"\s*[：:]?\s*(?:人民币\s*)?[¥￥]?\s*"
@@ -1892,6 +1900,16 @@ def run(args) -> dict:
                 return result
             slot, capacity = picked
         result["actual_slot"] = slot
+        # 名额占用：选中块文本形如「16:00-17:00（11/50）」，即该时段已约 11/50。
+        # 记下来便于事后看「这次抢到的是第几个」，也方便观察放号后名额消耗速度。
+        cap = _parse_slot_capacity(capacity)
+        if cap:
+            booked, total = cap
+            result["slot_booked"] = booked
+            result["slot_total"] = total
+            result["queue_position"] = booked + 1
+            log.info("名额：%s 已预约 %d/%d，本次若成功为第 %d 个",
+                     slot, booked, total, booked + 1)
 
         amount = read_amount(page)
         log.info("订单金额：%s 元", amount)
