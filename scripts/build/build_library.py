@@ -1830,7 +1830,7 @@ def build() -> None:
     try:
         from interview_forge.data.glossary import GLOSSARY, glossary_map
         (HOT100_ROOT / "assets" / "glossary.json").write_text(
-            json.dumps({"entries": GLOSSARY, "index": glossary_map()}, ensure_ascii=False, indent=1),
+            json.dumps({"entries": GLOSSARY, "index": glossary_map()}, ensure_ascii=False, indent=1, sort_keys=True),
             encoding="utf-8",
         )
     except ImportError:
