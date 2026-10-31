@@ -622,8 +622,11 @@ def _safe_order_log_label(row):
     return f"时段 {slot}；状态 {'/'.join(states) if states else '未识别'}"
 
 
-def _wait_for_matching_order(page, target_date, slot, timeout_ms=12000):
-    """支付后短暂轮询订单行，避免固定 sleep 后把延迟入库误报成失败。"""
+def _wait_for_matching_order(page, target_date, slot, timeout_ms=7000):
+    """支付后短暂轮询订单行，避免固定 sleep 后把延迟入库误报成失败。
+
+    轮询上限 7 秒：实测订单通常 2~3 秒出现在列表，等满 12 秒属浪费；
+    真慢时后续还有订单页复核兜底。"""
     marks = [target_date.isoformat(), date_label_cn(target_date),
              f"{target_date.month:02d}-{target_date.day:02d}"]
     target = {"dates": marks, "slot": _normalize_order_text(slot)}
@@ -1349,6 +1352,35 @@ def _captcha_recognition_order(primary):
     return [primary] + [m for m in ("probability", "legacy") if m != primary]
 
 
+def _retrigger_captcha(page) -> bool:
+    """验证码被站点静默判错（弹窗关闭但未跳确认页）后，重新让验证码弹出来。
+
+    仅当确认页确实不存在时才重新提交，避免把「已成功但确认页慢」误判成失败导致重复下单。
+    返回 True 表示弹窗已重新出现，可进入下一轮识别。
+    """
+    # 双保险：站点可能只是慢，确认页已在别的标签页打开
+    if _confirmation_page(page.context, page) is not None:
+        return False
+    for text in ("提交", "确认预约"):
+        try:
+            btn = page.get_by_text(text, exact=True).first
+            if btn.count() and btn.is_visible():
+                btn.click(timeout=4000)
+                time.sleep(1.4)
+                if page.evaluate(JS_CAPTCHA_DUMP) is not None:
+                    return True
+        except Exception:  # noqa: BLE001
+            continue
+    # 兜底：点「刷新换一题」按钮
+    try:
+        refresh = page.locator(".verify-refresh, .refresh, [class*='refresh']:visible").first
+        refresh.click(timeout=3000)
+        time.sleep(1.4)
+        return page.evaluate(JS_CAPTCHA_DUMP) is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                         strategy="probability"):
     """点选验证码：候选分数整体匹配。
@@ -1490,6 +1522,17 @@ def solve_click_captcha(page, capture_dir, max_attempts=3, manual_only=False,
                     confirmed = _confirmation_page(page.context, page)
                     if confirmed is not None:
                         return confirmed
+                # 弹窗关闭却没到确认页 = 站点判验证码错误并静默关闭。
+                # 若还有重试次数，当场重新触发验证码再识别一次，
+                # 而不是整轮作废、干等 4~6 分钟的下一轮任务重试。
+                if attempt < max_attempts:
+                    confirmed = _confirmation_page(page.context, page)
+                    if confirmed is not None:
+                        return confirmed
+                    if _retrigger_captcha(page):
+                        log.warning("验证码被判未通过，已重新触发（第 %d/%d 次）",
+                                    attempt, max_attempts)
+                        continue
                 return None
             if latest["src"] != dump["src"] or latest["prompt"] != dump["prompt"]:
                 # 站点判错后通常就在同一个弹窗里换一张新题。这时应当按新题重解，
