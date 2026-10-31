@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css?v=20261031g">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261031h">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
 
-  var CN_NUM = ["", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+  var CN_NUM = ["", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖", "拾"];
   var app = document.getElementById("app");
 
   function esc(text) {
@@ -191,24 +191,47 @@
   }
 
   function renderRecords(d) {
-    var items = [
-      { value: d.total_submissions || 0, label: "提交次数" },
-      { value: d.total_problems || 0, label: "碰过的题目" },
-      { value: d.total_contents || 0, label: "读过的章节" },
-      { value: d.mock_exams || 0, label: "模拟考试" }
-    ];
-    return chapter(5, "战绩", "这些数字构成了你今年的底稿。", figures(items));
+    var s = d.submission_stats || {};
+    var ring = s.ac_rate != null
+      ? '<div class="ring" style="--p:' + s.ac_rate + '">' +
+          '<div class="ring-text"><b>' + s.ac_rate + '%</b><span>通过率</span></div></div>'
+      : "";
+    var facts = '<dl class="ring-facts">' +
+      '<div><dt>提交次数</dt><dd>' + (s.total || 0) + '</dd></div>' +
+      '<div><dt>通过</dt><dd>' + (s.ac || 0) + '</dd></div>' +
+      (s.fastest_ms != null
+        ? '<div><dt>最快用时</dt><dd>' + s.fastest_ms + ' ms</dd></div>' : '') +
+      '<div><dt>模拟考试</dt><dd>' + (d.mock_exams || 0) + '</dd></div>' +
+      '</dl>';
+    var langs = (s.languages || []).length
+      ? '<ul class="lang-list">' + s.languages.map(function (l) {
+          return '<li>' + esc(l.name) + ' <b>' + l.count + '</b></li>';
+        }).join("") + '</ul>'
+      : "";
+    return chapter(5, "战绩", "每一道通过的题，都留下了一次提交。",
+      '<div class="ring-row">' + ring + facts + '</div>' + langs);
   }
 
   function renderMemory(d) {
-    var items = [
-      { value: d.total_reviews || 0, label: "复习次数" },
-      { value: d.favorites || 0, label: "收藏内容" }
-    ];
-    var text = d.total_reviews > 0
-      ? "复习是把学过的东西真正留下来的那一步。"
-      : "还没有开始复习，明年可以把这一步补上。";
-    return chapter(6, "记忆", text, figures(items));
+    var m = d.memory_stats || {};
+    var maxS = 15;
+    var pct = m.avg_stability ? Math.min(100, Math.round((m.avg_stability / maxS) * 100)) : 0;
+    var scale = m.avg_stability != null
+      ? '<div class="memory-scale" style="--w:' + pct + '%">' +
+          '<div class="memory-scale-track"><span class="memory-scale-fill"></span></div>' +
+          '<div class="memory-scale-legend">' +
+            '<span>0</span>' +
+            '<span>平均记忆强度 ' + m.avg_stability + '</span>' +
+            '<span>' + maxS + '</span>' +
+          '</div>' +
+        '</div>'
+      : "";
+    return chapter(6, "记忆", "复习是把学过的东西真正留下来的那一步。",
+      figures([
+        { value: d.total_reviews || 0, label: "复习次数" },
+        { value: m.cards || 0, label: "复习卡" },
+        { value: d.favorites || 0, label: "收藏内容" }
+      ]) + scale);
   }
 
   function renderPersona(d) {
@@ -220,32 +243,51 @@
       }).join("") + '</ul>');
   }
 
-  function renderMoments(d) {
+  function renderFirsts(d) {
     var f = d.firsts || {};
-    var items = [];
-    if (f.first_ac) items.push([f.first_ac, "第一次在力扣通过，从这道题开始算起。"]);
-    if (f.first_view) items.push([f.first_view, "第一次在这里留下学习记录。"]);
-    if (f.first_favorite) items.push([f.first_favorite, "第一次把内容收进收藏。"]);
-    if (f.first_review) items.push([f.first_review, "第一次复习。"]);
-    if (f.first_gym) items.push([f.first_gym, "第一次约到南大体育馆。"]);
-    if (d.latest_activity) {
-      var la = d.latest_activity;
-      items.push([la.date + "T" + la.clock, "全年最晚的一次，<em>" + esc(la.clock) + "</em> 还在看「" + esc(la.title || "") + "」。"]);
-    }
-    var g = d.gym || {};
-    if (g.total > 0) {
-      var gymText = "一年约到 <b>" + g.total + "</b> 次体育馆";
-      if (g.favorite_slot) gymText += "，最常在 <em>" + esc(g.favorite_slot) + "</em>";
-      gymText += "。";
-      items.push([null, gymText]);
-    }
-    if (!items.length) return "";
-    return chapter(8, "时刻", "几个值得记住的瞬间。",
-      '<ul class="moments">' + items.map(function (pair) {
-        return '<li class="moment">' +
-          '<span class="moment-when">' + esc(fmtDate(pair[0])) + '</span>' +
-          '<p class="moment-what">' + pair[1] + '</p></li>';
+    var rows = [];
+    if (f.first_ac) rows.push({ date: f.first_ac, what: "第一次在力扣通过", accent: true });
+    if (f.first_view) rows.push({ date: f.first_view, what: "第一次在这里留下学习记录" });
+    if (f.first_favorite) rows.push({ date: f.first_favorite, what: "第一次把内容收进收藏" });
+    if (f.first_review) rows.push({ date: f.first_review, what: "第一次复习" });
+    if (f.first_gym) rows.push({ date: f.first_gym, what: "第一次约到南大体育馆" });
+    if (!rows.length) return "";
+    return chapter(8, "第一次", "几个起点，拼成了这一年的开头。",
+      '<ul class="timeline">' + rows.map(function (r) {
+        return '<li' + (r.accent ? ' class="is-accent"' : '') + '>' +
+          '<span class="tl-date">' + esc(fmtDate(r.date)) + '</span>' +
+          '<p class="tl-what">' + r.what + '</p>' +
+        '</li>';
       }).join("") + '</ul>');
+  }
+
+  function renderLatest(d) {
+    var la = d.latest_activity;
+    if (!la) return "";
+    var clock = String(la.clock || "").slice(0, 5);
+    return chapter(9, "最晚的一次", "那天的最后一件事。",
+      '<div class="big-clock"><strong>' + esc(clock) + '</strong><span>夜里</span></div>' +
+      '<p class="late-note">' + esc(fmtDate(la.date)) +
+        '，你还在看「<b>' + esc(la.title || "某页内容") + '</b>」。</p>');
+  }
+
+  function renderGym(d) {
+    var g = d.gym || {};
+    if (!g.total) return "";
+    var facts = "";
+    if (g.favorite_slot) {
+      facts += '<div><dt>最常去的时段</dt><dd class="accent">' + esc(g.favorite_slot) + '</dd></div>';
+    }
+    if (g.venue) {
+      facts += '<div><dt>常去的场馆</dt><dd>' +
+        (String(g.venue) === "129" ? "一层" : "负一层") + '</dd></div>';
+    }
+    if (g.success_rate != null) {
+      facts += '<div><dt>预约成功率</dt><dd>' + g.success_rate + '%</dd></div>';
+    }
+    return chapter(10, "体育馆", "学习和锻炼，这一年都没落下。",
+      '<div class="gym-figure"><strong>' + g.total + '</strong><span>次预约</span></div>' +
+      '<dl class="gym-facts">' + facts + '</dl>');
   }
 
   function renderOutro(d) {
@@ -293,6 +335,7 @@
       el.querySelectorAll(".figure-value").forEach(countUp);
       var bars = el.querySelector(".bars");
       if (bars) bars.classList.add("is-in");
+      el.querySelectorAll(".memory-scale").forEach(function (ms) { ms.classList.add("is-in"); });
     }
 
     if (reduceMotion() || !("IntersectionObserver" in window)) {
@@ -461,7 +504,9 @@
       renderRecords(d) +
       renderMemory(d) +
       renderPersona(d) +
-      renderMoments(d) +
+      renderFirsts(d) +
+      renderLatest(d) +
+      renderGym(d) +
       renderOutro(d);
     initMotion();
     initProgress();

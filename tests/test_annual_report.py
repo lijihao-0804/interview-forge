@@ -31,7 +31,8 @@ class AnnualReportTests(TestCase):
             self.assertEqual(report["daily_calendar"], {})
             # 结构字段必须存在，前端不必兜底
             for key in ("firsts", "latest_activity", "gym", "module_distribution",
-                        "hour_histogram", "top_keywords", "longest_streak"):
+                        "hour_histogram", "top_keywords", "longest_streak",
+                        "submission_stats", "memory_stats"):
                 self.assertIn(key, report)
 
     def test_counts_and_persona_from_real_events(self) -> None:
@@ -88,3 +89,22 @@ class AnnualReportTests(TestCase):
             report = build_annual_report("2026", db_paths=[db])
             labels = [t["label"] for t in report["persona"]]
             self.assertIn("夜猫子", labels)
+
+
+    def test_language_names_are_case_merged(self) -> None:
+        """Java 与 java 应合并成同一个语言。"""
+        with tempfile.TemporaryDirectory() as raw:
+            db = _make_db(Path(raw))
+            conn = sqlite3.connect(db)
+            for lang in ("Java", "java", "Java"):
+                conn.execute(
+                    "INSERT INTO submissions(problem_id, status, lang, submitted_at, source) "
+                    "VALUES (1, 'ac', ?, '2026-06-01T10:00:00+08:00', 'manual')", (lang,))
+            conn.commit()
+            conn.close()
+
+            report = build_annual_report("2026", db_paths=[db])
+            langs = report["submission_stats"]["languages"]
+            self.assertEqual(len(langs), 1)
+            self.assertEqual(langs[0]["name"], "Java")
+            self.assertEqual(langs[0]["count"], 3)

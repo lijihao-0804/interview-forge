@@ -93,6 +93,11 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
     keywords: Counter[str] = Counter()
     totals = {"seconds": 0, "problems": 0, "contents": 0, "submissions": 0,
               "reviews": 0, "favorites": 0, "mock_exams": 0}
+    subs_ac = 0
+    subs_fastest: int | None = None
+    langs: Counter[str] = Counter()
+    stability: list[float] = []
+    difficulty: list[float] = []
     firsts: dict[str, str | None] = {
         "first_view": None, "first_ac": None, "first_favorite": None,
         "first_review": None, "first_gym": None,
@@ -157,6 +162,40 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
                 "SELECT COUNT(*) FROM review_logs WHERE date(reviewed_at,'+8 hours') LIKE ?")
             totals["favorites"] += _sum("SELECT COUNT(*) FROM favorites WHERE created_at LIKE ?")
             totals["mock_exams"] += _sum("SELECT COUNT(*) FROM mock_exam_records WHERE exam_date LIKE ?")
+
+            # 提交战绩：AC 数、最快用时、语言分布
+            try:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS total, "
+                    "SUM(CASE WHEN status='ac' THEN 1 ELSE 0 END) AS ac, "
+                    "MIN(CASE WHEN status='ac' THEN runtime_ms END) AS fastest "
+                    "FROM submissions WHERE submitted_at LIKE ?", (prefix,)).fetchone()
+                if row:
+                    subs_ac += int(row["ac"] or 0)
+                    if row["fastest"] is not None:
+                        fastest = int(row["fastest"])
+                        if subs_fastest is None or fastest < subs_fastest:
+                            subs_fastest = fastest
+                for r in conn.execute(
+                        "SELECT lang, COUNT(*) AS n FROM submissions "
+                        "WHERE submitted_at LIKE ? AND lang != '' GROUP BY lang", (prefix,)):
+                    # 规范化语言名：Java / java 视为同一个
+                    raw = str(r[0]).strip()
+                    if raw:
+                        langs[raw.lower()] += int(r[1])
+            except sqlite3.Error:
+                pass
+
+            # 记忆强度：FSRS 的 stability / difficulty
+            try:
+                for r in conn.execute(
+                        "SELECT stability, difficulty FROM review_cards "
+                        "WHERE stability IS NOT NULL"):
+                    stability.append(float(r[0]))
+                    if r[1] is not None:
+                        difficulty.append(float(r[1]))
+            except sqlite3.Error:
+                pass
 
             # 第一次
             for key, sql in (
@@ -251,6 +290,20 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
         "module_distribution": dict(modules.most_common(20)),
         "top_keywords": [{"keyword": k, "count": n} for k, n in keywords.most_common(20)],
         "gym": gym,
+        "submission_stats": {
+            "total": totals["submissions"],
+            "ac": subs_ac,
+            "ac_rate": round(subs_ac / totals["submissions"] * 100) if totals["submissions"] else None,
+            "fastest_ms": subs_fastest,
+            "languages": [{"name": k[:1].upper() + k[1:], "count": n}
+                          for k, n in langs.most_common(5)],
+        },
+        "memory_stats": {
+            "cards": len(stability),
+            "avg_stability": round(sum(stability) / len(stability), 1) if stability else None,
+            "max_stability": round(max(stability), 1) if stability else None,
+            "avg_difficulty": round(sum(difficulty) / len(difficulty), 2) if difficulty else None,
+        },
     }
     # 模块 id → 友好标题（书架 manifest 里的 title）
     try:
