@@ -157,7 +157,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .plan-reason.due{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
 .plan-reason.weak{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .plan-reason.new{color:var(--brand);background:var(--brand-soft)}
-.mock-setup{display:grid;grid-template-columns:repeat(5,minmax(112px,1fr));gap:12px}
+.mock-setup{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px}
 .mock-settings{margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
 .mock-settings summary{padding:8px 12px;color:var(--brand);font-weight:650;cursor:pointer}
 .mock-settings[open] .mock-setup{padding:4px 12px 12px}
@@ -171,7 +171,6 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .mock-btn{border:1px solid var(--line);border-radius:8px;padding:4px 9px;color:var(--brand);background:var(--brand-soft);cursor:pointer;font-size:12px}
 .mock-btn.skip{color:var(--muted);background:transparent}
 .mock-report{line-height:1.9;margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel-soft)}
-@media(max-width:960px){.mock-setup{grid-template-columns:repeat(3,minmax(140px,1fr))}}
 @media(max-width:760px){.mock-setup{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.mock-setup{grid-template-columns:1fr}}
 .track-section{margin:22px 0 0;padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--shadow)}
@@ -914,7 +913,7 @@ function mockRender(){
   const current=mockState.problems[mockState.index];
   // 模拟题在新标签页以一次性参数进入自测模式；从书架或搜索进入不受影响。
   const mockHref=`${current.note}${current.note.indexOf('?')>=0?'&':'?'}selftest=1`;
-  list.innerHTML=`<div class="mock-item"><a class="mock-problem-link" href="${esc(mockHref)}" target="_blank" rel="noopener noreferrer" data-navigation-policy="new-tab">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
+    list.innerHTML=`<div class="mock-item"><a class="mock-problem-link" href="${esc(mockHref)}" target="_blank" rel="noopener noreferrer" data-navigation-policy="new-tab">${current.id}. ${esc(current.title)}</a><span class="pick-meta"><span class="pill">${esc(current.category)}</span><span class="difficulty-${current.difficulty}">${current.difficulty}</span></span><div class="mock-actions"><button class="mock-btn skip" type="button" data-mock="skip">跳过</button><button class="mock-btn" type="button" data-mock="done">完成</button></div></div><p class="review-empty">第 ${mockState.index+1} / ${mockState.problems.length} 题，点击完成或跳过进入下一题。</p>`;
   list.querySelector('[data-mock="done"]').addEventListener('click',()=>{mockState.done.push(current.id);mockNext()});
   list.querySelector('[data-mock="skip"]').addEventListener('click',()=>{mockState.skip.push(current.id);mockNext()});
 }
@@ -947,24 +946,7 @@ async function mockFinish(timeout){
 }
 document.getElementById('mockStart').addEventListener('click',mockStart);
 document.getElementById('mockAbandon').addEventListener('click',()=>mockAbandon());
-// 新标签页不会离开模拟页；若导航策略触发卸载事件，跳过这次确认。
-let openingNewTab=false;
-document.addEventListener('click',event=>{
-  openingNewTab=false;
-  const link=event.target.closest&&event.target.closest('a[href]');
-  if(!link)return;
-  const target=(link.getAttribute('target')||'').toLowerCase();
-  const policy=link.getAttribute('data-navigation-policy')||'';
-  if(target==='_blank'||policy==='new-tab'||event.ctrlKey||event.metaKey||event.shiftKey||event.button===1){
-    openingNewTab=true;
-    setTimeout(()=>{openingNewTab=false},0);
-  }
-},true);
-window.addEventListener('beforeunload',event=>{
-  if(openingNewTab||!mockState||mockState.finished)return;
-  event.preventDefault();
-  event.returnValue='模拟面试仍在进行，离开将中断当前页面。';
-});
+window.addEventListener('beforeunload',event=>{if(mockState&&!mockState.finished){event.preventDefault();event.returnValue='模拟面试仍在进行，离开将中断当前页面。'}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&mockState)mockTick()});
 restoreMockSession();
 document.getElementById('serverRetry').addEventListener('click',()=>refresh());

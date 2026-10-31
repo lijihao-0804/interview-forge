@@ -396,14 +396,18 @@
     }
   } catch (error) { sessionOn = false; }
 
+  // 自测状态只活在「当前这一页」：
+  //   · 从考试链接带 ?selftest=1 进来 → sessionOn 开启（仅本次）
+  //   · 页面上手动点按钮 → manualOn 切换，刷新/离开即失效
+  // 不写 localStorage，避免「手动开过一次后，从书架/搜索进任何题解页都变自测」。
+  var manualOn = false;
+  try { localStorage.removeItem(KEY); } catch (error) {}  // 清理旧版本残留
   function modeOn() {
-    if (sessionOn) return true;
-    try { return localStorage.getItem(KEY) === "1"; } catch (error) { return false; }
+    return sessionOn || manualOn;
   }
   function writeMode(on) {
-    // 用户手动点击按钮后，转为由全局开关掌控（一次性参数随即失效）
     sessionOn = false;
-    try { localStorage.setItem(KEY, on ? "1" : "0"); } catch (error) {}
+    manualOn = on;
   }
   function unwrapAll() {
     var blocks = document.querySelectorAll("article.markdown-body .selftest-block");

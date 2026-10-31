@@ -33,3 +33,21 @@ class IndexMockSettingsTests(TestCase):
         # 抽题范围需要映射成后端的 scope + days 两个参数
         self.assertIn("scopeMap", self.source, "缺少 scope → (scope, days) 的映射")
         self.assertRegex(self.source, r"/api/mock\?[^\n]*scope=")
+
+
+class SelfTestScopeTests(TestCase):
+    """自测模式只能由考试链接（?selftest=1）或当前页手动开启，不得跨页持久化。"""
+
+    def setUp(self) -> None:
+        self.build = (ROOT / "scripts/build/build_html_site.py").read_text(encoding="utf-8")
+
+    def test_selftest_reads_url_param(self) -> None:
+        self.assertIn('params.get("selftest") === "1"', self.build)
+
+    def test_selftest_clears_url_after_read(self) -> None:
+        # 读后立刻从地址栏移除，刷新/分享不再重复触发
+        self.assertIn("replaceState", self.build)
+
+    def test_selftest_not_persisted_to_localstorage(self) -> None:
+        # 不能把手动开启写进 localStorage，否则从书架/搜索进任何题解页都会变自测
+        self.assertNotIn("localStorage.setItem(KEY", self.build)

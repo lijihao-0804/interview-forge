@@ -13,17 +13,6 @@
 
 线上使用只需要支持现代 JavaScript 的浏览器和稳定网络；Mermaid、uPlot 等前端资源由站点提供，网络异常时仅部分静态内容可由缓存兜底。
 
-### 本地开发
-
-本地与生产跑同一个 FastAPI 应用，启动命令保持一致：
-
-```bash
-pip install -r requirements-server.txt
-python -m uvicorn interview_forge.api.app:app --host 127.0.0.1 --port 8765
-```
-
-`tools/study_server.py` 是 stdlib 兼容入口（历史命令仍可用），但新接口只在 FastAPI 侧注册；日常开发请用上面的 uvicorn 命令，否则会出现「本地正常、线上 404」的路由不一致。
-
 ## 主要功能详解
 
 ### 1. Hot 100 算法精讲
