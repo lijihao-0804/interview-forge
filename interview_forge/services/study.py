@@ -1636,6 +1636,26 @@ def mock_exam(
         history.append([int(p["id"]) for p in chosen])
         _mock_save_history(db_path, history)
 
+    # 年度报告：记录本次模拟考试（题数/范围/抽中的题），便于统计考了多少次
+    try:
+        with closing(server_runtime.connect(db_path)) as connection:
+            connection.execute(
+                """INSERT INTO mock_exam_records
+                       (exam_at, exam_date, problem_count, scope, scope_label,
+                        repeated_count, category, difficulty, problem_ids)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    server_runtime.now_parts()[0], server_runtime.now_parts()[1],
+                    len(chosen), norm_scope or "all", scope_label,
+                    sum(1 for p in chosen if int(p["id"]) in recent_ids),
+                    category or "", difficulty or "",
+                    json.dumps([int(p["id"]) for p in chosen], ensure_ascii=False),
+                ),
+            )
+            connection.commit()
+    except Exception:  # noqa: BLE001  埋点失败不影响出题
+        pass
+
     return {
         "count": len(chosen),
         "scope": norm_scope or "all",
@@ -2033,5 +2053,211 @@ def latest_activity_summary(
         "hour_histogram": dict(sorted(hour_hist.items())),
         "top_targets": top_targets,
         "latest_items": latest_items[:10],
+    }
+
+
+_MAX_DURATION_SECONDS = 3600  # 单次心跳上限，防脏数据
+
+
+def record_study_duration(
+    target_type: str,
+    target_id: str,
+    seconds: int,
+    module_id: str | None = None,
+    db_path: Path = DB_PATH,
+) -> dict[str, object]:
+    """累加一次学习时长心跳（前端每 30 秒上报一次，页面隐藏时补最后一次）。
+
+    按「日期 + 目标」聚合累加，同一目标一天只有一行；单次上报限制在 1 小时内，
+    避免前端时钟异常或页面挂机产生离谱数据。
+    """
+    if target_type not in ("problem", "content"):
+        raise ValueError("target_type 必须是 problem 或 content")
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        raise ValueError("seconds 必须是整数")
+    if value <= 0:
+        return {"recorded": False, "reason": "non_positive"}
+    value = min(value, _MAX_DURATION_SECONDS)
+    studied_at, study_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute(
+            """INSERT INTO study_duration
+                   (study_date, target_type, target_id, module_id, seconds, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(study_date, target_type, target_id) DO UPDATE SET
+                   seconds = seconds + excluded.seconds,
+                   module_id = COALESCE(excluded.module_id, module_id),
+                   updated_at = excluded.updated_at""",
+            (study_date, target_type, str(target_id), module_id, value, studied_at),
+        )
+        connection.commit()
+    return {"recorded": True, "seconds": value, "study_date": study_date}
+
+
+def record_search(
+    keyword: str,
+    result_count: int | None = None,
+    source: str = "global",
+    db_path: Path = DB_PATH,
+) -> dict[str, object]:
+    """记录一次搜索（关键词 + 结果数），用于年度报告「你的高频词」。"""
+    text = str(keyword or "").strip()[:80]
+    if not text:
+        return {"recorded": False, "reason": "empty"}
+    searched_at, search_date = server_runtime.now_parts()
+    with closing(server_runtime.connect(db_path)) as connection:
+        connection.execute(
+            """INSERT INTO search_events(keyword, searched_at, search_date, result_count, source)
+               VALUES (?, ?, ?, ?, ?)""",
+            (text, searched_at, search_date,
+             None if result_count is None else int(result_count), str(source or "global")),
+        )
+        connection.commit()
+    return {"recorded": True, "keyword": text, "search_date": search_date}
+
+
+def refresh_daily_summary(date: str | None = None, db_path: Path = DB_PATH) -> dict[str, object]:
+    """把某天（默认今天）的学习数据聚合进 daily_summary，幂等可重复调用。
+
+    年度报告与中控台读这张表即可，不必每次扫全部事件表。
+    """
+    if date is None:
+        date = server_runtime.now_parts()[1]
+    with closing(server_runtime.connect(db_path)) as connection:
+        views = connection.execute(
+            "SELECT COUNT(*) FROM study_events WHERE action = 'view' AND study_date = ?",
+            (date,)).fetchone()[0]
+        completes = connection.execute(
+            "SELECT COUNT(*) FROM study_events WHERE action = 'complete' AND study_date = ?",
+            (date,)).fetchone()[0]
+        problems = connection.execute(
+            "SELECT COUNT(DISTINCT problem_id) FROM study_events WHERE study_date = ?",
+            (date,)).fetchone()[0]
+        contents = connection.execute(
+            "SELECT COUNT(DISTINCT content_id) FROM content_events WHERE study_date = ?",
+            (date,)).fetchone()[0]
+        submissions = connection.execute(
+            """SELECT COUNT(*) FROM submissions
+               WHERE date(submitted_at, '+8 hours') = ?""", (date,)).fetchone()[0]
+        reviews = connection.execute(
+            """SELECT COUNT(*) FROM review_logs
+               WHERE date(reviewed_at, '+8 hours') = ?""", (date,)).fetchone()[0]
+        seconds = connection.execute(
+            "SELECT COALESCE(SUM(seconds), 0) FROM study_duration WHERE study_date = ?",
+            (date,)).fetchone()[0]
+        now = server_runtime.now_parts()[0]
+        connection.execute(
+            """INSERT INTO daily_summary
+                   (summary_date, view_count, complete_count, problem_count, content_count,
+                    submission_count, review_count, study_seconds, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(summary_date) DO UPDATE SET
+                   view_count = excluded.view_count,
+                   complete_count = excluded.complete_count,
+                   problem_count = excluded.problem_count,
+                   content_count = excluded.content_count,
+                   submission_count = excluded.submission_count,
+                   review_count = excluded.review_count,
+                   study_seconds = excluded.study_seconds,
+                   updated_at = excluded.updated_at""",
+            (date, views, completes, problems, contents, submissions, reviews, seconds, now),
+        )
+        connection.commit()
+    return {
+        "summary_date": date, "view_count": views, "complete_count": completes,
+        "problem_count": problems, "content_count": contents,
+        "submission_count": submissions, "review_count": reviews,
+        "study_seconds": seconds,
+    }
+
+
+def report_summary(year: str | None = None, db_paths: list[Path] | None = None) -> dict:
+    """年度报告用的全站汇总：活跃天数、总时长、题目/章节量、提交/复习数、模块分布、高频词。
+
+    直接实时聚合原表（不依赖 daily_summary 是否被刷新），数据量小、结果永远最新。
+    """
+    if db_paths is None:
+        users_dir = DB_PATH.parent / "users"
+        db_paths = sorted(users_dir.glob("*/hot100-study.db")) if users_dir.is_dir() else []
+        if DB_PATH.exists():
+            db_paths = [DB_PATH, *db_paths]
+
+    active_days: set[str] = set()
+    modules: dict[str, int] = {}
+    keywords: dict[str, int] = {}
+    total = {"seconds": 0, "problems": 0, "contents": 0, "submissions": 0, "reviews": 0}
+
+    for path in db_paths:
+        if not path.exists():
+            continue
+        try:
+            with closing(server_runtime.connect(path)) as connection:
+                like = (f"{year}-%",) if year else None
+
+                def _days(table: str, column: str) -> None:
+                    sql = f"SELECT DISTINCT {column} FROM {table}"
+                    args: tuple = ()
+                    if like:
+                        sql += f" WHERE {column} LIKE ?"
+                        args = like
+                    for row in connection.execute(sql, args):
+                        if row[0]:
+                            active_days.add(str(row[0]))
+
+                _days("study_events", "study_date")
+                _days("content_events", "study_date")
+                _days("study_duration", "study_date")
+
+                def _sum(sql: str) -> int:
+                    args = like or ()
+                    try:
+                        return int(connection.execute(sql, args).fetchone()[0] or 0)
+                    except sqlite3.Error:
+                        return 0
+
+                total["seconds"] += _sum("SELECT COALESCE(SUM(seconds),0) FROM study_duration"
+                                         + (" WHERE study_date LIKE ?" if like else ""))
+                total["problems"] += _sum("SELECT COUNT(DISTINCT problem_id) FROM study_events"
+                                          + (" WHERE study_date LIKE ?" if like else ""))
+                total["contents"] += _sum("SELECT COUNT(DISTINCT content_id) FROM content_events"
+                                          + (" WHERE study_date LIKE ?" if like else ""))
+                total["submissions"] += _sum(
+                    "SELECT COUNT(*) FROM submissions WHERE date(submitted_at,'+8 hours') LIKE ?"
+                    if like else "SELECT COUNT(*) FROM submissions")
+                total["reviews"] += _sum(
+                    "SELECT COUNT(*) FROM review_logs WHERE date(reviewed_at,'+8 hours') LIKE ?"
+                    if like else "SELECT COUNT(*) FROM review_logs")
+
+                cond_c = " WHERE study_date LIKE ?" if like else ""
+                for row in connection.execute(
+                        f"SELECT module_id, COUNT(*) AS n FROM content_events{cond_c} "
+                        f"GROUP BY module_id", like or ()):
+                    if row["module_id"]:
+                        key = str(row["module_id"])
+                        modules[key] = modules.get(key, 0) + int(row["n"])
+
+                cond_s = " WHERE search_date LIKE ?" if like else ""
+                for row in connection.execute(
+                        f"SELECT keyword, COUNT(*) AS n FROM search_events{cond_s} "
+                        f"GROUP BY keyword", like or ()):
+                    key = str(row["keyword"])
+                    keywords[key] = keywords.get(key, 0) + int(row["n"])
+        except sqlite3.Error:
+            continue
+
+    return {
+        "year": year,
+        "active_days": len(active_days),
+        "total_seconds": total["seconds"],
+        "total_hours": round(total["seconds"] / 3600, 1),
+        "total_problems": total["problems"],
+        "total_contents": total["contents"],
+        "total_submissions": total["submissions"],
+        "total_reviews": total["reviews"],
+        "module_distribution": dict(sorted(modules.items(), key=lambda kv: -kv[1])[:20]),
+        "top_keywords": [{"keyword": k, "count": n}
+                         for k, n in sorted(keywords.items(), key=lambda kv: -kv[1])[:20]],
     }
 

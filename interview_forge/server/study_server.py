@@ -476,6 +476,9 @@ from interview_forge.services.study import (
     dashboard_data,
     record_content_view,
     complete_content,
+    record_study_duration,
+    record_search,
+    report_summary,
     ac_problem_progress,
     problem_progress,
     problem_review_state,
@@ -885,6 +888,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except ValueError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        # /api/report/summary：年度报告全站汇总（?year=2026）
+        if parsed.path == "/api/report/summary":
+            params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+            self.send_json(report_summary(year=params.get("year") or None))
+            return
         # /api/favorites：收藏中心 —— 条目列表 + 按模块统计；
         # ?module= 指定模块（如 hot100）、?type=problem/content 指定类型。
         if parsed.path == "/api/favorites":
@@ -1166,6 +1174,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
             "/api/content/complete", "/api/mark", "/api/settings", "/api/submit",
             "/api/favorites/toggle", "/api/favorites/remove",
             "/api/plan/pin",
+            "/api/study/duration", "/api/search/events",
             "/api/coach/context",
             "/api/coach/analyze",
             "/api/leetcode/connect", "/api/leetcode/sync", "/api/leetcode/clear",
@@ -1493,6 +1502,23 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # /api/settings：更新设置 KV（目前为每日目标轮次）。
             elif path == "/api/settings":
                 result = set_setting(str(payload.get("key", "")), str(payload.get("value", "")), db)
+            # /api/study/duration：学习时长心跳（前端每 30 秒上报，页面隐藏时补最后一次）
+            elif path == "/api/study/duration":
+                result = record_study_duration(
+                    target_type=str(payload.get("target_type", "")),
+                    target_id=str(payload.get("target_id", "")),
+                    seconds=int(payload.get("seconds", 0) or 0),
+                    module_id=payload.get("module_id") or None,
+                    db_path=db,
+                )
+            # /api/search/events：记录一次搜索关键词，用于年度报告「高频词」
+            elif path == "/api/search/events":
+                result = record_search(
+                    keyword=str(payload.get("keyword", "")),
+                    result_count=payload.get("result_count"),
+                    source=str(payload.get("source", "global")),
+                    db_path=db,
+                )
             # /api/submit：记录一次力扣提交结果（ac/wa + 语言/耗时/内存，来自手动/书签/扩展）。
             elif path == "/api/submit":
                 result = record_submission(

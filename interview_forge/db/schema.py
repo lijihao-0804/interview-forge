@@ -113,6 +113,54 @@ CREATE TABLE IF NOT EXISTS plan_pins (
     for_date TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mock_exam_records (
+    id INTEGER PRIMARY KEY,
+    exam_at TEXT NOT NULL,
+    exam_date TEXT NOT NULL,
+    problem_count INTEGER NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'all',
+    scope_label TEXT NOT NULL DEFAULT '',
+    repeated_count INTEGER NOT NULL DEFAULT 0,
+    category TEXT NOT NULL DEFAULT '',
+    difficulty TEXT NOT NULL DEFAULT '',
+    problem_ids TEXT NOT NULL DEFAULT '[]',
+    used_seconds INTEGER,
+    finished_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_mock_exam_date ON mock_exam_records(exam_date);
+CREATE TABLE IF NOT EXISTS study_duration (
+    id INTEGER PRIMARY KEY,
+    study_date TEXT NOT NULL,
+    target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
+    target_id TEXT NOT NULL,
+    module_id TEXT,
+    seconds INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_study_duration_target
+    ON study_duration(study_date, target_type, target_id);
+CREATE INDEX IF NOT EXISTS ix_study_duration_date ON study_duration(study_date);
+CREATE TABLE IF NOT EXISTS search_events (
+    id INTEGER PRIMARY KEY,
+    keyword TEXT NOT NULL,
+    searched_at TEXT NOT NULL,
+    search_date TEXT NOT NULL,
+    result_count INTEGER,
+    source TEXT NOT NULL DEFAULT 'global'
+);
+CREATE INDEX IF NOT EXISTS ix_search_events_date ON search_events(search_date);
+CREATE INDEX IF NOT EXISTS ix_search_events_keyword ON search_events(keyword);
+CREATE TABLE IF NOT EXISTS daily_summary (
+    summary_date TEXT PRIMARY KEY,
+    view_count INTEGER NOT NULL DEFAULT 0,
+    complete_count INTEGER NOT NULL DEFAULT 0,
+    problem_count INTEGER NOT NULL DEFAULT 0,
+    content_count INTEGER NOT NULL DEFAULT 0,
+    submission_count INTEGER NOT NULL DEFAULT 0,
+    review_count INTEGER NOT NULL DEFAULT 0,
+    study_seconds INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS daily_latest_activity (
     activity_date TEXT PRIMARY KEY,
     latest_at TEXT NOT NULL,
