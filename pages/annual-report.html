@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css?v=20261031f">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261031g">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -284,55 +284,76 @@
   // 进入视口才播放：数字滚动、模块条形生长、章节编号浮现
   function initMotion() {
     var chapters = document.querySelectorAll(".chapter");
+    var seen = new WeakSet();
+
+    function trigger(el) {
+      if (seen.has(el)) return;
+      seen.add(el);
+      el.classList.add("is-in");
+      el.querySelectorAll(".figure-value").forEach(countUp);
+      var bars = el.querySelector(".bars");
+      if (bars) bars.classList.add("is-in");
+    }
+
     if (reduceMotion() || !("IntersectionObserver" in window)) {
-      chapters.forEach(function (c) { c.classList.add("is-in"); });
-      document.querySelectorAll(".bars").forEach(function (b) { b.classList.add("is-in"); });
+      chapters.forEach(trigger);
+      document.querySelectorAll(".calendar, .clock").forEach(function (el) {
+        el.classList.add("is-in");
+      });
       return;
     }
-    var seen = new WeakSet();
+
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
-        if (!entry.isIntersecting || seen.has(entry.target)) return;
-        seen.add(entry.target);
-        // 翻页是平滑滚动（约 400ms），等页面到位再起动画，否则用户只看到尾巴
+        if (!entry.isIntersecting) return;
+        // 翻页是平滑滚动，途中会「经过」中间页并触发它们的 IO。
+        // 延迟后必须确认这一页仍停在视口中央，才算真正翻到它，
+        // 否则用户翻回去时会看到数字早已变成最终值（泄露）。
         setTimeout(function () {
-          entry.target.classList.add("is-in");
-          entry.target.querySelectorAll(".figure-value").forEach(countUp);
-          var bars = entry.target.querySelector(".bars");
-          if (bars) bars.classList.add("is-in");
-        }, 450);
-        io.unobserve(entry.target);
+          var rect = entry.target.getBoundingClientRect();
+          var middle = window.innerHeight / 2;
+          if (rect.top < middle && rect.bottom > middle) {
+            trigger(entry.target);
+            io.unobserve(entry.target);   // 只有真正播过才停止观察
+          }
+          // 否则保持观察：用户稍后翻到这一页时还会再次触发
+        }, 480);
       });
     }, { threshold: 0.15 });
     chapters.forEach(function (c) { io.observe(c); });
 
-    // 热力图与时段图：滚动进入才播放，避免用户在封面时就播完
-    var media = document.querySelectorAll(".calendar, .clock");
+    // 热力图与时段图：同样等停稳再播
     var mediaIo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        setTimeout(function () { entry.target.classList.add("is-in"); }, 450);
-        mediaIo.unobserve(entry.target);
+        setTimeout(function () {
+          var rect = entry.target.getBoundingClientRect();
+          var middle = window.innerHeight / 2;
+          if (rect.top < middle && rect.bottom > middle) {
+            entry.target.classList.add("is-in");
+            mediaIo.unobserve(entry.target);
+          }
+        }, 480);
       });
     }, { threshold: 0.15 });
-    media.forEach(function (el) { mediaIo.observe(el); });
+    document.querySelectorAll(".calendar, .clock").forEach(function (el) {
+      mediaIo.observe(el);
+    });
 
-    // 兜底：动画被浏览器/无头环境跳过时，保证数据最终可见
+    // 兜底：只补「当前视口内但没触发」的页（主要给自动化截图用）。
+    // 绝不能无条件把每一页都设成最终值——那样用户翻到哪页都已经是结果了。
     setTimeout(function () {
       chapters.forEach(function (c) {
-        c.classList.add("is-in");
-        c.querySelectorAll(".bars").forEach(function (b) { b.classList.add("is-in"); });
-        c.querySelectorAll(".figure-value").forEach(function (el) {
-          var node = el.firstChild;
-          if (node && node.nodeType === 3) node.nodeValue = el.getAttribute("data-value");
-        });
+        if (seen.has(c)) return;
+        var rect = c.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) trigger(c);
       });
       document.querySelectorAll(".calendar, .clock").forEach(function (el) {
-        el.classList.add("is-in");
+        var rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) el.classList.add("is-in");
       });
-    }, 2600);
+    }, 3000);
   }
-
 
   // 翻页导航：右侧小点 + 键盘上下翻页
   function initPaging() {
