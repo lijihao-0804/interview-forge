@@ -14,12 +14,16 @@ from starlette.concurrency import run_in_threadpool
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
 from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
 from interview_forge.services.auth import effective_ai_daily_limit, get_fsrs_desired_retention
+from interview_forge.services.annual_report import build_annual_report
 from interview_forge.services.favorites import (
     favorite_ids, favorite_stats, list_favorites, remove_favorite, toggle_favorite,
 )
 from interview_forge.services.submissions import record_submission, submissions_for_problem
 from interview_forge.observability.logging import log_event
 from interview_forge.services.study import (
+    record_study_duration,
+    record_search,
+    report_summary,
     complete_content, complete_round, daily_data, dashboard_cached, export_data,
     export_database_snapshot, get_settings, library_data, mock_exam,
     pin_problem_for_tomorrow, pick_problem,
@@ -416,3 +420,56 @@ async def _write_json(request: Request, operation):
         return json_response(result, 201)
     except BaseException as exc:
         return _handled(exc, write=True)
+
+
+@router.get("/api/report/annual")
+def report_annual(request: Request, year: str | None = None):
+    """个人年度报告：默认统计当前用户自己的学习库。"""
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(build_annual_report(year=year, db_paths=[user_db(user)]))
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.get("/api/report/summary")
+def report_summary_get(request: Request, year: str | None = None):
+    """全站年度汇总（跨所有用户库）。"""
+    user, denied = _user(request)
+    if denied is not None:
+        return denied
+    try:
+        return json_response(report_summary(year=year))
+    except BaseException as exc:
+        return _handled(exc)
+
+
+@router.post("/api/study/duration")
+async def study_duration(request: Request):
+    """学习时长心跳：前端每 30 秒上报一次。"""
+    return await _write_json(
+        request,
+        lambda p, db: record_study_duration(
+            str(p.get("target_type", "")),
+            str(p.get("target_id", "")),
+            int(p.get("seconds", 0) or 0),
+            p.get("module_id") or None,
+            db,
+        ),
+    )
+
+
+@router.post("/api/search/events")
+async def search_events(request: Request):
+    """搜索关键词埋点。"""
+    return await _write_json(
+        request,
+        lambda p, db: record_search(
+            str(p.get("keyword", "")),
+            p.get("result_count"),
+            str(p.get("source", "global")),
+            db,
+        ),
+    )
