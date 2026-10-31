@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度学习卷宗 · InterviewForge</title>
-<link rel="stylesheet" href="../assets/annual-report.css?v=20261031b">
+<link rel="stylesheet" href="../assets/annual-report.css?v=20261031c">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -47,7 +47,7 @@
 
   function figures(list) {
     return '<div class="figures">' + list.map(function (f) {
-      return '<div><div class="figure-value">' + f.value +
+      return '<div><div class="figure-value" data-value="' + f.value + '">' + f.value +
         (f.unit ? '<small>' + esc(f.unit) + '</small>' : '') +
         '</div><p class="figure-label">' + esc(f.label) + '</p></div>';
     }).join("") + "</div>";
@@ -111,7 +111,8 @@
           String(dt.getDate()).padStart(2, "0");
         var v = cal[key] || 0;
         var level = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
-        cells.push('<i data-level="' + level + '" title="' + key + "：" + v + ' 次"></i>');
+        cells.push('<i data-level="' + level + '" style="--w:' + w +
+          '" title="' + key + "：" + v + ' 次"></i>');
       }
       var weekStart = new Date(first.getTime() + w * 7 * 86400000);
       if (weekStart.getFullYear() === year && weekStart.getMonth() !== lastMonth) {
@@ -154,7 +155,7 @@
       var name = (d.module_titles && d.module_titles[k]) || k;
       return '<div class="bar-row">' +
         '<span class="bar-name" title="' + esc(name) + '">' + esc(name) + '</span>' +
-        '<span class="bar-track"><span class="bar-fill" data-w="' + pct + '"></span></span>' +
+        '<span class="bar-track"><span class="bar-fill" style="--w:' + pct + '%"></span></span>' +
         '<span class="bar-count">' + mods[k] + '</span>' +
       '</div>';
     }).join("");
@@ -174,7 +175,8 @@
     for (var h = 0; h < 24; h++) {
       var v = hours[h] || 0;
       var height = v ? Math.max(4, Math.round((v / max) * 100)) : 2;
-      bars.push('<i style="height:' + height + '%" class="' + (String(h) === String(peakHour) ? "is-peak" : "") +
+      bars.push('<i style="--h:' + h + ';height:' + height + '%" class="' +
+        (String(h) === String(peakHour) ? "is-peak" : "") +
         '" title="' + h + ' 点：' + v + ' 次"></i>');
       axis.push("<span>" + h + "</span>");
     }
@@ -251,12 +253,97 @@
       '</div></section>';
   }
 
-  function animateBars() {
-    requestAnimationFrame(function () {
-      document.querySelectorAll(".bar-fill").forEach(function (el) {
-        el.style.width = (el.getAttribute("data-w") || 0) + "%";
+  function reduceMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  // 数字滚动：从 0 涨到目标值，保留小数位
+  function countUp(el) {
+    var target = Number(el.getAttribute("data-value") || 0);
+    if (!target || reduceMotion()) return;
+    var decimals = String(target).indexOf(".") >= 0 ? 1 : 0;
+    var node = el.firstChild;
+    if (!node || node.nodeType !== 3) return;
+    var start = performance.now();
+    var duration = 900;
+    function tick(now) {
+      var p = Math.min(1, (now - start) / duration);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var value = (target * eased).toFixed(decimals);
+      node.nodeValue = decimals ? value : String(Math.round(Number(value)));
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // 进入视口才播放：数字滚动、模块条形生长、章节编号浮现
+  function initMotion() {
+    var chapters = document.querySelectorAll(".chapter");
+    if (reduceMotion() || !("IntersectionObserver" in window)) {
+      chapters.forEach(function (c) { c.classList.add("is-in"); });
+      document.querySelectorAll(".bars").forEach(function (b) { b.classList.add("is-in"); });
+      return;
+    }
+    var seen = new WeakSet();
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting || seen.has(entry.target)) return;
+        seen.add(entry.target);
+        entry.target.classList.add("is-in");
+        entry.target.querySelectorAll(".figure-value").forEach(countUp);
+        var bars = entry.target.querySelector(".bars");
+        if (bars) bars.classList.add("is-in");
+        io.unobserve(entry.target);
       });
-    });
+    }, { threshold: 0.15 });
+    chapters.forEach(function (c) { io.observe(c); });
+
+    // 热力图与时段图：滚动进入才播放，避免用户在封面时就播完
+    var media = document.querySelectorAll(".calendar, .clock");
+    var mediaIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-in");
+        mediaIo.unobserve(entry.target);
+      });
+    }, { threshold: 0.15 });
+    media.forEach(function (el) { mediaIo.observe(el); });
+
+    // 兜底：动画被浏览器/无头环境跳过时，保证数据最终可见
+    setTimeout(function () {
+      chapters.forEach(function (c) {
+        c.classList.add("is-in");
+        c.querySelectorAll(".bars").forEach(function (b) { b.classList.add("is-in"); });
+        c.querySelectorAll(".figure-value").forEach(function (el) {
+          var node = el.firstChild;
+          if (node && node.nodeType === 3) node.nodeValue = el.getAttribute("data-value");
+        });
+      });
+      document.querySelectorAll(".calendar, .clock").forEach(function (el) {
+        el.classList.add("is-in");
+      });
+    }, 2600);
+  }
+
+  // 顶部阅读进度
+  function initProgress() {
+    if (reduceMotion()) return;
+    var bar = document.createElement("div");
+    bar.className = "read-progress";
+    document.body.appendChild(bar);
+    var ticking = false;
+    function update() {
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      var ratio = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+      bar.style.transform = "scaleX(" + ratio + ")";
+      ticking = false;
+    }
+    window.addEventListener("scroll", function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    }, { passive: true });
+    update();
   }
 
   function render(d) {
@@ -277,7 +364,8 @@
       renderPersona(d) +
       renderMoments(d) +
       renderOutro(d);
-    animateBars();
+    initMotion();
+    initProgress();
     var printBtn = document.getElementById("printBtn");
     if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
   }
