@@ -400,6 +400,50 @@ def backfill_leetcode_ac_reviews(
     return advanced
 
 
+def _content_title(module_id: str, content_id: str) -> str:
+    """取章节标题，供「每天最晚打开」记录冗余存储，报告时不必再 join manifest。"""
+    try:
+        from interview_forge.services.catalog import load_library_manifest
+        for module in load_library_manifest().get("modules", []):
+            if module.get("id") != module_id:
+                continue
+            for chapter in module.get("chapters", []):
+                if chapter.get("id") == content_id:
+                    return str(chapter.get("title") or "")
+    except Exception:  # noqa: BLE001  埋点属尽力而为，失败不影响主流程
+        return ""
+    return ""
+
+
+def _touch_daily_latest(connection: sqlite3.Connection, *, latest_at: str, study_date: str,
+                        target_type: str, target_id: str, target_title: str = "",
+                        module_id: str | None = None) -> bool:
+    """只保留「当天最晚一次打开」的记录。
+
+    每次浏览都写会白白占空间；这里同一天只留最晚那一条，更早的直接丢弃。
+    一年最多 365 行，查询/统计都很快。
+    """
+    row = connection.execute(
+        "SELECT latest_at FROM daily_latest_activity WHERE activity_date = ?",
+        (study_date,),
+    ).fetchone()
+    if row is not None and str(row["latest_at"]) >= latest_at:
+        return False  # 已有更晚的记录，本次忽略
+    connection.execute(
+        """INSERT INTO daily_latest_activity
+               (activity_date, latest_at, target_type, target_id, target_title, module_id)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(activity_date) DO UPDATE SET
+               latest_at = excluded.latest_at,
+               target_type = excluded.target_type,
+               target_id = excluded.target_id,
+               target_title = excluded.target_title,
+               module_id = excluded.module_id""",
+        (study_date, latest_at, target_type, str(target_id), target_title, module_id),
+    )
+    return True
+
+
 def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
     """记录一次题目浏览（view 事件）：60 秒内对同一题去重，防止翻页/刷接口产生垃圾记录。"""
     if problem_id not in PROBLEM_BY_ID:
@@ -426,6 +470,14 @@ def record_view(problem_id: int, db_path: Path = DB_PATH) -> bool:
             "INSERT INTO study_events(problem_id, action, studied_at, study_date) VALUES (?, 'view', ?, ?)",
             (problem_id, studied_at, study_date),
         )
+        try:
+            _touch_daily_latest(
+                connection, latest_at=studied_at, study_date=study_date,
+                target_type="problem", target_id=str(problem_id),
+                target_title=str(PROBLEM_BY_ID[problem_id].get("title") or ""),
+            )
+        except Exception:  # noqa: BLE001  年度报告埋点失败不应影响浏览记录
+            pass
         connection.commit()
     server_runtime._invalidate_learning_caches(db_path)
     return True
@@ -853,6 +905,15 @@ def record_content_view(module_id: str, content_id: str, db_path: Path = DB_PATH
                VALUES (?, ?, 'view', ?, ?)""",
             (module_id, content_id, studied_at, study_date),
         )
+        try:
+            _touch_daily_latest(
+                connection, latest_at=studied_at, study_date=study_date,
+                target_type="content", target_id=content_id,
+                target_title=_content_title(module_id, content_id),
+                module_id=module_id,
+            )
+        except Exception:  # noqa: BLE001
+            pass
         connection.commit()
     server_runtime._invalidate_learning_caches(db_path)
     return True
@@ -1900,3 +1961,77 @@ def export_data(kind: str, db_path: Path = DB_PATH) -> tuple[str, str, str]:
         return "text/markdown; charset=utf-8", "hot100-周报.md", "\n".join(lines)
     # 未支持的 kind 抛 ValueError → do_GET 捕获后返回 400（db 备份在 do_GET 内特判，不走这里）。
     raise ValueError("未知导出类型")
+
+
+def latest_activity_summary(
+    year: str | None = None,
+    db_paths: list[Path] | None = None,
+) -> dict:
+    """统计「每天最晚一次打开」的记录，默认跨所有用户库汇总成全站数据。
+
+    - days：有记录的天数
+    - latest_clock：全年最晚的时刻（HH:MM）
+    - hour_histogram：按小时分布（看是夜猫子还是早鸟）
+    - top_targets：最晚打开次数最多的题目/章节
+    - latest_items：最近几条原始记录（便于抽查）
+
+    db_paths 为空时自动扫描 data/users/*/hot100-study.db。
+    """
+    if db_paths is None:
+        users_dir = DB_PATH.parent / "users"
+        db_paths = sorted(users_dir.glob("*/hot100-study.db")) if users_dir.is_dir() else []
+        if DB_PATH.exists():
+            db_paths = [DB_PATH, *db_paths]
+
+    day_rows: dict[str, str] = {}          # activity_date -> 最晚时刻（跨库取更晚）
+    hour_hist: dict[int, int] = {}
+    targets: dict[tuple[str, str, str], int] = {}
+    latest_items: list[dict] = []
+
+    for path in db_paths:
+        if not path.exists():
+            continue
+        try:
+            with closing(server_runtime.connect(path)) as connection:
+                sql = ("SELECT activity_date, latest_at, target_type, target_id, "
+                       "target_title, module_id FROM daily_latest_activity")
+                params: tuple = ()
+                if year:
+                    sql += " WHERE activity_date LIKE ?"
+                    params = (f"{year}-%",)
+                rows = connection.execute(sql, params).fetchall()
+        except sqlite3.Error:
+            continue  # 某个用户库异常不影响整体统计
+        for row in rows:
+            date = str(row["activity_date"])
+            at = str(row["latest_at"])
+            if date not in day_rows or at > day_rows[date]:
+                day_rows[date] = at
+            hour_hist[int(at[11:13])] = hour_hist.get(int(at[11:13]), 0) + 1
+            key = (str(row["target_type"]), str(row["target_id"]), str(row["target_title"]))
+            targets[key] = targets.get(key, 0) + 1
+            latest_items.append({
+                "date": date, "latest_at": at,
+                "target_type": key[0], "target_id": key[1], "target_title": key[2],
+                "module_id": row["module_id"],
+            })
+
+    latest_items.sort(key=lambda item: item["latest_at"], reverse=True)
+    # 「最晚几点」看的是时刻本身（HH:MM:SS 最大值），不是日期最新的那条：
+    # 10-31 07:10 的日期更新，但 10-30 23:50 才是全年最晚的时刻。
+    clock_parts = [item["latest_at"][11:19] for item in latest_items if len(item["latest_at"]) >= 19]
+    latest_clock = max(clock_parts)[:5] if clock_parts else None
+    top_targets = [
+        {"target_type": k[0], "target_id": k[1], "target_title": k[2], "count": n}
+        for k, n in sorted(targets.items(), key=lambda kv: -kv[1])[:10]
+    ]
+    return {
+        "year": year,
+        "days": len(day_rows),
+        "total_records": len(latest_items),
+        "latest_clock": latest_clock,
+        "hour_histogram": dict(sorted(hour_hist.items())),
+        "top_targets": top_targets,
+        "latest_items": latest_items[:10],
+    }
+

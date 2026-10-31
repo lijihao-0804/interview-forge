@@ -113,6 +113,15 @@ CREATE TABLE IF NOT EXISTS plan_pins (
     for_date TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS daily_latest_activity (
+    activity_date TEXT PRIMARY KEY,
+    latest_at TEXT NOT NULL,
+    target_type TEXT NOT NULL CHECK (target_type IN ('problem', 'content')),
+    target_id TEXT NOT NULL,
+    target_title TEXT NOT NULL DEFAULT '',
+    module_id TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_daily_latest_at ON daily_latest_activity(latest_at DESC);
 CREATE TABLE IF NOT EXISTS credentials (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
