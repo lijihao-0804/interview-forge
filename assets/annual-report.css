@@ -39,7 +39,16 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+/* 整屏翻页：一次滑动翻一页（原生 scroll-snap，支持触控板/滚轮/键盘） */
+html {
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-snap-type: none; scroll-behavior: auto; }
+}
 
 body {
   margin: 0;
@@ -59,6 +68,8 @@ body {
   gap: clamp(24px, 5vh, 56px);
   padding: clamp(48px, 10vh, 120px) clamp(24px, 6vw, 80px);
   border-bottom: 1px solid var(--line);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .cover-mark {
@@ -127,10 +138,14 @@ body {
 .chapter {
   max-width: 720px;
   margin: 0 auto;
-  padding: clamp(64px, 11vh, 132px) clamp(24px, 6vw, 48px);
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(56px, 9vh, 110px) clamp(24px, 6vw, 48px);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
-
-.chapter + .chapter { border-top: 1px solid var(--line); }
 
 .chapter-head {
   display: flex;
@@ -196,6 +211,11 @@ body {
 /* 热力图是这一屏的主角：宽屏下突破 720px 正文宽度铺开，小屏自动回退 */
 @media (min-width: 900px) {
   .chapter .calendar { margin-inline: -104px; }
+}
+
+/* 翻页模式下，内容超过一屏的页允许内部自然滚动，不被 snap 卡住 */
+@media (min-height: 900px) {
+  .chapter { min-height: 100svh; }
 }
 
 .calendar-weekdays {
@@ -397,9 +417,14 @@ body {
 .outro {
   max-width: 720px;
   margin: 0 auto;
-  padding: clamp(64px, 11vh, 132px) clamp(24px, 6vw, 48px) clamp(80px, 14vh, 160px);
-  border-top: 1px solid var(--line);
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(56px, 9vh, 110px) clamp(24px, 6vw, 48px);
   text-align: left;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .outro-line {
@@ -558,4 +583,43 @@ body {
 @media print {
   .read-progress { display: none; }
   .calendar-scroll { overflow: visible; }
+}
+
+/* ---- 页码导航（右侧小点，标示当前在第几页） ---- */
+.page-nav {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  z-index: 55;
+}
+
+.page-nav button {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink-faint) 40%, transparent);
+  cursor: pointer;
+  transition: background-color .25s ease, transform .25s cubic-bezier(.22,1,.36,1);
+}
+
+.page-nav button:hover { background: color-mix(in srgb, var(--brand) 55%, transparent); }
+
+.page-nav button.active {
+  background: var(--brand);
+  transform: scale(1.6);
+}
+
+@media (max-width: 900px) {
+  .page-nav { right: 10px; gap: 7px; }
+  .page-nav button { width: 6px; height: 6px; }
+}
+
+@media print {
+  .page-nav { display: none; }
 }
