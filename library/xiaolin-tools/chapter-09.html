@@ -14,7 +14,7 @@
 <h4 id="skill-prompt">为什么需要 Skill？从「重复贴 prompt」的痛点说起</h4>
 <p>你一定遇到过这种情况：每次让 AI 帮你做代码审查，你都要贴一大段指令，告诉它「检查这几类问题、用这种格式输出、重点关注安全漏洞」。第一次贴的时候还好，第二次、第三次你就开始烦了，每次新对话都要从头贴一遍，漏掉某个细节就会导致输出质量不稳定。</p>
 <p>这还只是一个人的情况。如果是团队协作呢？十个人做代码审查，每个人贴的 prompt 都不一样，有的人关注安全，有的人关注性能，审查标准完全没法统一。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/2e55de3c96-efe1ea23d10380da0a05fce6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/2e55de3c96-efe1ea23d10380da0a05fce6.webp" /></p>
 <p>你可能想到把 prompt 写到一个共享文档里让大家复制，但这本质上还是靠人工去维护和执行，版本一多就容易乱，更新了文档但有人还在用旧版的 prompt，质量把控根本做不到。</p>
 <p>Skill 要解决的就是这个问题：把那些你反复在用的指令、流程、模板，打包成一个标准化的模块，Agent 自己知道什么时候该用它、怎么用它，不再依赖你手动复制粘贴。</p>
 <h4 id="skill">Skill 的结构长什么样</h4>
@@ -28,7 +28,7 @@
 └── assets/                   # 可选：模板、资源文件
     └── report_template.md    # 比如审查报告的输出模板
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8330a469ab-e7752bc4ae2588f1ed101820.png" /></p>
+<p><img loading="lazy" decoding="async" width="1197" height="1315" alt="" src="assets/8330a469ab-e7752bc4ae2588f1ed101820.webp" /></p>
 <p><code>SKILL.md</code> 的内容通常分为两部分：顶部是由平台解析的 YAML frontmatter，正文用 Markdown 写指令和步骤。来看一个示例：</p>
 <div class="codehilite" data-lang="yaml"><pre><code class="language-yaml"><span class="nn">---</span>
 <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">code-review</span>
@@ -57,26 +57,26 @@
 <p>Skill 最让人眼前一亮的设计，不是「能打包」这件事本身，而是它的加载方式。</p>
 <p>你可能会想，既然 Skill 可以打包那么多东西，Agent 启动的时候是不是要把所有 Skill 的内容全部读进来？想象一下这个账：假设你有 20 个 Skill，每个 Skill 的指令加上参考文档平均 2000 token，全部加载就是 4 万 token 打底。现在市面上常见的模型上下文窗口是 20 万 token，光 Skill 就吃掉了五分之一，剩下的要分给系统提示、对话历史、用户文件，留给模型真正思考的空间就很紧张了。更糟的是，这 20 个 Skill 里大部分在当前这一次任务里根本用不上，加载了也是白加载。</p>
 <p>所以 Skill 用了一套叫「渐进式加载」（Progressive Disclosure）的三层机制来解决这个问题。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b45aa06eba-6aaad058685212ba504616d9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/b45aa06eba-6aaad058685212ba504616d9.webp" /></p>
 <ul>
 <li>第一层是「只看元数据」。某些 Agent 会在启动时加载 Skill 的名称和描述，让模型决定是否相关；具体 token 开销取决于实现和描述长度，不存在通用的 30～50 token 配额。</li>
 <li>第二层是「按需加载正文」。当任务与某个 Skill 相关时，运行时再读取 <code>SKILL.md</code>；也可能要求用户显式调用，或由策略禁止自动调用。</li>
 <li>第三层是「需要时再取」。如果实现支持渐进式加载，执行过程中再读取模板或参考文档；脚本是否允许执行、由谁批准、是否在沙箱中运行，则属于宿主安全策略。</li>
 </ul>
 <p>这个设计用一个类比就很好理解：Skill 就像公司给新员工准备的入职手册。你入职第一天不会把整本手册从头到尾看完，而是先扫一眼目录，知道里面有「报销流程」「请假制度」「代码规范」这些章节就行了。等你真的要报销了，再翻开「报销流程」那一章仔细看。这样既不会信息过载，又确保你需要的时候能找到。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8a4fa6b7ba-c5a654595c3843dc0b2f0473.png" /></p>
+<p><img loading="lazy" decoding="async" width="1198" height="1313" alt="" src="assets/8a4fa6b7ba-c5a654595c3843dc0b2f0473.webp" /></p>
 <p>为什么这个设计这么重要？因为 context window 是 Agent 最宝贵的资源。如果把所有 Skill 的全部内容一股脑塞进去，真正有用的用户任务信息反而会被淹没，Agent 的注意力被分散，输出质量反而下降。渐进式加载的本质就是「让 Agent 只在需要的时候获取需要的知识」，这和人类的工作方式其实是一样的。</p>
 <h4 id="skill-toolprompt">Skill 和 Tool、Prompt 分别是什么关系</h4>
 <p>这三个概念经常被混淆，但它们处于完全不同的层次，用一个类比就能讲清楚。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a34fc7a2a0-ee58ef4d4063dc5df50570ed.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/a34fc7a2a0-ee58ef4d4063dc5df50570ed.webp" /></p>
 <p>你可以把 Tool（包括 MCP 工具）想象成公司给员工配的电脑、软件和数据库访问权限。有了 Tool，Agent 就能「做事」，比如查数据库、调 API、读写文件。但光有工具不够，你给一个新人配了一台电脑和所有系统权限，他也不知道该按什么流程做代码审查，不知道先查什么、后查什么、用什么格式输出报告。</p>
 <p>Skill 就是那份「操作手册」和「SOP 流程」。它教 Agent 拿到这些工具之后，该按什么步骤、什么标准、什么格式来完成一个具体的工作流。所以 Tool 和 Skill 的关系是互补的：Tool 提供能力，Skill 提供知识和流程。</p>
 <p>那 Prompt 呢？Prompt 就像你口头跟员工说的一句话指令，比如「帮我看看这段代码有没有问题」。这句话说完就没了，下次你还得再说一遍。Prompt 是一次性的、临时的，而 Skill 是持久化的、可复用的。</p>
 <p>还有一个容易搞混的是 Slash Command（斜杠命令）。Slash Command 通常由用户显式触发；Skill 是否能被自动发现和调用取决于宿主配置，也可能被设置为只能手动触发。自动触发不是 Skill 格式本身的安全保证。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e21a68a3f6-4112627c2bc62581def30c22.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/e21a68a3f6-4112627c2bc62581def30c22.webp" /></p>
 <h4 id="skill_2">Skill 的跨平台边界</h4>
 <p>有些平台把 Skill 作为可复用的 Markdown 工作流，有些平台还扩展了脚本、权限、隔离上下文和调用控制。即使目录结构相似，也不能据此推断 Claude Code、API、IDE 或其他 Agent 平台的行为完全一致；迁移时要检查 frontmatter、工具权限、资源路径和执行沙箱。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b1dfba6820-828c2be6c842a21fae8f0e84.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/b1dfba6820-828c2be6c842a21fae8f0e84.webp" /></p>
 <p>为什么要把规范开放？核心原因是 Skills 的设计足够简单。一个 Skill 就是一个文件夹加一份 Markdown 文件，不需要安装特殊的运行时，不需要学新的编程语言，任何支持文件系统的 Agent 平台理论上都能实现这套格式。这种「零门槛」的设计让它有希望成为跨平台的通用约定。</p>
 <p>如果多个平台都采用相近的目录约定，Skill 内容有机会复用，但复用的是指令和资源，不是自动获得工具权限。移植前应重新审查外部内容、脚本、网络访问、密钥和副作用操作。</p>
 <h4 id="skill_3">安全边界：Skill 是不可信输入的一部分</h4>

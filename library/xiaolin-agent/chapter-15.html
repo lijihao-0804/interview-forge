@@ -14,15 +14,15 @@
 <p>代价是多至少一次 LLM 调用，token 消耗和延迟都会增加，所以我在工程里通常只在质量要求高的关键节点启用反思，不是每步都做。</p>
 <h3 id="_2">📝 详细解析</h3>
 <p>先从一个日常经验说起：你写完一篇文章，扔到一边，过半小时再拿回来读，往往能发现一堆之前没注意到的问题，某个句子逻辑跳跃了、某个论点没有支撑、某段话写得不够清楚。改完之后，文章质量明显提升。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/144f4f0bc2-ba4317b129784601d54754c4.png" /></p>
+<p><img loading="lazy" decoding="async" width="1376" height="768" alt="" src="assets/144f4f0bc2-ba4317b129784601d54754c4.webp" /></p>
 <p>LLM 也面临同样的问题。它每次生成输出，本质上是在「一口气」完成的，没有机会停下来检查。</p>
 <p>第一次输出常见的毛病有这几类：逻辑跳跃（推理步骤不完整，中间少了关键推断）、遗漏细节（任务里要求了某些点，但没有全部覆盖到）、事实错误（模型幻觉导致的错误信息）、表达含糊（意思到了但说得不清晰）。</p>
 <p>这些问题可以通过规则、测试、检索证据或另一个模型得到额外检查机会；“让同一个 LLM 自己看一遍”不是可靠性保证。反思机制就是把评估与改进作为显式运行时环节。</p>
 <h4 id="-">核心循环：生成 -&gt; 评估 -&gt; 改进</h4>
 <p>反思机制的核心思路来自 Self-Refine 论文（Madaan 等人 2023 年提出），整个流程就是「生成 -&gt; 评估 -&gt; 改进」的循环。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/02f9aaf9af-c318cecea6e8791bc5afb96f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1202" height="736" alt="" src="assets/02f9aaf9af-c318cecea6e8791bc5afb96f.webp" /></p>
 <p>你可以用「草稿 -&gt; 批阅 -&gt; 修改」来类比：学生交出草稿（生成），老师批阅指出问题（评估），学生拿着批注修改（改进），改完的稿子再经过老师审阅，直到通过为止。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ec0c1420be-eaea4f173dc25c498b8e41ee.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/ec0c1420be-eaea4f173dc25c498b8e41ee.webp" /></p>
 <p>这个循环靠评估器和改进器两个步骤驱动。评估器可以是规则、测试、检索核验或 LLM；如果使用 LLM，让它扮演「检查者」并输出结构化结果：</p>
 <div class="codehilite"><pre><code>任务：{task}
 
@@ -48,13 +48,13 @@
 请根据评估意见改进输出：
 </code></pre></div>
 <p>改进 prompt 有一个关键点：它同时传入了原始任务、原始输出、评估意见这三样东西，缺任何一个都会让改进变得盲目。只有任务没有原始输出，LLM 不知道在什么基础上改；只有原始输出没有评估意见，LLM 不知道改哪里；只有评估意见没有任务，LLM 可能改着改着偏离了原始目标。三者都在，它才能有针对性地修改，而不是把内容全部重写一遍。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/bfc5cf43f1-5a9d7327e03ecc6beae53c87.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/bfc5cf43f1-5a9d7327e03ecc6beae53c87.webp" /></p>
 <p>评估与改进循环应在“通过验收”或硬性上限（轮数、时间、token/费用）触发时结束，不能只依赖 LLM 自己回复 PASS。</p>
 <h4 id="vs">两个粒度：步骤级 vs 任务级</h4>
 <p>反思可以在两个粒度上触发，它们有不同的适用场景，代价也不一样，选哪种需要根据任务特点来判断。</p>
 <p>步骤级反思是在每个工具调用或推理步骤完成后立即检查。它的好处是错误早发现早纠正，不会让一个小错误在后续步骤里层层放大。</p>
 <p>想象一下 Agent 在做多步信息检索：第一步选了一个不精准的搜索关键词，后续所有步骤都在错误的信息上继续，到最后才发现，前面的工作全废了。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e1cd169091-64b3a8bae4ece292570965d2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/e1cd169091-64b3a8bae4ece292570965d2.webp" /></p>
 <p><strong>步骤级反思</strong>能在第一步就发现关键词的问题，马上纠正，后续步骤都建立在正确基础上。适合这种粒度的场景是步骤之间强依赖、前一步错了后面会全错的任务。代价是每一步都多一次 LLM 调用，整体延迟和 token 消耗会大幅增加，一个 10 步的任务可能实际要调用 20 次 LLM。</p>
 <p><strong>任务级反思</strong>是整个任务执行完之后做一次整体评估。好处是开销更小，整个任务只多一次 LLM 调用；而且从整体视角审视，能发现步骤级看不到的问题，各个步骤单独看都是对的，但整体结论前后矛盾，或者各部分之间衔接不自然，这种问题只有从整体视角才能看出来。</p>
 <p>代价是如果任务中途某步出了大问题，到最后才发现，前面的执行都已经浪费了。适合步骤之间相对独立、最终输出的整体质量更重要的场景，比如生成一份报告。</p>
@@ -63,7 +63,7 @@
 <p>为什么独立的审查比自我反思效果更好？你可以类比代码 review 的场景：一个人写完代码自己检查，和让同事来 review，发现的问题质量往往不一样。自己写的东西自己看，容易「视觉疲劳」，会不自觉地补脑跳过问题，潜意识里倾向于认为自己的逻辑是正确的。</p>
 <p>在 LLM 里同样可能出现自洽偏差：同一模型的评估不等于独立事实核验。独立 Critic、规则或测试可以提供不同信号，但 Critic 也可能犯错，需测量误报/漏报并保留证据。</p>
 <p>互评的具体流程是：执行 Agent 生成输出，Critic Agent 审查并给出具体批注，执行 Agent 根据批注修改，Critic Agent 再次确认。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/80912922ce-86beeca7cd0fdc8926a456fd.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/80912922ce-86beeca7cd0fdc8926a456fd.webp" /></p>
 <p>什么时候值得用这种方式？有可执行测试、引用核验或明确验收标准的场景，例如生成代码后运行测试、报告逐条核对来源。代价是额外调用和系统复杂度，不能只凭“独立 Agent”就假设更客观。</p>
 <h4 id="reflexion-lats">进阶：Reflexion 和 LATS，把反思做得更深</h4>
 <p>前面讲的 Self-Refine 是最基础的反思模式，学术界在此基础上还有更进一步的探索，了解这些能帮你在面试里展现更深的理解。</p>
@@ -77,7 +77,7 @@
 <p>什么场景值得开反思？输出质量要求高、错误代价大的关键节点，比如最终报告生成、重要决策的推理过程，以及任务比较复杂、LLM 容易遗漏细节的场景，这些是反思最能发挥价值的地方。</p>
 <p>什么场景不值得开？简单直接的任务可能不值得增加评估调用；实时性要求高的场景也要先测量额外延迟，并考虑规则校验或异步质检等替代方案。</p>
 <p>最重要的是防死循环，必须设置最大轮次、时间和费用上限，不能依赖 LLM 自己判断停止。轮数不是固定的 2-3 轮：应根据错误代价、验收通过率和延迟预算配置，并在没有进步时提前停止。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/16c04af2a3-fdc45b71684b2faa5d9c01a7.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/16c04af2a3-fdc45b71684b2faa5d9c01a7.webp" /></p>
 <p>最后要对整体代价有清醒认知：每轮反思通常至少包含评估和改进，具体调用数取决于是否规则校验、是否并行和是否提前通过。应记录每轮的质量增益、延迟、token/费用和副作用，反思不是免费的，也不是每步都做。</p>
 <p>反思的运行时边界可以画成：</p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR

@@ -128,7 +128,7 @@ def _security_headers(path: str) -> dict[str, str]:
     elif suffix.endswith((".css", ".js")):
         cache = "no-cache"
     elif suffix.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".mp4")):
-        cache = "public, max-age=604800"
+        cache = "public, max-age=2592000"  # 30 天；文件名含路径 hash，暂不用 immutable
     else:
         cache = "no-store"
     return {

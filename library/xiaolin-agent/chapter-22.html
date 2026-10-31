@@ -17,20 +17,20 @@
 <p>先想一个场景。协调器让代码 Agent 修改支付模块，十分钟后没有收到回复。这时能不能直接宣布它失败？不能，因为至少有三种可能：模型调用确实卡死了，Agent 进程已经退出，或者 Agent 仍在执行，只是心跳消息没传回来。</p>
 <p>前两种属于执行失败，最后一种更接近通信故障。协调器看到的是「暂时联系不上」，不是「旧执行者绝对不会再动」。如果这时直接派一个新 Agent 从头执行，旧 Agent 恢复网络后也可能提交，于是同一任务就有了两个执行者。</p>
 <p>这也是 Multi-Agent 容错最容易踩的坑。系统一看到超时就重试，看起来可用性提高了，实际上把一次故障变成了重复写入、结果覆盖甚至重复扣款。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/707d36f47b-60f1221c08f29241add4e577.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/707d36f47b-60f1221c08f29241add4e577.webp" /></p>
 <p>因此，系统至少要分别记录执行状态和通信状态。执行状态可以是 <code>PENDING -&gt; RUNNING -&gt; SUCCEEDED</code>，通信状态则记录最近心跳时间、租约到期时间和进程健康信息。两者不能混成一个简单的 <code>online</code> 字段。</p>
 <h4 id="_4">为什么任务租约比永久锁更适合故障接管？</h4>
 <p>锁解决的是「现在谁能进门」，租约解决的是「这把临时钥匙到什么时候失效」。调度器把任务交给子 Agent 时，可以同时发出一份有期限的租约，里面至少包含 <code>task_id</code>、<code>worker_id</code>、<code>lease_expire_at</code> 和递增的 <code>generation</code>。</p>
 <p>子 Agent 正常工作时定期发送心跳并续租。协调器在一两次心跳没有到达时只标记为可疑，不立即重派；超过租约和宽限期后，才把任务放回队列，并给新的执行者分配更大的 <code>generation</code>。</p>
 <p>问题来了，旧 Agent 恢复后不知道自己已经过期，仍然提交结果怎么办？只靠锁的 TTL 挡不住它，因为旧进程可能早就进入临界区。更稳妥的做法，是让任务状态和产物存储都检查执行代次。旧 Agent 带着 <code>generation=7</code> 提交，而任务当前已经是 <code>generation=8</code>，存储层直接拒绝这次旧写入。这个递增代次也常被叫作 fencing token，可以理解为会失效的排队号码。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b56a9d87f9-d631f3610fafc10552bfa33d.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b56a9d87f9-d631f3610fafc10552bfa33d.webp" /></p>
 <p>超时也不应该只有一个数字。模型首字延迟、工具调用超时、整个子任务预算和租约时长，代表的是不同边界。一个深度检索任务可能二十分钟都合理，但单次 HTTP 调用卡住二十分钟通常不合理。生产系统会为每一层分别设置软超时和硬预算，软超时用于取消当前动作或切换路径，硬预算负责终止整项任务并升级处理。</p>
 <h4 id="checkpoint">为什么重试一定要和幂等、checkpoint 一起设计？</h4>
 <p>超时以后直接重跑，最大的风险不是多花一点 Token，而是重复产生副作用。比如 Agent 已经创建了工单，只是成功响应在网络中丢失。调度器看到超时后重新执行，又创建了一张内容相同的工单。</p>
 <p>所以每个可重试步骤都要有稳定身份。常见做法是用 <code>task_id + step_id + operation_type</code> 生成幂等键，同一个逻辑动作不管由哪个 Agent 接管，都携带同一个键。下游服务保存幂等键和第一次执行结果，后续重复请求直接返回原结果，而不是再次写入。</p>
 <p>但并不是所有外部系统都支持幂等键。这时 checkpoint 就很关键。它不能只保存一句「做到第三步」，还要记录已完成步骤、输入版本、产物位置、工具调用编号、外部资源 ID，以及写操作当前是 <code>planned</code>、<code>succeeded</code>、<code>failed</code> 还是 <code>unknown</code>。</p>
 <p>接管者遇到 <code>succeeded</code> 就跳过，遇到明确的 <code>failed</code> 才在预算内重试。遇到 <code>unknown</code> 不能凭感觉再执行一次，而要先按业务键查询外部系统。如果既无法查询，也无法幂等重放，就应该暂停并请求人工确认。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8193197a7b-c9fa36e12c55e3dad627b51f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/8193197a7b-c9fa36e12c55e3dad627b51f.webp" /></p>
 <p>这里还有一个常见误区，给任务加幂等键不等于系统就能实现严格的「只执行一次」。网络故障下，执行方通常无法仅凭超时判断远端是否成功。工程上更现实的目标是允许「至少一次」投递，再通过幂等、唯一约束、结果查询和补偿，把最终副作用收敛到业务可接受的一次。</p>
 <h4 id="agent">子 Agent 失效后，谁来接管任务？</h4>
 <p>租约到期只是允许接管，接下来还要决定怎么接。协调器应该先读取最近一次已提交的 checkpoint，而不是把原始 Prompt 原封不动地再发一遍。接管上下文要包含原目标、验收标准、已完成产物、当前阻塞、尝试过的路径和剩余预算。</p>
@@ -40,7 +40,7 @@
 <p>很多人看到并发修改，第一反应是「整个仓库加一把锁」。这样确实很安全，但所有 Agent 都排队干活，吞吐量也回到了单 Agent。</p>
 <p>更好的第一步，是在规划阶段减少写集合重叠。Planner 不只要拆任务，还要为每个子任务标出预计修改的模块、文件和接口，并声明任务所有权与文件所有权。比如 Agent A 负责服务端接口，Agent B 负责前端页面，Agent C 负责测试。公共类型文件、依赖清单和全局配置属于热点资源，默认由一个明确的 Owner 修改。</p>
 <p>这里要区分两种所有权。任务所有权回答「谁对这个子任务的最终结果负责」，文件所有权回答「当前阶段谁可以提交这个文件」。同一个任务可能修改多个文件，同一个文件也可能在不同阶段交给不同 Agent，但同一版本不能没有明确的写入者。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b8007618a7-22e5a208e88d3b0c046533eb.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b8007618a7-22e5a208e88d3b0c046533eb.webp" /></p>
 <h4 id="worktree">worktree、乐观并发和锁应该怎么配合？</h4>
 <p>规划只能减少冲突，不能保证完全没有冲突。真正执行时，应该让每个 Agent 在独立的 Git worktree 或 branch 中工作，并记录开始时的 <code>base_commit</code>。这样 Agent A 的半成品不会污染 Agent B 的上下文，失败任务也不会在共享目录里留下难以识别的修改。</p>
 <p>普通文件可以采用乐观并发。Agent 提交时，Integrator 比较它的 <code>base_commit</code> 和当前目标分支。如果相关文件没有变化，就尝试合并；如果已经被其他任务修改，就要求基于新版本重新应用补丁，或把冲突上下文交回原 Agent 修正。</p>
@@ -50,7 +50,7 @@
 <p>多个 Agent 都能直接往主分支写，系统就很难回答「当前仓库状态由谁负责」。更稳妥的设计，是只有 Integrator 或 Orchestrator 拥有最终提交权，其他 Agent 只产出候选分支、补丁和验证证据。</p>
 <p>Integrator 先按任务 DAG 和接口依赖确定合并顺序。例如先合入公共类型和服务端接口，再合入调用方，最后合入测试。每次合并后都运行格式检查、静态检查和受影响的单元测试，全部候选合并后再运行集成测试或端到端测试。</p>
 <p>如果出现文本冲突，Integrator 不应该让模型随意选择一边，而要保留两边意图、最新基线和冲突文件，让负责该模块的 Agent 重新生成补丁。如果自动合并成功但测试失败，则把失败用例、相关 Trace 和接口变更一并交回。直到验收条件通过，才生成唯一的最终提交。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/16001b5367-6b29e235566fb7de286df234.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/16001b5367-6b29e235566fb7de286df234.webp" /></p>
 <p>这也解释了为什么通信问题和一致性问题不能用同一个办法解决。心跳、租约和超时主要解决「谁还活着、谁可以接管」；幂等键、执行代次、版本校验和合并验收解决「多个执行者出现时，结果怎么保持一致」。给消息中间件加重试，能提高消息到达率，却不能自动解决重复副作用和代码语义冲突。</p>
 <h4 id="_6">线上怎么判断这套机制有没有生效？</h4>
 <p>首先要让一项任务从分配到最终合并都有统一 Trace。Trace 里应该串起租约代次、心跳、每次执行尝试、checkpoint 版本、工具副作用、分支提交、冲突处理和测试结果。否则线上只看到「任务失败」，很难判断问题发生在失联、接管还是集成阶段。</p>

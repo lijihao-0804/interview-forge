@@ -17,7 +17,7 @@
 <p>最朴素的 RAG 范式是这样的：用户提问 -&gt; 向量检索 -&gt; 拼 prompt -&gt; LLM 生成答案。这套流程适合做最小基线，但一旦到了真实业务场景，还要面对召回质量、权限、更新、冲突、成本和可观测性问题。</p>
 <h4 id="rag_1">为什么需要不同的 RAG 范式？</h4>
 <p>朴素 RAG 的问题，随着使用场景复杂度的增加会越来越明显。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/cc44abf238-ea537cff9e156f64c2085abb.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/cc44abf238-ea537cff9e156f64c2085abb.webp" /></p>
 <p>第一个问题是检索质量参差不齐。用户的提问方式千变万化，有些问题一次检索就能找到正确答案，有些问题一次检索可能漏掉相关内容，但朴素流程未必会区分，一律把候选交给 LLM。低质量上下文可能诱发无依据回答，而用户又难以判断证据边界。</p>
 <p>第二个问题是所有问题都走同一套流程，太死板。有些问题根本不需要检索，比如「你好」「今天天气怎么样」，强行去知识库里找毫无意义；有些复杂问题需要多轮检索才能拼出完整答案，而朴素 RAG 一律只检索一次。然后呢？该省的地方没省，该深挖的地方浅尝辄止，结果既浪费又不准。</p>
 <p>第三个问题是知识库覆盖有盲区。知识库里永远不可能有所有答案，当找不到相关内容时，朴素 RAG 要么让 LLM 编造答案，要么返回一个风马牛不相及的回答。然后呢？用户拿到的是一个自信满满的错误答案，体验很差。</p>
@@ -26,7 +26,7 @@
 <p>这三个问题，催生了不同思路的 RAG 范式：有的在「如何检索」上做文章，有的在「要不要检索」上加判断，有的在「检索不到时怎么兜底」上下功夫。理解这些范式，本质上是理解面对不同场景约束时，系统设计者各自找到的解法。</p>
 <h4 id="rag_2">常见 RAG 设计层次（教学分类）</h4>
 <p>可以把 RAG 常见设计粗略分为朴素流水线、加入检索前后优化的固定流程、模块化/条件路由与动态检索等层次；这是一种教学分类，不是统一的“三代”标准，实际系统常混合使用。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/cdb7a1fc52-d4b0d475e8584356c9e7204e.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/cdb7a1fc52-d4b0d475e8584356c9e7204e.webp" /></p>
 <p>常被称为 <strong>Naive RAG</strong> 的形态是：用户提问 -&gt; 检索 -&gt; 拼 prompt -&gt; LLM 生成。它适合做基线，但通常缺少 Query 解析、权限过滤、候选评估、引用校验和拒答策略；这些缺口可能导致噪音、偏差和无依据回答。</p>
 <p><strong>Advanced RAG</strong> 常用来指在检索前后加入 Query 改写、混合召回、Rerank、压缩等增强步骤。它可能提高质量，也会引入模型调用、版本、超时和成本；是否有效要靠基线对照，不能宣称所有生产系统都采用同一形态。</p>
 <p>下面是一个固定流程示例，按配图中的顺序展示常见增强环节；实际项目可以并行或调整检索步骤，并不存在唯一标准顺序。</p>
@@ -45,7 +45,7 @@
 <h5 id="self-ragllm">Self-RAG：LLM 自己决定要不要检索</h5>
 <p>前面提到朴素 RAG 的第二个痛点是「所有问题都走同一套流程，太死板」。Self-RAG 就是专门解决这个问题的。</p>
 <p>普通 RAG 常常不区分问题类型。Self-RAG 论文训练模型产生反思信号，用来决定何时检索、评估证据和检查答案。论文中的信号包括：</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d0397f9332-307b9e34d2f66fcf5ffa7dac.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/d0397f9332-307b9e34d2f66fcf5ffa7dac.webp" /></p>
 <ol>
 <li>当前问题需不需要检索？（Retrieval token）</li>
 <li>检索回来的内容和问题相不相关？（Relevance token）</li>
@@ -53,7 +53,7 @@
 <li>最终答案质量够不够好？（Utility token）</li>
 </ol>
 <p>Self-RAG 的执行流程如下：</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1eb83527ef-688e176e92bc28e0d9bc06dd.png" /></p>
+<p><img loading="lazy" decoding="async" width="1278" height="1506" alt="" src="assets/1eb83527ef-688e176e92bc28e0d9bc06dd.webp" /></p>
 <ol>
 <li><strong>判断是否需要检索</strong>：根据问题和当前生成状态决定是否请求证据。</li>
 <li><strong>评估证据相关性</strong>：判断检索到的片段是否支持当前问题。</li>
@@ -68,7 +68,7 @@
 <p>朴素 RAG 的一个痛点是：知识库可能没有覆盖问题，或召回结果与问题不相关。CRAG 通过质量评估和纠正路径处理这种情况。</p>
 <p>CRAG 在检索后增加质量评估与路由：高质量结果可继续本地 RAG；低质量结果可以重写/重检索、查询另一个受控数据源、转人工或拒答。某些论文/实现会使用 Web 搜索，但开放网络不是默认安全兜底，必须考虑来源可信度、时效、版权、隐私、提示注入和权限。</p>
 <p>CRAG 的执行流程如下：</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/5d754061d4-f6841c28b648979ed614ecd0.png" /></p>
+<p><img loading="lazy" decoding="async" width="1290" height="1328" alt="" src="assets/5d754061d4-f6841c28b648979ed614ecd0.webp" /></p>
 <ol>
 <li><strong>本地检索</strong>：先从知识库里召回 top-K 个 chunk。</li>
 <li><strong>质量评估</strong>：用标注数据校准的评估器、规则、Rerank 或模型判断来估计候选与问题的相关性，并区分“相关但不支持结论”和“完全无关”。Rerank 分数不能未经校准地当作通用概率。</li>
@@ -76,7 +76,7 @@
 <li><strong>生成答案</strong>：基于最终上下文生成回答。</li>
 </ol>
 <p>这个方案的核心价值是让证据不足时有显式回退，而不是把低质量上下文直接交给生成器。回退可能是另一个内部数据源，也可能是受控 Web 搜索；它不会自动提升健壮性，必须配合来源验证、缓存/版本和安全策略。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/026fec2469-1bcbfce363c9ad0dedec4362.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/026fec2469-1bcbfce363c9ad0dedec4362.webp" /></p>
 <h5 id="graphrag">GraphRAG：用知识图谱增强全局理解</h5>
 <p>Self-RAG 和 CRAG 解决的都是「检索策略」层面的问题，但还有一种瓶颈是检索方式本身的局限。</p>
 <p>向量检索通常以局部候选为主，对于“这批文档的核心主题是什么”这类聚合问题，单次相似度检索可能不够；但它并非只能做“一对一”，也可以通过多查询、聚合、父文档或其他检索策略处理更广范围。GraphRAG 是公开研究/工程方案中的一个代表性组合，把实体关系、社区发现和层次摘要用于全局或跨文档问题；不应把它简化成某个厂商的唯一方案。</p>
@@ -84,14 +84,14 @@
 <p>检索阶段可以区分局部实体/关系问题与全局聚合问题：前者可做实体查找和受限遍历，后者可对社区摘要做 Map-Reduce 或其他聚合。具体查询模式不是所有 GraphRAG 实现都相同，且全局摘要成本、时效和可解释性要单独评估。</p>
 <p>向量检索以 query 与候选向量的相似度为核心，天然更容易先返回局部相关片段；它不自动维护实体关系、社区结构或跨文档聚合。图结构可以补充这些关系，但也引入抽取、更新、查询和权限复杂度。</p>
 <p>GraphRAG 通过预先构建社区摘要，把部分全局信息提前组织起来，可能减少查询时的全量扫描；摘要不是事实保证，仍需回溯原文、处理更新和评估覆盖。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1e0fe4644b-a4a937b5b62ba08edb8255e2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/1e0fe4644b-a4a937b5b62ba08edb8255e2.webp" /></p>
 <p>适合知识关系强、需要跨文档聚合或全局视角的场景，例如企业关系分析、药物-疾病-症状关联和主题归纳；是否适用要看实体/关系质量与更新频率。代价包括抽取与摘要成本、时效维护、图查询、权限传播和结果验证。</p>
 <h5 id="agentic-rag-rag-agent">Agentic RAG：把 RAG 做成 Agent</h5>
 <p>前面几种范式可以是固定流程或带分支的流程。有些问题的子问题和所需证据无法在入口一次确定，系统才有理由引入 Agentic RAG，让模型在严格的工具、预算和状态约束下规划下一步。</p>
 <p>普通 RAG 是固定的「检索一次 -&gt; 生成」的流程，但有些问题需要多轮检索：第一次检索发现信息不够，需要追加检索；检索结果互相矛盾，需要再检索来验证；问题本身是多步骤的，每一步都需要检索不同的内容。</p>
 <p>Agentic RAG 把 RAG 嵌入 Agent 循环，模型可以提出下一次检索、判断证据缺口或停止，但运行时必须验证工具参数、权限、查询范围、最大轮数、Token/费用预算和超时；“自主”不等于无限或无监督。</p>
 <p>Agentic RAG 的执行流程如下：</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/37a4184b69-c9d6e695c8c4d03cf83e92cd.png" /></p>
+<p><img loading="lazy" decoding="async" width="1142" height="1340" alt="" src="assets/37a4184b69-c9d6e695c8c4d03cf83e92cd.webp" /></p>
 <ol>
 <li><strong>接收问题，建立状态</strong>：记录原问题、权限、已检索证据、预算和停止条件。</li>
 <li><strong>提出下一步动作</strong>：模型提出检索、澄清、验证或结束动作，运行时校验 schema、权限和查询范围。</li>
@@ -101,7 +101,7 @@
 </ol>
 <p>这套机制可能适合多步骤、证据依赖明确且检索工具可控的问题，比如按年份和指标分析财报；但复杂度高、延迟和费用也会上升，应先比较固定多路流程是否已经足够。</p>
 <p>和前面几种范式相比，Agentic RAG 更强调运行时根据中间状态选择下一步，但流程边界、工具集合和停止策略仍应由工程系统定义。如果说 Self-RAG 侧重检索/反思信号，CRAG 侧重检索质量后的纠正路径，Agentic RAG 则侧重多步工具调用与状态循环；三者可以组合，也可以只实现其中一部分。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/6995d17500-263b3f70b383fdafaeddc2e7.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/6995d17500-263b3f70b383fdafaeddc2e7.webp" /></p>
 <p>把几种高级范式的特点对比一下，选型时有个参考：</p>
 <table>
 <thead>

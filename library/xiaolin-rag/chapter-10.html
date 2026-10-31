@@ -17,8 +17,8 @@
 <p>先说为什么需要这套流程。</p>
 <p>大模型的上下文窗口是有限的，不可能把整个知识库都塞进去；而且没有外部知识依据时，大模型只靠参数里的记忆回答，容易出现幻觉。所以 RAG 的在线流程本质是一个「精准取件」的过程：从海量知识里找到和这个问题最相关的那几段，然后再让大模型在这个「小范围」里作答。</p>
 <p>你可能会想，为什么不把用户问题直接拿去向量库里搜，搜完就完了？因为在实际业务中，用户的提问可能是口语化的、带指代的、带时间约束或包含多个子问题；但对简单、明确的问题，额外改写也可能增加延迟和语义漂移。因此在线流程可以按需组合以下步骤，每一步都要用离线评测与线上指标证明收益。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/50fd82bedb-e0d4bf3a5c141eb277e54711.png" /></p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/03592267aa-969320ffcf18f85f97e91d0f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/50fd82bedb-e0d4bf3a5c141eb277e54711.webp" /></p>
+<p><img loading="lazy" decoding="async" width="1384" height="1494" alt="" src="assets/03592267aa-969320ffcf18f85f97e91d0f.webp" /></p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     A[用户问题与会话状态] --&gt; B[预处理/改写，可选]
     B --&gt; C[兼容的 Query Embedding]
@@ -39,25 +39,25 @@
 <p>这一步可以让小模型、规则或查询解析器对原始问题做改写。常见技术有几种。</p>
 <p>一是简单改写，把口语化问题改写成更正式、独立完整的检索句。</p>
 <p>二是 HyDE（Hypothetical Document Embeddings），让 LLM 先生成一个假设性文档，再用它的向量检索。它可能缩小问题表达与文档表达的差异，但假设文档也可能引入错误实体、时间或结论；应保留原始 Query 并对实体、否定、时间和权限约束做校验，不能默认命中率一定提高。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/5c455a3d4e-365982cfe3a6ee76d63f08b4.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/5c455a3d4e-365982cfe3a6ee76d63f08b4.webp" /></p>
 <p>三是多角度扩写，把同一个问题扩展成若干表述，分别检索后合并结果，可能扩大覆盖面，也会增加 embedding、检索、去重和延迟成本；扩写数量应由评测决定。</p>
 <h4 id="query-embedding">第二步：Query Embedding（问题向量化）</h4>
 <p>Query 改写好了，接下来要把它转换成向量才能去向量库里搜索。把处理后的问题用 Embedding 模型转成向量，这一步本身很简单，但有一个容易忽略的细节。</p>
 <p>很多人以为随便选一个 Embedding 模型就行了，其实不然。查询侧和文档侧必须使用兼容的模型、版本、预处理、维度、归一化方式和距离度量；某些模型会区分 query/document 编码器，此时要按模型约定调用，而不是机械地要求两次调用完全相同。</p>
 <p>为什么？不同模型的向量空间、维度和相似度标定不同（例如一个模型输出 1024 维，另一个输出 1536 维就不能直接比较）。用 A 建库、用 B 查询通常会破坏相似度含义；如果要换模型，应建立新索引或维护双索引，完成离线对比和流量切换，而不是直接覆盖旧向量。</p>
 <p>这就像两个系统使用不同坐标系和距离定义：数值看起来都像坐标，但不能直接比较。切换模型通常需要重建受影响的向量索引；是否能渐进迁移，取决于系统能否同时保留两套索引以及业务对一致性的要求。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8e6671cd00-ccc810dbe880a500fc296c6b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/8e6671cd00-ccc810dbe880a500fc296c6b.webp" /></p>
 <h4 id="ann">第三步：向量检索（ANN 搜索）+ 多路召回</h4>
 <p>拿着问题向量，去向量索引里做近似最近邻搜索（ANN），按选定距离召回候选文档片段。延迟受数据规模、索引、过滤、网络、并发和硬件影响，不能脱离条件承诺“百万级通常几十毫秒”。</p>
 <p>但工程实践中，只用向量检索这一路往往不够。所以这一步通常同时进行多路召回：向量检索负责捕获语义相似性，BM25/全文检索负责捕获关键词精确匹配，两路各有所长。</p>
 <p>很多人以为向量检索已经够用了，为什么还要 BM25？因为向量检索对精确词语（比如产品型号、专有名词、错误拼写）的识别能力比较弱，而 BM25 对这些精确匹配反而更在行。</p>
 <p>比如用户问「LSTM 和 Transformer 的区别」，向量检索可能找到「序列模型对比」相关内容，BM25 可能精准命中包含两个术语的文档。多路结果可以通过 RRF（倒数排名融合）或其他融合方法合并，但“覆盖面更广、质量更高”需要用同一评测集验证，并处理重复、权限和不同分数尺度。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/2a0c97521a-f75fa77a1c5e07084004012c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/2a0c97521a-f75fa77a1c5e07084004012c.webp" /></p>
 <h4 id="rerank">第四步：Rerank 精排</h4>
 <p>理解了第三步的粗排召回，你会发现一个自然的问题：Top-20 的结果里不可能条条都相关，肯定混了一些干扰项进去。Rerank 就是为了解决这个问题的。</p>
 <p>向量检索是「粗排」，召回候选里可能混入相关度不高的片段。Rerank 模型（常见实现包括 Cross-Encoder）会把问题和每个候选片段联合编码，重新打分排序。候选数和最终保留数应由上下文预算、质量曲线、成本与延迟决定，不应固定写成 20 条再保留 3～5 条。</p>
 <p>你可能会问，为什么不直接用 Rerank 模型来检索，还要先粗排再精排？因为 Rerank 需要把查询和每个候选联合编码，计算量通常比向量检索大得多；先粗排再精排可以把昂贵计算限制在候选集内。候选数越大，可能覆盖更多相关片段，也可能增加延迟和噪音。Rerank 的收益与耗时必须在目标数据上同时测量。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a0da61aa95-135b5e4b506c792b60305718.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/a0da61aa95-135b5e4b506c792b60305718.webp" /></p>
 <h4 id="prompt">第五步：Prompt 拼装</h4>
 <p>精排后的高质量片段拿到了，接下来要把它们和用户的原始问题组装成 Prompt 交给大模型。典型模板大概是这样：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="n">prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
@@ -80,7 +80,7 @@
 <p>大模型拿到 Prompt 之后，基于参考资料生成答案。到这一步，整个 RAG 在线流程的核心工作就完成了。</p>
 <p>工程实践中可以要求大模型在答案里标注支持该句的片段（例如「根据资料[1]」），并在服务端保存原始文档、版本和检索记录。用户能追溯来源不代表答案必然正确；还应检查引用是否覆盖结论、是否引用了过期或无权限内容，以及多来源冲突如何处理。必要时将高风险答案转人工或拒答。</p>
 <p>整个链路串起来，耗时应按 Query 解析/改写、Embedding、各路召回、融合、Rerank、首 token 和完整生成分别观测，并报告 P50/P95/P99，而不是套用固定毫秒数。工程上可以缓存经过权限与版本校验的结果，把互不依赖的召回并行执行；只有确实并行且资源不争用时，合并延迟才可能接近最慢分支，还要处理超时、部分失败、取消和缓存失效。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/600fec5c9a-834b1637e263bc9d8bbf116f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/600fec5c9a-834b1637e263bc9d8bbf116f.webp" /></p>
 <h3 id="_5">🎯 面试总结</h3>
 <p>回到开头那段面试，面试官问「RAG 在线流程是怎样的」，你不能只说「检索 + 生成」四个字就完事了。这就像别人问「一顿饭怎么做」，你回答「买菜和做饭」，中间的洗菜、切菜、调味、火候一个都没提。</p>
 <p>正确回答要按顺序把六个步骤讲清楚。</p>

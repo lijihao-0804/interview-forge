@@ -16,7 +16,7 @@
 <h4 id="_3">先理解大模型是怎么「选下一个词」的</h4>
 <p>要理解这三个参数，得先搞清楚大模型生成文字的底层机制。</p>
 <p>大模型生成的本质是一个「不断选择下一个 token」的过程。每生成一个 token，模型会对词表中的候选计算 logits/概率分布；词表大小、tokenizer 和概率数值随模型而变，示例中的百分比只是直觉演示。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/dc4b3a2e2d-6270035137ecb279f17edc9e.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/dc4b3a2e2d-6270035137ecb279f17edc9e.webp" /></p>
 <p>接下来怎么选词？最简单的策略叫<strong>贪心解码（greedy decoding）</strong>，每次直接选概率最高的那个。这种方式输出完全确定，但往往过于保守，文本缺乏多样性，长一点还会陷入重复循环（前面已经讲过的「复读机问题」）。</p>
 <p>为了避免贪心的死板，业界发展出三个采样调节参数：Temperature、Top-K、Top-P。它们各自从不同维度调控「怎么从概率分布里采样」，让生成既有合理性又有多样性。下面分别看。</p>
 <h4 id="temperature">Temperature：热水和冷水的类比</h4>
@@ -25,7 +25,7 @@
 <p>温度低（例如 T=0.1）的效果类似「<strong>冷水</strong>」：logits 除以更小的 T 后，分布通常更尖锐，高概率 token 更占优势，输出更集中，但也可能过早重复或放大错误。</p>
 <p>温度高（例如 T=1.5）的效果类似「<strong>热水</strong>」：分布通常更平，尾部 token 获得更多采样机会，输出可能更多样，也可能更容易偏题或出错。</p>
 <p>T=1 表示不做温度缩放；T 接近 0 时常被实现为近似贪心，但 T=0 的处理是 API/框架约定，可能被映射、拒绝或使用特殊采样路径。即使采样接近贪心，服务端随机性、并行、logits 处理和模型版本也会影响可复现性。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d1fe190d08-41dcfc6cb43a6ac4ef77b67a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/d1fe190d08-41dcfc6cb43a6ac4ef77b67a.webp" /></p>
 <p>Temperature 解决的是「分布的松紧」，但还有另一个维度可以控制采样：候选词的数量。这就是 Top-K 和 Top-P 要解决的问题。</p>
 <h4 id="top-k">Top-K：限制候选词的数量</h4>
 <p>Top-K 的思路特别直觉：每次采样前，把概率分布<strong>截断</strong>到只保留概率最高的 K 个词，其余全部置零，然后在这 K 个词里按比例采样。</p>
@@ -40,7 +40,7 @@
 <p>举两个对比例子就能看出 Top-P 的妙处。</p>
 <p>在概率高度集中的问题上，Top-P 可能只保留很小的候选集合；但它不能验证事实正确性，且具体集合取决于模型 logits、温度和实现。</p>
 <p>在开放式写作中，概率更分散时，达到同一 P 可能需要更多候选，从而保留更多多样性；这仍需用重复率、质量和安全指标验证。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/df86050e7c-7bbc48c60750569253c5319c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/df86050e7c-7bbc48c60750569253c5319c.webp" /></p>
 <p>Top-P 的特征是候选池大小会随当前分布变化：分布集中时通常较小，分布分散时通常较大；它与 Top-K 各有适用场景。</p>
 <table>
 <thead>
@@ -94,7 +94,7 @@ top_p=0.9
 temperature=0.8 ~ 1.2
 top_p=0.95
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b592e8baa2-98e3be853d007895edc493e9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b592e8baa2-98e3be853d007895edc493e9.webp" /></p>
 <p>最后讲两个常见的踩坑。</p>
 <p>第一个是「同时调 temperature 高 + top_p 低」。比如 temperature=1.2 + top_p=0.5，通常会先得到更平的分布，再在较小累计概率集合内采样（具体顺序看实现）；它可能保留多样性又限制长尾，也可能损失候选，不能直接说“完全不可预测”，但需要实测。</p>
 <p>第二个是「同时设置 top_k 和 top_p」。两者都在限制候选集合，先后顺序可能影响结果；联合使用不是错误，但要查清运行时语义并做回归。可以先只启用其中一个，以便判断候选范围的影响。</p>

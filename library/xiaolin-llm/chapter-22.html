@@ -24,12 +24,12 @@
 <p>第一个是<strong>顺序计算，无法并行</strong>。RNN 处理序列的方式是从左到右逐个处理每个词，第 N 步必须等第 N-1 步计算完才能开始，无法利用 GPU 的并行计算能力。这导致训练大型 RNN 极慢。</p>
 <p>第二个是<strong>长距离依赖难学</strong>。当序列很长时，RNN 需要经过许多递归步传递早期信息，梯度可能衰减或爆炸，网络更难学习远距离关系。LSTM/GRU 的门控可以缓解，但仍保留顺序依赖和状态瓶颈。</p>
 <p>Transformer 通过全局注意力和训练阶段并行化缓解了这两个问题；它没有消除长序列的计算/内存成本，也不是对所有序列任务都无条件更优。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/bc5e1ec144-96c9210a735316778da5ee50.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/bc5e1ec144-96c9210a735316778da5ee50.webp" /></p>
 <h4 id="self-attention">Self-Attention 的核心直觉</h4>
 <p>Self-Attention（自注意力）的核心思路是：让序列中的每个 token 根据 Q/K 相似度访问其他位置（是否能看见由 mask 决定），再按权重聚合 V。它把远距离信息的路径从多次递归缩短为注意力连接，但注意力权重不保证每个位置都会被有效利用。</p>
 <p>这里有三个关键向量：Q（Query，查询）代表「我想找什么」，K（Key，键）代表「我有什么标签」，V（Value，值）代表「我的实际内容」。</p>
 <p>可以用图书馆检索来类比：你有一个搜索关键词（Q），图书馆里每本书都有标签（K）和内容（V）。注意力机制就是用你的关键词（Q）去匹配每本书的标签（K），计算出相似度分数，然后按照分数的权重把书的内容（V）加权求和，得到你的搜索结果。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/5e5254b4de-a6fa7829c460c47a8408e1d1.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/5e5254b4de-a6fa7829c460c47a8408e1d1.webp" /></p>
 <h4 id="qkv">Q/K/V 是怎么从输入变换得到的</h4>
 <p>很多人讲 Self-Attention 容易卡在「Q/K/V 是从哪儿冒出来的」这一步。其实 Q/K/V 不是模型「凭空生成」的，而是把输入 embedding 通过<strong>三个独立的线性投影矩阵</strong> W_Q、W_K、W_V 算出来的：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 假设输入 X 是 (序列长度 N, embedding 维度 d_model)</span>
@@ -39,7 +39,7 @@
 <span class="n">K</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_K</span>     <span class="c1"># 形状 (N, d_k)，每个 token 都有自己的 Key 向量</span>
 <span class="n">V</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="n">W_V</span>     <span class="c1"># 形状 (N, d_v)，每个 token 都有自己的 Value 向量</span>
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/59f258ce8d-ad0f2ac70219b8d02e65bce3.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/59f258ce8d-ad0f2ac70219b8d02e65bce3.webp" /></p>
 <p>这一步就是面试里常被追问的「<strong>Q/K/V 是怎么得到的</strong>」。理解的时候有几个关键点要抓住。</p>
 <p>最关键的一点是 Q/K/V 都是<strong>从同一个输入 X 算出来</strong>的。也就是说，输入既要扮演「提问者」（Q），也要扮演「被查者」（K + V），这就是「<strong>自</strong>注意力」里那个「自」字的含义，区别于 Encoder-Decoder 架构里 Cross-Attention 那种「Q 来自一边、K/V 来自另一边」的形式。</p>
 <p>然后 W_Q、W_K、W_V 是三个<strong>独立学习</strong>的矩阵。这是个容易被忽略的细节，但很重要。如果让 Q/K/V 都直接等于 X 不做变换，模型就没法学到「该从什么角度提问」「该用什么标签匹配」「该返回什么内容」这种细致的差异。三个独立投影让模型有 3 倍的自由度去学习这种角度上的差异，模型容量大幅提升。</p>
@@ -51,7 +51,7 @@
 <p>公式里的 <code>/√d_k</code> 这一步常被叫做 <strong>Scaled Dot-Product Attention（缩放点积注意力）</strong>。这个 √d_k 不是随便加的，背后有具体的数学动机。</p>
 <p>直觉上的问题是这样的：当 d_k 增大时，若 Q/K 各维近似独立、均值 0 且方差固定，点积的方差会随 d_k 增长，softmax 输入就可能变得过尖。</p>
 <p>点积尺度过大时，softmax 对差异会更敏感，概率可能过度集中，梯度信号变差；具体范围取决于初始化、归一化和数据，不能固定写成某个区间或必然 one-hot。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/7a67647a53-bf2b6495f3b47d43e8fee5bb.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/7a67647a53-bf2b6495f3b47d43e8fee5bb.webp" /></p>
 <p>过度尖锐分布可能导致非最大项梯度很小、优化变难，但归一化、温度和其他训练设计也会共同影响稳定性。</p>
 <p>除以 √d_k 是在上述近似假设下把点积尺度标准化到更稳定的量级，帮助 softmax 和梯度保持可训练；它不是对任意实现都精确“压回 1”。</p>
 <p>那能不能用其他方案替代 √d_k？<strong>理论上可以；√d_k 是经典缩放点积注意力中简单、可解释的基线</strong>。</p>
@@ -61,14 +61,14 @@
 <h4 id="multi-head-attention">Multi-Head Attention：多角度观察</h4>
 <p>单组 Q/K/V 只能学习到一种「关联关系」，但语言中的关联是多维度的：「我」和「吃」是主谓关系，「苹果」和「吃」是宾动关系，「苹果」和前文的「苹果树」是指代关系，这些不同类型的关联需要不同的「注意力头」来捕捉。</p>
 <p>Multi-Head Attention 就是把 Q/K/V 投影到多个不同的子空间（比如 8 个或 32 个头），每组独立计算注意力，最后把所有头的输出拼接起来。每个头可以专注于捕捉不同类型的语言关联，整体上表达能力更强。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b65dff1fdb-a204d0ae5160386ef8c46f7c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b65dff1fdb-a204d0ae5160386ef8c46f7c.webp" /></p>
 <h4 id="_3">位置编码：注入顺序信息</h4>
 <p>不带位置信号的 Self-Attention 对 token 排列具有等变性，无法可靠恢复词序；「我打你」和「你打我」的 token 集合相同但顺序不同，模型需要额外的位置机制区分它们。</p>
 <p>所以需要显式地给输入、Q/K 或注意力分数注入位置信息，这就是位置机制。具体方案有 sin/cos、RoPE、ALiBi、相对位置 bias 等；不一定都是“加到 embedding 上”，长度行为也要结合模型与训练评测。</p>
 <h4 id="ffn">前馈网络（FFN）的作用</h4>
 <p>除了注意力层，每个 Transformer 块里还有一个前馈网络（Feed-Forward Network），结构是两层全连接加一个激活函数。</p>
 <p>FFN 对每个位置独立地做非线性变换，补充注意力层的内容混合（注意力聚合本身是加权和，FFN 提供位置内的非线性）。一些可解释性研究把 FFN 与事实关联联系起来，但“FFN 是记忆仓库”是简化假说，知识也分布在注意力、嵌入和其他参数中。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/887f028847-142e49f83c547daa6f324aae.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/887f028847-142e49f83c547daa6f324aae.webp" /></p>
 <h4 id="encoder-onlydecoder-only-encoder-decoder">Encoder-only、Decoder-only 和 Encoder-Decoder 三种架构</h4>
 <p>理解了 Attention 的基本机制，可以解释这三种架构的区别。</p>
 <ul>
@@ -76,14 +76,14 @@
 <li><strong>Decoder-only（以 GPT 等自回归生成模型为代表）</strong>：使用因果掩码，当前位置只能访问允许的历史位置，常用 next-token prediction 训练，天然适合连续生成；它也可以通过提示、分类头或工具接口完成理解类任务。</li>
 <li><strong>Encoder-Decoder（以 T5、BART 等为代表）</strong>：Encoder 编码输入，Decoder 自回归生成输出，并通过 Cross-Attention 读取 Encoder 表示，适合翻译、摘要和条件生成；它并非不能规模化，取舍在于架构、训练数据和服务形态。</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a26972bffe-8ac9c27d5079e4134fdf219b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/a26972bffe-8ac9c27d5079e4134fdf219b.webp" /></p>
 <h4 id="decoder-only">为什么 Decoder-only 赢了</h4>
 <p>现代通用生成式大模型为什么大多选择 Decoder-only 架构？这是面试里最容易被追问的点。</p>
 <p>重要原因之一是「<strong>预测下一个 token</strong>」可以把大量文本、代码、对话和任务示例统一成自监督序列目标。问答、写作、推理、代码生成和翻译都能通过序列格式表达，但这是一种工程统一，不代表每个理解任务都比 Encoder-only 更高效。</p>
 <p>更关键的是，这个目标可以直接在无标注文本上做自监督训练。MLM 同样不需要人工标注；Decoder-only 的优势更多在于训练目标与生成接口一致、数据利用方式简单，以及后续指令/偏好训练容易沿用同一接口，而不是 MLM 无法规模化。</p>
 <p>随着模型、数据和训练方法扩大，模型可能获得数学、推理、代码和跨语言等能力；这些能力还受数据覆盖、后训练、工具和评测影响，不能只归因于 next-token prediction 或规模本身。</p>
 <p>这些因素使 Decoder-only 成为许多通用生成模型的常见选择。Encoder-only 和 Encoder-Decoder 仍在检索、分类、嵌入、翻译、摘要和低延迟理解场景有价值；最终架构应按质量、训练数据、推理成本、吞吐和接口需求选择。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/562604d8d0-40c4b4930c0da81cec5168f2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/562604d8d0-40c4b4930c0da81cec5168f2.webp" /></p>
 <h3 id="_4">🎯 面试总结</h3>
 <p>回到开头那段对话，问到 Transformer 架构，最重要的是先把 <strong>RNN 的两个工程约束</strong>讲清楚：顺序计算限制训练并行度，长距离依赖需要经过许多状态传递，可能出现梯度/记忆衰减。它们是 Transformer 受欢迎的重要动机，但不是所有序列任务的绝对缺陷。</p>
 <p>接下来讲 Self-Attention 怎么解决的。每个 token 通过 Q、K、V 三个线性投影得到查询、键、值向量，再用 Q 与允许访问的 K 计算分数并聚合 V。这一段能讲到「Q/K/V 在 self-attention 中来自同一个 X」「√d_k 用于控制点积尺度，帮助 softmax 保持可训练」这两个细节，就比只背公式更扎实。</p>

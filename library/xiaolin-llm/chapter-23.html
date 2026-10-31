@@ -18,11 +18,11 @@
 <h4 id="nlp">传统 NLP 是怎么干活的？</h4>
 <p>要理解 LLM 厉害在哪，得先看看在它之前，业界是怎么处理自然语言任务的。</p>
 <p>许多传统 NLP 系统会采用「流水线」式设计，把分词、实体、意图和检索拆成组件；但“传统 NLP”也包含端到端、联合学习、多任务和预训练模型，不能一概而论。采用流水线通常是为了可解释、可控、低延迟或复用领域组件。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/610263c1e7-01d4c59dd44b07a37a5327d9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/610263c1e7-01d4c59dd44b07a37a5327d9.webp" /></p>
 <p>举个例子，假如你要做一个智能客服。流程大概是：第一步分词，把用户的「我想退货」拆成「我 / 想 / 退货」；第二步词性标注，标出「我」是代词、「退货」是动词；第三步命名实体识别，找出有没有商品名、订单号；第四步意图分类，判断这是「咨询」还是「投诉」；第五步去知识库匹配预设答案。</p>
 <p>光是「分词」这一步，就可能有边界歧义。中文不像英文有空格天然分隔，「南京市长江大桥」可以有不同切分；系统可以用规则、统计模型、子词/字节 tokenizer 或端到端表示来处理，并不一定需要独立分词模型。词级系统会遇到 <strong>OOV（Out-of-Vocabulary，未登录词）</strong>，子词/字节方案可以降低该风险。</p>
 <p>流水线中的组件可能有独立数据和标注规范；如果下游只接受上游的硬输出，错误确实可能传导，但也可以通过 n-best、置信度、联合训练、回退和人工校验缓解。LLM 应用也会有类似的检索、工具和结构化输出错误链。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0126ec12e8-2fae645c757e2b7f0b0dfa27.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/0126ec12e8-2fae645c757e2b7f0b0dfa27.webp" /></p>
 <p>迁移到新领域常需要新数据、词表、规则或适配层，但不一定所有组件都重新训练；预训练表示、检索、领域词典和少量微调都可以降低成本。代价取决于任务边界、数据质量、延迟和安全要求。</p>
 <p>这说明一种常见取舍：任务越细分，专用组件的数量和维护成本可能越高；但专用系统也可能更可控、更便宜、更容易审计。LLM 改变的是复用和接口，不是让所有专用组件都失去价值。</p>
 <h4 id="bert">BERT 时代：预训练通了一半</h4>
@@ -32,13 +32,13 @@
 <p>BERT 解决了「<strong>表示更通用</strong>」，但不同下游任务仍常需要任务头、标注和适配；这与它是 encoder-only、MLM 目标和产品接口有关。</p>
 <p>第一，BERT 的输出是「<strong>表示</strong>」，不是直接的自回归文本流。分类、实体识别和抽取式问答通常需要任务头或任务适配；可以共享 backbone、使用参数高效微调或统一格式，是否产生多个副本取决于部署隔离和版本管理。</p>
 <p>第二，BERT 的 MLM 目标和双向 encoder 接口并非为左到右连续生成设计，因此通常不如自回归 decoder 或 encoder-decoder 直接用于翻译、写作和对话；它并非完全不能生成，研究者可以加生成头或采用其他训练方式。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c1841731f2-272b9ca8c8a91796cdbf6982.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/c1841731f2-272b9ca8c8a91796cdbf6982.webp" /></p>
 <p>所以 BERT 时代是个很关键的过渡。它证明了「预训练 + 大规模无标注数据」这条路的价值，但不同任务仍需要适配；后来的自回归生成模型进一步把更多任务放到统一的文本接口上。</p>
 <h4 id="llm-token">现代生成式 LLM：用 token 目标统一许多任务</h4>
 <p>现代生成式 LLM 的一个重要转变，是把许多 NLP 任务统一表达为<strong>预测下一个 token</strong>；这不是所有 LLM、所有任务或所有系统的唯一训练目标。</p>
 <p>这个训练目标叫 <strong>CLM（Causal Language Modeling，因果语言模型）</strong>。它的训练数据格式特别简单：给一段文本，模型从左到右一个字一个字地往后猜，每一步都要预测「下一个 token 是什么」。比如训练数据是「我喜欢吃苹果」，模型要学会：看到「我」预测「喜」，看到「我喜」预测「欢」，看到「我喜欢」预测「吃」，依此类推。</p>
 <p>这种训练方式叫<strong>自回归（Autoregressive）</strong>，意思是每个位置的预测依赖历史 token。许多通用生成模型采用“自回归 + 因果掩码”，但模型家族内部可能有不同组件，不能只凭产品名称推断完整架构。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/cd4adca534-7bc706b34b6c8af9a932c425.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/cd4adca534-7bc706b34b6c8af9a932c425.webp" /></p>
 <p>听起来太简单了对吧？但威力极大。看几个例子就明白了：</p>
 <ul>
 <li><strong>翻译</strong>：Prompt 写「把下面这句翻译成英文：我喜欢你 -&gt;」，LLM 接着预测下一个 token，就会输出「I like you」</li>
@@ -47,7 +47,7 @@
 <li><strong>写代码</strong>：Prompt 写「写一个 Python 函数，返回斐波那契数列前 N 项 -&gt; def」，LLM 接着续写就是完整代码</li>
 </ul>
 <p>很多任务可以被表达成「Prompt + 续写」的统一接口，因此减少了为每个任务从零训练模型的需要；但复杂任务仍可能需要工具、检索、结构化输出、校验、微调或专用模型。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f523ecb7f4-3b848cb738c4d65d0b902ea6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/f523ecb7f4-3b848cb738c4d65d0b902ea6.webp" /></p>
 <p>那为什么这个简单目标能学到这么多东西？关键是<strong>规模 + 数据</strong>两个杠杆。</p>
 <p>数据的杠杆是：CLM 可以使用大量无标注文本，但公开网页并不天然等于高质量、合法、去重且无 PII 的训练数据。不同模型的 token 规模、数据配方和质量口径差异很大，不能只背某几个模型的总 token 数。</p>
 <p>模型的杠杆是：公开模型从较小的 encoder/decoder 规模扩展到更大的参数、数据和训练算力；具体参数量、数据量和闭源模型内部规模并不总是公开。更稳的说法是：模型规模、训练数据和算力共同扩大后，token 预测目标可以支持更广泛的迁移，但收益要由评测验证。</p>
@@ -60,16 +60,16 @@
 橘子 -&gt;
 </code></pre></div>
 <p>模型看到这个 Prompt，不需要更新参数，就可能从示例推断任务模式并输出「orange」。这种能力在更早的元学习和语言模型研究中已有讨论，GPT-3 等公开模型让它在大规模任务接口中受到广泛关注，也是 Prompt Engineering 工程化的重要基础。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f66474a279-287c0e89e4b42c1075ec2f70.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/f66474a279-287c0e89e4b42c1075ec2f70.webp" /></p>
 <h4 id="_3">「涌现能力」：量变到质变的关键</h4>
 <p>LLM 还有一个让传统 NLP 模型望尘莫及的特点，叫<strong>涌现能力（Emergent Abilities）</strong>。</p>
 <p>涌现的常见定义是：「<strong>某项能力在小模型上几乎看不到，规模到了某个临界点之后突然表现出来</strong>」。不过这里要留一个 caveat：有研究认为，一部分「突然出现」可能来自评测指标的离散性，比如 exact match 这种非黑即白的指标会把连续提升看成突变。所以面试里可以说「涌现是工程上能观察到的能力跃迁，但学术上对它是不是测量假象还有争议」。</p>
 <p>来看几类被研究过的现象；具体数值必须绑定论文、数据集、提示和指标，不要当作统一临界点。</p>
 <p>第一个例子是<strong>多步算术</strong>。如果指标要求整题 exact match，前面每一步的小概率错误会相乘，模型规模变大后最终准确率可能显得跳升；换成分步得分或连续指标后，曲线可能更平滑。这说明要同时分析能力与测量方式。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/66af355fb3-5ec5902984b406127c36b052.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/66af355fb3-5ec5902984b406127c36b052.webp" /></p>
 <p>第二个例子是 <strong>In-Context Learning</strong>。给出示例后，模型可能在不更新参数的情况下适应任务格式；强弱受模型、示例、提示、语言和评测协议影响，不能指定统一的 1.5B、100B 或 175B 临界点。</p>
 <p>第三个例子是<strong>跨语言迁移</strong>。多语言混合语料可能让模型在低资源语言上迁移，但效果取决于语料比例、tokenizer、提示和语言级评测，不能从某个英文占比或模型名称直接推出能力。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d352c2ca26-54991cf70e667cc360a7b3c1.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/d352c2ca26-54991cf70e667cc360a7b3c1.webp" /></p>
 <p>为什么会出现这些变化？一个工程解释是 <strong>Scaling Law（缩放定律）</strong>：在一定模型族和训练范围内，模型规模、数据量与训练算力和损失存在可拟合关系；Chinchilla 的参数/token 比例是特定实验条件下的 compute-optimal 经验点，不是所有模型的硬规则。</p>
 <p>涌现讨论的关键在于：模型可能在没有逐题标注的情况下从大规模数据中形成可迁移模式；但能力来自数据、架构、优化、后训练和工具的共同作用，不能把它简化为“规模一大就自动学会”。</p>
 <p>但要注意的是，涌现不是「越大越好」。扩大参数后边际收益可能递减，训练数据质量、去污染、算力预算和推理成本都要一起考虑。小参数配更多高质量数据有时更适合部署，但不能用单个模型的 token 数或跨基准比较证明普遍优于大模型。</p>
@@ -115,12 +115,12 @@
 <p>工程层面的区别常表现为“更多任务复用同一个基础模型”，但真实系统仍会保留 embedding、reranker、分类器、规则、数据库和工具。复用可以减少训练与部署重复，却也带来共享模型升级、权限隔离、成本、回归和故障半径问题。</p>
 <p>范式层面的变化是生成式接口在更多产品中占比提高，而不是判别式方法消失。分类/抽取仍应使用准确率、召回率、F1、校准和业务成功率；生成任务可补充事实性、结构合法率、人工偏好和成本，LLM-as-Judge 也需要校准与人工抽检。</p>
 <p>能力层面的变化是：模型有时能把预训练中的模式迁移到未逐题标注的任务，但成功率取决于任务、提示、数据覆盖和工具。Prompt 不能替代事实来源、权限、验证和高风险任务的专用数据；模型能力上限也没有脱离训练和评测约束。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/61333e7f2c-e72c8f604e23e2c3734c0024.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/61333e7f2c-e72c8f604e23e2c3734c0024.webp" /></p>
 <h4 id="_5">这场转变对工程团队意味着什么</h4>
 <p>理解了上面三点，就能理解一个现实：许多 NLP 团队开始把 LLM 纳入技术栈，<strong>这不只是换一个模型，而是增加了新的接口和系统边界</strong>；传统模型并没有因此失去所有价值。</p>
 <p>具体来说，LLM 项目通常要同时考虑 Prompt、数据、RAG/工具、模型选择、微调、结构化输出、评测与安全；不是固定“先 Prompt、最后才数据”，高质量数据、权限和验证往往先决定系统上限。</p>
 <p>过去的词法分析、句法、特征工程和模型调参仍然有用；LLM 工程还增加了 Prompt、RAG、Agent、工具权限、评测、观测和成本治理。两类技能是叠加关系，岗位要求和薪酬不能由模型范式直接推断。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0cc6817082-cff0cbc8b2216d53fce1cdf7.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/0cc6817082-cff0cbc8b2216d53fce1cdf7.webp" /></p>
 <p>理解了 LLM 和传统 NLP 的接口差异，再看后续 RAG、Agent、Prompt Engineering 这些话题，会发现它们是“通用生成接口 + 外部知识/工具 + 评测治理”的工程实践；底层模型变了，工具链也需要重新划分边界，但传统组件仍可共存。</p>
 <h3 id="_6">🎯 面试总结</h3>
 <p>回到开头那段面试，问到「什么是 LLM」，硬背定义肯定不行。最重要的是把它和传统 NLP 的对照讲清楚，因为这是整道题的地基。</p>

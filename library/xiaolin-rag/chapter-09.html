@@ -17,7 +17,7 @@
 <h4 id="_3">先搞清楚：向量数据库是干什么的？</h4>
 <p>在讲 Milvus 之前，先理解一下向量数据库解决的是什么问题。很多人上来就问「哪个向量数据库好」，但连它要干什么都没搞清楚。</p>
 <p>普通数据库（比如 MySQL）存的是结构化数据，查询方式是精确匹配，「找名字等于张三的记录」。但在 RAG 里，我们存的是文本的「语义向量」，查询方式是相似度搜索，「找和这段描述语义最接近的文档」。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/cad6dab336-4b20277085e5c9dda1b0d93f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1648" height="948" alt="" src="assets/cad6dab336-4b20277085e5c9dda1b0d93f.webp" /></p>
 <p>这两件事的底层机制完全不同。语义向量是一个几百上千维的浮点数数组，你没办法用 <code>WHERE embedding = xxx</code> 来查，只能计算两个向量之间的距离（余弦相似度或欧氏距离），找出最近的 K 个。</p>
 <p>那问题来了：如果向量库里有 100 万条记录，每次查询都和 100 万条逐一算距离，计算量会随 N 增长。向量索引通过减少候选数来降低开销，但 ANN 的实际复杂度、召回损失和延迟取决于索引、参数、数据分布、过滤与硬件，不能把 HNSW 简化成对所有系统都成立的 <code>O(log N)</code>。</p>
 <h4 id="milvus">为什么选 Milvus？</h4>
@@ -27,12 +27,12 @@
 <p><strong>Weaviate</strong> 可以作为同时需要向量与结构化检索的候选，仍需核对版本、部署方式、过滤语义和运维边界。</p>
 <p><strong>Milvus</strong> 提供面向向量检索的多种部署与索引选项；是否适合分布式、高并发或某个数据规模，要结合其具体版本、拓扑、资源和运维能力验证，不能用“百万到十亿级”作为保证。</p>
 <p>如果选择 Milvus，应该把理由写成约束到能力的映射：例如需要的索引类型、分片/副本、更新可见性、备份恢复和资源隔离是否由目标部署满足；“读写分离”是否存在以及如何配置，应以对应版本文档和压测结果为准。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c7330be2c0-b86034f83589d2609165ea29.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/c7330be2c0-b86034f83589d2609165ea29.webp" /></p>
 <h4 id="milvus_1">Milvus 的核心概念</h4>
 <p>选定了 Milvus，在聊具体性能数据之前，先得搞懂它的几个核心概念。这些概念直接关系到后面分析性能瓶颈时能不能听懂。</p>
 <p><strong>Collection（集合）</strong> 类似关系数据库里的「表」，存储一类向量数据。我们的知识库就是一个 Collection，每条记录包含：文本 chunk 的 ID、向量（embedding）、原文内容、来源文档等 metadata。</p>
 <p><strong>Segment（段）</strong> 是 Milvus 等系统内部管理数据的单位，具体状态和 compaction 语义随版本与部署而变化。新写入数据可能先处于未封存或未完成索引的状态，随后被持久化、构建索引或合并；这些后台任务会消耗 CPU、内存和磁盘 I/O，并可能影响尾延迟。排查时应看段状态、索引加载、compaction、资源使用和查询分位数，而不是假定所有版本都有同一流程。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a25d8f79b3-8220f58fc18a8fe7886b841f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/a25d8f79b3-8220f58fc18a8fe7886b841f.webp" /></p>
 <p><strong>Index（索引）</strong> 是向量检索的关键加速结构。常见的 <strong>HNSW</strong>（Hierarchical Navigable Small World，分层可导航小世界图）把向量组织成多层图，查询时从稀疏的顶层开始导航，再逐层细化候选。它通常通过减少访问节点来换取速度，但不保证固定复杂度或固定召回率。</p>
 <p>HNSW 有两个关键参数，用社交网络来类比很好理解：</p>
 <ul>
@@ -43,18 +43,18 @@
 <p>搞懂了概念，现在来看如何报告数据。下面的数字只是<strong>示例压测配置</strong>：约 150 万条 chunk、固定维度向量、HNSW 和明确记录的索引参数。若用于面试，必须替换成自己确实测过的规模、模型、版本和部署拓扑。</p>
 <p>先算一下原始数据的下界：150 万 × 1024 维 × 4 字节（float32）≈ <strong>6GB</strong>，这只是裸向量，不包含索引图、metadata、缓存、副本和服务开销。实际占用不能用固定的 10～12GB 推断，应通过同一版本、同一索引和同一副本数测量，并为应用、缓存和故障余量留空间。</p>
 <p>开启 <strong>标量量化（SQ8）</strong> 后，存储表示可能从 float32 变为更低比特宽度，但量化范围、索引实现和额外结构会影响实际节省。它可能降低内存和 I/O，也可能带来召回损失或额外计算；必须对业务 Recall@K、延迟和成本做 A/B 或离线对比，不能承诺固定“四分之一”、固定百分点或“几乎没有代价”。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/92980dfddb-d700b49bc847041d26e80bfd.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/92980dfddb-d700b49bc847041d26e80bfd.webp" /></p>
 <p>性能报告至少应写清硬件、网络、客户端连接池、向量维度、topK、过滤条件、索引参数、数据规模、读写比例、并发模型和预热方式，再给出 P50/P95/P99、吞吐、错误率与资源曲线。单个 P50 数字不能证明系统稳定；跨机房、冷启动、未加载索引或更新高峰都可能明显改变结果。</p>
 <h4 id="_5">遇到的性能瓶颈</h4>
 <p>前面的估算说明了一个排查方向：高维向量、索引和副本都可能造成内存压力，但是否成为瓶颈要看监控。下面列出两个常见的<strong>排查案例模板</strong>，不应当当作作者亲身经历。</p>
 <p><strong>瓶颈一：内存不足，查询延迟飙升</strong></p>
 <p>如果机器内存不足，索引加载、缓存争用或 swap 可能使尾延迟突然升高。先核对进程 RSS、容器限制、swap、索引加载状态、磁盘 I/O 和 GC/线程指标，再判断是资源问题还是索引/过滤问题；不要看到延迟升高就直接归因于 ANN 算法。</p>
 <p>可选措施包括降低副本或并发、扩容、选择更节省内存的索引/量化、将冷热数据分层，并在确认具体版本支持且符合 SLO 后评估 <code>mmap</code> 等磁盘映射能力。每项措施都要重新测召回、P99、重启恢复和成本，不能假设磁盘读取“对延迟影响不大”。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/897ec28664-6080943b62d4a7230c53af83.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/897ec28664-6080943b62d4a7230c53af83.webp" /></p>
 <p><strong>瓶颈二：批量写入、索引构建或 compaction 造成查询抖动</strong></p>
 <p>大批量写入可能触发后台持久化、compaction 或索引构建，与查询争用 CPU、内存和磁盘 I/O，使 P95/P99 抖动。是否发生、何时发生以及名称如何称呼，取决于版本和部署；应从服务指标、任务队列、段/索引状态和节点资源中定位证据。</p>
 <p>可选措施包括写入限流、错峰、批量大小压测、读写资源隔离、异步索引构建和蓝绿/版本化切换。不要直接套用“每批 500～1000 条、间隔几秒”等固定参数；应以写入吞吐、查询 P99、数据可见性和恢复时间共同确定。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/afb64ef941-f6e344df604d29b43bdc8db5.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/afb64ef941-f6e344df604d29b43bdc8db5.webp" /></p>
 <h3 id="_6">🎯 面试总结</h3>
 <p>回到开头那段面试，面试官问「你用的什么向量数据库、数据量级多大」，你不能只说「Chroma，几万条，感觉挺快」。生产环境和玩具项目是完全不同的两个世界。</p>
 <p>更可靠的回答顺序是：先说清楚自己确实使用过的组件、版本和选择约束；再给出可复现的规模、维度、索引、过滤、并发和 P50/P95/P99；最后讲一个有监控证据的瓶颈、排查过程、改动和改动后的指标。如果没有真实生产数据，就明确标注为 PoC/压测，不能用示例数字包装成项目经历。</p>

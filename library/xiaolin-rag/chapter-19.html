@@ -14,15 +14,15 @@
 <p>在讲具体方案之前，先搞清楚一个关键问题：为什么 RAG 知识库的更新不能像普通数据库那样直接 UPDATE？原因在于，普通数据库更新一条记录，直接 UPDATE 就行，数据是独立的，改一条不影响别的。但 RAG 知识库的麻烦在于：原始文档和向量库之间不是一对一的关系，而是一对多的关系。</p>
 <p>一篇文档会被切割成几十甚至上百个 chunk，每个 chunk 分别 Embedding 后存入向量库。当文档内容发生变化时，你不能简单地「更新一条记录」，因为文档结构变了，切割结果可能完全不同，chunk 的数量、边界、内容都会变。</p>
 <p>因此更新策略要先定义一致性目标。若 chunk 边界可能变化，可以按文档范围重切分；若切分稳定，也可以用稳定 ID 对未变化 chunk 去重、只更新受影响部分。直接“先删后增”实现简单，但会产生短暂空窗、并发查询读到混合版本或删除失败残留；生产上更安全的做法通常是写入新版本、校验完成后原子切换版本，再异步清理旧版本。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/455ba817e6-2f925e69f28822b6fa6da572.png" /></p>
+<p><img loading="lazy" decoding="async" width="1331" height="1181" alt="" src="assets/455ba817e6-2f925e69f28822b6fa6da572.webp" /></p>
 <p>抽象来看，知识库的变更只有三种操作类型。新增是最简单的，文档以前不存在，走一遍完整的「切割 -&gt; Embedding -&gt; 写入」流程就行，没有任何历史包袱。</p>
 <p>修改是最容易踩坑的操作，值得多说几句。很多同学第一次做这个功能，直觉上认为「只改了一段文字，更新那一个 chunk 就好了」，这个思路在实际中行不通。</p>
 <p>原因是文档内容变化可能改变边界，旧 chunk 与新 chunk 不一定一一对应；但可以用文档版本、稳定锚点、内容 hash 或差异算法减少重算范围。若无法可靠映射，就对该文档全量重切分；关键是让发布、回滚和删除具备幂等性。</p>
 <p>删除要同时处理原文、chunk、向量、metadata、缓存、倒排/图索引和版本状态。可以先标记下线并让查询过滤，再异步物理删除；否则删除失败或缓存未失效时可能出现“僵尸 chunk”。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ef03bbd5e0-4d8ad1e9c39295dac57c8ed3.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/ef03bbd5e0-4d8ad1e9c39295dac57c8ed3.webp" /></p>
 <h4 id="_3">如何知道文档是否发生了变化？</h4>
 <p>搞清楚了更新策略是「先删后增」，下一个绕不开的工程问题就是：系统怎么知道一篇文档「变没变」？</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c18475c830-c4a774a9eca5668e960dab1b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/c18475c830-c4a774a9eca5668e960dab1b.webp" /></p>
 <p>常见方案是<strong>内容 hash</strong>。每次文档入库时，按明确的规范化规则计算 SHA256 等摘要，把 hash 与文档 ID、版本、解析器/Embedding/Chunking 配置和 chunk 关联关系一起存下来。下次检测到文档时重新计算并比较；相同只能说明输入字节/规范化结果相同，不代表权限、解析器或外部 metadata 没变，因此这些依赖也应进入变更判断。</p>
 <p>hash 通常比重新解析和嵌入便宜，但仍要按文件大小、扫描频率和存储 I/O 测量。内容 hash 能发现输入变化，不会自动发现解析器、权限、外部链接或索引状态变化。</p>
 <p>可以先用“最后修改时间、ETag 或数据源版本”做粗筛，再对候选计算 hash；但时间戳可能不可靠或被回填，不能把过滤比例写成固定 99%，必要时要周期性全量校验。</p>
@@ -33,7 +33,7 @@
 <p>另一种做法是在每个 chunk 的 metadata 里存上文档 ID 字段（比如 <code>source_doc_id: "product_manual_v3"</code>），向量库一般都支持按 metadata 字段过滤批量删除，效果是一样的。无论选哪种方式，关键是<strong>从一开始就把文档和 chunk 的关联关系设计好</strong>，等到需要更新时再临时想办法，会很狼狈。</p>
 <h4 id="_4">两种主流的变更感知方式</h4>
 <p>前面说了怎么检测变更和怎么处理变更，系统还要选择变更感知方式。轮询与事件驱动是常见选项，也可以组合使用，互相补偿丢失事件。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1163a8061f-ee0d81a70b0d5c0810e939ea.png" /></p>
+<p><img loading="lazy" decoding="async" width="1335" height="1178" alt="" src="assets/1163a8061f-ee0d81a70b0d5c0810e939ea.webp" /></p>
 <p><strong>第一种是定时轮询（Polling）</strong>。系统按时间窗口扫描数据源或增量列表，比较版本/时间戳/hash 并重处理变化文档。它实现简单、可作为事件丢失后的补偿，缺点是有发现延迟和扫描成本；周期应由数据量、变更率与新鲜度 SLO 决定，不必固定为每天或每小时。</p>
 <p><strong>第二种是事件驱动（Event-Driven）</strong>。数据源变更时发出带文档 ID、版本和幂等键的事件（例如消息队列或 Webhook），更新服务订阅并处理。它可能降低发现延迟，但端到端可见时间还取决于排队、解析、Embedding、索引构建和版本切换；必须处理重复、乱序、丢失、重试和死信。代价是系统架构与运维更复杂。</p>
 <p>某些内容管理工具提供 Webhook，但支持范围、事件语义和可靠性随产品/版本/权限而异；接入前要核对官方能力，并保留轮询或对账补偿，不要把 Webhook 当成不丢事件的事实。</p>
@@ -45,7 +45,7 @@
 <p>对于核心的生产知识库，直接删旧数据、写新数据风险还是太大了。万一新切割的内容有问题，想回滚都来不及。那怎么办？更稳妥的做法是<strong>不直接删旧数据，而是先并行写入新版本，验证没问题再切换</strong>。</p>
 <p>具体操作是：把新版本的 chunk 写入时打上 <code>version=new</code> 的标签，旧版本保留 <code>version=old</code>。在验证阶段，用一批测试问题同时跑新旧两个版本，对比答案质量，确认新版本没有引入退化。验证通过后，把检索时的版本过滤条件从 <code>old</code> 切换到 <code>new</code>，最后再清理掉旧版本的 chunk。</p>
 <p>这个方案类似蓝绿发布：新版本写入、完整性/权限/质量验证通过后切换一个受控的 active version，失败时回滚到旧版本。切换耗时和原子性取决于索引/路由实现，不能承诺秒级；高风险领域还需要审批和审计。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d5a82daa65-32a879d50f1426536a56564c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/d5a82daa65-32a879d50f1426536a56564c.webp" /></p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     A[数据源变更] --&gt; B[事件/轮询对账]
     B --&gt; C[幂等任务: 文档版本与 hash]

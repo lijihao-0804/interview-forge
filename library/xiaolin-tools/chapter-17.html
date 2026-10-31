@@ -21,14 +21,14 @@
 <p>第二类是选择混淆。比如同时存在 <code>order_get</code>、<code>order_search</code>、<code>order_detail</code> 和 <code>after_sale_query</code>，它们的描述又都写着「查询订单信息」，模型很容易在相似选项之间选错。问题往往不是模型完全不懂，而是工具边界根本没有讲清楚。</p>
 <p>第三类是权限风险。如果普通客服没有退款权限，却仍然把 <code>payment_refund</code> 暴露给模型，就等于让模型先看到了不该看的能力。即使最终执行层会拒绝，这种设计也扩大了误调用和提示词注入的攻击面。</p>
 <p>第四类是延迟问题。更长的输入需要更多传输和模型预处理，模型还要在更大的候选空间里做判断。不过这里不要说成「路由一定更快」，因为额外的分类或检索也有耗时。工程目标是比较端到端延迟，在减少大模型输入与增加一次轻量路由之间找到平衡。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0cd5943a0c-a0c5a326ada32859446717de.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/0cd5943a0c-a0c5a326ada32859446717de.webp" /></p>
 <h4 id="tool-routing-multi-agent-routing">先分清 Tool Routing 和 Multi-Agent Routing</h4>
 <p>这两个概念名字相似，但路由的对象不同。</p>
 <p>Tool Routing 回答的是：「当前这个 Agent 为完成这一步，应该看到哪些工具，最终调用哪个工具？」它的输入通常是用户请求、当前任务步骤、权限和工具元数据，输出是一个候选工具集合，或者在候选集合中选出的具体工具。</p>
 <p>Multi-Agent Routing 回答的是：「当前任务或子任务应该交给哪个 Agent？」它路由的是研究 Agent、编码 Agent、审核 Agent这类角色，输出通常是下一位执行者或一次 Handoff。</p>
 <p>举个例子，用户说「查询订单 A100，确认未发货后帮我取消」。Orchestrator 把任务交给订单 Agent，这是 Multi-Agent Routing；订单 Agent 当前先看到 <code>order_get</code>，确认状态后再看到 <code>order_cancel</code>，这是 Tool Routing。</p>
 <p>两层路由可以同时存在。先选 Agent 能缩小业务边界，Agent 内部再选工具能缩小能力边界。但不能为了规避工具过多，就无原则地拆出几十个 Agent，否则只是把工具目录变成了 Agent 目录，任务切换、状态同步和调试成本反而会上升。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/353058f624-18873125fa05978981c4dbd7.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/353058f624-18873125fa05978981c4dbd7.webp" /></p>
 <h4 id="_3">第一步，建立可路由的工具注册表</h4>
 <p>工具路由不能只依赖一个含糊的 <code>description</code>。先把每个工具整理成一张结构化的「工具卡片」，后面的规则过滤、检索和评测才有依据。</p>
 <p>一张实用的工具卡片通常会包含这些信息：</p>
@@ -107,7 +107,7 @@
 <p>关键词或 BM25 适合匹配产品名、接口名、字段名和缩写，比如用户明确提到「Jira」「SKU」或 <code>order_id</code>。Embedding 更擅长语义匹配，比如用户说「包裹还在路上吗」，也能召回描述为「查询物流轨迹」的工具。实际项目可以做混合检索，再用分数融合或轻量 Reranker 排序。</p>
 <p>检索内容也不应只有一句工具描述。名称、业务标签、适用场景、排除条件、参数名和少量调用示例都可以进入索引。论文研究也表明，大规模工具选择可以先检索少量相关工具，再交给 LLM 做最终选择；对于复杂请求，还可以先把用户表达改写成更适合检索工具说明的查询。</p>
 <p>但要记住，工具检索追求的是「别漏掉正确工具」，不是「排第一就直接执行」。Embedding 相似度只表达语义接近，不代表用户有权限、参数满足，也不代表这个工具一定能完成任务。检索结果应该进入下一层精选和校验。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/6f00777dba-5ddf8b8d4337cbf33bcc1da0.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/6f00777dba-5ddf8b8d4337cbf33bcc1da0.webp" /></p>
 <h4 id="llm">第五步，只把候选工具动态绑定给 LLM</h4>
 <p>前面几层筛完之后，才轮到大模型做自己擅长的精细语义判断。系统把当前任务上下文，以及少量候选工具的完整描述和 Schema 绑定给模型，让它完成三件事：判断是否真的需要工具、选择一个或多个工具、填写结构化参数。</p>
 <p>这种「先召回，后精选」的设计，把 LLM 从上百个相似选项中盲选，变成在一个小候选集里做判断。OpenAI 和 Anthropic 的官方工具搜索能力都支持延迟加载工具，也就是工具先留在目录中，需要时再把相关定义加载进模型上下文。OpenAI 还建议用命名空间组织相关工具，Anthropic 的工具搜索则可以根据名称、描述、参数名和参数说明发现工具。</p>
@@ -145,7 +145,7 @@
 <p>Skill 更像任务操作手册。Agent 启动时先看 Skill 的名称和简短描述，匹配到当前任务后再加载详细步骤，需要模板或脚本时继续按需读取。这种渐进式加载避免把所有工作流程一次性塞进上下文。</p>
 <p>Tool 是可执行能力，Tool Routing 决定当前步骤要暴露哪些能力。一个 Skill 被选中后，可以进一步告诉 Agent「这项任务先使用 <code>orders.get_detail</code>，满足条件后再使用 <code>orders.cancel</code>」，也可以把检索范围缩小到某个工具命名空间。</p>
 <p>所以常见链路是「用户请求 -&gt; 匹配 Skill -&gt; 加载任务流程 -&gt; 根据当前步骤路由 Tool」。Skill 能帮助缩小工具候选，但它不能替代权限过滤和执行鉴权，更不能因为 Skill 里写了某个工具名，就绕过用户当前的权限。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e81d87c1c8-a3ddf3592a16024884a7ae85.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/e81d87c1c8-a3ddf3592a16024884a7ae85.webp" /></p>
 <h4 id="schema">工具描述和 Schema 质量决定路由上限</h4>
 <p>路由链路再复杂，也救不了一组互相说不清边界的工具。</p>
 <p>工具名称要具体，避免 <code>query_data</code>、<code>process</code> 这类泛化命名。描述应该同时回答「做什么」「何时用」「何时不用」「返回什么」。相似工具之间要直接写出差异，例如「已知唯一订单号时使用详情查询，按手机号或时间范围查找时使用订单搜索」。</p>
@@ -163,7 +163,7 @@
 <p>如果多个相似工具分数接近，低风险只读场景可以让 LLM 根据更完整的描述精选；涉及付款、删除、发信等高风险动作时，应进入确定性规则或人工审批，不能靠相似度直接执行。</p>
 <p>如果首选工具不可用，可以切换到同能力的备用工具，或者降级为只读查询和人工处理。模型输出了候选集之外的工具名时，运行时必须拒绝，不能尝试「将错就错」地映射执行。</p>
 <p>还有一种容易忽略的失败，是正确工具根本没进入 Top-K。这时让同一个 LLM 在错误候选里反思没有意义，应该回到召回层，放宽类别、改写查询，或者走默认的工具搜索入口。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d925dc65dc-59cfdcd4b3e3e4848e270d64.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/d925dc65dc-59cfdcd4b3e3e4848e270d64.webp" /></p>
 <h3 id="_8">🎯 面试总结</h3>
 <p>回到开头，把上百个工具全部塞给模型，会同时带来 Token 占用、相似工具混淆、权限暴露和延迟压力。只用 Embedding 取第一名直接执行也不稳，因为相关性不是可调用性，更不是授权。</p>
 <p>面试时我会先说清楚 Tool Routing 和 Multi-Agent Routing 的边界。前者决定当前 Agent 能看到和调用哪些工具，后者决定任务交给哪个 Agent。它们可以上下分层配合，但解决的不是同一个问题。</p>

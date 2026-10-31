@@ -14,7 +14,7 @@
 <p>用户和文档写作者之间可能存在表述差异，但这不是所有查询都需要用 LLM 改写的“天然鸿沟”。要先区分指代消解、实体/时间/权限约束、查询拆分和词汇扩展等具体问题。</p>
 <p>用户可能这样问：「这东西坏了咋整」，而文档里写的是「产品故障排查与维修指南」。嵌入模型可能已经能处理这类改写，也可能受领域词汇、实体缺失和索引质量影响而召回失败；不能只把失败归因于口语与书面语的向量距离。</p>
 <p>Query Rewrite 是在检索前对问题做结构化或语言处理，目标是在保留原意、实体、否定、时间和权限约束的前提下提高可检索性。它也可能发生语义漂移，因此应保留原始 Query，并用离线 Recall@K、答案质量、延迟和成本评估。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/bcab9d6dfa-f95919f2a9212547cf55a0c9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/bcab9d6dfa-f95919f2a9212547cf55a0c9.webp" /></p>
 <h4 id="query-rewriting">方法一：直接改写（Query Rewriting）</h4>
 <p>基础改写可以把口语化问题变成更完整的检索表述，也可以补全对话中的代词指代。但模型不能凭空猜测产品、地区、时间或用户身份；无法确认时应保留歧义或触发澄清。改写结果应与原 Query 一起记录，便于审计和回放。</p>
 <p>发给 LLM 的 Prompt 模板如下：</p>
@@ -27,7 +27,7 @@
 只输出结构化结果，不要添加原问题中不存在的事实：
 </code></pre></div>
 <p>示例效果：原始「上次说的那个退款的事，流程是啥」-&gt; 改写后「申请商品退款的完整操作流程是什么」。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/8f2d735eb3-7af8f237c1d10271e634fdc9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/8f2d735eb3-7af8f237c1d10271e634fdc9.webp" /></p>
 <p>直接改写可能帮助解决口语化和指代不清，但它不一定能改善所有文档/问题表达差异；有时原始 Query、关键词变体和结构化过滤条件一起检索更有效。</p>
 <p>这个问题催生了 HyDE 的出现。</p>
 <h4 id="hydehypothetical-document-embeddings">方法二：HyDE（Hypothetical Document Embeddings）</h4>
@@ -42,7 +42,7 @@
 假设答案：
 </code></pre></div>
 <p>示例只能说明一种可能：假设文本可能与“申请售后退款须知”在表达上更接近，但其中“14 天”等具体事实不能未经资料支持就进入最终答案。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/13dbd37050-f427b28d4bdfcd7c5891d85b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/13dbd37050-f427b28d4bdfcd7c5891d85b.webp" /></p>
 <p>HyDE 可能缓解一类表达差异，但不保证解决知识库缺失或过度具体的问题。若希望同时检索背景原理，可以把 Step-back 作为独立候选信号，并保留原问题的实体与约束。</p>
 <h4 id="step-back-prompting">方法三：Step-back Prompting（后退提问）</h4>
 <p>对于涉及具体细节的问题，知识库可能没有直接答案但有背景原理。Step-back Prompting 把具体问题提升到更抽象的层次，检索背景知识，再与原问题的精确条件一起使用；如果只保留抽象问题，反而可能丢失版本、参数或权限约束。</p>
@@ -54,11 +54,11 @@
 背景问题：
 </code></pre></div>
 <p>示例效果：具体问题「某版本 HNSW 的搜索参数如何调」可以生成背景问题「HNSW 索引参数如何在召回与延迟之间权衡」，但最终仍要回到具体版本、数据和压测结果，不能由背景文档直接给出固定值。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/decf710116-ec2bdaa11b3725f1486c6eb8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/decf710116-ec2bdaa11b3725f1486c6eb8.webp" /></p>
 <p>前面三种方法都是在「一个问题」上做文章——要么改写它、要么给它配一个假设答案、要么把它抽象化。但有时候问题的角度本身就比较窄，用一个角度去检索，覆盖面不够。这时候就需要换个思路：不求一个问题改得更好，而是多生成几个不同角度的问题。</p>
 <h4 id="query">方法四：多 Query 扩展</h4>
 <p>用 LLM 把用户原始问题改写成若干不同角度的版本，分别去检索，再合并去重。角度数量不应固定为 3～5；它会线性增加模型、Embedding、检索和融合成本，也可能增加噪声。适合用离线评测证明单一路径覆盖不足的场景，并需设置预算、超时和失败回退。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d352f584c8-429482807091aa4375f06bc8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1024" height="559" alt="" src="assets/d352f584c8-429482807091aa4375f06bc8.webp" /></p>
 <p>把这四种方法放在一起对比一下，选型时就有了清晰的依据：</p>
 <table>
 <thead>

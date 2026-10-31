@@ -36,7 +36,7 @@
 </code></pre></div>
 <p>A 和 B 两个小矩阵组成一个「旁路分支」，负责学习微调任务需要的增量知识；原始权重 W 保存着预训练学到的通用知识，一字不改。</p>
 <p>可以用「给书批注」来类比：全量微调是把书重新印一遍、改掉原文内容；LoRA 是在书的空白处贴便利贴，原书一个字都不动，便利贴上写的是修正和补充。读书的时候，原文和便利贴的内容都能看到，效果叠加在一起。这种「在旁边打补丁」的设计，是 LoRA 后续很多优点的根源。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/1b1ee37bfc-1279f2a1fa21c8f6baf2fc76.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/1b1ee37bfc-1279f2a1fa21c8f6baf2fc76.webp" /></p>
 <h4 id="_4">「低秩分解」到底是什么意思？</h4>
 <p>LoRA 里最让初学者困惑的词是「低秩分解」。拆开来理解：</p>
 <p><strong>先说「秩」（rank）是什么。</strong> 矩阵的秩代表独立的信息维度。一个 4096×4096 的矩阵秩最高可以是 4096；LoRA 用低秩增量近似微调更新，低秩是否足够是经验假设，取决于任务、层、数据和基座，不能把秩固定成 8-16 或说其余方向都无效。</p>
@@ -48,7 +48,7 @@
 <li>两者乘积 B·A 形状是 d×d，和原始更新矩阵同维，但参数量大幅减少</li>
 </ul>
 <p>这里的 r 就叫做<strong>秩（rank）</strong>，是重要超参之一。r 越小，参数越少但容量可能不足；r 越大，参数更多、过拟合和显存/延迟成本也可能上升。应根据任务验证集选择，而不是背某个通用秩。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/6ab71dee74-cc62e32a0b03349ad942b9b1.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/6ab71dee74-cc62e32a0b03349ad942b9b1.webp" /></p>
 <h4 id="_5">参数量减少了多少？</h4>
 <p>来做一道具体的计算，有个直观感受：</p>
 <ul>
@@ -76,7 +76,7 @@
 <p>训练完成之后，把 <code>α * B·A</code> 的结果加到 W 上，得到 <code>W_merged</code>；合并操作需要按部署精度和权重格式执行，且会失去单独切换该 adapter 的便利。若保留 A/B，就可以灵活切换，但会有额外计算、显存或调度开销。</p>
 <p>这与某些 Adapter 方案的部署取舍不同：Adapter 保留模块时通常会引入额外层计算，而 LoRA 可以通过合并消除旁路；但不同实现的 kernel、融合和批处理会改变实际延迟，不能用固定的“每层几毫秒”判断。</p>
 <p>对延迟敏感的在线服务来说，这个特性非常重要。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a10b09332f-a9eed8e4dfba6f3788cb506a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/a10b09332f-a9eed8e4dfba6f3788cb506a.webp" /></p>
 <h4 id="_6">优点二：模块化插拔，一个基底，多套能力</h4>
 <p>LoRA 带来了一种非常灵活的部署模式：<strong>一个基础模型 + 多套 LoRA 权重，按需加载</strong>。</p>
 <p>可以用手机来类比：基础模型是共同底座，每套 LoRA 像可切换的插件；实际 adapter 大小和切换成本取决于注入层、秩、精度与框架。</p>
@@ -101,7 +101,7 @@
 <span class="p">)</span>
 </code></pre></div>
 <p>可以看到，<code>base_model</code> 可以只加载一份，多个 adapter 共享它；但同时挂载、并发隔离、权重合并和批处理支持要由框架验证。相比每个场景部署一个独立模型，它通常节省存储和基础权重重复加载，但不保证在所有服务形态下都更便宜。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f2411f1c79-ce0a6867db9b071be4d59aa6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/f2411f1c79-ce0a6867db9b071be4d59aa6.webp" /></p>
 <h4 id="_7">优点三：不丢通用能力，白板旁边贴便利贴</h4>
 <p>全量微调有一个著名的问题叫<strong>灾难性遗忘（Catastrophic Forgetting）</strong>。</p>
 <p>这个问题是这样产生的：全量微调时，所有参数都在被更新，模型为了在新任务上表现好，会把原来的权重改掉。如果新任务的训练数据分布比较窄（比如只有医疗问答），模型就会逐渐「忘掉」它在预训练时学到的通用能力，比如代码能力、逻辑推理能力。你微调完一个专门回答医疗问题的模型，发现它写代码的能力大幅下降了，这就是灾难性遗忘。</p>
@@ -130,7 +130,7 @@
 <span class="n">model</span><span class="o">.</span><span class="n">set_adapter</span><span class="p">([</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="s2">&quot;coding&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>这种技术常称为 <strong>LoRA Merging</strong>。它可以作为低成本实验，但不同 adapter 的基座、tokenizer、任务分布和参数空间需要兼容；线性相加可能产生冲突、遗忘或安全回退，仍应在目标任务上验证，必要时再用组合数据训练。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ae1877ed53-e23e58ee452f8c4926004e27.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/ae1877ed53-e23e58ee452f8c4926004e27.webp" /></p>
 <h4 id="lora-vs-vs-adapter">总结对比：LoRA vs 全量微调 vs Adapter</h4>
 <table>
 <thead>
@@ -187,7 +187,7 @@
 </tbody>
 </table>
 <p>从这张表里可以看到，LoRA 的价值在于把冻结基座、低秩增量、可插拔和可合并结合起来；但它并不在每个维度全面优于 Adapter 或全量微调，最终要看任务效果、延迟、并发、许可证和运维成本。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c7ea014492-6e6d2c11ebc62cfb13ede51a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/c7ea014492-6e6d2c11ebc62cfb13ede51a.webp" /></p>
 <h3 id="_9">🎯 面试总结</h3>
 <p>回到开头那段对话，问到「LoRA 除了减少参数量还有哪些优点」，最关键的是要跳出「省参数」这一个点，把 LoRA 在多个维度上的优势都讲出来。</p>
 <p>最容易被低估的是<strong>合并部署的选择权</strong>。训练后可以把 LoRA 增量合并到基座，减少未合并旁路的额外计算；若保留 adapter 以便切换，就要测量实际延迟、显存和批处理影响，不能说绝对“零开销”。</p>

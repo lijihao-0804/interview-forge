@@ -44,6 +44,20 @@ import json
 import os
 import re
 import shutil
+
+try:  # 图片优化用；缺失时构建仍可进行（图片原样复制）
+    from PIL import Image
+except ImportError:  # noqa: BLE001
+    Image = None
+
+# 截图类 PNG 体积巨大（单张最高 9MB），转 WebP 后约剩 1/10。
+# 上限 3000px：实测只有 4 张超过，缩放后 1 倍查看无差异。
+_WEBP_EXTS = {".png", ".jpg", ".jpeg"}
+_WEBP_MAX_DIM = 3000
+_WEBP_QUALITY = 82
+# 构建期记录每张 webp 的最终尺寸，供后面给 <img> 补 width/height（消除布局抖动）
+_IMAGE_DIMS: dict[str, tuple[int, int]] = {}
+
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -899,6 +913,38 @@ def rewrite_local_links(text: str, source: Path, assets_dir: Path, source_module
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", target.name).strip("-") or f"asset{target.suffix}"
         destination = assets_dir / f"{digest}-{safe_name}"
         destination.parent.mkdir(parents=True, exist_ok=True)
+
+        # 静态图优先转 WebP（内容寻址，已存在则跳过转换，只补记尺寸）
+        if Image is not None and target.suffix.lower() in _WEBP_EXTS:
+            stem = re.sub(r"[^A-Za-z0-9._-]+", "-", target.stem).strip("-") or "asset"
+            webp_path = assets_dir / f"{digest}-{stem}.webp"
+            converted = False
+            if not webp_path.exists():
+                try:
+                    with Image.open(target) as img:
+                        rgb = img.convert("RGB")
+                        width, height = rgb.size
+                        if max(width, height) > _WEBP_MAX_DIM:
+                            scale = _WEBP_MAX_DIM / max(width, height)
+                            rgb = rgb.resize(
+                                (max(1, int(width * scale)), max(1, int(height * scale))),
+                                Image.LANCZOS,
+                            )
+                        rgb.save(webp_path, "WEBP", quality=_WEBP_QUALITY, method=4)
+                        _IMAGE_DIMS[webp_path.name] = rgb.size
+                        converted = True
+                except Exception:  # noqa: BLE001  转换失败退回原图复制
+                    if webp_path.exists():
+                        webp_path.unlink()
+            if converted or webp_path.exists():
+                if webp_path.name not in _IMAGE_DIMS:
+                    try:
+                        with Image.open(webp_path) as im2:
+                            _IMAGE_DIMS[webp_path.name] = im2.size
+                    except Exception:  # noqa: BLE001
+                        pass
+                return f"{match.group(1)}assets/{webp_path.name}{match.group(3)}"
+
         shutil.copy2(target, destination)
         return f"{match.group(1)}assets/{destination.name}{match.group(3)}"
 
@@ -1160,9 +1206,28 @@ def document(
     css_version: str | None = None,
     extra_head: str = "",
 ) -> str:
-    # 图片懒加载：章节/模块页配图多（小林笔记单页可达 10+ 张截图），
-    # 统一加 loading=lazy 让视口外图片滚动到才加载。
-    body = body.replace("<img ", '<img loading="lazy" decoding="async" ')
+    # 图片：懒加载 + 显式宽高。
+    # 懒加载让视口外图片滚动到才加载；宽高用构建期记录的 WebP 实际尺寸，
+    # 避免图片加载完成前把正文往下顶（CLS）。
+    def _decorate_img(match: "re.Match[str]") -> str:
+        tag = match.group(0)
+        extra = []
+        if "loading=" not in tag:
+            extra.append('loading="lazy"')
+        if "decoding=" not in tag:
+            extra.append('decoding="async"')
+        if "width=" not in tag:
+            src_match = re.search(r'src="([^"]+)"', tag)
+            if src_match:
+                dims = _IMAGE_DIMS.get(src_match.group(1).rsplit("/", 1)[-1])
+                if dims:
+                    extra.append(f'width="{dims[0]}"')
+                    extra.append(f'height="{dims[1]}"')
+        if not extra:
+            return tag
+        return tag.replace("<img", "<img " + " ".join(extra), 1)
+
+    body = re.sub(r"<img\b[^>]*>", _decorate_img, body)
     asset_base = css_href.rsplit("assets/", 1)[0] + "assets" if "assets/" in css_href else "assets"
     time_asset_base = "../assets" if asset_base == "assets" else "../../assets"
     css_version = css_version or (

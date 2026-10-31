@@ -248,7 +248,7 @@ class LibraryReaderLayoutTests(unittest.TestCase):
         generated = (ROOT / "library" / "agent-mianjing" / "chapter-24.html").read_text(encoding="utf-8")
         document_processing = (ROOT / "library" / "agent-mianjing" / "chapter-26.html").read_text(encoding="utf-8")
 
-        self.assertIn("agent-.pdf-0097-11.png", generated)
+        self.assertIn("agent-.pdf-0097-11.webp", generated)  # 构建产物已转 WebP
         self.assertNotIn("请基于以上资料回答问题", source)
         self.assertNotIn("请基于以上资料回答问题", generated)
         self.assertNotIn("[ 文档 1]", generated)

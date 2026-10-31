@@ -18,16 +18,16 @@
 <p>你直接调用某个 LLM 接口时，常见形态是“输入一次、输出一次”；多轮对话和任务状态仍由外部应用维护。模型不会因为生成了工具名就自动拥有网络、数据库或发送邮件的权限，必须由宿主程序决定是否执行并把结果反馈回来。可以把它想象成一个只会答题的人：要让它“自己去查资料再汇报”，还需要运行时为它安排循环和工具。</p>
 <p>那普通大模型到底差在哪？我们来一层一层拆。最直观的一个问题是「知识被冻结」，模型的训练数据有截止日期，你问它今天的天气、最新的股价，它完全不知道，因为它没有任何途径去获取实时信息。这就好比一个人毕业之后就再也不看新闻了，你问他今天发生了什么，他只能给你讲课本上的知识。</p>
 <p>在「知识冻结」之上，还有一个更本质的问题：它「不能行动」。你让它帮你发邮件、帮你查数据库、帮你执行一段代码，它只能告诉你「你可以这样做」，但它自己做不到。为什么？因为它本质上就是一个文本生成器，所有输出都是一串文字，仅此而已。它能给你写出一封完美的邮件正文，但点那个「发送」按钮的事情，它是真做不了的。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ae5fadd781-49502f12a6987a08ffece73b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/ae5fadd781-49502f12a6987a08ffece73b.webp" /></p>
 <p>而且更麻烦的是，单次调用本身不会自动拥有持续状态。要完成“先查资料再整理成报告”，宿主程序需要保存消息、工具结果和进度，并在下一轮重新提供必要上下文；跨任务偏好还需要额外的持久化存储和治理。</p>
 <p>这三个局限一环扣一环：知识可能过时，外部动作没有执行权限，状态也不会凭空持久化。它们不意味着普通 LLM“完全无能为力”，而是说明多步骤任务需要额外的编排、工具和状态管理。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0bf6f8801b-c2ef481f51d22c44126b29ee.png" /></p>
+<p><img loading="lazy" decoding="async" width="1876" height="1418" alt="" src="assets/0bf6f8801b-c2ef481f51d22c44126b29ee.webp" /></p>
 <h4 id="agent">Agent 特别在哪？</h4>
 <p>Agent 就完全不一样了。它有一个核心的运作闭环：<strong>感知 -&gt; 规划 -&gt; 行动 -&gt; 再感知</strong>。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/36ab5922fb-51f50e69e6e3cd028bbadafc.png" /></p>
+<p><img loading="lazy" decoding="async" width="1254" height="1254" alt="" src="assets/36ab5922fb-51f50e69e6e3cd028bbadafc.webp" /></p>
 <p>你给它一个目标，比如「帮我调研竞品然后整理成报告」，它不是直接输出一段文字了事，而是先拆解任务，我要搜索哪些关键词、我要访问哪些网站、我要怎么组织内容，然后一步一步去执行，每一步的结果又反馈回来，指导下一步怎么做。</p>
 <p>这种能力背后，有三件核心的事在支撑，我一个一个讲。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/571a66be61-f4c57875bf74b9d44b9889c8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1838" height="1156" alt="" src="assets/571a66be61-f4c57875bf74b9d44b9889c8.webp" /></p>
 <p><strong>第一件：工具调用（Tool Use）</strong>，这是让 Agent 从「说话」变成「做事」的关键。Agent 能调用外部工具，比如搜索引擎、代码执行器、数据库、API 等等。不过这里有一个容易误解的地方：不是模型自己执行，而是模型「告诉宿主程序该调什么」，运行时先做 schema、权限和业务校验，再决定是否真正执行，结果随后反馈给模型。模型负责提出决策，系统负责执行和兜底。</p>
 <p>为什么工具调用如此重要？因为它一下子突破了前面说的三个局限。知识被冻结？接上搜索引擎，模型就能获取实时信息。不能行动？接上邮件 API、代码执行器，模型就能真正做事。这就好比一个人原来只能用嘴说话，现在给他配了手、脚和各种工具，能力上限瞬间拔高了一个量级。</p>
 <p>我来举个最具体的例子。假设你给 Agent 配了两个工具：查天气和发邮件，然后让它「帮我查一下北京天气，发邮件给老板」：</p>
@@ -67,9 +67,9 @@
 <span class="c1"># 每一步都是真实发生的，不是在&quot;假装&quot;</span>
 </code></pre></div>
 <p>你看这段代码，工具定义里没有一行执行逻辑，只有「名字、描述、需要哪些参数」，本质上就是一份说明书。模型读了这份说明书，自己决定该调哪个工具、参数填什么，然后把决策以 JSON 格式告诉你，真正执行的还是你的代码。这个「决策和执行分离」的思想，是理解工具调用最核心的一点。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/dd8be4f225-dee29da27622131c4a4e9ee2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/dd8be4f225-dee29da27622131c4a4e9ee2.webp" /></p>
 <p>理解了工具调用之后，你会发现 Agent 光有「做事」的能力还不够，它还得「记事」。这就引出了第二件核心的事。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c1c8ab8673-bb5c54c1b4afe08f96c51e9e.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/c1c8ab8673-bb5c54c1b4afe08f96c51e9e.webp" /></p>
 <p><strong>第二件：状态与记忆机制</strong>。单次 LLM 调用不会自动记住上一轮；Agent 系统通常把当前任务状态放在消息、结构化 State 或检查点中，并按需压缩后继续传入上下文。跨任务信息可以存入向量库、关系库、键值库或事件存储，再结合权限、租户和保留策略检索。短期上下文、可恢复的任务状态和长期记忆不是同一个东西，也不是每个 Agent 都必须具备。</p>
 <p>那有了工具能做事、有了记忆能记事，Agent 就完整了吗？还差最后一块拼图，也是 Agent 最像「人」的地方。</p>
 <p><strong>第三件：多步决策与受控恢复</strong>。这一点经常被忽略，但它并不等于模型一定正确，也不意味着可以无限重试。</p>
@@ -77,7 +77,7 @@
 <p>这意味着运行时可以把失败结果交回模型，让它尝试修正参数或选择替代路径；是否允许重试、重试几次以及哪些副作用可重试，必须由系统策略决定。更进一步，还可以用校验器或人工审核判断结果是否满足验收条件。</p>
 <p>这种「边做边反思」的能力，让 Agent 在面对复杂、不确定的任务时，表现远比死板的自动化流程好得多。</p>
 <p>讲完这三件事，我们用一个最直观的场景来感受一下差距。你让一个普通 LLM「帮我发一封天气播报邮件」，它能做的只是告诉你「你可以这样写代码……」；而一个 Agent，它会真的去调天气 API、拿到数据、组织邮件内容、再调邮件发送接口，整个过程自动完成。这就是本质区别：<strong>从生成文字，到执行任务</strong>。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/75324102a3-7e933409be9e1afc933fabb6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/75324102a3-7e933409be9e1afc933fabb6.webp" /></p>
 <p>下面这张图把“模型决策”和“系统执行”拆开了。真正的 Agent loop 不应只有模型，还要有状态、校验、预算和停止出口：</p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     U[用户目标] --&gt; S[任务 State]
@@ -102,12 +102,12 @@
 <p>第一个常被讨论的是 MCP（Model Context Protocol，模型上下文协议）。可以把它理解成 Agent 应用连接工具和资源的一种接口约定，但它不是安全策略或业务编排本身。</p>
 <p>在缺少共同接口时，框架与工具提供方往往需要各自编写适配层。MCP 通过协议约定减少一部分重复适配；但兼容 Host/Client 仍要处理版本、认证、权限、参数、超时、错误和审计，不能理解为“任何支持者都无需额外工程就能互通”。</p>
 <p>在采用 MCP 的实现中，常见的架构抽象是 Host（承载交互、配置和权限策略的应用）、Client（维护协议连接的一侧）和 Server（暴露工具、资源或提示的一侧）；这些角色可以拆进不同进程，也可以组合部署。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e36b94e25d-74a893b575ac5e0adccbb27f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/e36b94e25d-74a893b575ac5e0adccbb27f.webp" /></p>
 <p>协议生态会持续变化，组织归属、参与方、可用 Server 数量和安全能力都不应写成长期不变的事实。学习时只需先掌握边界：MCP 类协议用于规范 Host/Client 与 Server 之间的能力发现和调用，是否支持某种能力、如何认证和隔离，仍要查看具体实现与官方文档。</p>
 <p>另一个常被讨论的方向是 Agent-to-Agent（A2A）协议。如果说 MCP 类协议主要描述 Agent 与工具/资源的连接，A2A 类协议主要描述 Agent 之间如何发现能力、传递任务和交换结果；二者的具体规范、实现和兼容性要以当前官方资料为准。</p>
 <p>在多 Agent 系统里，不同 Agent 可能来自不同厂商或框架，协作时需要约定能力描述、输入输出、任务状态、错误和认证。某些协议提出了类似“能力卡片”的描述方式，但这并不自动解决权限、幂等、超时、取消和数据治理问题。</p>
 <p>这两个协议的关系其实是互补的：MCP 管的是 Agent 和工具之间的连接，A2A 管的是 Agent 和 Agent 之间的通信。你可以这样理解，MCP 让每个 Agent 都能方便地「伸手拿工具」，A2A 让不同的 Agent 能方便地「互相说话合作」。未来的 Agent 生态大概率是两个协议同时存在、各管一层的格局。面试的时候能把这两个协议的定位和区别说清楚，会非常加分。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/45692d8036-b6939750692535cdaf99f9a8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1304" height="1206" alt="" src="assets/45692d8036-b6939750692535cdaf99f9a8.webp" /></p>
 <h4 id="_4">工程落地与排错</h4>
 <p>把 Agent 做成可运行系统时，至少要把以下边界写进运行时，而不是只写在 prompt 里：</p>
 <table>

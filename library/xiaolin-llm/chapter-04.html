@@ -33,7 +33,7 @@
 <p>朴素批量处理（static batching）是「凑齐 N 个请求一起跑、所有请求一起结束」。但每个请求生成长度不同（有的 50 tokens 就完了、有的要 1000 tokens），短的请求等长的请求，GPU 大量时间在「跑了一半在等」。吞吐率上不去。</p>
 <p><strong>3. 重复计算</strong></p>
 <p>如果每个用户都用同一段 System Prompt（比如 1000 tokens 的产品知识库），朴素实现每次都要重新算这 1000 tokens 的 KV Cache，浪费极大。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f572c93929-0e2314dfa23e6337d918a606.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/f572c93929-0e2314dfa23e6337d918a606.webp" /></p>
 <p>部署框架就是为了解决这三个痛点。三大优化方向：<strong>内存高效（显存碎片）+ 批量调度（吞吐率）+ 缓存复用（重复计算）</strong>。每个主流框架在这三个方向上都有自己的创新。</p>
 <h4 id="vllm-pagedattention">vLLM 与 PagedAttention：操作系统虚拟内存的灵感</h4>
 <p>vLLM 的核心能力之一是 <strong>PagedAttention</strong>，它借鉴分页思想管理 KV Cache。</p>
@@ -46,7 +46,7 @@
 <li>一个请求实际用了 200 tokens 就只占 13 个 Block（200/16），用完即释放</li>
 <li>没有「预分配 4096 但只用 200」的浪费</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c583a86113-b4d8a84ab7cd5d85ae8a2d11.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/c583a86113-b4d8a84ab7cd5d85ae8a2d11.webp" /></p>
 <p>PagedAttention 的目标是减少连续预分配造成的碎片、支持按需分配和复用；具体利用率、并发和吞吐提升必须在目标模型、上下文长度和硬件上实测。</p>
 <p>vLLM 还有第二个杀手锏：<strong>Continuous Batching（连续批处理）</strong>。</p>
 <p>朴素 static batching 是「凑齐 N 个请求一起跑、跑完一起结束」。Continuous Batching 是「请求异步加入和退出，每个 token 步骤动态组 batch」。比如：</p>
@@ -56,7 +56,7 @@
 <li>时刻 t8：B 也生成完了退出，新请求 E 加入</li>
 <li>这样调度器可以在请求完成时及时补入新请求，通常比静态批处理更能利用 GPU；实际收益取决于请求长度与调度策略</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/0ed2496390-5be8c4e055775e3c043b2975.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/0ed2496390-5be8c4e055775e3c043b2975.webp" /></p>
 <p>可以把 vLLM 的一条主线概括为“分页式 KV Cache 管理 + 连续批处理”；它是常见候选方案之一，但不是所有生产环境的事实标准。闭源供应商的内部实现也不应根据传闻推断。</p>
 <h4 id="sglang-radixattention">SGLang 与 RadixAttention：共享前缀的杀手锏</h4>
 <p>SGLang 是 LMSYS（创建 Vicuna、Chatbot Arena 的团队）在 2024 年推出的新一代推理框架。它<strong>不是要替代 vLLM</strong>，而是针对 vLLM 没解决好的特定场景：<strong>多请求共享前缀</strong>。</p>
@@ -69,7 +69,7 @@
 </ul>
 <p>vLLM 的 PagedAttention 虽然显存高效，但<strong>不同请求的 KV Cache 仍然各存各的</strong>。10 个用户都用同样的 1000 tokens System Prompt，vLLM 要存 10 份相同的 KV Cache。</p>
 <p>SGLang 的核心创新 <strong>RadixAttention</strong> 把这个问题解决了。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/53de5c8105-0dcd87f6e1de41efcd11a544.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/53de5c8105-0dcd87f6e1de41efcd11a544.webp" /></p>
 <p>RadixAttention 用的是计算机科学里的经典数据结构 <strong>Radix Tree（基数树）</strong>：</p>
 <ul>
 <li>把 KV Cache 组织成一棵树</li>
@@ -80,7 +80,7 @@
 </ul>
 <p>这样在前缀重复且缓存可复用时，KV Cache 可能按共享前缀加分支部分组织，而不是为每个请求完整复制；节省比例受前缀命中率、生命周期、租户隔离和显存压力影响，不能固定为某个百分比。</p>
 <p>RadixAttention 类机制还可能复用仍在缓存中的历史前缀；缓存会受容量、淘汰、租户隔离、敏感信息和模型版本影响，不能假设一小时后的内容仍在，也不能把命中收益承诺为固定毫秒数。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/afb39c288a-a070138ac835f0637abf3085.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/afb39c288a-a070138ac835f0637abf3085.webp" /></p>
 <p>在 Agent 或多轮场景中，若共享前缀命中率高，前缀复用可能改善首 token 延迟和吞吐；但结果随请求分布、缓存策略、模型和硬件变化，不能用固定倍数概括，也不能据此说所有 Agent 框架都推荐某个后端。</p>
 <p>但要注意：<strong>纯单请求、无前缀共享场景下，SGLang 相对 vLLM 优势不明显</strong>。两者目前是互补关系不是替代关系。</p>
 <h4 id="tgihuggingface">TGI：HuggingFace 生态集成方案</h4>
@@ -106,7 +106,7 @@
 <li>不同版本和负载下的吞吐差异可能不同，应以相同基准测试为准</li>
 <li>价值通常来自生态集成、服务接口和已有企业流程迁移成本低</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/4e9facc61b-cd68fa548c7de0e44ea3715a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/4e9facc61b-cd68fa548c7de0e44ea3715a.webp" /></p>
 <p>适合用 TGI 的场景：</p>
 <ul>
 <li>公司本来就用 HuggingFace 全套（数据集 / Transformers / Hub）</li>
@@ -137,7 +137,7 @@
 <p>针对不同 CPU 指令集和 GPU 后端提供优化 kernel；性能与芯片、线程、量化、上下文和后端有关，不能用占 GPU 百分比的固定数字判断。</p>
 <p><strong>3. Metal 后端（Apple Silicon）</strong></p>
 <p>苹果 Silicon 的统一内存和 Metal 后端使本地运行大模型更方便，但可运行的模型大小、速度和内存余量要按具体设备、量化和上下文实测。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c58695fd8f-76ca366c7d61e5cfb8a1802d.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/c58695fd8f-76ca366c7d61e5cfb8a1802d.webp" /></p>
 <p>适合用 llama.cpp 的场景：</p>
 <ul>
 <li>个人开发者本地玩模型</li>
@@ -173,7 +173,7 @@
 <li>追求极致 GPU 利用率</li>
 <li>愿意承担额外的工程复杂度</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/99f51157b3-42ab2e30a3ae8fb58e2e4069.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/99f51157b3-42ab2e30a3ae8fb58e2e4069.webp" /></p>
 <h4 id="_4">怎么选部署方案：决策矩阵</h4>
 <p>把上面几个框架放一起对比：</p>
 <table>
@@ -224,7 +224,7 @@
 </tr>
 </tbody>
 </table>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e4f6dd327e-f224a777a0dd7f4b2cb7dd4f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/e4f6dd327e-f224a777a0dd7f4b2cb7dd4f.webp" /></p>
 <p>实战中常见的几个<strong>误用陷阱</strong>：</p>
 <p><strong>误用 1：用 vLLM 跑 Agent 多轮对话</strong></p>
 <p>Agent 场景若前缀重复率高，可评估带前缀复用能力的后端；vLLM 是否能复用、SGLang 是否更优取决于版本和配置，不能预先承诺固定延迟收益。</p>
@@ -242,7 +242,7 @@
 <p>权重量化（FP16 -&gt; INT4）很多框架都支持，但 KV Cache 量化（FP16 -&gt; INT8 / FP8 / INT4）的支持差异很大，而且版本迭代很快。vLLM、SGLang、TensorRT-LLM 都在持续增强这块能力，TGI 和 llama.cpp 的支持方式也要看具体版本。如果你的瓶颈是长上下文 KV Cache 显存，选型前一定要查当前版本文档，别只听别人说「支持」。</p>
 <p><strong>陷阱 3：MoE 模型的部署支持差异</strong></p>
 <p>MoE 模型通常涉及专家路由、负载均衡、并行策略和跨卡通信，部署复杂度与具体模型/版本有关。各框架的支持、量化和性能差异要逐项验证，建议用真实专家激活分布和长上下文场景做预生产测试。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/fb394f6019-5a0d760f99274edf5a79a02f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/fb394f6019-5a0d760f99274edf5a79a02f.webp" /></p>
 <h3 id="_6">🎯 面试总结</h3>
 <p>回到开头那段对话，问到部署方案，最重要的是先讲清楚<strong>部署框架解决什么问题</strong>。直接用 transformers 库部署有三大痛点：显存碎片严重、批量调度低效、共享前缀重复计算。每个主流框架的核心创新都是攻击这些痛点的某个维度。这一层铺垫先讲到，面试官就知道你不是在背工具，是真的理解部署框架的设计动机。</p>
 <p>接下来把<strong>四类方案的边界</strong>讲明白。vLLM 常以分页式 KV Cache 和连续批处理解决服务化内存与调度问题；SGLang 等方案可在共享前缀或结构化生成场景复用上下文；TGI 的优势通常在 Hugging Face 流程集成；llama.cpp 侧重轻量本地/边缘运行；TensorRT-LLM 适合愿意为固定 NVIDIA 环境做编译和调优的团队。具体数字必须来自同一测试条件。</p>

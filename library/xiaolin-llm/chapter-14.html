@@ -45,7 +45,7 @@
 <li>Dense 模型的主体参数会在每个 token 的前向路径上参与计算，因此计算、显存、带宽和延迟会一起成为约束</li>
 <li>能否在某台服务器上运行取决于权重精度、并行方式、上下文长度、KV cache、批量和框架，不能只按参数量或卡数下结论</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c472ded4ed-193ef70b3dc17d2ba9c19e84.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/c472ded4ed-193ef70b3dc17d2ba9c19e84.webp" /></p>
 <p>MoE 的核心创新是<strong>打破「知识量」和「推理成本」的绑定</strong>。它的思路是：</p>
 <ul>
 <li>模型有 N 个专家，每个专家是一份独立的 FFN</li>
@@ -54,7 +54,7 @@
 <li>激活参数量只描述本 token 走过的专家路径；专家部分的理论比例大致受 K/N 影响，但实际计算、通信和内存访问不等于这个比例</li>
 </ul>
 <p>直观的类比：Dense 像一本厚厚的百科全书，你查一个词要把整本书过一遍；MoE 像一个图书馆，前台咨询员（Router）听到你的问题，告诉你去 3 楼的「数学专家区」就好，不用整个图书馆都搜索。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/9e319a4a7a-a43e7e0609e52130ee80db6b.webp" /></p>
 <p>这个设计提供了在相近的专家计算预算下扩大总容量的可能性，但是否更快、更便宜要通过同硬件、同精度、同上下文和同吞吐目标的基准测试验证。这是 MoE 受到关注的主要原因之一，而不是无条件的速度保证。</p>
 <h4 id="moe">MoE 的三个核心组件</h4>
 <p>理解了核心思想，下面拆解 MoE 的三个具体组件。</p>
@@ -79,11 +79,11 @@
 <li><strong>K=2</strong>：每个 token 去 2 个专家，通常需要按权重聚合多个输出</li>
 <li>更大的 K：可能增加路由容量和计算，也可能改善表达能力；必须结合具体模型配置与基准测试判断</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/3e975bede0-4d1bb294155c7e5e44323b68.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/3e975bede0-4d1bb294155c7e5e44323b68.webp" /></p>
 <p><strong>3. 负载均衡与容量控制</strong></p>
 <p>朴素的 Router 训练有个著名问题：<strong>专家不平衡（Expert Imbalance）</strong>。</p>
 <p>什么意思？训练初期 Router 的偏差可能让少数专家收到过多 token，其他专家收到的训练信号不足；如果容量和路由控制失效，负载会进一步偏斜，造成溢出、吞吐下降或专家利用率很低。极端程度取决于实现，不应把“只剩 1–2 个专家工作”当作必然结果。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/4eb8dbc425-7de0b886bfeee591b8352e0a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/4eb8dbc425-7de0b886bfeee591b8352e0a.webp" /></p>
 <p>为了解决这个问题，MoE 可以使用<strong>负载均衡损失（Load Balancing Loss）</strong>，也可以使用门控偏置、容量约束或其他路由策略。下面的代码只是把“惩罚不均衡”抽象成方差的直觉示意，不代表所有模型的真实损失公式：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># 负载均衡损失（直觉版）</span>
 <span class="n">expert_load</span> <span class="o">=</span> <span class="n">mean</span><span class="p">(</span><span class="n">expert_probability_distribution</span><span class="p">)</span>  <span class="c1"># 每个专家的平均使用率</span>
@@ -110,7 +110,7 @@
 <p><strong>第一</strong>，总参数与激活参数是两种统计口径。总参数描述模型权重规模，激活参数描述某个 token 经过的部分路径；它们都不能直接等价为“学过的知识量”。</p>
 <p><strong>第二</strong>，如果所有专家常驻显存，权重容量大致按总参数和精度计算，还要加量化元数据、运行时缓冲、KV cache 和并行副本；如果不常驻，则用加载、卸载或远程访问换取显存空间。</p>
 <p><strong>第三</strong>，延迟既受激活路径影响，也受路由、通信、内存带宽、batch 和 kernel 影响；“激活参数接近某个 Dense 模型”不能推出端到端延迟接近。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/761f84f683-b4659ffc3c3e947a3f019dc7.webp" /></p>
 <p>这种“总容量扩大、专家路径稀疏”的组合，是 MoE 受到关注的原因之一。它也把权重存储、跨卡通信、负载均衡和服务调度推到了更重要的位置，不能简单概括为“学得多、跑得快”。</p>
 <h4 id="moe_1">如何比较不同 MoE 模型</h4>
 <p>不同公司的 MoE 设计差别很大。公开资料中的“总参数 / 激活参数 / 专家数 / Top-K”必须绑定具体模型版本、统计口径和是否包含共享模块，不能只背一组数字。面试时可以这样比较：</p>
@@ -151,7 +151,7 @@
 </tbody>
 </table>
 <p>可以把公开模型作为例子来说明差异：有的架构采用少量专家和较大的 Top-K，有的采用大量细粒度专家和更小的 Top-K，有的还加入 shared expert。具体数字应现场打开对应版本的配置或论文核对；不要把“专家越多”或“激活率越低”直接等价为更先进。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d284f0619b-a7249a23a3c2921e0be76dae.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/d284f0619b-a7249a23a3c2921e0be76dae.webp" /></p>
 <p>不同架构可能沿着“更多专家、更细粒度路由”发展，也可能选择更简单的路由以降低服务复杂度；不存在只由专家数或激活率决定的单调趋势。最终要把质量、吞吐、尾延迟、显存、通信和故障恢复一起比较。</p>
 <h4 id="moe_2">MoE 的三大训练挑战</h4>
 <p>MoE 看起来很美，但训练起来比 Dense 难得多。三个最大的坑：</p>
@@ -175,7 +175,7 @@
 <li><strong>Expert Parallel</strong>：不同专家分配到不同 GPU，token 在 GPU 之间路由</li>
 <li><strong>All-to-All 通信</strong>：每个 token 选了几个专家后，可能要把 token 发送到对应专家所在的 GPU，处理完再发回来；这往往是重要的通信瓶颈，但是否成为最大开销取决于拓扑、batch 和实现</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/dd2e988aca-b8336b301446a3b401de1bbd.webp" /></p>
 <p>通信开销会让 MoE 在多机训练时更依赖拓扑和调度优化。公开工作中也有把通信与计算重叠的方案；具体算法、收益和适用条件要以对应实现及基准为准。</p>
 <h4 id="moe_3">MoE 的部署挑战</h4>
 <p>训练完之后，部署 MoE 还有自己的挑战。</p>
@@ -185,7 +185,7 @@
 <p>批量推理时，不同 token 可能选择不同专家，跨卡通信和动态聚合会变得明显；但吞吐结果并不固定，必须和同质量、同显存预算、同 batch/上下文的 Dense 基线实测。</p>
 <p><strong>挑战 3：专家不均衡导致负载不均</strong></p>
 <p>部署时，如果某个专家热门（被很多 token 路由到），它所在的 GPU 就会过载，其他 GPU 空闲。需要动态负载均衡机制（专家迁移、复制热门专家等），这又是一个工程坑。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/3f47dbd4ec-b4a863f90d6fb22fea3d66ee.webp" /></p>
 <p>应对这些挑战，主流推理框架会提供不同程度的 MoE 并行、量化和调度支持，但具体能力随框架版本、模型结构和硬件而变。很多团队仍会在部署简单、负载稳定或尾延迟敏感的场景选择 Dense；这属于工程权衡，不是 MoE 的绝对劣势。</p>
 <h4 id="moe-llm">为什么近几年 MoE 在 LLM 领域受到更多关注</h4>
 <p>MoE 不是新思想；它在大模型中的普及是多项条件叠加的结果，不能归因于某一个模型或某一个年份：</p>
@@ -196,7 +196,7 @@
 <p>推理框架需要同时处理专家并行、路由聚合、量化和跨设备通信。框架支持不断完善降低了落地门槛，但能力仍与版本、模型和硬件绑定，不能用一个年份概括。</p>
 <p><strong>3. DeepSeek V3 把成本打下来了</strong></p>
 <p>一些公开模型展示了大总参数、较小激活路径的组合，并报告了自己的训练成本和效果。这类公开结果让社区更容易评估 MoE 的工程价值，但成本与质量结论必须连同数据、训练硬件、评测协议和统计口径一起阅读，不能直接迁移到另一个项目。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/98730b86fd-259035155d88268756730870.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/98730b86fd-259035155d88268756730870.webp" /></p>
 <p>更稳的说法是：<strong>MoE 适合在可接受的路由和通信复杂度下扩大总容量；Dense 通常更容易部署、调度和预测延迟</strong>。到底选哪一种，要由目标质量、吞吐、尾延迟、显存、网络拓扑和运维能力共同决定。</p>
 <h3 id="_3">🎯 面试总结</h3>
 <p>回到开头那段对话，问到 MoE，最重要的是先把<strong>核心思想</strong>讲清楚。MoE 把 Transformer 中的部分 FFN 替换为多个专家，加一个 Router 为每个 token 选择一个或多个专家。最关键的设计哲学是<strong>总参数与激活路径解耦</strong>：可以扩大专家容量，同时让单个 token 只经过部分专家；但实际成本还包括共享层、通信、权重存储和调度。</p>

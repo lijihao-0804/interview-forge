@@ -35,7 +35,7 @@
 <p>要理解 Post-Training 这一族方法，得先回答一个问题：SFT 之后，模型还差什么？</p>
 <p>SFT（Supervised Fine-Tuning，监督微调）的目标是让模型从「文本续写机器」变成「按指令回答的对话机器」。训练数据是（指令，期望回答）对，模型学会的是「碰到指令格式就给出格式化的回答」。</p>
 <p>问题是，SFT 学到的主要是示范分布，不自动等于在所有任务上都“优质”。同一个问题可以有多种合格回答：有的简洁、有的啰嗦；有的带代码、有的纯文字；有的承认「我不确定」、有的硬装专业胡说八道。用户还会在事实性、帮助性、风格和风险边界上有偏好。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b0b69eaebd-53daf465362911d8dc942759.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b0b69eaebd-53daf465362911d8dc942759.webp" /></p>
 <p>更严重的问题是<strong>安全对齐</strong>。SFT 训练数据可能没覆盖所有危险请求、越权诱导和不确定性场景，模型也可能过度拒答或自信编造。Post-Training 可以补充拒答、风险边界和“我不知道”的行为，但不能替代持续的红队、策略和上线监控。</p>
 <p>Post-Training 这个词本身是个上位概念，覆盖了 SFT 之后的继续训练、偏好优化、蒸馏、拒绝采样、安全训练和评测闭环。下面的分类用于组织答案，具体项目还要看目标、数据、验证器和资源。</p>
 <h4 id="rlhf4">RLHF：经典方案，4 模型架构</h4>
@@ -44,7 +44,7 @@
 <p><strong>第一步：收集偏好数据</strong>。人类标注员对同一个 Prompt 的多个回答做排序，比如「回答 A 比回答 B 好，B 比 C 好」。这种排序数据比绝对评分更稳定，因为人类比较两个回答的相对好坏比给绝对分数容易。</p>
 <p><strong>第二步：训练奖励模型（Reward Model）</strong>。用偏好数据训一个独立的小模型，输入是（Prompt + 回答），输出是一个分数。训练目标是让「人类觉得好的回答」分数高、「差回答」分数低。这个奖励模型代替了人类，可以批量给后续生成的回答自动打分。</p>
 <p><strong>第三步：用 PPO 算法优化主模型</strong>。让主模型生成回答 -&gt; 用奖励模型打分 -&gt; PPO 调整主模型参数往高分方向走。同时维护一个「参考模型」（SFT 模型的冻结副本），用 KL 散度约束主模型不要离参考模型太远，防止「奖励 hacking」（模型学会欺骗奖励模型而不是真的变好）。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/97ceb8b8e9-23ade4757eddec790410a2b8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/97ceb8b8e9-23ade4757eddec790410a2b8.webp" /></p>
 <p>RLHF 的优点和缺点都很突出：</p>
 <ul>
 <li><strong>优点</strong>：在线采样与奖励优化可以探索示范数据之外的策略</li>
@@ -62,7 +62,7 @@
     <span class="s2">&quot;rejected&quot;</span><span class="p">:</span> <span class="s2">&quot;Python 很简单，随便找个教程看看就行了……&quot;</span>  <span class="c1"># 人类不太喜欢的回答</span>
 <span class="p">}</span>
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f2998d7e9b-d7959dd6ab5563289d88208c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/f2998d7e9b-d7959dd6ab5563289d88208c.webp" /></p>
 <p>DPO 的损失函数直觉上做的事情是：</p>
 <div class="codehilite" data-lang="python"><pre><code class="language-python"><span class="c1"># DPO 损失（简化直觉版，不是完整公式）</span>
 <span class="n">loss</span> <span class="o">=</span> <span class="o">-</span><span class="n">log</span><span class="p">(</span><span class="n">sigma</span><span class="p">(</span>
@@ -74,7 +74,7 @@
 <span class="c1"># 目标：让 chosen 的比值 &gt; rejected 的比值</span>
 <span class="c1"># 即：训练后的主模型对「好回答」概率提升，对「差回答」概率降低</span>
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/acd4580d9a-6ed7caa18ab60a5e27dfc73c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/acd4580d9a-6ed7caa18ab60a5e27dfc73c.webp" /></p>
 <p>DPO 的优势：</p>
 <ul>
 <li><strong>组件较少</strong>：通常需要 policy 和 reference，reference 可冻结或做实现层面的共享；显存优势取决于并行和权重管理</li>
@@ -129,7 +129,7 @@
 <li>把通过筛选的（Prompt，回答）样本当作新的 SFT 数据，再做一轮 SFT</li>
 </ol>
 <p>整个流程没有 RL 算法、没有 PPO/DPO 损失函数，就是「采样 -&gt; 筛选 -&gt; 再 SFT」的循环。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ce6c5d42c9-4adf7e51cc85908b888519cc.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/ce6c5d42c9-4adf7e51cc85908b888519cc.webp" /></p>
 <p>拒绝采样的优点：</p>
 <ul>
 <li><strong>实现极简</strong>：就是反复 SFT，不需要任何 RL 算法</li>
@@ -152,7 +152,7 @@
 <li>AI 评分也有调用成本、延迟、偏差和数据治理成本</li>
 </ul>
 <p>如果有一个在目标任务上可靠的「教师模型」，可以批量生成偏好数据或批评，减少一部分人工成本；这不是零成本，因为教师调用、质量抽检、隐私治理和偏差纠正仍然存在。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/49c82ee5dc-e6875eab6e1392d4d69a09e1.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/49c82ee5dc-e6875eab6e1392d4d69a09e1.webp" /></p>
 <p>代表工作：</p>
 <ul>
 <li><strong>Constitutional AI</strong>：公开工作中使用原则、AI 批评和修订等步骤生成反馈信号，可作为 AI feedback 的例子</li>
@@ -218,7 +218,7 @@
 <p>如果你的团队<strong>资源有限 + 偏好数据已准备好</strong>，DPO 往往是值得先做的离线基线，但不是默认最优。若是<strong>可验证推理任务</strong>，且愿意承担在线采样与验证器成本，可以评估 GRPO 或其他 PPO 风格方法；要按公开训练报告和自己的基准确认。</p>
 <p>想要先有一个<strong>稳定的对齐基线再做精修</strong>，可以先用评分器或规则做拒绝采样，再根据偏好数据与验证器质量选择 DPO、PPO 或 GRPO。公开报告中可找到人类标注与 AI 反馈混合的路线；RLAIF 可以降低部分人工负担，但仍要做抽检、隐私治理和偏差评估。</p>
 <p>如果<strong>资源充足且需要在线探索</strong>，可以评估 RLHF/PPO 或 GRPO；但不能把某家产品的内部训练流程当成公开事实，也不能仅凭“更贵”推出“更强”。最终仍由目标任务、奖励质量和安全评测决定。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b1428ea45e-33bfc0dd2e51df4c07bbc223.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b1428ea45e-33bfc0dd2e51df4c07bbc223.webp" /></p>
 <h4 id="_4">实际工程怎么组合使用</h4>
 <p>最关键的认知是，<strong>这五类方法不是替代关系，工业界的对齐流程通常是组合用的</strong>。看两个真实例子：</p>
 <p><strong>一个公开的 Llama 2-Chat 对齐流程抽象</strong>：</p>
@@ -230,7 +230,7 @@ PPO/RLHF（用奖励模型继续做偏好优化）
   ↓
 最终的 Llama 2-Chat
 </code></pre></div>
-<p><img loading="lazy" decoding="async" alt="" src="assets/91712e379d-8dec52e11936631966c0de93.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/91712e379d-8dec52e11936631966c0de93.webp" /></p>
 <p>Meta 在 Llama 2 论文中描述了拒绝采样和 PPO 等步骤；这里的图是学习用的简化，不应推断所有版本或产品都完全相同。Llama 2-Chat 不应在没有依据时被称为 DPO 代表。</p>
 <p><strong>一条公开报告中的 DeepSeek R1 训练流程抽象</strong>：</p>
 <div class="codehilite"><pre><code>SFT 冷启动（推理示范数据）
@@ -246,7 +246,7 @@ GRPO 第二轮（再次 RL 优化）
 最终的 DeepSeek R1
 </code></pre></div>
 <p>公开报告把这类流程拆成多个阶段；上图是用于理解的抽象，实际数据配方、奖励、筛选和迭代细节应以对应版本的训练报告为准。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/66a0d82fa0-235eaf9d156ddfdb73a1a928.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/66a0d82fa0-235eaf9d156ddfdb73a1a928.webp" /></p>
 <p>这种组合用法是面试里能加分的关键：先说明公开事实，再说明你会如何根据数据、验证器和资源组合 SFT、筛选、DPO 或 RL。不要把某个模型的训练 pipeline 当成行业统一模板。</p>
 <h3 id="_5">🎯 面试总结</h3>
 <p>回到开头那段对话，被怼三次后再来回答这个问题，思路应该清晰了。</p>

@@ -20,47 +20,47 @@
 <p>要理解为什么需要规划能力，先看 LLM 在没有任何规划机制时是怎么运作的。</p>
 <p>普通的问答模式下，LLM 接到一个问题，就直接「一口气」生成答案，中间没有任何推理过程。这对简单问题没啥大问题，但遇到需要多步推导的任务就很容易翻车。</p>
 <p>比如让它做一道需要 3 步推导的逻辑题，如果直接让它给答案，出错概率会远高于让它把每步都写出来。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/34f6b1b194-67f5c81122ddc6978c71db4a.png" /></p>
+<p><img loading="lazy" decoding="async" width="1408" height="768" alt="" src="assets/34f6b1b194-67f5c81122ddc6978c71db4a.webp" /></p>
 <p>背后的原因是 Transformer 的 next-token 预测机制，每个 token 是基于前面所有 token 生成的，推理链越长、隐式的跳步越多，误差就越容易在中间某一步悄悄累积，最后给出一个看起来很自信但其实是错的答案。</p>
 <p>「规划能力」要解决的是把目标、步骤、依赖和验收条件变成可执行状态，而不只是把推理文字写长。可追踪性应来自结构化计划、工具调用、状态和校验，不依赖暴露完整内部推理。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/60feb25c43-a7ada805c064032c57621537.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/60feb25c43-a7ada805c064032c57621537.webp" /></p>
 <p>CoT、ToT、GoT 是论文和教学中常见的三种推理结构，但不是线性升级路线，也没有“后一种必然更好”的关系。</p>
 <h4 id="cot">CoT：最简单的激活方式，加一句话就够了</h4>
 <p>CoT 的全称是 Chain of Thought（思维链），核心是让模型进行分步推导；prompt 可能诱导出计划或摘要，但不应假设会稳定产生完整、真实且适合暴露的内部推理。</p>
 <p>为什么这么简单的改变就有效？</p>
 <p>本质是因为 LLM 的输出是顺序生成的，当它先输出推理步骤，这些推理内容会进入上下文，影响下一个 token 的生成。换句话说，「写下来的推理过程」本身就成为了后续生成的依据，帮助 LLM 不跳步、不乱想。就好比你在纸上演算数学题，把每一步写出来之后，下一步出错的概率会比在脑子里算要低得多，原理是一样的。</p>
 <p>CoT 有两种触发方式。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f59649d28c-5dae5b96c014df616bba7d87.png" /></p>
+<p><img loading="lazy" decoding="async" width="1812" height="642" alt="" src="assets/f59649d28c-5dae5b96c014df616bba7d87.webp" /></p>
 <ul>
 <li>第一种叫 Zero-shot CoT，就是直接在 prompt 末尾加「让我们一步步思考」，LLM 自己展开推理，不需要额外例子；</li>
 <li>第二种叫 Few-shot CoT，给几个“输入 -&gt; 结构化步骤/结论”的例子，让模型模仿格式；示例可以展示可公开的步骤或验收字段，不必包含完整隐藏推理，效果和成本仍需在目标任务上验证。</li>
 </ul>
 <p>CoT 的局限很明显：它只有「一条推理路径」。如果一开始走错了方向，整条链就歪了，没有任何纠偏机制。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/a9b3a1b966-79bb64ca14eb88d9d6eef058.png" /></p>
+<p><img loading="lazy" decoding="async" width="1644" height="376" alt="" src="assets/a9b3a1b966-79bb64ca14eb88d9d6eef058.webp" /></p>
 <h4 id="tot">ToT：从「一条链」到「一棵树」，解决走错方向的问题</h4>
 <p>ToT 的全称是 Tree of Thoughts（思维树），针对的正是 CoT「一旦走错就全错」的问题。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/5dc938221c-f4d801db89d07f2af901056d.png" /></p>
+<p><img loading="lazy" decoding="async" width="1146" height="294" alt="" src="assets/5dc938221c-f4d801db89d07f2af901056d.webp" /></p>
 <p>核心改变是把「生成一条推理链」变成「同时探索多条推理路径，边探索边剪枝，最终选出最优路径」。用一个生活类比来理解：CoT 像你做题时只想了一个解法，一路做到底；ToT 像你先想了三种可能的解题思路，评估了一下哪种最靠谱，选了最好的那条继续深入，另外两条直接放弃。</p>
 <p>ToT 的执行流程可以分三步来理解。</p>
 <p>首先是生成多个候选思路，让 LLM 针对同一个问题给出 3 个不同的初步方向，而不是只走一条路。</p>
 <p>然后是评估每个思路的可行性，用另一个 LLM 调用（或同一个 LLM 带上评估 prompt）给每个思路打分，判断哪个最有希望。</p>
 <p>最后是选优继续深入、剪掉差的，只保留分数高的思路，再展开下一层推理，反复循环直到得出最终答案。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/36aac2b973-28647890b6adcb2ce18ace71.png" /></p>
+<p><img loading="lazy" decoding="async" width="1816" height="756" alt="" src="assets/36aac2b973-28647890b6adcb2ce18ace71.webp" /></p>
 <p>这个「生成 -&gt; 评估 -&gt; 剪枝」的循环让系统可以探索多个候选，但不会自动保证找到最优路径。成本取决于分支数、搜索深度、评估器和并行方式；分支越多，延迟、token 和评估误差也越大。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/528026f06b-888b67a9bb8c6adb22c712c0.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/528026f06b-888b67a9bb8c6adb22c712c0.webp" /></p>
 <h4 id="got">GoT：从「树」到「图」，解决推理结果不能复用的问题</h4>
 <p>GoT 的全称是 Graph of Thoughts（思维图），是在 ToT 基础上再进一步的进化。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/65b35620e0-3cd583bb411e0fae489be4c1.png" /></p>
+<p><img loading="lazy" decoding="async" width="1792" height="856" alt="" src="assets/65b35620e0-3cd583bb411e0fae489be4c1.webp" /></p>
 <p>ToT 虽然引入了多路径探索，但它是树形结构，不同分支之间完全独立，两条推理路径上的中间结论无法互相借用。GoT 把推理结构换成了图，允许不同路径的中间结果合并、复用，也就是说一个推理节点可以接收来自多个前置节点的输出作为输入。</p>
 <p>举个具体例子：如果任务是「分别研究竞品 A 和竞品 B，然后做综合对比分析」。ToT 里研究 A 和研究 B 是两条独立的路径，各自得出结论；但「综合对比分析」这一步需要同时用到两条路径的结论，在树形结构里很难自然表达，因为树的每个节点只有一个父节点。</p>
 <p>GoT 的图结构允许把「研究 A 的节点」和「研究 B 的节点」的输出，汇聚到「综合对比分析节点」，这种「多个中间结论合并输入到下一步」的操作在图里是一等公民，表达起来非常自然。</p>
 <p>GoT 能表达合并、复用和多父节点依赖，但调度、去重、状态一致性和评估都更复杂。它是否适合生产取决于任务是否真的需要图结构，以及团队能否承担运行时和评估成本。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/ef3ffeff1d-6824cdea3064061d9cf47984.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/ef3ffeff1d-6824cdea3064061d9cf47984.webp" /></p>
 <h4 id="_3">三者的演进关系</h4>
 <p>把这三者放在问题分解视角里看更稳妥：</p>
 <p>CoT 关注分步推导，ToT 关注候选路径搜索与评估，GoT 关注中间结论的合并与复用。它们都可能失败：评估器会误判，搜索会放大错误，图结构也会增加协调成本。</p>
 <p>工程上怎么选？先用结构化计划、规则校验或 Workflow 建立基线；只有任务确实需要多候选探索时再尝试 ToT，需要结论合并/复用时再考虑 GoT。对每种方案测完成率、评估一致性、延迟、token/费用和失败恢复，不用固定倍数做承诺。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/b828302dfc-5bc77913d44cf55c9a8f5e3d.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/b828302dfc-5bc77913d44cf55c9a8f5e3d.webp" /></p>
 <h4 id="plan-and-execute">工程里真正常用的规划模式：Plan-and-Execute</h4>
 <p>CoT、ToT、GoT 说的都是「怎么让 LLM 把推理过程做得更好」，但在真实的 Agent 项目里，还有一种更贴近工程实践的规划模式，叫做 Plan-and-Execute（先规划再执行）。</p>
 <p>这个模式的思路很直白：面对一个复杂任务，先让 LLM 制定一份完整的执行计划，把任务拆成若干步骤，然后一步一步执行，每完成一步就检查一下进度，必要时调整后续计划。你可以把它理解成「先写大纲再动笔」的写作方式，而不是拿到题目就开始一口气往下写。</p>
@@ -73,7 +73,7 @@
 </ul>
 <p>这个模式和 ReAct 是什么关系？ReAct（Reasoning + Acting）是一种让 LLM 在每一步都先「思考」再「行动」再「观察」的循环模式，它的特点是每步都是即时决策，没有提前规划。Plan-and-Execute 则是在 ReAct 的基础上加了一层全局规划，你可以理解成 ReAct 负责每一步怎么执行，Plan-and-Execute 负责这些步骤的整体编排和动态调整。两者不是替代关系，而是经常搭配使用的。</p>
 <p>工程上 Plan-and-Execute 的好处是把计划、执行和重规划的边界显式化；规划和执行可以尝试不同模型，但质量、延迟和成本要实测。LangGraph 等图运行时可以实现这种模式，具体 API 与能力以锁定版本的文档为准。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e7562e9842-bf8bc8431ff0638eccaa7542.png" /></p>
+<p><img loading="lazy" decoding="async" width="1672" height="941" alt="" src="assets/e7562e9842-bf8bc8431ff0638eccaa7542.webp" /></p>
 <h4 id="_4">从“想法”到可执行计划</h4>
 <p>工程上不要直接把一段自然语言计划当作控制流。可以要求 Planner 输出经过 schema 校验的结构，例如：</p>
 <div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>

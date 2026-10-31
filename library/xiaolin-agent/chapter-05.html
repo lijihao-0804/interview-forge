@@ -16,11 +16,11 @@
 <h4 id="_3">什么是推理模式？</h4>
 <p>要理解「推理模式」这个词，得先说清楚 LLM 面临的一个根本困境。</p>
 <p>LLM 的工作原理，是根据你给它的输入，一个 token 一个 token 地往后预测。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/c68c62ce00-f948e2ef613a03a1764bb623.png" /></p>
+<p><img loading="lazy" decoding="async" width="1886" height="186" alt="" src="assets/c68c62ce00-f948e2ef613a03a1764bb623.webp" /></p>
 <p>你问它一个简单问题，它可以直接说出答案。但如果你问的是一个需要多步推导的问题，比如「A 公司的市值是 B 公司的 1.2 倍，B 公司比 C 公司高 30%，请问 A 和 C 谁更高，差多少？」，LLM 在没有任何辅助的情况下，往往直接给你一个「感觉对」的答案，而这个答案可能是错的。</p>
 <p>原因在于，当它「一口气」预测答案时，中间的推导步骤都是隐式的，没有办法强制自己在每一步都做出正确的推断。误差会在中间某个暗处悄悄累积，最终暴露在答案里。</p>
 <p>你可以把它类比成心算和笔算的区别。让你心算「123 × 456」，你可能算错；但如果你把每一步都写在纸上，「123 × 6 = 738、123 × 50 = 6150……」，一步一步来，算错的概率就会大大降低。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/efba6393bd-1eda1e321bef8f1bc68e3d1c.png" /></p>
+<p><img loading="lazy" decoding="async" width="1308" height="1203" alt="" src="assets/efba6393bd-1eda1e321bef8f1bc68e3d1c.webp" /></p>
 <p>原因不是“写出来就一定正确”，而是中间步骤可能成为后续生成的显式上下文，帮助模型保持状态。工程上还应加入计算器、规则校验、引用或测试，因为模型自己写出的中间步骤也可能是错的。</p>
 <p>「推理模式」存在的根本原因是给多步任务增加分解、反馈或校验机制，从而降低累积错误。CoT、ReAct 是不同的设计抽象；它们不保证正确，也不要求系统暴露模型的完整内部推理。</p>
 <h4 id="cot">CoT是什么？</h4>
@@ -33,7 +33,7 @@
 <li>第一种叫 Zero-shot CoT：用提示要求模型分解问题或给出简洁步骤；格式、深度和可靠性不稳定，还可能增加输出与泄露风险。</li>
 <li>第二种叫 Few-shot CoT：提供若干“输入 -&gt; 结构化步骤/结论”的示例，让模型模仿格式。示例可以展示可公开的步骤或验收字段，不必包含完整隐藏推理；示例质量和 token 占用仍需评估。</li>
 </ul>
-<p><img loading="lazy" decoding="async" alt="" src="assets/eb028eda8a-21c1684e5852d10abcf06e69.png" /></p>
+<p><img loading="lazy" decoding="async" width="1307" height="1203" alt="" src="assets/eb028eda8a-21c1684e5852d10abcf06e69.webp" /></p>
 <p>但基础 CoT/逐步推理本身不提供外部执行语义：它不会自动访问实时数据、执行工具或保证事实正确。</p>
 <p>即使模型生成了很长的步骤，也拿不到实时数据，不能替代计算器、数据库和权限校验工具。</p>
 <p>如果你问 LLM「现在苹果公司的市值是多少？」，它只能根据训练数据里的知识回答，而那些知识可能已经过时好几个月了。严格说，CoT 框架里不是不能调工具（你可以用 Prompt 让它生成一个「建议调用 API」的文本），但 CoT 的设计本身没有把推理和工具调用交织在一起，接工具需要你自己在外面额外胶水。</p>
@@ -41,13 +41,13 @@
 <h4 id="react">ReAct 是什么？</h4>
 <p><strong>ReAct</strong> 是 Reasoning and Acting 的缩写，由 Yao 等人在 2022 年提出，核心思路是在 CoT 的推理链里，插入真实的「行动」。</p>
 <p>它让 LLM 按照「思考 -&gt; 行动 -&gt; 观察」这个循环来推进任务：先思考当前该怎么做，然后调用一个工具去获取信息或执行操作，把工具返回的结果作为新的「观察」接收回来，再进入下一轮思考，直到 LLM 判断任务完成。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/6ccc579175-ca441dc5bdd1557b436488d6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1476" height="828" alt="" src="assets/6ccc579175-ca441dc5bdd1557b436488d6.webp" /></p>
 <p>那为什么不直接用纯 CoT 或者纯 Act-only（只行动不推理）呢？这个对比非常关键。</p>
 <p>纯 CoT 的问题前面说过了，它只能在脑子里推理，推得再好也拿不到真实数据，遇到需要实时信息的场景就抓瞎，而且纯靠内部推理很容易产生幻觉，因为没有外部事实来校准。</p>
 <p>纯 Act-only 可以让模型直接输出工具调用，不输出理由；它可能减少输出，但仍需要状态、校验和观察反馈来决定下一步，遇到复杂任务时可能更难诊断。是否需要可公开的理由字段，应按审计与安全要求设计。</p>
 <p>在某些多跳问答论文基准中，加入中间决策和观察的策略优于只输出动作；这类结果依赖模型、提示、工具和数据集，不能直接当成生产收益。若召回了不相关内容，ReAct 也可能沿错误观察继续执行，因此需要相关性校验和回退。</p>
 <p>ReAct 的核心是把决策和行动交织在一起：决策字段帮助模型选择下一步，Action 把决定交给工具，Observation 把外部反馈带回状态。它提供闭环结构，但不保证比其他方案更好；需要结合任务成功率、工具错误、成本和延迟评估。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/88a9d707bd-d203cc22059b1c3f49d4fe6d.png" /></p>
+<p><img loading="lazy" decoding="async" width="1306" height="1204" alt="" src="assets/88a9d707bd-d203cc22059b1c3f49d4fe6d.webp" /></p>
 <p>用一个具体例子来感受这个循环。</p>
 <p>假设你问 Agent「产品 A 和产品 B 的实时指标谁更高？差多少？」，如果只靠模型内部知识，数据可能过时；用 ReAct，可以先调用查询工具再比较。下面的数值和结果仅为流程示意，不是事实引用：</p>
 <div class="codehilite"><pre><code>Decision: 需要两项实时指标，先查询产品 A
@@ -115,7 +115,7 @@ Final Answer: 当你确定可以回答时，在这里给出最终答案
     <span class="k">return</span> <span class="s2">&quot;超过最大步数，任务未完成&quot;</span>
 </code></pre></div>
 <p>整个 loop 里，模型根据当前状态提出下一步决策，代码框架负责管理上下文、校验并执行工具、记录结果和检测终止条件。是否输出简洁理由由接口与审计需求决定，不应依赖或保存完整隐藏推理。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/2f4b7a7c2e-179cf8a64a353215fee596e2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1211" height="1299" alt="" src="assets/2f4b7a7c2e-179cf8a64a353215fee596e2.webp" /></p>
 <p>ReAct 的工程闭环可以画成：</p>
 <figure class="mermaid-diagram" data-diagram-type="flowchart"><pre class="mermaid" aria-label="流程图">flowchart LR
     Q[目标与当前 State] --&gt; L[模型：选择工具或结束]
@@ -138,12 +138,12 @@ Final Answer: 当你确定可以回答时，在这里给出最终答案
 <p>第二个坑叫「错误传播」。ReAct 的每一步决策都建立在前面所有步骤的结果之上，如果中间某一步拿到了错误的信息，或者工具返回了一个有误的结果，后面所有的推理都会被这个错误带跑。</p>
 <p>更麻烦的是，ReAct 没有内置的「回头检查」机制，它不会停下来反问自己「前面那步的结果靠谱吗」，而是默认前面的 Observation 都是对的，一路往前冲。一旦错误出现在早期步骤，整条推理链后面全部白费。</p>
 <p>这两个问题的根源其实是同一个：ReAct 是纯粹的「前向推理」，每一步都是走一步看一步，没有全局规划来约束方向，也没有反思机制来纠正错误。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/419fc418f0-3573dfa750a776147c2caeae.png" /></p>
+<p><img loading="lazy" decoding="async" width="1300" height="1209" alt="" src="assets/419fc418f0-3573dfa750a776147c2caeae.webp" /></p>
 <p>那怎么解决呢？既然问题出在「没有全局规划」，那最直接的思路就是：先让 LLM 站在全局视角把整个任务想清楚，列出一份完整的执行计划，然后再一步一步去执行。这就是 Plan-and-Execute 模式的核心思路。</p>
 <h4 id="plan-and-execute">Plan-and-Execute：先规划再执行</h4>
 <p>你可以把 ReAct 和 Plan-and-Execute 的区别，类比成「边走边问路」和「先看地图再出发」的区别。</p>
 <p>ReAct 就像你到了一个陌生城市，没有地图，每到一个路口就问一次路人该往哪走。路人给的方向大致没错，但走着走着你可能被街边的小吃摊吸引，拐进了一条巷子，忘了自己要去哪。Plan-and-Execute 则是你出发之前先打开地图，把从起点到终点的路线全部规划好，标出途中要经过哪几个关键节点，然后按照这个路线一站一站地走。即使中途某条路封了，你也知道大方向在哪，可以绕路但不会迷路。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/04856baa4e-c4afc8076f36de0049eb680b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1314" height="1197" alt="" src="assets/04856baa4e-c4afc8076f36de0049eb680b.webp" /></p>
 <p>具体来说，Plan-and-Execute 把整个任务处理流程拆成了两个明确的阶段。</p>
 <ul>
 <li>第一个阶段是「规划」（Planner）。把用户的任务目标交给 LLM，让它先不急着动手，而是站在全局的角度想清楚：这个任务要分几步完成？每一步具体做什么？步骤之间的依赖关系是什么？然后输出一份结构化的执行计划。这一步的关键是 LLM 只做规划、不执行任何工具调用，全部注意力都集中在「想清楚」这件事上。</li>
@@ -196,7 +196,7 @@ Final Answer: 当你确定可以回答时，在这里给出最终答案
 <p>Plan-and-Execute 的优势在于有全局视野，不容易跑偏，特别适合那些目标明确、需要多步骤协作完成的复杂任务，比如深度研究、长文写作、多工具协同的数据分析。它的代价是初始规划本身就需要一次 LLM 调用，如果任务很简单（一两步就能搞定），这个规划步骤反而是多余的开销。</p>
 <p>实际工程中，两者经常被混合使用。一个常见的做法是：用 Plan-and-Execute 做全局规划，用 ReAct 做每一步的执行。</p>
 <p>规划阶段可以用更强的模型，执行阶段可以用更快或更便宜的模型，但这不是质量和成本的保证。模型路由应以工具调用成功率、任务完成率、延迟和每任务成本的实测对比为依据；规划调用、摘要和重规划本身也会增加开销。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/62ff8deae0-001584e526f772b5df558e79.png" /></p>
+<p><img loading="lazy" decoding="async" width="1201" height="1310" alt="" src="assets/62ff8deae0-001584e526f772b5df558e79.webp" /></p>
 <h4 id="_4">工程排错</h4>
 <p>如果 ReAct 反复调用同一工具，先看目标是否仍在 State 中、工具结果是否包含可判断的错误、是否缺少去重/停止条件；如果结果错误，区分工具数据错误、检索不相关和模型解释错误；如果延迟或成本失控，统计每轮 token、工具耗时和重试次数，而不是只看最终答案。</p>
 <h3 id="_5">🎯 面试总结</h3>

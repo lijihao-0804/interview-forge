@@ -17,7 +17,7 @@
 <p>很多人第一次看到 MCP 会有一个直觉困惑：Function Calling 不是已经能调工具了吗，模型想用工具直接定义 schema 就行，为什么还要再搞一个协议出来？</p>
 <p>这个困惑的根源，是把「能调工具」和「管好工具」混在一起了。这两件事完全是不同层次的问题。</p>
 <p>有一个很好的类比可以帮你理解：HTTP 协议出来之后，我们已经能在网络上传数据了，为什么还需要 REST API 规范？</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/d10b8a1a7a-87af4e8fa8c5675847b528c8.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/d10b8a1a7a-87af4e8fa8c5675847b528c8.webp" /></p>
 <p>因为 HTTP 解决的是「怎么传」（一次请求长什么样、用什么方法、怎么编码），REST 解决的是「怎么组织和管理」（资源怎么命名、端点怎么设计、状态怎么表达、多个服务之间怎么复用同一套约定），两者是不同层次的事。</p>
 <p>Function Calling 和 MCP 也是同样的关系：Function Calling 管「一次函数调用请求长什么样」，MCP 管「一堆工具怎么被组织、发现、跨项目复用」。前者是格式，后者是规范+生态约定，少了谁这套机制都运转不起来。</p>
 <h4 id="function-calling">Function Calling 解决的是「一次调用」的格式问题</h4>
@@ -27,20 +27,20 @@
 <p>那「每次手动」到底有多痛？你可能觉得复制一份 schema 也没多大工作量，但工具一多、项目一多，问题就暴露出来了。</p>
 <p>假设你在 A 项目里定义了 10 个工具的 schema 和对接逻辑。现在 B 项目也要用这些工具，怎么办？把那 10 个 schema 定义复制过来，把对接逻辑重写一遍。好，写完了。但 A 项目用的是 Claude API，B 项目换成了 GPT-4，两边的 Function Calling 格式不完全一样，又得各自维护一套适配代码。这还没完，如果某个工具的接口改了呢？你得去每个用到它的项目里逐一更新，漏改一处就是 bug。</p>
 <p>把这个账算一下你就知道痛点的规模了：假设你团队里有 5 个应用，每个应用要接 8 个工具，也就是 40 份工具对接代码在维护。某天 GitHub API 的某个字段变了，你要在 5 个地方同步改，只要其中一个忘了，那个应用在凌晨报警；再假设你要从 Claude 迁到 GPT-4，这 40 份代码里的 Function Calling 格式全要重新适配一遍，整个组的季度就这么交代了。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/e26cedf8ac-206209c3951434af85d1c5e5.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/e26cedf8ac-206209c3951434af85d1c5e5.webp" /></p>
 <p>有没有发现问题？同一个工具，换个项目就要重新对接一遍，每次都是一次性的手工活。这就是 Function Calling 解决不了的核心问题：<strong>工具的管理、复用和跨平台兼容</strong>。</p>
 <h4 id="mcp">MCP 解决的是「工具生态」的问题</h4>
 <p>既然痛点是「每个应用各自维护一套工具定义」，那解决思路也就很自然了：把工具做成独立的标准化服务，谁要用就来连，不用每次都重写一遍。这就是 MCP 的核心思路。</p>
 <p>工具提供方实现一个 MCP Server；stdio 模式通常是本地子进程，Streamable HTTP 模式也可以是远程服务。Server 暴露标准能力描述，客户端可以自动发现，但仍要做版本、认证、权限、结果映射和安全审查。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/734693d928-701f10d6aefd6a1e37153feb.png" /></p>
+<p><img loading="lazy" decoding="async" width="1309" height="1201" alt="" src="assets/734693d928-701f10d6aefd6a1e37153feb.webp" /></p>
 <p>这带来的改变是集成边界更稳定：工具提供方可以复用 Server，客户端减少重复的 API 适配，但不同客户端的能力、版本、认证和模型映射仍可能不同。MCP 降低重复劳动，不保证所有客户端天然兼容。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/781361e7f2-2fda600a2b0ed6deac5cd890.png" /></p>
+<p><img loading="lazy" decoding="async" width="944" height="733" alt="" src="assets/781361e7f2-2fda600a2b0ed6deac5cd890.webp" /></p>
 <h4 id="host-mcp-function-calling">最关键的联系：Host 需要一个模型侧的调用机制，但 MCP 不等于 Function Calling</h4>
 <p>这是很多人没想清楚的一点：二者在不同边界上工作。模型 API 的工具调用是「模型如何表达选择」；MCP 是「Host 如何发现、连接和调用外部能力」。一个 Host 可以把 MCP 工具翻译成某厂商的 tool schema，也可以通过自定义策略或结构化输出驱动工具。</p>
 <p>当 MCP Client 连上 Server 后，通常会通过 MCP 的 <code>tools/list</code> 发现工具（不是所有 SDK 都把它暴露成名为 <code>list_tools</code> 的本地方法），Host 再把选中的能力映射到模型 API 或自己的决策器。模型提出调用后，Host/Client 将请求路由到 <code>tools/call</code>，把结果或错误以模型 API 能接受的形式回填。</p>
 <p>从<strong>模型的视角</strong>来看，它通常只看到 Host 提供给它的工具描述，不一定知道这些工具来自 MCP；但 Host 也可以显式说明来源，或不使用模型原生工具调用。MCP 的发现、schema 映射、路由、执行结果返回主要发生在宿主层。</p>
 <p>这也意味着：如果模型不支持某种原生 Function Calling，Host 仍可能用结构化输出、命令路由或人工/程序策略来驱动 MCP；只是可靠性和实现成本取决于该机制。真正的必要条件是 Host 有可控的「模型选择 → 参数校验 → 工具执行」通路，而不是某个固定字段名。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/456609d18b-125e9cf2a024b73368fb519b.png" /></p>
+<p><img loading="lazy" decoding="async" width="1225" height="1284" alt="" src="assets/456609d18b-125e9cf2a024b73368fb519b.webp" /></p>
 <h4 id="mcp-server">实际体验，接入一个 MCP Server</h4>
 <p>以 Claude Desktop 接入文件系统 MCP 为例。只需要编辑 <code>claude_desktop_config.json</code>，加入如下配置：</p>
 <div class="codehilite" data-lang="json"><pre><code class="language-json"><span class="p">{</span>
@@ -136,7 +136,7 @@
 <p>如果只是临时给自己的应用接一两个工具，Function Calling 就够用了，简单直接，不需要引入额外的进程和协议。</p>
 <p>但如果工具多了、需要跨项目复用、或者想直接用社区里已有的成熟 Server（GitHub、数据库、浏览器自动化都有现成的），MCP 就值得上了。接一个新工具就是在配置文件里加几行，重启后自动生效，比手写对接代码省事很多。</p>
 <p>做 Agent 系统的话更应该考虑 MCP。工具来源杂、数量多，如果全靠手写 Function Calling 来维护，工具定义代码会散落在各处，很难管理。MCP 的自动发现和统一管理能让架构干净很多，新增工具不需要改主程序逻辑，接上 Server 就行。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/3b6c848c87-ecf2bb377aaca8f4cbe0bf1e.png" /></p>
+<p><img loading="lazy" decoding="async" width="1199" height="1312" alt="" src="assets/3b6c848c87-ecf2bb377aaca8f4cbe0bf1e.webp" /></p>
 <h4 id="_4">一张边界图：不要把两条链路压成一层</h4>
 <div class="codehilite" data-lang="text"><pre><code class="language-text">模型 API / 决策器
   └─ tool calling、结构化输出或自定义策略

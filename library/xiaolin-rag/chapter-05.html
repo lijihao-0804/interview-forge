@@ -20,7 +20,7 @@
 <p>如果 chunk 的边界恰好切在「响应时间不超过 2 小时，」这里，那「企业用户享有优先客服通道」和「并可申请专属技术顾问服务」就被分到了两个 chunk。</p>
 <p>你可能会想，两个 chunk 里都有部分答案，搜到其中一个不就行了？问题是，两个 chunk 单独来看相关度都不高，极可能都不会被召回，答案就断了。</p>
 <p>这就是语义截断的核心问题：不是信息丢了，而是信息被拆散之后，每一半都不够强，检索时全军覆没。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/f88b0a8c88-06afdf31a1cbe04bbb4a9dc2.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/f88b0a8c88-06afdf31a1cbe04bbb4a9dc2.webp" /></p>
 <h4 id="overlap">方案一：重叠切割（Overlap）</h4>
 <p>最基础的方案，让相邻 chunk 之间有一段内容重叠，这样可以提高跨边界内容被共同召回的概率，但不能保证完整语义一定落在某一个 chunk 中。</p>
 <p>重叠量可以从一个较小候选开始，例如按 token/字符设定一个可解释的比例；10%～20% 只是某些实现的试验范围，不是规范。单位、语料、结构和查询集不同，最佳设置也会不同。</p>
@@ -30,11 +30,11 @@
 <p>重叠切割既然只是兜底，那能不能在切的时候就更聪明一点，直接避免在语义中间截断？这就是语义边界切割的思路——找到文本中自然的语义边界再切。为什么要识别句子边界？</p>
 <p>句子或段落通常比任意字符边界更接近语义单元，但并非每个句子都自包含（代词、列表、表格和上下文依赖仍可能存在）。切分后仍需用查询集验证召回和引用完整性。</p>
 <p>实际操作时，可以用 NLP 工具（比如 <code>spacy</code> 或 <code>nltk</code>）识别句子结束位置，然后以句子为单位填充 chunk：把句子一条条往当前 chunk 里加，加满了就封存这个 chunk 开启新的，不会在句子中间截断。对于段落分明的文档，还可以在句子边界的基础上优先在段落边界处切，效果更好。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/026251911a-ba3339f3bc7b55b9ec2bebb0.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/026251911a-ba3339f3bc7b55b9ec2bebb0.webp" /></p>
 <h4 id="sentence-window-retrieval">方案三：句子窗口检索（Sentence Window Retrieval）</h4>
 <p>前面两种方案都是在「怎么切」上做文章，到了这一步，思路就变了——切归切，检索的时候再把上下文补回来。这个方案的思路和前两个完全不同，它不是在「切」上做文章，而是在「检索后如何返回上下文」上做文章。类比一下：就像你在图书馆里用关键词找到了某本书里的一句话，但你实际阅读的是这句话所在的整个段落，而不是只拿走那一行文字。</p>
 <p>具体做法是：存储时把文档切成单个句子，每个句子单独做向量，用于精准检索；检索命中一个句子后，并不只返回这一个句子，而是把这个句子前后各 N 个句子一起返回，形成一个上下文窗口，交给 LLM 阅读。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/389eeedfad-5ff369dbcc5241110aeccdd6.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/389eeedfad-5ff369dbcc5241110aeccdd6.webp" /></p>
 <p>这样的好处是检索粒度细、返回时可补上下文；但窗口过大会引入冗余或无关内容，句子级索引也会增加存储、索引和更新成本。窗口大小应按任务和上下文预算评估。</p>
 <h4 id="parent-child-chunking">方案四：父子切割（Parent-Child Chunking）</h4>
 <p>理解了句子窗口检索的「检索命中后动态扩展上下文」思路，父子切割就很好懂了，它是一种更结构化的实现方式。</p>
@@ -43,14 +43,14 @@
 <h4 id="propositions-based-chunking">方案五：命题化切割（Propositions-based Chunking）</h4>
 <p>前面几种方案都是在「怎么切」或「切完怎么补上下文」上想办法，那有没有一种方案能从根本上让每个 chunk 天然就是完整独立的？命题化切割就是冲着这个目标来的。这是质量最高但成本也最高的方案，思路不按文本位置切割，而是用 LLM 把文档分解成一条条独立的「命题」（Proposition）。每个命题是一个完整、自包含的陈述句，包含了表达这个事实所需的全部上下文，单独拿出来就能看懂，不依赖上下文，只包含一个核心事实。</p>
 <p>举个例子来感受一下。原文是「企业用户享有优先客服通道，响应时间不超过 2 小时，并可申请专属技术顾问服务。」分解成命题后变成三条独立陈述：「企业用户享有优先客服通道。」「企业用户的客服响应时间不超过 2 小时。」「企业用户可以申请专属技术顾问服务。」这三条单独拿出来都能看懂，不需要任何上下文辅助，向量化后的语义密度极高。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/2e17bd2ec6-69b403bbcb20620c88dbc8a9.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/2e17bd2ec6-69b403bbcb20620c88dbc8a9.webp" /></p>
 <p>命题化切割可能提高事实粒度，但 LLM 抽取可能漏掉条件、否定、来源或引入改写错误；需要保留原文指针、版本和抽取校验。成本也包括生成、存储、更新和评估。</p>
 <h4 id="contextual-retrievalanthropic">方案六：Contextual Retrieval（Anthropic）</h4>
 <p>命题化切割是用 LLM 重新组织 chunk 内容，而 Contextual Retrieval 则换了一个角度：不改变原始 chunk，而是在向量化之前把部分背景补进去。它是 Anthropic 工程文章介绍的一种方案；具体效果依赖语料、模型、提示和索引配置，不应当作通用标准。</p>
 <p>先说一下这个方案要解决的根本问题：chunk 被单独拿出来后就失去了语境。</p>
 <p>一个 chunk 在向量化时，Embedding 模型只能看到这段文字本身，根本不知道它来自哪篇文档、讲的是什么主题。比如「此条款自 2024 年 1 月 1 日起生效」这段文字，单独向量化后完全丢失了「这是企业版客服条款」这一关键信息，检索时自然容易被无关内容干扰。</p>
 <p>你可能会觉得奇怪，向量不是能捕捉语义吗，为什么会丢信息？原因很简单：向量只能捕捉它「看到」的文字里的语义，它看不到的那部分背景信息，自然没法编码进向量里。向量里没有主题信息，是孤立 chunk 召回质量低的根本原因。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/792eb37d1e-e24abebc26d95a95fc05ab7f.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/792eb37d1e-e24abebc26d95a95fc05ab7f.webp" /></p>
 <p>核心做法分两步：</p>
 <ol>
 <li><strong>生成 Context</strong>：让 LLM 看着整篇原始文档，为每一个切出来的 chunk 生成一段简短的背景说明（通常 1～2 句话），说清楚这个 chunk 在整篇文档里处于什么位置、讲的是什么</li>
@@ -70,13 +70,13 @@
 此条款自 2024 年 1 月 1 日起生效，适用于所有企业版订阅用户。
 </code></pre></div>
 <p>现在这个 chunk 的表示可能包含「企业用户」「客服条款」「生效日期」等背景语义，是否提升召回要用标注查询集验证；同时保留原始 chunk 和生成背景，避免错误背景替代证据。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/9ef6672ef7-5848749ed2dcaf76f8c3d9ad.png" /></p>
+<p><img loading="lazy" decoding="async" width="1536" height="1024" alt="" src="assets/9ef6672ef7-5848749ed2dcaf76f8c3d9ad.webp" /></p>
 <h4 id="prompt-caching-llm">成本控制：用 Prompt Caching 大幅降低 LLM 调用费用</h4>
 <p>你可能会担心，每个 chunk 都要调一次 LLM，这成本得多高？Prompt Caching 在部分提供方/配置下可以复用重复前缀，但命中规则、价格、TTL 和收益必须按当前官方文档和实际调用测量。</p>
 <p>每次调用时，<code>full_document</code>（完整文档）在所有 chunk 的请求里是相同的前缀。开启 Prompt Caching 后，第一次调用会把文档内容缓存到 KV Cache，后续同一篇文档的所有 chunk 请求都复用这份缓存，只有 chunk 部分需要重新计算。</p>
 <p>成本估算应把文档长度、chunk 数、命中率、缓存写入/读取价格、TTL、并发和失败重试都纳入模型。Anthropic 文章中的费用与收益是特定模型和假设下的示例，不是跨提供方保证；工程上还要确认缓存前缀不会混入租户或权限敏感内容。</p>
 <p>Anthropic 的工程文章报告过在其数据、模型和评测设置下，Contextual Retrieval 与 BM25/重排结合可降低 Top-20 检索失败率；这是来源特定的基准结果，不能直接外推到你的语料。应在自己的查询集上报告 Recall@K、MRR/nDCG、索引成本和延迟。</p>
-<p><img loading="lazy" decoding="async" alt="" src="assets/9f956b2860-115450283dd2f16ff0210a62.png" /></p>
+<p><img loading="lazy" decoding="async" width="1402" height="1122" alt="" src="assets/9f956b2860-115450283dd2f16ff0210a62.webp" /></p>
 <p>把几种方案的核心思路对比一下，实际选型时按场景组合使用：</p>
 <table>
 <thead>
