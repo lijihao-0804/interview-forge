@@ -997,6 +997,25 @@ summary = {
     "errors": len(errors),
     "warnings": len(warnings),
 }
+
+# ---- 题解 Python 代码完整性（防止生成时被截断/小写化后无人发现）----
+# 背景：ed72e89e 引入多语言题解时，部分题 Python 代码只生成了开头几行，
+# 因为当时校验只查链接/mermaid、不查代码本身是否完整，一直没被发现。
+_import_re, _import_ast = __import__("re"), __import__("ast")
+for _md in sorted((ROOT / "books" / "hot100" / "03-题解").rglob("*.md")):
+    _text = _md.read_text(encoding="utf-8")
+    for _m in _import_re.finditer(r"```(?:python|py)\n(.*?)```", _text, _import_re.S):
+        _code = _m.group(1)
+        _calls = set(_import_re.findall(r"self\.([A-Za-z_]\w*)\(", _code))
+        _defs = set(_import_re.findall(r"def\s+([A-Za-z_]\w*)", _code))
+        _undef = _calls - _defs - {"__init__"}
+        if _undef:
+            errors.append(f"题解 Python 调用了未定义方法 {sorted(_undef)}：{_md.relative_to(ROOT)}")
+        try:
+            _import_ast.parse(_code)
+        except SyntaxError as _e:
+            errors.append(f"题解 Python 语法错误：{_md.relative_to(ROOT)}：{_e}")
+
 # 打印阶段：summary 一行总览 + errors/warnings 的逐条明细；
 # 退出码语义再强调一次：errors 非空 → 1（发布不通过），否则 → 0（通过）；
 # warnings 不参与退出码，外部脚本可用“退出码 + WARN 行数”区分硬失败与软提示。
