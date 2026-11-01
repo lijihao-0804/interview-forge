@@ -203,7 +203,12 @@ for path in ROOT.rglob("*"):
         link = unquote(raw.split("#", 1)[0].split("?", 1)[0]).strip()
         if not link or re.match(r"^(?:https?:|mailto:|data:|javascript:)", link, re.I):
             continue
-        target = (path.parent / link).resolve()
+        # 以 / 开头的是站点根相对路径（如 /books/hot100/...），按仓库根解析；
+        # 其余才是相对当前文件。
+        if link.startswith("/"):
+            target = (ROOT / link.lstrip("/")).resolve()
+        else:
+            target = (path.parent / link).resolve()
         try:
             exists = target.exists()
             # 书架源笔记（books/ 下）里的 chapter-NN.html 是构建期才生成的

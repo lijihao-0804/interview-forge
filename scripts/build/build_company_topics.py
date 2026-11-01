@@ -40,9 +40,9 @@ ROLES = [
 TOP_N = 30
 
 # 兼容三种表头：|题目|出现次数|链接|、|题目|出现次数|、以及题号带 \. 转义的写法
-ROW = re.compile(r"^\|\s*(\d+)\.\s*(.+?)\s*\|\s*(\d+)\s*\|")
+ROW = re.compile(r"^\|\s*(\d+)\.\s*(.+?)\s*\|\s*(\d+)\s*\|\s*([^|\s]+)?")
 # 少数公司（如百度）用「公司|岗位|题目|链接」四列且没有出现次数
-ROW_COMPANY = re.compile(r"^\|[^|]*\|[^|]*\|\s*(\d+)\.\s*(.+?)\s*\|")
+ROW_COMPANY = re.compile(r"^\|[^|]*\|[^|]*\|\s*(\d+)\.\s*(.+?)\s*\|\s*([^|\s]+)?")
 
 
 def load_hot100() -> dict[int, dict]:
@@ -56,6 +56,19 @@ def load_hot100() -> dict[int, dict]:
         return {}
 
 
+
+def _resolve_link(item, hot100):
+    """返回 (链接, 来源标签)。Hot 100 内的题指向站内题解页，其余指向 LeetCode。"""
+    pid = item["id"]
+    if pid in hot100:
+        pr = hot100[pid]
+        path = f"/books/hot100/03-题解/{pr['folder']}/{pid:04d}-{pr['title']}.html"
+        return path, "Hot 100"
+    url = (item.get("url") or "").strip()
+    if "leetcode" in url:
+        return url.replace("leetcode-cn.com", "leetcode.cn"), "LeetCode"
+    return f"https://leetcode.cn/problemset/?search={pid}", "LeetCode"
+
 def parse_file(path: Path) -> list[dict]:
     items: list[dict] = []
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -63,12 +76,12 @@ def parse_file(path: Path) -> list[dict]:
         match = ROW.match(clean)
         if match:
             items.append({"id": int(match.group(1)), "title": match.group(2).strip(),
-                          "count": int(match.group(3)), "url": ""})
+                          "count": int(match.group(3)), "url": match.group(4) or ""})
             continue
         alt = ROW_COMPANY.match(clean)
         if alt:
             items.append({"id": int(alt.group(1)), "title": alt.group(2).strip(),
-                          "count": None, "url": ""})
+                          "count": None, "url": alt.group(3) or ""})
     # 同一文件内可能重复（不同小节），按题号合并取最大热度
     merged: dict[int, dict] = {}
     for item in items:
@@ -93,7 +106,7 @@ def build() -> None:
         "",
         "1. 先用 **Hot 100** 打底：它覆盖了绝大多数公司的通用高频题。",
         "2. 再按目标公司补它的专属高频题：出现次数越高，越值得优先刷。",
-        "3. 这里**只列 Hot 100 之外的题**：Hot 100 已经覆盖的题不再重复，避免重复刷。",
+        "3. 表格列出每个岗位的**全部高频题**；题目标题可点，Hot 100 里的题进站内题解，其余进 LeetCode 原题。",
         "",
         "## 覆盖速览",
         "",
@@ -133,22 +146,14 @@ def build() -> None:
             items = per_role.get(role_cn)
             if not items:
                 continue
-            # 只列 Hot 100 之外的题：Hot 100 已有题解，重复列出没有增量信息
-            extra = [x for x in items if x["id"] not in hot100]
-            covered_n = len(items) - len(extra)
+            covered_n = sum(1 for x in items if x["id"] in hot100)
             lines += [f"### {cn} · {role_cn}", ""]
-            if not extra:
-                lines += [f"该岗位共 {len(items)} 题，**全部已在 Hot 100 中覆盖**，无需额外补题。", ""]
-                continue
-            if covered_n:
-                lines += [f"该岗位共 {len(items)} 题，其中 {covered_n} 题已在 Hot 100 覆盖，"
-                          f"下面只列剩下的 {len(extra)} 题。", ""]
-            lines += ["| 题目 | 出现次数 |", "|---|---|"]
-            for item in extra[:TOP_N]:
+            lines += [f"共 {len(items)} 题（其中 {covered_n} 题在 Hot 100 里有站内题解）。", ""]
+            lines += ["| 题目 | 出现次数 | 题解 |", "|---|---|---|"]
+            for item in items:
                 count_text = item["count"] if item["count"] is not None else "—"
-                lines.append(f"| {item['id']}. {item['title']} | {count_text} |")
-            if len(extra) > TOP_N:
-                lines.append(f"| …（其余 {len(extra) - TOP_N} 题略） | |")
+                link, tag = _resolve_link(item, hot100)
+                lines.append(f"| [{item['id']}. {item['title']}]({link}) | {count_text} | {tag} |")
             lines.append("")
 
     lines += [
