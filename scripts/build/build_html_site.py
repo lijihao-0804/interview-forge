@@ -2501,7 +2501,13 @@ def render_markdown(source: Path) -> None:
     # —— 代码块语言标记（多语言题解）：按源 md 中 ```lang 围栏的出现顺序为
     # codehilite 容器打 data-lang 标签；数量不匹配（存在无语言围栏等边缘情况）
     # 时整体跳过标记，前端退化为仅按 lang-section 显隐。——
-    fence_langs = [{"py": "python", "python3": "python", "c++": "cpp", "golang": "go"}.get(x.lower(), x.lower()) for x in re.findall(r"(?m)^```([A-Za-z+#]+)", raw)]
+    # 按「```lang ... ```」代码块配对提取语言，无语言的块记 "text"；
+    # 这样含题面示例代码块的页面也能正确对上 codehilite 数量，语言切换才生效。
+    _lang_alias = {"py": "python", "python3": "python", "c++": "cpp", "golang": "go"}
+    fence_langs = []
+    for _m in re.finditer(r"(?ms)^```([^\n`]*)\n.*?^```[ \t]*$", raw):
+        _l = _m.group(1).strip().lower()
+        fence_langs.append(_lang_alias.get(_l, _l) or "text")
     code_div_count = page.count('<div class="codehilite"')
     if code_div_count == len(fence_langs) and fence_langs:
         parts = page.split('<div class="codehilite"')

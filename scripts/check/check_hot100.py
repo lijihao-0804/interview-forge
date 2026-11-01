@@ -320,6 +320,10 @@ for path in html_files:
             table.decompose()
         visible_text = visible.get_text(" ", strip=True)
         for paragraph in visible.find_all("p"):
+            # 列表项 <li><p> 里的内容剥掉 <code> 后可能以 "- "（名称-描述分隔）开头，
+            # 会被误判成「列表显示成普通文字」。只查真正顶层的 <p>。
+            if paragraph.find_parent("li"):
+                continue
             paragraph_text = paragraph.get_text(" ", strip=True)
             first_child = paragraph.contents[0] if paragraph.contents else ""
             leading_text = str(first_child).strip() if isinstance(first_child, str) else ""

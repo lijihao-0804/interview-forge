@@ -9,7 +9,7 @@
 
 ## 题目与约束
 
-给你一个整数 `columnNumber`，返回它在 Excel 表中相对应的列名称。
+给你一个整数 `columnNumber` ，返回它在 Excel 表中相对应的列名称。
 
 例如：
 
@@ -20,41 +20,47 @@ C -> 3
 ...
 Z -> 26
 AA -> 27
-AB -> 28
+AB -> 28 
 ...
 ```
 
-**示例 1：**
+ 
+
+示例 1：
 
 ```
-输入：columnNumber = 1
-输出："A"
+<strong>输入：</strong>columnNumber = 1
+<strong>输出：</strong>"A"
 ```
 
-**示例 2：**
+示例 2：
 
 ```
-输入：columnNumber = 28
-输出："AB"
+<strong>输入：</strong>columnNumber = 28
+<strong>输出：</strong>"AB"
 ```
 
-**示例 3：**
+示例 3：
 
 ```
-输入：columnNumber = 701
-输出："ZY"
+<strong>输入：</strong>columnNumber = 701
+<strong>输出：</strong>"ZY"
 ```
 
-**示例 4：**
+示例 4：
 
 ```
-输入：columnNumber = 2147483647
-输出："FXSHRXW"
+<strong>输入：</strong>columnNumber = 2147483647
+<strong>输出：</strong>"FXSHRXW"
 ```
 
-**提示：**
+ 
 
-- `1 <= columnNumber <= 2^31 - 1`
+提示：
+
+- `1 <= columnNumber <= 231 - 1`
+
+[🔗 前往力扣原题验证 →](https://leetcode.cn/problems/excel-sheet-column-title/)
 
 ## 核心不变量
 
