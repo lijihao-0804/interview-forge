@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>1669. 合并两个链表 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Linked List</div>
+        <h1 id="1669">1669. 合并两个链表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-mergeinbetween">Java 实现（mergeInBetween）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>链表定位 + 断链拼接（哑节点思想）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n + m)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你两个链表 <code>list1</code> 和 <code>list2</code>，它们包含的元素分别为 <code>n</code> 个和 <code>m</code> 个。</p>
+<p>请你将 <code>list1</code> 中下标从 <code>a</code> 到 <code>b</code> 的全部节点都删除，并将 <code>list2</code> 接在被删除节点的位置。</p>
+<p>请你返回结果链表的头指针。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：list1 = [10,1,13,6,9,5], a = 3, b = 4, list2 = [1000000,1000001,1000002]
+输出：[10,1,13,1000000,1000001,1000002,5]
+解释：我们删除 list1 中下标为 3 和 4 的两个节点，并将 list2 接在该位置。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：list1 = [0,1,2,3,4,5,6], a = 2, b = 5, list2 = [1000000,1000001,1000002,1000003,1000004]
+输出：[0,1,1000000,1000001,1000002,1000003,1000004,6]
+解释：删除 list1 中下标为 2 到 5 的节点，并将 list2 接在该位置。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>3 &lt;= list1.length &lt;= 10^4</code></li>
+<li><code>1 &lt;= a &lt;= b &lt; list1.length - 1</code></li>
+<li><code>1 &lt;= list2.length &lt;= 10^4</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>删除区间 <code>[a, b]</code> 后，只需让「下标 <code>a-1</code> 的节点」的下一个指向 <code>list2</code> 的头，并让 <code>list2</code> 的尾节点指向「下标 <code>b+1</code> 的节点」；由于 <code>a &gt;= 1</code> 且 <code>b &lt; list1.length - 1</code>，这两个"接缝节点"一定存在。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（链表不能按下标随机访问）</strong></li>
+</ol>
+<p>数组可以直接 <code>arr[a-1]</code>、<code>arr[b+1]</code>，但链表只能从头走。好在 <code>list1</code> 长度至多 <code>10^4</code>，两次线性遍历即可定位两个接缝节点，代价很低。</p>
+<ol start="2">
+<li><strong>定位两端的接缝节点</strong></li>
+</ol>
+<ul>
+<li><code>prev</code>：从 <code>list1</code> 头出发走 <code>a - 1</code> 步，停在下标 <code>a-1</code>，它就是删除区间的「前驱」；</li>
+<li><code>after</code>：从 <code>list1</code> 头出发走 <code>b + 1</code> 步，停在下标 <code>b+1</code>，它就是删除区间的「后继」。</li>
+</ul>
+<p>小例子（示例 1，<code>a=3, b=4</code>）：<code>prev</code> 是下标 2 的节点（值 <code>13</code>），<code>after</code> 是下标 5 的节点（值 <code>5</code>）。</p>
+<ol start="3">
+<li><strong>断链 + 拼接</strong></li>
+</ol>
+<ul>
+<li>先 <code>prev.next = list2</code>，把 <code>list1</code> 前半段接到 <code>list2</code> 头上；</li>
+<li>再遍历 <code>list2</code> 找到它的尾节点 <code>tail</code>，令 <code>tail.next = after</code>，把 <code>list2</code> 的尾巴接到 <code>list1</code> 后半段上。</li>
+</ul>
+<p>注意顺序：必须先让 <code>prev.next</code> 指向 <code>list2</code>，再处理 <code>list2</code> 的尾巴，否则原有的 <code>prev.next</code>（被删区间的头）就丢了引用。其实由于我们先保存了 <code>after</code>，<code>prev.next</code> 无论何时覆盖都不影响 <code>after</code>，但保持清晰顺序更好。</p>
+<ol start="4">
+<li><strong>边界放心</strong></li>
+</ol>
+<p>题目保证 <code>b &lt; list1.length - 1</code>，所以 <code>after</code> 一定不是 <code>null</code>，拼接后尾巴总能闭合；<code>a &gt;= 1</code> 保证 <code>prev</code> 存在，不需要哑节点。</p>
+<h3 id="java-mergeinbetween">Java 实现（mergeInBetween）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeInBetween</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">list1</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">list2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. prev 指向下标 a-1 的节点（删除区间的前驱）</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. after 指向下标 b+1 的节点（删除区间的后继）</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">after</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">after</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">after</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 前驱接到 list2 的头</span>
+<span class="w">        </span><span class="n">prev</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 4. 找到 list2 的尾节点，接到 after</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">after</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n + m)，在 <code>list1</code> 上定位两节点最多走 <code>b+1</code> 步（<code>O(n)</code>），再遍历 <code>list2</code> 找尾（<code>O(m)</code>）。</li>
+<li>空间：O(1)，只用了 <code>prev</code>、<code>after</code>、<code>tail</code> 等常数个指针。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>下标要减一 / 加一</strong>：<code>prev</code> 停在下标 <code>a-1</code>、<code>after</code> 停在下标 <code>b+1</code>，写成 <code>a</code>、<code>b</code> 会错位。</li>
+<li><strong><code>after</code> 可能是链表尾部</strong>：虽然本题保证 <code>b &lt; list1.length - 1</code>，但通用写法应考虑 <code>after == null</code> 的情况（此时 <code>tail.next = null</code> 收尾）。</li>
+<li><strong><code>list2</code> 的尾节点必须遍历找</strong>：<code>list2</code> 是单链表，不能直接拿尾，必须走到 <code>next == null</code>。</li>
+<li><strong>先断后接的顺序</strong>：先保存 <code>after</code> 再改 <code>prev.next</code>，避免丢失后半段入口。</li>
+<li><strong>返回 <code>list1</code> 的头</strong>：删除的是中间段，头节点不会变，直接返回 <code>list1</code>。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/merge-in-between-linked-lists/" target="_blank" rel="noopener noreferrer">1669. 合并两个链表</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * struct ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode *next;</span>
+<span class="cm"> *     ListNode() : val(0), next(nullptr) {}</span>
+<span class="cm"> *     ListNode(int x) : val(x), next(nullptr) {}</span>
+<span class="cm"> *     ListNode(int x, ListNode *next) : val(x), next(next) {}</span>
+<span class="cm"> * };</span>
+<span class="cm"> */</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">mergeInBetween</span><span class="p">(</span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">list1</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">list2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// prev 指向下标 a-1，after 指向下标 b+1</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">prev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">after</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">after</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">after</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 前驱接 list2，list2 尾部接 after</span>
+<span class="w">        </span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list2</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">list2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">tail</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">tail</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">after</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">list1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Definition for singly-linked list.</span>
+<span class="c1"># class ListNode:</span>
+<span class="c1">#     def __init__(self, val=0, next=None):</span>
+<span class="c1">#         self.val = val</span>
+<span class="c1">#         self.next = next</span>
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">mergeInBetween</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list1</span><span class="p">:</span> <span class="s2">&quot;ListNode&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">list2</span><span class="p">:</span> <span class="s2">&quot;ListNode&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;ListNode&quot;</span><span class="p">:</span>
+        <span class="c1"># prev 指向下标 a-1</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">list1</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">prev</span> <span class="o">=</span> <span class="n">prev</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="c1"># after 指向下标 b+1</span>
+        <span class="n">after</span> <span class="o">=</span> <span class="n">list1</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">b</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">after</span> <span class="o">=</span> <span class="n">after</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="c1"># 前驱接 list2 的头</span>
+        <span class="n">prev</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">list2</span>
+
+        <span class="c1"># 找 list2 的尾节点，接到 after</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">list2</span>
+        <span class="k">while</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span><span class="p">:</span>
+            <span class="n">tail</span> <span class="o">=</span> <span class="n">tail</span><span class="o">.</span><span class="n">next</span>
+        <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">after</span>
+
+        <span class="k">return</span> <span class="n">list1</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

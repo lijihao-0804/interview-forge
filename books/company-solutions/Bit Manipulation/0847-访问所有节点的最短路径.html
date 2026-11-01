@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>847. 访问所有节点的最短路径 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Bit Manipulation</div>
+        <h1 id="847">847. 访问所有节点的最短路径</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-bfs">Java 实现（状态压缩 BFS）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>状态压缩 BFS：状态 = (当前节点, 已访问集合)</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n² · 2ⁿ)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n · 2ⁿ)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>存在一个由 <code>n</code> 个节点组成的<strong>无向连通图</strong>，节点按从 <code>0</code> 到 <code>n - 1</code> 编号。</p>
+<p>给你一个数组 <code>graph</code> 表示这个图，其中 <code>graph[i]</code> 是一个列表，由所有与节点 <code>i</code> 直接相连的节点组成。</p>
+<p>返回能够<strong>访问所有节点</strong>的最短路径长度。你可以在<strong>任一节点</strong>开始和停止，也可以<strong>多次重访</strong>节点，并且可以<strong>重用边</strong>。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：graph = [[1,2,3],[0],[0],[0]]
+输出：4
+解释：一种可能的路径为 [1,0,2,0,3]
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：graph = [[1],[0,2,4],[1,3,4],[2],[1,2]]
+输出：4
+解释：一种可能的路径为 [0,1,4,2,3]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>n == graph.length</code></li>
+<li><code>1 &lt;= n &lt;= 12</code></li>
+<li><code>0 &lt;= graph[i].length &lt; n</code></li>
+<li><code>graph[i]</code> 不包含 <code>i</code></li>
+<li>如果 <code>graph[a]</code> 包含 <code>b</code>，那么 <code>graph[b]</code> 也包含 <code>a</code></li>
+<li>输入的图总是连通图</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>一条“访问了哪些节点”的走法，只由「当前停在哪」和「已经访问过的节点集合（位掩码）」共同决定；同一 <code>(节点, 掩码)</code> 状态重复到达时，步数更多的到达毫无价值，因此按步数做广度优先，首次抵达满掩码即为最优。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>为什么不能直接 BFS 求最短路？</strong> 普通 BFS 只记录“当前在哪个点”。但这道题允许重访、起点任选，真正影响端点的不是“位置”而是“还差哪些点没走到”。只看位置会丢失信息，导致无法判断是否已经覆盖全部节点。</p>
+</li>
+<li>
+<p><strong>把“进度”也塞进状态。</strong> 用一个 <code>n</code> 位二进制数 <code>mask</code> 表示已访问集合，第 <code>k</code> 位为 1 表示节点 <code>k</code> 访问过。于是状态升级为 <code>(node, mask)</code>。起点可以是任一点 <code>i</code>，初态为 <code>(i, 1&lt;&lt;i)</code>，全部节点入队；目标状态是 <code>mask == (1&lt;&lt;n) - 1</code>（满掩码）。</p>
+</li>
+<li>
+<p><strong>在状态图上做 BFS。</strong> 从 <code>(node, mask)</code> 出发，走到邻居 <code>nxt</code>，新状态是 <code>(nxt, mask | (1&lt;&lt;nxt))</code>，步数加一。因为边权都是 1（走一步算一次），用 BFS 逐层扩展，第一次遇到满掩码时的层数就是最短路径长度。</p>
+</li>
+<li>
+<p><strong>小例子。</strong> <code>graph = [[1,2,3],[0],[0],[0]]</code>，<code>n=4</code>。从节点 1 出发（mask=0010），可以 1→0（mask=0011）、0→2（0111）、2→0（仍 0111）、0→3（1111），共 4 步达到满掩码，答案 4，与示例路径 <code>[1,0,2,0,3]</code> 对应。</p>
+</li>
+<li>
+<p><strong>规模为何能接受？</strong> <code>n ≤ 12</code>，状态总数 <code>n · 2ⁿ ≤ 12 × 4096 ≈ 5×10⁴</code>，BFS 完全够用。</p>
+</li>
+</ol>
+<h3 id="java-bfs">Java 实现（状态压缩 BFS）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.LinkedList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Queue</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">shortestPathLength</span><span class="p">(</span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">graph</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">graph</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">full</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 全部访问的掩码</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="o">[][]</span><span class="w"> </span><span class="n">visited</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">boolean</span><span class="o">[</span><span class="n">n</span><span class="o">][</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">n</span><span class="o">]</span><span class="p">;</span><span class="w">  </span><span class="c1">// visited[node][mask]</span>
+<span class="w">        </span><span class="n">Queue</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">queue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">LinkedList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+
+<span class="w">        </span><span class="c1">// 任意节点都可以作为起点</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">});</span>
+<span class="w">            </span><span class="n">visited</span><span class="o">[</span><span class="n">i</span><span class="o">][</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">queue</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">size</span><span class="p">;</span><span class="w"> </span><span class="n">s</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queue</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">mask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">mask</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">full</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="n">steps</span><span class="p">;</span><span class="w">                      </span><span class="c1">// 首次到达满掩码即最短</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">graph</span><span class="o">[</span><span class="n">node</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nextMask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mask</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">nxt</span><span class="p">);</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">visited</span><span class="o">[</span><span class="n">nxt</span><span class="o">][</span><span class="n">nextMask</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="n">visited</span><span class="o">[</span><span class="n">nxt</span><span class="o">][</span><span class="n">nextMask</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">                        </span><span class="n">queue</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="p">{</span><span class="n">nxt</span><span class="p">,</span><span class="w"> </span><span class="n">nextMask</span><span class="p">});</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">steps</span><span class="o">++</span><span class="p">;</span><span class="w">                                   </span><span class="c1">// 一整层扩展完毕，步数加一</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n² · 2ⁿ)。共 <code>n · 2ⁿ</code> 个状态，每个状态沿其邻接边扩展，邻接边总数乘以状态规模即上界；<code>n ≤ 12</code> 时可轻松通过。</li>
+<li>空间：O(n · 2ⁿ)。<code>visited</code> 表与 BFS 队列都以状态数为规模。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>忘了设置多源起点。</strong> 题目允许从任意节点出发，必须把所有 <code>(i, 1&lt;&lt;i)</code> 都作为初始状态入队，只从 0 出发会得到偏大答案。</li>
+<li><strong>误把 <code>visited</code> 只按节点维度记录。</strong> 必须按 <code>(node, mask)</code> 二维去重，否则同一节点在不同进度下会被错误地剪掉。</li>
+<li><strong>步数与层数的对应。</strong> BFS 按“层”推进，<code>steps</code> 应在整层处理完后自增；若在弹出时自增会差一。</li>
+<li><strong>扩展：等价于求「最短哈密顿路径」的松弛版。</strong> 因为允许重访，可先用 BFS 求出两两最短路，再在 <code>2ⁿ</code> 上做状压 DP（TSP 式）求最短覆盖路径；本解法直接在原图上做状态 BFS，避免额外建距离矩阵，实现更短。</li>
+<li><strong>边界：<code>n == 1</code>。</strong> 起点即满掩码，答案 0，代码在初始入队后第一次弹出就返回 0。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/shortest-path-visiting-all-nodes/" target="_blank" rel="noopener noreferrer">847. 访问所有节点的最短路径</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;queue&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;utility&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">shortestPathLength</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">graph</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">graph</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">full</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">visited</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">));</span>
+<span class="w">        </span><span class="n">queue</span><span class="o">&lt;</span><span class="n">pair</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">q</span><span class="p">;</span><span class="w"> </span><span class="c1">// (node, mask)</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">q</span><span class="p">.</span><span class="n">push</span><span class="p">({</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">});</span>
+<span class="w">            </span><span class="n">visited</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">q</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">sz</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">sz</span><span class="p">;</span><span class="w"> </span><span class="n">s</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">pair</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="n">front</span><span class="p">();</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="n">pop</span><span class="p">();</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">mask</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="n">second</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">mask</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">full</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">steps</span><span class="p">;</span>
+<span class="w">                </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">nxt</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">graph</span><span class="p">[</span><span class="n">node</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">nm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mask</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">nxt</span><span class="p">);</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">visited</span><span class="p">[</span><span class="n">nxt</span><span class="p">][</span><span class="n">nm</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                        </span><span class="n">visited</span><span class="p">[</span><span class="n">nxt</span><span class="p">][</span><span class="n">nm</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">                        </span><span class="n">q</span><span class="p">.</span><span class="n">push</span><span class="p">({</span><span class="n">nxt</span><span class="p">,</span><span class="w"> </span><span class="n">nm</span><span class="p">});</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">steps</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">deque</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">shortestPathLength</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span>
+        <span class="n">full</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">n</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">visited</span> <span class="o">=</span> <span class="p">[[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">i</span><span class="p">))</span>
+            <span class="n">visited</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="n">steps</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">q</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>
+                <span class="n">node</span><span class="p">,</span> <span class="n">mask</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">mask</span> <span class="o">==</span> <span class="n">full</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">steps</span>
+                <span class="k">for</span> <span class="n">nxt</span> <span class="ow">in</span> <span class="n">graph</span><span class="p">[</span><span class="n">node</span><span class="p">]:</span>
+                    <span class="n">nm</span> <span class="o">=</span> <span class="n">mask</span> <span class="o">|</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">nxt</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">visited</span><span class="p">[</span><span class="n">nxt</span><span class="p">][</span><span class="n">nm</span><span class="p">]:</span>
+                        <span class="n">visited</span><span class="p">[</span><span class="n">nxt</span><span class="p">][</span><span class="n">nm</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">nxt</span><span class="p">,</span> <span class="n">nm</span><span class="p">))</span>
+            <span class="n">steps</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

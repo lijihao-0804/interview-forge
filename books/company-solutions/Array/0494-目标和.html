@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>494. 目标和 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Array</div>
+        <h1 id="494">494. 目标和</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-0-1">Java 实现（0-1 背包计数 + 滚动数组）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>转化为 0-1 背包计数：选出一部分元素取正号使其和为 (sum+target)/2</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n · S)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(S)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个非负整数数组 <code>nums</code> 和一个整数 <code>target</code>。</p>
+<p>向数组中的每个整数前添加 <code>'+'</code> 或 <code>'-'</code>，然后串联起所有整数，可以构造一个<strong>表达式</strong>：</p>
+<ul>
+<li>例如，<code>nums = [2, 1]</code>，可以在 <code>2</code> 之前添加 <code>'+'</code>，在 <code>1</code> 之前添加 <code>'-'</code>，然后串联起来得到表达式 <code>"+2-1"</code>。</li>
+</ul>
+<p>返回可以通过上述方法构造的、运算结果等于 <code>target</code> 的不同<strong>表达式</strong>的数目。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [1,1,1,1,1], target = 3
+输出：5
+解释：一共有 5 种方法让最终目标和为 3。
+-1 + 1 + 1 + 1 + 1 = 3
++1 - 1 + 1 + 1 + 1 = 3
++1 + 1 - 1 + 1 + 1 = 3
++1 + 1 + 1 - 1 + 1 = 3
++1 + 1 + 1 + 1 - 1 = 3
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [1], target = 1
+输出：1
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= nums.length &lt;= 20</code></li>
+<li><code>0 &lt;= nums[i] &lt;= 1000</code></li>
+<li><code>0 &lt;= sum(nums[i]) &lt;= 1000</code></li>
+<li><code>-1000 &lt;= target &lt;= 1000</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>设所有元素之和为 <code>S</code>、取正号的元素和为 <code>P</code>，则表达式值 <code>= P - (S - P) = 2P - S</code>；令其等于 <code>target</code> 得 <code>P = (S + target) / 2</code>。问题等价于「从 <code>nums</code> 中选子集，使子集和恰为 <code>(S + target)/2</code> 的方案数」。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（为什么直接枚举不行？）</strong></li>
+</ol>
+<p>每个数有 <code>+</code>、<code>-</code> 两种选法，共 <code>2^n</code> 种组合。<code>n &lt;= 20</code> 时约 <code>10^6</code>，回溯能过；但若把规模放大就爆炸。我们想要一个多项式解法。</p>
+<ol start="2">
+<li><strong>破局思路（把“加减混合”改写成“选或不选”）</strong></li>
+</ol>
+<p>记取正号的元素集合求和为 <code>P</code>，其余取负号，则所有元素总和为 <code>S</code>：</p>
+<p><code>表达式值 = P - (S - P) = 2P - S</code>。</p>
+<p>要求它等于 <code>target</code>，即 <code>2P - S = target</code>，解得 <code>P = (S + target) / 2</code>。于是「给每个数加正负号」变成了「选出一个子集，使它的和恰好为 <code>bag = (S + target)/2</code>」，求方案数——标准的 <strong>0-1 背包计数</strong>。</p>
+<p>以 <code>nums=[1,1,1,1,1], target=3</code> 为例：<code>S=5</code>，<code>bag=(5+3)/2=4</code>，即「选 4 个 1 凑成 4」，从 5 个里选 4 个共 <code>C(5,4)=5</code> 种，答案正是 <code>5</code>。</p>
+<ol start="3">
+<li><strong>关键追问（无解条件的判定）</strong></li>
+</ol>
+<p>若 <code>S + target</code> 为奇数，则 <code>bag</code> 不是整数，无解返回 <code>0</code>；若 <code>S + target &lt; 0</code>（<code>target &lt; -S</code>），<code>bag</code> 为负，也无解返回 <code>0</code>。这两个前置判断必须在建 DP 之前做，否则下标会越界。</p>
+<h3 id="java-0-1">Java 实现（0-1 背包计数 + 滚动数组）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findTargetSumWays</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">sum</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 要求 sum + target 必须为非负偶数，否则无法凑出整数 bag</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">target</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">diff</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">diff</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">bag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// dp[j]：从已处理元素中选子集，和为 j 的方案数</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">bag</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="n">dp</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 选空集，和为 0，方案数为 1</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 0-1 背包：倒序枚举容量，保证每个元素只用一次</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bag</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">x</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">bag</span><span class="o">]</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n · bag)</code>，其中 <code>bag = (sum + target)/2 &lt;= 1000</code>。外层遍历元素、内层遍历容量，均为常数级上界。</li>
+<li>空间：<code>O(bag)</code>。滚动一维数组，只保留当前容量的方案数。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>忘记前置合法性判断</strong>：<code>sum + target</code> 为奇数或为负时直接无解。漏掉会得到非整数 <code>bag</code> 或负下标，数组越界或结果错误。</li>
+<li><strong>内层循环必须倒序</strong>：0-1 背包中每个元素只能用一次，容量 <code>j</code> 从大到小枚举；若正序枚举会退化成完全背包，同一元素被重复使用。</li>
+<li><strong><code>dp[0] = 1</code> 的初值含义</strong>：表示「不选任何元素、和为 0」这一种合法方案。初值设为 <code>0</code> 会导致所有结果都变成 <code>0</code>。</li>
+<li><strong>元素为 0 的情况</strong>：<code>nums</code> 可以含 <code>0</code>，此时内层 <code>j &gt;= x</code> 中 <code>x=0</code> 仍会执行 <code>dp[j] += dp[j]</code>，方案数翻倍——这恰好对应「<code>0</code> 取正或取负都算不同表达式」，是正确行为。</li>
+<li><strong>扩展——朴素回溯</strong>：<code>n &lt;= 20</code> 时也可直接 DFS 枚举正负号，<code>O(2^n)</code>；面试中通常要求先给回溯，再优化到背包 DP，并说明二者的等价转化。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/target-sum/" target="_blank" rel="noopener noreferrer">494. 目标和</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;numeric&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">findTargetSumWays</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">accumulate</span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="n">end</span><span class="p">(),</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">target</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// sum + target 必须为非负偶数</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">diff</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">diff</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">bag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dp</span><span class="p">(</span><span class="n">bag</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 选空集，一种方案</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 0-1 背包，容量倒序</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bag</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">x</span><span class="p">];</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dp</span><span class="p">[</span><span class="n">bag</span><span class="p">];</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">findTargetSumWays</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+        <span class="n">diff</span> <span class="o">=</span> <span class="n">total</span> <span class="o">+</span> <span class="n">target</span>
+
+        <span class="c1"># sum + target 必须为非负偶数</span>
+        <span class="k">if</span> <span class="n">diff</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">diff</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="n">bag</span> <span class="o">=</span> <span class="n">diff</span> <span class="o">//</span> <span class="mi">2</span>
+
+        <span class="c1"># dp[j]：子集和为 j 的方案数</span>
+        <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">bag</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">dp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># 选空集，一种方案</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+            <span class="c1"># 0-1 背包，容量倒序</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">bag</span><span class="p">,</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">dp</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="n">x</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">dp</span><span class="p">[</span><span class="n">bag</span><span class="p">]</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

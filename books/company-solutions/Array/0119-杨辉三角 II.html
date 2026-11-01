@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>119. 杨辉三角 II · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Array</div>
+        <h1 id="119-ii">119. 杨辉三角 II</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（滚动数组 · 原地递推）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>一维滚动数组，从后往前原地递推</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(rowIndex²)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(rowIndex)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个非负索引 <code>rowIndex</code>，返回「杨辉三角」的第 <code>rowIndex</code> 行（行下标从 0 开始）。</p>
+<p>在「杨辉三角」中，每个数是它左上方和右上方的数的和。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: rowIndex = 3
+输出: [1,3,3,1]
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: rowIndex = 0
+输出: [1]
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: rowIndex = 1
+输出: [1,1]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>0 &lt;= rowIndex &lt;= 33</code></li>
+</ul>
+<p><strong>进阶：</strong> 你可以优化你的算法到 <code>O(rowIndex)</code> 空间复杂度吗？</p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用一个长度为 <code>rowIndex+1</code> 的数组保存"当前行"，从后往前更新 <code>row[j] += row[j-1]</code> 时，<code>row[j-1]</code> 仍是上一行的旧值，因此不会覆盖尚未使用的数据。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>暴力做法与痛点</strong>：最容易想到的是维护整个二维三角形，逐行生成再取最后一行。但这样空间是 <code>O(rowIndex²)</code>，当 <code>rowIndex</code> 较大时浪费严重，也不满足"进阶"的 <code>O(rowIndex)</code> 要求。</p>
+</li>
+<li>
+<p><strong>观察递推关系</strong>：第 <code>i</code> 行完全由第 <code>i-1</code> 行决定——<code>row[i][j] = row[i-1][j-1] + row[i-1][j]</code>。既然只需要最后一行，就可以把二维压成一维：只保留"当前行"这一条数组，每轮在它自身上做递推。</p>
+</li>
+<li>
+<p><strong>从后往前是灵魂</strong>：如果从前往后更新，<code>row[j] = row[j] + row[j-1]</code> 时 <code>row[j-1]</code> 已经被本轮改过，用的是新值，结果就错了。改成<strong>从右往左</strong>遍历，<code>row[j-1]</code> 还没被试过，仍是上一行的值，正好满足公式。</p>
+</li>
+</ol>
+<p>以 <code>rowIndex = 3</code> 为例：
+   - 初始 <code>[1]</code>
+   - 第 1 行：末尾补 1 → <code>[1,1]</code>（无需内部更新）
+   - 第 2 行：补 1 → <code>[1,1,1]</code>，从 <code>j=1</code>：<code>row[1]=1+1=2</code> → <code>[1,2,1]</code>
+   - 第 3 行：补 1 → <code>[1,2,1,1]</code>，从 <code>j=2</code>：<code>row[2]=1+2=3</code>；<code>j=1</code>：<code>row[1]=2+1=3</code> → <code>[1,3,3,1]</code></p>
+<ol start="4">
+<li><strong>每行首尾恒为 1</strong>：所以每轮只需在末尾 <code>add(1)</code>，再对中间下标 <code>[1, i-1]</code> 做一次"右→左"的原地累加。</li>
+</ol>
+<h3 id="java">Java 实现（滚动数组 · 原地递推）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">getRow</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">rowIndex</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// row 始终保存当前行的值，目标空间 O(rowIndex)</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">(</span><span class="n">rowIndex</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="n">row</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 第 0 行只有 [1]</span>
+
+<span class="w">        </span><span class="c1">// 从第 1 行递推到第 rowIndex 行</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">rowIndex</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">row</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 每行末尾先补 1，占住位置</span>
+<span class="w">            </span><span class="c1">// 从后往前更新，避免覆盖上一行还没用到的 row[j-1]</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">row</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">row</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">row</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">));</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">row</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(rowIndex²)</code>。第 <code>i</code> 行要更新约 <code>i</code> 个位置，总更新次数为 <code>1+2+...+rowIndex</code>，即 <code>O(rowIndex²)</code>。</li>
+<li>空间：<code>O(rowIndex)</code>。只用一个长度为 <code>rowIndex+1</code> 的一维数组（返回值本身），没有额外的二维表。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>更新方向写反</strong>：从前往后更新会用到本轮已经改过的 <code>row[j-1]</code>，结果整行被污染。必须<strong>从右往左</strong>（<code>for (j = i-1; j &gt;= 1; j--)</code>）更新。</li>
+<li><strong>忘了先补末尾的 1</strong>：每行长度增加一位且末位恒为 1，若忘记 <code>add(1)</code> 会越界或漏掉末位。</li>
+<li><strong>边界 <code>rowIndex = 0</code></strong>：此时循环不进入，直接返回 <code>[1]</code>，验证初始化正确。</li>
+<li><strong>组合数公式法</strong>：第 <code>rowIndex</code> 行第 <code>k</code> 个数是 <code>C(rowIndex, k)</code>，可用 <code>C(n,k) = C(n,k-1) * (n-k+1) / k</code> 递推，做到 <code>O(rowIndex)</code> 时间；但中间乘积可能溢出，要用 <code>long</code> 承接后再整除。</li>
+<li><strong>整数范围</strong>：<code>rowIndex &lt;= 33</code> 时最大元素 <code>C(33,16) ≈ 1.17e9</code>，仍在 <code>int</code> 范围内，无需 <code>long</code>；若题目放宽上界则需改用 <code>long</code>。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/pascals-triangle-ii/" target="_blank" rel="noopener noreferrer">119. 杨辉三角 II</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">getRow</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">rowIndex</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">row</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 第 0 行</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">rowIndex</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">row</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">                 </span><span class="c1">// 末尾补 1</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="o">--</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="c1">// 从后往前更新</span>
+<span class="w">                </span><span class="n">row</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">row</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">row</span><span class="p">[</span><span class="n">j</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">];</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">row</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">getRow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rowIndex</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># 第 0 行</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">rowIndex</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># 末尾补 1</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>  <span class="c1"># 从后往前更新</span>
+                <span class="n">row</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">row</span><span class="p">[</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">row</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>16. 最接近的三数之和 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Array</div>
+        <h1 id="16">16. 最接近的三数之和</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（排序 + 双指针）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>排序 + 双指针逼近</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n²)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(log n)（排序的栈开销，可视为 O(1)）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个长度为 <code>n</code> 的整数数组 <code>nums</code> 和一个整数 <code>target</code>。</p>
+<p>请你从 <code>nums</code> 中选出三个在<strong>不同下标位置</strong>的整数，使它们的和与 <code>target</code> <strong>最接近</strong>。</p>
+<p>返回这三个数的和。</p>
+<p>假定每组输入只存在<strong>恰好</strong>一个解。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [-1,2,1,-4], target = 1
+输出：2
+解释：与 target 最接近的和是 2 (-1 + 2 + 1 = 2)。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [0,0,0], target = 1
+输出：0
+解释：与 target 最接近的和是 0（0 + 0 + 0 = 0）。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>3 &lt;= nums.length &lt;= 1000</code></li>
+<li><code>-1000 &lt;= nums[i] &lt;= 1000</code></li>
+<li><code>-10^4 &lt;= target &lt;= 10^4</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>数组排序后，固定第一个数 <code>nums[i]</code>，用左右双指针 <code>l &lt; r</code> 包围剩余区间：当前和小于 <code>target</code> 时右移 <code>l</code> 只能让和变大，大于 <code>target</code> 时左移 <code>r</code> 只能让和变小。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（三重循环太慢）</strong></li>
+</ol>
+<p>三个数各枚举一遍是 <code>O(n³)</code>，<code>n</code> 最大 1000 时约 <code>10⁹</code> 次运算，必然超时。问题在于：我们并不需要"找到某个精确组合"，而是要<strong>让和尽量接近 <code>target</code></strong>，这天然适合用"排序后有序地逼近"来做。</p>
+<ol start="2">
+<li><strong>破局思路（排序 + 固定一个 + 双指针）</strong></li>
+</ol>
+<p>先把数组排序。枚举第一个数 <code>nums[i]</code>，问题就退化成"在 <code>i</code> 之后的区间里选两个数，让二元和尽量接近 <code>target - nums[i]</code>"。对有序区间，用左右指针 <code>l = i+1</code>、<code>r = n-1</code> 从两端向中间逼近：</p>
+<ul>
+<li>计算 <code>sum = nums[i] + nums[l] + nums[r]</code>，用它更新当前最优 <code>best</code>；</li>
+<li>若 <code>sum &lt; target</code>，说明和偏小，只有右移 <code>l</code>（换成更大的数）才可能更接近，<code>l++</code>；</li>
+<li>若 <code>sum &gt; target</code>，说明和偏大，只有左移 <code>r</code>（换成更小的数）才可能更接近，<code>r--</code>；</li>
+<li>若恰好 <code>sum == target</code>，距离为 0，已是最优，直接返回。</li>
+</ul>
+<p>以 <code>nums = [-1,2,1,-4], target = 1</code> 为例：排序得 <code>[-4,-1,1,2]</code>。固定 <code>-4</code>，<code>l=-1, r=2</code> 得 <code>-3</code>；偏小右移，<code>l=1</code> 得 <code>-1</code>；偏小右移，<code>l=r</code> 结束。固定 <code>-1</code>，<code>l=1, r=2</code> 得 <code>2</code>，恰为答案。</p>
+<ol start="3">
+<li><strong>关键追问（为什么双指针不会漏解？）</strong></li>
+</ol>
+<p>因为数组有序。当 <code>sum &lt; target</code> 时，固定 <code>r</code> 而把 <code>l</code> 往左任何位置都只会更小、更差，所以 <code>l</code> 当前位置的所有组合里 <code>nums[r]</code> 已经是能给出的最大值，可以安全地 <code>l++</code> 淘汰。<code>sum &gt; target</code> 时同理。这样每步都排除一整行/一整列，双指针合计只扫描一遍区间，配合外层 <code>i</code> 就是 <code>O(n²)</code>。</p>
+<ol start="4">
+<li><strong>易错点提示</strong></li>
+</ol>
+<ul>
+<li>初始 <code>best</code> 不要设成 <code>Integer.MAX_VALUE</code>，最好用前三个数的和，避免后续比较时整数溢出。</li>
+<li>距离比较要用绝对值 <code>Math.abs(sum - target) &lt; Math.abs(best - target)</code>。</li>
+<li>想去重可加 <code>if (i &gt; 0 &amp;&amp; nums[i] == nums[i-1]) continue;</code>，但本题不要求去重，加不加都不影响正确性。</li>
+</ul>
+<h3 id="java">Java 实现（排序 + 双指针）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">threeSumClosest</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">nums</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">length</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 用前三个数之和初始化最优解，避免使用 MAX_VALUE 导致相减溢出</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="mi">2</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 固定第一个数 nums[i]，在右侧用双指针找最接近的二元和</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">l</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">r</span><span class="o">]</span><span class="p">;</span>
+
+<span class="w">                </span><span class="c1">// 用当前和更新最优解</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">Math</span><span class="p">.</span><span class="na">abs</span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">abs</span><span class="p">(</span><span class="n">best</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">target</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">l</span><span class="o">++</span><span class="p">;</span><span class="w">          </span><span class="c1">// 和偏小，右移左指针让和变大</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">r</span><span class="o">--</span><span class="p">;</span><span class="w">          </span><span class="c1">// 和偏大，左移右指针让和变小</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="n">target</span><span class="p">;</span><span class="w"> </span><span class="c1">// 恰好命中，距离为 0，最优</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n²)</code>。排序 <code>O(n log n)</code>；外层枚举 <code>i</code> 共 <code>n</code> 次，内层双指针每个 <code>i</code> 只走一遍区间 <code>O(n)</code>，合计 <code>O(n²)</code>。</li>
+<li>空间：<code>O(log n)</code>。主要来自排序的递归栈（快排/归并实现相关），不计排序则为 <code>O(1)</code> 的常数变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong><code>best</code> 初始化导致溢出</strong>：若初始化为 <code>Integer.MAX_VALUE</code>，<code>best - target</code> 可能溢出成负数，比较失效。用前三数之和初始化最安全。</li>
+<li><strong>忘记取绝对值</strong>：<code>sum - target</code> 可能为负，"更小"不等于"更接近"，必须比较 <code>|sum - target|</code>。</li>
+<li><strong>和恰好相等要尽早返回</strong>：<code>sum == target</code> 时距离为 0，不可能更优，提前 <code>return</code> 可剪枝。</li>
+<li><strong>面试追问——和三数之和（LeetCode 15）的区别</strong>：15 题要求"和为 0 且去重、返回所有组合"，本题只要求"最接近的一个和"，因此不必收集结果、不必去重，只需维护 <code>best</code>，两者框架完全相同。</li>
+<li><strong>剪枝优化</strong>：在有序数组中，若 <code>nums[i] + nums[i+1] + nums[i+2] &gt; target</code> 可提前结束外层循环，若 <code>nums[i] + nums[n-1] + nums[n-2] &lt; target</code> 可跳过当前 <code>i</code>，实际运行更快（不影响 <code>O(n²)</code> 上界）。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/3sum-closest/" target="_blank" rel="noopener noreferrer">16. 最接近的三数之和</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;algorithm&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cstdlib&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">threeSumClosest</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">sort</span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="n">end</span><span class="p">());</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="mi">2</span><span class="p">];</span><span class="w">  </span><span class="c1">// 用前三数初始化</span>
+
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">];</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">abs</span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">abs</span><span class="p">(</span><span class="n">best</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">target</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sum</span><span class="p">;</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">l</span><span class="o">++</span><span class="p">;</span><span class="w">         </span><span class="c1">// 和偏小，右移左指针</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sum</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">target</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="n">r</span><span class="o">--</span><span class="p">;</span><span class="w">         </span><span class="c1">// 和偏大，左移右指针</span>
+<span class="w">                </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="n">target</span><span class="p">;</span><span class="w"> </span><span class="c1">// 命中，距离为 0</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">best</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">threeSumClosest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">target</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">nums</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nums</span><span class="p">)</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>  <span class="c1"># 用前三数初始化</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">l</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">+</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">best</span> <span class="o">-</span> <span class="n">target</span><span class="p">):</span>
+                    <span class="n">best</span> <span class="o">=</span> <span class="n">s</span>
+                <span class="k">if</span> <span class="n">s</span> <span class="o">&lt;</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>        <span class="c1"># 和偏小，右移左指针</span>
+                <span class="k">elif</span> <span class="n">s</span> <span class="o">&gt;</span> <span class="n">target</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>        <span class="c1"># 和偏大，左移右指针</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">target</span>  <span class="c1"># 命中，距离为 0</span>
+        <span class="k">return</span> <span class="n">best</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

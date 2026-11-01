@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>617. 合并二叉树 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Tree</div>
+        <h1 id="617">617. 合并二叉树</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（递归合并）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>二叉树递归（同步遍历两棵树）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(min(m, n))，m、n 为两棵树的节点数</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(min(m, n))，递归栈深度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你两棵二叉树 <code>root1</code> 和 <code>root2</code>。</p>
+<p>想象一下，当你把其中一棵树覆盖到另一棵之上时，两棵树上的一些节点会重叠（另一些不会）。你需要把这两棵树合并成一棵新的二叉树。合并规则是：如果两个节点重叠，那么把这两个节点的值相加作为合并后节点的新值；否则，<strong>不为</strong> <code>null</code> 的那个节点将直接作为新二叉树的节点。</p>
+<p>返回合并后的二叉树。</p>
+<p><strong>注意：</strong> 合并过程必须从两棵树的根节点开始。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：root1 = [1,3,2,5], root2 = [2,1,3,null,4,null,7]
+输出：[3,4,5,5,4,null,7]
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：root1 = [1], root2 = [1,2]
+输出：[2,2]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li>两棵树中的节点数目在范围 <code>[0, 2000]</code> 内</li>
+<li><code>-10^4 &lt;= Node.val &lt;= 10^4</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>对任意一对对应节点：两者都存在时值相加并继续递归；只要有一方为空，就直接返回另一方子树，无需再往下处理。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉（合并是逐节点一一对应的）</strong></li>
+</ol>
+<p>两棵树的根对齐，左对左、右对右。合并结果中每个位置的取值只取决于同一位置上的两个节点。这天然是一棵「按同样结构递归」的题目：先处理当前节点，再分别处理左右子树。</p>
+<ol start="2">
+<li><strong>递归三要素</strong></li>
+</ol>
+<ul>
+<li><strong>终止条件</strong>：若 <code>root1</code> 为空，说明这棵子树没有内容，直接返回 <code>root2</code>；若 <code>root2</code> 为空，直接返回 <code>root1</code>。这样「一方为空」的分支就能整体嫁接过来，不必逐节点遍历。</li>
+<li><strong>当前层处理</strong>：两棵都不为空时，把 <code>root2.val</code> 累加到 <code>root1.val</code> 上，用 <code>root1</code> 作为合并后的节点。</li>
+<li><strong>递归子问题</strong>：<code>root1.left = merge(root1.left, root2.left)</code>，右子树同理。</li>
+</ul>
+<ol start="3">
+<li><strong>小例子</strong></li>
+</ol>
+<p>示例 1：根节点 <code>1 + 2 = 3</code>；左孩子 <code>3 + 1 = 4</code>；右孩子 <code>2 + 3 = 5</code>。<code>root1</code> 左孩子的左孩子是 <code>5</code>，而 <code>root2</code> 对应位置为空，于是直接保留 <code>5</code>；<code>root2</code> 左孩子的右孩子是 <code>4</code>，<code>root1</code> 对应为空，于是直接嫁接到 <code>4</code>；右孩子 <code>7</code> 同理保留。结果 <code>[3,4,5,5,4,null,7]</code>，与题目一致。</p>
+<ol start="4">
+<li><strong>原地复用 vs 新建</strong></li>
+</ol>
+<p>直接在 <code>root1</code> 上修改即可（返回值就是 <code>root1</code>）。因为一旦某一方为空就整体返回另一方，没有重叠的子树会被原样复用，天然做到「不为 null 的节点直接作为新节点」。若题目要求不破坏原树，再考虑新建节点。</p>
+<h3 id="java">Java 实现（递归合并）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode left;</span>
+<span class="cm"> *     TreeNode right;</span>
+<span class="cm"> *     TreeNode() {}</span>
+<span class="cm"> *     TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> *     TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> *         this.val = val;</span>
+<span class="cm"> *         this.left = left;</span>
+<span class="cm"> *         this.right = right;</span>
+<span class="cm"> *     }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">mergeTrees</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root1</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 一方为空，直接返回另一方（整棵子树嫁接）</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root2</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 两棵都不为空：值相加，复用 root1 作为合并后的节点</span>
+<span class="w">        </span><span class="n">root1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">val</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 递归合并左右子树</span>
+<span class="w">        </span><span class="n">root1</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+<span class="w">        </span><span class="n">root1</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(min(m, n))</code>。只有两棵树对应位置都存在的节点才会被访问并继续递归；一旦某方为空就整枝返回，故访问量不超过较小树的节点数。</li>
+<li>空间：<code>O(min(m, n))</code>。递归栈的最大深度等于重叠部分的高度，最坏为较小树的树高，退化成链表时为 <code>O(min(m, n))</code>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>终止条件顺序</strong>：先判 <code>root1 == null</code> 返回 <code>root2</code>，再判 <code>root2 == null</code> 返回 <code>root1</code>，两者都为空时返回 <code>null</code> 也自然成立。</li>
+<li><strong>忘记返回值</strong>：递归要写成 <code>root1.left = mergeTrees(...)</code>，只调用不赋值会导致子树丢失。</li>
+<li><strong>原地修改的副作用</strong>：本解法复用了 <code>root1</code>，会改变输入的树；若业务不允许修改输入，应新建节点。</li>
+<li><strong>迭代写法</strong>：也可用队列成对入队做 BFS，遇到一方为空就把另一方接到父节点上，避免递归栈溢出，适合树很深的情况。</li>
+<li><strong>面试追问</strong>：若要求「重叠时取较大值」或「乘积」等其它规则，只需修改当前层的合并逻辑，框架不变。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/merge-two-binary-trees/" target="_blank" rel="noopener noreferrer">617. 合并二叉树</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * struct TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode *left;</span>
+<span class="cm"> *     TreeNode *right;</span>
+<span class="cm"> *     TreeNode() : val(0), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x, TreeNode *left, TreeNode *right) : val(x), left(left), right(right) {}</span>
+<span class="cm"> * };</span>
+<span class="cm"> */</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">root1</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root2</span><span class="p">;</span><span class="w">   </span><span class="c1">// 整枝嫁接</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">val</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">;</span><span class="w">             </span><span class="c1">// 重叠节点值相加</span>
+<span class="w">        </span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">);</span>
+<span class="w">        </span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Definition for a binary tree node.</span>
+<span class="c1"># class TreeNode:</span>
+<span class="c1">#     def __init__(self, val=0, left=None, right=None):</span>
+<span class="c1">#         self.val = val</span>
+<span class="c1">#         self.left = left</span>
+<span class="c1">#         self.right = right</span>
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">mergeTrees</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root1</span><span class="p">:</span> <span class="n">TreeNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">root2</span><span class="p">:</span> <span class="n">TreeNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TreeNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">root1</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">root2</span>          <span class="c1"># 整枝嫁接</span>
+        <span class="k">if</span> <span class="n">root2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">root1</span>
+
+        <span class="n">root1</span><span class="o">.</span><span class="n">val</span> <span class="o">+=</span> <span class="n">root2</span><span class="o">.</span><span class="n">val</span>    <span class="c1"># 重叠节点值相加</span>
+        <span class="n">root1</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+        <span class="n">root1</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mergeTrees</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">root1</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

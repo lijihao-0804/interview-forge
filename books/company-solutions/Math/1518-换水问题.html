@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>1518. 换水问题 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="1518">1518. 换水问题</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-numwaterbottles">Java 实现（numWaterBottles）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>模拟（空瓶兑换循环）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(log_{numExchange} numBottles)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>超市正在促销，你可以用 <code>numExchange</code> 个空水瓶从超市兑换一瓶水。最开始，你一共购入了 <code>numBottles</code> 瓶水。</p>
+<p>如果喝掉了水瓶中的水，那么水瓶就会变成空的。</p>
+<p>给你两个整数 <code>numBottles</code> 和 <code>numExchange</code>，返回你<strong>最多</strong>可以喝到多少瓶水。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：numBottles = 9, numExchange = 3
+输出：13
+解释：你可以用 3 个空瓶兑换 1 瓶水。
+所以最多能喝到 9 + 3 + 1 = 13 瓶水。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：numBottles = 15, numExchange = 4
+输出：19
+解释：你可以用 4 个空瓶兑换 1 瓶水。
+所以最多能喝到 15 + 3 + 1 = 19 瓶水。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= numBottles &lt;= 100</code></li>
+<li><code>2 &lt;= numExchange &lt;= 100</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每轮兑换后，空瓶数变为「本次兑换剩余的空瓶（余数）+ 新兑换并喝掉产生的空瓶（商）」，总喝到的瓶数持续累加，直到空瓶数不足以再兑换。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉（把过程一步步模拟）</strong>：初始买了 <code>numBottles</code> 瓶，喝完全部变成空瓶，所以「已喝瓶数」和「空瓶数」一开始都是 <code>numBottles</code>。</p>
+</li>
+<li>
+<p><strong>每轮兑换</strong>：只要空瓶数 <code>empty &gt;= numExchange</code>，就能兑换。兑换得到的水瓶数 <code>newBottles = empty / numExchange</code>，喝掉后它们又变成空瓶；同时 <code>empty % numExchange</code> 是这次没凑够一份、留下来的空瓶。于是更新：
+   - <code>total += newBottles</code>
+   - <code>empty = empty % numExchange + newBottles</code></p>
+</li>
+<li>
+<p><strong>终止条件</strong>：当 <code>empty &lt; numExchange</code> 时无法再兑换，循环结束，返回 <code>total</code>。</p>
+</li>
+<li>
+<p><strong>小例子</strong>：<code>numBottles = 9, numExchange = 3</code>。
+   - 初始 total = 9, empty = 9。
+   - 第一轮 new = 3, total = 12, empty = 0 + 3 = 3。
+   - 第二轮 new = 1, total = 13, empty = 0 + 1 = 1。
+   - 1 &lt; 3 结束，返回 13。</p>
+</li>
+</ol>
+<h3 id="java-numwaterbottles">Java 实现（numWaterBottles）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">numWaterBottles</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numBottles</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">numExchange</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numBottles</span><span class="p">;</span><span class="w">   </span><span class="c1">// 已经喝到的瓶数</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numBottles</span><span class="p">;</span><span class="w">   </span><span class="c1">// 当前手里的空瓶数</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">empty</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">numExchange</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">newBottles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">numExchange</span><span class="p">;</span><span class="w">      </span><span class="c1">// 本轮兑换到的新水</span>
+<span class="w">            </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">newBottles</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// 剩余没凑够一份的空瓶 + 新喝出的空瓶</span>
+<span class="w">            </span><span class="n">empty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">numExchange</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">newBottles</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(log_{numExchange} numBottles)。每轮空瓶数大约缩小为原来的 1/numExchange，对数级收敛。</li>
+<li>空间：O(1)，只用常数个变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>空瓶更新别只写 <code>empty / numExchange</code></strong>：必须加上余数 <code>empty % numExchange</code>，否则会丢掉没兑换掉的空瓶。</li>
+<li><strong>初始值别写错</strong>：<code>total</code> 与 <code>empty</code> 都应初始化为 <code>numBottles</code>，因为一开始买的全部会喝掉。</li>
+<li><strong>循环条件用 <code>&gt;=</code></strong>：恰好等于 <code>numExchange</code> 时仍可兑换一瓶。</li>
+<li><strong>数学公式法（扩展）</strong>：本题等价于「每换一瓶净消耗 <code>numExchange - 1</code> 个空瓶」，答案可写成 <code>numBottles + (numBottles - 1) / (numExchange - 1)</code>，可作为 O(1) 解法在面试中炫技。</li>
+<li><strong>边界</strong>：<code>numExchange = 2</code> 时最激进，空瓶几乎全都能再换，结果接近 <code>2 * numBottles - 1</code>。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/water-bottles/" target="_blank" rel="noopener noreferrer">1518. 换水问题</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">numWaterBottles</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">numBottles</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">numExchange</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numBottles</span><span class="p">;</span><span class="w">   </span><span class="c1">// 已经喝到的瓶数</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">numBottles</span><span class="p">;</span><span class="w">   </span><span class="c1">// 当前空瓶数</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">empty</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">numExchange</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">newBottles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">numExchange</span><span class="p">;</span>
+<span class="w">            </span><span class="n">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">newBottles</span><span class="p">;</span>
+<span class="w">            </span><span class="n">empty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">empty</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">numExchange</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">newBottles</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">total</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">numWaterBottles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">numBottles</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">numExchange</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">numBottles</span>   <span class="c1"># 已经喝到的瓶数</span>
+        <span class="n">empty</span> <span class="o">=</span> <span class="n">numBottles</span>   <span class="c1"># 当前空瓶数</span>
+        <span class="k">while</span> <span class="n">empty</span> <span class="o">&gt;=</span> <span class="n">numExchange</span><span class="p">:</span>
+            <span class="n">new_bottles</span> <span class="o">=</span> <span class="n">empty</span> <span class="o">//</span> <span class="n">numExchange</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">new_bottles</span>
+            <span class="n">empty</span> <span class="o">=</span> <span class="n">empty</span> <span class="o">%</span> <span class="n">numExchange</span> <span class="o">+</span> <span class="n">new_bottles</span>
+        <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

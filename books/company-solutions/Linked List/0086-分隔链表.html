@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>86. 分隔链表 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Linked List</div>
+        <h1 id="86">86. 分隔链表</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（双哑结点拆分拼接）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>双哑结点拆分两条子链表再拼接</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个链表的头节点 <code>head</code> 和一个特定值 <code>x</code> ，请你对链表进行分隔，使得所有<strong>小于</strong> <code>x</code> 的节点都出现在<strong>大于或等于</strong> <code>x</code> 的节点之前。</p>
+<p>你应当<strong>保留</strong>两个分区中每个节点的初始相对位置。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：head = [1,4,3,2,5,2], x = 3
+输出：[1,2,2,4,3,5]
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：head = [2,1], x = 2
+输出：[1,2]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li>链表中节点的数目在范围 <code>[0, 200]</code> 内</li>
+<li><code>-100 &lt;= Node.val &lt;= 100</code></li>
+<li><code>-200 &lt;= x &lt;= 200</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用两条子链表分别收集"小于 <code>x</code>"与"大于等于 <code>x</code>"的节点，各自在尾部追加就能天然保持相对顺序；最后把 <code>small</code> 尾部接到 <code>large</code> 头部即可。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（原地交换指针可行吗？）</strong></li>
+</ol>
+<p>若试图在原链表上"就地交换"，节点分散且相对顺序要保持，指针操作极易乱套，还容易成环。题目允许 <code>O(n)</code> 时间、<code>O(1)</code> 额外空间，最省心的是"<strong>拆成两条链再拼接</strong>"。</p>
+<ol start="2">
+<li><strong>破局思路（两个哑结点，尾部追加）</strong></li>
+</ol>
+<p>建两个哑结点 <code>smallDummy</code>、<code>largeDummy</code>，各带一个尾指针 <code>small</code>、<code>large</code>：</p>
+<ul>
+<li>若 <code>cur.val &lt; x</code>：把 <code>cur</code> 接到 <code>small</code> 后面，<code>small</code> 后移；</li>
+<li>否则：把 <code>cur</code> 接到 <code>large</code> 后面，<code>large</code> 后移。</li>
+</ul>
+<p>因为总是往各自尾部追加，两类节点内部的<strong>相对顺序被自然保留</strong>。</p>
+<p>以 <code>[1,4,3,2,5,2], x = 3</code> 为例：<code>small</code> 依次收 <code>1,2,2</code>，<code>large</code> 依次收 <code>4,3,5</code>；拼接后得到 <code>1→2→2→4→3→5</code>。</p>
+<ol start="3">
+<li><strong>关键追问（拼接时为什么要先 <code>large.next = null</code>？）</strong></li>
+</ol>
+<p><code>large</code> 的最后一个节点原本可能还指向原链表中的某个节点，若直接拼接可能形成环或引入多余节点。把 <code>large.next</code> 置空，保证大链表干净收尾，再 <code>small.next = largeDummy.next</code> 完成拼接。</p>
+<ol start="4">
+<li><strong>收尾</strong></li>
+</ol>
+<p>返回 <code>smallDummy.next</code>。若没有小于 <code>x</code> 的节点，<code>small</code> 链为空，<code>smallDummy.next</code> 恰好指向 <code>large</code> 链的头，仍然正确；若没有大于等于 <code>x</code> 的节点，<code>largeDummy.next</code> 为 <code>null</code>，拼接后 <code>small</code> 链尾部自然指向 <code>null</code>。</p>
+<h3 id="java">Java 实现（双哑结点拆分拼接）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * public class ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode next;</span>
+<span class="cm"> *     ListNode() {}</span>
+<span class="cm"> *     ListNode(int val) { this.val = val; }</span>
+<span class="cm"> *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">partition</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">smallDummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="c1">// 小于 x 的链表头</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">largeDummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"> </span><span class="c1">// 大于等于 x 的链表头</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">small</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">smallDummy</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">largeDummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">small</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">                </span><span class="n">small</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">small</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">large</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">                </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">large</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">          </span><span class="c1">// 断开大链表尾部，避免成环</span>
+<span class="w">        </span><span class="n">small</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">largeDummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span><span class="w"> </span><span class="c1">// 小链表尾接大链表头</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">smallDummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n)</code>。只需一次遍历，每个节点做常数次指针操作。</li>
+<li>空间：<code>O(1)</code>。只用两个哑结点和几个指针，节点原对象被复用，没有新建节点（哑结点为常量级）。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>忘记 <code>large.next = null</code></strong>：大链表尾部可能残留旧指向，拼接后可能成环或带出多余节点，是最常见的错误。</li>
+<li><strong>用新建节点复制值而非复用原节点</strong>：题目要求保持原有节点相对顺序，复用节点更省内存，也避免破坏原结构理解；本解法直接搬节点。</li>
+<li><strong>边界：空链表 / 全部小于 x / 全部大于等于 x</strong>：这几种情况下两条子链之一为空，靠哑结点能自动处理，无需特判。</li>
+<li><strong><code>&lt; x</code> 与 <code>&gt;= x</code> 的分界</strong>：等于 <code>x</code> 的节点要归到<strong>大</strong>链表一侧，判断条件必须用严格 <code>&lt; x</code>。</li>
+<li><strong>扩展对比</strong>：这是"链表分区"模板，类似思想可用于按奇偶、按正负拆分链表；核心都是"多个哑结点 + 尾指针追加 + 最后拼接"。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/partition-list/" target="_blank" rel="noopener noreferrer">86. 分隔链表</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for singly-linked list.</span>
+<span class="cm"> * struct ListNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     ListNode *next;</span>
+<span class="cm"> *     ListNode() : val(0), next(nullptr) {}</span>
+<span class="cm"> *     ListNode(int x) : val(x), next(nullptr) {}</span>
+<span class="cm"> *     ListNode(int x, ListNode *next) : val(x), next(next) {}</span>
+<span class="cm"> * };</span>
+<span class="cm"> */</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">partition</span><span class="p">(</span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">smallDummy</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="n">largeDummy</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">small</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">smallDummy</span><span class="p">;</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">largeDummy</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="o">*</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="o">-&gt;</span><span class="n">val</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">small</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">                </span><span class="n">small</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">small</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">                </span><span class="n">large</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cur</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">large</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span><span class="w">       </span><span class="c1">// 断开大链表尾部</span>
+<span class="w">        </span><span class="n">small</span><span class="o">-&gt;</span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">largeDummy</span><span class="p">.</span><span class="n">next</span><span class="p">;</span><span class="w"> </span><span class="c1">// 拼接</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">smallDummy</span><span class="p">.</span><span class="n">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Definition for singly-linked list.</span>
+<span class="c1"># class ListNode:</span>
+<span class="c1">#     def __init__(self, val=0, next=None):</span>
+<span class="c1">#         self.val = val</span>
+<span class="c1">#         self.next = next</span>
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">partition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head</span><span class="p">:</span> <span class="n">ListNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ListNode</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">small_dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># 小于 x 的链表头</span>
+        <span class="n">large_dummy</span> <span class="o">=</span> <span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># 大于等于 x 的链表头</span>
+        <span class="n">small</span><span class="p">,</span> <span class="n">large</span> <span class="o">=</span> <span class="n">small_dummy</span><span class="p">,</span> <span class="n">large_dummy</span>
+
+        <span class="n">cur</span> <span class="o">=</span> <span class="n">head</span>
+        <span class="k">while</span> <span class="n">cur</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cur</span><span class="o">.</span><span class="n">val</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">:</span>
+                <span class="n">small</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">cur</span>
+                <span class="n">small</span> <span class="o">=</span> <span class="n">small</span><span class="o">.</span><span class="n">next</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">large</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">cur</span>
+                <span class="n">large</span> <span class="o">=</span> <span class="n">large</span><span class="o">.</span><span class="n">next</span>
+            <span class="n">cur</span> <span class="o">=</span> <span class="n">cur</span><span class="o">.</span><span class="n">next</span>
+
+        <span class="n">large</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>            <span class="c1"># 断开大链表尾部，避免成环</span>
+        <span class="n">small</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">large_dummy</span><span class="o">.</span><span class="n">next</span>  <span class="c1"># 拼接</span>
+        <span class="k">return</span> <span class="n">small_dummy</span><span class="o">.</span><span class="n">next</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

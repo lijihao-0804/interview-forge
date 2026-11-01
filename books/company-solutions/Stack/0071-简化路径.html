@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>71. 简化路径 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Stack</div>
+        <h1 id="71">71. 简化路径</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（栈）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>按 <code>/</code> 切分 + 栈模拟目录进出</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个字符串 <code>path</code>，表示指向某一文件或目录的 Unix 风格<strong>绝对路径</strong>（以 <code>'/'</code> 开头），请你将其转化为<strong>更加简洁的规范路径</strong>。</p>
+<p>在 Unix 风格的文件系统中规则如下：</p>
+<ul>
+<li>一个点 <code>'.'</code> 表示当前目录本身。</li>
+<li>此外，两个点 <code>'..'</code> 表示将目录切换到上一级（指向父目录）。</li>
+<li>任意多个连续的斜杠（即 <code>'//'</code> 或 <code>'///'</code>）都被视为单个斜杠 <code>'/'</code>。</li>
+<li>任何其他格式的点（例如，<code>'...'</code> 或 <code>'....'</code>）均被视为有效的文件/目录名称。</li>
+</ul>
+<p>返回的<strong>简化路径</strong>必须遵循下述格式：</p>
+<ul>
+<li>始终以斜杠 <code>'/'</code> 开头。</li>
+<li>两个目录名之间必须只有一个斜杠 <code>'/'</code>。</li>
+<li>最后一个目录名（如果存在）<strong>不能</strong>以 <code>'/'</code> 结尾。</li>
+<li>此外，路径仅包含从根目录到目标文件或目录的路径上的目录（即，不含 <code>'.'</code> 或 <code>'..'</code>）。</li>
+</ul>
+<p>返回简化后得到的<strong>规范路径</strong>。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：path = &quot;/home/&quot;
+输出：&quot;/home&quot;
+解释：应删除尾随斜杠。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：path = &quot;/home//foo/&quot;
+输出：&quot;/home/foo&quot;
+解释：多个连续的斜杠被单个斜杠替换。
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：path = &quot;/home/user/Documents/../Pictures&quot;
+输出：&quot;/home/user/Pictures&quot;
+解释：两个点 &quot;..&quot; 表示上一级目录（父目录）。
+</code></pre></div>
+
+<p><strong>示例 4：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：path = &quot;/../&quot;
+输出：&quot;/&quot;
+解释：不可能从根目录上升一级目录。
+</code></pre></div>
+
+<p><strong>示例 5：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：path = &quot;/.../a/../b/c/../d/./&quot;
+输出：&quot;/.../b/d&quot;
+解释：&quot;...&quot; 在这个问题中是一个合法的目录名。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= path.length &lt;= 3000</code></li>
+<li><code>path</code> 由英文字母，数字，<code>'.'</code>，<code>'/'</code> 或 <code>'_'</code> 组成。</li>
+<li><code>path</code> 是一个有效的 Unix 风格绝对路径。</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用栈保存"已经确定的目录名"：遇到普通名字就入栈，遇到 <code>..</code> 就弹出栈顶（栈空则忽略），遇到 <code>.</code> 或空串就跳过；最终栈里的内容就是规范路径的各级目录。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（为什么是栈）</strong></li>
+</ol>
+<p><code>..</code> 的含义是"退回上一级"，正好对应"撤销最近一次进入的目录"。这种<strong>后进先出</strong>的行为就是栈。把每个有效目录名压栈，遇到 <code>..</code> 就弹栈，天然实现了目录的进出。</p>
+<ol start="2">
+<li><strong>破局思路（先切分，再逐个处理）</strong></li>
+</ol>
+<p>连续的 <code>/</code> 会产生空串，<code>/</code> 本身也可以用 <code>split("/")</code> 拆开。对每个片段 <code>part</code>：</p>
+<ul>
+<li><code>part == ""</code> 或 <code>part == "."</code>：无意义，跳过；</li>
+<li><code>part == ".."</code>：若栈非空则弹栈（根目录再往上无效，直接忽略）；</li>
+<li>其他：合法的目录名，入栈。</li>
+</ul>
+<p>以 <code>"/home/user/Documents/../Pictures"</code> 为例：依次入栈 <code>home</code>、<code>user</code>、<code>Documents</code>，遇 <code>..</code> 弹出 <code>Documents</code>，再入 <code>Pictures</code>，栈为 <code>[home, user, Pictures]</code>，拼成 <code>"/home/user/Pictures"</code>。</p>
+<ol start="3">
+<li><strong>关键追问（<code>"..."</code> 为什么是合法目录名？）</strong></li>
+</ol>
+<p>规则明确只有单个 <code>.</code> 和双个 <code>..</code> 有特殊含义，<code>"..."</code>、<code>"...."</code> 等都当作普通目录名。所以判断必须用<strong>精确相等</strong> <code>part == "."</code> / <code>part == ".."</code>，不能用"以点开头"之类模糊条件。</p>
+<ol start="4">
+<li><strong>易错点提示</strong></li>
+</ol>
+<ul>
+<li>用精确相等判断，<code>"..."</code> 不能当 <code>..</code> 处理。</li>
+<li><code>..</code> 在根目录时弹栈要防空。</li>
+<li>最后拼接要以 <code>/</code> 开头、无尾斜杠；栈空时返回 <code>"/"</code>。</li>
+</ul>
+<h3 id="java">Java 实现（栈）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="nf">simplifyPath</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="c1">// 按 &#39;/&#39; 切分，连续斜杠会产生空串，统一跳过</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">path</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;/&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">part</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">part</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;.&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 当前目录，忽略</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">part</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;..&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stack</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w">   </span><span class="c1">// 根目录之上无效</span>
+<span class="w">                    </span><span class="n">stack</span><span class="p">.</span><span class="na">pollLast</span><span class="p">();</span><span class="w">     </span><span class="c1">// 退回上一级</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">stack</span><span class="p">.</span><span class="na">addLast</span><span class="p">(</span><span class="n">part</span><span class="p">);</span><span class="w">      </span><span class="c1">// 合法目录名入栈</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">dir</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">stack</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="sc">&#39;/&#39;</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="n">dir</span><span class="p">);</span><span class="w">   </span><span class="c1">// 每级前补一个 &#39;/&#39;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">length</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">toString</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n)</code>，切分与遍历每个字符/片段各一次。</li>
+<li>空间：<code>O(n)</code>，栈最多保存全部目录名。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>把 <code>"..."</code> 误判成 <code>..</code></strong>：必须 <code>equals("..")</code> 精确匹配，否则结果错误。</li>
+<li><strong>根目录弹栈越界</strong>：<code>/../</code> 时栈为空，<code>..</code> 必须直接忽略，否则抛异常。</li>
+<li><strong>尾斜杠与前导斜杠</strong>：拼接时每级目录前加 <code>/</code>，栈空返回 <code>"/"</code>，天然不会出现尾斜杠。</li>
+<li><strong>空串处理</strong>：<code>split("/")</code> 对前导 <code>/</code>、连续 <code>//</code> 会产生空串，必须跳过。</li>
+<li><strong>面试追问——不用 <code>split</code></strong>：可用双指针手动扫描每个 <code>/</code> 之间的片段，逻辑一致，可省一次内存分配。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/simplify-path/" target="_blank" rel="noopener noreferrer">71. 简化路径</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;sstream&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">string</span><span class="w"> </span><span class="n">simplifyPath</span><span class="p">(</span><span class="n">string</span><span class="w"> </span><span class="n">path</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">st</span><span class="p">;</span>
+<span class="w">        </span><span class="n">stringstream</span><span class="w"> </span><span class="nf">ss</span><span class="p">(</span><span class="n">path</span><span class="p">);</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">token</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// getline 以 &#39;/&#39; 为分隔符逐段读取</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">getline</span><span class="p">(</span><span class="n">ss</span><span class="p">,</span><span class="w"> </span><span class="n">token</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;/&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">token</span><span class="p">.</span><span class="n">empty</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;.&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">token</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;..&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">st</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="n">st</span><span class="p">.</span><span class="n">pop_back</span><span class="p">();</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">st</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">token</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">st</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">s</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">.</span><span class="n">empty</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">simplifyPath</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">part</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">or</span> <span class="n">part</span> <span class="o">==</span> <span class="s1">&#39;.&#39;</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">part</span> <span class="o">==</span> <span class="s1">&#39;..&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">stack</span><span class="p">:</span>
+                    <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">part</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

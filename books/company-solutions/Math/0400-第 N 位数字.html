@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>400. 第 N 位数字 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="400-n">400. 第 N 位数字</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（分层定位）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>数学分组：按位数分层，先定位所在的数再取位</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数 <code>n</code>，请你在无限的整数序列 <code>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]</code> 中找出并返回第 <code>n</code> 位上的数字。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 3
+输出：3
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 11
+输出：0
+解释：第 11 位数字在序列 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ... 里是 0 ，它是 10 的一部分。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= n &lt;= 2^31 - 1</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>把所有正整数按位数分组：<code>d</code> 位数共有 <code>9 × 10^(d-1)</code> 个、合计 <code>d × 9 × 10^(d-1)</code> 位；先用 <code>n</code> 逐组减去，锁定目标所在的位数 <code>d</code>，再在组内用 <code>(n-1)/d</code> 定位到具体数字、用 <code>(n-1)%d</code> 定位到该数字的第几位。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（序列是"数字拼接"而非"整数列表"）</strong></li>
+</ol>
+<p><code>n</code> 是第 <code>n</code> 个<strong>字符</strong>，不是第 <code>n</code> 个数。1 位数占 1 位，2 位数占 2 位……不同长度的数让"第 n 位"没法直接换算，必须先把 <code>n</code> 折算到某一层。</p>
+<ol start="2">
+<li><strong>破局思路（按位数分层，逐层扣减）</strong></li>
+</ol>
+<p>每一层的容量是固定的：</p>
+<ul>
+<li>1 位数（1~9）：<code>9</code> 个，共 <code>9 × 1 = 9</code> 位；</li>
+<li>2 位数（10~99）：<code>90</code> 个，共 <code>90 × 2 = 180</code> 位；</li>
+<li>3 位数（100~999）：<code>900</code> 个，共 <code>900 × 3 = 2700</code> 位；</li>
+<li>一般地，<code>d</code> 位数有 <code>9 × 10^(d-1)</code> 个，占 <code>d × 9 × 10^(d-1)</code> 位。</li>
+</ul>
+<p>只要 <code>n</code> 还大于当前层的总位数，就减掉并进入下一层：<code>n -= d * count</code>，同时 <code>d++</code>、<code>count *= 10</code>、<code>start *= 10</code>（<code>start</code> 是该层最小的 <code>d</code> 位数）。</p>
+<ol start="3">
+<li><strong>组内定位（先找数，再找位）</strong></li>
+</ol>
+<p>扣到目标层后，<code>n</code> 是这一层内的第 <code>n</code> 位（1 起）。组内第 <code>(n-1)/d</code> 个偏移量决定是哪个数：</p>
+<p><code>num = start + (n - 1) / d</code>，</p>
+<p>它在数字内部的下标是 <code>(n - 1) % d</code>。</p>
+<p><strong>小例子 <code>n = 11</code></strong>：先减掉 1 位数的 9 位，剩 <code>n = 2</code>，进入 <code>d = 2, start = 10</code>。<code>num = 10 + (2-1)/2 = 10</code>，下标 <code>(2-1)%2 = 1</code>，取 <code>"10"[1] = '0'</code>，答案 0。</p>
+<h3 id="java">Java 实现（分层定位）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findNthDigit</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">        </span><span class="c1">// 当前位数</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">9</span><span class="p">;</span><span class="w">    </span><span class="c1">// 当前位数下数字的个数</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">    </span><span class="c1">// 当前位数下最小的数</span>
+<span class="w">        </span><span class="c1">// 不断扣掉整层的位数，直到 n 落在当前层</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">count</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">            </span><span class="n">d</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">count</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">            </span><span class="n">start</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">d</span><span class="p">;</span><span class="w">   </span><span class="c1">// 目标数字</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">((</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">d</span><span class="p">);</span><span class="w">    </span><span class="c1">// 目标数字内的下标</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="n">num</span><span class="p">).</span><span class="na">charAt</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(log n)。<code>d</code> 每轮加 1，而 <code>n</code> 的量级随位数指数增长，循环只跑约 <code>log10(n)</code> 次。</li>
+<li>空间：O(1)。只用了常数个变量，转字符串的长度也不超过 10。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>溢出</strong>：<code>n</code> 可达 <code>2^31 - 1</code>，<code>d * count</code> 会超出 <code>int</code>，必须用 <code>long</code> 计算。</li>
+<li><strong>严格大于还是大于等于</strong>：条件是 <code>while (n &gt; d * count)</code>。当 <code>n</code> 恰好等于本层总位数时，目标正好是本层最后一个数，不应跳到下一层。</li>
+<li><strong>偏移公式</strong>：找数用 <code>(n-1)/d</code>、找位用 <code>(n-1)%d</code>，都用 <code>n-1</code> 转为 0 基偏移，用 <code>n</code> 会整体错一位。</li>
+<li><strong><code>start</code> 的更新</strong>：每进入下一层 <code>start *= 10</code>，忘记更新会导致数字定位整体偏移。</li>
+<li><strong>直接拼接会超时/超内存</strong>：不能真的把 <code>1,2,3,…</code> 拼成字符串，<code>n</code> 上亿时必然爆掉，必须用数学定位。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/nth-digit/" target="_blank" rel="noopener noreferrer">400. 第 N 位数字</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">findNthDigit</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">        </span><span class="c1">// 当前位数</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">9</span><span class="p">;</span><span class="w">    </span><span class="c1">// 当前位数下数字的个数</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">    </span><span class="c1">// 当前位数下最小的数</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">count</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">            </span><span class="n">d</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">count</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">            </span><span class="n">start</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">d</span><span class="p">;</span><span class="w">   </span><span class="c1">// 目标数字</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)((</span><span class="n">n</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">d</span><span class="p">);</span><span class="w">          </span><span class="c1">// 目标数字内的下标</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">to_string</span><span class="p">(</span><span class="n">num</span><span class="p">)[</span><span class="n">idx</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="sc">&#39;0&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">findNthDigit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">d</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">start</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="n">d</span> <span class="o">*</span> <span class="n">count</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">-=</span> <span class="n">d</span> <span class="o">*</span> <span class="n">count</span>
+            <span class="n">d</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">count</span> <span class="o">*=</span> <span class="mi">10</span>
+            <span class="n">start</span> <span class="o">*=</span> <span class="mi">10</span>
+        <span class="n">num</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span>      <span class="c1"># 目标数字</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">d</span>               <span class="c1"># 目标数字内的下标</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">num</span><span class="p">)[</span><span class="n">idx</span><span class="p">])</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

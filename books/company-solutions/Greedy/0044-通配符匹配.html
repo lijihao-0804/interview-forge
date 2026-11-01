@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>44. 通配符匹配 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Greedy</div>
+        <h1 id="44">44. 通配符匹配</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-ismatch">Java 实现（isMatch）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>贪心 + 星号回溯</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(s + p)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个输入字符串 (<code>s</code>) 和一个字符模式 (<code>p</code>)，请你实现一个支持 <code>'?'</code> 和 <code>'*'</code> 匹配规则的通配符匹配：</p>
+<ul>
+<li><code>'?'</code> 可以匹配任何单个字符。</li>
+<li><code>'*'</code> 可以匹配任意字符序列（包括空字符序列）。</li>
+</ul>
+<p>判定匹配成功的充要条件是：字符模式必须能够 <strong>完全匹配</strong> 输入字符串（而不是部分匹配）。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：s = &quot;aa&quot;, p = &quot;a&quot;
+输出：false
+解释：&quot;a&quot; 无法匹配 &quot;aa&quot; 整个字符串。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：s = &quot;aa&quot;, p = &quot;*&quot;
+输出：true
+解释：&#39;*&#39; 可以匹配任意字符串。
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：s = &quot;cb&quot;, p = &quot;?a&quot;
+输出：false
+解释：&#39;?&#39; 可以匹配 &#39;c&#39;，但第二个 &#39;a&#39; 无法匹配 &#39;b&#39;。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>0 &lt;= s.length, p.length &lt;= 2000</code></li>
+<li><code>s</code> 仅由小写英文字母组成</li>
+<li><code>p</code> 仅由小写英文字母、<code>'?'</code> 或 <code>'*'</code> 组成</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>每遇到一个 <code>'*'</code>，只记录它的位置和当时 <code>s</code> 的匹配位置；一旦后续失配，就回退到"星号之后一位"，并让星号多吞掉 <code>s</code> 的一个字符。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（星号到底吃多少？）</strong></li>
+</ol>
+<p><code>'?'</code> 与普通字符都是一一对应，很好办；难点只在 <code>'*'</code>——它可以匹配 0 个、1 个、任意多个字符，事先并不知道该吃多少。若用回溯穷举「吃 0 个 / 吃 1 个 / 吃 2 个……」，最坏会指数爆炸。</p>
+<ol start="2">
+<li><strong>破局思路（贪心 + 记住最近一个星号）</strong></li>
+</ol>
+<p>维护两个指针 <code>sIdx</code>、<code>pIdx</code> 同步前进：字符相等或 <code>p[pIdx] == '?'</code> 就都前进；遇到 <code>'*'</code> 就先假设它匹配空串，记下 <code>star = pIdx</code>、<code>sTmp = sIdx</code>，只让 <code>pIdx</code> 前进。这样把「星号吃多少」这个悬念留到以后。</p>
+<ol start="3">
+<li><strong>关键追问（失配了怎么办？）</strong></li>
+</ol>
+<p>一旦当前字符对不上，且之前出现过星号（<code>star != -1</code>），就让那个星号「多吃一个字符」：<code>sTmp++</code>、<code>sIdx = sTmp</code>、<code>pIdx = star + 1</code>，从星号后一位继续尝试。因为星号能吞任意长度，这种"先少后多"的贪心不会漏解。例如 <code>s = "adceb"</code>、<code>p = "*a*b"</code>，<code>*</code> 会先吃空、失配后逐步多吃，直到某次 <code>a</code>、<code>b</code> 都对齐。</p>
+<p>收尾时 <code>s</code> 已走完，只要 <code>p</code> 剩下的全是 <code>'*'</code> 就匹配成功，否则失败。</p>
+<h3 id="java-ismatch">Java 实现（isMatch）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isMatch</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">pIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">star</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">// 最近一个 &#39;*&#39; 在 p 中的下标</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sTmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">// 该 &#39;*&#39; 当前吞到 s 的哪个位置</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">length</span><span class="p">(),</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">length</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">sIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">sLen</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 字符匹配，或模式为 &#39;?&#39;（可匹配任意单个字符）</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">pIdx</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;?&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">pIdx</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">sIdx</span><span class="p">)))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">sIdx</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="n">pIdx</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">pIdx</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;*&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 先假设 &#39;*&#39; 匹配空串，记录现场</span>
+<span class="w">                </span><span class="n">star</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pIdx</span><span class="p">;</span>
+<span class="w">                </span><span class="n">sTmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sIdx</span><span class="p">;</span>
+<span class="w">                </span><span class="n">pIdx</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">star</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 失配：让最近的 &#39;*&#39; 多吃一个字符，然后从星号后一位重试</span>
+<span class="w">                </span><span class="n">pIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">star</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="n">sTmp</span><span class="o">++</span><span class="p">;</span>
+<span class="w">                </span><span class="n">sIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sTmp</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 无星号可回退，直接失败</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// s 已耗尽，p 剩余部分必须全是 &#39;*&#39;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="na">charAt</span><span class="p">(</span><span class="n">pIdx</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;*&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">pIdx</span><span class="o">++</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">pIdx</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">pLen</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(s + p)</code>。<code>sIdx</code> 只增不减，<code>pIdx</code> 虽有回退但每次回退都伴随 <code>sTmp</code> 前进，整体对两个串各扫描常数遍。</li>
+<li>空间：<code>O(1)</code>，只用了几个下标变量，无需额外数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>收尾必须检查剩余模式</strong>：<code>s</code> 走完后，<code>p</code> 里可能还剩若干 <code>'*'</code>，务必全部跳过再看是否到底，否则 <code>s = ""</code>、<code>p = "***"</code> 会误判。</li>
+<li><strong>连续星号只保留一个</strong>：预处理时把连续的 <code>'*'</code> 合并成单个能减少无谓回退，但不影响正确性。</li>
+<li><strong><code>sTmp</code> 的含义别搞混</strong>：它记录的是「星号下一次要吞到的位置」，回退时是 <code>sTmp++</code> 而不是 <code>star++</code>。</li>
+<li><strong>别用暴力回溯</strong>：<code>'*'</code> 分支若写成递归穷举，最坏 <code>O(2^n)</code>，长度 2000 必然超时。</li>
+<li><strong>扩展（动态规划）</strong>：设 <code>dp[i][j]</code> 表示 <code>s</code> 前 i 个与 <code>p</code> 前 j 个是否匹配，<code>p[j]=='*'</code> 时 <code>dp[i][j] = dp[i-1][j] || dp[i][j-1]</code>，时间 <code>O(s·p)</code>、空间可滚动到 <code>O(p)</code>，是更通用但更慢的解法，面试可作对照。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/wildcard-matching/" target="_blank" rel="noopener noreferrer">44. 通配符匹配</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">isMatch</span><span class="p">(</span><span class="n">string</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">string</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">pIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">star</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-1</span><span class="p">,</span><span class="w"> </span><span class="n">sTmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">sLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">size</span><span class="p">(),</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">sIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">sLen</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="n">pIdx</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;?&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">p</span><span class="p">[</span><span class="n">pIdx</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s</span><span class="p">[</span><span class="n">sIdx</span><span class="p">]))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="o">++</span><span class="n">sIdx</span><span class="p">;</span>
+<span class="w">                </span><span class="o">++</span><span class="n">pIdx</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">[</span><span class="n">pIdx</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;*&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">star</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pIdx</span><span class="p">;</span>
+<span class="w">                </span><span class="n">sTmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sIdx</span><span class="p">;</span>
+<span class="w">                </span><span class="o">++</span><span class="n">pIdx</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">star</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">-1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">pIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">star</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">                </span><span class="o">++</span><span class="n">sTmp</span><span class="p">;</span>
+<span class="w">                </span><span class="n">sIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sTmp</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">pIdx</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">pLen</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">p</span><span class="p">[</span><span class="n">pIdx</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;*&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">++</span><span class="n">pIdx</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">pIdx</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">pLen</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">isMatch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">s_idx</span> <span class="o">=</span> <span class="n">p_idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">star</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>   <span class="c1"># 最近一个 &#39;*&#39; 的下标</span>
+        <span class="n">s_tmp</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>  <span class="c1"># 该 &#39;*&#39; 当前吞到 s 的位置</span>
+
+        <span class="k">while</span> <span class="n">s_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">p_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="n">p_idx</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;?&#39;</span> <span class="ow">or</span> <span class="n">p</span><span class="p">[</span><span class="n">p_idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">s</span><span class="p">[</span><span class="n">s_idx</span><span class="p">]):</span>
+                <span class="n">s_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">p_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">p_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="n">p_idx</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;*&#39;</span><span class="p">:</span>
+                <span class="n">star</span> <span class="o">=</span> <span class="n">p_idx</span>
+                <span class="n">s_tmp</span> <span class="o">=</span> <span class="n">s_idx</span>
+                <span class="n">p_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">star</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">p_idx</span> <span class="o">=</span> <span class="n">star</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">s_tmp</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">s_idx</span> <span class="o">=</span> <span class="n">s_tmp</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">while</span> <span class="n">p_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="n">p_idx</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;*&#39;</span><span class="p">:</span>
+            <span class="n">p_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">p_idx</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>172. 阶乘后的零 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="172">172. 阶乘后的零</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-trailingzeroes">Java 实现（trailingZeroes）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>统计阶乘中因子 5 的个数</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(log₅ n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个整数 <code>n</code>，返回 <code>n!</code> 结果中尾随零的数量。</p>
+<p>提示 <code>n! = n * (n - 1) * (n - 2) * ... * 3 * 2 * 1</code></p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 3
+输出：0
+解释：3! = 6 ，不含尾随 0
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 5
+输出：1
+解释：5! = 120 ，有一个尾随 0
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 0
+输出：0
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>0 &lt;= n &lt;= 10^4</code></li>
+</ul>
+<p><strong>进阶：</strong> 你可以设计并实现对数时间复杂度的算法来解决此问题吗？</p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>末尾的每个 0 都由一对因子 <code>2 × 5</code> 产生；而 <code>n!</code> 中因子 2 的个数永远多于因子 5，所以尾随零的个数 = 因子 5 的总个数。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（直接算阶乘行不行？）</strong></li>
+</ol>
+<p>先算出 <code>n!</code> 再数末尾 0，数值会迅速膨胀到几十上百位，<code>int</code>、<code>long</code> 都存不下，既溢出又慢。必须换个角度——不真正算出阶乘。</p>
+<ol start="2">
+<li><strong>破局思路（只数因子 5）</strong></li>
+</ol>
+<p>末尾每出现一个 0，就意味着乘出了一个 10，而 <code>10 = 2 × 5</code>。在 <code>1..n</code> 的连乘里，偶数（贡献因子 2）比 5 的倍数多得多，因此因子 2 一定够用，瓶颈是因子 5。于是问题转化为：<code>1..n</code> 的数中一共含有多少个因子 5。</p>
+<ul>
+<li><code>n / 5</code> 统计至少含一个 5 的数（5, 10, 15, ...）；</li>
+<li>但 25、50、125…… 各含<strong>多个</strong> 5，还需再补：<code>n / 25</code>、<code>n / 125</code>……</li>
+<li>总数为 <code>n/5 + n/25 + n/125 + ...</code>。</li>
+</ul>
+<ol start="3">
+<li><strong>关键例子（n = 25）</strong></li>
+</ol>
+<p>直接 <code>n/5 = 5</code> 会漏掉 25 里多出的那个 5。加上 <code>n/25 = 1</code>，共 <code>5 + 1 = 6</code>，与真实值 <code>25! = 15511210043330985984000000</code>（末尾 6 个 0）一致。</p>
+<p>代码里用循环 <code>while (n &gt; 0) { n /= 5; count += n; }</code> 实现，它恰好等价于上面的级数：第一次 <code>n/5</code>、第二次 <code>n/25</code>、第三次 <code>n/125</code>……</p>
+<h3 id="java-trailingzeroes">Java 实现（trailingZeroes）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">trailingZeroes</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 每除一次 5，就累加当前 n/5；等价于 n/5 + n/25 + n/125 + ...</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span>
+<span class="w">            </span><span class="n">count</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(log₅ n)</code>，每轮把 <code>n</code> 除以 5，循环次数为 5 进制位数。</li>
+<li>空间：<code>O(1)</code>，只用一个计数变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>只数 5，不数 2</strong>：因子 2 的数量必然多于 5，真正的瓶颈是 5；数 2 反而会得到错误偏大的结果。</li>
+<li><strong>25/125 的额外因子不能漏</strong>：只写 <code>n/5</code> 会漏掉 <code>25 = 5×5</code>、<code>125 = 5×5×5</code> 这类数里多出的 5。</li>
+<li><strong>循环写法与级数等价</strong>：<code>n/=5; count+=n</code> 天然实现了 <code>n/5 + n/25 + ...</code>，比手写多个除法更简洁。</li>
+<li><strong><code>n = 0</code> 边界</strong>：<code>0! = 1</code>，没有尾随零，循环不进入直接返回 <code>0</code>，无需特判。</li>
+<li><strong>数值范围</strong>：<code>n &lt;= 10^4</code>，用 <code>int</code> 计数足够；进阶要求的"对数时间"正是本解法自带的 <code>O(log n)</code>。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/factorial-trailing-zeroes/" target="_blank" rel="noopener noreferrer">172. 阶乘后的零</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">trailingZeroes</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 等价于 n/5 + n/25 + n/125 + ...</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span>
+<span class="w">            </span><span class="n">count</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">trailingZeroes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># 等价于 n//5 + n//25 + n//125 + ...</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">//=</span> <span class="mi">5</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="n">n</span>
+        <span class="k">return</span> <span class="n">count</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

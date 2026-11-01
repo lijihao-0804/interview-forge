@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>137. 只出现一次的数字 II · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Bit Manipulation</div>
+        <h1 id="137-ii">137. 只出现一次的数字 II</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（位运算状态机）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>位运算：逐位统计出现次数并对 3 取模（状态机）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你一个整数数组 <code>nums</code>，除某个元素仅出现<strong>一次</strong>外，其余每个元素都恰出现<strong>三次</strong>。请你找出并返回那个只出现了一次的元素。</p>
+<p>你必须设计并实现线性时间复杂度的算法且使用常数级空间来解决此问题。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [2,2,3,2]
+输出：3
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：nums = [0,1,0,1,0,1,99]
+输出：99
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= nums.length &lt;= 3 * 10^4</code></li>
+<li><code>-2^31 &lt;= nums[i] &lt;= 2^31 - 1</code></li>
+<li><code>nums</code> 中，除某个元素仅出现<strong>一次</strong>外，其余每个元素都恰出现<strong>三次</strong></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>把所有数按二进制位独立考虑：对任意一位，出现三次的数会让这一位的 1 的个数增加 3（模 3 为 0），只有那个只出现一次的数会留下"余数"；把所有位对 3 取模的余数拼起来，就是这个唯一元素。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（异或不再够用）</strong></li>
+</ol>
+<p>在"其余元素出现两次"的版本里，异或能整体抵消。但这里其余元素出现<strong>三次</strong>，三次相同的数异或结果是它本身，无法抵消。需要一种"逢三归零"的计数机制。</p>
+<ol start="2">
+<li><strong>破局思路（按位统计模 3）</strong></li>
+</ol>
+<p>对第 <code>b</code> 位（<code>0 ≤ b ≤ 31</code>），统计所有数在该位上 1 的个数 <code>cnt</code>。因为除答案外每个数都出现三次，它们对该位的贡献是 3 的倍数，所以 <code>cnt % 3</code> 恰好等于答案在该位上的值（0 或 1）。把 32 位逐一求出，就能还原答案。</p>
+<p>以 <code>nums = [2,2,3,2]</code>（二进制 <code>10,10,11,10</code>）为例，最低位 1 出现 1 次（<code>3</code> 贡献），<code>1 % 3 = 1</code>；次低位 1 出现 4 次，<code>4 % 3 = 1</code>。拼起来是 <code>11</code>，即 3。</p>
+<ol start="3">
+<li><strong>关键追问（能否一遍扫描、只用两个变量？）</strong></li>
+</ol>
+<p>可以。为每一位维护一个 0→1→2→0 的小状态机，用两个整数的对应位分别表示"已经累积到 1 次 / 2 次"。每读入一个数 <code>x</code>：</p>
+<ul>
+<li><code>ones = (ones ^ x) &amp; ~twos</code></li>
+<li><code>twos = (twos ^ x) &amp; ~ones</code></li>
+</ul>
+<p>逻辑是：<code>ones</code> 记录当前该位出现 1 次的位；遇到新数若该位为 1 就进位到 <code>twos</code>（2 次）；再进一次就两者同时清零（3 次即 0 次）。最终 <code>ones</code> 的各个位就是答案，且 32 位一起并行处理，天然支持负数（补码按位一致）。</p>
+<h3 id="java">Java 实现（位运算状态机）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">singleNumber</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ones</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">  </span><span class="c1">// 该位累计出现 1 次</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">twos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">  </span><span class="c1">// 该位累计出现 2 次</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 先更新 ones：把 x 的 1 位加进来，但已经在 twos 里的位不计</span>
+<span class="w">            </span><span class="n">ones</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ones</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">twos</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// 再更新 twos：把 x 的 1 位加进来，但已经在新的 ones 里的位不计</span>
+<span class="w">            </span><span class="n">twos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">twos</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">ones</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 出现 3 次的位会在 ones/twos 中归零，只剩出现 1 次的位</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ones</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n)</code>。遍历一次数组，每次只做常数个位运算（32 位并行完成）。</li>
+<li>空间：<code>O(1)</code>。只使用 <code>ones</code>、<code>twos</code> 两个整型变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>两行更新顺序不能颠倒</strong>：必须先更新 <code>ones</code> 再更新 <code>twos</code>，且第二行用的是<strong>新的</strong> <code>ones</code>；否则状态机会错乱，出现 3 次的位无法归零。</li>
+<li><strong><code>~twos</code> / <code>~ones</code> 是取反掩码</strong>：用"与上非"来屏蔽已经进入下一状态的位，写漏取反会导致计数错误。</li>
+<li><strong>逐位统计法也很好写</strong>：<code>for b in 0..31: cnt = Σ((x &gt;&gt;&gt; b) &amp; 1); if cnt % 3 != 0: ans |= 1 &lt;&lt; b;</code> 时间 <code>O(32n) = O(n)</code>，逻辑最直观，面试可先用它讲清原理，再写状态机优化。</li>
+<li><strong>负数的处理</strong>：状态机基于补码按位运算，负数不需要特殊处理；但逐位统计法在语言层面要注意用<strong>无符号右移</strong>（Java <code>&gt;&gt;&gt;</code>、C++ 转 <code>unsigned</code>），Python 的 <code>&gt;&gt;</code> 是算术右移，直接用逐位统计会受无限符号位干扰，故 Python 更适合状态机写法。</li>
+<li><strong>扩展——出现两次的版本</strong>：若其余元素出现两次，直接全部异或即可；出现三次则本状态机；可进一步推广到"出现 k 次"，用 <code>k</code> 个状态位或计数数组实现。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/single-number-ii/" target="_blank" rel="noopener noreferrer">137. 只出现一次的数字 II</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">singleNumber</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ones</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">twos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">nums</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ones</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ones</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">twos</span><span class="p">;</span>
+<span class="w">            </span><span class="n">twos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">twos</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">ones</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">ones</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">singleNumber</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nums</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">ones</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># 累计出现 1 次的位</span>
+        <span class="n">twos</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># 累计出现 2 次的位</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nums</span><span class="p">:</span>
+            <span class="n">ones</span> <span class="o">=</span> <span class="p">(</span><span class="n">ones</span> <span class="o">^</span> <span class="n">x</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">twos</span>
+            <span class="n">twos</span> <span class="o">=</span> <span class="p">(</span><span class="n">twos</span> <span class="o">^</span> <span class="n">x</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">ones</span>
+        <span class="k">return</span> <span class="n">ones</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

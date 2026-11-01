@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>190. 颠倒二进制位 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Bit Manipulation</div>
+        <h1 id="190">190. 颠倒二进制位</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-reversebits">Java 实现（reverseBits）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>逐位取出并反向拼接</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1)（固定 32 次迭代）</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>颠倒给定的 32 位有符号整数的二进制位。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 43261596
+输出：964176192
+解释：
+整数          二进制
+43261596      00000010100101000001111010011100
+964176192     00111001011110000010100101000000
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：n = 2147483644
+输出：1073741822
+解释：
+整数            二进制
+2147483644      01111111111111111111111111111100
+1073741822      00111111111111111111111111111110
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>0 &lt;= n &lt;= 2^31 - 2</code></li>
+<li><code>n</code> 为偶数</li>
+</ul>
+<p><strong>进阶：</strong> 如果多次调用这个函数，你将如何优化你的算法？</p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>循环中 <code>res</code> 始终是「已经处理过的那若干低位」逆序后的结果；每轮把 <code>res</code> 左移一位并追加 <code>n</code> 的当前最低位，<code>n</code> 再右移一位，32 轮后 <code>res</code> 恰为完整逆序位。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（不能简单反转字符串）</strong></li>
+</ol>
+<p>最直白是把 32 位转成二进制字符串、反转、再转回整数，正确但低效且要处理前导零。我们希望直接在位级别操作。</p>
+<ol start="2">
+<li><strong>破局思路（从低位取、往高位放）</strong></li>
+</ol>
+<p>准备结果 <code>res = 0</code>。重复 32 次：取 <code>n</code> 的最低位 <code>n &amp; 1</code>，把它挂到 <code>res</code> 的末尾（<code>res = (res &lt;&lt; 1) | (n &amp; 1)</code>），然后把 <code>n</code> 逻辑右移一位（<code>n &gt;&gt;&gt;= 1</code>）。这样 <code>n</code> 从最低位开始被依次取下，<code>res</code> 每次左移让先取到的位逐渐「沉」到更高的位置，最终顺序正好颠倒。</p>
+<ol start="3">
+<li><strong>关键追问（为什么右移要用无符号？）</strong></li>
+</ol>
+<p><code>n</code> 可能被当作有符号数，最高位为 1 时算术右移会补 1，导致高位被污染。Java 用 <code>&gt;&gt;&gt;</code>（逻辑右移，补 0）；C++ 用 <code>uint32_t</code> 天然无符号；Python 的整数无固定位宽，右移补 0，天然安全。</p>
+<ol start="4">
+<li><strong>收尾</strong></li>
+</ol>
+<p>循环固定 32 次（不是直到 <code>n == 0</code>），否则 <code>n</code> 高位为 0 时会少处理位数，结果错误。</p>
+<h3 id="java-reversebits">Java 实现（reverseBits）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// you need treat n as an unsigned value</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">reverseBits</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">32</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 把当前 n 的最低位追加到 res 末尾</span>
+<span class="w">            </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">            </span><span class="c1">// 逻辑右移，高位补 0，避免符号位干扰</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;&gt;&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(1)</code>。固定执行 32 次循环，与输入规模无关（位宽常数）。</li>
+<li>空间：<code>O(1)</code>。只用了 <code>res</code>、<code>n</code> 与循环变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>必须循环 32 次</strong>：写成 <code>while (n != 0)</code> 会在 <code>n</code> 的高位 0 处提前结束，导致逆序结果的高位缺失。</li>
+<li><strong>用无符号/逻辑右移</strong>：Java 的 <code>&gt;&gt;</code> 是算术右移，会把符号位一路带下来；务必用 <code>&gt;&gt;&gt;</code>。</li>
+<li><strong>返回值按位比较</strong>：<code>res</code> 可能超过 <code>int</code> 正数范围而变成负数，这没关系，LeetCode 按 32 位比特比较，返回 <code>int</code> 即正确。</li>
+<li><strong>不要用字符串反转</strong>：多次调用场景下字符串方案常数大，位运算方案更优。</li>
+<li><strong>扩展（分治 / 掩码交换）</strong>：进阶「多次调用」的思路是用 <code>O(1)</code> 的分治位交换：先交换相邻 1 位、再交换相邻 2 位、4 位、8 位、16 位，5 步完成。核心写法：<code>n = ((n &amp; 0x55555555) &lt;&lt; 1) | ((n &gt;&gt;&gt; 1) &amp; 0x55555555);</code> 再依次用 <code>0x33333333</code>、<code>0x0F0F0F0F</code>、<code>0x00FF00FF</code>、<code>0x0000FFFF</code> 掩码，正是标签里 Divide and Conquer 的体现。若有海量调用，还可预计算每 8 位的反转表缓存加速。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/reverse-bits/" target="_blank" rel="noopener noreferrer">190. 颠倒二进制位</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cstdint&gt;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">reverseBits</span><span class="p">(</span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">32</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1u</span><span class="p">);</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// uint32_t 为无符号，右移补 0</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">reverseBits</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">32</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="p">(</span><span class="n">res</span> <span class="o">&lt;&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">n</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">n</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

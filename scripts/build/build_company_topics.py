@@ -57,13 +57,40 @@ def load_hot100() -> dict[int, dict]:
 
 
 
+def _safe_name(title: str) -> str:
+    import re as _re
+    s = _re.sub(r'[()\[\]{}%,;:!?*"<>|]', "", title)
+    return _re.sub(r"\s+", " ", s).strip()
+
+
+def _load_company_solutions() -> dict:
+    """读企业题解元数据：题号 → {title, category, exists}。"""
+    import json as _json
+    meta = ROOT / "books" / "company-solutions" / "_meta" / "problems_detail.json"
+    if not meta.exists():
+        return {}
+    out = {}
+    for x in _json.loads(meta.read_text(encoding="utf-8")):
+        cat = (x.get("tags") or ["综合"])[0] or "综合"
+        f = ROOT / "books" / "company-solutions" / cat / f"{x['id']:04d}-{_safe_name(x['title'])}.md"
+        out[int(x["id"])] = {"title": x["title"], "category": cat, "exists": f.exists()}
+    return out
+
+
+_SOLUTIONS = _load_company_solutions()
+
+
 def _resolve_link(item, hot100):
-    """返回 (链接, 来源标签)。Hot 100 内的题指向站内题解页，其余指向 LeetCode。"""
+    """返回 (链接, 来源标签)。优先站内：Hot100 题解 / 企业题解；都没有才回退 LeetCode。"""
     pid = item["id"]
     if pid in hot100:
         pr = hot100[pid]
         path = f"/books/hot100/03-题解/{pr['folder']}/{pid:04d}-{pr['title']}.html"
         return path, "Hot 100"
+    sol = _SOLUTIONS.get(pid)
+    if sol and sol["exists"]:
+        path = f"/books/company-solutions/{sol['category']}/{pid:04d}-{_safe_name(sol['title'])}.html"
+        return path, "企业题解"
     url = (item.get("url") or "").strip()
     if "leetcode" in url:
         return url.replace("leetcode-cn.com", "leetcode.cn"), "LeetCode"

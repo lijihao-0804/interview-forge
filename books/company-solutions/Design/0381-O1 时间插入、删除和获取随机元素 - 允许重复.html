@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>381. O(1) 时间插入、删除和获取随机元素 - 允许重复 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Design</div>
+        <h1 id="381-o1-">381. O(1) 时间插入、删除和获取随机元素 - 允许重复</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（数组 + 值→下标集合）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>动态数组 + 哈希表（值→下标集合），删除时用末尾元素覆盖</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1)（平均）</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p><code>RandomizedCollection</code> 是一种包含数字集合（可能是重复的）的数据结构。它应该支持插入和删除特定元素，以及删除随机元素。</p>
+<p>实现 <code>RandomizedCollection</code> 类：</p>
+<ul>
+<li><code>RandomizedCollection()</code> 初始化空的 <code>RandomizedCollection</code> 对象。</li>
+<li><code>bool insert(int val)</code> 将一个 <code>val</code> 项插入到集合中，即使该项已经存在。如果该项<strong>不存在</strong>，则返回 <code>true</code>，否则返回 <code>false</code>。</li>
+<li><code>bool remove(int val)</code> 如果存在，从集合中移除<strong>一个</strong> <code>val</code> 项。如果该项存在，则返回 <code>true</code>，否则返回 <code>false</code>。注意，如果 <code>val</code> 在集合中出现多次，我们只删除其中一个。</li>
+<li><code>int getRandom()</code> 从当前的多个元素集合中返回一个随机元素。每个元素被返回的概率与集合中包含的相同值的数量<strong>线性相关</strong>。</li>
+</ul>
+<p>你必须实现类的函数，使每个函数的<strong>平均</strong>时间复杂度为 <code>O(1)</code>。</p>
+<p><strong>注意：</strong>生成测试用例时，只有在 <code>RandomizedCollection</code> 中<strong>至少有一项</strong>时，才会调用 <code>getRandom</code>。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入
+[&quot;RandomizedCollection&quot;, &quot;insert&quot;, &quot;insert&quot;, &quot;insert&quot;, &quot;getRandom&quot;, &quot;remove&quot;, &quot;getRandom&quot;]
+[[], [1], [1], [2], [], [1], []]
+输出
+[null, true, false, true, 2, true, 1]
+
+解释
+RandomizedCollection collection = new RandomizedCollection(); // 初始化一个空的集合。
+collection.insert(1);   // 返回 true，因为集合不包含 1。
+                        // 将 1 插入到集合中。
+collection.insert(1);   // 返回 false，因为集合包含 1。
+                        // 将另一个 1 插入到集合中。集合现在包含 [1,1]。
+collection.insert(2);   // 返回 true，因为集合不包含 2。
+                        // 将 2 插入到集合中。集合现在包含 [1,1,2]。
+collection.getRandom(); // getRandom 应当：
+                        // 有 2/3 的概率返回 1，
+                        // 1/3 的概率返回 2。
+collection.remove(1);   // 返回 true，因为集合包含 1。
+                        // 从集合中移除 1。集合现在包含 [1,2]。
+collection.getRandom(); // getRandom 应该返回 1 或 2，两者的可能性相同。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>-2^31 &lt;= val &lt;= 2^31 - 1</code></li>
+<li><code>insert</code>、<code>remove</code> 和 <code>getRandom</code> 最多<strong>总共</strong>被调用 <code>2 * 10^5</code> 次</li>
+<li>当调用 <code>getRandom</code> 时，数据结构中<strong>至少有一个</strong>元素</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用动态数组保存所有元素（含重复）以保证 <code>getRandom</code> 按下标等概率取样；用哈希表记录「每个值 → 它出现过的所有下标集合」。删除时把末尾元素搬到被删位置并同步修正下标，即可在 <code>O(1)</code>（平均）内完成。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>为什么需要「数组 + 哈希」两件套</strong>：要支持 <code>O(1)</code> 随机，必须用<strong>数组</strong>——<code>random.nextInt(size)</code> 取下标天然等概率，且值出现几次就占几个位置，概率自动「与数量线性相关」。要支持 <code>O(1)</code> 判断存在与定位，必须用<strong>哈希表</strong>。单用集合无法随机，单用哈希无法按下标等概率，所以两者缺一不可。</p>
+</li>
+<li>
+<p><strong>难点在删除</strong>：数组中间删一个元素要 <code>O(n)</code> 搬移。标准技巧是<strong>和末尾交换再 <code>pop</code></strong>：把末尾元素填到要删的位置，然后删除末尾。这样数组始终保持紧凑、无空洞。</p>
+</li>
+<li>
+<p><strong>重复值带来的额外难点</strong>：一个值可能出现多次，所以哈希表的值不能是「一个下标」，而必须是「<strong>下标集合</strong>」。删除 <code>val</code> 时，从它的下标集合里随便取一个下标 <code>i</code>，把它和末尾交换。</p>
+</li>
+<li>
+<p><strong>同步修正下标（最容易错的一步）</strong>：把末尾元素 <code>lastVal</code> 搬到位置 <code>i</code> 后，<code>lastVal</code> 的下标集合里要<strong>删掉 <code>lastIdx</code>、加上 <code>i</code></strong>。特判：
+   - 若 <code>i == lastIdx</code>（要删的就是末尾），无需搬运，直接 <code>pop</code>；
+   - 若 <code>lastVal == val</code>（末尾元素和要删的值相同），下标集合是同一个，操作要格外注意顺序。
+   最后若 <code>val</code> 的下标集合空了，把整个键删掉。</p>
+</li>
+<li>
+<p><strong>插入的返回值</strong>：先判断「插入前该值是否存在」——不存在才返回 <code>true</code>。注意是「是否存在」而不是「插入后被删」，用 <code>containsKey</code> 即可。</p>
+</li>
+</ol>
+<h3 id="java">Java 实现（数组 + 值→下标集合）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashSet</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Random</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Set</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">RandomizedCollection</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 所有元素（含重复）</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">;</span><span class="w">  </span><span class="c1">// 值 -&gt; 该值出现的下标集合</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="n">Random</span><span class="w"> </span><span class="n">random</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">RandomizedCollection</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">valToIndices</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">random</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Random</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">insert</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 插入前是否不存在，决定返回值</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">absent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">valToIndices</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="n">nums</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="n">valToIndices</span><span class="p">.</span><span class="na">computeIfAbsent</span><span class="p">(</span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">()).</span><span class="na">add</span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">absent</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">valToIndices</span><span class="p">.</span><span class="na">containsKey</span><span class="p">(</span><span class="n">val</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">idxSet</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// 取出一个待删除下标</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">removeIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">idxSet</span><span class="p">.</span><span class="na">iterator</span><span class="p">().</span><span class="na">next</span><span class="p">();</span>
+<span class="w">        </span><span class="n">idxSet</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">removeIdx</span><span class="p">);</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lastIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lastVal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">lastIdx</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 用末尾元素覆盖被删位置，并修正末尾元素的下标记录</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">removeIdx</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">lastIdx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">nums</span><span class="p">.</span><span class="na">set</span><span class="p">(</span><span class="n">removeIdx</span><span class="p">,</span><span class="w"> </span><span class="n">lastVal</span><span class="p">);</span>
+<span class="w">            </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lastSet</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">lastVal</span><span class="p">);</span>
+<span class="w">            </span><span class="n">lastSet</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">lastIdx</span><span class="p">);</span>
+<span class="w">            </span><span class="n">lastSet</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">removeIdx</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">nums</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">lastIdx</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// 该值的下标集合空了，删除主键</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">idxSet</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">valToIndices</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">getRandom</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 按下标随机，天然等概率</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">random</span><span class="p">.</span><span class="na">nextInt</span><span class="p">(</span><span class="n">nums</span><span class="p">.</span><span class="na">size</span><span class="p">()));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<strong>平均 <code>O(1)</code></strong>。<code>insert</code> 为数组尾插 + 集合插入；<code>remove</code> 为集合取/删一个下标 + 末尾交换，均为平均常数（哈希表与哈希集合的平均复杂度）；<code>getRandom</code> 为一次随机下标访问。</li>
+<li>空间：<code>O(n)</code>。数组存 <code>n</code> 个元素，哈希表为每个下标存一份记录，总计 <code>O(n)</code>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>删除时下标同一性陷阱</strong>：当 <code>removeIdx == lastIdx</code> 时不能再去 <code>nums.set</code> 和更新 <code>lastSet</code>（会越界或误删）；当 <code>lastVal == val</code> 时，<code>idxSet</code> 与 <code>lastSet</code> 是同一个集合，务必先 <code>idxSet.remove(removeIdx)</code> 再处理 <code>lastSet</code>，顺序错了会导致集合混乱。</li>
+<li><strong>哈希表的值必须是「下标集合」</strong>：若只存一个下标，重复元素第二次出现就会覆盖前一个下标，<code>remove</code> 时将找不到正确的元素。</li>
+<li><strong><code>insert</code> 的返回值语义</strong>：返回的是「插入前是否不存在」，用 <code>containsKey</code> 判断；不要误用「集合大小是否变化」。</li>
+<li><strong><code>getRandom</code> 的等概率来源</strong>：必须基于「数组下标」随机，而不是基于「不同值」随机，否则重复值的返回概率就不符合「与数量线性相关」。</li>
+<li><strong>与 380 题（不允许重复）对照</strong>：380 用 <code>list + map&lt;val, index&gt;</code> 即可；本题因为允许重复，<code>map</code> 的 value 升级为 <code>Set&lt;Integer&gt;</code>，这是两题唯一但关键的区别。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/insert-delete-getrandom-o1-duplicates-allowed/" target="_blank" rel="noopener noreferrer">381. O(1) 时间插入、删除和获取随机元素 - 允许重复</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_map&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_set&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cstdlib&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RandomizedCollection</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">nums</span><span class="p">;</span><span class="w">                                   </span><span class="c1">// 所有元素（含重复）</span>
+<span class="w">    </span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="n">unordered_set</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">;</span><span class="w"> </span><span class="c1">// 值 -&gt; 下标集合</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">RandomizedCollection</span><span class="p">()</span><span class="w"> </span><span class="p">{}</span>
+
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">insert</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">bool</span><span class="w"> </span><span class="n">absent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">.</span><span class="n">end</span><span class="p">();</span>
+<span class="w">        </span><span class="n">nums</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="n">valToIndices</span><span class="p">[</span><span class="n">val</span><span class="p">].</span><span class="n">insert</span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="n">nums</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">absent</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">remove</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">valToIndices</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">valToIndices</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">removeIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">valToIndices</span><span class="p">[</span><span class="n">val</span><span class="p">].</span><span class="n">begin</span><span class="p">();</span>
+<span class="w">        </span><span class="n">valToIndices</span><span class="p">[</span><span class="n">val</span><span class="p">].</span><span class="n">erase</span><span class="p">(</span><span class="n">removeIdx</span><span class="p">);</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lastIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">nums</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lastVal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="n">lastIdx</span><span class="p">];</span>
+
+<span class="w">        </span><span class="c1">// 末尾元素覆盖被删位置，修正其下标记录</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">removeIdx</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">lastIdx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">nums</span><span class="p">[</span><span class="n">removeIdx</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lastVal</span><span class="p">;</span>
+<span class="w">            </span><span class="n">valToIndices</span><span class="p">[</span><span class="n">lastVal</span><span class="p">].</span><span class="n">erase</span><span class="p">(</span><span class="n">lastIdx</span><span class="p">);</span>
+<span class="w">            </span><span class="n">valToIndices</span><span class="p">[</span><span class="n">lastVal</span><span class="p">].</span><span class="n">insert</span><span class="p">(</span><span class="n">removeIdx</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">nums</span><span class="p">.</span><span class="n">pop_back</span><span class="p">();</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">valToIndices</span><span class="p">[</span><span class="n">val</span><span class="p">].</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">valToIndices</span><span class="p">.</span><span class="n">erase</span><span class="p">(</span><span class="n">val</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">getRandom</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">nums</span><span class="p">[</span><span class="n">rand</span><span class="p">()</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">nums</span><span class="p">.</span><span class="n">size</span><span class="p">()];</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span> <span class="nn">random</span>
+
+
+<span class="k">class</span> <span class="nc">RandomizedCollection</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nums</span> <span class="o">=</span> <span class="p">[]</span>                 <span class="c1"># 所有元素（含重复）</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span> <span class="o">=</span> <span class="p">{}</span>       <span class="c1"># 值 -&gt; 下标集合</span>
+
+    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">absent</span> <span class="o">=</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">absent</span>
+
+    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">idx_set</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="p">[</span><span class="n">val</span><span class="p">]</span>
+        <span class="n">remove_idx</span> <span class="o">=</span> <span class="n">idx_set</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="n">last_idx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">last_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="p">[</span><span class="n">last_idx</span><span class="p">]</span>
+
+        <span class="c1"># 用末尾元素覆盖被删位置，并修正末尾元素的下标记录</span>
+        <span class="k">if</span> <span class="n">remove_idx</span> <span class="o">!=</span> <span class="n">last_idx</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="p">[</span><span class="n">remove_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">last_val</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="p">[</span><span class="n">last_val</span><span class="p">]</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">last_idx</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="p">[</span><span class="n">last_val</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">remove_idx</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">idx_set</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_to_indices</span><span class="p">[</span><span class="n">val</span><span class="p">]</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">getRandom</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nums</span><span class="p">)</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

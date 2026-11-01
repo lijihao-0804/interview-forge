@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>889. 从前序与后序遍历序列构造二叉树 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Tree</div>
+        <h1 id="889">889. 从前序与后序遍历序列构造二叉树</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-constructfromprepost">Java 实现（constructFromPrePost）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>分治 + 哈希定位子树边界</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定两个整数数组，<code>preorder</code> 和 <code>postorder</code> ，其中 <code>preorder</code> 是一个具有 <strong>无重复</strong> 值的二叉树的前序遍历，<code>postorder</code> 是同一棵树的后序遍历，重构并返回二叉树。</p>
+<p>如果存在多个答案，您可以返回其中 <strong>任何</strong> 一个。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：preorder = [1,2,4,5,3,6,7], postorder = [4,5,2,6,7,3,1]
+输出：[1,2,3,4,5,6,7]
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：preorder = [1], postorder = [1]
+输出：[1]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= preorder.length &lt;= 30</code></li>
+<li><code>1 &lt;= preorder[i] &lt;= preorder.length</code></li>
+<li><code>preorder</code> 中所有值都 <strong>不同</strong></li>
+<li><code>postorder.length == preorder.length</code></li>
+<li><code>1 &lt;= postorder[i] &lt;= postorder.length</code></li>
+<li><code>postorder</code> 中所有值都 <strong>不同</strong></li>
+<li>保证 <code>preorder</code> 和 <code>postorder</code> 是同一棵二叉树的前序遍历和后序遍历</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>前序的根后面紧跟的 <code>preorder[preL+1]</code> 是左子树的根；它在后序中的位置 <code>idx</code> 恰好是左子树在后序里的<strong>最后一个元素</strong>，于是左子树大小为 <code>idx - postL + 1</code>，据此一刀切出左右两棵子树。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（根好找，边界难切）</strong></li>
+</ol>
+<p>前序是“根 → 左 → 右”，后序是“左 → 右 → 根”，所以 <code>preorder[preL]</code> 和 <code>postorder[postR]</code> 都是当前子树的根，根很容易确定。难点在于：<strong>怎么知道左子树有多大？</strong> 只有确定了左子树规模，才能在 <code>preorder</code> 和 <code>postorder</code> 里同时切出左右两段。</p>
+<ol start="2">
+<li><strong>破局思路（用左子树根定位边界）</strong></li>
+</ol>
+<p>关键观察：如果当前子树不止一个结点，那么 <code>preorder[preL+1]</code> 一定是<strong>左子树的根</strong>（前序先访问根，再访问左子树）。而在后序中，左子树的所有结点排在右子树之前、根之前，所以左子树的最后一个结点正是 <code>preorder[preL+1]</code>。于是：</p>
+<ul>
+<li>在 <code>postorder</code> 中找到值 <code>preorder[preL+1]</code> 的下标 <code>idx</code>；</li>
+<li>左子树大小 <code>leftSize = idx - postL + 1</code>；</li>
+<li>前序左段 <code>[preL+1, preL+leftSize]</code>，右段 <code>[preL+leftSize+1, preR]</code>；</li>
+<li>后序左段 <code>[postL, idx]</code>，右段 <code>[idx+1, postR-1]</code>（<code>postR</code> 是根）。</li>
+</ul>
+<ol start="3">
+<li><strong>关键追问（怎么切得又快又准？）</strong></li>
+</ol>
+<p>如果每次都线性扫 <code>postorder</code> 找 <code>idx</code>，最坏 <code>O(n²)</code>。用一个哈希表 <code>pos</code> 记录“值 → 在后序中的下标”，定位就是 <code>O(1)</code>，整体降到 <code>O(n)</code>。递归出口是 <code>preL &gt; preR</code>（空子树返回 <code>null</code>）以及 <code>preL == preR</code>（叶子结点直接返回）。</p>
+<p>用示例 <code>preorder=[1,2,4,5,3,6,7]</code>、<code>postorder=[4,5,2,6,7,3,1]</code> 走一遍：根 1，<code>preorder[1]=2</code> 在后序下标 2，<code>leftSize=2-0+1=3</code>（左子树 <code>[4,5,2]</code>，前序 <code>[2,4,5]</code>），右子树前序 <code>[3,6,7]</code>、后序 <code>[6,7,3]</code>，继续递归即可还原整棵树。</p>
+<h3 id="java-constructfromprepost">Java 实现（constructFromPrePost）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashMap</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Map</span><span class="p">;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode left;</span>
+<span class="cm"> *     TreeNode right;</span>
+<span class="cm"> *     TreeNode() {}</span>
+<span class="cm"> *     TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> *     TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> *         this.val = val;</span>
+<span class="cm"> *         this.left = left;</span>
+<span class="cm"> *         this.right = right;</span>
+<span class="cm"> *     }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">pre</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">post</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pos</span><span class="p">;</span><span class="w"> </span><span class="c1">// 值 -&gt; 在 postorder 中的下标</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">constructFromPrePost</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">postorder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">pre</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">preorder</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">post</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">postorder</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">pos</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">postorder</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">pos</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">postorder</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">preorder</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">postorder</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">preL</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">preR</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">postL</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">postR</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">preR</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 空子树</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeNode</span><span class="p">(</span><span class="n">pre</span><span class="o">[</span><span class="n">preL</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">preR</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 叶子结点，无子</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// pre[preL+1] 是左子树根，它在后序中的位置界定左子树范围</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pos</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">pre</span><span class="o">[</span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">postL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="p">,</span><span class="w"> </span><span class="n">postL</span><span class="p">,</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="p">);</span>
+<span class="w">        </span><span class="n">root</span><span class="p">.</span><span class="na">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preR</span><span class="p">,</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">postR</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n)，每个结点只被创建一次，哈希定位子树边界为 <code>O(1)</code>。</li>
+<li>空间：O(n)，哈希表占 <code>O(n)</code>，递归栈最坏为链状时的 <code>O(n)</code>。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong><code>leftSize</code> 的推导最容易错</strong>：它等于“左子树根在后序中的下标 − <code>postL</code> + 1”，少写 <code>+1</code> 会漏掉左子树根，导致切分错位。</li>
+<li><strong>只有一棵子树时存在歧义</strong>：前序 + 后序无法区分“唯一的孩子在左还是在右”。本算法把 <code>preorder[preL+1] == postorder[postR-1]</code> 的情况判给左子树（<code>leftSize</code> 恰好等于剩余全部结点），这仍是合法答案——题目允许返回任意一个。</li>
+<li><strong>必须加 <code>preL == preR</code> 的出口</strong>：否则单结点时 <code>preorder[preL+1]</code> 越界。</li>
+<li><strong>对比“前序 + 中序”</strong>：中序能唯一确定二叉树，而前序 + 后序只能确定“满二叉树”才唯一，普通二叉树会多解；这是常考的概念区分。</li>
+<li><strong>扩展：迭代写法</strong> 可用栈模拟递归，用 <code>preorder</code> 建树、按 <code>postorder</code> 判断回溯，空间同样 <code>O(n)</code>，但边界更易出错，面试中优先写递归分治。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/construct-binary-tree-from-preorder-and-postorder-traversal/" target="_blank" rel="noopener noreferrer">889. 从前序与后序遍历序列构造二叉树</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_map&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * struct TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode *left;</span>
+<span class="cm"> *     TreeNode *right;</span>
+<span class="cm"> *     TreeNode() : val(0), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x, TreeNode *left, TreeNode *right) : val(x), left(left), right(right) {}</span>
+<span class="cm"> * };</span>
+<span class="cm"> */</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">constructFromPrePost</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">postorder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">postorder</span><span class="p">.</span><span class="n">size</span><span class="p">();</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">pos</span><span class="p">[</span><span class="n">postorder</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">preorder</span><span class="p">,</span><span class="w"> </span><span class="n">postorder</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">preorder</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">                     </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">postorder</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="k">private</span><span class="o">:</span>
+<span class="w">    </span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pos</span><span class="p">;</span><span class="w"> </span><span class="c1">// 值 -&gt; 后序下标</span>
+
+<span class="w">    </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">pre</span><span class="p">,</span><span class="w"> </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">post</span><span class="p">,</span>
+<span class="w">                    </span><span class="kt">int</span><span class="w"> </span><span class="n">preL</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">preR</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">postL</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">postR</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">preR</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">        </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeNode</span><span class="p">(</span><span class="n">pre</span><span class="p">[</span><span class="n">preL</span><span class="p">]);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">preL</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">preR</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pos</span><span class="p">[</span><span class="n">pre</span><span class="p">[</span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">]];</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">postL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">root</span><span class="o">-&gt;</span><span class="n">left</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span><span class="w"> </span><span class="n">post</span><span class="p">,</span><span class="w"> </span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="p">,</span><span class="w"> </span><span class="n">postL</span><span class="p">,</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="p">);</span>
+<span class="w">        </span><span class="n">root</span><span class="o">-&gt;</span><span class="n">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">build</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span><span class="w"> </span><span class="n">post</span><span class="p">,</span><span class="w"> </span><span class="n">preL</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">leftSize</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">preR</span><span class="p">,</span><span class="w"> </span><span class="n">leftRootIdx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">postR</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">root</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Definition for a binary tree node.</span>
+<span class="c1"># class TreeNode:</span>
+<span class="c1">#     def __init__(self, val=0, left=None, right=None):</span>
+<span class="c1">#         self.val = val</span>
+<span class="c1">#         self.left = left</span>
+<span class="c1">#         self.right = right</span>
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">constructFromPrePost</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">preorder</span><span class="p">,</span> <span class="n">postorder</span><span class="p">):</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">postorder</span><span class="p">)}</span>  <span class="c1"># 值 -&gt; 后序下标</span>
+
+        <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="n">preL</span><span class="p">,</span> <span class="n">preR</span><span class="p">,</span> <span class="n">postL</span><span class="p">,</span> <span class="n">postR</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">preL</span> <span class="o">&gt;</span> <span class="n">preR</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">TreeNode</span><span class="p">(</span><span class="n">preorder</span><span class="p">[</span><span class="n">preL</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">preL</span> <span class="o">==</span> <span class="n">preR</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">root</span>
+            <span class="n">left_root_idx</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[</span><span class="n">preorder</span><span class="p">[</span><span class="n">preL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span>
+            <span class="n">left_size</span> <span class="o">=</span> <span class="n">left_root_idx</span> <span class="o">-</span> <span class="n">postL</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">root</span><span class="o">.</span><span class="n">left</span> <span class="o">=</span> <span class="n">build</span><span class="p">(</span><span class="n">preL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">preL</span> <span class="o">+</span> <span class="n">left_size</span><span class="p">,</span> <span class="n">postL</span><span class="p">,</span> <span class="n">left_root_idx</span><span class="p">)</span>
+            <span class="n">root</span><span class="o">.</span><span class="n">right</span> <span class="o">=</span> <span class="n">build</span><span class="p">(</span><span class="n">preL</span> <span class="o">+</span> <span class="n">left_size</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">preR</span><span class="p">,</span> <span class="n">left_root_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">postR</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">root</span>
+
+        <span class="k">return</span> <span class="n">build</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">preorder</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">postorder</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

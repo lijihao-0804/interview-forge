@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>331. 验证二叉树的前序序列化 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Stack</div>
+        <h1 id="331">331. 验证二叉树的前序序列化</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-isvalidserialization">Java 实现（isValidSerialization）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>槽位（度）计数：非空节点净 +1，空节点 -1</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>序列化二叉树的一种方法是使用<strong>前序遍历</strong>：遇到非空节点时记录下该节点的值；遇到空节点时用一个标记值（例如 <code>#</code>）记录。</p>
+<p>例如，某棵二叉树可以被序列化为字符串 <code>"9,3,4,#,#,1,#,#,2,#,6,#,#"</code>，其中 <code>#</code> 代表一个空节点。</p>
+<p>给定一串以逗号分隔的序列，验证它是否是<strong>正确的二叉树前序序列化</strong>。请编写一个<strong>不重构树</strong>的可行算法。</p>
+<p><strong>保证：</strong> 每个以逗号分隔的项要么是一个整数，要么是表示 <code>null</code> 指针的 <code>'#'</code>；输入格式总是有效的（例如不会出现 <code>"1,,3"</code> 这样的连续逗号）。</p>
+<p><strong>注意：</strong> 不允许重建树。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: preorder = &quot;9,3,4,#,#,1,#,#,2,#,6,#,#&quot;
+输出: true
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: preorder = &quot;1,#&quot;
+输出: false
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: preorder = &quot;9,#,#,1&quot;
+输出: false
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= preorder.length &lt;= 10⁴</code></li>
+<li><code>preorder</code> 由以逗号 <code>,</code> 分隔的 <code>[0, 100]</code> 范围内的整数和 <code>"#"</code> 组成</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>把序列化看作「填空槽」：初始有 1 个待填槽位；非空节点消耗 1 个槽位又产生 2 个（净 +1），空节点 <code>#</code> 只消耗 1 个（净 -1）；合法序列要求遍历过程中槽位一旦归零就不能再有节点，且最终槽位恰好为 0。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>把问题翻译成「填空槽」</strong></li>
+</ol>
+<p>一棵二叉树的每个节点都"需要被填进一个槽"。整棵树只有一个根，所以一开始只有 <strong>1 个槽位</strong>等着被填。</p>
+<ol start="2">
+<li><strong>两种节点对槽位的不同影响</strong></li>
+</ol>
+<ul>
+<li>填入一个<strong>非空节点</strong>：它占掉这 1 个槽，同时自己又长出左、右两个子节点的槽位，所以槽数变化是 <code>-1 + 2 = +1</code>。</li>
+<li>填入一个<strong>空节点 <code>#</code></strong>：它占掉这 1 个槽，但没有孩子，槽数变化是 <code>-1</code>。</li>
+</ul>
+<ol start="3">
+<li><strong>判定规则（两个条件缺一不可）</strong></li>
+</ol>
+<ul>
+<li>遍历过程中，<strong>一旦槽位变为 0，就不能再出现任何 token</strong>（说明根已被填满，多余的节点无处安放）；</li>
+<li>遍历结束后，<strong>槽位必须恰好为 0</strong>（所有槽都填满，既不能有剩、也不能欠）。</li>
+</ul>
+<ol start="4">
+<li><strong>小例子手推</strong></li>
+</ol>
+<ul>
+<li><code>"1,#"</code>：<code>1</code> 后槽数 <code>2</code>，<code>#</code> 后槽数 <code>1</code>，结尾非 0 → <code>false</code>（左子树空着）。</li>
+<li><code>"9,#,#,1"</code>：<code>9</code>→2，<code>#</code>→1，<code>#</code>→0，此时槽已空却还剩 <code>1</code> → <code>false</code>。</li>
+<li>示例 1 的 13 个 token 走完，槽数正好回到 0 → <code>true</code>。</li>
+</ul>
+<h3 id="java-isvalidserialization">Java 实现（isValidSerialization）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">isValidSerialization</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">preorder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">tokens</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">preorder</span><span class="p">.</span><span class="na">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 根节点占用的 1 个槽位</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">tokens</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">slots</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span><span class="w">                </span><span class="c1">// 槽位已耗尽却还有节点，非法</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">token</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="s">&quot;#&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">slots</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                  </span><span class="c1">// 空节点消耗 1 个槽位</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">slots</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                  </span><span class="c1">// 非空节点：消耗 1 个、产生 2 个，净 +1</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">                   </span><span class="c1">// 结束时所有槽位必须填满</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n)，每个 token 处理一次，<code>split</code> 也是线性扫描。</li>
+<li>空间：O(n)，<code>split</code> 得到的 token 数组；若用手写扫描器逐字符读取，可降到 O(1) 额外空间。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>中途提前归零必须判非法</strong>：只在最后检查 <code>slots == 0</code> 是不够的。像 <code>"9,#,#,1"</code> 会在中途把槽用完，必须循环内就 <code>return false</code>。</li>
+<li><strong><code>#</code> 用 <code>equals</code> 而不是 <code>==</code></strong>：Java 里字符串比较必须用 <code>equals</code>，<code>==</code> 比较的是引用。</li>
+<li><strong>另一种等价解法——栈消去</strong>：用栈模拟，遇到数字压栈；遇到 <code>#</code> 时若栈顶已是 <code>#</code> 则不断弹出两个 <code>#</code> 并压入一个 <code>#</code>（把 <code>"#, #"</code> 折叠成一个空位）。遍历完栈中应恰剩一个 <code>#</code>。本质与槽位法相同。</li>
+<li><strong>不要真的去建树</strong>：题面明确禁止重建，槽位法/栈法都只用一个计数器或一个栈，天然满足。</li>
+<li><strong>边界</strong>：单节点 <code>"#"</code> 是合法的（空树），返回 <code>true</code>；<code>"1"</code> 非法（非空节点还有两个空槽没填）。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/verify-preorder-serialization-of-a-binary-tree/" target="_blank" rel="noopener noreferrer">331. 验证二叉树的前序序列化</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;sstream&gt;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">isValidSerialization</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">preorder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 根节点占用的 1 个槽位</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">stringstream</span><span class="w"> </span><span class="nf">ss</span><span class="p">(</span><span class="n">preorder</span><span class="p">);</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">token</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">getline</span><span class="p">(</span><span class="n">ss</span><span class="p">,</span><span class="w"> </span><span class="n">token</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;,&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">slots</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span><span class="w">   </span><span class="c1">// 槽已耗尽却还有节点</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">token</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;#&quot;</span><span class="p">)</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">// 空节点消耗 1 个</span>
+<span class="w">            </span><span class="k">else</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">                </span><span class="c1">// 非空节点净 +1</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">slots</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">isValidSerialization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">preorder</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">slots</span> <span class="o">=</span> <span class="mi">1</span>                       <span class="c1"># 根节点占用的 1 个槽位</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">preorder</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">slots</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>              <span class="c1"># 槽已耗尽却还有节点</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">token</span> <span class="o">==</span> <span class="s1">&#39;#&#39;</span><span class="p">:</span>
+                <span class="n">slots</span> <span class="o">-=</span> <span class="mi">1</span>              <span class="c1"># 空节点消耗 1 个</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">slots</span> <span class="o">+=</span> <span class="mi">1</span>              <span class="c1"># 非空节点净 +1</span>
+        <span class="k">return</span> <span class="n">slots</span> <span class="o">==</span> <span class="mi">0</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

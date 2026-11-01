@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>343. 整数拆分 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="343">343. 整数拆分</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-integerbreak">Java 实现（integerBreak）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>贪心/数学：尽量拆出 3</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个正整数 <code>n</code>，将其拆分为 <code>k</code> 个<strong>正整数</strong>的和（<code>k &gt;= 2</code>），并使这些整数的乘积最大化。返回你可以获得的最大乘积。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: n = 2
+输出: 1
+解释: 2 = 1 + 1, 1 × 1 = 1。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: n = 10
+输出: 36
+解释: 10 = 3 + 3 + 4, 3 × 3 × 4 = 36。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>2 &lt;= n &lt;= 58</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>只要剩余部分还能拆出 3 且不会剩下 1，就优先拆出 3；余 2 乘 2、余 4 原样保留（即 2+2 不拆成 3+1）。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（是不是要枚举所有拆法？）</strong></li>
+</ol>
+<p>枚举所有拆分方式会爆炸。但乘积最大化其实有很强的规律：把整数拆得越"平均"越大，而且拆成小的正整数更划算。关键问题是：到底拆成几最好？</p>
+<ol start="2">
+<li><strong>为什么是 3（局部比较法）</strong></li>
+</ol>
+<p>比较一下把某个因子继续拆开是否更划算：</p>
+<ul>
+<li><code>4 = 2 + 2</code>，而 <code>2 × 2 = 4</code>，拆不拆一样；</li>
+<li><code>5</code>：拆成 <code>2 + 3</code> 得 <code>6 &gt; 5</code>，所以 <code>5</code> 应该拆；</li>
+<li><code>6</code>：<code>3 + 3</code> 得 <code>9 &gt; 6</code>，应拆；</li>
+<li>任何 <code>x &gt;= 5</code>，都有 <code>3 × (x-3) &gt; x</code>，所以<strong>只要还能拆，就拆出一个 3</strong>。</li>
+</ul>
+<p>于是结论：<strong>尽量多拆 3</strong>。以 <code>n = 10</code> 为例：<code>10 = 3 + 3 + 4</code>，<code>3 × 3 × 4 = 36</code>，比 <code>3+3+3+1</code>（乘积 27）更好。</p>
+<ol start="3">
+<li><strong>处理两种边界余数</strong></li>
+</ol>
+<ul>
+<li>若最后剩下 <code>2</code>，直接保留（<code>3</code> 比 <code>2</code> 大，但再拆成 <code>1+1</code> 只会更差）；</li>
+<li>若最后剩下 <code>1</code>，说明上一步多拆了一个 3，应把 <code>3 + 1</code> 合并成 <code>2 + 2</code>（因为 <code>3 × 1 = 3 &lt; 2 × 2 = 4</code>）。代码里用 <code>while (n &gt; 4)</code> 就自然地避免了剩下 <code>1</code> 的情况。</li>
+</ul>
+<ol start="4">
+<li><strong>特判小值</strong>：题目要求 <code>k &gt;= 2</code>（必须拆），所以 <code>n = 2</code> 只能 <code>1+1</code>，返回 <code>1</code>；<code>n = 3</code> 只能 <code>1+2</code>，返回 <code>2</code>。这两个不能套用"尽量拆 3"。</li>
+</ol>
+<h3 id="java-integerbreak">Java 实现（integerBreak）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">integerBreak</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 题目要求至少拆成两个数，2 和 3 只能被迫拆成 1+1、1+2</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 只要剩余部分还能&quot;安全&quot;拆出 3（剩 &gt;= 5 才拆，剩 4 时保留 2+2 更优）</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 循环结束时 n 只会是 2、3 或 4，直接乘进结果</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n)，<code>while</code> 循环最多执行约 <code>n/3</code> 次。</li>
+<li>空间：O(1)，只用了常数个整型变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>必须至少拆成两段</strong>：<code>n = 2</code> 返回 <code>1</code>、<code>n = 3</code> 返回 <code>2</code>，若不特判而直接"拆 3"会得到 <code>2</code>、<code>3</code>，都错。</li>
+<li><strong>余数为 1 的处理</strong>：用 <code>while (n &gt; 4)</code> 而非 <code>while (n &gt;= 3)</code>，可避免出现 <code>...×3×1</code> 这种比 <code>...×2×2</code> 更小的结果。</li>
+<li><strong>贪心正确性要能讲清</strong>：核心是 <code>3 × (x-3) &gt; x</code>（对 <code>x &gt;= 5</code> 成立），且 <code>2+2</code> 优于 <code>3+1</code>，所以拆 3 最优。</li>
+<li><strong>DP 备选</strong>：面试也可给动态规划 <code>dp[i] = max(j*(i-j), j*dp[i-j])</code>，时间 O(n²)、空间 O(n)，思路更通用但不如贪心优雅。</li>
+<li><strong>数值范围</strong>：<code>n &lt;= 58</code> 时结果在 <code>int</code> 范围内，无需 <code>long</code>；若上界放大则要注意溢出。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/integer-break/" target="_blank" rel="noopener noreferrer">343. 整数拆分</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">integerBreak</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">   </span><span class="c1">// 剩 &gt;= 5 才继续拆 3，剩 4 时保留 2+2</span>
+<span class="w">            </span><span class="n">res</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">            </span><span class="n">n</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">integerBreak</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">2</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span>          <span class="c1"># 剩 &gt;= 5 才继续拆 3</span>
+            <span class="n">res</span> <span class="o">*=</span> <span class="mi">3</span>
+            <span class="n">n</span> <span class="o">-=</span> <span class="mi">3</span>
+        <span class="k">return</span> <span class="n">res</span> <span class="o">*</span> <span class="n">n</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

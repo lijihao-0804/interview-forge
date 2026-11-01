@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>1233. 删除子文件夹 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Depth-First Search</div>
+        <h1 id="1233">1233. 删除子文件夹</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（排序 + 前缀判断）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>字典序排序 + 前缀判断（也可用 Trie 判祖先）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log n · L)，L 为路径最大长度</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n · L)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>你是一位系统管理员，手里有一份文件夹列表 <code>folder</code>，任务是删除列表中的所有<strong>子文件夹</strong>，并以<strong>任意顺序</strong>返回剩下的文件夹。</p>
+<p>若文件夹 <code>folder[i]</code> 位于另一个文件夹 <code>folder[j]</code> 下，则 <code>folder[i]</code> 是 <code>folder[j]</code> 的子文件夹。<code>folder[j]</code> 的子文件夹必须以 <code>folder[j]</code> 开头，后跟一个 <code>"/"</code>。例如，<code>"/a/b"</code> 是 <code>"/a"</code> 的子文件夹，但 <code>"/b"</code> 不是 <code>"/a/b/c"</code> 的子文件夹。</p>
+<p>文件夹的「路径」由一个或多个 <code>/</code> 后跟一个或多个小写英文字母的片段串联而成：</p>
+<ul>
+<li>例如，<code>"/leetcode"</code> 和 <code>"/leetcode/problems"</code> 都是有效路径，而空字符串和 <code>"/"</code> 不是。</li>
+</ul>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：folder = [&quot;/a&quot;,&quot;/a/b&quot;,&quot;/c/d&quot;,&quot;/c/d/e&quot;,&quot;/c/f&quot;]
+输出：[&quot;/a&quot;,&quot;/c/d&quot;,&quot;/c/f&quot;]
+解释：&quot;/a/b&quot; 是 &quot;/a&quot; 的子文件夹，而 &quot;/c/d/e&quot; 是 &quot;/c/d&quot; 的子文件夹。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：folder = [&quot;/a&quot;,&quot;/a/b/c&quot;,&quot;/a/b/d&quot;]
+输出：[&quot;/a&quot;]
+解释：文件夹 &quot;/a/b/c&quot; 和 &quot;/a/b/d&quot; 都会被删除，因为它们都是 &quot;/a&quot; 的子文件夹。
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：folder = [&quot;/a/b/c&quot;,&quot;/a/b/ca&quot;,&quot;/a/b/d&quot;]
+输出：[&quot;/a/b/c&quot;,&quot;/a/b/ca&quot;,&quot;/a/b/d&quot;]
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= folder.length &lt;= 4 * 10^4</code></li>
+<li><code>2 &lt;= folder[i].length &lt;= 100</code></li>
+<li><code>folder[i]</code> 只包含小写字母和 <code>'/'</code></li>
+<li><code>folder[i]</code> 总是以字符 <code>'/'</code> 起始</li>
+<li><code>folder</code> 每个元素都是<strong>唯一</strong>的</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>将路径按字典序排序后，「某个目录是子文件夹」当且仅当它以「最近一个被保留下来的目录」加 <code>"/"</code> 为前缀。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>把「父子关系」翻译成「前缀关系」</strong></li>
+</ol>
+<p>路径 <code>p</code> 是 <code>q</code> 的子文件夹，当且仅当 <code>p</code> 以 <code>q + "/"</code> 开头。注意一定要带上那个 <code>/</code>：<code>"/a"</code> 不能判成 <code>"/ab"</code> 的父目录，因为 <code>"/ab"</code> 并不以 <code>"/a/"</code> 开头。</p>
+<ol start="2">
+<li><strong>排序如何帮我们「只看前一个」</strong></li>
+</ol>
+<p>把所有路径按字典序排序。由于字符 <code>'/'</code>（ASCII 47）比任何小写字母都小，所有以 <code>"/a/"</code> 开头的路径都会紧跟在 <code>"/a"</code> 之后，并且排在像 <code>"/a0"</code>、<code>"/b"</code> 这类在 <code>/a</code> 处就「分叉」的路径之前。于是同一个父目录下的所有后代在排序后会连成一段，我们只需维护「最近保留的目录」<code>res.last</code>，判断当前路径是否以 <code>res.last + "/"</code> 开头即可，无需和所有保留目录逐一比较。</p>
+<ol start="3">
+<li><strong>一次遍历完成筛选</strong></li>
+</ol>
+<p>从前往后扫描：若结果列表非空且当前路径以「最后一个被保留的目录 + <code>/</code>」开头，说明它是子文件夹，跳过；否则它就是一个新的顶层目录，保留下来并成为新的 <code>res.last</code>。</p>
+<ol start="4">
+<li><strong>小例子</strong></li>
+</ol>
+<p><code>["/a","/a/b","/c/d","/c/d/e","/c/f"]</code> 排序后仍为原序。<code>/a</code> 保留；<code>/a/b</code> 以 <code>/a/</code> 开头 → 跳过（<code>res.last</code> 仍是 <code>/a</code>）；<code>/c/d</code> 不以 <code>/a/</code> 开头 → 保留；<code>/c/d/e</code> 以 <code>/c/d/</code> 开头 → 跳过；<code>/c/f</code> 以 <code>/c/d/</code> 开头？否 → 保留。结果 <code>["/a","/c/d","/c/f"]</code>。</p>
+<h3 id="java">Java 实现（排序 + 前缀判断）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayList</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">removeSubfolders</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">folder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">folder</span><span class="p">);</span><span class="w">                 </span><span class="c1">// 字典序排序，父目录一定在子目录之前</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">folder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 若 f 以「最近保留目录 + &quot;/&quot;」开头，则是它的子文件夹</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">res</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="na">startsWith</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">f</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n log n · L)</code>。排序是 <code>O(n log n)</code> 次字符串比较，每次最长 <code>L</code>，故 <code>O(n log n · L)</code>；随后一次线性扫描，每次前缀判断 <code>O(L)</code>，即 <code>O(n·L)</code>。</li>
+<li>空间：<code>O(n · L)</code>。结果列表最多存放 <code>n</code> 条、每条长 <code>L</code> 的路径；排序的额外空间取决于实现（通常 <code>O(log n)</code> 或 <code>O(n)</code>）。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>前缀少写 <code>/</code></strong>：只判断 <code>f.startsWith(parent)</code> 会把 <code>"/ab"</code> 误判为 <code>"/a"</code> 的子目录。必须比较 <code>parent + "/"</code>。</li>
+<li><strong>不排序时的朴素做法</strong>：若不排序，则对每个路径需枚举它的所有前缀祖先并在集合中查是否存在，复杂度 <code>O(n·L)</code>（按段数）。排序法代码更短，是首选。</li>
+<li><strong>只和 <code>res.last</code> 比较是否足够</strong>：足够，且这正是排序的价值所在——排序保证同族后代连续出现，被跳过的子目录不会成为 <code>res.last</code>，<code>res.last</code> 始终是当前段的顶层目录。</li>
+<li><strong>返回值顺序</strong>：题目允许任意顺序，排序后天然有序，无需额外处理。</li>
+<li><strong>Trie 扩展</strong>：把每条路径按 <code>'/'</code> 切段插入字典树，节点标记「是否是一个完整文件夹」。DFS 时一旦遇到被标记为完整文件夹的节点，就收集它并停止向下（其子树全是子文件夹）。当输入是流式、或想按目录层级处理时更自然。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/remove-sub-folders-from-the-filesystem/" target="_blank" rel="noopener noreferrer">1233. 删除子文件夹</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;algorithm&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">removeSubfolders</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">folder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">sort</span><span class="p">(</span><span class="n">folder</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">folder</span><span class="p">.</span><span class="n">end</span><span class="p">());</span><span class="w">       </span><span class="c1">// 字典序排序</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">folder</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// rfind(prefix, 0) == 0 表示 f 以 prefix 开头</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">res</span><span class="p">.</span><span class="n">empty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">f</span><span class="p">.</span><span class="n">rfind</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="n">back</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;/&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span><span class="w">                          </span><span class="c1">// 是最近保留目录的子文件夹</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">f</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">removeSubfolders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">folder</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="n">folder</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>                              <span class="c1"># 字典序排序</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">folder</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span><span class="p">):</span>
+                <span class="k">continue</span>                           <span class="c1"># 是最近保留目录的子文件夹</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

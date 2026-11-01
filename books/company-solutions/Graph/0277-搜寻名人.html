@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>277. 搜寻名人 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Graph</div>
+        <h1 id="277">277. 搜寻名人</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-findcelebrity">Java 实现（findCelebrity）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>淘汰法 + 一次验证（双指针思想）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>假设你是一位专业的狗仔，参加了一个 <code>n</code> 人的派对，每个人被从 <code>0</code> 到 <code>n-1</code> 编号。派对人群中可能存在一位 <strong>名人</strong>。</p>
+<p><strong>名人的定义</strong>是：</p>
+<ul>
+<li>其他所有 <code>n-1</code> 个人都认识他/她；</li>
+<li>他/她不认识其他任何一个人（除自己外）。</li>
+</ul>
+<p>你唯一能做的，就是询问"<code>a</code> 是否认识 <code>b</code>"，这通过接口 <code>bool knows(int a, int b)</code> 返回。请你找出名人的编号；如果不存在名人，返回 <code>-1</code>。</p>
+<p>为便于理解，下面的示例用邻接矩阵 <code>graph</code> 表示认识关系：<code>graph[i][j] = 1</code> 表示编号 <code>i</code> 的人认识编号 <code>j</code> 的人，<code>0</code> 表示不认识。实际评测中你只能调用 <code>knows</code> 接口，而不会直接拿到 <code>graph</code>。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：graph = [[1,1,0],[0,1,0],[1,1,1]]
+输出：1
+解释：编号 0 认识 1，编号 2 认识 1，且编号 1 不认识其他任何人，因此 1 是名人。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：graph = [[1,0,1],[1,1,0],[0,1,1]]
+输出：-1
+解释：不存在同时满足&quot;所有人都认识他&quot;且&quot;他不认识任何人&quot;的人，因此返回 -1。
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>n == graph.length</code></li>
+<li><code>n == graph[i].length</code></li>
+<li><code>2 &lt;= n &lt;= 100</code></li>
+<li><code>graph[i][j]</code> 为 <code>0</code> 或 <code>1</code></li>
+<li><code>graph[i][i] == 1</code></li>
+</ul>
+<p><strong>进阶：</strong> 如果最多允许调用 <code>knows</code> 接口 <code>3n</code> 次，你该如何解决？</p>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>一次 <code>knows(a, b)</code> 询问必然能淘汰一个人：若 <code>a</code> 认识 <code>b</code>，则 <code>a</code> 不可能是名人；若 <code>a</code> 不认识 <code>b</code>，则 <code>b</code> 不可能是名人。用 <code>n-1</code> 次询问淘汰到只剩一个候选人，再花 <code>O(n)</code> 次验证即可。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（暴力验证太贵）</strong></li>
+</ol>
+<p>最直接的做法是对每个人 <code>i</code> 都验证一遍"是否所有人认识他、且他不认识任何人"，每次验证要看 <code>2n</code> 条关系，总体 <code>O(n²)</code> 次询问。人数一多，调用次数就爆了，题目还要求尽量少调用接口。</p>
+<ol start="2">
+<li><strong>关键观察（一次询问必淘汰一人）</strong></li>
+</ol>
+<p>对任意两人 <code>a</code>、<code>b</code>，问一次 <code>knows(a, b)</code>：
+   - 若返回 <code>true</code>：<code>a</code> 认识 <code>b</code>，那么 <code>a</code> <strong>一定不是名人</strong>（名人不认识任何人）→ 淘汰 <code>a</code>；
+   - 若返回 <code>false</code>：<code>a</code> 不认识 <code>b</code>，那么 <code>b</code> <strong>一定不是名人</strong>（名人应被所有人认识）→ 淘汰 <code>b</code>。</p>
+<p>也就是说，每问一次，一定能从两人中排除一个人。</p>
+<ol start="3">
+<li><strong>淘汰出候选（双指针收缩）</strong></li>
+</ol>
+<p>维护一个"候选人" <code>candidate</code>，初始为 <code>0</code>。让 <code>candidate</code> 依次和 <code>i = 1, 2, ..., n-1</code> 比较：只要 <code>knows(candidate, i)</code> 为真，就说明 <code>candidate</code> 不合格，把 <code>candidate</code> 换成 <code>i</code>。走完一遍，最多 <code>n-1</code> 次询问后只剩唯一候选人。</p>
+<p>小例子（示例 1）：<code>candidate=0</code>，<code>knows(0,1)=true</code> → <code>candidate=1</code>；再比较 <code>knows(1,2)=false</code> → 保持 <code>1</code>。候选人为 <code>1</code>。</p>
+<ol start="4">
+<li><strong>必须再验证一次</strong></li>
+</ol>
+<p>淘汰法只保证：<strong>如果名人存在，那么它一定是最后的 <code>candidate</code></strong>；但它无法排除"根本没有名人"的情况。所以还要遍历所有人验证：对每个 <code>i ≠ candidate</code>，都必须满足 <code>knows(candidate, i) == false</code> 且 <code>knows(i, candidate) == true</code>，否则返回 <code>-1</code>。</p>
+<h3 id="java-findcelebrity">Java 实现（findCelebrity）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/* The knows API is defined in the parent class Relation.</span>
+<span class="cm">      boolean knows(int a, int b); */</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="kd">extends</span><span class="w"> </span><span class="n">Relation</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findCelebrity</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 第一步：淘汰法找出唯一候选人</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">candidate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// candidate 认识 i，说明 candidate 不可能是名人</span>
+<span class="w">                </span><span class="n">candidate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 第二步：验证候选人是否真的是名人</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">candidate</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 候选人不能认识别人；且别人必须认识候选人</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">knows</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">candidate</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">candidate</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(n)</code>，淘汰阶段最多 <code>n-1</code> 次询问，验证阶段最多 <code>2n</code> 次询问，总计不超过 <code>3n</code> 次调用。</li>
+<li>空间：<code>O(1)</code>，只用了 <code>candidate</code> 等常数个变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>漏掉验证步骤</strong>：淘汰法只能保证"若存在名人则必为候选人"，不验证就无法发现"没有名人"的情况，示例 2 会被错误地返回一个假名人。</li>
+<li><strong>验证要查两个方向</strong>：既要 <code>knows(candidate, i) == false</code>，也要 <code>knows(i, candidate) == true</code>，少查任一方向都会漏判。</li>
+<li><strong>候选人初始为 0，循环从 1 开始</strong>：避免自己和自己比较。</li>
+<li><strong><code>i == candidate</code> 要跳过</strong>：验证阶段名人与自己无需比较（题目约定 <code>graph[i][i] == 1</code>）。</li>
+<li><strong>调用次数</strong>：淘汰 <code>n-1</code> 次 + 验证最多 <code>2n</code> 次，总计 ≤ <code>3n</code>，正好满足进阶要求。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/find-the-celebrity/" target="_blank" rel="noopener noreferrer">277. 搜寻名人</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/* The knows API is defined for you:</span>
+<span class="cm">   bool knows(int a, int b); */</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">findCelebrity</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 淘汰法找唯一候选人</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">candidate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">candidate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="p">;</span><span class="w"> </span><span class="c1">// candidate 认识 i，淘汰 candidate</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 验证候选人</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">candidate</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">knows</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">candidate</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">candidate</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># The knows API is already defined for you:</span>
+<span class="c1"># def knows(a: int, b: int) -&gt; bool:</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">findCelebrity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="c1"># 淘汰法找唯一候选人</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+                <span class="n">candidate</span> <span class="o">=</span> <span class="n">i</span>  <span class="c1"># candidate 认识 i，淘汰 candidate</span>
+        <span class="c1"># 验证候选人</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">candidate</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">knows</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">knows</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">candidate</span><span class="p">):</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">return</span> <span class="n">candidate</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

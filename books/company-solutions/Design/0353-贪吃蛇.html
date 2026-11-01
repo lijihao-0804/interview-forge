@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>353. 贪吃蛇 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Design</div>
+        <h1 id="353">353. 贪吃蛇</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（双端队列 + 哈希集合模拟）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>双端队列存蛇身 + 哈希集合做 O(1) 碰撞判定</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>每次 move 均为 O(1)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(food.length)，即蛇身最大长度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>请你设计一个「贪吃蛇」游戏。游戏在一个 <code>height × width</code> 的屏幕上进行，屏幕上的坐标用 <code>(行, 列)</code> 表示，左上角为 <code>(0, 0)</code>。</p>
+<p>蛇初始位于左上角 <code>(0, 0)</code>，初始长度为 <code>1</code> 个单位。</p>
+<p>给你一个二维数组 <code>food</code>，其中 <code>food[i] = [ri, ci]</code> 表示第 <code>i</code> 块食物的位置。当蛇吃到一块食物时，它的长度与得分都会加 <code>1</code>。</p>
+<p>食物是<strong>逐个出现</strong>的：只有当蛇吃掉当前食物后，下一块食物才会出现。食物出现时，保证它不会落在蛇身占据的格子上。</p>
+<p>当蛇撞到墙（越界），或者蛇头移动到了自己身体占据的格子上（撞到自己）时，游戏结束。<strong>注意</strong>：如果蛇头移动到当前蛇尾所在的格子，这不算撞到自己，因为蛇尾会随这一步一起移动开。</p>
+<p>实现 <code>SnakeGame</code> 类：</p>
+<ul>
+<li><code>SnakeGame(int width, int height, int[][] food)</code>：用一个大小为 <code>height × width</code> 的屏幕和食物位置数组 <code>food</code> 初始化对象；</li>
+<li><code>int move(String direction)</code>：按照 <code>direction</code> 方向移动一步，返回移动后的游戏得分；如果游戏结束，返回 <code>-1</code>。</li>
+</ul>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：
+[&quot;SnakeGame&quot;, &quot;move&quot;, &quot;move&quot;, &quot;move&quot;, &quot;move&quot;, &quot;move&quot;, &quot;move&quot;]
+[[3, 2, [[1, 2], [0, 1]]], [&quot;R&quot;], [&quot;D&quot;], [&quot;R&quot;], [&quot;U&quot;], [&quot;L&quot;], [&quot;U&quot;]]
+输出：
+[null, 0, 0, 1, 1, 2, 2]
+
+解释：
+SnakeGame snakeGame = new SnakeGame(3, 2, [[1, 2], [0, 1]]);
+snakeGame.move(&quot;R&quot;); // 返回 0
+snakeGame.move(&quot;D&quot;); // 返回 0
+snakeGame.move(&quot;R&quot;); // 返回 1，蛇吃到第一块食物，第二块食物出现在 (0, 1)
+snakeGame.move(&quot;U&quot;); // 返回 1
+snakeGame.move(&quot;L&quot;); // 返回 2，蛇吃到第二块食物，之后不再有食物
+snakeGame.move(&quot;U&quot;); // 返回 -1，蛇撞到边界，游戏结束
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= width, height &lt;= 10^4</code></li>
+<li><code>1 &lt;= food.length &lt;= 50</code></li>
+<li><code>food[i].length == 2</code></li>
+<li><code>0 &lt;= ri &lt; height</code></li>
+<li><code>0 &lt;= ci &lt; width</code></li>
+<li><code>direction.length == 1</code></li>
+<li><code>direction</code> 为 <code>'U'</code>、<code>'D'</code>、<code>'L'</code> 或 <code>'R'</code></li>
+<li><code>move</code> 方法最多被调用 <code>10^4</code> 次</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>蛇身用双端队列按「头 → 尾」顺序保存坐标，蛇头进队、蛇尾出队；只有吃到食物时蛇尾才不弹出，其余情况每步都弹尾，因此「判断撞尾」必须在弹尾之后进行。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>蛇身怎么存？</strong> 蛇每走一步，本质是「头进、尾出」，是一个典型的双端队列（deque）操作。把每个格子压成一个整数 <code>r * width + c</code>，队头是蛇头、队尾是蛇尾。</p>
+</li>
+<li>
+<p><strong>怎么快速判碰撞？</strong> 若每次都在队列里线性查找蛇头是否压到身体，最坏 O(蛇长)。再加一个哈希集合同步维护蛇身格子，<code>contains</code> 就是 O(1)。队列负责「先进先出」的增删，集合负责「是否占用」的判断，两者必须同步更新。</p>
+</li>
+<li>
+<p><strong>关键细节：先弹尾再判碰撞。</strong> 如果这一步没吃到食物，蛇尾会离开原格子，所以蛇头移入原蛇尾格子是合法的。因此处理顺序是：先假设不长身体 → 弹出队尾并从集合删除 → 再检查新蛇头是否在集合中。吃到食物时才跳过弹尾（蛇长 +1）。</p>
+</li>
+<li>
+<p><strong>小例子（width=3, height=2, food=[[1,2],[0,1]]）</strong>：初始蛇 <code>{(0,0)}</code>。走 <code>R</code> → 头 <code>(0,1)</code>，未吃到，弹尾 <code>(0,0)</code>，合法；再走 <code>D</code> → 头 <code>(1,1)</code>；走 <code>R</code> → 头 <code>(1,2)</code> 正好是食物，得分 1 且不弹尾，蛇长变 2；……最后一步 <code>U</code> 使头到 <code>(-1,1)</code> 越界，返回 <code>-1</code>。</p>
+</li>
+</ol>
+<h3 id="java">Java 实现（双端队列 + 哈希集合模拟）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.ArrayDeque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Deque</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.HashSet</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Set</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">SnakeGame</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">food</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">foodIndex</span><span class="p">;</span><span class="w">      </span><span class="c1">// 下一块待吃食物的下标</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">score</span><span class="p">;</span><span class="w">          </span><span class="c1">// 当前得分 == 已吃食物数</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Deque</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">snake</span><span class="p">;</span><span class="w">      </span><span class="c1">// 蛇身坐标，head 在队首</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">Set</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">occupied</span><span class="p">;</span><span class="w">     </span><span class="c1">// 蛇身占据的格子，便于 O(1) 判碰撞</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="nf">SnakeGame</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">height</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">[][]</span><span class="w"> </span><span class="n">food</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">width</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">width</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">food</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">food</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">foodIndex</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">score</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">snake</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayDeque</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">this</span><span class="p">.</span><span class="na">occupied</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="n">snake</span><span class="p">.</span><span class="na">offerFirst</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">       </span><span class="c1">// 初始蛇头在 (0,0)，编码 0*width+0</span>
+<span class="w">        </span><span class="n">occupied</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">move</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">direction</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 根据方向算新蛇头坐标</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">snake</span><span class="p">.</span><span class="na">peekFirst</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">width</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">width</span><span class="p">;</span>
+<span class="w">        </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;U&quot;</span><span class="p">:</span><span class="w"> </span><span class="n">r</span><span class="o">--</span><span class="p">;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;D&quot;</span><span class="p">:</span><span class="w"> </span><span class="n">r</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;L&quot;</span><span class="p">:</span><span class="w"> </span><span class="n">c</span><span class="o">--</span><span class="p">;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="s">&quot;R&quot;</span><span class="p">:</span><span class="w"> </span><span class="n">c</span><span class="o">++</span><span class="p">;</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 越界即撞墙，游戏结束</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">height</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">width</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">newHead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">width</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 3. 判断这一步是否吃到食物</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">eat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">foodIndex</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">food</span><span class="p">.</span><span class="na">length</span>
+<span class="w">                </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">food</span><span class="o">[</span><span class="n">foodIndex</span><span class="o">][</span><span class="mi">0</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">r</span>
+<span class="w">                </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">food</span><span class="o">[</span><span class="n">foodIndex</span><span class="o">][</span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 4. 未吃到食物时，蛇尾会离开，先弹尾再判碰撞</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">eat</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">snake</span><span class="p">.</span><span class="na">pollLast</span><span class="p">();</span>
+<span class="w">            </span><span class="n">occupied</span><span class="p">.</span><span class="na">remove</span><span class="p">(</span><span class="n">tail</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 5. 若新蛇头已在蛇身中，说明撞到自己</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">occupied</span><span class="p">.</span><span class="na">contains</span><span class="p">(</span><span class="n">newHead</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 6. 合法，蛇头进队</span>
+<span class="w">        </span><span class="n">snake</span><span class="p">.</span><span class="na">offerFirst</span><span class="p">(</span><span class="n">newHead</span><span class="p">);</span>
+<span class="w">        </span><span class="n">occupied</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">newHead</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">eat</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">score</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="n">foodIndex</span><span class="o">++</span><span class="p">;</span><span class="w">            </span><span class="c1">// 下一块食物登场</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">score</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：每次 <code>move</code> 都是 O(1)。移动、入队、出队、集合判重均为常数时间操作。</li>
+<li>空间：O(food.length)。蛇身最长等于 <code>食物数 + 1</code>，队列与集合的规模都不超过它。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>判碰撞顺序不能错</strong>：必须「先弹尾（未吃食物时）再判蛇头是否撞身体」，否则蛇头移入原蛇尾格子会被误判为撞自己。</li>
+<li><strong>吃到食物这一步不弹尾</strong>：因为蛇要变长，尾巴留在原地；忘记这一点会导致蛇身长度不增长。</li>
+<li><strong>食物下标单独指针</strong>：食物是逐个出现的，用一个 <code>foodIndex</code> 指针记录下一块食物，吃到后才前进，不要用「食物坐标是否等于蛇头」去反推。</li>
+<li><strong>编码坐标避免对象开销</strong>：把 <code>(r,c)</code> 压成 <code>r*width + c</code> 一个整数，既省内存又便于哈希；注意 <code>width</code> 是列数。</li>
+<li><strong>边界优先判断</strong>：先判越界再判碰撞，越界时直接返回 <code>-1</code>，避免后续用非法坐标。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/design-snake-game/" target="_blank" rel="noopener noreferrer">353. 贪吃蛇</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;deque&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_set&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">SnakeGame</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+<span class="w">    </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">food</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">foodIndex</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">score</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="n">deque</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">snake</span><span class="p">;</span><span class="w">                 </span><span class="c1">// 蛇身坐标，head 在队首</span>
+<span class="w">    </span><span class="n">unordered_set</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">occupied</span><span class="p">;</span><span class="w">      </span><span class="c1">// 蛇身占用格子</span>
+
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">SnakeGame</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">height</span><span class="p">,</span><span class="w"> </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">food</span><span class="p">)</span>
+<span class="w">        </span><span class="o">:</span><span class="w"> </span><span class="n">width</span><span class="p">(</span><span class="n">width</span><span class="p">),</span><span class="w"> </span><span class="n">height</span><span class="p">(</span><span class="n">height</span><span class="p">),</span><span class="w"> </span><span class="n">food</span><span class="p">(</span><span class="n">food</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">snake</span><span class="p">.</span><span class="n">push_front</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">          </span><span class="c1">// (0,0)</span>
+<span class="w">        </span><span class="n">occupied</span><span class="p">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">move</span><span class="p">(</span><span class="n">string</span><span class="w"> </span><span class="n">direction</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">snake</span><span class="p">.</span><span class="n">front</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">width</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">width</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;U&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">--</span><span class="n">r</span><span class="p">;</span>
+<span class="w">        </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;D&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">++</span><span class="n">r</span><span class="p">;</span>
+<span class="w">        </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;L&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">--</span><span class="n">c</span><span class="p">;</span>
+<span class="w">        </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s">&quot;R&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">++</span><span class="n">c</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">height</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">width</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">newHead</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">width</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">bool</span><span class="w"> </span><span class="n">eat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">foodIndex</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">food</span><span class="p">.</span><span class="n">size</span><span class="p">()</span>
+<span class="w">                </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">food</span><span class="p">[</span><span class="n">foodIndex</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">food</span><span class="p">[</span><span class="n">foodIndex</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">c</span><span class="p">;</span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">eat</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">snake</span><span class="p">.</span><span class="n">back</span><span class="p">();</span>
+<span class="w">            </span><span class="n">snake</span><span class="p">.</span><span class="n">pop_back</span><span class="p">();</span>
+<span class="w">            </span><span class="n">occupied</span><span class="p">.</span><span class="n">erase</span><span class="p">(</span><span class="n">tail</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">occupied</span><span class="p">.</span><span class="n">count</span><span class="p">(</span><span class="n">newHead</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">snake</span><span class="p">.</span><span class="n">push_front</span><span class="p">(</span><span class="n">newHead</span><span class="p">);</span>
+<span class="w">        </span><span class="n">occupied</span><span class="p">.</span><span class="n">insert</span><span class="p">(</span><span class="n">newHead</span><span class="p">);</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">eat</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">++</span><span class="n">score</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">foodIndex</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">score</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">deque</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+
+
+<span class="k">class</span> <span class="nc">SnakeGame</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">food</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="n">width</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="n">height</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">food</span> <span class="o">=</span> <span class="n">food</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">food_index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">snake</span> <span class="o">=</span> <span class="n">deque</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>      <span class="c1"># 蛇身坐标，head 在队首</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">occupied</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">}</span>          <span class="c1"># 蛇身占用格子</span>
+
+    <span class="k">def</span> <span class="nf">move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">direction</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">snake</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;U&quot;</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;D&quot;</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;L&quot;</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;R&quot;</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">r</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">height</span> <span class="ow">or</span> <span class="n">c</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">c</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">width</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+
+        <span class="n">new_head</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">width</span> <span class="o">+</span> <span class="n">c</span>
+        <span class="n">eat</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">food_index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">food</span><span class="p">)</span>
+               <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">food</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">food_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">r</span>
+               <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">food</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">food_index</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">c</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">eat</span><span class="p">:</span>
+            <span class="n">tail</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">snake</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">occupied</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tail</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">new_head</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">occupied</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">snake</span><span class="o">.</span><span class="n">appendleft</span><span class="p">(</span><span class="n">new_head</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">occupied</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_head</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eat</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">score</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">food_index</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

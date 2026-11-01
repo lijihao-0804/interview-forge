@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>440. 字典序的第K小数字 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Trie</div>
+        <h1 id="440-k">440. 字典序的第K小数字</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（前缀计数跳跃）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>Hard</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>字典序十叉树（Trie）上的前缀计数跳跃</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(log² n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定整数 <code>n</code> 和 <code>k</code>，返回 <code>[1, n]</code> 中字典序第 <code>k</code> 小的数字。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: n = 13, k = 2
+输出: 10
+解释: 字典序的排列是 [1, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 9]，所以第二小的数字是 10。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: n = 1, k = 1
+输出: 1
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= k &lt;= n &lt;= 10^9</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>把 1..n 按字典序排成「十叉树」后，任意节点 <code>prefix</code> 的整棵子树都排在它的下一个兄弟之前；只要一次性算出该子树拥有多少个数字，就能用减法整段跳过，而不必逐个枚举。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（不能真的排序）</strong>：<code>n</code> 可达 <code>10^9</code>，把 1..n 全排一遍是 O(n log n)，必然超时。但字典序并不是随机的——它天然是一棵<strong>十叉树</strong>：根挂着 1..9，每个节点 <code>prefix</code> 的孩子是 <code>prefix*10 .. prefix*10+9</code>。字典序的「前序遍历」正是题目要求的顺序。</li>
+</ol>
+<p>以 <code>n = 13</code> 为例，这棵树的形状是：
+   <code>1
+   ├─ 10
+   ├─ 11
+   ├─ 12
+   └─ 13
+   2 .. 9</code>
+   前序遍历得到 <code>1, 10, 11, 12, 13, 2, 3, …, 9</code>。</p>
+<ol start="2">
+<li>
+<p><strong>破局思路（整棵子树一起数）</strong>：站在某个前缀 <code>prefix</code> 上，我们先统计「以 <code>prefix</code> 为前缀的、不超过 <code>n</code> 的数字共有多少个」（记为 <code>count</code>）：
+   - 若 <code>k</code> 大于 <code>count</code>，说明第 k 个数不在这棵子树里，直接整段跳过：<code>k -= count</code>，然后走向下一个兄弟 <code>prefix + 1</code>；
+   - 若 <code>k &lt;= count</code>，说明答案就在这棵子树里：先往下走一层 <code>prefix *= 10</code>，并让 <code>k -= 1</code>（把当前这个前缀本身用掉）。</p>
+</li>
+<li>
+<p><strong>关键追问（如何 O(log n) 算出子树大小）</strong>：按「层」统计。第 0 层有 <code>[prefix, prefix]</code>；第 1 层是 <code>[prefix*10, prefix*10+9]</code>；每往下乘 10。一层里落在 <code>[1, n]</code> 内的个数是 <code>min(n + 1, next) − cur</code>（用左闭右开区间避免 +1 出错），累加所有层即可。层数最多 <code>log n</code>，所以一次 <code>count</code> 是 O(log n)，而主循环最多走 O(log n) 步（要么消耗一个数字，要么下沉一层，要么跳出兄弟），总复杂度 O(log² n)。</p>
+</li>
+</ol>
+<p>例如 <code>n = 13, prefix = 1</code>：第 0 层 <code>[1,2)</code> 贡献 1；第 1 层 <code>[10,20)</code> 与 <code>[1,14)</code> 交集为 <code>[10,14)</code> 贡献 4 → <code>count = 5</code>，正是 <code>1,10,11,12,13</code> 这 5 个数。</p>
+<h3 id="java">Java 实现（前缀计数跳跃）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">findKthNumber</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w">   </span><span class="c1">// 从字典序第一个数 1 开始</span>
+<span class="w">        </span><span class="n">k</span><span class="o">--</span><span class="p">;</span><span class="w">            </span><span class="c1">// 1 本身已经算作第 1 个，先扣掉</span>
+
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">countSteps</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">cur</span><span class="p">,</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w"> </span><span class="c1">// 以 cur 为前缀的子树有多少个数字</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 第 k 个不在当前子树，整段跳过，走向下一个兄弟</span>
+<span class="w">                </span><span class="n">k</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">                </span><span class="n">cur</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="c1">// 答案在子树内，下沉到下一层（先取 cur 本身，故 k-1）</span>
+<span class="w">                </span><span class="n">cur</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">                </span><span class="n">k</span><span class="o">--</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// 统计以 first 为前缀、范围 [first, last) 逐层扩张时，落在 [1, n] 内的数字个数</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">countSteps</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">last</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">first</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 当前层 [first, last) 与 [1, n] 的交集大小</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">((</span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">last</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">first</span><span class="p">;</span>
+<span class="w">            </span><span class="n">first</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">            </span><span class="n">last</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">steps</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(log² n)。外层最多 O(log n) 步（每次要么 <code>k</code> 减少、要么下探一层、要么移动兄弟），每步调用一次 <code>countSteps</code> 耗时 O(log n)，相乘为 O(log² n)。对 <code>n = 10^9</code> 只需几十次运算。</li>
+<li>空间：O(1)。只使用若干 <code>long</code> 变量，无额外数据结构（递归也可写成迭代，避免栈开销）。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>整型溢出</strong>：<code>prefix * 10</code>、<code>last * 10</code>、<code>n + 1</code> 在 <code>int</code> 下可能溢出。全程用 <code>long</code> 计算，最后再转回 <code>int</code>。</li>
+<li><strong>区间开闭要统一</strong>：<code>countSteps</code> 用左闭右开 <code>[first, last)</code>，数量为 <code>min(n+1, last) - first</code>。若混用闭区间很容易多算/少算 1。</li>
+<li><strong><code>k</code> 的偏移</strong>：从 <code>1</code> 出发时先 <code>k--</code>；进入子树时 <code>k--</code>（把当前前缀自身算一个）。这两处 <code>k--</code> 漏一个就会整体错位。</li>
+<li><strong>跳出条件</strong>：<code>while (k &gt; 0)</code> 而非 <code>k &gt;= 0</code>，否则会多走一步。</li>
+<li><strong>扩展</strong>：这是「字典序第 k 小」的模板题，可迁移到「按字典序输出 1..n」「字典序第 k 个排列」等；本质是<strong>在隐式 Trie 上按子树规模做二分/跳跃</strong>，与「求第 k 小」类问题（如二叉搜索树第 k 小）思路相通，但这里子树的规模靠公式而非节点存储。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/k-th-smallest-in-lexicographical-order/" target="_blank" rel="noopener noreferrer">440. 字典序的第K小数字</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 统计以 first 为前缀的子树中，落在 [1, n] 内的数字个数</span>
+<span class="w">    </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="nf">countSteps</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">last</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">first</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">min</span><span class="p">((</span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="p">)</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">last</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">first</span><span class="p">;</span>
+<span class="w">            </span><span class="n">first</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">            </span><span class="n">last</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">steps</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">findKthNumber</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="n">k</span><span class="o">--</span><span class="p">;</span><span class="w">                       </span><span class="c1">// 1 已经算作第 1 个</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">long</span><span class="w"> </span><span class="kt">long</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">countSteps</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">cur</span><span class="p">,</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">k</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">k</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="n">count</span><span class="p">;</span><span class="w">        </span><span class="c1">// 整棵子树跳过，走向下一个兄弟</span>
+<span class="w">                </span><span class="n">cur</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">cur</span><span class="w"> </span><span class="o">*=</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span><span class="w">         </span><span class="c1">// 下沉到下一层</span>
+<span class="w">                </span><span class="n">k</span><span class="o">--</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="n">cur</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">findKthNumber</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">count_steps</span><span class="p">(</span><span class="n">first</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">last</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+            <span class="c1"># 统计以 first 为前缀、[first, last) 逐层扩张时，落在 [1, n] 内的数字个数</span>
+            <span class="n">steps</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="n">first</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+                <span class="n">steps</span> <span class="o">+=</span> <span class="nb">min</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">last</span><span class="p">)</span> <span class="o">-</span> <span class="n">first</span>
+                <span class="n">first</span> <span class="o">*=</span> <span class="mi">10</span>
+                <span class="n">last</span> <span class="o">*=</span> <span class="mi">10</span>
+            <span class="k">return</span> <span class="n">steps</span>
+
+        <span class="n">cur</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">k</span> <span class="o">-=</span> <span class="mi">1</span>                     <span class="c1"># 1 已经算作第 1 个</span>
+        <span class="k">while</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="n">count_steps</span><span class="p">(</span><span class="n">cur</span><span class="p">,</span> <span class="n">cur</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;=</span> <span class="n">k</span><span class="p">:</span>
+                <span class="n">k</span> <span class="o">-=</span> <span class="n">count</span>         <span class="c1"># 整棵子树跳过，走向下一个兄弟</span>
+                <span class="n">cur</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cur</span> <span class="o">*=</span> <span class="mi">10</span>          <span class="c1"># 下沉到下一层</span>
+                <span class="n">k</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">cur</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

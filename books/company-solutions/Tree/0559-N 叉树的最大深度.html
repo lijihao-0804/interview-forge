@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>559. N 叉树的最大深度 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Tree</div>
+        <h1 id="559-n">559. N 叉树的最大深度</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-maxdepth">Java 实现（maxDepth）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>简单</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>DFS 递归：深度 = 1 + 子树最大深度</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定一个 N 叉树，找到其最大深度。</p>
+<p>最大深度是指从根节点到最远叶子节点的最长路径上的节点总数。</p>
+<p>N 叉树输入按层序遍历序列化表示，每组子节点由空值分隔（请参见示例）。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：root = [1,null,3,2,4,null,5,6]
+输出：3
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：root = [1,null,2,3,4,5,null,null,6,7,null,8,null,9,10,null,null,11,null,12,null,13,null,null,14]
+输出：5
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li>树的深度不会超过 <code>1000</code>。</li>
+<li>树的节点数目位于 <code>[0, 10^4]</code> 之间。</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>一棵树的最大深度等于 <code>1 + 所有子树最大深度的最大值</code>；空树深度为 0。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>把大问题拆成同构的小问题</strong></li>
+</ol>
+<p>要求整棵树的最大深度，先看根节点。根节点自己贡献 1 层，剩下的深度完全由“哪一棵子树最深”决定。也就是说：<code>maxDepth(root) = 1 + max(maxDepth(每个孩子))</code>，这正是一个可以递归的自相似结构。</p>
+<ol start="2">
+<li><strong>确定递归边界</strong></li>
+</ol>
+<p>当节点为空（<code>root == null</code>）时没有任何节点，深度为 0，直接返回。这就是递归的出口。</p>
+<ol start="3">
+<li><strong>小例子（<code>[1,null,3,2,4,null,5,6]</code>）</strong></li>
+</ol>
+<p>根节点 <code>1</code> 有三个孩子 <code>3, 2, 4</code>。其中 <code>3</code> 又有两个孩子 <code>5, 6</code>。
+   - <code>5</code>、<code>6</code>、<code>2</code>、<code>4</code> 都是叶子，深度为 1。
+   - <code>3</code> 的深度 = 1 + max(1, 1) = 2。
+   - 根 <code>1</code> 的深度 = 1 + max(2, 1, 1) = 3。与示例输出一致。</p>
+<ol start="4">
+<li><strong>为什么不用 BFS？</strong></li>
+</ol>
+<p>本题用 BFS 逐层计数同样可行（每遍历一层答案加一），但 DFS 递归只需几行，且无需队列，代码更短。BFS 的写法可作为面试扩展。</p>
+<h3 id="java-maxdepth">Java 实现（maxDepth）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.List</span><span class="p">;</span>
+
+<span class="cm">/*</span>
+<span class="cm">// Definition for a Node.</span>
+<span class="cm">class Node {</span>
+<span class="cm">    public int val;</span>
+<span class="cm">    public List&lt;Node&gt; children;</span>
+
+<span class="cm">    public Node() {}</span>
+
+<span class="cm">    public Node(int _val) {</span>
+<span class="cm">        val = _val;</span>
+<span class="cm">    }</span>
+
+<span class="cm">    public Node(int _val, List&lt;Node&gt; _children) {</span>
+<span class="cm">        val = _val;</span>
+<span class="cm">        children = _children;</span>
+<span class="cm">    }</span>
+<span class="cm">};</span>
+<span class="cm">*/</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">maxDepth</span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 递归边界：空树深度为 0</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 在所有子树里找最深的那一棵</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">child</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">root</span><span class="p">.</span><span class="na">children</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">max</span><span class="p">(</span><span class="n">maxChildDepth</span><span class="p">,</span><span class="w"> </span><span class="n">maxDepth</span><span class="p">(</span><span class="n">child</span><span class="p">));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="c1">// 当前节点自身贡献 1 层</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n)，每个节点恰好被访问一次。</li>
+<li>空间：O(h)，递归栈的深度等于树的高度 <code>h</code>，最坏（退化成链）为 O(n)。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>忘记空树判断</strong>：题目节点数可为 0，<code>root</code> 可能为 <code>null</code>，不判断会抛空指针。</li>
+<li><strong>叶子节点处理</strong>：<code>children</code> 为空列表时循环不执行，<code>maxChildDepth</code> 保持 0，返回 1，正好是叶子深度，无需特判。</li>
+<li><strong><code>children</code> 可能为 <code>null</code></strong>：部分环境给出的节点 <code>children</code> 未初始化，若不确定可先判空；LeetCode 保证为空列表。</li>
+<li><strong>BFS 扩展写法</strong>：用队列按层遍历，每处理完一层 <code>depth++</code>，最后返回 <code>depth</code>，时间 O(n) 空间 O(w)（w 为最大宽度）。</li>
+<li><strong>等价变形</strong>：求“最小深度”时不能简单取 <code>min</code>，因为空孩子会把结果压成 1，需要跳过空子树，这是常见陷阱。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/maximum-depth-of-n-ary-tree/" target="_blank" rel="noopener noreferrer">559. N 叉树的最大深度</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;algorithm&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="cm">/*</span>
+<span class="cm">// Definition for a Node.</span>
+<span class="cm">class Node {</span>
+<span class="cm">public:</span>
+<span class="cm">    int val;</span>
+<span class="cm">    vector&lt;Node*&gt; children;</span>
+
+<span class="cm">    Node() {}</span>
+<span class="cm">    Node(int _val) { val = _val; }</span>
+<span class="cm">    Node(int _val, vector&lt;Node*&gt; _children) {</span>
+<span class="cm">        val = _val;</span>
+<span class="cm">        children = _children;</span>
+<span class="cm">    }</span>
+<span class="cm">};</span>
+<span class="cm">*/</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">maxDepth</span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">root</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="c1">// 空树深度为 0</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">child</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">root</span><span class="o">-&gt;</span><span class="n">children</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">max</span><span class="p">(</span><span class="n">maxChildDepth</span><span class="p">,</span><span class="w"> </span><span class="n">maxDepth</span><span class="p">(</span><span class="n">child</span><span class="p">));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">maxChildDepth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="c1">// 加上当前这一层</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">maxDepth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="s1">&#39;Node&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="c1"># 在所有子树里取最大深度，default=0 处理叶子节点</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">max</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">maxDepth</span><span class="p">(</span><span class="n">child</span><span class="p">)</span> <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

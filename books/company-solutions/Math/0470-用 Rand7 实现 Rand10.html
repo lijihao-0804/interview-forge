@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>470. 用 Rand7() 实现 Rand10() · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="470-rand7-rand10">470. 用 Rand7() 实现 Rand10()</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-rand10">Java 实现（rand10）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>拒绝采样（多维映射 + 舍去越界）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1) 期望</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给定方法 <code>rand7</code> 可生成 <code>[1,7]</code> 范围内的均匀随机整数，试写一个方法 <code>rand10</code> 生成 <code>[1,10]</code> 范围内的均匀随机整数。</p>
+<p>你只能调用 <code>rand7()</code> 且不能调用其他方法。请不要使用系统的 <code>Math.random()</code> 方法。</p>
+<p>每个测试用例将有一个内部参数 <code>n</code>，即你实现的函数 <code>rand10()</code> 在测试时将被调用的次数。请注意，这不是传递给 <code>rand10()</code> 的参数。</p>
+<p><strong>示例 1:</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: 1
+输出: [2]
+</code></pre></div>
+
+<p><strong>示例 2:</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: 2
+输出: [2,8]
+</code></pre></div>
+
+<p><strong>示例 3:</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: 3
+输出: [3,8,10]
+</code></pre></div>
+
+<p><strong>提示:</strong></p>
+<ul>
+<li><code>1 &lt;= n &lt;= 10^5</code></li>
+</ul>
+<p><strong>进阶:</strong></p>
+<ul>
+<li><code>rand7()</code> 调用次数的 <strong>期望值</strong> 是多少？</li>
+<li>你能否尽量少调用 <code>rand7()</code>？</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用两次 <code>rand7</code> 构造 <code>num = (rand7()-1)*7 + rand7()</code>，得到 <code>[1,49]</code> 上等概率的 49 个数；只接受其中 <code>1..40</code>，映射为 <code>(num-1)%10+1</code>，其余 9 个值拒绝并重采样。因为接受区是 10 的整数倍，10 个结果严格等概率。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>直觉与痛点（7 与 10 不整除）</strong>：<code>rand7</code> 只给 7 个等概率结果，直接对 7 取模得到 1~10 会不均匀。要得到 10 个等概率结果，得先造出一个“个数能被 10 整除”的均匀分布。</p>
+</li>
+<li>
+<p><strong>破局（两次 rand7 拼成 49 进制数）</strong>：把两次 <code>rand7</code> 看成两位七进制数：<code>a</code> 是高位、<code>b</code> 是低位，<code>num = (a-1)*7 + b</code> 恰好在 <code>[1,49]</code> 上每个值等概率（<code>7 × 7 = 49</code> 个组合，一一对应）。</p>
+</li>
+<li>
+<p><strong>拒绝采样（丢掉 41~49）</strong>：取前 40 个数，映射 <code>(num-1) % 10 + 1</code>，让 <code>1..40</code> 均匀落到 <code>1..10</code>（每 4 个数对应一个结果：1,11,21,31→1；2,12,22,32→2……）。<code>41..49</code> 这 9 个数不满足整除，丢弃后重新采样。以 <code>num = 7</code> 为例，<code>(7-1)%10+1 = 7</code>；<code>num = 40</code> 得 <code>(39)%10+1 = 10</code>。</p>
+</li>
+<li>
+<p><strong>为什么正确</strong>：接收概率 <code>40/49</code>，条件在接收区内每个 <code>num</code> 等概率，每 10 个连续值恰好覆盖 <code>1..10</code> 各一次，所以 10 个输出等概率；被拒绝的样本不引入任何偏差，只是重来。</p>
+</li>
+</ol>
+<h3 id="java-rand10">Java 实现（rand10）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * The rand7() API is already defined in the parent class SolBase.</span>
+<span class="cm"> * public int rand7();</span>
+<span class="cm"> * @return a random integer in the range 1 to 7</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="kd">extends</span><span class="w"> </span><span class="n">SolBase</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">rand10</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 两次 rand7 组合成 [1, 49] 的均匀随机数</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">rand7</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">rand7</span><span class="p">();</span>
+<span class="w">            </span><span class="c1">// 只接受 1..40，保证能被 10 整除、结果等概率</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">num</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">40</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">num</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 41..49 拒绝，重新采样</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：<code>O(1)</code> 期望。每次尝试接受概率 <code>40/49</code>，期望尝试次数 <code>49/40 ≈ 1.225</code>，每轮调用 2 次 <code>rand7</code>，故 <code>rand7</code> 期望调用次数 <code>2 × 49/40 = 2.45</code>。</li>
+<li>空间：<code>O(1)</code>。只用了常数个整型变量。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>必须是 <code>(a-1)*7 + b</code> 而不是 <code>a*7 + b</code></strong>：若用 <code>a*7 + b</code>，范围是 <code>[8,56]</code> 且分布不均（<code>a</code> 与 <code>b</code> 的贡献不对等），一定要先减 1 再乘。</li>
+<li><strong>接受区间必须能被 10 整除</strong>：<code>1..40</code> 是 40 个值，正好 10 的倍数；如果贪心地接受 <code>1..49</code> 再取模，尾巴会不均。</li>
+<li><strong>拒绝后要 <code>while(true)</code> 重采样</strong>：不能只试一次就返回，否则 <code>41..49</code> 时返回错误结果；重采样不改变均匀性。</li>
+<li><strong>边界检查</strong>：<code>num = 40</code> 时 <code>(40-1)%10+1 = 10</code>，<code>num = 1</code> 时得 <code>1</code>，首尾都覆盖到，十个数一个不差。</li>
+<li><strong>进阶优化</strong>：可缓存“拒绝值”做更复杂映射，把期望调用次数从 2.45 降到更接近理论下界（约 2.19 次），或先构造 <code>[1,49]</code> 中的 40 个接受值；面试里答出“拒绝采样 + 期望 2.45 次”即可。也可对比另一常见写法：先 <code>(rand7()+rand7()-2)%10</code> 之类的做法会破坏均匀性，不能使用。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/implement-rand10-using-rand7/" target="_blank" rel="noopener noreferrer">470. 用 Rand7() 实现 Rand10()</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// The rand7() API is already defined for you.</span>
+<span class="c1">// int rand7();</span>
+<span class="c1">// @return a random integer in the range 1 to 7</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">rand10</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nb">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="c1">// 组合成 [1, 49] 的均匀随机数</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">rand7</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">rand7</span><span class="p">();</span>
+<span class="w">            </span><span class="c1">// 只接受 1..40，等概率映射到 1..10</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">num</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">40</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">num</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="c1">// 41..49 拒绝，重新采样</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># The rand7() API is already defined for you.</span>
+<span class="c1"># def rand7():</span>
+<span class="c1"># @return a random integer in the range 1 to 7</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">rand10</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># 组合成 [1, 49] 的均匀随机数</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="p">(</span><span class="n">rand7</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">+</span> <span class="n">rand7</span><span class="p">()</span>
+            <span class="c1"># 只接受 1..40，等概率映射到 1..10</span>
+            <span class="k">if</span> <span class="n">num</span> <span class="o">&lt;=</span> <span class="mi">40</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">num</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="c1"># 41..49 拒绝，重新采样</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

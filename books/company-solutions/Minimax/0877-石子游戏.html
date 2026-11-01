@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>877. 石子游戏 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Minimax</div>
+        <h1 id="877">877. 石子游戏</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-stonegame">Java 实现（stoneGame）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>博弈论 / 奇偶位划分（结论恒为真）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>Alice 和 Bob 用几堆石子在做游戏。一共有偶数堆石子，<strong>排成一行</strong>；每堆都有 <strong>正</strong> 整数颗石子，数目为 <code>piles[i]</code> 。</p>
+<p>游戏以谁手中的石子最多来决出胜负。石子的 <strong>总数</strong> 是 <strong>奇数</strong> ，所以没有平局。</p>
+<p>Alice 和 Bob 轮流进行，<strong>Alice 先开始</strong> 。每回合，玩家从行的 <strong>开始</strong> 或 <strong>结束</strong> 处取走整堆石头。这种情况一直持续到没有更多的石子堆为止，此时手中 <strong>石子最多</strong> 的玩家 <strong>获胜</strong> 。</p>
+<p>假设 Alice 和 Bob 都发挥出最佳水平，当 Alice 赢得比赛时返回 <code>true</code> ，当 Bob 赢得比赛时返回 <code>false</code> 。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：piles = [5,3,4,5]
+输出：true
+解释：
+Alice 先开始，只能拿前 5 颗或后 5 颗石子 。
+假设他取了前 5 颗，这一行就变成了 [3,4,5] 。
+如果 Bob 拿走前 3 颗，那么剩下的是 [4,5]，Alice 拿走后 5 颗赢得 10 分。
+如果 Bob 拿走后 5 颗，那么剩下的是 [3,4]，Alice 拿走后 4 颗赢得 9 分。
+这表明，取前 5 颗石子对 Alice 来说是一个胜利的举动，所以返回 true 。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：piles = [3,7,2,3]
+输出：true
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>2 &lt;= piles.length &lt;= 500</code></li>
+<li><code>piles.length</code> 是 <strong>偶数</strong></li>
+<li><code>1 &lt;= piles[i] &lt;= 500</code></li>
+<li><code>sum(piles[i])</code> 是 <strong>奇数</strong></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>石子堆数为偶数时，Alice 可以强迫自己拿光“所有偶数下标”的堆，或“所有奇数下标”的堆；这两类之和必不相等（总和为奇数），她选较大的一类即可必胜。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（真的要用 DP 博弈吗？）</strong></li>
+</ol>
+<p>一般区间取石子问题需要 minimax 区间 DP：<code>dp[i][j]</code> 表示当前玩家在区间 <code>[i, j]</code> 中相对对手能取得的最大分差。但那是在任意堆数下的通用解法，复杂度 <code>O(n²)</code>。本题给了两个极强的特殊条件：<strong>堆数为偶数</strong>、<strong>总数为奇数</strong>，这注定存在更简单的结论。</p>
+<ol start="2">
+<li><strong>破局思路（奇偶位划分）</strong></li>
+</ol>
+<p>把堆按位置编号 <code>0, 1, 2, ..., n-1</code>（<code>n</code> 为偶数）。分成两组：
+   - 偶数下标组：<code>piles[0], piles[2], piles[4], ...</code>
+   - 奇数下标组：<code>piles[1], piles[3], piles[5], ...</code></p>
+<p>两组各有 <code>n/2</code> 堆。Alice 先手，她能<strong>指定</strong>自己整局只取某一组：因为两端恰好一端是偶数下标、一端是奇数下标（<code>n</code> 为偶数时 <code>n-1</code> 是奇数），她第一手取走一端，之后就总能“跟着”保持同一奇偶性拿下去，Bob 无论怎么取，都会把另一种奇偶的位置暴露给她。</p>
+<ol start="3">
+<li><strong>关键追问（为什么一定赢？）</strong></li>
+</ol>
+<p>由于总和是奇数，两组之和不可能相等。设偶数下标组之和为 <code>S_even</code>、奇数下标组为 <code>S_odd</code>，则 <code>S_even ≠ S_odd</code>，必有一组更大。Alice 开局就选总和更大的那一组，把这组全部收入囊中；Bob 只能拿到另一组。于是 Alice 得分严格多于 Bob，<strong>必胜</strong>。</p>
+<p>例如 <code>piles = [5,3,4,5]</code>：偶数下标和 <code>5+4=9</code>，奇数下标和 <code>3+5=8</code>，Alice 选偶数下标组拿 9 分，稳赢。</p>
+<p>结论：在本题约束下，答案<strong>恒为 <code>true</code></strong>，直接返回即可。</p>
+<h3 id="java-stonegame">Java 实现（stoneGame）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">stoneGame</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 堆数为偶数、总和为奇数：</span>
+<span class="w">        </span><span class="c1">// Alice 可任选“偶数下标组”或“奇数下标组”全部拿走，取和更大的一组必胜。</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(1)，只做一次判断返回，与堆数无关。</li>
+<li>空间：O(1)，不使用额外存储。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>别over-engineer</strong>：看到“博弈/最优策略”就条件反射写区间 DP 是常见陷阱；本题三个限制条件（偶数堆、正数、总数为奇数）正是为了让结论坍缩成恒 <code>true</code>，能一两句话讲清证明才是满分表现。</li>
+<li><strong>证明要讲“可强制”</strong>：关键不是“Alice 想拿哪组”，而是“Alice 能强制自己拿光某一组”。需要点明两端分属不同奇偶性、且她能持续跟住同一奇偶性。</li>
+<li><strong>总和为奇数保证无平局</strong>：若允许平局（如总和为偶数），两组和可能相等，结论就不成立；这是条件不可或缺的原因。</li>
+<li><strong>扩展：一般化场景</strong>（如 LeetCode 1140 石子游戏 II、486 预测赢家）就需要真正的区间 DP：<code>dp[i][j] = max(piles[i] - dp[i+1][j], piles[j] - dp[i][j-1])</code>，用“当前玩家相对对手的最大分差”转移，最终看 <code>dp[0][n-1] &gt; 0</code>。</li>
+<li><strong>面试追问“如果 Bob 先手呢？”</strong>：同样成立，先手方永远能拿到较优的奇偶组，先手必胜——这说明本题本质是“先手必胜”的奇偶配对博弈。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/stone-game/" target="_blank" rel="noopener noreferrer">877. 石子游戏</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">stoneGame</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">piles</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 偶数堆 + 总数为奇数 =&gt; 先手 Alice 必然能拿到奇偶两组中较大的一组</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">stoneGame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">piles</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="c1"># 偶数堆 + 总数为奇数 =&gt; 先手必胜</span>
+        <span class="k">return</span> <span class="kc">True</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

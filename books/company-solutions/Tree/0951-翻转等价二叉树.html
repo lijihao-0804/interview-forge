@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>951. 翻转等价二叉树 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Tree</div>
+        <h1 id="951">951. 翻转等价二叉树</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java">Java 实现（递归同步比较）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>递归同步比较 + 交换子树</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(h)（递归栈，h 为树高）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>我们可以为二叉树 <strong>T</strong> 定义一个<strong>翻转操作</strong>，如下所示：选择任意节点，然后交换它的左子树和右子树。</p>
+<p>只要经过一定次数的翻转操作后，能使 <strong>X</strong> 等于 <strong>Y</strong>，我们就称二叉树 <strong>X</strong> <strong>翻转等价</strong>于二叉树 <strong>Y</strong>。</p>
+<p>这些树由根节点 <code>root1</code> 和 <code>root2</code> 给出。如果两个二叉树是<strong>翻转等价</strong>的树，则返回 <code>true</code>，否则返回 <code>false</code>。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：root1 = [1,2,3,4,5,6,null,null,null,7,8], root2 = [1,3,2,null,6,4,5,null,null,null,null,8,7]
+输出：true
+解释：我们翻转值为 1，3 以及 5 的三个节点。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: root1 = [], root2 = []
+输出: true
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入: root1 = [], root2 = [1]
+输出: false
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li>每棵树节点数在 <code>[0, 100]</code> 范围内</li>
+<li>每棵树中的每个值都是唯一的、在 <code>[0, 99]</code> 范围内的整数</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>两棵子树翻转等价，当且仅当根值相同，且它们的子树「不交换」或「左右交换」两种配对方式中有一种完全等价。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li>
+<p><strong>先对齐根</strong>：两棵树翻转等价的前提是根节点值相同。若两个根都为空 → 等价；只有一个为空 → 不等价；值不同 → 不等价。这些是递归的终止条件。</p>
+</li>
+<li>
+<p><strong>分两种配对方式递归</strong>：根对齐后，左右子树有两种可能的对应：
+   - <strong>不翻转</strong>：<code>root1.left</code> 对 <code>root2.left</code>，<code>root1.right</code> 对 <code>root2.right</code>；
+   - <strong>翻转</strong>：<code>root1.left</code> 对 <code>root2.right</code>，<code>root1.right</code> 对 <code>root2.left</code>。
+   只要任意一种配对方式「双方都等价」，整棵树就等价。</p>
+</li>
+<li>
+<p><strong>递归结构即答案</strong>：把上面两类分别用递归调用表示，返回二者的「或」。由于翻转操作可以在每个节点独立选择，这恰好覆盖了所有可能的翻转组合。</p>
+</li>
+<li>
+<p><strong>小例子</strong>：<code>root1 = [1,2,3]</code>，<code>root2 = [1,3,2]</code>。根都是 1；不翻转配对为 <code>(2,3)</code> 与 <code>(3,2)</code> 不等价，但翻转配对 <code>root1.left(2)</code> 对 <code>root2.right(2)</code>、<code>root1.right(3)</code> 对 <code>root2.left(3)</code> 都与空子树等价，于是返回 <code>true</code>——正是翻转根节点得到的结果。</p>
+</li>
+</ol>
+<h3 id="java">Java 实现（递归同步比较）</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * public class TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode left;</span>
+<span class="cm"> *     TreeNode right;</span>
+<span class="cm"> *     TreeNode() {}</span>
+<span class="cm"> *     TreeNode(int val) { this.val = val; }</span>
+<span class="cm"> *     TreeNode(int val, TreeNode left, TreeNode right) {</span>
+<span class="cm"> *         this.val = val;</span>
+<span class="cm"> *         this.left = left;</span>
+<span class="cm"> *         this.right = right;</span>
+<span class="cm"> *     }</span>
+<span class="cm"> * }</span>
+<span class="cm"> */</span>
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">flipEquiv</span><span class="p">(</span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root1</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="w"> </span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 终止条件：结构对齐</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">root2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">root2</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
+
+<span class="w">        </span><span class="c1">// 情况一：不交换左右子树</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">noFlip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">left</span><span class="p">)</span>
+<span class="w">                      </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">right</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// 情况二：交换左右子树后再比较</span>
+<span class="w">        </span><span class="kt">boolean</span><span class="w"> </span><span class="n">flip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">right</span><span class="p">)</span>
+<span class="w">                    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="p">.</span><span class="na">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="p">.</span><span class="na">left</span><span class="p">);</span>
+
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">noFlip</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">flip</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n)，每个节点对最多被访问常数次（<code>n</code> 为较小树的节点数），递归在结构不匹配时立即剪枝。</li>
+<li>空间：O(h)，递归栈深度等于树高，最坏（链状）为 O(n)。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li>
+<p><strong>空树判断必须写全两种情况</strong>：<code>(null, null)</code> 返回 <code>true</code>，<code>(null, 非null)</code> 或 <code>(非null, null)</code> 返回 <code>false</code>。漏掉任一条都会空指针或误判。</p>
+</li>
+<li>
+<p><strong>值不同要立刻返回 false</strong>：翻转只改变左右位置、不改变节点值，所以根值不同必然不等价，先剪枝能显著提速。</p>
+</li>
+<li>
+<p><strong>两种配对的「与/或」组合不能写错</strong>：每种配对内部是「与」（左右都要等价），两种配对之间是「或」（满足其一即可）。</p>
+</li>
+<li>
+<p><strong>不要真的去物理翻转再比较</strong>：直接带「是否交换」两种可能递归比较即可，物理翻转再逐点比对既浪费又易错。</p>
+</li>
+<li>
+<p><strong>扩展</strong>：若允许节点值重复，则需在值相同的前提下继续递归，不能假设值唯一；本题虽保证唯一，但写法上已不依赖唯一性，鲁棒性更好。</p>
+</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/flip-equivalent-binary-trees/" target="_blank" rel="noopener noreferrer">951. 翻转等价二叉树</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * Definition for a binary tree node.</span>
+<span class="cm"> * struct TreeNode {</span>
+<span class="cm"> *     int val;</span>
+<span class="cm"> *     TreeNode *left;</span>
+<span class="cm"> *     TreeNode *right;</span>
+<span class="cm"> *     TreeNode() : val(0), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}</span>
+<span class="cm"> *     TreeNode(int x, TreeNode *left, TreeNode *right) : val(x), left(left), right(right) {}</span>
+<span class="cm"> * };</span>
+<span class="cm"> */</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">root1</span><span class="p">,</span><span class="w"> </span><span class="n">TreeNode</span><span class="o">*</span><span class="w"> </span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">root1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">root1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">root2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">val</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+
+<span class="w">        </span><span class="kt">bool</span><span class="w"> </span><span class="n">noFlip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">)</span>
+<span class="w">                   </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">bool</span><span class="w"> </span><span class="n">flip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">)</span>
+<span class="w">                 </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">-&gt;</span><span class="n">right</span><span class="p">,</span><span class="w"> </span><span class="n">root2</span><span class="o">-&gt;</span><span class="n">left</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">noFlip</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">flip</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Definition for a binary tree node.</span>
+<span class="c1"># class TreeNode:</span>
+<span class="c1">#     def __init__(self, val=0, left=None, right=None):</span>
+<span class="c1">#         self.val = val</span>
+<span class="c1">#         self.left = left</span>
+<span class="c1">#         self.right = right</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">flipEquiv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root1</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TreeNode</span><span class="p">],</span> <span class="n">root2</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TreeNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">root2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">root1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">root2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">root1</span><span class="o">.</span><span class="n">val</span> <span class="o">!=</span> <span class="n">root2</span><span class="o">.</span><span class="n">val</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">no_flip</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
+                   <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">right</span><span class="p">))</span>
+        <span class="n">flip</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">left</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">flipEquiv</span><span class="p">(</span><span class="n">root1</span><span class="o">.</span><span class="n">right</span><span class="p">,</span> <span class="n">root2</span><span class="o">.</span><span class="n">left</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">no_flip</span> <span class="ow">or</span> <span class="n">flip</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

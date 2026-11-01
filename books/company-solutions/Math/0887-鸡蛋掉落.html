@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>887. 鸡蛋掉落 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / Math</div>
+        <h1 id="887">887. 鸡蛋掉落</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-supereggdrop">Java 实现（superEggDrop）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>困难</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>逆向动态规划（按移动次数枚举可覆盖楼层）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(k·ans)，ans ≤ n</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(k)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>给你 <code>k</code> 枚相同的鸡蛋，并可以使用一栋从第 <code>1</code> 层到第 <code>n</code> 层共有 <code>n</code> 层楼的建筑。</p>
+<p>已知存在楼层 <code>f</code> ，满足 <code>0 &lt;= f &lt;= n</code> ，任何从<strong>高于</strong> <code>f</code> 的楼层落下的鸡蛋都会碎，从 <code>f</code> 楼层或比它低的楼层落下的鸡蛋都不会碎（<code>f</code> 的取值未知）。</p>
+<p>每次操作，你可以取一枚没有碎的鸡蛋，并把它从任意楼层 <code>x</code> 扔下（满足 <code>1 &lt;= x &lt;= n</code>）：</p>
+<ul>
+<li>如果鸡蛋碎了，你就不能再次使用它；</li>
+<li>如果鸡蛋没碎，你可以重复使用这枚鸡蛋。</li>
+</ul>
+<p>请你计算并返回要确定 <code>f</code> <strong>确切的值</strong> 的最小操作次数。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：k = 1, n = 2
+输出：2
+解释：
+鸡蛋从 1 楼掉落。如果它碎了，肯定能得出 f = 0 。
+否则，鸡蛋从 2 楼掉落。如果它碎了，肯定能得出 f = 1 ；如果它没碎，那么肯定能得出 f = 2 。
+因此，在最坏的情况下我们需要移动 2 次以确定 f 是多少。
+</code></pre></div>
+
+<p><strong>示例 2：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：k = 2, n = 6
+输出：3
+</code></pre></div>
+
+<p><strong>示例 3：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：k = 3, n = 14
+输出：4
+</code></pre></div>
+
+<p><strong>提示：</strong></p>
+<ul>
+<li><code>1 &lt;= k &lt;= 100</code></li>
+<li><code>1 &lt;= n &lt;= 10^4</code></li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>用 <code>i</code> 枚鸡蛋、最多移动 <code>j</code> 次，能确定的最大楼层数为 <code>dp[i][j] = dp[i-1][j-1] + dp[i][j-1] + 1</code>；答案就是使 <code>dp[k][j] &gt;= n</code> 的最小 <code>j</code>。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>直觉与痛点（正着按楼层 DP）</strong></li>
+</ol>
+<p>设 <code>dp[k][n]</code> 为“<code>k</code> 枚蛋、<code>n</code> 层楼”的最小移动次数。第一次在楼层 <code>x</code> 扔：
+   - 碎了 → 剩下 <code>k-1</code> 枚蛋、要查 <code>x-1</code> 层楼；
+   - 没碎 → 仍是 <code>k</code> 枚蛋、要查上方 <code>n-x</code> 层楼。</p>
+<p>于是 <code>dp[k][n] = 1 + min over x of max(dp[k-1][x-1], dp[k][n-x])</code>。但这需要枚举 <code>x</code>，复杂度 <code>O(k·n²)</code>，在 <code>n = 10⁴</code> 时约 <code>10¹²</code>，必然超时。即使用二分找“碎/不碎”的交叉点优化到 <code>O(k·n·log n)</code>，也仍然较重。</p>
+<ol start="2">
+<li><strong>破局思路（逆向：问“给 d 次机会能测多少层”）</strong></li>
+</ol>
+<p>把问题反过来想：<strong>用 <code>i</code> 枚蛋、最多 <code>j</code> 次移动，最多能确定多少层楼？</strong> 记为 <code>dp[i][j]</code>。</p>
+<p>我们第一次挑某层扔下去：
+   - 碎了：这枚蛋作废，剩下 <code>i-1</code> 枚蛋、<code>j-1</code> 次机会，能覆盖下方 <code>dp[i-1][j-1]</code> 层；
+   - 没碎：蛋还在，剩 <code>j-1</code> 次机会，能覆盖上方 <code>dp[i][j-1]</code> 层；
+   - 再加上被扔的那一层本身。</p>
+<p>所以 <code>dp[i][j] = dp[i-1][j-1] + dp[i][j-1] + 1</code>。只要 <code>dp[k][j] &gt;= n</code>，说明 <code>j</code> 次移动足够，返回 <code>j</code>。</p>
+<ol start="3">
+<li><strong>关键追问（怎么把二维压成一维？）</strong></li>
+</ol>
+<p>固定“步数”这一维，用一维数组 <code>dp[i]</code> 滚动表示“当前 <code>j</code> 轮下、<code>i</code> 枚蛋能覆盖的楼层数”。每轮更新 <code>dp[i] = dp[i-1] + dp[i] + 1</code>（右边两值都必须是上一轮的值），因此 <strong><code>i</code> 要从大到小逆序</strong>更新，才能保证 <code>dp[i-1]</code> 还没被本轮覆盖。<code>dp[0]</code> 恒为 0（0 枚蛋测不了任何楼层）。</p>
+<p>以 <code>k=2</code> 为例逐轮看 <code>dp[2]</code>：第 1 轮 <code>=1</code>，第 2 轮 <code>=3</code>，第 3 轮 <code>=6</code>，第 4 轮 <code>=10</code>，第 5 轮 <code>=15</code>……（通项恰为 <code>C(j,1)+C(j,2)</code>）。当 <code>n=6</code> 时，第 3 轮 <code>dp[2]=6 &gt;= 6</code>，答案 3，与示例一致。</p>
+<h3 id="java-supereggdrop">Java 实现（superEggDrop）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.Arrays</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">superEggDrop</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// dp[i] 表示：用 i 枚鸡蛋、在当前移动次数下，最多能确定的楼层数</span>
+<span class="w">        </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">dp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">moves</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// 只要 k 枚蛋还覆盖不到 n 层，就再给一次机会</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">moves</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// 逆序更新，保证 dp[i-1]、dp[i] 用的都是上一轮（moves-1）的值</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dp</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">moves</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(k·ans)，其中 <code>ans</code> 为最小移动次数（不超过 <code>n</code>），即最坏 <code>O(k·n)</code>。相比正向 <code>O(k·n²)</code> 有质的提升。</li>
+<li>空间：O(k)，只需一维长度为 <code>k+1</code> 的滚动数组。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li><strong>方向别搞反</strong>：本题的最优解法是“逆推”——枚举步数、问能覆盖多少层，而不是“正推”枚举楼层。正向 <code>O(k·n²)</code> 在 <code>n=10⁴</code> 下必超时，是最大的性能陷阱。</li>
+<li><strong>一维滚动必须逆序</strong>：<code>dp[i] = dp[i-1] + dp[i] + 1</code> 里依赖上一轮的 <code>dp[i-1]</code>，若升序更新会用到本轮新值导致答案偏大。写代码时务必 <code>for (int i = k; i &gt;= 1; i--)</code>。</li>
+<li><strong><code>dp[0] = 0</code> 的语义</strong>：0 枚鸡蛋无论如何测不了任何楼层，这保证 <code>i=1</code> 时 <code>dp[1] = 0 + dp[1] + 1</code> 每轮稳定加 1（相当于线性扫描），符合“只有 1 枚蛋只能从底层往上试”的直觉。</li>
+<li><strong>溢出与边界</strong>：<code>dp</code> 值可能超过 <code>int</code>（理论上界约 <code>n</code>，本题 <code>n ≤ 10⁴</code> 安全）；若泛化到大 <code>n</code> 需用 <code>long</code> 或及时截断到 <code>n</code>。</li>
+<li><strong>扩展：正向二分版本</strong>：若面试官要求写“按楼层”的 DP，可用单调性把 <code>min over x</code> 用二分降到 <code>O(k·n·log n)</code>，<code>dp[k][n] = 1 + min_x max(dp[k-1][x-1], dp[k][n-x])</code>，两者都要会。</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/super-egg-drop/" target="_blank" rel="noopener noreferrer">887. 鸡蛋掉落</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">superEggDrop</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">dp</span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span><span class="w">   </span><span class="c1">// dp[i]：i 枚蛋、当前移动次数下可确定的最大楼层数</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">moves</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">dp</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="o">++</span><span class="n">moves</span><span class="p">;</span>
+<span class="w">            </span><span class="c1">// 逆序更新，保证使用的是上一轮的值</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">k</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"> </span><span class="o">--</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">moves</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">superEggDrop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="c1"># dp[i]：i 枚鸡蛋、当前移动次数下能确定的最大楼层数</span>
+        <span class="n">dp</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">moves</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">dp</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">:</span>
+            <span class="n">moves</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1"># 逆序遍历，保证 dp[i-1] 仍是上一轮的值</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">dp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">moves</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

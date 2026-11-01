@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>1107. 每日新用户统计 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / company-solutions / 数据库</div>
+        <h1 id="1107">1107. 每日新用户统计</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目与约束</a></li>
+<li><a href="#_2">核心不变量</a></li>
+<li><a href="#_3">完整推导</a><ul>
+<li><a href="#_4">思路推导</a></li>
+<li><a href="#java-dailynewusers">Java 实现（dailyNewUsers）</a></li>
+<li><a href="#_5">复杂度</a></li>
+<li><a href="#_6">易错点与扩展（面试高频考点）</a></li>
+</ul>
+</li>
+<li><a href="#_7">力扣原题</a><ul>
+<li><a href="#c">C++ 实现</a></li>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+        </details>
+        <table>
+<thead>
+<tr>
+<th>题目信息</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>难度</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>核心模式</td>
+<td>每个用户取最早登录日期 + 按日期分组计数（窗口过滤 90 天）</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(n log n)</td>
+</tr>
+<tr>
+<td>空间复杂度</td>
+<td>O(n)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">题目与约束</h2>
+<p>表：<code>Traffic</code></p>
+<div class="codehilite"><pre><span></span><code>+---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| user_id       | int     |
+| activity      | enum    |
+| activity_date | date    |
++---------------+---------+
+</code></pre></div>
+
+<ul>
+<li>该表没有主键，可能包含重复行。</li>
+<li><code>activity</code> 列是 ENUM 类型，取值为 <code>('login', 'logout', 'jobs', 'groups', 'homepage')</code> 之一。</li>
+</ul>
+<p>写一个 SQL 查询，报告在 <strong>今天之前 90 天内（含今天）</strong>，每天 <strong>首次登录</strong> 的用户数量。假设今天是 <code>2019-06-30</code>（即只统计登录日期 <code>&gt;= 2019-04-01</code> 且 <code>&lt;= 2019-06-30</code> 的首次登录）。结果表可按任意顺序返回。</p>
+<p><strong>示例 1：</strong></p>
+<div class="codehilite"><pre><span></span><code>输入：
+Traffic 表:
++---------+----------+---------------+
+| user_id | activity | activity_date |
++---------+----------+---------------+
+| 1       | login    | 2019-05-01    |
+| 1       | homepage | 2019-05-01    |
+| 1       | logout   | 2019-05-01    |
+| 2       | login    | 2019-06-21    |
+| 2       | logout   | 2019-06-21    |
+| 3       | login    | 2019-01-01    |
+| 3       | jobs     | 2019-01-01    |
+| 3       | logout   | 2019-01-01    |
+| 4       | login    | 2019-06-21    |
+| 4       | groups   | 2019-06-21    |
+| 4       | logout   | 2019-06-21    |
+| 5       | login    | 2019-03-01    |
+| 5       | logout   | 2019-03-01    |
+| 5       | login    | 2019-06-21    |
+| 5       | logout   | 2019-06-21    |
++---------+----------+---------------+
+
+输出：
++------------+-------------+
+| login_date | user_count  |
++------------+-------------+
+| 2019-05-01 | 1           |
+| 2019-06-21 | 2           |
++------------+-------------+
+</code></pre></div>
+
+<p><strong>解释：</strong></p>
+<ul>
+<li>用户 1 的首次登录日期是 <code>2019-05-01</code>，落在窗口内；</li>
+<li>用户 2 的首次登录日期是 <code>2019-06-21</code>，落在窗口内；</li>
+<li>用户 3 的首次登录日期是 <code>2019-01-01</code>，早于 <code>2019-04-01</code>，不统计；</li>
+<li>用户 4 的首次登录日期是 <code>2019-06-21</code>，落在窗口内；</li>
+<li>用户 5 的首次登录日期是 <code>2019-03-01</code>（早于窗口），其后 <code>2019-06-21</code> 的登录并非首次，故也不计入。</li>
+</ul>
+<p>因此在窗口内首次登录的日期只有 <code>2019-05-01</code>（1 人）与 <code>2019-06-21</code>（2 人）。</p>
+<p><strong>提示：</strong></p>
+<ul>
+<li>需要先把 <code>activity = 'login'</code> 的记录按 <code>user_id</code> 聚合出最早日期，再按日期计数。</li>
+<li>窗口固定为 <code>[2019-04-01, 2019-06-30]</code>。</li>
+</ul>
+<h2 id="_2">核心不变量</h2>
+<blockquote>
+<p>一个用户对答案的贡献，只由他在窗口内的"最早登录日期"决定——同一用户其它日期的登录记录一律忽略，且每个用户最多贡献一次。</p>
+</blockquote>
+<h2 id="_3">完整推导</h2>
+<h3 id="_4">思路推导</h3>
+<ol>
+<li><strong>先"去重"到"首次登录"</strong></li>
+</ol>
+<p>题目的关键是"首次登录"。对每个用户，只需要在所有 <code>activity = 'login'</code> 的记录里取 <code>MIN(activity_date)</code>，这就是他的首次登录日期；<code>logout / jobs / groups / homepage</code> 等记录完全无关。</p>
+<ol start="2">
+<li><strong>再用"窗口"过滤</strong></li>
+</ol>
+<p>只有 <code>2019-04-01 &lt;= 首次登录日期 &lt;= 2019-06-30</code> 的用户才进入统计（<code>2019-06-30</code> 往前 90 天正好是 <code>2019-04-01</code>）。像用户 3、用户 5 的首次登录都早于窗口，直接丢弃；用户 5 在 <code>2019-06-21</code> 虽然有 login，但不是首次，也不计。</p>
+<ol start="3">
+<li><strong>最后按日期分组计数</strong></li>
+</ol>
+<p>把保留下来的"首次登录日期"做一次 <code>GROUP BY login_date</code> + <code>COUNT(*)</code>，即得每天的新用户数。</p>
+<ol start="4">
+<li><strong>标准 SQL 解法</strong></li>
+</ol>
+<p><code>sql
+   SELECT login_date, COUNT(*) AS user_count
+   FROM (
+       SELECT user_id, MIN(activity_date) AS login_date
+       FROM Traffic
+       WHERE activity = 'login'
+       GROUP BY user_id
+   ) t
+   WHERE login_date &gt;= DATE_SUB('2019-06-30', INTERVAL 90 DAY)
+     AND login_date &lt;= '2019-06-30'
+   GROUP BY login_date
+   ORDER BY login_date;</code></p>
+<p>本题数据接口未提供可直接运行的 SQL 环境，为满足三种通用语言的可运行实现，下面的 Java / C++ / Python 都在内存记录上逐条模拟上述"取最早登录 → 窗口过滤 → 按日期计数"的三段逻辑，结果与上述 SQL 完全一致。</p>
+<h3 id="java-dailynewusers">Java 实现（dailyNewUsers）</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.time.LocalDate</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 一条访问记录：用户、行为、日期（形如 &quot;2019-06-21&quot;）</span>
+<span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Record</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">userId</span><span class="p">;</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">activity</span><span class="p">;</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">activityDate</span><span class="p">;</span>
+<span class="w">        </span><span class="n">Record</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">userId</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">activity</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">activityDate</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">this</span><span class="p">.</span><span class="na">userId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">userId</span><span class="p">;</span>
+<span class="w">            </span><span class="k">this</span><span class="p">.</span><span class="na">activity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">activity</span><span class="p">;</span>
+<span class="w">            </span><span class="k">this</span><span class="p">.</span><span class="na">activityDate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">activityDate</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">[]&gt;</span><span class="w"> </span><span class="nf">dailyNewUsers</span><span class="p">(</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Record</span><span class="o">&gt;</span><span class="w"> </span><span class="n">traffic</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 求每个用户的最早登录日期（只关心 activity == &quot;login&quot;）</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="w"> </span><span class="n">String</span><span class="o">&gt;</span><span class="w"> </span><span class="n">firstLogin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Record</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">traffic</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="s">&quot;login&quot;</span><span class="p">.</span><span class="na">equals</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">activity</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">String</span><span class="w"> </span><span class="n">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">userId</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cur</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="na">activityDate</span><span class="p">.</span><span class="na">compareTo</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">firstLogin</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="na">userId</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="na">activityDate</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 只保留 [today-90, today] 内的首次登录，并按日期聚合</span>
+<span class="w">        </span><span class="n">LocalDate</span><span class="w"> </span><span class="n">today</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LocalDate</span><span class="p">.</span><span class="na">parse</span><span class="p">(</span><span class="s">&quot;2019-06-30&quot;</span><span class="p">);</span>
+<span class="w">        </span><span class="n">LocalDate</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">today</span><span class="p">.</span><span class="na">minusDays</span><span class="p">(</span><span class="mi">90</span><span class="p">);</span><span class="w">          </span><span class="c1">// 2019-04-01</span>
+<span class="w">        </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">TreeMap</span><span class="o">&lt;&gt;</span><span class="p">();</span><span class="w">   </span><span class="c1">// TreeMap：按日期升序</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">.</span><span class="na">values</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">LocalDate</span><span class="w"> </span><span class="n">date</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LocalDate</span><span class="p">.</span><span class="na">parse</span><span class="p">(</span><span class="n">d</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">date</span><span class="p">.</span><span class="na">isBefore</span><span class="p">(</span><span class="n">lower</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">date</span><span class="p">.</span><span class="na">isAfter</span><span class="p">(</span><span class="n">today</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">count</span><span class="p">.</span><span class="na">merge</span><span class="p">(</span><span class="n">d</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 输出 (login_date, user_count)</span>
+<span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">String</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Map</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">count</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="o">[]</span><span class="p">{</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">(),</span><span class="w"> </span><span class="n">String</span><span class="p">.</span><span class="na">valueOf</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">())});</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="_5">复杂度</h3>
+<ul>
+<li>时间：O(n log n)。第一遍遍历 O(n)；对不同用户的最早登录日期排序/计数为 O(u log u)（<code>u</code> 为不同用户数，<code>u &lt;= n</code>），<code>TreeMap</code> 的插入同样是 O(log u)。若只要求任意顺序，可用哈希表把这一步降到期望 O(n)。</li>
+<li>空间：O(n)。需要保存每个用户的最早登录日期以及按日期的计数。</li>
+</ul>
+<h3 id="_6">易错点与扩展（面试高频考点）</h3>
+<ol>
+<li>
+<p><strong>别把"登录次数"当成"新用户数"</strong>：同一用户当天多次 <code>login</code> 只能算一次；必须先按用户取 <code>MIN(activity_date)</code> 去重，这一步是整题的灵魂。</p>
+</li>
+<li>
+<p><strong>窗口边界与开闭</strong>：<code>2019-06-30</code> 往前 90 天是 <code>2019-04-01</code>，边界含等号；<code>2019-03-01</code> 这种早于下界的首次登录必须排除，否则会多算。</p>
+</li>
+<li>
+<p><strong>只统计 <code>activity = 'login'</code></strong>：<code>logout / homepage</code> 等信息完全无关，忘记加 <code>WHERE activity = 'login'</code> 会把错误的日期当首次活动。</p>
+</li>
+<li>
+<p><strong>日期比较</strong>：ISO 格式 <code>yyyy-MM-dd</code> 可以用字符串字典序直接比较（C++ 实现即利用这一点），无需额外解析；但若格式不统一，务必先规整成同一格式。</p>
+</li>
+<li>
+<p><strong>扩展</strong>：若要统计"每日活跃用户数（DAU）"，则不取 <code>MIN</code>，而是按 <code>(user_id, activity_date)</code> 去重后计数；若要"留存率"，则以首次登录日为起点按天数差分组。核心都是先想清楚"每个用户只贡献什么"。</p>
+</li>
+</ol>
+<h2 id="_7">力扣原题</h2>
+<p><a href="https://leetcode.cn/problems/new-users-daily-count/" target="_blank" rel="noopener noreferrer">1107. 每日新用户统计</a></p>
+<h3 id="c">C++ 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;map&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_map&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="k">struct</span><span class="w"> </span><span class="nc">Record</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">userId</span><span class="p">;</span>
+<span class="w">    </span><span class="n">string</span><span class="w"> </span><span class="n">activity</span><span class="p">;</span>
+<span class="w">    </span><span class="n">string</span><span class="w"> </span><span class="n">activityDate</span><span class="p">;</span><span class="w"> </span><span class="c1">// 形如 &quot;2019-06-21&quot;</span>
+<span class="p">};</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">dailyNewUsers</span><span class="p">(</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Record</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">traffic</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// 1. 每个用户的最早登录日期（ISO 日期字典序即时间序）</span>
+<span class="w">        </span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="n">string</span><span class="o">&gt;</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">traffic</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="n">activity</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;login&quot;</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
+<span class="w">            </span><span class="k">auto</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">r</span><span class="p">.</span><span class="n">userId</span><span class="p">);</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">.</span><span class="n">end</span><span class="p">()</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">activityDate</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">it</span><span class="o">-&gt;</span><span class="n">second</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">firstLogin</span><span class="p">[</span><span class="n">r</span><span class="p">.</span><span class="n">userId</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">activityDate</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 2. 窗口 [2019-04-01, 2019-06-30]，按日期聚合（map 保证升序）</span>
+<span class="w">        </span><span class="k">const</span><span class="w"> </span><span class="n">string</span><span class="w"> </span><span class="n">today</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;2019-06-30&quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="k">const</span><span class="w"> </span><span class="n">string</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;2019-04-01&quot;</span><span class="p">;</span>
+<span class="w">        </span><span class="n">map</span><span class="o">&lt;</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">count</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">firstLogin</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">const</span><span class="w"> </span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kv</span><span class="p">.</span><span class="n">second</span><span class="p">;</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">d</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">lower</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">today</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">count</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+
+<span class="w">        </span><span class="c1">// 3. 输出 (login_date, user_count)</span>
+<span class="w">        </span><span class="n">vector</span><span class="o">&lt;</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">kv</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">count</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">res</span><span class="p">.</span><span class="n">push_back</span><span class="p">({</span><span class="n">kv</span><span class="p">.</span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">to_string</span><span class="p">(</span><span class="n">kv</span><span class="p">.</span><span class="n">second</span><span class="p">)});</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="python">Python 实现</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">date</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+
+<span class="k">class</span> <span class="nc">Solution</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">dailyNewUsers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">traffic</span><span class="p">):</span>
+        <span class="c1"># traffic：每个元素是 dict，含 user_id / activity / activity_date(形如 &quot;2019-06-21&quot;)</span>
+        <span class="c1"># 1. 每个用户的最早登录日期</span>
+        <span class="n">first_login</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">traffic</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s2">&quot;activity&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;login&quot;</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">uid</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">&quot;user_id&quot;</span><span class="p">]</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s2">&quot;activity_date&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">uid</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">first_login</span> <span class="ow">or</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="n">first_login</span><span class="p">[</span><span class="n">uid</span><span class="p">]:</span>
+                <span class="n">first_login</span><span class="p">[</span><span class="n">uid</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
+
+        <span class="c1"># 2. 只统计 [today-90, today] 内的首次登录，按日期聚合</span>
+        <span class="n">today</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2019</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">today</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>  <span class="c1"># 2019-04-01</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">first_login</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">dd</span> <span class="o">=</span> <span class="n">date</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">lower</span> <span class="o">&lt;=</span> <span class="n">dd</span> <span class="o">&lt;=</span> <span class="n">today</span><span class="p">:</span>
+                <span class="n">count</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># 3. 按日期升序输出 (login_date, user_count)</span>
+        <span class="k">return</span> <span class="p">[[</span><span class="n">d</span><span class="p">,</span> <span class="n">count</span><span class="p">[</span><span class="n">d</span><span class="p">]]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">count</span><span class="p">)]</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>
