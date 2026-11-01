@@ -165,9 +165,6 @@ def build() -> None:
     OUT.write_text("\n".join(lines), encoding="utf-8")
     total = sum(len(v) for per in per_company.values() for v in per.values())
     print(f"已生成 {OUT.relative_to(ROOT)}：{len(COMPANIES)} 家公司，{total} 条题目记录")
-    from scripts.build.company_topics_html import write_html
-    write_html(per_company, hot100, COMPANIES, TOP_N)
-    print(f"已生成 library/company/index.html")
 
 
 if __name__ == "__main__":
