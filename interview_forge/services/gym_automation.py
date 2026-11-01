@@ -780,7 +780,11 @@ def ensure_target_date(page, target_date):
       const act = document.querySelector('.select_date_box .date_box .active');
       return act ? act.innerText.replace(/\\s+/g, '') : '';
     }""")
-    if label not in active:
+    # 按「月/日数字」比较，而不是字符串包含：
+    # 站点在每月 1~9 号会把日号补零成「11月01日」，而 date_label_cn 生成「11月1日」，
+    # 直接 in 判断会误判失败（2026-11-01 当天所有任务就是这么挂的）。
+    matched = re.search(r"(\d{1,2})月(\d{1,2})日", active or "")
+    if not matched or (int(matched.group(1)), int(matched.group(2))) != (target_date.month, target_date.day):
         raise RuntimeError(f"页面选中日期 {active or '未知'} 与目标 {label} 不符（站点只支持约当天）")
 
 
