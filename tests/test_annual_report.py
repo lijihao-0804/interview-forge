@@ -52,7 +52,8 @@ class AnnualReportTests(TestCase):
             conn.close()
 
             report = build_annual_report("2026", db_paths=[db])
-            self.assertEqual(report["active_days"], 1)
+            # 活跃日 = 站内浏览日 + 力扣 AC 日（2026-05-01）→ 2 天
+            self.assertEqual(report["active_days"], 2)
             self.assertEqual(report["total_submissions"], 1)
             self.assertEqual(report["favorites"], 1)
             self.assertEqual(report["longest_streak"], 1)

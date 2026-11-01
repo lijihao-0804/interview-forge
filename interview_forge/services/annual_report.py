@@ -118,6 +118,16 @@ def build_annual_report(year: str | None = None, db_paths: list[Path] | None = N
                 except sqlite3.Error:
                     pass
 
+            # 力扣 AC 也计入热力图（站内学习之外的真实刷题活动）
+            try:
+                for row in conn.execute(
+                        "SELECT DISTINCT substr(submitted_at, 1, 10) AS d FROM submissions "
+                        "WHERE status = 'ac' AND submitted_at LIKE ?", (prefix,)):
+                    if row[0]:
+                        daily[str(row[0])] += 1
+            except sqlite3.Error:
+                pass
+
             # 学习时段分布
             try:
                 for row in conn.execute(
