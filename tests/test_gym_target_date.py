@@ -36,3 +36,39 @@ class TargetDateCompareTests(TestCase):
         with patch.object(gym_automation.time, "sleep"):
             with self.assertRaises(RuntimeError):
                 gym_automation.ensure_target_date(_page_with(""), date(2026, 11, 1))
+
+
+class DateMarksTests(TestCase):
+    """目标日期的各种写法都要覆盖，否则订单行/日期条会漏匹配。"""
+
+    def test_covers_padded_and_unpadded_forms(self) -> None:
+        marks = gym_automation.date_marks(date(2026, 1, 1))
+        for expected in ("2026-01-01", "01-01", "1月1日", "1月01日", "01月01日"):
+            self.assertIn(expected, marks, f"缺少日期写法 {expected}")
+
+    def test_covers_double_digit_day(self) -> None:
+        marks = gym_automation.date_marks(date(2026, 11, 15))
+        for expected in ("2026-11-15", "11-15", "11月15日", "11月15日", "11月15日"):
+            self.assertIn(expected, marks, f"缺少日期写法 {expected}")
+
+
+class OrderTextNormalizeTests(TestCase):
+    """订单行文本里的全角冒号、波浪号、各种连字符都要能归一。"""
+
+    def test_fullwidth_colon_and_dash(self) -> None:
+        self.assertEqual(
+            gym_automation._normalize_order_text("17：00－18：00"), "17:00-18:00")
+
+    def test_wave_dash(self) -> None:
+        self.assertEqual(
+            gym_automation._normalize_order_text("17:00~18:00"), "17:00-18:00")
+        self.assertEqual(
+            gym_automation._normalize_order_text("17:00～18:00"), "17:00-18:00")
+
+    def test_whitespace_and_en_dash(self) -> None:
+        self.assertEqual(
+            gym_automation._normalize_order_text("17:00 – 18:00"), "17:00-18:00")
+
+    def test_slot_matching_tolerates_formatting(self) -> None:
+        row = "2026-11-01 健身房 17：00－18：00 已支付"
+        self.assertTrue(gym_automation._row_matches_slot(row, "17:00-18:00"))

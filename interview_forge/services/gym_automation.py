@@ -198,6 +198,21 @@ def date_label_cn(d: date_cls):
     return f"{d.month}月{d.day}日"
 
 
+def date_marks(d: date_cls) -> list[str]:
+    """目标日期在页面/订单行里可能出现的一切写法。
+
+    站点不同位置混用：ISO（2026-11-01）、短横线（11-01）、中文不补零（11月1日）、
+    中文补零（11月01日）。少一种就会漏匹配——2026-11-01 的日期条误判就是这么来的。
+    """
+    return [
+        d.isoformat(),
+        f"{d.month:02d}-{d.day:02d}",
+        date_label_cn(d),
+        f"{d.month}月{d.day:02d}日",
+        f"{d.month:02d}月{d.day:02d}日",
+    ]
+
+
 class OrderPageNotReady(RuntimeError):
     """订单页未能证明列表已加载；提交预约前可安全重试。"""
 
@@ -546,8 +561,7 @@ def _row_is_other_venue(row, venue):
 
 def _order_row_match_counts(rows, target_date, venue=None):
     """返回不含订单原文的筛选计数，便于排查预检漏匹配。"""
-    marks = [target_date.isoformat(), date_label_cn(target_date),
-             f"{target_date.month:02d}-{target_date.day:02d}"]
+    marks = date_marks(target_date)
     counts = {
         "total_rows": len(rows),
         "gym_keyword_rows": 0,
@@ -576,8 +590,7 @@ def _order_row_match_counts(rows, target_date, venue=None):
 
 def _summarize_order_rows(rows, target_date, venue=None):
     """按目标日期汇总有效预约与未支付订单，保留原始行以便解释结果。"""
-    today_marks = [target_date.isoformat(), date_label_cn(target_date),
-                   f"{target_date.month:02d}-{target_date.day:02d}"]
+    today_marks = date_marks(target_date)
     summary = {"booked": [], "pending": [], "relevant": []}
     for raw_row in rows:
         row = re.sub(r"\s+", " ", str(raw_row)).strip()
@@ -594,7 +607,11 @@ def _summarize_order_rows(rows, target_date, venue=None):
 
 
 def _normalize_order_text(value):
-    return re.sub(r"\s+", "", str(value)).replace("—", "-").replace("–", "-")
+    """统一订单行文本，避免全角/半角与各种连字符造成漏匹配。"""
+    text = re.sub(r"\s+", "", str(value))
+    for src, dst in (("—", "-"), ("–", "-"), ("－", "-"), ("~", "-"), ("～", "-"), ("：", ":")):
+        text = text.replace(src, dst)
+    return text
 
 
 def _row_matches_slot(row, slot):
@@ -605,7 +622,7 @@ def _format_existing_bookings(rows):
     labels = []
     for row in rows:
         match = re.search(
-            r"((?:[01]\d|2[0-3]):[0-5]\d)\s*[-—–]\s*((?:[01]\d|2[0-3]):[0-5]\d)",
+            r"(\d{1,2}:[0-5]\d)\s*[-—–－~～]\s*(\d{1,2}:[0-5]\d)",
             str(row),
         )
         label = f"{match.group(1)}-{match.group(2)}" if match else "时段未识别"
@@ -627,14 +644,13 @@ def _wait_for_matching_order(page, target_date, slot, timeout_ms=7000):
 
     轮询上限 7 秒：实测订单通常 2~3 秒出现在列表，等满 12 秒属浪费；
     真慢时后续还有订单页复核兜底。"""
-    marks = [target_date.isoformat(), date_label_cn(target_date),
-             f"{target_date.month:02d}-{target_date.day:02d}"]
+    marks = date_marks(target_date)
     target = {"dates": marks, "slot": _normalize_order_text(slot)}
     script = """(target) => {
       const isOrderRecord = __ORDER_RECORD_PREDICATE__;
       const rows = [...document.querySelectorAll('table tbody tr, .order-item')]
         .filter(node => isOrderRecord(node.innerText || ''));
-      const norm = value => value.replace(/\\s+/g, '').replace(/[—–]/g, '-');
+      const norm = value => value.replace(/\s+/g, '').replace(/[—–－~～]/g, '-').replace(/：/g, ':');
       return rows.some(node => {
         const text = node.innerText || '';
         const compact = norm(text);
@@ -1708,8 +1724,7 @@ def pay_and_verify(page, target_date, slot, capture_dir=None, venue=None):
     except Exception as exc:  # noqa: BLE001 支付已点击，后续异常必须报告为不确定
         log.warning("支付后订单核验中断：%s", exc)
         return "ambiguous", "已点击支付，但订单状态暂时无法读取；请先核对南大订单，系统不会自动重复提交。"
-    today_marks = [target_date.isoformat(), date_label_cn(target_date),
-                   f"{target_date.month:02d}-{target_date.day:02d}"]
+    today_marks = date_marks(target_date)
     for row in rows:
         if "健身房" not in row or not any(mk in row for mk in today_marks):
             continue
