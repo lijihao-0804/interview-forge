@@ -58,8 +58,12 @@ def html_to_md_with_images(raw: str) -> str:
     pres: list[str] = []
 
     def stash_pre(m: re.Match) -> str:
-        code = re.sub(r"</?(?:code|span)[^>]*>", "", m.group(1))  # 只去 code/span，保留代码里的 <
+        code = re.sub(r"</?(?:code|span|strong|b|em|i)[^>]*>", "", m.group(1))  # 去题面示例里的强调标签，保留代码 <  # 只去 code/span，保留代码里的 <
         code = html_lib.unescape(code).strip("\n")
+        # 示例（输入/输出）用普通文本，行间硬换行；图形/矩阵仍走代码块
+        if "输入" in code or "输出" in code:
+            _lines = [x.strip() for x in code.splitlines() if x.strip()]
+            return "\n\n" + "  \n".join(_lines) + "\n\n"
         pres.append(code)
         return f"\n\n@@PRE{len(pres)-1}@@\n\n"
 

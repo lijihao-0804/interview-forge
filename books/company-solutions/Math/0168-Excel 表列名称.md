@@ -28,31 +28,23 @@ AB -> 28
 
 示例 1：
 
-```
-<strong>输入：</strong>columnNumber = 1
-<strong>输出：</strong>"A"
-```
+输入：columnNumber = 1  
+输出："A"
 
 示例 2：
 
-```
-<strong>输入：</strong>columnNumber = 28
-<strong>输出：</strong>"AB"
-```
+输入：columnNumber = 28  
+输出："AB"
 
 示例 3：
 
-```
-<strong>输入：</strong>columnNumber = 701
-<strong>输出：</strong>"ZY"
-```
+输入：columnNumber = 701  
+输出："ZY"
 
 示例 4：
 
-```
-<strong>输入：</strong>columnNumber = 2147483647
-<strong>输出：</strong>"FXSHRXW"
-```
+输入：columnNumber = 2147483647  
+输出："FXSHRXW"
 
  
 

@@ -21,18 +21,14 @@
 
 示例 1：
 
-```
-<strong>输入：</strong>a = 1, b = 2
-<strong>输出：</strong>"abb"
-<strong>解释：</strong>"abb", "bab" 和 "bba" 都是正确答案。
-```
+输入：a = 1, b = 2  
+输出："abb"  
+解释："abb", "bab" 和 "bba" 都是正确答案。
 
 示例 2：
 
-```
-<strong>输入：</strong>a = 4, b = 1
-<strong>输出：</strong>"aabaa"
-```
+输入：a = 4, b = 1  
+输出："aabaa"
 
  
 
