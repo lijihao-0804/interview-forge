@@ -157,7 +157,7 @@ h1{margin:0;font-size:clamp(30px,4vw,46px);line-height:1.15;letter-spacing:-.025
 .plan-reason.due{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--panel))}
 .plan-reason.weak{color:var(--danger);background:color-mix(in srgb,var(--danger) 12%,var(--panel))}
 .plan-reason.new{color:var(--brand);background:var(--brand-soft)}
-.mock-setup{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px}
+.mock-setup{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:12px}
 .mock-settings{margin-top:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel-soft)}
 .mock-settings summary{padding:8px 12px;color:var(--brand);font-weight:650;cursor:pointer}
 .mock-settings[open] .mock-setup{padding:4px 12px 12px}
