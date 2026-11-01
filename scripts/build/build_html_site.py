@@ -2212,7 +2212,7 @@ def transform_solution_page(
     右栏 On This Page（toc）；窄屏断点退化为单列（见 SITE_CSS）。"""
     from bs4 import BeautifulSoup
 
-    is_solution = "03-题解" in source.parts
+    is_solution = "03-题解" in source.parts or "company-solutions" in source.parts
     soup = BeautifulSoup(page, "html.parser")
     body = soup.find("article", class_="markdown-body")
     if body is None:
@@ -2517,7 +2517,7 @@ def render_markdown(source: Path) -> None:
         page = rebuilt
 
     # —— 题解页专属后处理：aside 提示框 + 徽标行 + 三栏 ——
-    if "03-题解" in source.parts:
+    if "03-题解" in source.parts or "company-solutions" in source.parts:
         try:
             page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href)
         except Exception:
