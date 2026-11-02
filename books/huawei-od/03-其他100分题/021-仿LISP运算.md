@@ -123,4 +123,3 @@ if __name__ == '__main__':
     assert solve_method("(div 12 (sub 45 45))") == "error"
     assert solve_method("(add 1 (div -7 3))") == -2
 ```
-

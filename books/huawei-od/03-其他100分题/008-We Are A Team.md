@@ -7,7 +7,7 @@
 - 消息构成为`a b c`，整数`a`、`b`分别代表两个人的标号，整数`c`代表指令。
 - `c==0`代表`a`和`b`在一个团队内。
 - `c==1`代表需要判定`a`和`b`的关系，如果`a`和`b`是一个团队，输出一行`we are a team`，如果不是，输出一行`we are not a team`。
-- `c`为其他值，或当前行`a`或`b`超出1\~n的范围，输出`da pian zi`。
+- `c`为其他值，或当前行`a`或`b`超出1~n的范围，输出`da pian zi`。
 
 ## 输入描述
 
@@ -19,7 +19,7 @@
 
 - 如果`c==0`，代表`a`和`b`在一个团队内。
 - 如果`c==1`，需要判定`a`和`b`的关系，如果`a`和`b`是一个团队，输出一行`we are a team`，如果不是，输出一行`we are not a team`。
-- 如果`c`为其他值，或当前行`a`或`b`超出1\~n的范围，输出`da pian zi`。
+- 如果`c`为其他值，或当前行`a`或`b`超出1~n的范围，输出`da pian zi`。
 - 如果第1行`n`和`m`的值超出约定的范围时，输出字符串`NULL`。
 
 ## 示例描述
@@ -70,7 +70,7 @@ da pian zi
 ## 解题思路
 
 1. 初始化团队列表，每个团队都是一个set集合。
-2. 如果c为其他值，或当前行a或b超出1\~n的范围，则将`da pian zi`存入结果列表中。
+2. 如果c为其他值，或当前行a或b超出1~n的范围，则将`da pian zi`存入结果列表中。
 3. 如果c为0，添加到对应的团队中的set集合。
 4. 如果c为1，判断a和b是否在一个团队。
    - 如果在，将`We are a team`存入结果列表中。
@@ -84,7 +84,7 @@ def solve_method(n, messages):
     # 团队列表，每个团队都是一个set集合
     relations = []
     for message in messages:
-        # 如果c为其他值，或当前行a或b超出1\~n的范围，输出da pian zi。
+        # 如果c为其他值，或当前行a或b超出1~n的范围，输出da pian zi。
         if message[2] not in [0, 1] or message[0] > n or message[1] > n:
             result.append("da pian zi")
         else:

@@ -78,4 +78,3 @@ if __name__ == '__main__':
     assert solve_method(3, 3) == 213
     assert solve_method(2, 2) == 21
 ```
-

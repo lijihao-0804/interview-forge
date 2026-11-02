@@ -143,6 +143,8 @@ readerVisualFrames.forEach((frame) => {
       .filter((block) => Object.prototype.hasOwnProperty.call(LANG_NAMES, block.dataset.lang));
     if (!blocks.length) return;
     const available = new Set(blocks.map((block) => block.dataset.lang));
+    // 只有一种语言时，语言切换条没有意义，直接隐藏（华为题库只有 Python 就属此类）
+    if (available.size <= 1) { const b = document.getElementById('forge-lang-bar'); if (b) b.style.display = 'none'; return; }
     const effectiveLang = available.has(lang) ? lang : (available.has('java') ? 'java' : (available.values().next().value || lang));
     blocks.forEach((block) => { block.style.display = (block.dataset.lang === effectiveLang) ? '' : 'none'; });
     const bar = buildBar();
