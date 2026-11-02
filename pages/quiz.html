@@ -67,6 +67,7 @@
     <div>
       <h1 style="margin:0 0 4px;font-size:24px">选择题练习</h1>
       <p style="margin:0;font-size:13px;color:#66748a">按主题分类。<b>背题</b>整块滚动看；<b>做题</b>整卷测评，交卷判分。</p>
+      <p style="margin:6px 0 0;font-size:12px;color:#8a94a6">快捷键：<kbd>A</kbd>–<kbd>D</kbd>/<kbd>1</kbd>–<kbd>4</kbd> 选项 · <kbd>←</kbd><kbd>→</kbd> 翻题 · <kbd>Enter</kbd> 下一题 · <kbd>M</kbd> 切模式 · <kbd>Esc</kbd> 返回分类</p>
     </div>
     <div class="mode-switch" id="modeSwitch">
       <button type="button" data-mode="study" class="on">背题模式</button>
@@ -160,7 +161,7 @@
     if(!pool.length){ sp.innerHTML='<div class="empty">该分类暂无题目。</div>'; return; }
     var html='<section class="study-block"><h2>'+esc(currentCat)+'<small>'+pool.length+' 题</small></h2>';
     pool.forEach(function(q,qi){
-      html+='<div class="study-q"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+'</p>';
+      html+='<div class="study-q" data-qi="'+qi+'"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+'</p>';
       q.options.forEach(function(o,i){
         html+='<div class="opt'+(i===q.answer?' correct':'')+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(i===q.answer?' ✓':'')+'</div>';
       });
@@ -236,6 +237,40 @@
   document.getElementById('btnPrev').addEventListener('click',function(){ if(exam.idx>0){exam.idx--;renderExam();} });
   document.getElementById('btnNextQ').addEventListener('click',function(){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();} });
   document.getElementById('btnSubmitExam').addEventListener('click',submitExam);
+  /* ===== 快捷键 ===== */
+  var studyIdx=0;
+  function scrollToStudy(i){
+    var els=document.querySelectorAll('.study-q'); if(!els.length) return;
+    studyIdx=Math.max(0,Math.min(els.length-1,i));
+    els.forEach(function(el,k){el.style.boxShadow=k===studyIdx?'inset 3px 0 0 var(--brand,#5654d4)':'';});
+    els[studyIdx].scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function switchMode(){
+    var nb=document.querySelector('.mode-switch button[data-mode="'+(mode==='study'?'exam':'study')+'"]');
+    if(nb) nb.click();
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey) return;
+    var t=e.target;
+    if(t && (t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    var k=e.key.toLowerCase();
+    if(k==='m'){ switchMode(); e.preventDefault(); return; }
+    if(k==='escape'){ if(currentCat){ goHome(); e.preventDefault(); } return; }
+    if(!currentCat) return;
+    var examVisible=!document.getElementById('examRun').hidden;
+    var studyVisible=!document.getElementById('studyPanel').hidden;
+    if(examVisible){
+      var q=exam.qs[exam.idx];
+      if(/^[a-d]$/.test(k)){ var i=k.charCodeAt(0)-97; if(i<q.options.length){exam.answers[exam.idx]=i;renderExam();e.preventDefault();} return; }
+      if(/^[1-4]$/.test(k)){ var i2=parseInt(k,10)-1; if(i2<q.options.length){exam.answers[exam.idx]=i2;renderExam();e.preventDefault();} return; }
+      if(k==='arrowleft'||k==='k'||k==='p'){ if(exam.idx>0){exam.idx--;renderExam();e.preventDefault();} return; }
+      if(k==='arrowright'||k==='j'||k==='n'){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();e.preventDefault();} return; }
+      if(k==='enter'){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();} else {submitExam();} e.preventDefault(); return; }
+    } else if(studyVisible){
+      if(k==='arrowright'||k==='j'||k==='n'){ scrollToStudy(studyIdx+1); e.preventDefault(); return; }
+      if(k==='arrowleft'||k==='k'||k==='p'){ scrollToStudy(studyIdx-1); e.preventDefault(); return; }
+    }
+  });
   fetch('../assets/quiz.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
     DATA=d; renderHome();
   }).catch(function(e){
