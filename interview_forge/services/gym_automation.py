@@ -1998,12 +1998,21 @@ def run(args) -> dict:
             page = order_page  # 确认页可能在新标签页，后续支付/核验切换过去
             break
 
-        # 新标签页可能已 load 完成，再等 domcontentloaded 会一直等到超时；
-        # 且 SPA 的该状态不代表内容就绪（真正就绪由 _wait_confirm_page_rendered 判断）。
+        # 确认页标签页刚打开时 URL 里已有 tradeNo，但导航未必开始/完成；
+        # 直接 wait_for_load_state 可能在标签页还没完成导航时一直等到超时
+        # （2026-11-02 线上即为此：验证码已通过、确认页 30 秒未就绪）。
+        # 这里用有界的等待：先在短窗口内等一次 load，失败不算错，
+        # 真正的就绪判定交给下面的渲染轮询。
         try:
-            page.wait_for_load_state("domcontentloaded", timeout=5000)
-        except Exception:  # noqa: BLE001  已 load 完 / 超时都继续往下走
-            pass
+            page.wait_for_load_state("domcontentloaded", timeout=15000)
+        except Exception as exc:  # noqa: BLE001 超时不代表失败，由渲染轮询兜底
+            log.warning("确认页导航就绪等待未完成（%s），继续按正文轮询判定", exc)
+        if "tradeNo" not in page.url:
+            # 极端情况下拿到的是尚未导航的空白页，再给一次机会等 URL 落定
+            for _ in range(20):
+                time.sleep(0.5)
+                if "tradeNo" in page.url:
+                    break
         _wait_confirm_page_rendered(page)
         # 确认页 URL 含 tradeNo，不写入服务日志。
         log.info("已进入订单确认页")
