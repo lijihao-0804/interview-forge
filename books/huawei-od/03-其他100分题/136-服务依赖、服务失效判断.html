@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>136 服务依赖、服务失效判断 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="136">136 服务依赖、服务失效判断</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>在某系统中有众多服务，每个服务用字符串（只包含字母和数字，长度 &lt;= 10）作为唯一标识，服务间可能有依赖关系，如A依赖B，但当B故障时，导致A也故障。传递具有依赖性，如A依赖B，B依赖C，当C故障时导致B故障，也导致A故障。</p>
+<p>给出所有依赖关系以及当前已知故障服务，要求输出所有正常的服务。</p>
+<p>依赖关系：<code>服务1-服务2</code>表示服务1依赖服务2，不必考虑输入异常。</p>
+<h2 id="_2">输入描述</h2>
+<p>第1行是依赖关系列表，用<code>,</code>分隔。</p>
+<p>第2行是故障服务列表，用<code>,</code>分隔。</p>
+<h2 id="_3">输出描述</h2>
+<p>依赖关系列表中提到的所有服务中可以正常工作的服务列表，用<code>,</code>分隔，按依赖关系列表中出现的顺序排序，如果没有正常节点，则输出一个<code>,</code>。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>a1-a2,a5-a6,a2-a3
+a5,a2
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>a6,a3
+</code></pre></div>
+
+<p><strong>说明：</strong><br />
+<code>a1</code>依赖<code>a2</code>，<code>a2</code>依赖<code>a3</code>，所以<code>a2</code>故障，导致<code>a1</code>不可用，但不影响<code>a3</code>，<code>a5</code>故障不影响<code>a6</code>，所以可用的是<code>a3</code>、<code>a6</code>，在依赖关系列表中<code>a6</code>先出现，所以输出<code>a6,a3</code>。</p>
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>a1-a2
+a2
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>,
+</code></pre></div>
+
+<p><strong>说明：</strong><br />
+<code>a1</code>依赖<code>a2</code>，<code>a2</code>故障导致<code>a1</code>也故障，没有正常节点，输出<code>,</code>。</p>
+<h2 id="_7">解题思路</h2>
+<p><strong>基本思路：</strong> 使用深度优先搜索遍历服务依赖关系，得到所有故障服务。
+1. 遍历依赖关系列表，得到所有服务<code>nodes</code>（已按照出现顺序排列）和服务依赖关系字典<code>server_dependencies</code>，其中<code>key</code>为依赖服务，<code>value</code>为被依赖服务。
+2. 使用深度优先搜索遍历故障服务列表：
+   - 确定参数：故障服务<code>node</code>、服务依赖关系字典<code>server_deps</code>、故障服务列表<code>paths</code>
+   - 将故障服务添加故障服务列表<code>paths</code>中
+   - 终止条件：如果没有依赖关系，停止递归
+   - 通过服务依赖关系字典得到下一个故障的服务，继续递归
+3. 从所有服务中按照顺序排除掉故障服务。
+4. 返回正常工作的服务。</p>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">def</span> <span class="nf">dfs</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">server_deps</span><span class="p">,</span> <span class="n">paths</span><span class="p">):</span>
+    <span class="c1"># 添加到故障服务列表中</span>
+    <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">server_deps</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># 得到依赖服务</span>
+    <span class="n">next_node</span> <span class="o">=</span> <span class="n">server_deps</span><span class="p">[</span><span class="n">node</span><span class="p">]</span>
+    <span class="n">dfs</span><span class="p">(</span><span class="n">next_node</span><span class="p">,</span> <span class="n">server_deps</span><span class="p">,</span> <span class="n">paths</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">servers</span><span class="p">,</span> <span class="n">errors</span><span class="p">):</span>
+    <span class="c1"># 服务依赖服务</span>
+    <span class="n">servers</span> <span class="o">=</span> <span class="n">servers</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+    <span class="c1"># 故障服务</span>
+    <span class="n">errors</span> <span class="o">=</span> <span class="n">errors</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+    <span class="c1"># 所有服务</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># 服务依赖关系</span>
+    <span class="n">server_dependencies</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">server</span> <span class="ow">in</span> <span class="n">servers</span><span class="p">:</span>
+        <span class="n">val</span><span class="p">,</span> <span class="nb">next</span> <span class="o">=</span> <span class="n">server</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+            <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">next</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+            <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">next</span><span class="p">)</span>
+        <span class="c1"># 建立服务依赖关系</span>
+        <span class="n">server_dependencies</span><span class="p">[</span><span class="nb">next</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">errors</span><span class="p">:</span>
+        <span class="n">dfs</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">server_dependencies</span><span class="p">,</span> <span class="n">paths</span><span class="p">)</span>
+
+    <span class="c1"># 按照顺序排除掉故障服务</span>
+    <span class="n">good_nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span> <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">good_nodes</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">good_nodes</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">&quot;,&quot;</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">servers</span> <span class="o">=</span> <span class="s2">&quot;a1-a2,a5-a6,a2-a3&quot;</span>
+    <span class="n">errors</span> <span class="o">=</span> <span class="s2">&quot;a5,a2&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">servers</span><span class="p">,</span> <span class="n">errors</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;a6,a3&quot;</span>
+
+    <span class="n">servers</span> <span class="o">=</span> <span class="s2">&quot;a1-a2&quot;</span>
+    <span class="n">errors</span> <span class="o">=</span> <span class="s2">&quot;a2&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">servers</span><span class="p">,</span> <span class="n">errors</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;,&quot;</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>021 仿LISP运算 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="021-lisp">021 仿LISP运算</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>LISP语言唯一的语法就是括号要配对。形如<code>(OP P1 P2 ...)</code>，括号内元素由单个空格分。其中第一个元素<code>OP</code>为操作符，后续元素均为其参数，参数个数取决于操作符类型。</p>
+<p>注意：<code>P1</code>、<code>P2</code>也有可能是另外一个嵌套的<code>(OP P1 P2 ...)</code>，当前<code>OP</code>类型为<code>add</code>、<code>sub</code>、<code>mul</code>、<code>div</code>（全小写），分别代表整数的加减乘除法。简单起见，所有<code>OP</code>参数个数均为2。</p>
+<p>举例：</p>
+<ul>
+<li>输入：<code>(mul 3 -7)</code>，输出：-21</li>
+<li>输入：<code>(add 1 2)</code>，输出: 3</li>
+<li>输入：<code>(sub(mul 2 4) (div 9 3))</code>，输出: 5</li>
+<li>输入：<code>(div 1 0)</code>，输出: <code>error</code></li>
+</ul>
+<p>题目涉及数字均为整数，可能为负；不考虑32位溢出翻转，计算过程中也不会发生32位溢出翻转；除零错误时，输出<code>error</code>，除法遇除不尽时，向下取整，即3/2 = 1。</p>
+<h2 id="_2">输入描述</h2>
+<p>输入为长度不超过512的字符串，用例保证无语法错误。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出计算结果或者<code>error</code>。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>(div 12 (sub 45 45))
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>error
+</code></pre></div>
+
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>(add 1 (div -7 3))
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>-2
+</code></pre></div>
+
+<h2 id="_7">解题思路</h2>
+<p><strong>基本思路：</strong> 实际上是四则运算，将<code>add/sub/mul/div</code>一一对应四则运算中的加减乘除，并用栈的方式进行运算。</p>
+<ol>
+<li>初始化用于存储操作数和操作符的栈<code>stack</code>。</li>
+<li>遍历运算表达式字符串：
+   - 如果是左括号，直接压入栈中。
+   - 如果是字母，则存入操作符字符串<code>op_word</code>。
+   - 如果是数字、小数点、负号，则存入数字字符串<code>num_str</code>。
+   - 如果是右括号或者空格，则将操作符字符串<code>op_word</code>或数字字符串<code>num_str</code>入栈。
+   - 如果是右括号，则取出栈顶的两个数和操作符进行运算，如果是除法运算，出现分母为<code>0</code>，即<code>num2==0</code>，则返回<code>error</code>，其它结果入栈</li>
+<li>返回<code>stack</code>栈顶元素，即为运算结果。    </li>
+</ol>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">math</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">ops</span><span class="p">):</span>
+    <span class="c1"># 用于存储操作数和操作符的栈</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">num_str</span><span class="p">,</span> <span class="n">op_word</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">ops</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ch</span> <span class="o">==</span> <span class="s2">&quot;(&quot;</span><span class="p">:</span>
+            <span class="c1"># 如果是左括号，直接压入栈中</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ch</span><span class="o">.</span><span class="n">isalpha</span><span class="p">():</span>
+            <span class="n">op_word</span> <span class="o">+=</span> <span class="n">ch</span>
+        <span class="k">elif</span> <span class="n">ch</span><span class="o">.</span><span class="n">isnumeric</span><span class="p">()</span> <span class="ow">or</span> <span class="n">ch</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;.&quot;</span><span class="p">]:</span>
+            <span class="n">num_str</span> <span class="o">+=</span> <span class="n">ch</span>
+        <span class="k">elif</span> <span class="n">ch</span><span class="o">.</span><span class="n">isspace</span><span class="p">()</span> <span class="ow">or</span> <span class="n">ch</span> <span class="o">==</span> <span class="s2">&quot;)&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">num_str</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+                <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">num_str</span><span class="p">))</span>
+                <span class="n">num_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="k">if</span> <span class="n">op_word</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+                <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">op_word</span><span class="p">)</span>
+                <span class="n">op_word</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">ch</span> <span class="o">==</span> <span class="s2">&quot;)&quot;</span><span class="p">:</span>
+            <span class="c1"># 如果是右括号，取出栈顶的两个数和操作符进行计算，并将结果压入栈中</span>
+            <span class="n">num2</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">num1</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">num1</span> <span class="o">+</span> <span class="n">num2</span>
+            <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;sub&quot;</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">num1</span> <span class="o">-</span> <span class="n">num2</span>
+            <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;mul&quot;</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">num1</span> <span class="o">*</span> <span class="n">num2</span>
+            <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;div&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">num2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># 如果除法操作的除数为0，返回error</span>
+                    <span class="k">return</span> <span class="s2">&quot;error&quot;</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">num1</span> <span class="o">/</span> <span class="n">num2</span><span class="p">)</span>
+
+            <span class="c1"># 将计算结果压入栈中</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">stack</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="s2">&quot;(div 12 (sub 45 45))&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;error&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="s2">&quot;(add 1 (div -7 3))&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">2</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>122 最小传递延时 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="122">122 最小传递延时</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>通讯网络中有<code>N</code>个网络节点，用1\~N进行标识。网络通过一个有向无环图进行表示，其中图的边的值，表示节点之间的消息传递延时。</p>
+<p>现给定相连节点之间的延时列表<code>times[i]={u,v,w}</code>，其中<code>u</code>表示源节点，<code>v</code>表示目的节点，<code>w</code>表示<code>u</code>和<code>v</code>之间的消息传递延时。</p>
+<p>请计算给定源节点到目的节点的最小传递延时，如果目的节点不可达，请返回-1。</p>
+<p>注意：<code>N</code>的取值范围是1\~100，延时<code>times</code>列表长度不超过6000，且<code>1 &lt;= u, v &lt;= N, 0 &lt;= w &lt;= 100</code>。</p>
+<h2 id="_2">输入描述</h2>
+<p>输入第1行是两个正整数，分别表示网络节点个数<code>N</code>以及延时列表长度<code>M</code>，用空格分隔。</p>
+<p>接下来的<code>M</code>行表示两个节点间的延时列表<code>[u,v,w]</code></p>
+<p>输入的最后一行是两个正整数<code>u</code>和<code>v</code>，分别表示源节点和目的节点。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出一个整数，表示源节点到目的节点的最小延时。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3 3
+1 2 11
+2 3 13
+1 3 50
+1 3
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>24
+</code></pre></div>
+
+<p><strong>说明：</strong><br />
+1 \~ 3 的延时是50，1\~2\~3的延迟是11+13=24，所以1\~3的最小延时是24。</p>
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>5 7
+1 2 11
+2 3 13
+1 3 50
+3 4 55
+4 5 35
+2 4 15
+3 5 40
+1 5
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>61
+</code></pre></div>
+
+<h2 id="_7">解题思路</h2>
+<p><strong>基本思路：</strong> 本题采用回溯算法求解，回溯法三部曲如下：
+1. 确定参数：包括延时列表<code>times</code>、开始节点<code>start</code>、结束节点<code>end</code>、路径<code>paths</code>、结果列表<code>result</code>。
+2. 终止条件：当开始节点等于结束节点时
+    - 当<code>paths</code>列表中仅有一个值（即直接找到了直达路径），直接取延时时间，存入结果列表中。
+    - 当<code>paths</code>列表中大于一个值（即有多个节点），求延时累和，并存入结果列表中。
+3. 回溯搜索遍历过程：
+   - 循环访问所有节点，排除已经在路径的节点。
+   - 如果还存在跳跃节点，添加当前节点到路径中，将继续递归。
+   - 回溯，在路径中删除当前节点。 
+4. 返回结果列表中最小值。</p>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">def</span> <span class="nf">backtracking</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">start</span> <span class="o">==</span> <span class="n">end</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">length</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+                <span class="n">length</span> <span class="o">+=</span> <span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">length</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">times</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">start</span><span class="p">:</span>
+                <span class="n">paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+                <span class="n">backtracking</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">end</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+                <span class="n">paths</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">backtracking</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">min</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">times</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">11</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">13</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">50</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">24</span>
+
+    <span class="n">times</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">11</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">13</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">55</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">35</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">15</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">40</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">==</span> <span class="mi">61</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

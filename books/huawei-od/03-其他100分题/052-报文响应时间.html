@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>052 报文响应时间 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="052">052 报文响应时间</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>IGMP协议中，有一个字段称作最大响应时间（MaxResponseTime），HOST收到查询报文，解析出<code>MaxResponseTime</code>字段后，需 要在<code>(0,MaxResponseTime]</code>（单位为秒）时间内选取随机时间回应一个响应报文，如果在随机时间内收到一个新的查询报文，则会根据两者时间的大小，选取小的一方刷新回应时间。</p>
+<p>最大响应时间有如下计算方式：
+- 当<code>MaxRespCode &lt; 128</code>时，<code>MaxRespTime = MaxRespCode</code>。
+- 当<code>MaxRespCode &gt;= 128</code>时，<code>MaxRespTime = (mant | 0x10) &lt;&lt; (exp+3)</code>。 </p>
+<p>报文格式如下：</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>|0| 123 | 4567 |
+|1| exp | mant |
+</code></pre></div>
+
+<p>注：<code>exp</code>最大响应时间的高5\~7位，<code>mant</code>为最大响应时间的低4位。</p>
+<p>其中接收到的<code>MaxRespCode</code>最大值为255，以上出现所有字段均为无符号数。现在我们认为HOST接收到查询报文时，选取的随机时间必定为最大值。</p>
+<p>现给出HOST收到查询报文个数<code>C</code>，HOST收到报文的时间<code>T</code>，以及查询报文的最大响应时间字段值<code>M</code>，请计算出HOST发送响应报文的时间。</p>
+<h2 id="_2">输入描述</h2>
+<p>第一行为查询报文个数<code>C</code>。</p>
+<p>后续每行分别为HOST收到报文时间<code>T</code>，及最大响应字段<code>M</code>，以空格分隔。</p>
+<h2 id="_3">输出描述</h2>
+<p>HOST发送响应报文的时间</p>
+<p><strong>补充说明：</strong></p>
+<p>用例确定只会发送一个响应报文，不存在计时结束后，依然收到查询报文的情况。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3
+0 20
+1 10
+8 20
+</code></pre></div>
+
+<p><strong>输出描述：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>11
+</code></pre></div>
+
+<p><strong>说明</strong></p>
+<p>收到3个报文：</p>
+<ul>
+<li>第0秒收到第1个报文，响应时间为20秒，则要到0+20=20秒响应。</li>
+<li>第1秒收到第2个报文，响应时间为10秒；则要到1+10=11秒响应，与上面的报文的响应时间比较，获得响应时间最小为11秒。</li>
+<li>第8秒收到第3个报文，响应时间为20秒，则要到8+20=28秒响应；与上面的报文的响应时间比较，获得响应时间最小为11秒。</li>
+</ul>
+<p>最终得到最小响应报文时间为11秒。</p>
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2
+0 255
+200 60
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>260
+</code></pre></div>
+
+<p><strong>说明</strong></p>
+<p>收到2个报文：</p>
+<ul>
+<li>第0秒收到第1个报文，响应时间为255秒，则要到(15| 0x10) &lt;&lt; (7+3) = 31744秒响应（mant=15、exp=7）。</li>
+<li>第200秒收到第2个报文，响应时间为60秒，则要到200+60=260秒响应，与上面的报文的响应时间比较，获得响应时间最小为260秒。</li>
+</ul>
+<p>最终得到最小响应报文时间为260秒。</p>
+<h2 id="_7">解题思路</h2>
+<ol>
+<li>遍历每个报文的响应：<ul>
+<li>如果最大响应时间字段值大于等于128，则提取<code>M</code>的位4-7，与0x10进行逻辑或操作，然后根据<code>M</code>的位0-2值左移。</li>
+<li>计算响应时间<code>T+M</code>。</li>
+<li>比较并得到最小响应时间。</li>
+</ul>
+</li>
+<li>返回结果，即最小的响应时间。    </li>
+</ol>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">math</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">response_times</span><span class="p">):</span>
+    <span class="n">min_value</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span>
+    <span class="k">for</span> <span class="p">[</span><span class="n">T</span><span class="p">,</span> <span class="n">M</span><span class="p">]</span> <span class="ow">in</span> <span class="n">response_times</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">M</span> <span class="o">&gt;=</span> <span class="mi">128</span><span class="p">:</span>
+            <span class="c1"># 提取M的位4-7，与0x10进行逻辑或操作，然后根据M的位0-2值左移</span>
+            <span class="n">M</span> <span class="o">=</span> <span class="p">((</span><span class="n">M</span> <span class="o">&gt;&gt;</span> <span class="mi">3</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xF</span> <span class="o">|</span> <span class="mh">0x10</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">M</span> <span class="o">&amp;</span> <span class="mh">0x7</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">resp_time</span> <span class="o">=</span> <span class="n">T</span> <span class="o">+</span> <span class="n">M</span>
+        <span class="k">if</span> <span class="n">resp_time</span> <span class="o">&lt;</span> <span class="n">min_value</span><span class="p">:</span>
+            <span class="n">min_value</span> <span class="o">=</span> <span class="n">resp_time</span>
+
+    <span class="k">return</span> <span class="n">min_value</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">response_times</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">],</span>
+                      <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+                      <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">20</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">response_times</span><span class="p">)</span> <span class="o">==</span> <span class="mi">11</span>
+
+    <span class="n">response_times</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">],</span>
+                      <span class="p">[</span><span class="mi">200</span><span class="p">,</span> <span class="mi">60</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">response_times</span><span class="p">)</span> <span class="o">==</span> <span class="mi">260</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

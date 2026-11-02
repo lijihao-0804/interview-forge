@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>018 任务调度、单核CPU任务调度 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="018-cpu">018 任务调度、单核CPU任务调度</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+</ul>
+</li>
+<li><a href="#_6">解题思路</a></li>
+<li><a href="#_7">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>现有一个CPU和一些任务需要处理，已提前获知每个任务的任务ID、优先级、所需执行时间和到达时间。</p>
+<p>CPU同时只能运行一个任务，请编写一个任务调度程序，采用“可抢占优先权调度”调度算法进行任务调度，规则如下：</p>
+<ul>
+<li>如果一个任务到来时，CPU是空闲的，则CPU可以运行该任务直到任务执行完毕。但是如果运行中有一个更高优先级的任务到来，则CPU必须暂停当前任务去运行这个优先级更高的任务。</li>
+<li>如果一个任务到来时，CPU正在运行一个比它优先级更高的任务时，新到来的任务必须等待。</li>
+<li>当CPU空闲时，如果还有任务在等待，CPU会从这些任务中选择一个优先级最高的任务执行，相同优先级的任务选择到达时间最早的任务。</li>
+</ul>
+<h2 id="_2">输入描述</h2>
+<p>输入有若干行，每一行有四个数字（均小于10^8），分别为任务ID、任务优先级、执行时间和到达时间。</p>
+<p>每个任务的任务ID不同，数字越大优先级越高，并且相同优先级的任务不会同时到达。</p>
+<p>输入的任务已按照到达时间从小到大排序，并且保证在任何时间，处于等待的任务不超过10000个。</p>
+<h2 id="_3">输出描述</h2>
+<p>按照任务执行结束的顺序，输出每个任务的结束时间，输出格式：任务ID 结束时间。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>1 3 5 1
+2 1 5 10
+3 2 7 12
+4 3 2 20
+5 4 9 21
+6 4 2 22
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>1 6
+3 19
+5 30
+6 32
+4 33
+2 35
+</code></pre></div>
+
+<h2 id="_6">解题思路</h2>
+<ol>
+<li>对<code>tasks</code>重新生成，便于进入堆，每个元素的4个值分别是任务优先级、到达时间、执行时间和任务ID。</li>
+<li>遍历任务列表<code>tasks</code>：<ul>
+<li>获取当前时刻的任务<code>current_task</code>。</li>
+<li>如果任务不为空，堆顶为优先级最高的任务，获取优先级最高的任务。</li>
+<li>如果CPU空闲时间，从等待列表中取出优先级最高的任务执行。</li>
+<li>执行任务，运行时间减1，如果执行完毕，则移出等待列表和任务列表，将任务id和当前时间添加到结果列表中。</li>
+<li>执行时间加1，继续遍历。</li>
+</ul>
+</li>
+<li>返回结果列表。    </li>
+</ol>
+<h2 id="_7">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">heapq</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">tasks</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :param tasks: 任务列表：每个元素有4个值，分别是任务ID、任务优先级、执行时间和到达时间</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">time</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">waiting_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># 对tasks重新生成，便于进入堆，每个元素的4个值分别是任务优先级、到达时间、执行时间和任务ID</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">task</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tasks</span><span class="p">):</span>
+        <span class="n">task_id</span><span class="p">,</span> <span class="n">priority</span><span class="p">,</span> <span class="n">duration</span><span class="p">,</span> <span class="n">arrival_time</span> <span class="o">=</span> <span class="n">task</span>
+        <span class="n">tasks</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">priority</span><span class="p">,</span> <span class="n">arrival_time</span><span class="p">,</span> <span class="n">duration</span><span class="p">,</span> <span class="n">task_id</span><span class="p">]</span>
+
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">current_task</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span><span class="n">task</span> <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">tasks</span> <span class="k">if</span> <span class="n">task</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">time</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">current_task</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># 堆顶为优先级最高的任务</span>
+            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">waiting_list</span><span class="p">,</span> <span class="n">current_task</span><span class="p">)</span>
+            <span class="c1"># 取出优先级最高的任务执行</span>
+            <span class="n">current_task</span> <span class="o">=</span> <span class="n">waiting_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># 空闲时间，从等待列表中取出优先级最高的任务执行</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">waiting_list</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">current_task</span> <span class="o">=</span> <span class="n">waiting_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">current_task</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">current_task</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">current_task</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># 任务执行完毕</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">current_task</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">time</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+                <span class="n">tasks</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">current_task</span><span class="p">)</span>
+                <span class="c1"># 从waiting_list堆中移除掉堆顶优先级最大的元素</span>
+                <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">waiting_list</span><span class="p">)</span>
+
+        <span class="n">time</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">12</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">20</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">21</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">6</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">22</span><span class="p">]]</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span> <span class="o">==</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">19</span><span class="p">],</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">],</span> <span class="p">[</span><span class="mi">6</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">33</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">35</span><span class="p">]]</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

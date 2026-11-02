@@ -2478,7 +2478,25 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         '<div class="module-meta"><span>企业题库</span><span>375 题精讲</span></div>'
         '<div class="module-progress-row"><span class="module-progress-pct">按公司查考点</span></div></article>'
     )
-    module_cards = _solutions_card + "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
+    _quiz_card = (
+        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
+        'data-search="选择题练习 刷题 判分 术语测验">'
+        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
+        'style="color:#157a52;background:color-mix(in srgb,#157a52 13%,transparent)">✅</span>'
+        '<h2><a href="../pages/quiz.html" target="_blank" rel="noopener noreferrer">选择题练习</a></h2></div>'
+        '<div class="module-meta"><span>企业题库</span><span>332 题 · 即时判分</span></div>'
+        '<div class="module-progress-row"><span class="module-progress-pct">术语知识选择测验</span></div></article>'
+    )
+    _huawei_card = (
+        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
+        'data-search="华为 od 机试题库 机考 真题">'
+        '<div class="card-head"><span class="module-icon" aria-hidden="true" '
+        'style="color:#c0392b;background:color-mix(in srgb,#c0392b 13%,transparent)">🖥</span>'
+        '<h2><a href="../books/huawei-od/index.html" target="_blank" rel="noopener noreferrer">华为 OD 机试题库</a></h2></div>'
+        '<div class="module-meta"><span>企业题库</span><span>321 题真题</span></div>'
+        '<div class="module-progress-row"><span class="module-progress-pct">华为 OD 机考真题</span></div></article>'
+    )
+    module_cards = _solutions_card + _huawei_card + _quiz_card + "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
     # ---- 两层导航数据：学习形态（顶层）+ 分类（第二层）----
     # 每个形态下的分类按「模块数从多到少」排，常用的靠前。
     track_stats = []          # [(track, icon, desc, [(cat, count), ...], module_count, chapter_count)]

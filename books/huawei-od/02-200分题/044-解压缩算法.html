@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>044 解压缩算法 · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 02-200分题</div>
+        <h1 id="044">044 解压缩算法</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>现需要实现一种算法，能将一组压缩字符串还原成原始字符串，还原规则如下：
+1．字符后面加数字<code>N</code>，表示重复字符<code>N</code>次。例如：压缩内容为<code>A3</code>，表示原始字符串为<code>AAA</code>。
+2．花括号中的字符串加数字<code>N</code>，表示花括号中的字符串重复<code>N</code>次。例如：压缩内容为<code>{AB}3</code>，表示原始字符串为<code>ABABAB</code>。
+3．字符加<code>N</code>和花括号后面加<code>N</code>，支持任意的嵌套，包括互相嵌套。例如：压缩内容可以<code>{A3B1{C}3}3</code>。</p>
+<h2 id="_2">输入描述</h2>
+<p>输入一行压缩后的字符串。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出压缩前的字符串。</p>
+<p><strong>说明：</strong></p>
+<ul>
+<li>输入输出字符串区分大小写。</li>
+<li>输入的字符串长度为范围[1,10000]。</li>
+<li>输出的字符串长度为范围[1,100000]。</li>
+<li>数字<code>N</code>范围[1,10000]。</li>
+</ul>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>A3
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>AAA
+</code></pre></div>
+
+<p><strong>说明：</strong></p>
+<p><code>A3</code>代表<code>A</code>字符重复3次。</p>
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>{A3B1{C}3}3
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>AAABCCCAAABCCCAAABCCC
+</code></pre></div>
+
+<p><strong>说明：</strong></p>
+<p><code>{A3B1{C}3}3</code>代表<code>A</code>字符重复3次、<code>B</code>字符重复1次、花括号中的<code>C</code>字符重复3次，最外层花括号中的<code>AAABCCC</code>重复3次。</p>
+<h2 id="_7">解题思路</h2>
+<p><strong>基本思路：</strong></p>
+<p>使用栈（数字不进栈）求解，将数字的结束作为计算的标志。
+1. 若当前元素为数字，需要单独存储数字（因为数字可能是多位数）。
+2. 若当前元素不为数字（进行计算）： 
+    - 若当前数字域不为空，判断栈顶元素：
+        - 若栈顶元素为字母：将字母累计次数后，重新存入栈顶。
+        - 若栈顶元素为<code>}</code>，则寻找最近的<code>{</code>，将中间的字母域合并，并累计次数后，重新存入栈顶。
+    - 将当前元素压入栈顶。
+3. 原始字符串末尾添加结束符<code>#</code>，确保最后一个数字得到计算。</p>
+<p><strong>代码思路：</strong></p>
+<ol>
+<li>原始字符串末尾添加结束符<code>#</code>，确保最后一个数字得到计算。</li>
+<li>初始化数字字符串<code>num</code>和字母字符串<code>temp</code>。</li>
+<li>遍历所有字符串：
+   - 若当前元素为数字，单独存储数字到数字字符串<code>nums</code>（因为数字可能是多位数）
+   - 若当前元素不为数字，若数字字符串不为空，将<code>{</code>和<code>}</code>中的字符串重复<code>N</code>次，然后将当前元素存入栈中。</li>
+<li>拼接栈内元素（记得排除结束符<code>#</code>）。</li>
+</ol>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">chars</span><span class="p">):</span>
+    <span class="n">chars</span> <span class="o">+=</span> <span class="s2">&quot;#&quot;</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">num</span><span class="p">,</span> <span class="n">temp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">chars</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">num</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">num</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># 数字统计结束，进行计算</span>
+            <span class="c1"># 此时栈肯定非空，且栈顶元素为字母或}</span>
+            <span class="k">if</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">isalpha</span><span class="p">():</span>
+                <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">num</span>
+            <span class="k">elif</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;}&quot;</span><span class="p">:</span>
+                <span class="c1"># 弹出}</span>
+                <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                <span class="k">while</span> <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;{&quot;</span><span class="p">:</span>
+                    <span class="n">temp</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">+</span> <span class="n">temp</span>
+                <span class="c1"># 弹出{，并保存解压后的字符串</span>
+                <span class="n">stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">temp</span> <span class="o">*</span> <span class="n">num</span>
+            <span class="n">num</span><span class="p">,</span> <span class="n">temp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">stack</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="c1"># {A3B1{C}3}3</span>
+    <span class="c1"># string = input().strip()</span>
+    <span class="c1"># print(solve_method(string))</span>
+
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="s2">&quot;{A3B1</span><span class="si">{C}</span><span class="s2">3}3&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;AAABCCCAAABCCCAAABCCC&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="s2">&quot;A3&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;AAA&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="s2">&quot;{AD11B1</span><span class="si">{CF}</span><span class="s2">3}3&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;ADDDDDDDDDDDBCFCFCFADDDDDDDDDDDBCFCFCFADDDDDDDDDDDBCFCFCF&quot;</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>

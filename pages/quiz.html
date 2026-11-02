@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>选择题练习 · InterviewForge</title>
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+ body{background:var(--page-bg,#f4f6fb);color:var(--text,#182235);font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+ .quiz-shell{width:calc(100% - 80px);max-width:860px;margin:auto;padding:26px 0 60px}
+ .quiz-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+ .quiz-card{background:#fff;border:1px solid var(--line,#dfe4ee);border-radius:16px;padding:24px 26px;box-shadow:0 10px 30px rgba(33,45,73,.06)}
+ .q-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted,#66748a);margin-bottom:10px}
+ .q-meta .pill{background:var(--soft,#f0f2fa);border-radius:99px;padding:2px 10px}
+ .q-stem{font-size:18px;font-weight:650;line-height:1.5;margin:0 0 18px}
+ .opt{display:block;width:100%;text-align:left;padding:13px 16px;margin-bottom:10px;border:1px solid var(--line,#dfe4ee);border-radius:12px;background:#fbfcff;font:inherit;cursor:pointer;transition:all .15s}
+ .opt:hover{border-color:var(--brand,#5654d4);background:var(--brand-soft,#eeedff)}
+ .opt.sel{border-color:var(--brand,#5654d4);background:var(--brand-soft,#eeedff)}
+ .opt.correct{border-color:#157a52;background:#e5f5ec}
+ .opt.wrong{border-color:#b3372f;background:#fbe9e7}
+ .opt .k{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background:#e7ebf6;font-weight:700;margin-right:10px}
+ .opt.correct .k{background:#157a52;color:#fff}
+ .opt.wrong .k{background:#b3372f;color:#fff}
+ .explain{margin-top:14px;padding:14px 16px;border-radius:12px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:14px;display:none}
+ .explain.show{display:block}
+ .explain b{color:var(--brand,#5654d4)}
+ .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+ .btn{padding:10px 20px;border-radius:10px;border:1px solid var(--line,#dfe4ee);background:#fff;font:inherit;font-weight:600;cursor:pointer}
+ .btn.primary{background:var(--brand,#5654d4);color:#fff;border-color:var(--brand,#5654d4)}
+ .btn:disabled{opacity:.5;cursor:not-allowed}
+ select{padding:8px 12px;border:1px solid var(--line,#dfe4ee);border-radius:9px;font:inherit;background:#fff;color:inherit}
+ .stats{display:flex;gap:18px;font-size:13px;color:var(--muted,#66748a);flex-wrap:wrap}
+ .stats b{color:var(--text,#182235);font-variant-numeric:tabular-nums}
+ .empty{text-align:center;color:var(--muted,#66748a);padding:40px 0}
+ @media(max-width:700px){.quiz-shell{width:calc(100% - 28px)}}
+</style>
+</head>
+<body>
+<div class="quiz-shell">
+  <nav class="page-nav" aria-label="面包屑"><a href="../library/index.html">📚 学习书架</a><span aria-hidden="true">›</span><span aria-current="page">选择题练习</span></nav>
+  <div class="quiz-top">
+    <div>
+      <h1 style="margin:6px 0 4px;font-size:24px">选择题练习</h1>
+      <p style="margin:0;font-size:13px;color:#66748a">从 332 条术语知识库自动出题，选完立即判对错并给解析。</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <label style="font-size:13px;color:#66748a">分类
+      <select id="cat"><option value="">全部</option></select>
+    </label>
+    <button class="btn" id="btnWrong" type="button">只练错题</button>
+    <button class="btn" id="btnReset" type="button">清空进度</button>
+  </div>
+  <div class="quiz-card" id="card">
+    <div class="empty">加载中…</div>
+  </div>
+</div>
+<script>
+(function(){
+  var DATA=null, qs=[], idx=0, picked=-1, answered=false, wrongOnly=false;
+  var STORE_KEY='forgeQuizProgress';
+  function loadProgress(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return {}} }
+  function saveProgress(p){ try{localStorage.setItem(STORE_KEY,JSON.stringify(p))}catch(e){} }
+  var progress=loadProgress();
+  var wrongSet={}; Object.keys(progress).forEach(function(k){ if(progress[k]&&progress[k].correct===false) wrongSet[k]=1; });
+
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function poolFor(cat){
+    var arr=DATA.questions.slice();
+    if(cat) arr=arr.filter(function(q){return q.category===cat});
+    if(wrongOnly) arr=arr.filter(function(q){return wrongSet[q.key]});
+    return arr;
+  }
+  function renderStats(){
+    var keys=Object.keys(progress), done=keys.length, ok=0;
+    keys.forEach(function(k){if(progress[k].correct)ok++});
+    var rate=done?Math.round(ok/done*100):0;
+    document.getElementById('stats').innerHTML='已练 <b>'+done+'</b> · 正确 <b>'+ok+'</b> · 正确率 <b>'+rate+'%</b> · 错题 <b>'+Object.keys(wrongSet).length+'</b>';
+  }
+  function buildCatOptions(){
+    var cats={}; DATA.questions.forEach(function(q){cats[q.category]=(cats[q.category]||0)+1});
+    var sel=document.getElementById('cat');
+    Object.keys(cats).sort().forEach(function(c){
+      var o=document.createElement('option'); o.value=c; o.textContent=c+' ('+cats[c]+')'; sel.appendChild(o);
+    });
+  }
+  function current(){ return qs[idx]; }
+  function render(){
+    var card=document.getElementById('card');
+    if(!qs.length){ card.innerHTML='<div class="empty">没有符合条件的题目。</div>'; return; }
+    var q=current(); picked=-1; answered=false;
+    var opts=q.options.map(function(o,i){
+      return '<button class="opt" data-i="'+i+'" type="button"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+'</button>';
+    }).join('');
+    card.innerHTML='<div class="q-meta"><span class="pill">'+esc(q.category)+'</span><span class="pill">'+(idx+1)+' / '+qs.length+'</span></div>'+
+      '<p class="q-stem">'+esc(q.stem)+'</p>'+opts+
+      '<div class="explain" id="explain"></div>'+
+      '<div class="actions"><button class="btn primary" id="btnSubmit" type="button" disabled>提交答案</button>'+
+      '<button class="btn" id="btnNext" type="button" style="display:none">下一题</button></div>';
+    card.querySelectorAll('.opt').forEach(function(b){
+      b.addEventListener('click',function(){
+        if(answered)return;
+        card.querySelectorAll('.opt').forEach(function(x){x.classList.remove('sel')});
+        b.classList.add('sel'); picked=Number(b.dataset.i);
+        document.getElementById('btnSubmit').disabled=false;
+      });
+    });
+    document.getElementById('btnSubmit').addEventListener('click',submit);
+    document.getElementById('btnNext').addEventListener('click',next);
+  }
+  function submit(){
+    if(answered||picked<0)return;
+    answered=true;
+    var q=current(), card=document.getElementById('card');
+    card.querySelectorAll('.opt').forEach(function(b){
+      var i=Number(b.dataset.i);
+      if(i===q.answer) b.classList.add('correct');
+      else if(i===picked) b.classList.add('wrong');
+      b.disabled=true;
+    });
+    var ok=picked===q.answer;
+    progress[q.key]={correct:ok,ts:Date.now()};
+    if(ok){ delete wrongSet[q.key]; } else { wrongSet[q.key]=1; }
+    saveProgress(progress); renderStats();
+    var ex=document.getElementById('explain');
+    ex.innerHTML='<b>'+(ok?'✅ 回答正确':'❌ 回答错误')+'</b>　正确答案：'+String.fromCharCode(65+q.answer)+'<br>'+esc(q.explain);
+    ex.classList.add('show');
+    document.getElementById('btnSubmit').style.display='none';
+    var nb=document.getElementById('btnNext'); nb.style.display='';
+    nb.textContent = (idx+1<qs.length)?'下一题':'再来一轮';
+  }
+  function next(){
+    if(idx+1<qs.length){ idx++; render(); }
+    else { start(); }
+  }
+  function start(){
+    qs=poolFor(document.getElementById('cat').value);
+    if(wrongOnly){ for(var i=qs.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=qs[i];qs[i]=qs[j];qs[j]=t;} }
+    idx=0; render();
+  }
+  document.getElementById('cat').addEventListener('change',start);
+  document.getElementById('btnWrong').addEventListener('click',function(){
+    wrongOnly=!wrongOnly; this.textContent=wrongOnly?'显示全部':'只练错题'; start();
+  });
+  document.getElementById('btnReset').addEventListener('click',function(){
+    if(!confirm('确定清空所有做题进度？'))return;
+    progress={}; wrongSet={}; saveProgress(progress); renderStats(); start();
+  });
+  fetch('../assets/quiz.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+    DATA=d; buildCatOptions(); renderStats(); start();
+  }).catch(function(e){
+    document.getElementById('card').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
+  });
+})();
+</script>
+</body>
+</html>

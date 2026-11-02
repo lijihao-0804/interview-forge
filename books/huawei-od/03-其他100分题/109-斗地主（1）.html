@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>109 斗地主（1） · InterviewForge</title>
+  <link rel="stylesheet" href="../../../assets/site.css?v=20261101-pop-bg">
+  <link rel="stylesheet" data-interviewforge-ai href="../../../assets/ai-launcher.css?v=5">
+  <script src="../../../assets/navigation-policy.js?v=2" defer></script>
+  <script src="../../../assets/ui.js?v=20261101-pop-bg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到正文</a>
+  <div class="site-shell">
+    <header class="site-topbar">
+      <a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+      </nav>
+    </header>
+    <main id="main-content" class="reader-card">
+      <article class="markdown-body">
+        <div class="page-kicker">books / huawei-od / 03-其他100分题</div>
+        <h1 id="109-1">109 斗地主（1）</h1>
+        <details class="toc-box">
+          <summary>本页目录</summary>
+          <div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">示例描述</a><ul>
+<li><a href="#_5">示例一</a></li>
+<li><a href="#_6">示例二</a></li>
+</ul>
+</li>
+<li><a href="#_7">解题思路</a></li>
+<li><a href="#_8">解题代码</a></li>
+</ul>
+</div>
+
+        </details>
+        <h2 id="_1">题目描述</h2>
+<p>斗地主起源于湖北十堰房县，据传是一位叫吴修全的年轻人根据当地流行的扑克玩法“跑得快”改编的，如今已风靡整个中国，并流行于互联网上。</p>
+<p>牌型：
+- 单顺，又称顺子，最少5张牌，最多12张牌（3\~A），不能有2，也不能有大小王，不计花色。
+例如：<code>3-4-5-7-8</code>、<code>7-8-9-10-J-Q</code>、<code>3-4-5-6-7-8-9-10-J-Q-K-A</code>。
+可用的牌<code>3&lt;4&lt;5&lt;6&lt;7&lt;8&lt;9&lt;10&lt;J&lt;Q&lt;K&lt;A&lt;2&lt;B(小王)&lt;C(大王)</code>，每种牌除大小王外有4种花色（共有<code>13x4+2</code>张牌）。</p>
+<h2 id="_2">输入描述</h2>
+<p>输入的第一行是当前手中的牌。</p>
+<p>输入的第二行是已经出过的牌（包括对手出的和自己出的牌）</p>
+<h2 id="_3">输出描述</h2>
+<p>对手可能构成的最长的顺子（如果有相同长度的顺子，输出牌面最大的那一个），如果无法构成顺子，则输出<code>NO-CHAIN</code>。</p>
+<h2 id="_4">示例描述</h2>
+<h3 id="_5">示例一</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3-3-3-3-4-4-5-5-6-7-8-9-10-J-Q-K-A
+4-5-6-7-8-8-8
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>9-10-J-Q-K-A
+</code></pre></div>
+
+<h3 id="_6">示例二</h3>
+<p><strong>输入：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3-3-3-3-8-8-8-8
+K-K-K-K
+</code></pre></div>
+
+<p><strong>输出：</strong></p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>NO-CHAIN
+</code></pre></div>
+
+<h2 id="_7">解题思路</h2>
+<ol>
+<li>创建一个<code>graph_num</code>字典，给牌按顺序标记 以便于后面找连续的牌。</li>
+<li>初始化一个<code>cards</code>字典，包含游戏开始每张牌的数目。</li>
+<li>删去自己的牌和已经打掉的牌，构建一个<code>rest_card</code>数组记录对手可能有的牌。</li>
+<li>遍历对手可能有的牌：
+   - 初始化顺子列表<code>straight</code>。
+   - 如果满足条件，将牌加入到顺子列表中。
+   - 如果不满足条件，把当前5张以上的顺子列表加入到结果列表中。</li>
+<li>对最后一次遍历之后，判断顺子列表是否有5张以上，如果满足，加入到结果列表中。</li>
+<li>判断结果列表是否为空：
+   - 如果不为空，按照顺子长度和起始牌面从大到小排序，返回最长且牌面最大的顺子。
+   - 如果为空，返回<code>NO-CHAIN</code>。 </li>
+</ol>
+<h2 id="_8">解题代码</h2>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="n">graph</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;3&quot;</span><span class="p">,</span> <span class="s2">&quot;4&quot;</span><span class="p">,</span> <span class="s2">&quot;5&quot;</span><span class="p">,</span> <span class="s2">&quot;6&quot;</span><span class="p">,</span> <span class="s2">&quot;7&quot;</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">,</span> <span class="s2">&quot;9&quot;</span><span class="p">,</span> <span class="s2">&quot;10&quot;</span><span class="p">,</span> <span class="s2">&quot;J&quot;</span><span class="p">,</span> <span class="s2">&quot;Q&quot;</span><span class="p">,</span> <span class="s2">&quot;K&quot;</span><span class="p">,</span> <span class="s2">&quot;A&quot;</span><span class="p">]</span>
+<span class="c1"># 给牌按顺序标记 以便于后面找连续的牌</span>
+<span class="n">graph_num</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">graph</span><span class="p">)):</span>
+    <span class="n">graph_num</span><span class="p">[</span><span class="n">graph</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">i</span>
+
+
+<span class="k">def</span> <span class="nf">solve_method</span><span class="p">(</span><span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span><span class="p">):</span>
+    <span class="n">cards</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">graph</span><span class="p">:</span>
+        <span class="n">cards</span><span class="p">[</span><span class="n">card</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="p">(</span><span class="n">my_cards</span> <span class="o">+</span> <span class="s2">&quot;-&quot;</span> <span class="o">+</span> <span class="n">over_cards</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">cards</span><span class="p">:</span>
+            <span class="n">cards</span><span class="p">[</span><span class="n">card</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">cards</span><span class="p">[</span><span class="n">card</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">cards</span><span class="p">[</span><span class="n">card</span><span class="p">]</span>
+    <span class="c1"># 对手可能有的牌</span>
+    <span class="n">rest_cards</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">cards</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">pre_card</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">straight</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">rest_cards</span><span class="p">:</span>
+        <span class="c1"># 初始化顺子列表</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">straight</span><span class="p">:</span>
+            <span class="n">pre_card</span> <span class="o">=</span> <span class="n">card</span>
+            <span class="n">straight</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">card</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">graph_num</span><span class="p">[</span><span class="n">card</span><span class="p">]</span> <span class="o">-</span> <span class="n">graph_num</span><span class="p">[</span><span class="n">pre_card</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># 满足条件，将牌加入到顺子列表中</span>
+            <span class="n">pre_card</span> <span class="o">=</span> <span class="n">card</span>
+            <span class="n">straight</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">card</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">graph_num</span><span class="p">[</span><span class="n">card</span><span class="p">]</span> <span class="o">-</span> <span class="n">graph_num</span><span class="p">[</span><span class="n">pre_card</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># 如果不满足条件，把当前5张以上的顺子列表加入到结果列表中</span>
+            <span class="n">pre_card</span> <span class="o">=</span> <span class="n">card</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">straight</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">straight</span><span class="p">)</span>
+            <span class="n">straight</span> <span class="o">=</span> <span class="p">[</span><span class="n">card</span><span class="p">]</span>
+
+    <span class="c1"># 最后一次判断顺子列表是否有5张以上</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">straight</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">straight</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;-&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;NO-CHAIN&quot;</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span> <span class="o">=</span> <span class="s2">&quot;3-3-3-3-4-4-5-5-6-7-8-9-10-J-Q-K-A&quot;</span><span class="p">,</span> <span class="s2">&quot;4-5-6-7-8-8-8&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;9-10-J-Q-K-A&quot;</span>
+    <span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span> <span class="o">=</span> <span class="s2">&quot;3-3-3-3-4-4-5-5-6-7-8-9-10-J-Q-K-A&quot;</span><span class="p">,</span> <span class="s2">&quot;4-5-6-7-8-8-8&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;9-10-J-Q-K-A&quot;</span>
+    <span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span> <span class="o">=</span> <span class="s2">&quot;3-3-3-3-8-8-8-8&quot;</span><span class="p">,</span> <span class="s2">&quot;K-K-K-K&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;NO-CHAIN&quot;</span>
+    <span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span> <span class="o">=</span> <span class="s2">&quot;3-8&quot;</span><span class="p">,</span> <span class="s2">&quot;K-K&quot;</span>
+    <span class="k">assert</span> <span class="n">solve_method</span><span class="p">(</span><span class="n">my_cards</span><span class="p">,</span> <span class="n">over_cards</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;3-4-5-6-7-8-9-10-J-Q-K-A&quot;</span>
+</code></pre></div>
+        
+        
+      </article>
+    </main>
+    <footer class="site-footer">Interview Forge · 在线学习站</footer>
+  </div>
+  <script src="../../../assets/site.js?v=20261014-code-block-visibility" defer></script>
+  <script src="../../../assets/ai-page-context.js?v=1" defer data-interviewforge-ai></script>
+  <script src="../../../assets/ai-launcher.js?v=3" defer data-interviewforge-ai></script>
+</body>
+</html>
