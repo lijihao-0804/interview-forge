@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="../assets/site.css">
 <style>
  body{background:var(--page-bg,#f4f6fb);color:var(--text,#182235);font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
- .quiz-shell{width:calc(100% - 80px);max-width:920px;margin:auto;padding:26px 0 60px}
+ .quiz-shell{width:calc(100% - 80px);max-width:1000px;margin:auto;padding:26px 0 60px}
  .mode-switch{display:inline-flex;border:1px solid var(--line,#dfe4ee);border-radius:11px;overflow:hidden;background:#fff}
  .mode-switch button{padding:9px 18px;border:0;background:transparent;font:inherit;font-weight:600;cursor:pointer;color:var(--muted,#66748a)}
  .mode-switch button.on{background:var(--brand,#5654d4);color:#fff}
@@ -18,6 +18,19 @@
  .btn{padding:9px 18px;border-radius:10px;border:1px solid var(--line,#dfe4ee);background:#fff;font:inherit;font-weight:600;cursor:pointer}
  .btn.primary{background:var(--brand,#5654d4);color:#fff;border-color:var(--brand,#5654d4)}
  .btn:disabled{opacity:.5;cursor:not-allowed}
+ /* 分类卡片墙（书架分节风格） */
+ .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+ .cat-card{display:block;text-align:left;padding:18px 20px;border:1px solid var(--line,#dfe4ee);border-radius:16px;
+   background:#fff;cursor:pointer;transition:all .15s;box-shadow:0 6px 18px rgba(33,45,73,.05)}
+ .cat-card:hover{transform:translateY(-2px);border-color:var(--brand,#5654d4);box-shadow:0 12px 28px rgba(86,84,212,.14)}
+ .cat-card h3{margin:0 0 6px;font-size:16px;color:var(--text,#182235)}
+ .cat-card .n{font-size:13px;color:var(--muted,#66748a)}
+ .cat-card .bar{height:5px;border-radius:99px;background:#eef0f8;overflow:hidden;margin-top:10px}
+ .cat-card .bar>i{display:block;height:100%;background:var(--brand,#5654d4);border-radius:99px}
+ .crumb{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:14px}
+ .crumb button{border:1px solid var(--line,#dfe4ee);background:#fff;border-radius:9px;padding:6px 12px;cursor:pointer;font:inherit}
+ .crumb b{color:var(--brand,#5654d4)}
+ /* 背题整块 */
  .study-block{margin:0 0 26px}
  .study-block>h2{font-size:18px;margin:0 0 4px;padding:8px 0;border-bottom:2px solid var(--brand,#5654d4);position:sticky;top:0;background:var(--page-bg,#f4f6fb);z-index:2}
  .study-block>h2 small{color:#66748a;font-size:12px;font-weight:400;margin-left:8px}
@@ -29,6 +42,7 @@
  .study-q .opt.correct .k{background:#157a52;color:#fff}
  .study-q .ans{margin-top:8px;padding:10px 13px;border-radius:10px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13.5px;color:#2b3446}
  .study-q .ans b{color:var(--brand,#5654d4)}
+ /* 整卷测评 */
  .exam-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;color:#66748a}
  .exam-bar b{color:var(--text,#182235);font-variant-numeric:tabular-nums}
  .q-stem{font-size:18px;font-weight:650;line-height:1.5;margin:0 0 16px}
@@ -43,7 +57,7 @@
  .res-badge.no{background:#fbe9e7;color:#b3372f}
  .big-score{font-size:40px;font-weight:800;color:var(--brand,#5654d4);line-height:1.1}
  .empty{text-align:center;color:#66748a;padding:40px 0}
- @media(max-width:700px){.quiz-shell{width:calc(100% - 24px)}}
+ @media(max-width:700px){.quiz-shell{width:calc(100% - 24px)}.cat-grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -52,86 +66,114 @@
   <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:8px 0 16px">
     <div>
       <h1 style="margin:0 0 4px;font-size:24px">选择题练习</h1>
-      <p style="margin:0;font-size:13px;color:#66748a">332 条术语知识库出题。背题按分类整块滚动看；做题是整卷测评，交卷后统一判分。</p>
+      <p style="margin:0;font-size:13px;color:#66748a">按主题分类。<b>背题</b>整块滚动看；<b>做题</b>整卷测评，交卷判分。</p>
     </div>
     <div class="mode-switch" id="modeSwitch">
       <button type="button" data-mode="study" class="on">背题模式</button>
       <button type="button" data-mode="exam">做题模式</button>
     </div>
   </div>
-  <div id="studyPanel">
-    <div class="panel-card toolbar">
-      <label>分类 <select id="studyCat"><option value="">全部</option></select></label>
-      <span id="studyCount"></span>
-    </div>
-    <div id="studyList"></div>
+
+  <!-- 首页：分类卡片墙 -->
+  <div id="homePanel">
+    <div class="cat-grid" id="catGrid"></div>
   </div>
-  <div id="examPanel" hidden>
-    <div class="panel-card" id="examSetup">
-      <div class="toolbar" style="gap:16px">
-        <label>题目数 <select id="examCount">
-          <option value="10">10 题</option><option value="20" selected>20 题</option>
-          <option value="30">30 题</option><option value="0">全部</option></select></label>
-        <label>分类 <select id="examCat"><option value="">全部</option></select></label>
-        <button class="btn primary" id="btnStart" type="button">开始测评</button>
-      </div>
-      <p style="margin:12px 0 0;font-size:12.5px;color:#66748a">整卷作答，可前后翻题；交卷后统一判分并显示每题对错与解析。</p>
-    </div>
-    <div id="examRun" hidden>
-      <div class="panel-card">
-        <div class="exam-bar">
-          <span>第 <b id="exIdx">1</b> / <b id="exTotal">20</b> 题 · 已答 <b id="exDone">0</b></span>
-          <span id="exTimer">00:00</span>
+
+  <!-- 分类内 -->
+  <div id="catPanel" hidden>
+    <div class="crumb"><button id="btnHome" type="button">← 全部分类</button><span>当前：<b id="crumbCat"></b></span></div>
+    <div id="studyPanel"></div>
+    <div id="examPanel" hidden>
+      <div class="panel-card" id="examSetup">
+        <div class="toolbar" style="gap:16px">
+          <label>题目数 <select id="examCount">
+            <option value="10">10 题</option><option value="20" selected>20 题</option>
+            <option value="30">30 题</option><option value="0">全部</option></select></label>
+          <button class="btn primary" id="btnStart" type="button">开始测评</button>
         </div>
-        <div id="examCard"></div>
-        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-          <button class="btn" id="btnPrev" type="button">上一题</button>
-          <button class="btn" id="btnNextQ" type="button">下一题</button>
-          <button class="btn primary" id="btnSubmitExam" type="button" style="margin-left:auto">交卷判分</button>
+        <p style="margin:12px 0 0;font-size:12.5px;color:#66748a">只考当前分类。整卷作答，可前后翻题，交卷后统一判分。</p>
+      </div>
+      <div id="examRun" hidden>
+        <div class="panel-card">
+          <div class="exam-bar">
+            <span>第 <b id="exIdx">1</b> / <b id="exTotal">20</b> 题 · 已答 <b id="exDone">0</b></span>
+            <span id="exTimer">00:00</span>
+          </div>
+          <div id="examCard"></div>
+          <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+            <button class="btn" id="btnPrev" type="button">上一题</button>
+            <button class="btn" id="btnNextQ" type="button">下一题</button>
+            <button class="btn primary" id="btnSubmitExam" type="button" style="margin-left:auto">交卷判分</button>
+          </div>
         </div>
       </div>
+      <div id="examResult" hidden></div>
     </div>
-    <div id="examResult" hidden></div>
   </div>
 </div>
 <script>
 (function(){
-  var DATA=null, mode='study';
+  var DATA=null, mode='study', currentCat='';
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-  function fillCats(sel){
+  function catStats(){
     var c={}; DATA.questions.forEach(function(q){c[q.category]=(c[q.category]||0)+1});
-    Object.keys(c).sort().forEach(function(k){
-      var o=document.createElement('option'); o.value=k; o.textContent=k+' ('+c[k]+')'; sel.appendChild(o);
+    return c;
+  }
+  var MAXN=0;
+  function renderHome(){
+    var c=catStats();
+    MAXN=Math.max.apply(null,Object.values(c).concat([1]));
+    var keys=Object.keys(c).sort(function(a,b){return c[b]-c[a]});
+    document.getElementById('catGrid').innerHTML=keys.map(function(k){
+      var pct=Math.round(c[k]/MAXN*100);
+      return '<button class="cat-card" data-cat="'+esc(k)+'"><h3>'+esc(k)+'</h3>'+
+        '<div class="n">'+c[k]+' 题</div><div class="bar"><i style="width:'+pct+'%"></i></div></button>';
+    }).join('');
+    document.querySelectorAll('.cat-card').forEach(function(b){
+      b.addEventListener('click',function(){ openCat(b.dataset.cat); });
     });
+  }
+  function openCat(cat){
+    currentCat=cat;
+    document.getElementById('crumbCat').textContent=cat;
+    document.getElementById('homePanel').hidden=true;
+    document.getElementById('catPanel').hidden=false;
+    document.getElementById('examResult').hidden=true;
+    document.getElementById('examSetup').hidden=false;
+    document.getElementById('examRun').hidden=true;
+    if(mode==='study'){ renderStudy(); } else { showExamPanel(); }
+  }
+  function goHome(){
+    currentCat='';
+    document.getElementById('homePanel').hidden=false;
+    document.getElementById('catPanel').hidden=true;
+    renderHome();
+  }
+  function showExamPanel(){
+    document.getElementById('studyPanel').hidden=true;
+    document.getElementById('examPanel').hidden=false;
   }
   function renderStudy(){
-    var cat=document.getElementById('studyCat').value;
-    var list=document.getElementById('studyList');
-    var pool=DATA.questions.filter(function(q){return !cat||q.category===cat});
-    document.getElementById('studyCount').textContent='共 '+pool.length+' 题';
-    if(!pool.length){ list.innerHTML='<div class="empty">该分类暂无题目。</div>'; return; }
-    var groups={}, order=[];
-    pool.forEach(function(q){ if(!groups[q.category]){groups[q.category]=[];order.push(q.category);} groups[q.category].push(q); });
-    var html='';
-    order.forEach(function(cn){
-      var qs=groups[cn];
-      html+='<section class="study-block"><h2>'+esc(cn)+'<small>'+qs.length+' 题</small></h2>';
-      qs.forEach(function(q,qi){
-        html+='<div class="study-q"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+'</p>';
-        q.options.forEach(function(o,i){
-          html+='<div class="opt'+(i===q.answer?' correct':'')+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(i===q.answer?' ✓':'')+'</div>';
-        });
-        html+='<div class="ans"><b>答案 '+String.fromCharCode(65+q.answer)+'　解析：</b>'+esc(q.explain)+'</div></div>';
+    document.getElementById('examPanel').hidden=true;
+    var sp=document.getElementById('studyPanel'); sp.hidden=false;
+    var pool=DATA.questions.filter(function(q){return q.category===currentCat});
+    if(!pool.length){ sp.innerHTML='<div class="empty">该分类暂无题目。</div>'; return; }
+    var html='<section class="study-block"><h2>'+esc(currentCat)+'<small>'+pool.length+' 题</small></h2>';
+    pool.forEach(function(q,qi){
+      html+='<div class="study-q"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+'</p>';
+      q.options.forEach(function(o,i){
+        html+='<div class="opt'+(i===q.answer?' correct':'')+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(i===q.answer?' ✓':'')+'</div>';
       });
-      html+='</section>';
+      html+='<div class="ans"><b>答案 '+String.fromCharCode(65+q.answer)+'　解析：</b>'+esc(q.explain)+'</div></div>';
     });
-    list.innerHTML=html;
+    html+='</section>';
+    sp.innerHTML=html;
   }
+  /* 整卷测评（限定当前分类） */
   var exam={qs:[],idx:0,answers:[],timer:null,startTs:0};
   function startExam(){
     var n=parseInt(document.getElementById('examCount').value,10)||0;
-    var cat=document.getElementById('examCat').value;
-    var pool=DATA.questions.filter(function(q){return !cat||q.category===cat});
+    var pool=DATA.questions.filter(function(q){return q.category===currentCat});
     for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=pool[i];pool[i]=pool[j];pool[j]=t;}
     if(n>0) pool=pool.slice(0,n);
     if(!pool.length){ alert('该分类没有题目'); return; }
@@ -142,10 +184,8 @@
     clearInterval(exam.timer); exam.timer=setInterval(tick,1000); tick();
     renderExam();
   }
-  function tick(){
-    var s=Math.floor((Date.now()-exam.startTs)/1000);
-    document.getElementById('exTimer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-  }
+  function tick(){ var s=Math.floor((Date.now()-exam.startTs)/1000);
+    document.getElementById('exTimer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
   function renderExam(){
     var q=exam.qs[exam.idx], card=document.getElementById('examCard');
     document.getElementById('exIdx').textContent=exam.idx+1;
@@ -189,21 +229,17 @@
     var b=e.target.closest('button[data-mode]'); if(!b)return;
     mode=b.dataset.mode;
     this.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b)});
-    document.getElementById('studyPanel').hidden=(mode!=='study');
-    document.getElementById('examPanel').hidden=(mode!=='exam');
-    if(mode==='study'){ renderStudy(); }
+    if(currentCat){ if(mode==='study'){ renderStudy(); } else { showExamPanel(); } }
   });
+  document.getElementById('btnHome').addEventListener('click',goHome);
   document.getElementById('btnStart').addEventListener('click',startExam);
   document.getElementById('btnPrev').addEventListener('click',function(){ if(exam.idx>0){exam.idx--;renderExam();} });
   document.getElementById('btnNextQ').addEventListener('click',function(){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();} });
   document.getElementById('btnSubmitExam').addEventListener('click',submitExam);
-  document.getElementById('studyCat').addEventListener('change',renderStudy);
   fetch('../assets/quiz.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-    DATA=d; fillCats(document.getElementById('studyCat')); fillCats(document.getElementById('examCat'));
-    document.getElementById('studyCat').options[0].textContent='全部（'+d.questions.length+'）';
-    renderStudy();
+    DATA=d; renderHome();
   }).catch(function(e){
-    document.getElementById('studyList').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
+    document.getElementById('catGrid').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
   });
 })();
 </script>
