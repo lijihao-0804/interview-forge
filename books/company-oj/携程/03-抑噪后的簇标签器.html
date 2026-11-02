@@ -37,6 +37,9 @@
 <li><a href="#_3">输入描述</a></li>
 <li><a href="#_4">输出描述</a></li>
 <li><a href="#1">示例 1</a></li>
+<li><a href="#_5">解题思路</a></li>
+<li><a href="#_6">复杂度分析</a></li>
+<li><a href="#_7">解题代码</a></li>
 </ul>
 </div>
 
@@ -76,6 +79,19 @@ KLIST: [2, 3]
 <div class="codehilite" data-lang="text"><pre><span></span><code>{&quot;PCA_DIM&quot;: 1, &quot;K_STAR&quot;: 2, &quot;TEST_PRED&quot;: [1, 0]}
 </code></pre></div>
 
+<h2 id="_5">解题思路</h2>
+<p>本题是「用纯 Java 复刻 sklearn 流水线」的实现题，需按顺序完成四个阶段：
+1）预处理：用训练集各列均值填充训练/测试的 NaN，再在训练集上 fit StandardScaler（减均值、除标准差）并应用到两边。
+2）PCA 降维：对标准化后的训练集求协方差矩阵，用 Jacobi 迭代做对称矩阵特征分解，按特征值降序累加解释方差，取累计达到 0.95 的最小维数 pcaDim（达不到则保留全部维度），再把训练/测试投影到这些特征向量上。
+3）KMeans 选 K：对每个候选 K 用 k-means++ 初始化、多次运行取 inertia 最小者训练，计算训练集 silhouette 分数（K=1 或异常记为 −1），选分数最高的 K，并列取较小者，得到 K_STAR。
+4）用 K_STAR 重新拟合并对聚类中心按第一维排序（reorderCenters）后对测试集 predict，输出原生标签。
+最后按 JSON 格式输出 PCA_DIM、K_STAR、TEST_PRED。</p>
+<h2 id="_6">复杂度分析</h2>
+<ul>
+<li>时间复杂度：特征分解约 O(D³)；KMeans 为 O(|KLIST|·runs·iters·N·K·D)；silhouette 为 O(|KLIST|·N²)。因 N≤60、D≤6，规模很小。</li>
+<li>空间复杂度：O(N·D + D²)，主要存特征矩阵、协方差矩阵与特征向量。</li>
+</ul>
+<h2 id="_7">解题代码</h2>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.regex.*</span><span class="p">;</span>
