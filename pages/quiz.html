@@ -69,9 +69,12 @@
       <p style="margin:0;font-size:13px;color:var(--muted)">按主题分类。<b>背题</b>整块滚动看；<b>做题</b>整卷测评，交卷判分。</p>
       <p style="margin:6px 0 0;font-size:12px;color:#8a94a6">快捷键：<kbd>A</kbd>–<kbd>D</kbd>/<kbd>1</kbd>–<kbd>4</kbd> 选项 · <kbd>←</kbd><kbd>→</kbd> 翻题 · <kbd>Enter</kbd> 下一题 · <kbd>M</kbd> 切模式 · <kbd>Esc</kbd> 返回分类</p>
     </div>
-    <div class="mode-switch" id="modeSwitch">
-      <button type="button" data-mode="study" class="on">背题模式</button>
-      <button type="button" data-mode="exam">做题模式</button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="btnWrongCenter" type="button">📕 错题中心<span id="wrongCount" style="margin-left:4px;color:#b3372f;font-weight:700"></span></button>
+      <div class="mode-switch" id="modeSwitch">
+        <button type="button" data-mode="study" class="on">背题模式</button>
+        <button type="button" data-mode="exam">做题模式</button>
+      </div>
     </div>
   </div>
 
@@ -115,12 +118,34 @@
 <script>
 (function(){
   var DATA=null, mode='study', currentCat='';
+  var STORE_KEY='forgeQuizProgress';
+  function loadProgress(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return {}} }
+  function saveProgress(p){ try{localStorage.setItem(STORE_KEY,JSON.stringify(p))}catch(e){} }
+  var progress=loadProgress();
+  var wrongSet={}; Object.keys(progress).forEach(function(k){ if(progress[k]&&progress[k].correct===false) wrongSet[k]=1; });
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function catStats(){
     var c={}; DATA.questions.forEach(function(q){c[q.category]=(c[q.category]||0)+1});
     return c;
   }
   var MAXN=0;
+  var WRONG='__wrong__';  // 错题中心特殊分类标记
+  function wrongPool(){ return DATA.questions.filter(function(q){return wrongSet[q.key]}); }
+  function updateWrongCount(){
+    var n=Object.keys(wrongSet).length, el=document.getElementById('wrongCount');
+    if(el) el.textContent = n? '('+n+')' : '';
+  }
+  function openWrongCenter(){
+    currentCat=WRONG;
+    document.getElementById('crumbCat').textContent='错题中心';
+    document.getElementById('homePanel').hidden=true;
+    document.getElementById('catPanel').hidden=false;
+    document.getElementById('examResult').hidden=true;
+    document.getElementById('examSetup').hidden=false;
+    document.getElementById('examRun').hidden=true;
+    // 错题中心总是先显示错题列表（背题式），列表里有「重做错题」按钮
+    renderStudy();
+  }
   function renderHome(){
     var c=catStats();
     MAXN=Math.max.apply(null,Object.values(c).concat([1]));
@@ -157,30 +182,41 @@
   function renderStudy(){
     document.getElementById('examPanel').hidden=true;
     var sp=document.getElementById('studyPanel'); sp.hidden=false;
-    var pool=DATA.questions.filter(function(q){return q.category===currentCat});
-    if(!pool.length){ sp.innerHTML='<div class="empty">该分类暂无题目。</div>'; return; }
-    var html='<section class="study-block"><h2>'+esc(currentCat)+'<small>'+pool.length+' 题</small></h2>';
+    var pool = currentCat===WRONG ? wrongPool() : DATA.questions.filter(function(q){return q.category===currentCat});
+    if(!pool.length){ sp.innerHTML='<div class="empty">'+(currentCat===WRONG?'🎉 太棒了，当前没有错题！':'该分类暂无题目。')+'</div>'; return; }
+    var title = currentCat===WRONG ? '错题中心' : currentCat;
+    var redoBtn = currentCat===WRONG ? '<button class="btn primary" id="btnRedoWrong" type="button" style="margin:6px 0 14px">✍️ 重做这 '+pool.length+' 道错题</button>' : '';
+    var html='<section class="study-block"><h2>'+esc(title)+'<small>'+pool.length+' 题</small></h2>'+redoBtn;
     pool.forEach(function(q,qi){
       html+='<div class="study-q" data-qi="'+qi+'"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+(q.multi?' <span style="font-size:12px;color:#b06f1a">（多选）</span>':'')+'</p>';
       var ansArr=q.answer||[];
+      var myPick=(progress[q.key]&&progress[q.key].pick)||[];
       q.options.forEach(function(o,i){
         var isAns=ansArr.indexOf(i)>=0;
-        html+='<div class="opt'+(isAns?' correct':'')+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(isAns?' ✓':'')+'</div>';
+        var cls='opt'+(isAns?' correct':'')+((!isAns&&myPick.indexOf(i)>=0)?' wrong':'');
+        html+='<div class="'+cls+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(isAns?' ✓':'')+((!isAns&&myPick.indexOf(i)>=0)?' <span style="color:#b3372f;font-size:12px">（你的选择）</span>':'')+'</div>';
       });
       var ansText=ansArr.map(function(a){return String.fromCharCode(65+a)}).join('、');
-      html+='<div class="ans"><b>答案 '+ansText+'　解析：</b>'+esc(q.explain)+'</div></div>';
+      var pickText=myPick.length?'　<b style="color:#b3372f">你选了 '+letters(myPick)+'</b>':'';
+      html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+esc(q.explain)+'</div></div>';
     });
     html+='</section>';
     sp.innerHTML=html;
+    var rb=document.getElementById('btnRedoWrong');
+    if(rb) rb.addEventListener('click',function(){
+      mode='exam';
+      document.querySelectorAll('#modeSwitch button').forEach(function(x){x.classList.toggle('on',x.dataset.mode==='exam');});
+      showExamPanel();
+    });
   }
   /* 整卷测评（限定当前分类） */
   var exam={qs:[],idx:0,answers:[],timer:null,startTs:0};
   function startExam(){
     var n=parseInt(document.getElementById('examCount').value,10)||0;
-    var pool=DATA.questions.filter(function(q){return q.category===currentCat});
+    var pool = currentCat===WRONG ? wrongPool() : DATA.questions.filter(function(q){return q.category===currentCat});
     for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=pool[i];pool[i]=pool[j];pool[j]=t;}
     if(n>0) pool=pool.slice(0,n);
-    if(!pool.length){ alert('该分类没有题目'); return; }
+    if(!pool.length){ alert(currentCat===WRONG?'当前没有错题':'该分类没有题目'); return; }
     exam.qs=pool; exam.idx=0; exam.answers=pool.map(function(){return [];}); exam.startTs=Date.now();
     document.getElementById('examSetup').hidden=true;
     document.getElementById('examRun').hidden=false;
@@ -227,6 +263,8 @@
     var total=exam.qs.length, ok=0, rows='';
     exam.qs.forEach(function(q,i){
       var pick=exam.answers[i]||[], good=sameSet(pick,q.answer); if(good) ok++;
+      progress[q.key]={correct:good, ts:Date.now(), pick:pick.slice()};
+      if(good){ delete wrongSet[q.key]; } else { wrongSet[q.key]=1; }
       rows+='<div class="res-item"><p style="margin:0 0 6px;font-weight:650">'+(i+1)+'. '+esc(q.stem)+
         '<span class="res-badge '+(good?'ok':'no')+'">'+(pick.length===0?'未答':(good?'正确':'错误'))+'</span></p>'+
         '<div style="font-size:13px;color:#5a6472">你选：'+letters(pick)+'　正确答案：'+letters(q.answer)+'</div>'+
@@ -241,6 +279,7 @@
       String(Math.floor(secs/60)).padStart(2,'0')+':'+String(secs%60).padStart(2,'0')+'</span></div>'+
       '<div style="margin-top:16px"><button class="btn primary" id="btnAgain" type="button">再做一套</button></div></div>'+
       '<div class="panel-card"><h2 style="font-size:16px;margin:0 0 8px">逐题结果</h2>'+rows+'</div>';
+    saveProgress(progress); updateWrongCount();
     document.getElementById('btnAgain').addEventListener('click',function(){ box.hidden=true; document.getElementById('examSetup').hidden=false; });
   }
   document.getElementById('modeSwitch').addEventListener('click',function(e){
@@ -250,6 +289,7 @@
     if(currentCat){ if(mode==='study'){ renderStudy(); } else { showExamPanel(); } }
   });
   document.getElementById('btnHome').addEventListener('click',goHome);
+  document.getElementById('btnWrongCenter').addEventListener('click',openWrongCenter);
   document.getElementById('btnStart').addEventListener('click',startExam);
   document.getElementById('btnPrev').addEventListener('click',function(){ if(exam.idx>0){exam.idx--;renderExam();} });
   document.getElementById('btnNextQ').addEventListener('click',function(){ if(exam.idx+1<exam.qs.length){exam.idx++;renderExam();} });
@@ -292,7 +332,7 @@
     }
   });
   fetch('../assets/quiz.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-    DATA=d; renderHome();
+    DATA=d; renderHome(); updateWrongCount();
   }).catch(function(e){
     document.getElementById('catGrid').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
   });
