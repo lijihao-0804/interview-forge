@@ -10,30 +10,30 @@ SRC = ROOT / "books" / "huawei-od"
 GROUPS = [("01-精选100分题", "① 精选 100 分题（建议先做）"), ("02-200分题", "② 200 分题（进阶）"), ("03-其他100分题", "③ 其他 100 分题（补充练习）")]
 
 STYLE = """
- body{background:var(--bg,#f4f6fb)}
+ body{background:var(--page-bg)}
  .hw-shell{width:calc(100% - 100px);max-width:1180px;margin:auto;padding:24px 0 64px}
- .hw-search{width:100%;max-width:420px;padding:9px 14px;border:1px solid var(--line,#dfe4ee);
-   border-radius:10px;font:inherit;background:#fff;margin-bottom:14px}
+ .hw-search{width:100%;max-width:420px;padding:9px 14px;border:1px solid var(--line);
+   border-radius:10px;font:inherit;background:var(--surface);margin-bottom:14px}
  .hw-layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:26px;align-items:start}
  .hw-nav{position:sticky;top:14px;display:flex;flex-direction:column;gap:3px;padding:12px;
-   border:1px solid var(--line,#dfe4ee);border-radius:14px;background:var(--panel,#fff)}
+   border:1px solid var(--line);border-radius:14px;background:var(--surface)}
  .hw-nav a{display:flex;justify-content:space-between;padding:6px 9px;border-radius:7px;
-   color:var(--text,#182235);text-decoration:none;font-size:13px}
- .hw-nav a:hover{background:var(--soft,#f0f2fa);color:var(--brand,#5654d4)}
- .hw-nav a span{color:var(--muted,#66748a);font-variant-numeric:tabular-nums}
- details.hw-group{margin:0 0 12px;border:1px solid var(--line,#dfe4ee);border-radius:14px;background:#fff}
+   color:var(--text);text-decoration:none;font-size:13px}
+ .hw-nav a:hover{background:var(--surface-soft);color:var(--brand)}
+ .hw-nav a span{color:var(--muted);font-variant-numeric:tabular-nums}
+ details.hw-group{margin:0 0 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
  details.hw-group>summary{cursor:pointer;padding:14px 20px;font-size:16px;font-weight:650;list-style:none}
  details.hw-group>summary::-webkit-details-marker{display:none}
- details.hw-group>summary::before{content:"\\25B8";display:inline-block;margin-right:8px;color:#66748a;
+ details.hw-group>summary::before{content:"\\25B8";display:inline-block;margin-right:8px;color:var(--muted);
    transition:transform .15s}
  details.hw-group[open]>summary::before{transform:rotate(90deg)}
- details.hw-group>summary small{margin-left:8px;color:#66748a;font-size:12px;font-weight:400}
+ details.hw-group>summary small{margin-left:8px;color:var(--muted);font-size:12px;font-weight:400}
  details.hw-group .qlist{list-style:none;margin:0;padding:0 20px 16px;display:grid;
    grid-template-columns:1fr 1fr;gap:2px 18px}
  details.hw-group .qlist li{padding:5px 0;border-bottom:1px dashed #eef0f6}
- details.hw-group .qlist a{color:var(--text,#182235);text-decoration:none;font-size:13.5px;
+ details.hw-group .qlist a{color:var(--text);text-decoration:none;font-size:13.5px;
    display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- details.hw-group .qlist a:hover{color:var(--brand,#5654d4)}
+ details.hw-group .qlist a:hover{color:var(--brand)}
  @media(max-width:900px){.hw-shell{width:calc(100% - 24px)}.hw-layout{grid-template-columns:1fr}
    .hw-nav{position:static;flex-direction:row;flex-wrap:wrap}
    details.hw-group .qlist{grid-template-columns:1fr}}
@@ -83,7 +83,7 @@ def main():
         '<nav class="page-nav" aria-label="面包屑"><a href="../../library/index.html">📚 学习书架</a>'
         '<span aria-hidden="true">›</span><span aria-current="page">华为 OD 机试题库</span></nav>'
         '<header style="margin:8px 0 18px"><h1 style="margin:0 0 6px;font-size:26px">华为 OD 机试题库</h1>'
-        '<p style="margin:0;font-size:13.5px;color:#66748a">共 ' + str(total) +
+        '<p style="margin:0;font-size:13.5px;color:var(--muted)">共 ' + str(total) +
         ' 题，源自 Datawhale 整理的华为 OD 机考真题（含题目描述 / 示例 / 解题思路 / Python 代码）。'
         '建议先做精选 100 分题，再练 200 分题。</p></header>'
         '<input id="q" class="hw-search" type="search" placeholder="搜索题目关键词（如 处理器 / 字符串）">'
