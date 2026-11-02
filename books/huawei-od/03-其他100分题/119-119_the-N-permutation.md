@@ -78,3 +78,34 @@ if __name__ == '__main__':
     assert solve_method(3, 3) == 213
     assert solve_method(2, 2) == 21
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    // k-th permutation (1-based) of 1..n, manual implementation
+    static long solve(int n, long k) {
+        List<Integer> nums = new ArrayList<>();
+        long[] fact = new long[n + 1];
+        fact[0] = 1;
+        for (int i = 1; i <= n; i++) fact[i] = fact[i - 1] * i;
+        for (int i = 1; i <= n; i++) nums.add(i);
+        k = k - 1; // convert to 0-based index
+        StringBuilder sb = new StringBuilder();
+        for (int i = n; i >= 1; i--) {
+            long f = fact[i - 1];
+            int idx = (int) (k / f);
+            k = k % f;
+            sb.append(nums.get(idx));
+            nums.remove(idx);
+        }
+        return Long.parseLong(sb.toString());
+    }
+
+    public static void main(String[] args) {
+        if (solve(3, 3) != 213) throw new RuntimeException("c1 " + solve(3, 3));
+        if (solve(2, 2) != 21) throw new RuntimeException("c2 " + solve(2, 2));
+        System.out.println("OK 119N");
+    }
+}
+```

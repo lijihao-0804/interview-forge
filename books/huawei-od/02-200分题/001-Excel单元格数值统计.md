@@ -186,3 +186,71 @@ if __name__ == '__main__':
     sheet = [["1", "=A1+C1", "3"]]
     assert solve_method(1, 3, sheet, "A1:C1") == 8
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static String[][] sheet;
+    static Map<String, Integer> memo;
+
+    static int evalCell(int r, int c) {
+        String raw = sheet[r][c];
+        if (!raw.startsWith("=")) return Integer.parseInt(raw);
+        return evaluate(raw.substring(1));
+    }
+
+    static int cellVal(String cell) {
+        char c0 = cell.charAt(0);
+        if (c0 >= 'A' && c0 <= 'Z') {
+            if (memo.containsKey(cell)) return memo.get(cell);
+            int col = c0 - 'A';
+            int row = Integer.parseInt(cell.substring(1)) - 1;
+            int v = evalCell(row, col);
+            memo.put(cell, v);
+            return v;
+        }
+        return Integer.parseInt(cell);
+    }
+
+    static int evaluate(String expr) {
+        int idx = -1;
+        char op = 0;
+        for (int i = 0; i < expr.length(); i++) {
+            char ch = expr.charAt(i);
+            if (ch == '+' || ch == '-') { idx = i; op = ch; break; }
+        }
+        if (idx < 0) return cellVal(expr);
+        int x = cellVal(expr.substring(0, idx));
+        int y = cellVal(expr.substring(idx + 1));
+        return op == '+' ? x + y : x - y;
+    }
+
+    public static int solveMethod(int rows, int cols, String[][] sh, String area) {
+        sheet = sh;
+        memo = new HashMap<>();
+        String[] parts = area.split(":");
+        String p1 = parts[0], p2 = parts[1];
+        int c1 = p1.charAt(0) - 'A', r1 = Integer.parseInt(p1.substring(1)) - 1;
+        int c2 = p2.charAt(0) - 'A', r2 = Integer.parseInt(p2.substring(1)) - 1;
+        int sum = 0;
+        for (int r = r1; r <= r2; r++)
+            for (int c = c1; c <= c2; c++)
+                sum += evalCell(r, c);
+        return sum;
+    }
+
+    public static void main(String[] args) {
+        String[][] s1 = {
+            {"10", "12", "=C5"},
+            {"15", "5", "6"},
+            {"7", "8", "=3+C2"},
+            {"6", "=B2-A1", "=C2"},
+            {"7", "5", "3"}
+        };
+        System.out.println(solveMethod(5, 3, s1, "B2:C4"));
+        String[][] s2 = {{"1", "=A1+C1", "3"}};
+        System.out.println(solveMethod(1, 3, s2, "A1:C1"));
+    }
+}
+```

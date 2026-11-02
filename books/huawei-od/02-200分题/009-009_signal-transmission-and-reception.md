@@ -200,3 +200,54 @@ if __name__ == '__main__':
     output = [[0, 1, 1, 1, 1, 4], [1, 2, 2, 4, 2, 2]]
     assert solve_method(2, 6, heights) == (2, 6, output)
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static boolean canReceive(int[] h) {
+        int len = h.length;
+        if (len == 2) return true;
+        int startH = h[0], endH = h[len - 1];
+        int temp = 0;
+        for (int idx = 1; idx < len - 1; idx++) {
+            int next = h[idx];
+            if (startH <= next) return false;
+            temp = Math.max(temp, next);
+            if (temp >= endH) return false;
+        }
+        return true;
+    }
+
+    public static int[][] solveMethod(int rows, int cols, int[][] ant) {
+        int[][] ret = new int[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                if (i != rows - 1) {
+                    int[] antCols = new int[rows];
+                    for (int rr = 0; rr < rows; rr++) antCols[rr] = ant[rr][j];
+                    int k = i + 1;
+                    while (k < rows) {
+                        if (canReceive(Arrays.copyOfRange(antCols, i, k + 1))) ret[k][j] += 1;
+                        k++;
+                    }
+                }
+                if (j != cols - 1) {
+                    int k = j + 1;
+                    while (k < cols) {
+                        if (canReceive(Arrays.copyOfRange(ant[i], j, k + 1))) ret[i][k] += 1;
+                        k++;
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Arrays.deepToString(solveMethod(1, 6, new int[][]{{2, 4, 1, 5, 3, 3}})));
+        System.out.println(Arrays.deepToString(solveMethod(2, 6,
+            new int[][]{{2, 5, 4, 3, 2, 8}, {9, 7, 5, 10, 10, 3}})));
+    }
+}
+```

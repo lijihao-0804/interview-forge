@@ -123,3 +123,57 @@ if __name__ == '__main__':
     assert solve_method("(div 12 (sub 45 45))") == "error"
     assert solve_method("(add 1 (div -7 3))") == -2
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static String solveMethod(String ops) {
+        Deque<Object> stack = new ArrayDeque<>();
+        StringBuilder numStr = new StringBuilder();
+        StringBuilder opWord = new StringBuilder();
+        long res = 0;
+        for (int k = 0; k < ops.length(); k++) {
+            char ch = ops.charAt(k);
+            if (ch == '(') {
+                stack.push("(");
+            } else if (Character.isLetter(ch)) {
+                opWord.append(ch);
+            } else if (Character.isDigit(ch) || ch == '-' || ch == '.') {
+                numStr.append(ch);
+            } else if (Character.isWhitespace(ch) || ch == ')') {
+                if (numStr.length() != 0) {
+                    stack.push(Long.parseLong(numStr.toString()));
+                    numStr.setLength(0);
+                }
+                if (opWord.length() != 0) {
+                    stack.push(opWord.toString());
+                    opWord.setLength(0);
+                }
+            }
+            if (ch == ')') {
+                long num2 = (Long) stack.pop();
+                long num1 = (Long) stack.pop();
+                String op = (String) stack.pop();
+                stack.pop(); // remove "("
+                if (op.equals("add")) res = num1 + num2;
+                else if (op.equals("sub")) res = num1 - num2;
+                else if (op.equals("mul")) res = num1 * num2;
+                else if (op.equals("div")) {
+                    if (num2 == 0) return "error";
+                    res = Math.floorDiv(num1, num2);
+                }
+                stack.push(res);
+            }
+        }
+        return String.valueOf(stack.peek());
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (!sc.hasNextLine()) return;
+        String line = sc.nextLine().trim();
+        System.out.println(solveMethod(line));
+    }
+}
+```

@@ -78,3 +78,20 @@ if __name__ == '__main__':
     assert solve_method("abcd", "b[cd]") == 1
     assert solve_method("aabcdefg", "b[cd]d[eg]") == 2
 ```
+
+```java
+import java.util.regex.*;
+
+public class Solution {
+    public static int solveMethod(String haystack, String needle) {
+        Matcher m = Pattern.compile(needle).matcher(haystack);
+        if (m.find()) return m.start();
+        return -1;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(solveMethod("abcd", "b[cd]"));
+        System.out.println(solveMethod("aabcdefg", "b[cd]d[eg]"));
+    }
+}
+```

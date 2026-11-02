@@ -130,3 +130,43 @@ if __name__ == '__main__':
 1. [图论：连通分量和强连通分量](https://zhuanlan.zhihu.com/p/37792015)
 2. [AmosCloud Wiki题解](https://wiki.amoscloud.com/zh/ProgramingPractice/NowCoder/Adecco/Topic0244)
 3. [从七桥问题开始：全面介绍图论及其应用](https://zhuanlan.zhihu.com/p/34442520)
+
+```java
+import java.util.*;
+
+public class Solution {
+    static int[] visited;
+    static int cnt;
+
+    static void dfs(int[][] m, int i) {
+        visited[i] = 1;
+        cnt++;
+        for (int j = 0; j < m.length; j++) {
+            if (m[i][j] == 1 && visited[j] == 0) dfs(m, j);
+        }
+    }
+
+    public static int solveMethod(int[][] m) {
+        visited = new int[m.length];
+        int res = 0;
+        for (int i = 0; i < m.length; i++) {
+            if (visited[i] == 0) {
+                cnt = 0;
+                dfs(m, i);
+                res = Math.max(res, cnt);
+            }
+        }
+        return res;
+    }
+
+    public static void main(String[] args) {
+        int[][] m = {
+            {1, 1, 0, 0},
+            {1, 1, 1, 0},
+            {0, 1, 1, 0},
+            {0, 0, 0, 1}
+        };
+        System.out.println(solveMethod(m));
+    }
+}
+```

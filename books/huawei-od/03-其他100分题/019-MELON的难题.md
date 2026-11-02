@@ -124,3 +124,37 @@ if __name__ == '__main__':
     assert solve_method(10, [1, 1, 1, 1, 1, 9, 8, 3, 7, 10]) == 3
     assert solve_method(4, [1, 5, 5, 8]) == -1
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static int solveMethod(int n, int[] nums) {
+        long total = 0;
+        for (int x : nums) total += x;
+        if (total % 2 != 0) return -1;
+        int target = (int) (total / 2);
+        int INF = Integer.MAX_VALUE / 2;
+        int[] dp = new int[target + 1];
+        Arrays.fill(dp, INF);
+        dp[0] = 0;
+        for (int x : nums) {
+            for (int s = target; s >= x; s--) {
+                if (dp[s - x] != INF) {
+                    dp[s] = Math.min(dp[s], dp[s - x] + 1);
+                }
+            }
+        }
+        return dp[target] >= INF ? -1 : dp[target];
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (!sc.hasNextInt()) return;
+        int n = sc.nextInt();
+        int[] nums = new int[n];
+        for (int i = 0; i < n; i++) nums[i] = sc.nextInt();
+        System.out.println(solveMethod(n, nums));
+    }
+}
+```

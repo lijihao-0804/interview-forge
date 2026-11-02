@@ -133,3 +133,62 @@ if __name__ == '__main__':
     assert solve_method(5, messages) == ["We are a team", "We are not a team",
                                          "We are a team", "da pian zi"]
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static int[] parent;
+
+    static int find(int x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    }
+
+    static void union(int a, int b) {
+        int ra = find(a), rb = find(b);
+        if (ra != rb) parent[ra] = rb;
+    }
+
+    static List<String> solveMethod(int n, int[][] messages) {
+        List<String> result = new ArrayList<>();
+        parent = new int[n + 1];
+        for (int i = 0; i <= n; i++) parent[i] = i;
+        for (int[] msg : messages) {
+            int a = msg[0], b = msg[1], c = msg[2];
+            if (c != 0 && c != 1 || a < 1 || a > n || b < 1 || b > n) {
+                result.add("da pian zi");
+                continue;
+            }
+            if (c == 0) {
+                union(a, b);
+            } else {
+                result.add(find(a) == find(b) ? "We are a team" : "We are not a team");
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (!sc.hasNextInt()) return;
+        int n = sc.nextInt();
+        int m = sc.nextInt();
+        if (n < 1 || n >= 100000 || m < 1 || m >= 100000) {
+            System.out.println("NULL");
+            return;
+        }
+        int[][] messages = new int[m][3];
+        for (int i = 0; i < m; i++) {
+            messages[i][0] = sc.nextInt();
+            messages[i][1] = sc.nextInt();
+            messages[i][2] = sc.nextInt();
+        }
+        List<String> res = solveMethod(n, messages);
+        for (String s : res) System.out.println(s);
+    }
+}
+```

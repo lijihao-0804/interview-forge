@@ -129,3 +129,50 @@ if __name__ == '__main__':
     assert solve_method(["20-21", "15", "18", "30", "5-10"], 15) == ["5-10", "18", "20-21", "30"]
     assert solve_method(["5", "1-3"], 10) == ["1-3", "5"]
 ```
+
+```java
+import java.util.*;
+
+public class Solution {
+    static String solveMethod(String poolStr, int vlanId) {
+        Set<Integer> pools = new TreeSet<>();
+        for (String vlan : poolStr.split(",")) {
+            vlan = vlan.trim();
+            if (vlan.isEmpty()) continue;
+            if (vlan.contains("-")) {
+                String[] seq = vlan.split("-");
+                int s = Integer.parseInt(seq[0]);
+                int e = Integer.parseInt(seq[1]);
+                for (int i = s; i <= e; i++) pools.add(i);
+            } else {
+                pools.add(Integer.parseInt(vlan));
+            }
+        }
+        pools.remove(vlanId);
+        List<Integer> list = new ArrayList<>(pools);
+        List<String> result = new ArrayList<>();
+        if (list.isEmpty()) return "";
+        int start = list.get(0), end = start;
+        for (int i = 1; i < list.size(); i++) {
+            int cur = list.get(i);
+            if (cur == end + 1) {
+                end = cur;
+            } else {
+                result.add(start == end ? String.valueOf(start) : start + "-" + end);
+                start = end = cur;
+            }
+        }
+        result.add(start == end ? String.valueOf(start) : start + "-" + end);
+        return String.join(",", result);
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        if (!sc.hasNextLine()) return;
+        String pool = sc.nextLine().trim();
+        if (!sc.hasNextInt()) return;
+        int vlanId = sc.nextInt();
+        System.out.println(solveMethod(pool, vlanId));
+    }
+}
+```
