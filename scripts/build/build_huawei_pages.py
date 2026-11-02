@@ -79,7 +79,7 @@ def main():
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<title>华为 OD 机试题库 · InterviewForge</title>'
         '<link rel="stylesheet" href="../../assets/site.css">'
-        '<style>' + STYLE + '</style></head><body><div class="hw-shell">'
+        '<style>' + STYLE + '</style></head><body><header class="site-topbar" style="max-width:1180px;width:calc(100% - 100px);margin:16px auto 6px"><a class="site-brand" href="../../index.html">Hot 100 深度学习库</a><nav aria-label="主导航" class="site-nav"><a href="../../index.html">题目面板</a><a href="../../cockpit.html">中控台</a><a href="../../library/index.html">学习书架</a><a href="../../books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="../../books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="../../books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="../../pages/leetcode-connect.html">力扣连接</a></nav></header><div class="hw-shell">'
         '<nav class="page-nav" aria-label="面包屑"><a href="../../library/index.html">📚 学习书架</a>'
         '<span aria-hidden="true">›</span><span aria-current="page">华为 OD 机试题库</span></nav>'
         '<header style="margin:8px 0 18px"><h1 style="margin:0 0 6px;font-size:26px">华为 OD 机试题库</h1>'
