@@ -17,7 +17,7 @@
  .opt{display:block;width:100%;text-align:left;padding:13px 16px;margin-bottom:10px;border:1px solid var(--line,#dfe4ee);border-radius:12px;background:#fbfcff;font:inherit;cursor:pointer;transition:all .15s}
  .opt:hover{border-color:var(--brand,#5654d4);background:var(--brand-soft,#eeedff)}
  .opt.sel{border-color:var(--brand,#5654d4);background:var(--brand-soft,#eeedff)}
- .opt.correct{border-color:#157a52;background:#e5f5ec}
+ .opt.correct{border-color:#157a52;background:#e5f5ec;cursor:default}
  .opt.wrong{border-color:#b3372f;background:#fbe9e7}
  .opt .k{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background:#e7ebf6;font-weight:700;margin-right:10px}
  .opt.correct .k{background:#157a52;color:#fff}
@@ -28,6 +28,7 @@
  .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
  .btn{padding:10px 20px;border-radius:10px;border:1px solid var(--line,#dfe4ee);background:#fff;font:inherit;font-weight:600;cursor:pointer}
  .btn.primary{background:var(--brand,#5654d4);color:#fff;border-color:var(--brand,#5654d4)}
+ .btn.on{background:var(--brand,#5654d4);color:#fff;border-color:var(--brand,#5654d4)}
  .btn:disabled{opacity:.5;cursor:not-allowed}
  select{padding:8px 12px;border:1px solid var(--line,#dfe4ee);border-radius:9px;font:inherit;background:#fff;color:inherit}
  .stats{display:flex;gap:18px;font-size:13px;color:var(--muted,#66748a);flex-wrap:wrap}
@@ -42,11 +43,12 @@
   <div class="quiz-top">
     <div>
       <h1 style="margin:6px 0 4px;font-size:24px">选择题练习</h1>
-      <p style="margin:0;font-size:13px;color:#66748a">从 332 条术语知识库自动出题，选完立即判对错并给解析。</p>
+      <p style="margin:0;font-size:13px;color:#66748a">从 332 条术语知识库出题。<b>做题模式</b>选完立即判对错；<b>背题模式</b>直接看答案与解析、快速过题记忆。</p>
     </div>
     <div class="stats" id="stats"></div>
   </div>
   <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn primary" id="btnMode" type="button">切换背题模式</button>
     <label style="font-size:13px;color:#66748a">分类
       <select id="cat"><option value="">全部</option></select>
     </label>
@@ -59,7 +61,7 @@
 </div>
 <script>
 (function(){
-  var DATA=null, qs=[], idx=0, picked=-1, answered=false, wrongOnly=false;
+  var DATA=null, qs=[], idx=0, picked=-1, answered=false, wrongOnly=false, studyMode=false;
   var STORE_KEY='forgeQuizProgress';
   function loadProgress(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return {}} }
   function saveProgress(p){ try{localStorage.setItem(STORE_KEY,JSON.stringify(p))}catch(e){} }
@@ -87,15 +89,31 @@
     });
   }
   function current(){ return qs[idx]; }
+  function metaHtml(q){
+    return '<div class="q-meta"><span class="pill">'+esc(q.category)+'</span><span class="pill">'+(idx+1)+' / '+qs.length+'</span>'+
+      (studyMode?'<span class="pill" style="background:#e5f5ec;color:#157a52">背题模式</span>':'')+'</div>';
+  }
   function render(){
     var card=document.getElementById('card');
-    if(!qs.length){ card.innerHTML='<div class="empty">没有符合条件的题目。</div>'; return; }
+    if(!qs.length){ card.innerHTML='<div class="empty">'+(wrongOnly?'暂无错题，先去做题吧～':'没有符合条件的题目。')+'</div>'; return; }
     var q=current(); picked=-1; answered=false;
-    var opts=q.options.map(function(o,i){
+    if(studyMode){
+      // —— 背题模式：直接展示答案与解析，不做判定、不记进度 ——
+      var opts=q.options.map(function(o,i){
+        var isAns=(i===q.answer);
+        return '<div class="opt'+(isAns?' correct':'')+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(isAns?'　<b style="color:#157a52">✓ 正确答案</b>':'')+'</div>';
+      }).join('');
+      card.innerHTML=metaHtml(q)+'<p class="q-stem">'+esc(q.stem)+'</p>'+opts+
+        '<div class="explain show"><b>解析</b><br>'+esc(q.explain)+'</div>'+
+        '<div class="actions"><button class="btn primary" id="btnNext" type="button">下一题</button></div>';
+      document.getElementById('btnNext').addEventListener('click',next);
+      return;
+    }
+    // —— 做题模式 ——
+    var opts2=q.options.map(function(o,i){
       return '<button class="opt" data-i="'+i+'" type="button"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+'</button>';
     }).join('');
-    card.innerHTML='<div class="q-meta"><span class="pill">'+esc(q.category)+'</span><span class="pill">'+(idx+1)+' / '+qs.length+'</span></div>'+
-      '<p class="q-stem">'+esc(q.stem)+'</p>'+opts+
+    card.innerHTML=metaHtml(q)+'<p class="q-stem">'+esc(q.stem)+'</p>'+opts2+
       '<div class="explain" id="explain"></div>'+
       '<div class="actions"><button class="btn primary" id="btnSubmit" type="button" disabled>提交答案</button>'+
       '<button class="btn" id="btnNext" type="button" style="display:none">下一题</button></div>';
@@ -137,10 +155,16 @@
   }
   function start(){
     qs=poolFor(document.getElementById('cat').value);
-    if(wrongOnly){ for(var i=qs.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=qs[i];qs[i]=qs[j];qs[j]=t;} }
+    if(wrongOnly||studyMode){ for(var i=qs.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=qs[i];qs[i]=qs[j];qs[j]=t;} }
     idx=0; render();
   }
   document.getElementById('cat').addEventListener('change',start);
+  document.getElementById('btnMode').addEventListener('click',function(){
+    studyMode=!studyMode;
+    this.textContent=studyMode?'切换做题模式':'切换背题模式';
+    this.classList.toggle('on',studyMode);
+    start();
+  });
   document.getElementById('btnWrong').addEventListener('click',function(){
     wrongOnly=!wrongOnly; this.textContent=wrongOnly?'显示全部':'只练错题'; start();
   });

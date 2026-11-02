@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.build.build_html_site import render_markdown  # noqa: E402
 
 SRC = ROOT / "books" / "huawei-od"
-GROUPS = [("01-精选100分题", "精选 100 分题"), ("02-200分题", "200 分题"), ("03-其他100分题", "其他 100 分题")]
+GROUPS = [("01-精选100分题", "① 精选 100 分题（建议先做）"), ("02-200分题", "② 200 分题（进阶）"), ("03-其他100分题", "③ 其他 100 分题（补充练习）")]
 
 STYLE = """
  body{background:var(--bg,#f4f6fb)}
