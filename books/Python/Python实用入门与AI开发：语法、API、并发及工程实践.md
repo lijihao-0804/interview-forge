@@ -2,7 +2,7 @@
 
 > 这份笔记的目标读者：想用 Python 做 AI 开发的初学者，以及需要随时查语法、查工程实践的开发者。  
 > 建议版本：Python 3.11+。示例主要使用现代类型标注、`asyncio.TaskGroup` 等语法；Python 3.14 的自由线程构建可作为进阶实验，但不是默认运行模式。
-> 阅读方式：第一次学习按顺序读第 0~12 章打基础；做项目时对照第 13~30 章；想快速了解 AI 开发，先读第 31~33 章再回头补基础。第 34 章是语法速查表，第 36 章是术语表，第 37 章是常见问题。  
+> 阅读方式：第一次学习按顺序读第 0~12 章打基础；做项目时对照第 13~30 章；想快速了解 AI 开发，先读第 31~33 章再回头补基础。第 34 章是语法速查表，第 36 章是术语表，第 37 章是常见问题，第 38 章是力扣刷题常用方法与 API。  
 > 代码块后面的“输出”是典型运行结果；涉及并发的输出顺序可能变化。示例中的 `example.com`、`your-model` 等是占位内容，运行前必须替换。
 
 ## 怎么用这份笔记
@@ -52,6 +52,7 @@
 - [35. 学习路线与关联笔记](#35-学习路线与关联笔记)
 - [36. AI 术语表](#36-ai-术语表)
 - [37. 常见问题与故障排查](#37-常见问题与故障排查)
+- [38. 力扣刷题最常用的 Python 方法与 API](#38-力扣刷题最常用的-python-方法与-api)
 
 ---
 
@@ -5141,6 +5142,734 @@ task = asyncio.create_task(fetch(1))    # 或创建任务
 2. 用 `print()` 或日志打印关键变量的类型和值（`f"{x!r}"` 能看出隐藏字符）；
 3. 把报错信息和最小复现代码一起搜索或问 AI；
 4. 修好一类问题后，加一条对应测试，避免回归（见第 28 章）。
+
+---
+
+## 38. 力扣刷题最常用的 Python 方法与 API
+
+这一章不是语法大全，而是一份“刷题武器清单”：把 LeetCode 里出现频率最高的容器、内置方法、标准库和代码模板集中起来。如果你已经会基本语法，但看到题还不能立刻写出代码，建议把这一章的代码亲手敲一遍、改一改，再开始刷题。
+
+### 38.1 输入输出与本地调试
+
+力扣的函数参数由平台传入，不需要 `input()`；本地调试时可以直接调用函数并打印结果。
+
+```python
+def two_sum(nums: list[int], target: int) -> list[int]:
+    seen = {}
+    for i, num in enumerate(nums):
+        if target - num in seen:
+            return [seen[target - num], i]
+        seen[num] = i  # 记录值到下标的映射
+    return []
+
+print(two_sum([2, 7, 11, 15], 9))  # [0, 1]
+print(type(two_sum([2, 7], 9)))    # <class 'list'>
+```
+
+调试时优先打印 `type(x)`、`len(x)` 和关键变量，而不是反复猜测：
+
+```python
+nums = [3, 1, 2]
+print(len(nums))     # 3
+print(max(nums))     # 3
+print(sorted(nums))  # [1, 2, 3]
+print(nums)          # [3, 1, 2]，sorted 不修改原列表
+```
+
+### 38.2 list：出现频率最高的容器
+
+读取、切片和长度：
+
+```python
+nums = [3, 1, 4, 1, 5]
+
+print(nums[0])     # 3
+print(nums[-1])    # 5
+print(nums[1:3])   # [1, 4]
+print(nums[::-1])  # [5, 1, 4, 1, 3]
+print(len(nums))   # 5
+```
+
+增删改：
+
+```python
+nums = [1, 2, 3]
+
+nums.append(4)     # nums 变为 [1, 2, 3, 4]
+nums.pop()         # 返回 4，nums 变为 [1, 2, 3]
+nums.pop(0)        # 返回 1，nums 变为 [2, 3]
+nums.insert(0, 9)  # nums 变为 [9, 2, 3]
+nums[1] = 7        # nums 变为 [9, 7, 3]
+print(nums)        # [9, 7, 3]
+```
+
+排序：
+
+```python
+nums = [3, 1, 2]
+
+print(sorted(nums))                          # [1, 2, 3]
+print(nums)                                  # [3, 1, 2]，原列表不变
+nums.sort()                                  # nums 变为 [1, 2, 3]
+nums.sort(reverse=True)                      # nums 变为 [3, 2, 1]
+
+words = ["bb", "a", "ccc"]
+print(sorted(words, key=len))                # ['a', 'bb', 'ccc']
+print(sorted(words, key=len, reverse=True))  # ['ccc', 'bb', 'a']
+```
+
+二维列表必须按行创建，避免所有行共享同一个内层列表：
+
+```python
+grid = [[0] * 3 for _ in range(2)]  # 两行三列，行之间互相独立
+grid[0][0] = 1                      # grid 变为 [[1, 0, 0], [0, 0, 0]]
+print(grid)                         # [[1, 0, 0], [0, 0, 0]]
+
+bad = [[0] * 3] * 2                 # 错误：两行引用同一个内层列表
+bad[0][0] = 1                       # bad 变为 [[1, 0, 0], [1, 0, 0]]
+print(bad)                          # [[1, 0, 0], [1, 0, 0]]
+```
+
+常用聚合函数：
+
+```python
+nums = [3, 1, 4, 1, 5]
+
+print(sum(nums))                     # 14
+print(min(nums), max(nums))          # 1 5
+print(nums.count(1))                 # 2
+print(1 in nums)                     # True
+print(any(x > 4 for x in nums))      # True
+print(all(x > 0 for x in nums))      # True
+```
+
+`enumerate()` 同时拿下标和值，`zip()` 并行遍历多个序列：
+
+```python
+names = ["a", "b"]
+scores = [90, 80]
+
+for i, name in enumerate(names):
+    print(i, name)  # 0 a / 1 b
+
+for name, score in zip(names, scores):
+    print(name, score)  # a 90 / b 80
+```
+
+推导式用来快速构造或筛选列表：
+
+```python
+nums = [1, 2, 3, 4]
+
+print([x * x for x in nums])            # [1, 4, 9, 16]
+print([x for x in nums if x % 2 == 0])  # [2, 4]
+print([0] * 3)                          # [0, 0, 0]
+```
+
+### 38.3 str：不可变但方法很多
+
+索引和切片：
+
+```python
+s = "leetcode"
+
+print(s[0])     # l
+print(s[-1])    # e
+print(s[1:4])   # eet
+print(s[::-1])  # edocteel
+```
+
+拆分、连接和清理空白：
+
+```python
+s = "a,b,c"
+parts = s.split(",")        # ['a', 'b', 'c']
+print(parts)                # ['a', 'b', 'c']
+print("-".join(parts))      # a-b-c
+print("  hello  ".strip())  # hello
+print("a b  c".split())     # ['a', 'b', 'c']
+```
+
+字符判断：
+
+```python
+print("123".isdigit())     # True
+print("abc".isalpha())     # True
+print("abc123".isalnum())  # True
+print("ABC".isupper())     # True
+print("abc".islower())     # True
+print(" ".isspace())       # True
+```
+
+`ord()` 和 `chr()` 是字符与 ASCII 码互转，统计字母频次时非常常用：
+
+```python
+print(ord("a"))              # 97
+print(chr(97))               # a
+print(ord("z") - ord("a"))   # 25
+
+counts = [0] * 26
+index = ord("c") - ord("a")  # index 为 2
+counts[index] += 1           # counts[2] 变为 1
+print(counts[2])             # 1
+```
+
+查找、计数和替换：
+
+```python
+s = "ababa"
+
+print(s.find("ba"))          # 1
+print(s.count("ba"))         # 2
+print(s.startswith("ab"))    # True
+print(s.endswith("ba"))      # True
+print(s.replace("a", "x"))   # xbxbx
+```
+
+回文判断的标准写法：
+
+```python
+def is_palindrome(s: str) -> bool:
+    cleaned = "".join(ch.lower() for ch in s if ch.isalnum())
+    return cleaned == cleaned[::-1]
+
+print(is_palindrome("A man, a plan, a canal: Panama"))  # True
+print(is_palindrome("race a car"))                      # False
+```
+
+### 38.4 dict 与 set：计数、分组、去重
+
+字典的 `get()` 和 `setdefault()` 是刷题最常用的两个方法：
+
+```python
+counts = {}
+
+counts["a"] = counts.get("a", 0) + 1  # counts 变为 {'a': 1}
+counts["a"] = counts.get("a", 0) + 1  # counts 变为 {'a': 2}
+counts.setdefault("b", []).append(1)  # counts 变为 {'a': 2, 'b': [1]}
+print(counts)                         # {'a': 2, 'b': [1]}
+print(counts.get("c", 0))             # 0
+```
+
+`Counter` 负责计数，`defaultdict(list)` 负责分组：
+
+```python
+from collections import Counter, defaultdict
+
+nums = [1, 1, 2, 3, 3, 3]
+freq = Counter(nums)        # Counter({3: 3, 1: 2, 2: 1})
+print(freq[3])              # 3
+print(freq.most_common(2))  # [(3, 3), (1, 2)]
+
+groups = defaultdict(list)
+for word in ["eat", "tea", "tan"]:
+    groups["".join(sorted(word))].append(word)  # 按排序后的字符串分组
+print(dict(groups))  # {'aet': ['eat', 'tea'], 'ant': ['tan']}
+```
+
+遍历字典：
+
+```python
+d = {"a": 1, "b": 2}
+
+print(list(d.keys()))    # ['a', 'b']
+print(list(d.values()))  # [1, 2]
+print(list(d.items()))   # [('a', 1), ('b', 2)]
+
+for k, v in d.items():
+    print(k, v)  # a 1 / b 2
+```
+
+集合用于去重、成员判断和集合运算：
+
+```python
+s = {1, 2, 3}
+
+s.add(4)           # s 变为 {1, 2, 3, 4}
+s.discard(2)       # s 变为 {1, 3, 4}
+print(3 in s)      # True
+print(s | {4, 5})  # {1, 3, 4, 5}，并集
+print(s & {3, 4})  # {3, 4}，交集
+print(s - {4})     # {1, 3}，差集
+```
+
+去重同时保留原顺序，用 `dict.fromkeys()`：
+
+```python
+nums = [1, 2, 1, 3, 2]
+
+print(list(dict.fromkeys(nums)))  # [1, 2, 3]
+print(list(set(nums)))            # 顺序不保证，常见为 [1, 2, 3]
+```
+
+### 38.5 栈、队列与堆
+
+栈直接用 list：`append()` 入栈、`pop()` 出栈。
+
+```python
+stack = []
+
+stack.append(1)     # stack 变为 [1]
+stack.append(2)     # stack 变为 [1, 2]
+print(stack.pop())  # 2
+print(stack)        # [1]
+```
+
+队列用 `collections.deque`，`popleft()` 是 O(1)：
+
+```python
+from collections import deque
+
+queue = deque([1, 2])
+
+queue.append(3)         # queue 变为 deque([1, 2, 3])
+print(queue.popleft())  # 1
+queue.appendleft(0)     # queue 变为 deque([0, 2, 3])
+print(queue)            # deque([0, 2, 3])
+```
+
+`heapq` 是最小堆，适合 Top K、合并 K 个有序链表和 Dijkstra：
+
+```python
+import heapq
+
+heap = []
+heapq.heappush(heap, 3)  # heap 变为 [3]
+heapq.heappush(heap, 1)  # heap 变为 [1, 3]
+heapq.heappush(heap, 2)  # heap 变为 [1, 3, 2]
+print(heapq.heappop(heap))  # 1
+print(heap)                 # [2, 3]
+
+nums = [5, 1, 4, 2]
+heapq.heapify(nums)         # nums 变为小根堆 [1, 2, 4, 5]
+print(nums)                 # [1, 2, 4, 5]
+print(heapq.nlargest(2, nums))   # [5, 4]
+print(heapq.nsmallest(2, nums))  # [1, 2]
+```
+
+Python 没有大根堆，存负数即可：
+
+```python
+import heapq
+
+max_heap = []
+for num in [3, 1, 2]:
+    heapq.heappush(max_heap, -num)  # 存负数模拟大根堆
+
+print(-heapq.heappop(max_heap))     # 3
+```
+
+Top K 一行写法：
+
+```python
+import heapq
+
+def top_k(nums: list[int], k: int) -> list[int]:
+    return heapq.nlargest(k, nums)
+
+print(top_k([3, 1, 5, 2, 4], 2))  # [5, 4]
+```
+
+### 38.6 bisect：有序数组的二分查找
+
+`bisect_left` 找第一个 `>= target` 的位置，`bisect_right` 找第一个 `> target` 的位置：
+
+```python
+from bisect import bisect_left, bisect_right, insort
+
+nums = [1, 2, 2, 4]
+
+print(bisect_left(nums, 2))   # 1，第一个 >= 2 的下标
+print(bisect_right(nums, 2))  # 3，第一个 > 2 的下标
+insort(nums, 3)               # nums 变为 [1, 2, 2, 3, 4]
+print(nums)                   # [1, 2, 2, 3, 4]
+```
+
+手写 `lower_bound()`，便于改成各种“二分答案”：
+
+```python
+def lower_bound(nums: list[int], target: int) -> int:
+    left, right = 0, len(nums)  # 搜索区间 [left, right)
+    while left < right:
+        mid = (left + right) // 2
+        if nums[mid] < target:
+            left = mid + 1      # 答案在 mid 右边
+        else:
+            right = mid         # 答案可能就是 mid
+    return left                 # 第一个 >= target 的下标
+
+print(lower_bound([1, 2, 2, 4], 2))  # 1
+print(lower_bound([1, 2, 2, 4], 3))  # 3
+```
+
+### 38.7 itertools、functools 与 math
+
+`accumulate()` 生成前缀和；`combinations()`、`permutations()`、`product()` 用于枚举：
+
+```python
+from itertools import accumulate, combinations, permutations, product
+
+print(list(accumulate([1, 2, 3])))        # [1, 3, 6]
+print(list(combinations([1, 2, 3], 2)))   # [(1, 2), (1, 3), (2, 3)]
+print(list(permutations([1, 2, 3], 2)))   # [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)]
+print(list(product([1, 2], ["a", "b"])))  # [(1, 'a'), (1, 'b'), (2, 'a'), (2, 'b')]
+```
+
+`@lru_cache` 是最简单的记忆化：
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n: int) -> int:
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+print(fib(10))  # 55
+```
+
+自定义排序用 `cmp_to_key`：
+
+```python
+from functools import cmp_to_key
+
+def compare(a: int, b: int) -> int:
+    return b - a  # 返回负数表示 a 应排在 b 前面；这里实现降序
+
+nums = [3, 1, 2]
+print(sorted(nums, key=cmp_to_key(compare)))  # [3, 2, 1]
+```
+
+`math` 里的常用工具：
+
+```python
+import math
+
+print(math.gcd(12, 18))        # 6
+print(math.isqrt(17))          # 4
+print(math.inf)                # inf
+print(float("inf") > 10**9)    # True
+print(math.comb(5, 2))         # 10
+```
+
+### 38.8 位运算常用公式
+
+```python
+n = 10
+
+print(n & 1)              # 0，判断奇偶
+print(n >> 1)             # 5，右移一位
+print(n & (n - 1))        # 8，消掉最低位的 1
+print(n & -n)             # 2，取出最低位的 1
+print(bin(n))             # '0b1010'
+print(bin(n).count("1"))  # 2，二进制中 1 的个数
+```
+
+只出现一次的数字（其余数字出现两次），用异或：
+
+```python
+nums = [4, 1, 2, 1, 2]
+
+result = 0
+for num in nums:
+    result ^= num  # 相同的数异或抵消
+
+print(result)  # 4
+```
+
+### 38.9 数组与字符串模板
+
+#### 38.9.1 双指针（对撞）
+
+```python
+def two_sum_sorted(nums: list[int], target: int) -> list[int]:
+    left, right = 0, len(nums) - 1
+    while left < right:
+        total = nums[left] + nums[right]
+        if total == target:
+            return [left, right]
+        if total < target:
+            left += 1   # 和太小，左指针右移
+        else:
+            right -= 1  # 和太大，右指针左移
+    return []
+
+print(two_sum_sorted([1, 2, 4, 7], 9))  # [1, 3]
+```
+
+#### 38.9.2 滑动窗口
+
+```python
+def longest_unique_substring(s: str) -> int:
+    left = 0
+    window = set()
+    best = 0
+
+    for right, ch in enumerate(s):
+        while ch in window:
+            window.remove(s[left])  # 左边界右移，缩小窗口
+            left += 1               # 左指针右移
+        window.add(ch)              # 当前字符加入窗口
+        best = max(best, right - left + 1)
+
+    return best
+
+print(longest_unique_substring("abcabcbb"))  # 3
+```
+
+#### 38.9.3 前缀和
+
+```python
+nums = [1, 2, 3, 4]
+
+prefix = [0]
+for num in nums:
+    prefix.append(prefix[-1] + num)  # prefix 变为 [0, 1, 3, 6, 10]
+
+print(prefix)                 # [0, 1, 3, 6, 10]
+print(prefix[3] - prefix[1])  # 5，子数组 nums[1:3] 的和
+```
+
+#### 38.9.4 单调栈
+
+```python
+def next_greater(nums: list[int]) -> list[int]:
+    result = [-1] * len(nums)
+    stack = []  # 存下标，栈内对应值单调递减
+
+    for i, num in enumerate(nums):
+        while stack and nums[stack[-1]] < num:
+            index = stack.pop()   # 弹出下标
+            result[index] = num   # 找到右侧第一个更大值
+        stack.append(i)           # 当前下标入栈
+
+    return result
+
+print(next_greater([2, 1, 2, 4, 3]))  # [4, 2, 4, -1, -1]
+```
+
+#### 38.9.5 动态规划
+
+```python
+def coin_change(coins: list[int], amount: int) -> int:
+    dp = [amount + 1] * (amount + 1)  # dp[i]：凑出金额 i 的最少硬币数
+    dp[0] = 0  # 金额 0 需要 0 枚硬币
+
+    for i in range(1, amount + 1):
+        for coin in coins:
+            if coin <= i:
+                dp[i] = min(dp[i], dp[i - coin] + 1)  # 更新最少硬币数
+
+    return dp[amount] if dp[amount] != amount + 1 else -1
+
+print(coin_change([1, 2, 5], 11))  # 3
+print(coin_change([2], 3))         # -1
+```
+
+### 38.10 图、树、链表模板
+
+#### 38.10.1 BFS 网格最短路
+
+```python
+from collections import deque
+
+def shortest_path(grid: list[list[int]], start: tuple[int, int], end: tuple[int, int]) -> int:
+    rows, cols = len(grid), len(grid[0])
+    queue = deque([(start[0], start[1], 0)])  # (row, col, distance)
+    visited = {start}
+
+    while queue:
+        r, c, dist = queue.popleft()
+        if (r, c) == end:
+            return dist
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0 and (nr, nc) not in visited:
+                visited.add((nr, nc))          # 标记已访问
+                queue.append((nr, nc, dist + 1))  # 入队，距离加一
+
+    return -1
+
+grid = [
+    [0, 0, 0],
+    [1, 1, 0],
+    [0, 0, 0],
+]
+print(shortest_path(grid, (0, 0), (2, 2)))  # 4
+```
+
+#### 38.10.2 DFS 与回溯
+
+```python
+def subsets(nums: list[int]) -> list[list[int]]:
+    result = []
+    path = []
+
+    def backtrack(start: int) -> None:
+        result.append(path.copy())  # 复制当前路径，避免后续修改影响结果
+        for i in range(start, len(nums)):
+            path.append(nums[i])  # 选择当前元素
+            backtrack(i + 1)
+            path.pop()              # 回溯，撤销选择
+
+    backtrack(0)
+    return result
+
+print(subsets([1, 2, 3]))  # [[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]
+```
+
+#### 38.10.3 二叉树中序遍历
+
+```python
+class TreeNode:
+    def __init__(self, val: int = 0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def inorder(root: TreeNode | None) -> list[int]:
+    result = []
+
+    def dfs(node: TreeNode | None) -> None:
+        if node is None:
+            return
+        dfs(node.left)
+        result.append(node.val)  # 访问当前节点
+        dfs(node.right)
+
+    dfs(root)
+    return result
+```
+
+#### 38.10.4 反转链表
+
+```python
+class ListNode:
+    def __init__(self, val: int = 0, next: "ListNode | None" = None):
+        self.val = val
+        self.next = next
+
+def reverse_list(head: ListNode | None) -> ListNode | None:
+    prev = None
+    while head:
+        nxt = head.next   # 先记住下一个节点
+        head.next = prev  # 反转当前节点的指针
+        prev = head       # prev 前移
+        head = nxt        # head 前移
+    return prev
+```
+
+#### 38.10.5 并查集
+
+```python
+class UnionFind:
+    def __init__(self, n: int):
+        self.parent = list(range(n))  # 每个元素自成一个集合
+        self.rank = [0] * n
+
+    def find(self, x: int) -> int:
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])  # 路径压缩
+        return self.parent[x]
+
+    def union(self, a: int, b: int) -> bool:
+        root_a, root_b = self.find(a), self.find(b)
+        if root_a == root_b:
+            return False  # 已经在同一集合
+        if self.rank[root_a] < self.rank[root_b]:
+            root_a, root_b = root_b, root_a
+        self.parent[root_b] = root_a  # 合并到 root_a
+        if self.rank[root_a] == self.rank[root_b]:
+            self.rank[root_a] += 1  # 合并后秩加一
+        return True
+
+uf = UnionFind(5)
+print(uf.union(0, 1))  # True
+print(uf.union(1, 2))  # True
+print(uf.union(0, 2))  # False，已经在同一集合
+```
+
+### 38.11 高频坑与刷题流程
+
+除法、取模和取整：
+
+```python
+print(5 / 2)       # 2.5，真除法返回 float
+print(5 // 2)      # 2，向下取整
+print(-5 // 2)     # -3，朝负无穷取整
+print(-5 % 2)      # 1，Python 取模结果与除数同号
+print(int(-2.9))   # -2，向零截断
+print(round(2.5))  # 2，银行家舍入
+```
+
+`sort()` 原地修改并返回 `None`，`sorted()` 返回新列表：
+
+```python
+nums = [3, 1, 2]
+
+result = nums.sort()  # result 为 None，nums 变为 [1, 2, 3]
+print(result)         # None
+print(sorted(nums))   # [1, 2, 3]
+```
+
+不要用可变对象作为默认参数：
+
+```python
+def bad(path, result=[]):  # 默认列表只创建一次，会被多次调用共享
+    result.append(path)  # 把当前路径加入结果
+    return result
+
+print(bad("a"))  # ['a']
+print(bad("b"))  # ['a', 'b']
+```
+
+字符串不可原地修改：
+
+```python
+s = "abc"
+# s[0] = "x"  # TypeError: 'str' object does not support item assignment
+s = "x" + s[1:]  # s 变为 'xbc'
+print(s)         # xbc
+```
+
+不要边遍历边删除列表元素，遍历副本或用推导式：
+
+```python
+nums = [1, 2, 3, 4]
+
+for num in nums.copy():  # 遍历副本
+    if num % 2 == 0:
+        nums.remove(num)  # nums 变为 [1, 3]
+
+print(nums)  # [1, 3]
+```
+
+最后是一张“看到需求 → 想到工具”的速查表：
+
+| 需求 | 优先使用的 Python 工具 |
+|---|---|
+| 计数 | `collections.Counter` |
+| 分组 | `collections.defaultdict(list)` |
+| 先进先出 | `collections.deque` |
+| 后进先出 | `list` 的 `append()` / `pop()` |
+| Top K / 最值流 | `heapq` |
+| 有序数组查找 | `bisect_left` / `bisect_right` |
+| 去重且保序 | `dict.fromkeys()` |
+| 记忆化 | `functools.lru_cache` |
+| 自定义排序 | `sorted(key=...)` / `cmp_to_key` |
+| 前缀和 | `itertools.accumulate` 或手写 |
+| 枚举组合 | `itertools.combinations` / `permutations` |
+| 图/网格遍历 | `deque` + `visited` 集合 |
+| 并查集 | 手写 `parent` + `rank` |
+
+刷题时按这个顺序推进：
+
+1. 先用最直白的暴力写法把题意跑通；
+2. 再判断瓶颈是查找、计数、排序、枚举还是重复子问题；
+3. 从上面的表里选数据结构和模板替换暴力部分；
+4. 用空输入、单元素、重复值、极值四类用例自测；
+5. 最后写清时间复杂度和空间复杂度。
 
 ---
 
