@@ -198,6 +198,18 @@ def clear_credentials(db_path: Path = DB_PATH) -> None:
         connection.commit()
 
 
+_LC_TITLE_ALIASES = {
+    "实现 Trie (前缀树)": 208,
+    "除了自身以外数组的乘积": 238,
+}
+
+
+def _norm_title(s: object) -> str:
+    """标题归一化：去掉括号内容、空白与常见标点后转小写。"""
+    s = re.sub(r"[\(（][^\)）]*[\)）]", "", str(s or ""))
+    return re.sub(r"[\s\-_、,，。.:：!！?？]", "", s).lower()
+
+
 def _leetcode_headers(credentials: dict[str, str]) -> dict[str, str]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -498,6 +510,18 @@ def leetcode_sync(
         if title and pid is not None:
             title_to_id.setdefault(title, int(pid))
 
+    # 力扣中文标题与站内标题不一致的补丁（全量排查 100 题后仅这两处）：
+    #   208 站内「实现 Trie」vs 力扣「实现 Trie (前缀树)」
+    #   238 站内「除自身以外数组的乘积」vs 力扣「除了自身以外数组的乘积」
+    # submissions_dump 的 title 是力扣中文标题，精确匹配会漏掉这两题，故补别名。
+    for _t, _p in _LC_TITLE_ALIASES.items():
+        title_to_id.setdefault(_t, int(_p))
+
+    # 归一化兜底：去掉括号内容、空白与常见标点后比较，兼容「标题带/不带括号」类差异
+    norm_to_id: dict[str, int] = {}
+    for _t, _p in title_to_id.items():
+        norm_to_id.setdefault(_norm_title(_t), int(_p))
+
     collected: list[dict[str, object]] = []
     fetch_errors: list[str] = []
     partial_error_category: str | None = None
@@ -535,6 +559,8 @@ def leetcode_sync(
                 continue
             title = str(item.get("title") or "").strip()
             pid = title_to_id.get(title)
+            if pid is None:  # 标题写法差异（括号/标点/空白）兜底
+                pid = norm_to_id.get(_norm_title(title))
             if pid is None:
                 continue
             lc_id = item.get("id")
