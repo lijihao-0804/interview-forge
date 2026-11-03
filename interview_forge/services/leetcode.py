@@ -523,6 +523,7 @@ def leetcode_sync(
         norm_to_id.setdefault(_norm_title(_t), int(_p))
 
     collected: list[dict[str, object]] = []
+    unmatched_titles: list[str] = []
     fetch_errors: list[str] = []
     partial_error_category: str | None = None
     offset = start_offset
@@ -562,6 +563,7 @@ def leetcode_sync(
             if pid is None:  # 标题写法差异（括号/标点/空白）兜底
                 pid = norm_to_id.get(_norm_title(title))
             if pid is None:
+                unmatched_titles.append(title)
                 continue
             lc_id = item.get("id")
             status = "ac" if str(item.get("status_display")) == "Accepted" else "wa"
@@ -692,6 +694,7 @@ def leetcode_sync(
         connection.commit()
         if progress is not None:
             progress("提交记录已写入本地数据库")
+    results["unmatched_titles"] = sorted(set(unmatched_titles))[:50]
     results["sync_errors"] = fetch_errors
     if partial_error_category is not None:
         results["partial"] = True
