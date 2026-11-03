@@ -659,20 +659,21 @@ def leetcode_sync(
         for item in collected:
             synthetic = synthetic_rows.get(int(item["pid"])) if item["status"] == "ac" else None
             if synthetic is not None:
-                # A previous stat_status_pairs fallback had no real timestamp.
-                # Replace it once a real submission arrives; otherwise retain
-                # the earlier factual row and avoid creating a duplicate AC.
-                if str(item["submitted_at"]) < str(synthetic["submitted_at"]):
-                    candidate_lc = item["lc_id"]
-                    if candidate_lc is None or candidate_lc not in existing_lc:
-                        connection.execute(
-                            """UPDATE submissions SET lang = ?, runtime_ms = ?, memory_kb = ?,
-                                      submitted_at = ?, source = 'sync', lc_id = ? WHERE id = ?""",
-                            (item["lang"], item["runtime_ms"], item["memory_kb"],
-                             item["submitted_at"], candidate_lc, synthetic["id"]),
-                        )
-                        if candidate_lc is not None:
-                            existing_lc.add(int(candidate_lc))
+                # synthetic 是 lc_id=None 的占位脏记录（提交时间=某次同步时刻，不可信）。
+                # 遇到任何真实 AC 都直接替换其真实时间/lc_id，不再按时间比较——
+                # 否则较新的真实 AC（如 11-01 > 假时间 09-20）永远写不进，被 continue 丢弃。
+                candidate_lc = item["lc_id"]
+                if candidate_lc is not None and candidate_lc in existing_lc:
+                    connection.execute("DELETE FROM submissions WHERE id = ?", (synthetic["id"],))
+                else:
+                    connection.execute(
+                        """UPDATE submissions SET lang = ?, runtime_ms = ?, memory_kb = ?,
+                                  submitted_at = ?, source = 'sync', lc_id = ? WHERE id = ?""",
+                        (item["lang"], item["runtime_ms"], item["memory_kb"],
+                         item["submitted_at"], candidate_lc, synthetic["id"]),
+                    )
+                    if candidate_lc is not None:
+                        existing_lc.add(int(candidate_lc))
                 synthetic_rows.pop(int(item["pid"]), None)
                 continue
             if item["lc_id"] is not None and item["lc_id"] in existing_lc:
