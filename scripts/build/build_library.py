@@ -504,8 +504,8 @@ html[data-theme="light"]{color-scheme:light;--bg:#f3f5fa;--panel:#fff;--soft:#f7
 .otp a.active{color:var(--brand);background:var(--brand-soft);font-weight:650}
 .otp li.lv3 a{padding-left:20px;font-size:12px}
 .reader pre{position:relative}
-.copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid rgba(233,237,247,.35);border-radius:var(--radius-1);color:#e9edf7;background:rgba(255,255,255,.08);font-size:12px;cursor:pointer;opacity:.72}
-.copy-btn:hover{opacity:1;background:rgba(255,255,255,.16)}
+.copy-btn{position:absolute;top:9px;right:9px;padding:3px 11px;border:1px solid color-mix(in srgb,var(--code-text) 25%,transparent);border-radius:var(--radius-1);color:var(--code-text);background:color-mix(in srgb,var(--code-text) 8%,transparent);font-size:12px;cursor:pointer;opacity:.72}
+.copy-btn:hover{opacity:1;background:color-mix(in srgb,var(--code-text) 16%,transparent)}
 @media(max-width:1150px){.reader-grid.has-otp{grid-template-columns:1fr}.otp{order:-1;position:static;max-height:none}}
 /* ===== P1 微动效 + 提示框 + 表格遮罩（克制原则：只做响应式与单点提示） ===== */
 .read-progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:9990;
