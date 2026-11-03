@@ -1292,7 +1292,7 @@ users = [
     {"name": "Bob", "score": 85},
 ]
 
-users.sort(key=lambda user: user["score"], reverse=True)  # 按分数降序，原地修改
+users.sort(key=lambda user: user["score"], reverse=True)  # users 按分数降序变为 [Ada 91, Bob 85]
 ```
 
 排序是稳定的：key 相等的元素保留原相对顺序。复杂逻辑可定义普通函数替代 lambda。
@@ -1300,7 +1300,7 @@ users.sort(key=lambda user: user["score"], reverse=True)  # 按分数降序，�
 多字段排序让 key 返回元组，元组按顺序比较：
 
 ```python
-users.sort(key=lambda user: (user["department"], user["score"]))  # 先按部门，再按分数升序
+users.sort(key=lambda user: (user["department"], user["score"]))  # 先按部门、再按分数升序，原地排序 users
 ```
 
 若某个字段要降序，通常先升序排次要字段，再对目标字段使用 `reverse=True`；更可控的做法是让 key 返回负数值。
@@ -2129,7 +2129,7 @@ print(request_model("你好", **options))  # demo: 你好 (10s)
 
 ```python
 def add_item(items):
-    items.append("new")  # 原地修改调用者的列表
+    items.append("new")  # values 变为 ['old', 'new']
 
 values = ["old"]
 add_item(values)
@@ -2259,7 +2259,7 @@ print(square(5))  # 25
 常见于短小 key 或回调：
 
 ```python
-users.sort(key=lambda user: user["score"])  # 按分数升序原地排序
+users.sort(key=lambda user: user["score"])  # 按分数升序，原地排序 users
 ```
 
 lambda 不能包含普通赋值、while、try 等语句。逻辑稍复杂、需要注释、类型或复用时，使用 def。
@@ -4901,9 +4901,9 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
     for _ in range(max_steps):
         model_reply = run_agent(messages)[0]
         if "tool_calls" in model_reply:
-            messages.append(model_reply)  # 把模型回复追加进对话历史
+            messages.append(model_reply)  # messages 增加一条 assistant 消息
             for tool_call in model_reply["tool_calls"]:
-                messages.append(execute_tool_call(tool_call))  # 把工具执行结果追加进对话历史
+                messages.append(execute_tool_call(tool_call))  # messages 增加一条 tool 消息
             continue  # 把工具结果交回模型，继续循环
         return model_reply["content"]
     return "达到最大步数，提前结束"
