@@ -599,11 +599,9 @@ def leetcode_sync(
     review_candidate_pids = {
         int(item["pid"])
         for item in collected
-        if item["status"] == "ac" and item["lc_id"] is not None and item["page_offset"] == 0
-    }
-    review_desired_retention = (
-        runtime.get_fsrs_desired_retention() if review_candidate_pids else None
-    )
+        if item["status"] == "ac" and item["lc_id"] is not None
+    } if start_offset == 0 else set()
+    review_desired_retention = runtime.get_fsrs_desired_retention()
     with closing(runtime.connect(db_path)) as connection:
         # Serialize the read/merge/write sequence with the background sync
         # writer.  This also lets us repair an older synthetic AC row in the
@@ -674,6 +672,15 @@ def leetcode_sync(
         # dedicated backfill uses this same idempotent rule across stored ACs.
         from interview_forge.services.study import advance_review_cards_from_leetcode_ac
 
+        # 全量从头同步：按数据库中所有真实 AC（有 lc_id）兜底推进复习卡，覆盖分页未拉全的历史 AC。
+        if full and start_offset == 0:
+            review_candidate_pids = {
+                int(row["problem_id"])
+                for row in connection.execute(
+                    "SELECT DISTINCT problem_id FROM submissions "
+                    "WHERE status = 'ac' AND lc_id IS NOT NULL"
+                ).fetchall()
+            }
         reviews_advanced = (
             advance_review_cards_from_leetcode_ac(
                 connection, review_candidate_pids, float(review_desired_retention)
