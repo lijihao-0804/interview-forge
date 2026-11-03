@@ -351,21 +351,33 @@ def advance_review_cards_from_leetcode_ac(
         ).fetchall()
         if not acs:
             continue
-        # 脏卡清理：复习卡若没有任何对应 review_logs（旧逻辑/迁移遗留），
-        # 其 last_reviewed_at 不可信，会挡住历史 AC 的推进 → 删除后从历史 AC 重建。
+        # 脏卡清理 / 重建判断：
+        #  1) 复习卡若没有任何 review_logs（旧逻辑/迁移遗留）→ 删除后重建；
+        #  2) 卡的全部日志都是 leetcode_ac、但已推进次数(reps)少于该题不同天的 AC 数
+        #     （旧逻辑每题只推进一次）→ 删除后按全部历史 AC 逐次重建，累积 reps/stability。
+        # 含 manual 日志的卡一律保留（手动复习优先，不被自动重建覆盖）。
         card = connection.execute(
-            """SELECT last_reviewed_at FROM review_cards
+            """SELECT last_reviewed_at, reps FROM review_cards
                WHERE target_type = 'problem' AND target_id = ?""",
             (str(problem_id),),
         ).fetchone()
         if card is not None:
-            has_log = connection.execute(
-                "SELECT 1 FROM review_logs WHERE target_type = 'problem' AND target_id = ? LIMIT 1",
+            logs = connection.execute(
+                "SELECT source FROM review_logs WHERE target_type = 'problem' AND target_id = ?",
                 (str(problem_id),),
-            ).fetchone()
-            if has_log is None:
+            ).fetchall()
+            sources = {str(row["source"] or "") for row in logs}
+            distinct_days = len({str(ac["submitted_at"] or "")[:10] for ac in acs})
+            rebuild = (not logs) or (
+                sources == {"leetcode_ac"} and int(card["reps"] or 0) < distinct_days
+            )
+            if rebuild:
                 connection.execute(
                     "DELETE FROM review_cards WHERE target_type = 'problem' AND target_id = ?",
+                    (str(problem_id),),
+                )
+                connection.execute(
+                    "DELETE FROM review_logs WHERE target_type = 'problem' AND target_id = ?",
                     (str(problem_id),),
                 )
                 card = None
