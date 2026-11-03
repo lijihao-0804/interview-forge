@@ -335,55 +335,66 @@ def advance_review_cards_from_leetcode_ac(
     problem_ids: set[int] | list[int] | tuple[int, ...],
     desired_retention: float,
 ) -> int:
-    """Apply one Good review from each problem's latest real Accepted submit."""
+    """按每道题的全部真实 Accepted 提交（不同日期）逐次推进复习卡。
+
+    每次 AC 视为一次「Good」复习（同一自然日多条 AC 只算一次），
+    这样历史多次 AC 的题能累积 reps / stability，due_date 才会正确推后。
+    """
     business_tz = server_runtime.BUSINESS_TZ
     advanced = 0
     for problem_id in sorted({int(value) for value in problem_ids}):
-        latest = connection.execute(
+        acs = connection.execute(
             """SELECT submitted_at FROM submissions
                WHERE problem_id = ? AND status = 'ac' AND lc_id IS NOT NULL
-               ORDER BY submitted_at DESC, lc_id DESC LIMIT 1""",
+               ORDER BY submitted_at ASC, lc_id ASC""",
             (problem_id,),
-        ).fetchone()
-        if latest is None:
+        ).fetchall()
+        if not acs:
             continue
-        latest_at = str(latest["submitted_at"] or "")
+        # 脏卡清理：复习卡若没有任何对应 review_logs（旧逻辑/迁移遗留），
+        # 其 last_reviewed_at 不可信，会挡住历史 AC 的推进 → 删除后从历史 AC 重建。
         card = connection.execute(
             """SELECT last_reviewed_at FROM review_cards
                WHERE target_type = 'problem' AND target_id = ?""",
             (str(problem_id),),
         ).fetchone()
         if card is not None:
-            # 脏卡清理：复习卡若没有任何对应 review_logs（旧逻辑/迁移遗留），
-            # 其 last_reviewed_at 不可信，会挡住真实 AC 的推进 → 删除后按真实 AC 重算。
             has_log = connection.execute(
                 "SELECT 1 FROM review_logs WHERE target_type = 'problem' AND target_id = ? LIMIT 1",
                 (str(problem_id),),
             ).fetchone()
-            if has_log is not None:
-                try:
-                    latest_datetime = datetime.fromisoformat(latest_at)
-                    card_datetime = datetime.fromisoformat(str(card["last_reviewed_at"]))
-                    if latest_datetime.tzinfo is None or latest_datetime.utcoffset() is None:
-                        latest_datetime = latest_datetime.replace(tzinfo=business_tz)
-                    if card_datetime.tzinfo is None or card_datetime.utcoffset() is None:
-                        card_datetime = card_datetime.replace(tzinfo=business_tz)
-                    if latest_datetime.astimezone(business_tz) <= card_datetime.astimezone(business_tz):
-                        continue
-                except (TypeError, ValueError, OverflowError):
-                    # An unparseable historical card timestamp is left intact.
-                    continue
-            else:
+            if has_log is None:
                 connection.execute(
                     "DELETE FROM review_cards WHERE target_type = 'problem' AND target_id = ?",
                     (str(problem_id),),
                 )
-        review_state = _apply_review_rating(
-            connection, "problem", str(problem_id), 3, latest_at,
-            desired_retention=desired_retention, source="leetcode_ac",
-        )
-        if not review_state["already_reviewed_today"]:
-            advanced += 1
+                card = None
+        for ac in acs:
+            submitted_at = str(ac["submitted_at"] or "")
+            if card is not None:
+                try:
+                    ac_dt = datetime.fromisoformat(submitted_at)
+                    card_dt = datetime.fromisoformat(str(card["last_reviewed_at"]))
+                    if ac_dt.tzinfo is None or ac_dt.utcoffset() is None:
+                        ac_dt = ac_dt.replace(tzinfo=business_tz)
+                    if card_dt.tzinfo is None or card_dt.utcoffset() is None:
+                        card_dt = card_dt.replace(tzinfo=business_tz)
+                    if ac_dt.astimezone(business_tz) <= card_dt.astimezone(business_tz):
+                        continue
+                except (TypeError, ValueError, OverflowError):
+                    # An unparseable historical card timestamp is left intact.
+                    continue
+            review_state = _apply_review_rating(
+                connection, "problem", str(problem_id), 3, submitted_at,
+                desired_retention=desired_retention, source="leetcode_ac",
+            )
+            card = connection.execute(
+                """SELECT last_reviewed_at FROM review_cards
+                   WHERE target_type = 'problem' AND target_id = ?""",
+                (str(problem_id),),
+            ).fetchone()
+            if not review_state["already_reviewed_today"]:
+                advanced += 1
     return advanced
 
 

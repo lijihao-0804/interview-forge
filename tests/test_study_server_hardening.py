@@ -182,13 +182,13 @@ class StudyServerHardeningTests(unittest.TestCase):
                    WHERE target_type = 'problem' AND target_id = '1' ORDER BY id"""
             ).fetchall()
 
-        self.assertEqual(advanced, 1)
+        self.assertEqual(advanced, 2)
         self.assertEqual(repeated, 0)
         self.assertEqual(card["last_reviewed_at"], "2026-09-10T12:00:00+08:00")
         self.assertGreater(card["due_date"], "2026-09-10")
         self.assertEqual(
             [(row["rating_name"], row["source"]) for row in logs],
-            [("good", "manual"), ("good", "leetcode_ac")],
+            [("good", "manual"), ("good", "leetcode_ac"), ("good", "leetcode_ac")],
         )
 
     def test_historical_ac_backfill_preserves_same_day_manual_rating(self) -> None:
