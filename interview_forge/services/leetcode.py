@@ -527,7 +527,7 @@ def leetcode_sync(
     partial_error_category: str | None = None
     offset = start_offset
     page = 0
-    max_pages = 50 if full else 1
+    max_pages = 50 if full else 3
     if progress is not None:
         progress("开始拉取提交记录")
     while True:
@@ -581,17 +581,18 @@ def leetcode_sync(
         results["submissions_seen"] = int(results["submissions_seen"]) + len(dump)
         if progress is not None:
             progress(f"第 {page} 页完成，已读取 {results['submissions_seen']} 条")
-        # Incremental mode intentionally reads one newest page.  A provider
-        # reporting older pages does not make this run partial and must not
-        # turn the daily sync into a historical cursor walk.
-        if not payload.get("has_next") or not full:
+        # 增量模式不再只读最新一页：用户一天内提交较多时，较早几天的 AC
+        # （如 11-01 的 238）会被挤出第一页而漏同步。改为最多拉 max_pages(10) 页，
+        # 直到没有下一页或达上限；已同步的 lc_id 会幂等跳过。
+        if not payload.get("has_next"):
             break
         next_offset = offset + len(dump)
         if page >= max_pages:
-            results["next_offset"] = next_offset
-            results["has_more"] = True
-            fetch_errors.append(f"已达分页上限（{max_pages} 页），可继续同步剩余历史记录")
-            partial_error_category = "page_limit"
+            if full:
+                results["next_offset"] = next_offset
+                results["has_more"] = True
+                fetch_errors.append(f"已达分页上限（{max_pages} 页），可继续同步剩余历史记录")
+                partial_error_category = "page_limit"
             break
         time.sleep(0.8)
         offset = next_offset

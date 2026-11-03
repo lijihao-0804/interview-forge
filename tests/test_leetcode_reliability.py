@@ -159,7 +159,8 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
                     return {"submissions_dump": [{"id": 7, "title": "Two Sum", "status_display": "Accepted",
                                                    "is_pending": "Not Pending", "timestamp": "1780000000", "lang": "python3"}],
                             "has_next": True}
-                raise AssertionError(f"incremental sync walked to an old page: {url}")
+                # 增量会多翻几页以覆盖较早几天的提交；第 2 页返回空即停止
+                return {"submissions_dump": [], "has_next": False}
 
             with patch.dict(leetcode.server_runtime._values, {"_fetch_json_with_retry": fake_fetch}):
                 first = leetcode.leetcode_sync({"leetcode_session": "session-secret"}, db_path=db_path, full=False)
@@ -175,8 +176,9 @@ class LeetCodeHTTPReliabilityTests(unittest.TestCase):
         self.assertFalse(second["partial"])
         self.assertIsNone(second["next_offset"])
         submission_urls = [url for url in requested_urls if "submissions" in url]
-        self.assertEqual(len(submission_urls), 2)
-        self.assertTrue(all("offset=0" in url for url in submission_urls))
+        # 增量从最新页(offset=0)开始；第 2 页为空即停。两次同步各从 0 开始。
+        self.assertGreaterEqual(len(submission_urls), 2)
+        self.assertEqual(sum(1 for u in submission_urls if "offset=0" in u), 2)
 
     def test_full_sync_keeps_continuation_offset_after_page_limit(self):
         with tempfile.TemporaryDirectory() as directory:
