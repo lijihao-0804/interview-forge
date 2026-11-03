@@ -87,9 +87,7 @@ python --version
 新建文件 `hello.py`，写入：
 
 ```python
-print("你好，Python")
-# 输出:
-# 你好，Python
+print("你好，Python")  # 你好，Python
 ```
 
 在终端运行：
@@ -148,9 +146,7 @@ python -m pip install numpy pandas        # 数据处理常用
 name = "小明"
 age = 20
 next_age = age + 1
-print(f"{name} 明年 {next_age} 岁")
-# 输出:
-# 小明 明年 21 岁
+print(f"{name} 明年 {next_age} 岁")  # 小明 明年 21 岁
 ```
 
 解释器依次执行：
@@ -171,7 +167,6 @@ print(f"{name} 明年 {next_age} 岁")
 len("Python")
 score >= 60
 name.upper()
-# （代码片段：依赖上文变量 `score`，需结合上下文/前文一起运行）
 ```
 
 语句让程序执行动作，例如赋值、导入、条件、循环和函数定义：
@@ -182,8 +177,6 @@ import math
 
 if total > 0:
     print(total)
-# 输出:
-# 3
 ```
 
 `1 + 2` 是表达式，`total = 1 + 2` 整体是赋值语句。通常一行写一条语句。虽然可以写 `a = 1; b = 2`，但不推荐。
@@ -201,10 +194,7 @@ if score >= 60:
 else:
     result = "未通过"
 
-print(result)
-# 输出:
-# 条件成立
-# 通过
+print(result)  # 通过
 ```
 
 - `if`、`else` 行末的冒号表示接下来开始代码块；
@@ -216,7 +206,6 @@ print(result)
 ```python
 if score < 0:
     pass  # 以后补充错误处理
-# （代码片段：依赖上文变量 `score`，需结合上下文/前文一起运行）
 ```
 
 `pass` 不执行任何动作，只满足“代码块不能为空”的语法要求。
@@ -228,7 +217,6 @@ if score < 0:
 ```python
 # 解释为什么使用较低温度
 temperature = 0.2  # 行尾注释
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 注释应解释原因和约束，不要机械复述代码。
@@ -239,7 +227,6 @@ temperature = 0.2  # 行尾注释
 def add(a: int, b: int) -> int:
     """返回两个整数之和。"""
     return a + b
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 三引号字符串本质仍是字符串，不应普遍代替多行注释。
@@ -254,15 +241,12 @@ model2 = "small"     # 合法
 _private = "内部用"  # 合法
 # 2model = "x"        # 非法
 # class = "x"         # 非法
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ```python
 import keyword
 
 print(keyword.iskeyword("class"))  # True
-# 输出:
-# True
 ```
 
 命名约定：
@@ -292,7 +276,6 @@ total = (
     + 20
     + 30
 )
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 函数参数也可逐行书写：
@@ -303,7 +286,6 @@ response = request_model(
     temperature=0.2,
     max_tokens=512,
 )
-# （代码片段：依赖上文变量 `request_model`，需结合上下文/前文一起运行）
 ```
 
 尾逗号便于追加内容和格式化。行末反斜杠也能续行，但容易因空格出错，优先使用括号。
@@ -343,7 +325,6 @@ import numpy as np
 from pathlib import Path
 
 print(Path(".").resolve())
-# （需安装/联网环境：依赖 numpy；以下为示例代码）
 ```
 
 不确定某个对象支持哪些操作时，可以在 REPL 中用 `dir(obj)` 列出名字、用 `help(obj)` 或 `help(obj.method)` 查看文档：
@@ -351,8 +332,6 @@ print(Path(".").resolve())
 ```python
 text = "hello"
 print("upper" in dir(text))  # True
-# 输出:
-# True
 ```
 
 `help(str.upper)` 会在交互环境中显示该方法的说明。
@@ -362,11 +341,8 @@ print("upper" in dir(text))  # True
 `print()` 默认用空格分隔多个对象，并在末尾换行：
 
 ```python
-print("模型", "开始", 3)
-print("a", "b", "c", sep=",", end="!\n")
-# 输出:
-# 模型 开始 3
-# a,b,c!
+print("模型", "开始", 3)  # 模型 开始 3
+print("a", "b", "c", sep=",", end="!\n")  # a,b,c!
 ```
 
 `input()` 返回值始终是字符串：
@@ -375,7 +351,6 @@ print("a", "b", "c", sep=",", end="!\n")
 raw_age = input("请输入年龄：")
 age = int(raw_age)
 print(f"明年 {age + 1} 岁")
-# （需交互输入；输出取决于你输入的内容）
 ```
 
 即使输入 20，`raw_age` 仍是 `"20"`，需要显式转换。服务端程序通常从 HTTP 请求、配置或文件获得数据。
@@ -385,7 +360,6 @@ print(f"明年 {age + 1} 岁")
 ```python
 count = "3"
 print(count + 1)
-# （示例片段，单独运行不完整：TypeError: can only concatenate str (not "int") to str）
 ```
 
 会得到类似：
@@ -424,9 +398,6 @@ print(type(x))  # <class 'int'>
 
 x = "ten"
 print(type(x))  # <class 'str'>
-# 输出:
-# <class 'int'>
-# <class 'str'>
 ```
 
 名字 `x` 没有被永久声明成整数，它可以重新绑定到字符串。动态类型不等于没有类型：对象始终有类型，类型错误通常在运行到相关代码时出现。
@@ -438,13 +409,9 @@ print(type(x))  # <class 'str'>
 ```python
 value = 42
 
-print(type(value))
-print(isinstance(value, int))
-print(isinstance(value, (int, float)))
-# 输出:
-# <class 'int'>
-# True
-# True
+print(type(value))  # <class 'int'>
+print(isinstance(value, int))  # True
+print(isinstance(value, (int, float)))  # True
 ```
 
 业务代码通常优先使用 `isinstance()`，因为它能够正确处理继承关系。
@@ -456,16 +423,13 @@ print(isinstance(value, (int, float)))
 ```python
 name = "Ada"
 age = 20
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 同时赋值：
 
 ```python
 x, y = 10, 20
-print(x, y)
-# 输出:
-# 10 20
+print(x, y)  # 10 20
 ```
 
 右侧先产生两个值，再按位置解包。数量不匹配会抛出 `ValueError`。
@@ -474,7 +438,6 @@ print(x, y)
 
 ```python
 x, y = y, x
-# （代码片段：依赖上文变量 `y`，需结合上下文/前文一起运行）
 ```
 
 星号收集剩余元素：
@@ -485,10 +448,6 @@ first, *middle, last = [10, 20, 30, 40, 50]
 print(first)   # 10
 print(middle)  # [20, 30, 40]
 print(last)    # 50
-# 输出:
-# 10
-# [20, 30, 40]
-# 50
 ```
 
 连续赋值让多个名字指向同一个对象：
@@ -497,8 +456,6 @@ print(last)    # 50
 a = b = []
 a.append(1)
 print(b)  # [1]
-# 输出:
-# [1]
 ```
 
 若希望两个独立列表，应分别创建：
@@ -506,7 +463,6 @@ print(b)  # [1]
 ```python
 a = []
 b = []
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 2.3 常见基本类型
@@ -531,7 +487,6 @@ large = 10**100
 binary = 0b1010   # 二进制，等于 10
 octal = 0o12      # 八进制，等于 10
 hex_value = 0xFF  # 十六进制，等于 255
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 数字中的下划线只为提高可读性：
@@ -539,7 +494,6 @@ hex_value = 0xFF  # 十六进制，等于 255
 ```python
 population = 1_400_000_000
 token_limit = 128_000
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 Python 整数通常没有固定 32 位或 64 位上限，只受可用内存约束。
@@ -549,16 +503,12 @@ Python 整数通常没有固定 32 位或 64 位上限，只受可用内存约�
 ```python
 temperature = 0.7
 scientific = 1.5e3  # 1500.0
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 许多十进制小数无法用二进制浮点数精确表示：
 
 ```python
-print(0.1 + 0.2)
-# 0.30000000000000004
-# 输出:
-# 0.30000000000000004
+print(0.1 + 0.2)  # 0.30000000000000004
 ```
 
 比较计算结果时使用容差：
@@ -567,8 +517,6 @@ print(0.1 + 0.2)
 import math
 
 print(math.isclose(0.1 + 0.2, 0.3))  # True
-# 输出:
-# True
 ```
 
 金融等需要精确十进制的场景可用 `Decimal`，并从字符串构造：
@@ -579,8 +527,6 @@ from decimal import Decimal
 price = Decimal("0.1")
 tax = Decimal("0.2")
 print(price + tax)  # 0.3
-# 输出:
-# 0.3
 ```
 
 AI 张量计算中的微小浮点误差很常见，不应假定不同硬件和并行顺序得到逐位完全相同的结果。
@@ -593,10 +539,6 @@ import math
 print(math.isfinite(1.0))       # True
 print(math.isnan(float("nan")))  # True
 print(math.isinf(float("inf")))  # True
-# 输出:
-# True
-# True
-# True
 ```
 
 NaN 有一个容易踩的规则：`nan == nan` 为 False，所以不要用 `==` 判断 NaN，要用 `math.isnan()`。另外 `float("nan")` 会成功而不是报错，外部数据转 float 后应检查业务上是否允许 NaN，避免把缺失值当作普通数字继续计算。
@@ -608,8 +550,6 @@ NaN 有一个容易踩的规则：`nan == nan` 为 False，所以不要用 `==` 
 ```python
 is_ready = 3 > 1
 print(is_ready)  # True
-# 输出:
-# True
 ```
 
 `None` 表示“没有值”或“尚无结果”，它不是空字符串、0 或 False：
@@ -619,8 +559,6 @@ result = None
 
 if result is None:
     print("暂时没有结果")
-# 输出:
-# 暂时没有结果
 ```
 
 判断 None 使用 `is None` 或 `is not None`。函数没有显式 `return` 时返回 None：
@@ -631,9 +569,6 @@ def log_message(message):
 
 returned = log_message("hello")
 print(returned)  # None
-# 输出:
-# hello
-# None
 ```
 
 ### 2.7 算术运算符
@@ -653,9 +588,6 @@ print(returned)  # None
 ```python
 print(-7 // 2)  # -4
 print(-7 % 2)   # 1
-# 输出:
-# -4
-# 1
 ```
 
 同时获得商和余数：
@@ -663,8 +595,6 @@ print(-7 % 2)   # 1
 ```python
 quotient, remainder = divmod(17, 5)
 print(quotient, remainder)  # 3 2
-# 输出:
-# 3 2
 ```
 
 增强赋值：
@@ -673,7 +603,6 @@ print(quotient, remainder)  # 3 2
 count = 10
 count += 1
 count *= 2
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `count += 1` 通常相当于 `count = count + 1`。但列表的 `+=` 可能原地修改对象，涉及共享引用时要特别注意。
@@ -687,13 +616,6 @@ print(pow(2, 10))       # 1024
 print(min(3, 1, 2))     # 1
 print(max([3, 1, 2]))   # 3
 print(sum([3, 1, 2]))   # 6
-# 输出:
-# 5
-# 3.14
-# 1024
-# 1
-# 3
-# 6
 ```
 
 `round()` 采用银行家舍入等二进制浮点规则，不要用它代替 `Decimal` 做金融精度计算。
@@ -709,7 +631,6 @@ a < b
 a <= b
 a > b
 a >= b
-# （代码片段：依赖上文变量 `a`，需结合上下文/前文一起运行）
 ```
 
 链式比较：
@@ -717,8 +638,6 @@ a >= b
 ```python
 temperature = 0.7
 print(0 <= temperature <= 2)  # True
-# 输出:
-# True
 ```
 
 它相当于两个比较通过 `and` 连接，但中间表达式只求值一次。
@@ -729,10 +648,6 @@ print(0 <= temperature <= 2)  # True
 print("py" in "python")           # True
 print("model" in {"model": "x"})  # True，字典默认检查键
 print(5 not in [1, 2, 3])         # True
-# 输出:
-# True
-# True
-# True
 ```
 
 ### 2.9 `==` 与 `is`
@@ -748,10 +663,6 @@ c = a
 print(a == b)  # True
 print(a is b)  # False
 print(a is c)  # True
-# 输出:
-# True
-# False
-# True
 ```
 
 不要用 `is` 比较普通整数和字符串。解释器可能复用某些小对象，但这是实现细节。除 `is None` 等单例判断外，值比较使用 `==`。
@@ -764,7 +675,6 @@ print(a is c)  # True
 age = 20
 has_ticket = True
 can_enter = age >= 18 and has_ticket
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 它们会短路：
@@ -774,7 +684,6 @@ user = None
 
 if user is not None and user.is_active:
     print("有效用户")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 左边为 False 后，右边不再执行，因此不会访问 `None.is_active`。
@@ -788,9 +697,6 @@ print(display_name)  # 匿名用户
 config = {"timeout": 30}
 timeout = config and config["timeout"]
 print(timeout)  # 30
-# 输出:
-# 匿名用户
-# 30
 ```
 
 当 0 或空字符串本身是合法值时，不要滥用这种默认值写法。
@@ -813,8 +719,6 @@ items = []
 
 if not items:
     print("列表为空")
-# 输出:
-# 列表为空
 ```
 
 “未提供”和“提供了空值”有时不同：
@@ -826,8 +730,6 @@ if value is None:
     print("没有提供")
 else:
     print("已经提供，即使是空字符串")
-# 输出:
-# 已经提供，即使是空字符串
 ```
 
 ### 2.12 类型转换
@@ -839,7 +741,6 @@ text = str(123)
 enabled = bool(1)
 numbers = list((1, 2, 3))
 unique = set([1, 1, 2])
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 非法转换会抛出异常：
@@ -847,7 +748,6 @@ unique = set([1, 1, 2])
 ```python
 # int("3.14")  # ValueError
 # int("abc")   # ValueError
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 指定进制：
@@ -855,17 +755,12 @@ unique = set([1, 1, 2])
 ```python
 print(int("1010", 2))  # 10
 print(int("ff", 16))   # 255
-# 输出:
-# 10
-# 255
 ```
 
 特别注意：
 
 ```python
 print(bool("False"))  # True
-# 输出:
-# True
 ```
 
 任何非空字符串都为真。解析配置字符串应显式判断：
@@ -873,7 +768,6 @@ print(bool("False"))  # True
 ```python
 raw = "false"
 enabled = raw.strip().lower() in {"1", "true", "yes", "on"}
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 2.13 可变与不可变
@@ -888,9 +782,6 @@ new_text = text.upper()
 
 print(text)      # hello
 print(new_text)  # HELLO
-# 输出:
-# hello
-# HELLO
 ```
 
 字符串方法返回新对象，原字符串不变。
@@ -899,8 +790,6 @@ print(new_text)  # HELLO
 items = [1, 2]
 items.append(3)
 print(items)  # [1, 2, 3]
-# 输出:
-# [1, 2, 3]
 ```
 
 列表可以原地改变。
@@ -914,9 +803,6 @@ b.append(3)
 
 print(a)       # [1, 2, 3]
 print(a is b)  # True
-# 输出:
-# [1, 2, 3]
-# True
 ```
 
 `b = a` 没有复制列表，只增加一个指向同一对象的名字。
@@ -934,9 +820,6 @@ shallow[1].append("c")
 
 print(original)  # [1, ['a', 'b', 'c']]
 print(shallow)   # [99, ['a', 'b', 'c']]
-# 输出:
-# [1, ['a', 'b', 'c']]
-# [99, ['a', 'b', 'c']]
 ```
 
 常见浅复制写法：
@@ -945,7 +828,6 @@ print(shallow)   # [99, ['a', 'b', 'c']]
 copy1 = original.copy()
 copy2 = list(original)
 copy3 = original[:]
-# （代码片段：依赖上文变量 `original`，需结合上下文/前文一起运行）
 ```
 
 深复制递归复制嵌套对象：
@@ -959,9 +841,6 @@ deep[1].append("c")
 
 print(original)  # [1, ['a', 'b']]
 print(deep)      # [1, ['a', 'b', 'c']]
-# 输出:
-# [1, ['a', 'b']]
-# [1, ['a', 'b', 'c']]
 ```
 
 深复制大型模型、数组、连接和锁可能昂贵或不合理。NumPy 使用 `array.copy()`，PyTorch 张量常使用 `tensor.clone()`。
@@ -974,8 +853,6 @@ alias = value
 del value
 
 print(alias)  # 对象仍存在
-# 输出:
-# [1, 2, 3]
 ```
 
 `del value` 删除名字绑定，不保证对象立刻销毁，因为 `alias` 仍引用它。`del items[0]` 则从列表中删除一个元素；`del mapping["key"]` 删除字典键。
@@ -993,7 +870,6 @@ print(alias)  # 对象仍存在
 ```python
 message1 = '他说："你好"'
 message2 = "I'm learning Python"
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 三引号字符串可以跨多行：
@@ -1002,7 +878,6 @@ message2 = "I'm learning Python"
 prompt = """你是一个代码助手。
 请解释下面的 Python 代码。
 回答要简洁。"""
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 换行会成为内容的一部分。若只想让源码分行、运行时不换行，可利用括号内相邻字符串自动拼接：
@@ -1013,7 +888,6 @@ message = (
     "源码中分成多行，"
     "运行时仍是连续字符串。"
 )
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 3.2 转义字符与 `repr()`
@@ -1032,12 +906,8 @@ message = (
 
 ```python
 text = "第一行\n第二行"
-print(text)
-print(repr(text))
-# 输出:
-# 第一行
-# 第二行
-# '第一行\n第二行'
+print(text)  # 第一行 / 第二行
+print(repr(text))  # '第一行\n第二行'
 ```
 
 `print()` 显示真实换行，`repr()` 显示适合调试的表示，例如 `'第一行\n第二行'`。
@@ -1049,7 +919,6 @@ print(repr(text))
 ```python
 windows_path = r"C:\new_folder\test.txt"
 pattern = r"\d+\.\d+"
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 常用于 Windows 路径和正则表达式。原始字符串不能以单个反斜杠结尾。路径处理更推荐 `pathlib.Path`。
@@ -1064,12 +933,6 @@ print(word[0])    # P
 print(word[1])    # y
 print(word[-1])   # n
 print(word[-2])   # o
-# 输出:
-# 6
-# P
-# y
-# n
-# o
 ```
 
 索引从 0 开始，负索引从末尾开始。越界索引抛出 `IndexError`。
@@ -1079,7 +942,6 @@ print(word[-2])   # o
 ```python
 new_word = "J" + word[1:]
 print(new_word)  # Jython
-# （代码片段：依赖上文变量 `word`，需结合上下文/前文一起运行）
 ```
 
 ### 3.5 切片 `[start:stop:step]`
@@ -1095,13 +957,6 @@ print(word[:4])    # Pyth
 print(word[:])     # Python
 print(word[::2])   # Pto
 print(word[::-1])  # nohtyP
-# 输出:
-# Py
-# thon
-# Pyth
-# Python
-# Pto
-# nohtyP
 ```
 
 省略起点表示从头开始，省略终点表示到末尾，省略步长表示 1。切片越界通常不报错，而是返回可取得的部分。
@@ -1117,13 +972,6 @@ print(text.find("Python"))      # 起始下标
 print(text.find("Java"))        # -1
 print(text.count("o"))          # 2
 print("Python" in text)         # True
-# 输出:
-# True
-# True
-# 9
-# -1
-# 2
-# True
 ```
 
 `find()` 找不到返回 -1；`index()` 找不到抛出 `ValueError`。只判断是否包含时，使用 `in` 最清晰。
@@ -1139,15 +987,10 @@ clean = text.strip()
 lower = clean.lower()
 upper = clean.upper()
 
-print(clean)
-print(lower)
-print(upper)
+print(clean)  # Hello, Python
+print(lower)  # hello, python
+print(upper)  # HELLO, PYTHON
 print(text)  # 原字符串没变
-# 输出:
-# Hello, Python
-# hello, python
-# HELLO, PYTHON
-#   Hello, Python
 ```
 
 - `strip()` 只处理两端空白，不删除中间空格；
@@ -1160,20 +1003,13 @@ print(text)  # 原字符串没变
 print("hello world".title())      # Hello World
 print("hello".capitalize())       # Hello
 print("a\nb".splitlines())        # ['a', 'b']
-# 输出:
-# Hello World
-# Hello
-# ['a', 'b']
 ```
 
 `strip(chars)` 参数是字符集合，不是完整前后缀。移除确定前后缀使用：
 
 ```python
-print("report.json".removesuffix(".json"))
-print("https://example.com".removeprefix("https://"))
-# 输出:
-# report
-# example.com
+print("report.json".removesuffix(".json"))  # report
+print("https://example.com".removeprefix("https://"))  # example.com
 ```
 
 ### 3.8 拆分和连接
@@ -1181,50 +1017,39 @@ print("https://example.com".removeprefix("https://"))
 ```python
 line = "model,temperature,max_tokens"
 fields = line.split(",")
-print(fields)
-# 输出:
-# ['model', 'temperature', 'max_tokens']
+print(fields)  # ['model', 'temperature', 'max_tokens']
 ```
 
 不传分隔符时，`split()` 按连续空白拆分：
 
 ```python
-print("  one   two\nthree ".split())
-# ['one', 'two', 'three']
-# 输出:
-# ['one', 'two', 'three']
+print("  one   two\nthree ".split())  # ['one', 'two', 'three']
 ```
 
 限制拆分次数：
 
 ```python
 key, value = "model=gpt=demo".split("=", maxsplit=1)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `partition()` 始终返回前部、分隔符、后部：
 
 ```python
 before, sep, after = "name=Ada".partition("=")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 连接字符串由分隔符调用 `join()`：
 
 ```python
 parts = ["模型", "正在", "生成"]
-print(" ".join(parts))
-# 输出:
-# 模型 正在 生成
+print(" ".join(parts))  # 模型 正在 生成
 ```
 
 元素必须全是字符串：
 
 ```python
 numbers = [1, 2, 3]
-print(",".join(str(n) for n in numbers))
-# 输出:
-# 1,2,3
+print(",".join(str(n) for n in numbers))  # 1,2,3
 ```
 
 大量文本应先收集再 `join()`，避免循环中反复创建临时字符串。
@@ -1234,17 +1059,11 @@ print(",".join(str(n) for n in numbers))
 ```python
 text = "Python is good. Python is readable."
 
-print(text.replace("Python", "Python 3", 1))
+print(text.replace("Python", "Python 3", 1))  # Python 3 is good. Python is readable.
 print("123".isdigit())       # True
 print("abc".isalpha())       # True
 print("abc123".isalnum())    # True
 print("   ".isspace())       # True
-# 输出:
-# Python 3 is good. Python is readable.
-# True
-# True
-# True
-# True
 ```
 
 `replace()` 的第三个参数限制替换次数。字符判断适合简单检查，真实日期、金额和 API 数据需要严格解析与校验。
@@ -1256,9 +1075,7 @@ model = "demo-model"
 tokens = 1234
 cost = 0.05678
 
-print(f"模型={model}, tokens={tokens:,}, cost=${cost:.3f}")
-# 输出:
-# 模型=demo-model, tokens=1,234, cost=$0.057
+print(f"模型={model}, tokens={tokens:,}, cost=${cost:.3f}")  # 模型=demo-model, tokens=1,234, cost=$0.057
 ```
 
 常用格式：
@@ -1277,9 +1094,7 @@ print(f"模型={model}, tokens={tokens:,}, cost=${cost:.3f}")
 
 ```python
 items = [10, 20, 30]
-print(f"数量={len(items)}, 总和={sum(items)}")
-# 输出:
-# 数量=3, 总和=60
+print(f"数量={len(items)}, 总和={sum(items)}")  # 数量=3, 总和=60
 ```
 
 f-string 里使用字典下标时，内层引号不能与外层相同，否则会提前结束字符串：
@@ -1288,17 +1103,13 @@ f-string 里使用字典下标时，内层引号不能与外层相同，否则�
 record = {"name": "Ada"}
 print(f"{record['name']}")   # 正确：内层用单引号
 # print(f"{record["name"]}")  # 语法错误
-# 输出:
-# Ada
 ```
 
 字面量花括号写成 `{{` 和 `}}`。`!r` 使用 `repr()`，适合调试隐藏字符：
 
 ```python
 name = " Ada\n"
-print(f"{name!r}")
-# 输出:
-# ' Ada\n'
+print(f"{name!r}")  # ' Ada\n'
 ```
 
 ### 3.11 `str` 与 `bytes`
@@ -1312,15 +1123,10 @@ print(f"{name!r}")
 text = "你好"
 data = text.encode("utf-8")
 
-print(data)
-print(data.decode("utf-8"))
+print(data)  # b'\xe4\xbd\xa0\xe5\xa5\xbd'
+print(data.decode("utf-8"))  # 你好
 print(len(text))  # 2 个字符
 print(len(data))  # 6 个字节
-# 输出:
-# b'\xe4\xbd\xa0\xe5\xa5\xbd'
-# 你好
-# 2
-# 6
 ```
 
 网络、图片和压缩文件底层使用 bytes，JSON 和业务文本通常使用 str。编码不一致会产生 `UnicodeDecodeError` 或乱码。
@@ -1331,7 +1137,6 @@ print(len(data))  # 6 个字节
 from pathlib import Path
 
 text = Path("data.txt").read_text(encoding="utf-8")
-# （示例片段，单独运行不完整：FileNotFoundError: [Errno 2] No such file or directory: 'dat）
 ```
 
 ### 3.12 常见错误
@@ -1371,7 +1176,6 @@ empty = []
 numbers = [10, 20, 30]
 mixed = [1, "hello", True]  # 语法允许，但业务数据通常保持同类
 chars = list("abc")         # ['a', 'b', 'c']
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 列表按插入顺序保存元素，元素可重复。
@@ -1385,13 +1189,7 @@ print(models[0])     # small
 print(models[-1])    # large
 print(models[1:])    # ['medium', 'large']
 print(len(models))   # 3
-print("small" in models)
-# 输出:
-# small
-# large
-# ['medium', 'large']
-# 3
-# True
+print("small" in models)  # True
 ```
 
 索引越界会抛出 `IndexError`，切片越界通常不会。
@@ -1402,8 +1200,6 @@ print("small" in models)
 numbers = [10, 20, 30]
 numbers[1] = 99
 print(numbers)  # [10, 99, 30]
-# 输出:
-# [10, 99, 30]
 ```
 
 切片赋值可以替换任意数量的元素：
@@ -1411,7 +1207,6 @@ print(numbers)  # [10, 99, 30]
 ```python
 numbers[1:2] = [40, 50]
 print(numbers)  # [10, 40, 50, 30]
-# （代码片段：依赖上文变量 `numbers`，需结合上下文/前文一起运行）
 ```
 
 这是原地修改原列表，不会创建新列表绑定给变量。
@@ -1423,7 +1218,6 @@ items = ["a"]
 items.append("b")          # 把一个对象作为一个元素加入
 items.extend(["c", "d"])   # 逐个加入可迭代对象中的元素
 items.insert(1, "x")       # 在下标 1 前插入
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `append()` 与 `extend()` 的区别：
@@ -1436,9 +1230,6 @@ print(a)  # [1, 2, [3, 4]]
 b = [1, 2]
 b.extend([3, 4])
 print(b)  # [1, 2, 3, 4]
-# 输出:
-# [1, 2, [3, 4]]
-# [1, 2, 3, 4]
 ```
 
 这些方法原地修改列表，返回值是 None：
@@ -1449,9 +1240,6 @@ result = items.append(3)
 
 print(result)  # None
 print(items)   # [1, 2, 3]
-# 输出:
-# None
-# [1, 2, 3]
 ```
 
 因此不要写 `items = items.append(3)`，否则 items 会变成 None。
@@ -1466,7 +1254,6 @@ last = items.pop()  # 删除并返回最后一个
 first = items.pop(0)
 del items[0]        # 按下标删除
 items.clear()       # 清空
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 频繁从列表头部 `pop(0)` 需要移动后续元素，效率较低。队列应使用 `collections.deque`。
@@ -1478,9 +1265,6 @@ items = ["a", "b", "a"]
 
 print(items.count("a"))  # 2
 print(items.index("b"))  # 1
-# 输出:
-# 2
-# 1
 ```
 
 `index()` 找不到会抛 `ValueError`。只判断存在性使用 `in`。
@@ -1498,10 +1282,6 @@ print(new_numbers)  # [1, 2, 3]
 
 numbers.sort(reverse=True)
 print(numbers)      # [3, 2, 1]
-# 输出:
-# [3, 1, 2]
-# [1, 2, 3]
-# [3, 2, 1]
 ```
 
 按字段排序：
@@ -1513,7 +1293,6 @@ users = [
 ]
 
 users.sort(key=lambda user: user["score"], reverse=True)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 排序是稳定的：key 相等的元素保留原相对顺序。复杂逻辑可定义普通函数替代 lambda。
@@ -1522,7 +1301,6 @@ users.sort(key=lambda user: user["score"], reverse=True)
 
 ```python
 users.sort(key=lambda user: (user["department"], user["score"]))
-# （代码片段：依赖上文变量 `users`，需结合上下文/前文一起运行）
 ```
 
 若某个字段要降序，通常先升序排次要字段，再对目标字段使用 `reverse=True`；更可控的做法是让 key 返回负数值。
@@ -1530,11 +1308,8 @@ users.sort(key=lambda user: (user["department"], user["score"]))
 #### 4.1.7 `+`、`*` 与嵌套列表陷阱
 
 ```python
-print([1, 2] + [3, 4])
-print(["a"] * 3)
-# 输出:
-# [1, 2, 3, 4]
-# ['a', 'a', 'a']
+print([1, 2] + [3, 4])  # [1, 2, 3, 4]
+print(["a"] * 3)  # ['a', 'a', 'a']
 ```
 
 创建二维列表时不要写：
@@ -1543,15 +1318,12 @@ print(["a"] * 3)
 bad_grid = [[0] * 3] * 2
 bad_grid[0][0] = 1
 print(bad_grid)  # 两行都被修改
-# 输出:
-# [[1, 0, 0], [1, 0, 0]]
 ```
 
 两个外层元素引用同一个内层列表。正确写法：
 
 ```python
 grid = [[0] * 3 for _ in range(2)]
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 4.2 `tuple`：有序、不可变、允许重复
@@ -1561,14 +1333,12 @@ point = (10, 20)
 shape = (32, 3, 224, 224)
 empty = ()
 single = (1,)  # 单元素元组必须有逗号
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 括号常可省略，逗号才是形成元组的关键：
 
 ```python
 pair = 10, 20
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 元组支持索引、切片、`len()`、`count()`、`index()`，但不能修改元素。
@@ -1577,21 +1347,18 @@ pair = 10, 20
 
 ```python
 batch, channels, height, width = shape
-# （代码片段：依赖上文变量 `shape`，需结合上下文/前文一起运行）
 ```
 
 忽略不关心的值通常用 `_`：
 
 ```python
 name, _, score = ("Ada", 20, 95)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 扩展解包：
 
 ```python
 first, *rest = (1, 2, 3, 4)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 元组本身不可变，但若内部包含列表，该列表仍可变：
@@ -1599,7 +1366,6 @@ first, *rest = (1, 2, 3, 4)
 ```python
 record = (1, ["a"])
 record[1].append("b")  # 合法
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 元组适合固定结构、函数返回多个值和字典键，但业务字段多时 dataclass 或命名结构更清晰。
@@ -1618,7 +1384,6 @@ config = {
 empty = {}
 from_pairs = dict([("a", 1), ("b", 2)])
 from_keywords = dict(timeout=30, retries=2)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 键必须可哈希且保持稳定，例如 str、int、tuple；list、dict、set 不能作键。
@@ -1629,7 +1394,6 @@ from_keywords = dict(timeout=30, retries=2)
 print(config["model"])
 print(config.get("timeout"))
 print(config.get("timeout", 30))
-# （代码片段：依赖上文变量 `config`，需结合上下文/前文一起运行）
 ```
 
 - `mapping[key]` 不存在时抛 `KeyError`；
@@ -1641,7 +1405,6 @@ print(config.get("timeout", 30))
 ```python
 if "timeout" in config:
     print(config["timeout"])
-# （代码片段：依赖上文变量 `config`，需结合上下文/前文一起运行）
 ```
 
 #### 4.3.2 新增与更新
@@ -1650,7 +1413,6 @@ if "timeout" in config:
 config["timeout"] = 30
 config["temperature"] = 0.1
 config.update({"retries": 2, "timeout": 60})
-# （代码片段：依赖上文变量 `config`，需结合上下文/前文一起运行）
 ```
 
 `setdefault()` 在键不存在时写入默认值，并返回最终值：
@@ -1658,7 +1420,6 @@ config.update({"retries": 2, "timeout": 60})
 ```python
 groups = {}
 groups.setdefault("python", []).append("Ada")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 简单场景可用，但批量分组更适合 `collections.defaultdict`。
@@ -1670,7 +1431,6 @@ timeout = config.pop("timeout", 30)  # 删除并返回，可给默认值
 key, value = config.popitem()        # 删除并返回最后插入项
 del config["model"]                  # 不存在时抛 KeyError
 config.clear()
-# （代码片段：依赖上文变量 `config`，需结合上下文/前文一起运行）
 ```
 
 #### 4.3.4 遍历
@@ -1686,13 +1446,6 @@ for value in config.values():
 
 for key, value in config.items():
     print(key, value)
-# 输出:
-# model
-# timeout
-# demo
-# 30
-# model demo
-# timeout 30
 ```
 
 遍历过程中不要改变字典大小，否则可能抛 `RuntimeError`。若确实要删除，可先遍历 `list(config)` 或构造新字典。
@@ -1709,8 +1462,6 @@ override = {"timeout": 60}
 
 final = base | override
 print(final)  # timeout 为 60
-# 输出:
-# {'timeout': 60, 'retries': 2}
 ```
 
 后面的字典覆盖前面相同键。原字典不变。`base |= override` 会原地更新 base。
@@ -1723,7 +1474,6 @@ print(final)  # timeout 为 60
 empty = set()        # {} 是空字典，不是空集合
 values = {1, 2, 3}
 unique = set([1, 1, 2, 3])
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 集合不保证业务上可依赖的顺序。元素必须可哈希。
@@ -1737,7 +1487,6 @@ values.remove(2)   # 不存在抛 KeyError
 values.discard(9)  # 不存在也不报错
 item = values.pop()
 values.clear()
-# （代码片段：依赖上文变量 `values`，需结合上下文/前文一起运行）
 ```
 
 集合运算：
@@ -1752,15 +1501,7 @@ print(a - b)  # 差集
 print(a ^ b)  # 对称差
 print({"read"} <= a)  # 是否为子集
 print(a >= {"read"})  # 是否为超集
-print(a.isdisjoint({"admin"}))
-# 输出:
-# {'write', 'read', 'search'}
-# {'read'}
-# {'write'}
-# {'write', 'search'}
-# True
-# True
-# True
+print(a.isdisjoint({"admin"}))  # True
 ```
 
 成员测试通常比列表快，适合权限、去重、黑白名单。但若需要保留原顺序，不能简单转 set 后再转回 list，可使用：
@@ -1768,7 +1509,6 @@ print(a.isdisjoint({"admin"}))
 ```python
 items = ["a", "b", "a", "c"]
 unique_in_order = list(dict.fromkeys(items))
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 不可变集合 `frozenset` 可作为字典键或放进另一个集合。
@@ -1785,7 +1525,6 @@ response = {
 }
 
 content = response["choices"][0]["message"]["content"]
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 每一层都可能缺失时，不要写过长的链式索引并假设结构永远正确。对外部 API 应使用 Pydantic、TypedDict 或显式校验。
@@ -1795,21 +1534,13 @@ content = response["choices"][0]["message"]["content"]
 ```python
 numbers = [3, 1, 4]
 
-print(len(numbers))
-print(min(numbers))
-print(max(numbers))
-print(sum(numbers))
-print(any([False, True, False]))
-print(all([True, True]))
-print(sorted(numbers))
-# 输出:
-# 3
-# 1
-# 4
-# 8
-# True
-# True
-# [1, 3, 4]
+print(len(numbers))  # 3
+print(min(numbers))  # 1
+print(max(numbers))  # 4
+print(sum(numbers))  # 8
+print(any([False, True, False]))  # True
+print(all([True, True]))  # True
+print(sorted(numbers))  # [1, 3, 4]
 ```
 
 - `any()`：至少一个元素真则为 True；
@@ -1823,9 +1554,6 @@ print(sorted(numbers))
 words = ["a", "ccc", "bb"]
 print(min(words, key=len))  # a
 print(max(words, key=len))  # ccc
-# 输出:
-# a
-# ccc
 ```
 
 ### 4.7 怎样选择容器
@@ -1867,9 +1595,7 @@ elif status == 429:
 else:
     action = "记录错误"
 
-print(action)
-# 输出:
-# 限流后重试
+print(action)  # 限流后重试
 ```
 
 解释器从上到下检查条件，遇到第一个为 True 的分支后执行该代码块，并跳过后续分支。`elif` 可以有多个，`else` 可省略。
@@ -1882,8 +1608,6 @@ has_permission = True
 
 if age >= 18 and has_permission:
     print("允许访问")
-# 输出:
-# 允许访问
 ```
 
 复杂条件建议拆成有意义的布尔变量：
@@ -1894,7 +1618,6 @@ can_access = is_adult and has_permission
 
 if can_access:
     print("允许访问")
-# （代码片段：依赖上文变量 `age`，需结合上下文/前文一起运行）
 ```
 
 ### 5.2 真值条件与显式比较
@@ -1904,8 +1627,6 @@ items = []
 
 if not items:
     print("没有数据")
-# 输出:
-# 没有数据
 ```
 
 这比 `if len(items) == 0` 更符合 Python 风格。
@@ -1919,8 +1640,6 @@ if timeout is None:
     print("没有配置")
 elif timeout == 0:
     print("不等待")
-# 输出:
-# 不等待
 ```
 
 ### 5.3 条件表达式（三元表达式）
@@ -1929,7 +1648,6 @@ elif timeout == 0:
 
 ```python
 status_text = "通过" if score >= 60 else "未通过"
-# （代码片段：依赖上文变量 `score`，需结合上下文/前文一起运行）
 ```
 
 阅读顺序是“成立时的值 if 条件 else 不成立时的值”。只适合短小表达式，复杂分支使用普通 if。
@@ -1943,8 +1661,6 @@ text = "hello"
 
 if (length := len(text)) > 3:
     print(f"长度为 {length}")
-# 输出:
-# 长度为 5
 ```
 
 它能避免重复计算，但过度使用会降低可读性。普通赋值 `=` 不能直接写在 if 条件中。
@@ -1954,10 +1670,6 @@ if (length := len(text)) > 3:
 ```python
 for name in ["Ada", "Bob", "Cindy"]:
     print(name)
-# 输出:
-# Ada
-# Bob
-# Cindy
 ```
 
 每轮把下一个元素绑定给 `name`。循环结束后，`name` 在当前作用域中通常仍存在并保留最后一个值，因此不要依赖循环变量作为临时私有变量。
@@ -1971,11 +1683,6 @@ for char in "AI":
 config = {"model": "demo", "timeout": 30}
 for key, value in config.items():
     print(key, value)
-# 输出:
-# A
-# I
-# model demo
-# timeout 30
 ```
 
 ### 5.6 `range()`
@@ -1985,11 +1692,6 @@ print(list(range(5)))         # 0,1,2,3,4
 print(list(range(2, 5)))      # 2,3,4
 print(list(range(2, 10, 2)))  # 2,4,6,8
 print(list(range(5, 0, -1)))  # 5,4,3,2,1
-# 输出:
-# [0, 1, 2, 3, 4]
-# [2, 3, 4]
-# [2, 4, 6, 8]
-# [5, 4, 3, 2, 1]
 ```
 
 规则与切片类似：包含 start，不包含 stop。`range` 是惰性序列，不会提前创建所有整数。
@@ -1999,10 +1701,6 @@ print(list(range(5, 0, -1)))  # 5,4,3,2,1
 ```python
 for _ in range(3):
     print("重试")
-# 输出:
-# 重试
-# 重试
-# 重试
 ```
 
 不要用 `for i in range(len(items))` 仅仅为了读取元素，直接遍历更清晰。需要索引时用 enumerate。
@@ -2014,9 +1712,6 @@ names = ["Ada", "Bob"]
 
 for index, name in enumerate(names, start=1):
     print(index, name)
-# 输出:
-# 1 Ada
-# 2 Bob
 ```
 
 `start=1` 只改变输出编号，不改变列表真实下标。比手工维护 `index += 1` 更安全。
@@ -2029,10 +1724,6 @@ scores = [0.91, 0.85, 0.93]
 
 for name, score in zip(names, scores):
     print(name, score)
-# 输出:
-# A 0.91
-# B 0.85
-# C 0.93
 ```
 
 `zip()` 默认在最短输入结束，可能悄悄丢弃多余元素。长度必须一致时使用：
@@ -2040,7 +1731,6 @@ for name, score in zip(names, scores):
 ```python
 for name, score in zip(names, scores, strict=True):
     print(name, score)
-# （代码片段：依赖上文变量 `names`，需结合上下文/前文一起运行）
 ```
 
 长度不一致会抛 `ValueError`。解压一组二元数据：
@@ -2048,7 +1738,6 @@ for name, score in zip(names, scores, strict=True):
 ```python
 pairs = [("A", 1), ("B", 2)]
 names, values = zip(*pairs)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 5.9 `while` 循环
@@ -2061,10 +1750,6 @@ attempt = 0
 while attempt < 3:
     attempt += 1
     print("第", attempt, "次")
-# 输出:
-# 第 1 次
-# 第 2 次
-# 第 3 次
 ```
 
 适合“不知道具体次数、直到条件满足”的任务，例如轮询状态。必须确保条件最终可能变为 False，否则会无限循环。
@@ -2074,7 +1759,6 @@ while True:
     command = input("输入 quit 退出：")
     if command == "quit":
         break
-# （需交互输入；输出取决于你输入的内容）
 ```
 
 生产服务中的无限循环应有取消、超时、错误处理或停机信号。
@@ -2092,8 +1776,6 @@ for value in [3, -1, 0, 5]:
     if value == 0:
         break
     print(value)
-# 输出:
-# 3
 ```
 
 `break` 只结束一层循环。多层循环要退出时，可以封装成函数后 `return`，或使用标志变量，避免难懂的控制逻辑。
@@ -2112,8 +1794,6 @@ for number in numbers:
         break
 else:
     print("没有找到")
-# 输出:
-# 没有找到
 ```
 
 它不是“最后一次循环的 else”，而是“没有被 break 中断”。while 也支持同样语法。
@@ -2128,14 +1808,12 @@ numbers = [1, 2, 3, 4]
 for number in numbers:
     if number % 2 == 0:
         numbers.remove(number)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 迭代位置与列表长度同时变化，可能跳过元素。推荐构造新列表：
 
 ```python
 numbers = [number for number in numbers if number % 2 != 0]
-# （代码片段：依赖上文变量 `numbers`，需结合上下文/前文一起运行）
 ```
 
 或遍历副本：
@@ -2144,7 +1822,6 @@ numbers = [number for number in numbers if number % 2 != 0]
 for number in numbers.copy():
     if number % 2 == 0:
         numbers.remove(number)
-# （代码片段：依赖上文变量 `numbers`，需结合上下文/前文一起运行）
 ```
 
 字典和集合在遍历时改变大小通常直接抛 `RuntimeError`。
@@ -2155,13 +1832,6 @@ for number in numbers.copy():
 for row in range(2):
     for column in range(3):
         print(row, column)
-# 输出:
-# 0 0
-# 0 1
-# 0 2
-# 1 0
-# 1 1
-# 1 2
 ```
 
 总执行次数约为两层次数乘积。对大数据，嵌套循环可能迅速变慢。先确保逻辑正确，再考虑字典索引、集合、NumPy 向量化或批处理。
@@ -2180,8 +1850,6 @@ match event:
         print("错误：", message)
     case _:
         print("未知事件")
-# 输出:
-# 增量文本： Hello
 ```
 
 它不只是 switch，可以解构序列、字典和类。
@@ -2198,8 +1866,6 @@ match point:
         print("X 轴", x)
     case (x, y):
         print("普通点", x, y)
-# 输出:
-# 普通点 10 20
 ```
 
 守卫条件：
@@ -2210,7 +1876,6 @@ match event:
         print("高置信结果")
     case {"type": "result", "score": score}:
         print("普通结果", score)
-# （代码片段：依赖上文变量 `event`，需结合上下文/前文一起运行）
 ```
 
 注意模式中的裸名称通常表示“捕获并绑定”，不是与已有变量比较。常量模式要使用字面量、枚举或限定名。
@@ -2237,7 +1902,6 @@ match event:
 def split_ratio(total: int, used: int) -> float:
     assert total > 0, "total 必须大于 0"
     return used / total
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 不要用 `assert` 校验用户输入：以 `python -O` 运行 Python 时断言会被移除，生产输入校验应使用显式 `if/raise` 或 Pydantic。
@@ -2256,9 +1920,7 @@ def greet(name):
     return message
 
 result = greet("Ada")
-print(result)
-# 输出:
-# 你好，Ada
+print(result)  # 你好，Ada
 ```
 
 定义时：
@@ -2280,7 +1942,6 @@ print(result)
 ```python
 print(greet)         # 函数对象本身
 print(greet("Ada"))  # 调用函数后的返回值
-# （代码片段：依赖上文变量 `greet`，需结合上下文/前文一起运行）
 ```
 
 ### 6.2 参数、实参与返回值
@@ -2294,7 +1955,6 @@ def add(a, b):
     return a + b
 
 total = add(10, 20)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `return` 会立即结束本次函数调用，后面的语句不会执行：
@@ -2304,7 +1964,6 @@ def absolute(value):
     if value >= 0:
         return value
     return -value
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 没有显式 return 的函数返回 None。
@@ -2319,8 +1978,6 @@ result = min_max([3, 1, 8])
 print(result)  # (1, 8)
 
 smallest, largest = min_max([3, 1, 8])
-# 输出:
-# (1, 8)
 ```
 
 函数实际只返回一个元组，再由调用者解包。元素很多、语义复杂时，使用 dataclass、NamedTuple 或结构化模型比长元组清晰。
@@ -2339,7 +1996,6 @@ def estimate_cost(tokens: int, price_per_million: float) -> float:
         估算费用。
     """
     return tokens / 1_000_000 * price_per_million
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 类型标注主要用于阅读、IDE、静态检查和生成文档，Python 默认不会在运行时强制检查。传入错误类型仍可能到函数内部才报错。外部数据应使用 Pydantic 等做运行时校验。
@@ -2350,13 +2006,9 @@ def estimate_cost(tokens: int, price_per_million: float) -> float:
 def connect(host, port=443, timeout=30):
     return f"{host}:{port}, timeout={timeout}"
 
-print(connect("example.com", 80, 10))
-print(connect("example.com", timeout=5))
-print(connect(host="example.com", port=8080))
-# 输出:
-# example.com:80, timeout=10
-# example.com:443, timeout=5
-# example.com:8080, timeout=30
+print(connect("example.com", 80, 10))  # example.com:80, timeout=10
+print(connect("example.com", timeout=5))  # example.com:443, timeout=5
+print(connect(host="example.com", port=8080))  # example.com:8080, timeout=30
 ```
 
 - 位置参数按顺序匹配；
@@ -2370,7 +2022,6 @@ print(connect(host="example.com", port=8080))
 ```python
 def greet(name, prefix="你好"):
     return f"{prefix}，{name}"
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 有默认值的参数通常放在无默认值参数后面。
@@ -2384,9 +2035,6 @@ def bad_add(item, items=[]):
 
 print(bad_add("a"))  # ['a']
 print(bad_add("b"))  # ['a', 'b']
-# 输出:
-# ['a']
-# ['a', 'b']
 ```
 
 正确写法：
@@ -2397,7 +2045,6 @@ def add(item, items=None):
         items = []
     items.append(item)
     return items
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 同理，默认值若写成 `datetime.now()` 或某次函数调用，也只在定义时计算一次。需要每次重新计算时在函数体内完成。
@@ -2413,14 +2060,12 @@ def request_model(
     timeout=30.0,
 ):
     return f"{model}: {prompt} ({timeout}s)"
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 调用：
 
 ```python
 request_model("你好", model="fast", timeout=10)
-# （代码片段：依赖上文变量 `request_model`，需结合上下文/前文一起运行）
 ```
 
 - `/` 前的参数只能按位置传；
@@ -2436,10 +2081,7 @@ def total(*numbers):
     print(type(numbers))  # tuple
     return sum(numbers)
 
-print(total(1, 2, 3))
-# 输出:
-# <class 'tuple'>
-# 6
+print(total(1, 2, 3))  # <class 'tuple'> / 6
 ```
 
 `numbers` 是元组。`*args` 中的 `args` 只是惯例名称，星号才有语法意义。
@@ -2454,9 +2096,6 @@ def show_metadata(**metadata):
     print(metadata)
 
 show_metadata(source="user", language="zh")
-# 输出:
-# <class 'dict'>
-# {'source': 'user', 'language': 'zh'}
 ```
 
 kwargs 是字典。它适合适配器、装饰器和透传少量可选配置，但过度使用会让拼写错误无法被函数签名和静态工具发现。
@@ -2470,9 +2109,7 @@ def add(a, b):
     return a + b
 
 numbers = [10, 20]
-print(add(*numbers))
-# 输出:
-# 30
+print(add(*numbers))  # 30
 ```
 
 字典解包为关键字参数：
@@ -2480,7 +2117,6 @@ print(add(*numbers))
 ```python
 options = {"model": "demo", "timeout": 10}
 print(request_model("你好", **options))
-# （代码片段：依赖上文变量 `request_model`，需结合上下文/前文一起运行）
 ```
 
 键必须与参数名匹配；重复提供同一参数会抛 `TypeError`。
@@ -2498,8 +2134,6 @@ def add_item(items):
 values = ["old"]
 add_item(values)
 print(values)  # ['old', 'new']
-# 输出:
-# ['old', 'new']
 ```
 
 若函数只是让局部名字重新绑定，调用者变量不变：
@@ -2512,9 +2146,6 @@ def replace(items):
 values = ["old"]
 replace(values)
 print(values)  # ['old']
-# 输出:
-# ['new']
-# ['old']
 ```
 
 对不可变对象的“修改”会创建新对象并重新绑定局部名字：
@@ -2526,7 +2157,6 @@ def increase(number):
 
 count = 10
 new_count = increase(count)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 API 设计时应明确函数是否修改传入对象。能返回新值时通常更容易推理和测试。
@@ -2553,8 +2183,6 @@ def outer():
     inner()
 
 outer()
-# 输出:
-# 局部
 ```
 
 函数内赋值默认创建局部变量：
@@ -2565,7 +2193,6 @@ count = 0
 def increment():
     count = 1  # 新的局部变量
     return count
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 确实要修改模块级变量需 `global`：
@@ -2576,7 +2203,6 @@ count = 0
 def increment():
     global count
     count += 1
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 但大量全局可变状态难以测试，并发时也危险，通常应通过参数、返回值或对象管理状态。
@@ -2593,7 +2219,6 @@ def make_counter():
         return count
 
     return next_value
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 ### 6.13 函数是一等对象
@@ -2605,13 +2230,10 @@ def square(value):
     return value * value
 
 operation = square
-print(operation(5))
+print(operation(5))  # 25
 
 operations = {"square": square}
-print(operations["square"](4))
-# 输出:
-# 25
-# 16
+print(operations["square"](4))  # 16
 ```
 
 高阶函数：
@@ -2621,7 +2243,6 @@ def apply(value, operation):
     return operation(value)
 
 print(apply(5, square))
-# （代码片段：依赖上文变量 `square`，需结合上下文/前文一起运行）
 ```
 
 这也是回调、装饰器、路由表和策略模式的基础。
@@ -2632,16 +2253,13 @@ lambda 创建只有一个表达式的匿名函数：
 
 ```python
 square = lambda x: x * x
-print(square(5))
-# 输出:
-# 25
+print(square(5))  # 25
 ```
 
 常见于短小 key 或回调：
 
 ```python
 users.sort(key=lambda user: user["score"])
-# （代码片段：依赖上文变量 `users`，需结合上下文/前文一起运行）
 ```
 
 lambda 不能包含普通赋值、while、try 等语句。逻辑稍复杂、需要注释、类型或复用时，使用 def。
@@ -2651,11 +2269,8 @@ lambda 不能包含普通赋值、while、try 等语句。逻辑稍复杂、需�
 ```python
 values = [1, 2, 3, 4]
 
-print(list(map(lambda x: x * 2, values)))
-print(list(filter(lambda x: x % 2 == 0, values)))
-# 输出:
-# [2, 4, 6, 8]
-# [2, 4]
+print(list(map(lambda x: x * 2, values)))  # [2, 4, 6, 8]
+print(list(filter(lambda x: x % 2 == 0, values)))  # [2, 4]
 ```
 
 现代代码通常用推导式表达得更直接：
@@ -2663,7 +2278,6 @@ print(list(filter(lambda x: x % 2 == 0, values)))
 ```python
 print([x * 2 for x in values])
 print([x for x in values if x % 2 == 0])
-# （代码片段：依赖上文变量 `values`，需结合上下文/前文一起运行）
 ```
 
 `callable(obj)` 可以判断对象能否被调用，常用于区分“配置项是一个函数还是一个普通值”。
@@ -2675,7 +2289,6 @@ print([x for x in values if x % 2 == 0])
 ```python
 def calculate_price(unit_price, count):
     return unit_price * count
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 副作用包括修改外部对象、写文件、发网络请求、打印、写数据库：
@@ -2683,7 +2296,6 @@ def calculate_price(unit_price, count):
 ```python
 def save_result(path, text):
     path.write_text(text, encoding="utf-8")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 工程中不是不能有副作用，而是应把计算和 I/O 分开，使核心逻辑容易测试。
@@ -2699,7 +2311,6 @@ def factorial(n):
     if n <= 1:
         return 1
     return n * factorial(n - 1)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 必须有终止条件。Python 不做尾递归优化，递归层数有限。遍历很深的目录、树或图时，要考虑显式栈、循环和循环引用。
@@ -2732,7 +2343,6 @@ def factorial(n):
 
 ```python
 long_lengths = [n for n in lengths if n >= 10]
-# （代码片段：依赖上文变量 `lengths`，需结合上下文/前文一起运行）
 ```
 
 它读作：**对 `lengths` 中的每个 `n`，如果 `n >= 10`，就把 `n` 放进新列表**。执行顺序是：
@@ -2749,8 +2359,6 @@ long_lengths = [n for n in lengths if n >= 10]
 lengths = [5, 10, 20, 3]
 long_lengths = [n for n in lengths if n >= 10]
 print(long_lengths)  # [10, 20]
-# 输出:
-# [10, 20]
 ```
 
 字典推导式使用 `键: 值`：
@@ -2758,8 +2366,6 @@ print(long_lengths)  # [10, 20]
 ```python
 squares = {n: n * n for n in range(4)}
 print(squares)  # {0: 0, 1: 1, 2: 4, 3: 9}
-# 输出:
-# {0: 0, 1: 1, 2: 4, 3: 9}
 ```
 
 集合推导式使用花括号但只有值：
@@ -2767,18 +2373,13 @@ print(squares)  # {0: 0, 1: 1, 2: 4, 3: 9}
 ```python
 unique = {len(word) for word in ["a", "bb", "ccc", "dd"]}
 print(unique)  # {1, 2, 3}
-# 输出:
-# {1, 2, 3}
 ```
 
 需要“二选一”时，可以在最前面的表达式里使用条件表达式：
 
 ```python
 values = [-2, 3, -1, 4]
-print([x if x >= 0 else -x for x in values])
-# [2, 3, 1, 4]
-# 输出:
-# [2, 3, 1, 4]
+print([x if x >= 0 else -x for x in values])  # [2, 3, 1, 4]
 ```
 
 嵌套循环会按书写顺序展开：
@@ -2786,8 +2387,6 @@ print([x if x >= 0 else -x for x in values])
 ```python
 pairs = [(x, y) for x in [1, 2] for y in ["a", "b"]]
 print(pairs)  # [(1, 'a'), (1, 'b'), (2, 'a'), (2, 'b')]
-# 输出:
-# [(1, 'a'), (1, 'b'), (2, 'a'), (2, 'b')]
 ```
 
 什么时候不要用推导式：
@@ -2814,7 +2413,6 @@ while True:
     except StopIteration:
         break
     print(value)
-# （代码片段：依赖上文变量 `values`，需结合上下文/前文一起运行）
 ```
 
 `iter()` 从可迭代对象创建迭代器；`next()` 推进迭代器；元素耗尽后抛出 `StopIteration`，`for` 会捕获它并正常结束。
@@ -2826,9 +2424,6 @@ iterator = iter(values)
 print(next(iterator))  # 10
 print(next(iterator))  # 20
 # next(iterator)  # StopIteration
-# 输出:
-# 10
-# 20
 ```
 
 迭代器是**一次性**的：遍历完就耗尽，再次 `for` 不会从头开始。可迭代对象本身可以反复创建新迭代器：
@@ -2841,10 +2436,6 @@ print(list(values))  # 仍然可以从头开始
 iterator = iter(values)
 list(iterator)
 print(list(iterator))  # 空列表：同一个迭代器已经耗尽
-# 输出:
-# [1, 2]
-# [1, 2]
-# []
 ```
 
 `list()`、`tuple()`、`sum()`、`for` 等操作都会“消费”传入的迭代器。这是后续生成器和流式处理必须理解的基础。
@@ -2859,7 +2450,6 @@ from collections.abc import Iterator
 def chunks(items: list[int], size: int) -> Iterator[list[int]]:
     for start in range(0, len(items), size):
         yield items[start:start + size]
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 调用 `chunks(...)` 不会立刻执行函数体，而是返回一个生成器对象。每次 `next()` 或 `for` 推进时，函数执行到下一个 `yield` 暂停，把值交给调用者；下次推进时从暂停处继续。
@@ -2867,7 +2457,6 @@ def chunks(items: list[int], size: int) -> Iterator[list[int]]:
 ```python
 for chunk in chunks([1, 2, 3, 4, 5], 2):
     print(chunk)
-# （代码片段：依赖上文变量 `chunks`，需结合上下文/前文一起运行）
 ```
 
 输出：
@@ -2884,7 +2473,6 @@ for chunk in chunks([1, 2, 3, 4, 5], 2):
 gen = chunks([1, 2, 3], 2)
 print(next(gen))  # [1, 2]
 print(next(gen))  # [3]
-# （代码片段：依赖上文变量 `chunks`，需结合上下文/前文一起运行）
 ```
 
 生成器表达式是另一种写法，把列表推导式的方括号换成圆括号：
@@ -2892,8 +2480,6 @@ print(next(gen))  # [3]
 ```python
 total = sum(x * x for x in range(5))
 print(total)  # 30
-# 输出:
-# 30
 ```
 
 它不会立即生成完整列表，而是边遍历边计算，适合大数据流。
@@ -2920,9 +2506,7 @@ def flatten(groups: list[list[int]]):
     for group in groups:
         yield from group
 
-print(list(flatten([[1, 2], [3], [4, 5]])))
-# 输出:
-# [1, 2, 3, 4, 5]
+print(list(flatten([[1, 2], [3], [4, 5]])))  # [1, 2, 3, 4, 5]
 ```
 
 输出：
@@ -2947,8 +2531,6 @@ try:
     temperature = float("high")
 except ValueError as exc:
     print("转换失败：", exc)
-# 输出:
-# 转换失败： could not convert string to float: 'high'
 ```
 
 `as exc` 把异常对象绑定给 `exc`，通常用它的 `str(exc)` 或 `exc.args` 获取错误信息。
@@ -2960,7 +2542,6 @@ try:
     value = items[index] + int(raw)
 except (ValueError, TypeError) as exc:
     print("数值错误：", exc)
-# （代码片段：依赖上文变量 `items`，需结合上下文/前文一起运行）
 ```
 
 多个 `except` 从上到下匹配，先捕获具体异常，再捕获更宽的异常：
@@ -2974,8 +2555,6 @@ except ValueError:
     print("值不合法")
 except Exception as exc:
     print("其他错误：", exc)
-# 输出:
-# 其他错误： name 'risky' is not defined
 ```
 
 不要只写 `except Exception: pass`：它会吞掉编程错误，让问题延迟爆发且难以定位。可以捕获后记录日志，再决定继续、返回默认值或重新抛出。
@@ -2992,7 +2571,6 @@ def parse_temperature(value: str) -> float:
         raise ValueError(f"非法 temperature：{value!r}") from exc
     else:
         return temperature
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 把“依赖 try 成功结果”的代码放在 `else` 中，可以避免把它们的异常误当成 try 内部异常处理。
@@ -3006,7 +2584,6 @@ def require_positive(value: int) -> int:
     if value <= 0:
         raise ValueError("value 必须为正数")
     return value
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 在 `except` 中想保留原始原因时使用 `raise ... from exc`，Traceback 会同时显示原始异常和新异常：
@@ -3016,7 +2593,6 @@ try:
     float("high")
 except ValueError as exc:
     raise RuntimeError("解析配置失败") from exc
-# （示例片段，单独运行不完整：RuntimeError: 解析配置失败）
 ```
 
 在 `except` 里不带参数的 `raise` 会把当前异常原样重新抛出，适合“记录后继续向上传播”：
@@ -3027,7 +2603,6 @@ try:
 except TimeoutError:
     log_error("模型超时")
     raise  # 让调用方决定如何处理
-# （代码片段：依赖上文变量 `call_model`，需结合上下文/前文一起运行）
 ```
 
 ### 8.4 `finally`：无论结果如何都执行
@@ -3039,9 +2614,6 @@ try:
     print("开始")
 finally:
     print("清理")
-# 输出:
-# 开始
-# 清理
 ```
 
 如果 `try` 中 return，`finally` 仍会先执行。因此清理工作放在 `finally`，不要依赖它返回值：
@@ -3052,7 +2624,6 @@ def read_config():
         return "配置内容"
     finally:
         print("关闭资源")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 完整组合：
@@ -3066,7 +2637,6 @@ else:
     print("转换成功")
 finally:
     print("无论如何都会执行")
-# （代码片段：依赖上文变量 `raw`，需结合上下文/前文一起运行）
 ```
 
 ### 8.5 异常层级与内置异常
@@ -3104,8 +2674,6 @@ try:
     run_model(60)
 except ModelTimeoutError as exc:
     print(exc)
-# 输出:
-# 模型调用超过预算
 ```
 
 自定义异常让上层能按错误类型决定重试、降级或返回用户错误，例如 `ModelTimeoutError` 可重试，`ValidationError` 直接返回给用户。
@@ -3120,7 +2688,6 @@ from pathlib import Path
 path = Path("demo.txt")
 with path.open("w", encoding="utf-8") as file:
     file.write("hello")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 等价于手动保证关闭文件，但更不易遗漏。
@@ -3130,7 +2697,6 @@ with path.open("w", encoding="utf-8") as file:
 ```python
 with open("a.txt", encoding="utf-8") as src, open("b.txt", "w", encoding="utf-8") as dst:
     dst.write(src.read())
-# （示例片段，单独运行不完整：FileNotFoundError: [Errno 2] No such file or directory: 'a.t）
 ```
 
 `with` 不限于文件，也可以用于锁、数据库事务和 HTTP 会话：
@@ -3141,7 +2707,6 @@ import threading
 lock = threading.Lock()
 with lock:
     shared_value += 1
-# （代码片段：依赖上文变量 `shared_value`，需结合上下文/前文一起运行）
 ```
 
 原理是进入时调用对象的 `__enter__()`，退出时调用 `__exit__()`；用 `contextlib.contextmanager` 自定义上下文管理器会在第 14 章介绍。
@@ -3183,9 +2748,7 @@ class ChatSession:
 
 session = ChatSession("s-1")
 session.add("你好")
-print(session.session_id, session.size)
-# 输出:
-# s-1 1
+print(session.session_id, session.size)  # s-1 1
 ```
 
 输出：
@@ -3214,8 +2777,6 @@ class Config:
 a = Config()
 b = Config()
 print(a.default_timeout)  # 30
-# 输出:
-# 30
 ```
 
 实例属性写在 `self.xxx = ...`，每个实例独立：
@@ -3224,7 +2785,6 @@ print(a.default_timeout)  # 30
 a.default_timeout = 60
 print(a.default_timeout)  # 60
 print(b.default_timeout)  # 30
-# （代码片段：依赖上文变量 `a`，需结合上下文/前文一起运行）
 ```
 
 注意“读取”会先查实例属性再查类属性，所以 `a.default_timeout = 60` 只是给 a 创建了实例属性，不修改类属性。类属性适合常量；可变类属性（例如直接写 `messages = []`）会因为所有实例共享而互相污染，通常应放到 `__init__` 中。
@@ -3244,11 +2804,8 @@ class ModelConfig:
         return f"ModelConfig(name={self.name!r}, temperature={self.temperature})"
 
 config = ModelConfig("demo", 0.2)
-print(repr(config))
+print(repr(config))  # ModelConfig(name='demo', temperature=0.2)
 print(config)  # 没有 __str__ 时回退到 __repr__
-# 输出:
-# ModelConfig(name='demo', temperature=0.2)
-# ModelConfig(name='demo', temperature=0.2)
 ```
 
 打印日志和调试时，`repr` 能避免只看到一个难以辨认的内存地址。
@@ -3259,7 +2816,6 @@ print(config)  # 没有 __str__ 时回退到 __repr__
 
 ```python
 session.size  # 无需括号
-# （代码片段：依赖上文变量 `session`，需结合上下文/前文一起运行）
 ```
 
 适合“计算得到、不应随意赋值”的值。要真正控制赋值逻辑时再写 setter，不要为了“看起来很面向对象”而滥用。
@@ -3283,7 +2839,6 @@ class ModelClient:
     @staticmethod
     def is_valid_name(name: str) -> bool:
         return bool(name.strip())
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 - 实例方法第一个参数是 `self`；
@@ -3306,9 +2861,7 @@ class ModelConfig:
     tags: tuple[str, ...] = field(default_factory=tuple)
 
 config = ModelConfig("demo", tags=("test",))
-print(config)
-# 输出:
-# ModelConfig(name='demo', temperature=0.0, tags=('test',))
+print(config)  # ModelConfig(name='demo', temperature=0.0, tags=('test',))
 ```
 
 输出：
@@ -3344,11 +2897,8 @@ class ChatClient(BaseClient):
         return f"{super().describe()}，上限 {self.max_tokens} tokens"
 
 client = ChatClient("chat", 1024)
-print(client.describe())
+print(client.describe())  # 客户端 chat，上限 1024 tokens
 print(isinstance(client, BaseClient))  # True
-# 输出:
-# 客户端 chat，上限 1024 tokens
-# True
 ```
 
 - `super().__init__` 调用父类初始化；
@@ -3367,9 +2917,7 @@ class ModelClient:
         self.retry_policy = retry_policy
 
 client = ModelClient(RetryPolicy(5))
-print(client.retry_policy.max_attempts)
-# 输出:
-# 5
+print(client.retry_policy.max_attempts)  # 5
 ```
 
 工程中优先组合，因为组合依赖关系显式、容易替换和测试；只有当“子类确实是一种父类”且共享稳定行为时才用继承。
@@ -3391,9 +2939,7 @@ class DemoEmbedder:
 def vectorize(text: str, embedder: Embedder) -> list[float]:
     return embedder.embed(text)
 
-print(vectorize("hello", DemoEmbedder()))
-# 输出:
-# [5.0]
+print(vectorize("hello", DemoEmbedder()))  # [5.0]
 ```
 
 `Protocol` 只影响静态检查，运行时 `DemoEmbedder` 不需要继承 `Embedder`。它适合定义“接入层接口”，让多个实现不需要共享同一个父类。
@@ -3418,7 +2964,6 @@ def build_config() -> dict[str, int]:
 
 def labels() -> tuple[str, ...]:
     return ("a", "b")
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 - `list[int]`：整数列表；
@@ -3433,7 +2978,6 @@ def labels() -> tuple[str, ...]:
 ```python
 def total(values: Sequence[int]) -> int:
     return sum(values)
-# （代码片段：依赖上文变量 `Sequence`，需结合上下文/前文一起运行）
 ```
 
 ### 10.2 Optional、Union 与 `|`
@@ -3446,8 +2990,6 @@ def find_name(data: dict[str, str]) -> str | None:
 
 name = find_name({})
 print(name)  # None
-# 输出:
-# None
 ```
 
 `Optional[str]` 与 `str | None` 等价，但 `|` 语法更直观，也支持任意联合类型：
@@ -3459,7 +3001,6 @@ def parse(value: int | str | None) -> str:
     if isinstance(value, int):
         return f"整数 {value}"
     return f"字符串 {value}"
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 使用前要“缩窄类型”：通过 `if value is None`、`isinstance(value, int)` 等判断后，静态检查器才知道当前分支的类型。
@@ -3474,7 +3015,6 @@ from typing import Any
 
 def passthrough(value: Any) -> Any:
     return value
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 优先使用具体类型或 `object + isinstance`，把 `Any` 当作需要消除的技术债。
@@ -3488,7 +3028,6 @@ ModelRole = Literal["system", "user", "assistant", "tool"]
 
 def build_message(role: ModelRole, content: str) -> dict[str, str]:
     return {"role": role, "content": content}
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `Literal` 把允许的取值写成字面量联合，适合角色、状态、日志级别等枚举字符串。注意它仍是静态检查，运行时传入 `"管理员"` 不会自动报错。
@@ -3503,9 +3042,7 @@ class Message(TypedDict):
     content: str
 
 message: Message = {"role": "user", "content": "你好"}
-print(message["content"])
-# 输出:
-# 你好
+print(message["content"])  # 你好
 ```
 
 `TypedDict` 只用于静态检查，不会在运行时验证外部 JSON。所有字段都必填；要允许缺省字段可加 `total=False`：
@@ -3514,7 +3051,6 @@ print(message["content"])
 class PartialMessage(TypedDict, total=False):
     role: str
     content: str
-# （代码片段：依赖上文变量 `TypedDict`，需结合上下文/前文一起运行）
 ```
 
 外部输入需要运行时校验时，应使用 Pydantic（见第 18 章）。
@@ -3533,9 +3069,6 @@ def first(items: list[T]) -> T:
 
 print(first([10, 20]))   # int
 print(first(["a", "b"]))  # str
-# 输出:
-# 10
-# a
 ```
 
 `T` 表示“同一个类型占位”：传入 `list[int]` 时返回 `int`，传入 `list[str]` 时返回 `str`，而不是一律退化成 `Any`。
@@ -3547,7 +3080,6 @@ Number = TypeVar("Number", int, float)
 
 def double(value: Number) -> Number:
     return value * 2
-# （代码片段：依赖上文变量 `TypeVar`，需结合上下文/前文一起运行）
 ```
 
 自定义泛型类使用 `Generic[T]`：
@@ -3558,7 +3090,6 @@ from typing import Generic
 class Box(Generic[T]):
     def __init__(self, value: T) -> None:
         self.value = value
-# （代码片段：依赖上文变量 `T`，需结合上下文/前文一起运行）
 ```
 
 初学者先把“泛型函数”用熟即可，不需要一开始掌握所有泛型语法。
@@ -3578,7 +3109,6 @@ class Box(Generic[T]):
 import json
 from pathlib import Path
 from collections.abc import Iterator
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 两种写法的区别：
@@ -3591,7 +3121,6 @@ from collections.abc import Iterator
 ```python
 import numpy as np
 from package.submodule import load_model as load
-# （需安装/联网环境：依赖 numpy；以下为示例代码）
 ```
 
 “包”是包含模块文件的目录，模块是 `.py` 文件。导入时 Python 从当前目录、已配置路径和安装位置逐级查找，因此不要随意在项目里创建与标准库同名的文件。
@@ -3606,8 +3135,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# 输出:
-# 程序入口
 ```
 
 直接运行时输出：
@@ -3645,13 +3172,9 @@ from pathlib import Path
 root = Path("data")
 path = root / "sample.json"
 
-print(path.suffix)
-print(path.name)
-print(path.parent)
-# 输出:
-# .json
-# sample.json
-# data
+print(path.suffix)  # .json
+print(path.name)  # sample.json
+print(path.parent)  # data
 ```
 
 输出：
@@ -3673,15 +3196,8 @@ data = {"model": "demo", "temperature": 0.2, "stream": True}
 text = json.dumps(data, ensure_ascii=False, indent=2)
 restored = json.loads(text)
 
-print(text)
-print(restored["stream"])
-# 输出:
-# {
-#   "model": "demo",
-#   "temperature": 0.2,
-#   "stream": true
-# }
-# True
+print(text)  # { /   "model": "demo", /   "temperature": 0.2, /   "stream": true / }
+print(restored["stream"])  # True
 ```
 
 输出：
@@ -3704,7 +3220,6 @@ text = json.dumps(
     indent=2,            # 格式化输出
     sort_keys=True,      # 按键排序，便于比较和 diff
 )
-# （代码片段：依赖上文变量 `json`，需结合上下文/前文一起运行）
 ```
 
 写入文件时使用 `json.dump(data, file)`，读取时使用 `json.load(file)`，它们处理编码和流式读写。
@@ -3721,9 +3236,7 @@ from io import StringIO
 
 source = StringIO('{"text":"A"}\n{"text":"B"}\n')
 records = [json.loads(line) for line in source if line.strip()]
-print(records)
-# 输出:
-# [{'text': 'A'}, {'text': 'B'}]
+print(records)  # [{'text': 'A'}, {'text': 'B'}]
 ```
 
 输出：
@@ -3743,11 +3256,7 @@ writer = csv.DictWriter(buffer, fieldnames=["name", "score"])
 writer.writeheader()
 writer.writerow({"name": "model-a", "score": 0.91})
 
-print(buffer.getvalue().strip())
-# 输出:
-# name,score
-#
-# model-a,0.91
+print(buffer.getvalue().strip())  # name,score / model-a,0.91
 ```
 
 输出：
@@ -3776,19 +3285,15 @@ CSV 中可能包含逗号、换行和引号，不要手工 `split(',')`。
 from collections import Counter, defaultdict, deque
 
 tokens = ["a", "b", "a"]
-print(Counter(tokens))
+print(Counter(tokens))  # Counter({'a': 2, 'b': 1})
 
 groups: defaultdict[str, list[int]] = defaultdict(list)
 groups["x"].append(1)
-print(dict(groups))
+print(dict(groups))  # {'x': [1]}
 
 queue = deque([1, 2])
 queue.append(3)
-print(queue.popleft())
-# 输出:
-# Counter({'a': 2, 'b': 1})
-# {'x': [1]}
-# 1
+print(queue.popleft())  # 1
 ```
 
 输出：
@@ -3806,7 +3311,6 @@ from itertools import batched, chain
 
 print(list(batched(range(7), 3)))
 print(list(chain([1, 2], [3, 4])))
-# （示例片段，单独运行不完整：ImportError: cannot import name 'batched' from 'itertools' (）
 ```
 
 Python 3.12+ 输出：
@@ -3828,16 +3332,11 @@ def tokenize(text: str) -> tuple[str, ...]:
     print("实际计算")
     return tuple(text.split())
 
-print(tokenize("hello world"))
-print(tokenize("hello world"))
+print(tokenize("hello world"))  # 实际计算 / ('hello', 'world')
+print(tokenize("hello world"))  # ('hello', 'world')
 
 base_two = partial(int, base=2)
-print(base_two("1010"))
-# 输出:
-# 实际计算
-# ('hello', 'world')
-# ('hello', 'world')
-# 10
+print(base_two("1010"))  # 10
 ```
 
 输出：
@@ -3859,11 +3358,8 @@ from datetime import UTC, datetime, timedelta
 now = datetime.now(UTC)
 later = now + timedelta(minutes=5)
 
-print(now.tzinfo)
-print(later > now)
-# 输出:
-# UTC
-# True
+print(now.tzinfo)  # UTC
+print(later > now)  # True
 ```
 
 典型输出：
@@ -3885,11 +3381,8 @@ class Status(StrEnum):
     RUNNING = "running"
     DONE = "done"
 
-print(Status.RUNNING)
-print(Status.RUNNING.value)
-# 输出:
-# running
-# running
+print(Status.RUNNING)  # running
+print(Status.RUNNING.value)  # running
 ```
 
 输出：
@@ -3928,10 +3421,7 @@ def timed(func: Callable[P, R]) -> Callable[P, R]:
 def add(a: int, b: int) -> int:
     return a + b
 
-print(add(2, 3))
-# 输出:
-# add 耗时 0.000002s
-# 5
+print(add(2, 3))  # add 耗时 0.000001s / 5
 ```
 
 典型输出：
@@ -3952,9 +3442,7 @@ def make_prefixer(prefix: str):
     return add_prefix
 
 error = make_prefixer("ERROR: ")
-print(error("timeout"))
-# 输出:
-# ERROR: timeout
+print(error("timeout"))  # ERROR: timeout
 ```
 
 输出：
@@ -3978,10 +3466,6 @@ def trace(name: str):
 
 with trace("model_call"):
     print("running")
-# 输出:
-# start model_call
-# running
-# end model_call
 ```
 
 输出：
@@ -4001,9 +3485,7 @@ end model_call
 ```python
 matrix = [[0, 0]] * 3
 matrix[0][0] = 1
-print(matrix)
-# 输出:
-# [[1, 0], [1, 0], [1, 0]]
+print(matrix)  # [[1, 0], [1, 0], [1, 0]]
 ```
 
 输出：
@@ -4017,11 +3499,8 @@ print(matrix)
 ### 15.2 浮点数
 
 ```python
-print(0.1 + 0.2 == 0.3)
-print(round(0.1 + 0.2, 10))
-# 输出:
-# False
-# 0.3
+print(0.1 + 0.2 == 0.3)  # False
+print(round(0.1 + 0.2, 10))  # 0.3
 ```
 
 输出：
@@ -4042,7 +3521,6 @@ try:
     risky_operation()
 except Exception:
     pass
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 它会隐藏编程错误、取消信号语义和真实故障。应捕获可处理的具体异常，并记录上下文。
@@ -4051,9 +3529,7 @@ except Exception:
 
 ```python
 functions = [lambda: i for i in range(3)]
-print([func() for func in functions])
-# 输出:
-# [2, 2, 2]
+print([func() for func in functions])  # [2, 2, 2]
 ```
 
 输出：
@@ -4071,9 +3547,7 @@ print([func() for func in functions])
 ```python
 values = [1, 2, 3, 4]
 values = [value for value in values if value % 2 == 1]
-print(values)
-# 输出:
-# [1, 3]
+print(values)  # [1, 3]
 ```
 
 输出：
@@ -4129,7 +3603,6 @@ data = response.json()
 
 print(response.status_code)
 print(data["args"])
-# （需安装/联网环境：依赖 httpx；以下为示例代码）
 ```
 
 联网时典型输出：
@@ -4153,7 +3626,6 @@ timeout = httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)
 with httpx.Client(timeout=timeout) as client:
     # response = client.get("https://example.com")
     print(type(client).__name__)
-# （需安装/联网环境：依赖 httpx；以下为示例代码）
 ```
 
 输出：
@@ -4204,7 +3676,6 @@ with httpx.Client(timeout=60.0) as client:
     )
     response.raise_for_status()
     print(response.json())
-# （需安装/联网环境：依赖 os；以下为示例代码）
 ```
 
 输出结构取决于服务。`example.com` 是占位地址，运行前必须替换接口和模型名。
@@ -4219,7 +3690,6 @@ payload = {
         {"role": "user", "content": "用一句话解释生成器。"},
     ],
 }
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 `system` 消息设定行为，`user` 是用户输入，`assistant` 是模型历史回复。不同厂商字段名略有差异，以官方文档为准。角色和 Token 的概念详见第 31 章。
@@ -4242,9 +3712,6 @@ for item in response["items"]:
             print("TEXT:", text)
         case {"type": "tool_call", "name": name, "arguments": arguments}:
             print("TOOL:", name, arguments)
-# 输出:
-# TEXT: 答案
-# TOOL: search {'q': 'Python'}
 ```
 
 输出：
@@ -4274,9 +3741,7 @@ result = Classification(**data)
 if not 0 <= result.confidence <= 1:
     raise ValueError("confidence 越界")
 
-print(result)
-# 输出:
-# Classification(label='positive', confidence=0.91)
+print(result)  # Classification(label='positive', confidence=0.91)
 ```
 
 输出：
@@ -4318,17 +3783,13 @@ request = GenerationRequest.model_validate({
     "temperature": "0.7",  # 可按规则转换为 float
 })
 
-print(request)
-print(request.model_dump())
+print(request)  # prompt='你好' temperature=0.7 mode='fast'
+print(request.model_dump())  # {'prompt': '你好', 'temperature': 0.7, 'mode': 'fast'}
 
 try:
     GenerationRequest(prompt="", temperature=5)
 except ValidationError as exc:
     print("字段错误数：", exc.error_count())
-# 输出:
-# prompt='你好' temperature=0.7 mode='fast'
-# {'prompt': '你好', 'temperature': 0.7, 'mode': 'fast'}
-# 字段错误数： 2
 ```
 
 输出：
@@ -4388,7 +3849,6 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
         text=f"Echo: {request.prompt}",
         input_length=len(request.prompt),
     )
-# （需安装/联网环境：依赖 fastapi；以下为示例代码）
 ```
 
 调用：
@@ -4467,8 +3927,6 @@ with ThreadPoolExecutor(max_workers=3) as pool:
     results = [future.result() for future in as_completed(futures)]
 
 print(sorted(results))
-# 输出:
-# ['task-0', 'task-1', 'task-2', 'task-3', 'task-4']
 ```
 
 输出顺序由完成时间决定，排序后：
@@ -4502,8 +3960,6 @@ for thread in threads:
     thread.join()
 
 print(counter)
-# 输出:
-# 40000
 ```
 
 输出：
@@ -4543,7 +3999,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-# （示例片段，单独运行不完整：concurrent.futures.process.BrokenProcessPool: A process in t）
 ```
 
 输出：
@@ -4585,8 +4040,6 @@ async def main() -> None:
     print(results)
 
 asyncio.run(main())
-# 输出:
-# ['result-0', 'result-1', 'result-2']
 ```
 
 输出：
@@ -4614,8 +4067,6 @@ async def main() -> None:
     print([task.result() for task in tasks])
 
 asyncio.run(main())
-# 输出:
-# [0, 2, 4]
 ```
 
 输出：
@@ -4646,7 +4097,6 @@ async def main() -> None:
     print(statuses)
 
 asyncio.run(main())
-# （需安装/联网环境：依赖 asyncio；以下为示例代码）
 ```
 
 联网时输出：
@@ -4670,8 +4120,6 @@ async def main() -> None:
     print(result)
 
 asyncio.run(main())
-# 输出:
-# done
 ```
 
 输出：
@@ -4708,8 +4156,6 @@ async def main() -> None:
     print(results)
 
 asyncio.run(main())
-# 输出:
-# [0, 1, 2, 3, 4]
 ```
 
 输出：
@@ -4736,8 +4182,6 @@ async def main() -> None:
         print("超时")
 
 asyncio.run(main())
-# 输出:
-# 超时
 ```
 
 输出：
@@ -4758,9 +4202,7 @@ def backoff(attempt: int, base: float = 0.5, cap: float = 8.0) -> float:
     return random.uniform(0, maximum)
 
 random.seed(1)
-print([round(backoff(i), 2) for i in range(4)])
-# 输出:
-# [0.07, 0.85, 1.53, 1.02]
+print([round(backoff(i), 2) for i in range(4)])  # [0.07, 0.85, 1.53, 1.02]
 ```
 
 输出：
@@ -4804,8 +4246,6 @@ def stream_text() -> Iterator[str]:
 for token in stream_text():
     print(token, end="", flush=True)
 print()
-# 输出:
-# Hello, world!
 ```
 
 输出逐步出现：
@@ -4832,8 +4272,6 @@ async def main() -> None:
     print("".join(output))
 
 asyncio.run(main())
-# 输出:
-# AI!
 ```
 
 输出：
@@ -4868,7 +4306,6 @@ centered = vectors - mean
 
 print(mean)
 print(centered)
-# （需安装/联网环境：依赖 numpy；以下为示例代码）
 ```
 
 输出：
@@ -4893,7 +4330,6 @@ def cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denominator)
 
 print(round(cosine(np.array([1, 0]), np.array([1, 1])), 3))
-# （需安装/联网环境：依赖 numpy；以下为示例代码）
 ```
 
 输出：
@@ -4915,7 +4351,6 @@ df = pd.DataFrame({
 })
 
 print(df.groupby("model")["latency_ms"].mean())
-# （需安装/联网环境：依赖 pandas；以下为示例代码）
 ```
 
 输出：
@@ -4943,11 +4378,8 @@ import os
 api_key = os.environ.get("MODEL_API_KEY")
 timeout = float(os.environ.get("MODEL_TIMEOUT", "30"))
 
-print(timeout)
-print(api_key is None)
-# 输出:
-# 30.0
-# True
+print(timeout)  # 30.0
+print(api_key is None)  # True
 ```
 
 未设置 Key 时输出可能为：
@@ -4971,7 +4403,6 @@ logging.basicConfig(
 logger = logging.getLogger("ai_service")
 
 logger.info("request_completed", extra={"request_id": "r-1"})
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 典型输出包含时间：
@@ -4999,7 +4430,6 @@ def normalize_score(value: float) -> float:
     if not 0 <= value <= 100:
         raise ValueError("score 必须在 0～100")
     return value / 100
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 测试：
@@ -5013,7 +4443,6 @@ def test_normalize_score() -> None:
 def test_normalize_score_rejects_invalid() -> None:
     with pytest.raises(ValueError, match="0～100"):
         normalize_score(101)
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 运行：
@@ -5045,9 +4474,7 @@ class FakeClient:
 def answer(prompt: str, client: TextClient) -> str:
     return client.generate(prompt)
 
-print(answer("hello", FakeClient()))
-# 输出:
-# fixed-response
+print(answer("hello", FakeClient()))  # fixed-response
 ```
 
 输出：
@@ -5177,11 +4604,6 @@ async def main() -> None:
         print(result)
 
 asyncio.run(main())
-# 输出:
-# Result(prompt='hello', text='HELLO', error=None)
-# Result(prompt='python', text='PYTHON', error=None)
-# Result(prompt='retry', text='RETRY', error=None)
-# Result(prompt='agent', text='AGENT', error=None)
 ```
 
 典型输出：
@@ -5224,7 +4646,6 @@ Result(prompt='agent', text='AGENT', error=None)
 # 粗略估算，仅用于预算；精确计数要用厂商的 Tokenizer 或 SDK
 def rough_tokens(text: str) -> int:
     return max(1, len(text) // 2)  # 中文场景的粗估
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 厂商 SDK 或 Tokenizer 会给出精确数字，例如响应中的 `usage` 字段：
@@ -5264,7 +4685,6 @@ messages = [
     {"role": "assistant", "content": "生成器是按需产生值的函数，用 yield 暂停。"},
     {"role": "user", "content": "给一个例子。"},
 ]
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 调用模型时把整个列表发给服务端；保持角色顺序（system → user → assistant 交替），否则有些模型会报错或表现异常。
@@ -5345,9 +4765,7 @@ def chunk_text(text: str, size: int = 200, overlap: int = 20) -> list[str]:
         start += size - overlap
     return chunks
 
-print(chunk_text("这是一段很长的文档。" * 20, size=30, overlap=5)[:2])
-# 输出:
-# ['这是一段很长的文档。这是一段很长的文档。这是一段很长的文档。', '长的文档。这是一段很长的文档。这是一段很长的文档。这是一段很']
+print(chunk_text("这是一段很长的文档。" * 20, size=30, overlap=5)[:2])  # ['这是一段很长的文档。这是一段很长的文档。这是一段很长的文档。', '长的文档。这是一段很长的文档。这是一段很长的文档。这是一段很']
 ```
 
 ### 32.3 嵌入（Embedding）
@@ -5358,7 +4776,6 @@ print(chunk_text("这是一段很长的文档。" * 20, size=30, overlap=5)[:2])
 # 伪代码：用真实 API 时替换为厂商 SDK
 # vectors = embed(["Python 是动态语言", "Python 适合 AI"])
 # 每个文本得到一个向量，例如 1024 维的 float 列表
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 得到向量后，用余弦相似度衡量语义接近程度（实现见 26.2）。
@@ -5374,7 +4791,6 @@ def search(query_vec: np.ndarray, chunk_vecs: np.ndarray, top_k: int = 2) -> lis
         np.linalg.norm(chunk_vecs, axis=1) * np.linalg.norm(query_vec) + 1e-9
     )
     return scores.argsort()[::-1][:top_k].tolist()
-# （需安装/联网环境：依赖 numpy；以下为示例代码）
 ```
 
 向量都归一化到单位长度时，点积等价于余弦相似度。真实项目会使用向量库做近似最近邻检索，数据量大时性能差距巨大。
@@ -5391,7 +4807,6 @@ def build_rag_prompt(question: str, context: str) -> str:
 
 【问题】
 {question}"""
-# （本段无打印输出：仅定义/赋值，运行不报错）
 ```
 
 把检索到的块按相关性拼接进 `context`，再调用模型。注意：
@@ -5493,9 +4908,7 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
         return model_reply["content"]
     return "达到最大步数，提前结束"
 
-print(agent_loop("北京天气怎么样？"))
-# 输出:
-# 我已经帮你查好了。
+print(agent_loop("北京天气怎么样？"))  # 我已经帮你查好了。
 ```
 
 输出：
@@ -5577,7 +4990,6 @@ async def consume_stream(stream):
     async with httpx.AsyncClient() as client:
         async for event in stream:
             ...
-# （代码片段：依赖上文变量 `score`，需结合上下文/前文一起运行）
 ```
 
 这段是速查片段，变量依赖上下文，不作为独立程序执行。
@@ -5712,7 +5124,6 @@ RuntimeWarning: coroutine 'fetch' was never awaited
 ```python
 result = await fetch(1)                 # 直接等待
 task = asyncio.create_task(fetch(1))    # 或创建任务
-# （示例片段，单独运行不完整：SyntaxError: 'await' outside function）
 ```
 
 - `asyncio.run()` 只能调用一次且必须作为程序入口；
