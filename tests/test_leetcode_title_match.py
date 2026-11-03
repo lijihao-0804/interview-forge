@@ -45,3 +45,16 @@ class LeetCodeTitleMatchTests(TestCase):
 
         self.assertEqual(lookup("实现 Trie (前缀树)"), 208)
         self.assertEqual(lookup("除了自身以外数组的乘积"), 238)
+
+    def test_nearest_pid_matches_one_char_variant(self) -> None:
+        """力扣标题与站内标题仅差一个字（如「除自身以外」vs「除了自身以外」）也能匹配。"""
+        items = [(str(p["title"]).strip(), pid) for pid, p in PROBLEM_BY_ID.items()]
+        self.assertEqual(leetcode._nearest_pid("除了自身以外数组的乘积", items), 238)
+        self.assertEqual(leetcode._nearest_pid("实现 Trie (前缀树)", items), 208)
+        self.assertEqual(
+            leetcode._levenshtein(
+                leetcode._norm_title("除了自身以外数组的乘积"),
+                leetcode._norm_title("除自身以外数组的乘积"),
+            ),
+            1,
+        )

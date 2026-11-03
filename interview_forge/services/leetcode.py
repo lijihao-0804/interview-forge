@@ -210,6 +210,37 @@ def _norm_title(s: object) -> str:
     return re.sub(r"[\s\-_、,，。.:：!！?？]", "", s).lower()
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """编辑距离（用于标题仅差个别字时的兜底匹配）。"""
+    if a == b:
+        return 0
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return 2  # 长度差超 1 视为不相似，快速返回
+    prev = list(range(lb + 1))
+    for i in range(1, la + 1):
+        cur = [i]
+        for j in range(1, lb + 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] != b[j - 1])))
+        prev = cur
+    return prev[lb]
+
+
+def _nearest_pid(title: str, items, max_dist: int = 1) -> int | None:
+    """归一化后编辑距离 ≤ max_dist 且候选唯一时返回 pid（防误配）。"""
+    n = _norm_title(title)
+    hits = set()
+    for t, pid in items:
+        tn = _norm_title(t)
+        if abs(len(tn) - len(n)) > max_dist:
+            continue
+        if _levenshtein(tn, n) <= max_dist:
+            hits.add(int(pid))
+            if len(hits) > 1:
+                return None
+    return next(iter(hits)) if len(hits) == 1 else None
+
+
 def _leetcode_headers(credentials: dict[str, str]) -> dict[str, str]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -521,6 +552,7 @@ def leetcode_sync(
     norm_to_id: dict[str, int] = {}
     for _t, _p in title_to_id.items():
         norm_to_id.setdefault(_norm_title(_t), int(_p))
+    title_items = list(title_to_id.items())
 
     collected: list[dict[str, object]] = []
     unmatched_titles: list[str] = []
@@ -562,6 +594,8 @@ def leetcode_sync(
             pid = title_to_id.get(title)
             if pid is None:  # 标题写法差异（括号/标点/空白）兜底
                 pid = norm_to_id.get(_norm_title(title))
+            if pid is None:  # 仅差个别字（如「除自身以外」vs「除了自身以外」），编辑距离兜底
+                pid = _nearest_pid(title, title_items)
             if pid is None:
                 unmatched_titles.append(title)
                 continue
