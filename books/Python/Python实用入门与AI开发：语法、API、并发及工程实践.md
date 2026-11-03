@@ -1215,9 +1215,9 @@ print(numbers)  # [10, 40, 50, 30]
 
 ```python
 items = ["a"]
-items.append("b")          # 把一个对象作为一个元素加入
-items.extend(["c", "d"])   # 逐个加入可迭代对象中的元素
-items.insert(1, "x")       # 在下标 1 前插入
+items.append("b")          # ["a", "b"]，把对象作为一个元素加入
+items.extend(["c", "d"])   # ["a", "b", "c", "d"]，逐个加入元素
+items.insert(1, "x")       # ["a", "x", "b", "c", "d"]，在下标 1 前插入
 ```
 
 `append()` 与 `extend()` 的区别：
@@ -1249,11 +1249,11 @@ print(items)   # [1, 2, 3]
 ```python
 items = ["a", "b", "c", "b"]
 
-items.remove("b")   # 删除第一个匹配值，找不到抛 ValueError
-last = items.pop()  # 删除并返回最后一个
-first = items.pop(0)
-del items[0]        # 按下标删除
-items.clear()       # 清空
+items.remove("b")   # ["a", "c", "b"]，删除第一个匹配值
+last = items.pop()  # last='b'，items 变为 ["a", "c"]
+first = items.pop(0)  # first='a'，items 变为 ["c"]
+del items[0]        # items 变为 []
+items.clear()       # items 仍为 []
 ```
 
 频繁从列表头部 `pop(0)` 需要移动后续元素，效率较低。队列应使用 `collections.deque`。
@@ -1292,7 +1292,7 @@ users = [
     {"name": "Bob", "score": 85},
 ]
 
-users.sort(key=lambda user: user["score"], reverse=True)
+users.sort(key=lambda user: user["score"], reverse=True)  # 按分数降序，原地修改
 ```
 
 排序是稳定的：key 相等的元素保留原相对顺序。复杂逻辑可定义普通函数替代 lambda。
@@ -1300,7 +1300,7 @@ users.sort(key=lambda user: user["score"], reverse=True)
 多字段排序让 key 返回元组，元组按顺序比较：
 
 ```python
-users.sort(key=lambda user: (user["department"], user["score"]))
+users.sort(key=lambda user: (user["department"], user["score"]))  # 先按部门，再按分数升序
 ```
 
 若某个字段要降序，通常先升序排次要字段，再对目标字段使用 `reverse=True`；更可控的做法是让 key 返回负数值。
@@ -1317,7 +1317,7 @@ print(["a"] * 3)  # ['a', 'a', 'a']
 ```python
 bad_grid = [[0] * 3] * 2
 bad_grid[0][0] = 1
-print(bad_grid)  # 两行都被修改
+print(bad_grid)  # [[1, 0, 0], [1, 0, 0]]，两行都被修改
 ```
 
 两个外层元素引用同一个内层列表。正确写法：
@@ -1338,7 +1338,7 @@ single = (1,)  # 单元素元组必须有逗号
 括号常可省略，逗号才是形成元组的关键：
 
 ```python
-pair = 10, 20
+pair = 10, 20  # (10, 20)，括号可省略
 ```
 
 元组支持索引、切片、`len()`、`count()`、`index()`，但不能修改元素。
@@ -1346,26 +1346,26 @@ pair = 10, 20
 解包：
 
 ```python
-batch, channels, height, width = shape
+batch, channels, height, width = shape  # batch=32, channels=3, height=224, width=224
 ```
 
 忽略不关心的值通常用 `_`：
 
 ```python
-name, _, score = ("Ada", 20, 95)
+name, _, score = ("Ada", 20, 95)  # name='Ada', score=95
 ```
 
 扩展解包：
 
 ```python
-first, *rest = (1, 2, 3, 4)
+first, *rest = (1, 2, 3, 4)  # first=1, rest=[2, 3, 4]
 ```
 
 元组本身不可变，但若内部包含列表，该列表仍可变：
 
 ```python
 record = (1, ["a"])
-record[1].append("b")  # 合法
+record[1].append("b")  # 合法，record 变为 (1, ['a', 'b'])
 ```
 
 元组适合固定结构、函数返回多个值和字典键，但业务字段多时 dataclass 或命名结构更清晰。
@@ -1382,8 +1382,8 @@ config = {
 }
 
 empty = {}
-from_pairs = dict([("a", 1), ("b", 2)])
-from_keywords = dict(timeout=30, retries=2)
+from_pairs = dict([("a", 1), ("b", 2)])  # {'a': 1, 'b': 2}
+from_keywords = dict(timeout=30, retries=2)  # {'timeout': 30, 'retries': 2}
 ```
 
 键必须可哈希且保持稳定，例如 str、int、tuple；list、dict、set 不能作键。
@@ -1391,9 +1391,9 @@ from_keywords = dict(timeout=30, retries=2)
 #### 4.3.1 读取键
 
 ```python
-print(config["model"])
-print(config.get("timeout"))
-print(config.get("timeout", 30))
+print(config["model"])  # demo
+print(config.get("timeout"))  # None
+print(config.get("timeout", 30))  # 30
 ```
 
 - `mapping[key]` 不存在时抛 `KeyError`；
@@ -1410,16 +1410,16 @@ if "timeout" in config:
 #### 4.3.2 新增与更新
 
 ```python
-config["timeout"] = 30
-config["temperature"] = 0.1
-config.update({"retries": 2, "timeout": 60})
+config["timeout"] = 30        # config 增加 'timeout': 30
+config["temperature"] = 0.1   # 'temperature' 变为 0.1
+config.update({"retries": 2, "timeout": 60})  # config 增加 retries: 2，timeout 变为 60
 ```
 
 `setdefault()` 在键不存在时写入默认值，并返回最终值：
 
 ```python
 groups = {}
-groups.setdefault("python", []).append("Ada")
+groups.setdefault("python", []).append("Ada")  # {'python': ['Ada']}
 ```
 
 简单场景可用，但批量分组更适合 `collections.defaultdict`。
@@ -1427,10 +1427,10 @@ groups.setdefault("python", []).append("Ada")
 #### 4.3.3 删除
 
 ```python
-timeout = config.pop("timeout", 30)  # 删除并返回，可给默认值
-key, value = config.popitem()        # 删除并返回最后插入项
-del config["model"]                  # 不存在时抛 KeyError
-config.clear()
+timeout = config.pop("timeout", 30)  # timeout=60，config 不再含 'timeout'
+key, value = config.popitem()        # key='retries'、value=2，config 少一对
+del config["model"]                  # config 剩 {'temperature': 0.1, 'max_tokens': 512}
+config.clear()                       # config 变为 {}
 ```
 
 #### 4.3.4 遍历
@@ -1439,13 +1439,13 @@ config.clear()
 config = {"model": "demo", "timeout": 30}
 
 for key in config:
-    print(key)
+    print(key)  # model / timeout
 
 for value in config.values():
-    print(value)
+    print(value)  # demo / 30
 
 for key, value in config.items():
-    print(key, value)
+    print(key, value)  # model demo / timeout 30
 ```
 
 遍历过程中不要改变字典大小，否则可能抛 `RuntimeError`。若确实要删除，可先遍历 `list(config)` 或构造新字典。
@@ -1461,7 +1461,7 @@ base = {"timeout": 30, "retries": 2}
 override = {"timeout": 60}
 
 final = base | override
-print(final)  # timeout 为 60
+print(final)  # {'timeout': 60, 'retries': 2}
 ```
 
 后面的字典覆盖前面相同键。原字典不变。`base |= override` 会原地更新 base。
@@ -1473,7 +1473,7 @@ print(final)  # timeout 为 60
 ```python
 empty = set()        # {} 是空字典，不是空集合
 values = {1, 2, 3}
-unique = set([1, 1, 2, 3])
+unique = set([1, 1, 2, 3])  # {1, 2, 3}
 ```
 
 集合不保证业务上可依赖的顺序。元素必须可哈希。
@@ -1481,12 +1481,12 @@ unique = set([1, 1, 2, 3])
 添加与删除：
 
 ```python
-values.add(4)
-values.update([5, 6])
-values.remove(2)   # 不存在抛 KeyError
-values.discard(9)  # 不存在也不报错
-item = values.pop()
-values.clear()
+values.add(4)          # {1, 2, 3, 4}
+values.update([5, 6])  # {1, 2, 3, 4, 5, 6}
+values.remove(2)       # {1, 3, 4, 5, 6}，不存在抛 KeyError
+values.discard(9)      # {1, 3, 4, 5, 6}，9 不存在也不报错
+item = values.pop()    # item 为弹出的元素，values 变为 {3, 4, 5, 6}
+values.clear()         # values 变为 set()
 ```
 
 集合运算：
@@ -1495,12 +1495,12 @@ values.clear()
 a = {"read", "write"}
 b = {"read", "search"}
 
-print(a | b)  # 并集
-print(a & b)  # 交集
-print(a - b)  # 差集
-print(a ^ b)  # 对称差
-print({"read"} <= a)  # 是否为子集
-print(a >= {"read"})  # 是否为超集
+print(a | b)  # 并集：{'read', 'write', 'search'}
+print(a & b)  # 交集：{'read'}
+print(a - b)  # 差集：{'write'}
+print(a ^ b)  # 对称差：{'write', 'search'}
+print({"read"} <= a)  # True，子集
+print(a >= {"read"})  # True，超集
 print(a.isdisjoint({"admin"}))  # True
 ```
 
@@ -1508,7 +1508,7 @@ print(a.isdisjoint({"admin"}))  # True
 
 ```python
 items = ["a", "b", "a", "c"]
-unique_in_order = list(dict.fromkeys(items))
+unique_in_order = list(dict.fromkeys(items))  # ['a', 'b', 'c']
 ```
 
 不可变集合 `frozenset` 可作为字典键或放进另一个集合。
@@ -1524,7 +1524,7 @@ response = {
     ]
 }
 
-content = response["choices"][0]["message"]["content"]
+content = response["choices"][0]["message"]["content"]  # 你好
 ```
 
 每一层都可能缺失时，不要写过长的链式索引并假设结构永远正确。对外部 API 应使用 Pydantic、TypedDict 或显式校验。
