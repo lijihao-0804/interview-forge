@@ -2361,6 +2361,19 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             glossary_head = (
                 f'<link rel="stylesheet" href="../assets/term-tooltip.css?v={ASSET_VERSION}">'
             )
+            # 超长章节（代码块特别多）按代码块做浏览器的离屏渲染跳过：不改变阅读
+            # 顺序、不折叠内容，但滚到视口前不排版/绘制整块代码，避免一屏一屏地
+            # 为几十个 Pygments 高亮块反复布局。320px 是实测代码块平均高度，接近
+            # 真实文档高度，避免滚动条大幅跳动。
+            long_chapter_head = ""
+            if content.count('<div class="codehilite"') > 60:
+                long_chapter_head = (
+                    '<style>'
+                    '.reader-body .codehilite{content-visibility:auto;contain-intrinsic-size:auto 322px;margin:16px 0;}'
+                    '.reader-body .codehilite pre{margin:0;}'
+                    '@media(max-width:560px){.reader-body .codehilite{contain-intrinsic-size:auto 520px;}}'
+                    '</style>'
+                )
             (module_dir / filename).write_text(
                 document(
                     f'{raw_chapter["title"]} · InterviewForge',
@@ -2368,7 +2381,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
                     "../assets/library.css",
                     chapter_scripts,
                     css_version=chapter_style_version,
-                    extra_head=glossary_head,
+                    extra_head=glossary_head + long_chapter_head,
                 ),
                 encoding="utf-8",
             )
