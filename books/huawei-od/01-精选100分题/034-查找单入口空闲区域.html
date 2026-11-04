@@ -335,10 +335,18 @@ X X X X
   "use strict";
   var KEY = "forgeSelfTestMode";
   // 自测模式下必须遮罩的分区：推导、代码、解析、模板、复杂度、易错点、延伸。
-  // 「核心不变量」虽然看起来像"题面骨架"，但它往往直接点出了解法关键
-  //（如「滑动窗口内元素互不相同」），自测时同样会泄露思路，故一并遮罩。
-  // 只保留：题目与约束（题面）、力扣原题（链接）。
-  var KEEP = { "题目与约束": 1, "力扣原题": 1 };
+  // 题面相关分区（题目描述、输入/输出描述、示例、说明、备注）必须保持可见，
+  // 否则自测时连题目都看不到；「核心不变量」会泄露思路，仍按解法内容遮罩。
+  var KEEP = {
+    "题目与约束": 1, "力扣原题": 1,
+    "题目描述": 1, "输入描述": 1, "输出描述": 1, "示例描述": 1,
+    "备注": 1, "说明": 1, "补充说明": 1
+  };
+  function isKeepTitle(title) {
+    if (KEEP[title]) return true;
+    // 兼容「示例一/示例 1」「输入描述s」等标题变体
+    return /^(示例|输入描述|输出描述|题目描述|说明|备注|提示)/.test(title);
+  }
   var toggle = document.getElementById("selftestToggle");
   if (!toggle) return;
 
@@ -443,7 +451,7 @@ X X X X
     if (!on) return;
     collectSections().forEach(function (section, index) {
       // 第一段兜底保留（题面），其余按白名单；打印/复制场景不受影响
-      if (index === 0 || KEEP[section.title] || !section.nodes.length) return;
+      if (index === 0 || isKeepTitle(section.title) || !section.nodes.length) return;
       var wrap = document.createElement("div");
       wrap.className = "selftest-block";
       var content = document.createElement("div");

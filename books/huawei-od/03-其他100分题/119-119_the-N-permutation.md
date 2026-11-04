@@ -1,4 +1,7 @@
-## 119 第N个排列
+# 119 第N个排列
+
+[🔗 力扣对应题：60. 排列序列 →](https://leetcode.cn/problems/permutation-sequence/)
+
 
 ## 题目描述
 
@@ -114,3 +117,7 @@ public class Solution {
     }
 }
 ```
+
+## 力扣原题
+
+[🔗 力扣对应题：60. 排列序列 →](https://leetcode.cn/problems/permutation-sequence/)
