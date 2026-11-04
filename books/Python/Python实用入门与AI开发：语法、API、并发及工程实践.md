@@ -2,7 +2,7 @@
 
 > 这份笔记的目标读者：想用 Python 做 AI 开发的初学者，以及需要随时查语法、查工程实践的开发者。  
 > 建议版本：Python 3.11+。示例主要使用现代类型标注、`asyncio.TaskGroup` 等语法；Python 3.14 的自由线程构建可作为进阶实验，但不是默认运行模式。
-> 阅读方式：第一次学习按顺序读第 0~12 章打基础；做项目时对照第 13~30 章；想快速了解 AI 开发，先读第 31~33 章再回头补基础。第 34 章是语法速查表，第 36 章是术语表，第 37 章是常见问题，第 38 章是力扣刷题常用方法与 API。  
+> 阅读方式：第一次学习按顺序读第 0~12 章打基础；做项目时对照第 13~30 章；想快速了解 AI 开发，先读第 31~33 章再回头补基础。第 34 章是语法速查表，第 36 章是术语表，第 37 章是常见问题，第 38～40 章是力扣刷题常用方法与 API。  
 > 代码块后面的“输出”是典型运行结果；涉及并发的输出顺序可能变化。示例中的 `example.com`、`your-model` 等是占位内容，运行前必须替换。
 
 ## 怎么用这份笔记
@@ -52,7 +52,9 @@
 - [35. 学习路线与关联笔记](#35-学习路线与关联笔记)
 - [36. AI 术语表](#36-ai-术语表)
 - [37. 常见问题与故障排查](#37-常见问题与故障排查)
-- [38. 力扣刷题最常用的 Python 方法与 API](#38-力扣刷题最常用的-python-方法与-api)
+- [38. 力扣刷题常用 API（基础篇）：容器、字符串与栈队列](#38-力扣刷题常用-api基础篇容器字符串与栈队列)
+- [39. 力扣刷题常用 API（扩展篇）：堆、排序、二分与进阶标准库](#39-力扣刷题常用-api扩展篇堆排序二分与进阶标准库)
+- [40. 力扣刷题常用 API（真题篇）：模板与实战](#40-力扣刷题常用-api真题篇模板与实战)
 
 ---
 
@@ -5145,7 +5147,7 @@ task = asyncio.create_task(fetch(1))    # 或创建任务
 
 ---
 
-## 38. 力扣刷题最常用的 Python 方法与 API
+## 38. 力扣刷题常用 API（基础篇）：容器、字符串与栈队列
 
 这一章更像一本“刷题手册”，不是语法大全。目标很具体：看到一道题，能立刻想到该用什么容器、哪个内置方法、哪个标准库，以及对应的代码模板。
 
@@ -5533,7 +5535,13 @@ print(max_sliding_window([1, 3, -1, -3, 5, 3, 6, 7], 3))  # [3, 3, 5, 5, 6, 7]
 
 对应力扣：20. 有效的括号、155. 最小栈、232. 用栈实现队列、239. 滑动窗口最大值。
 
-### 38.6 heapq：力扣最常用的最小堆
+---
+
+## 39. 力扣刷题常用 API（扩展篇）：堆、排序、二分与进阶标准库
+
+这一部分集中讲刷题里最常用的堆、排序比较器和二分查找。
+
+### 39.1 heapq：力扣最常用的最小堆
 
 `heapq` 是**最小堆**。它只保证 `heap[0]` 最小，不保证整个列表有序。最常用的操作：
 
@@ -5581,7 +5589,7 @@ while len(heap) > 1:
 print(-heap[0] if heap else 0)  # 1
 ```
 
-#### 38.6.1 用最小堆求第 K 大
+#### 39.1.1 用最小堆求第 K 大
 
 维护一个大小为 `k` 的最小堆：堆里始终保存当前最大的 k 个元素，堆顶就是第 k 大。
 
@@ -5602,7 +5610,7 @@ print(find_kth_largest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4))  # 4
 
 这是力扣 215. 数组中的第 K 个最大元素的标准解法之一，时间复杂度 O(n log k)。
 
-#### 38.6.2 堆里放元组：优先级 + 数据
+#### 39.1.2 堆里放元组：优先级 + 数据
 
 当堆元素是元组时，Python 按元组顺序比较。常见写法是 `(优先级, 数据)`：
 
@@ -5652,7 +5660,7 @@ print(heapq.heappop(heap).name)  # 高优先级
 
 `heapq` 只依赖 `<` 比较，所以实现 `__lt__` 就够了；元组方案更简单，自定义类更适合字段多、逻辑复杂的场景。
 
-#### 38.6.3 前 K 个高频元素：Counter + heap
+#### 39.1.3 前 K 个高频元素：Counter + heap
 
 ```python
 import heapq
@@ -5667,7 +5675,7 @@ print(top_k_frequent([1, 1, 1, 2, 2, 3], 2))  # [1, 2]
 
 对应力扣：215. 数组中的第 K 个最大元素、347. 前 K 个高频元素、1046. 最后一块石头的重量、703. 数据流中的第 K 大元素。
 
-#### 38.6.4 合并 K 个有序链表：堆的经典用法
+#### 39.1.4 合并 K 个有序链表：堆的经典用法
 
 ```python
 import heapq
@@ -5696,7 +5704,7 @@ def merge_k_lists(lists: list[ListNode | None]) -> ListNode | None:
 
 对应力扣：23. 合并 K 个升序链表。
 
-#### 38.6.5 Dijkstra：堆优化最短路
+#### 39.1.5 Dijkstra：堆优化最短路
 
 ```python
 import heapq
@@ -5728,7 +5736,7 @@ print(network_delay_time([[2, 1, 1], [2, 3, 1], [3, 4, 1]], 4, 2))  # 2
 
 对应力扣：743. 网络延迟时间。
 
-### 38.7 排序与自定义比较器：能用 key 就别写 cmp
+### 39.2 排序与自定义比较器：能用 key 就别写 cmp
 
 `key` 是最常用的排序方式。它把每个元素映射成一个“可比较的值”：
 
@@ -5763,7 +5771,7 @@ pairs = [(3, "c"), (1, "a"), (2, "b")]
 print(sorted(pairs, key=itemgetter(0)))  # [(1, 'a'), (2, 'b'), (3, 'c')]
 ```
 
-#### 38.7.1 什么时候用 `cmp_to_key`
+#### 39.2.1 什么时候用 `cmp_to_key`
 
 Python 3 的 `sort` 没有 `cmp` 参数。如果两个元素的先后关系不能用简单的 `key` 表达，就要用 `functools.cmp_to_key` 把比较函数包装成 key。
 
@@ -5785,7 +5793,7 @@ nums = [3, 1, 2]
 print(sorted(nums, key=cmp_to_key(compare)))  # [3, 2, 1]
 ```
 
-#### 38.7.2 经典比较器：把数字拼成最大数
+#### 39.2.2 经典比较器：把数字拼成最大数
 
 力扣 179. 最大数要求把数字拼成最大的字符串。比较规则不是“谁大谁在前”，而是 `a + b` 与 `b + a` 哪个更大：
 
@@ -5811,7 +5819,7 @@ print(largest_number([3, 30, 34, 5, 9]))  # 9534330
 
 这类题如果只按 `key=int` 排序，会得到 `[10, 2] -> 102`，是错的。必须比较拼接后的结果。
 
-#### 38.7.3 区间题：按起点或终点排序
+#### 39.2.3 区间题：按起点或终点排序
 
 合并区间按起点排序：
 
@@ -5850,7 +5858,7 @@ print(erase_overlap_intervals([[1, 2], [2, 3], [3, 4], [1, 3]]))  # 1
 
 对应力扣：56. 合并区间、435. 无重叠区间、452. 用最少数量的箭引爆气球、179. 最大数、973. 最接近原点的 K 个点。
 
-### 38.8 bisect：有序数组的二分查找
+### 39.3 bisect：有序数组的二分查找
 
 `bisect_left` 找第一个 `>= target` 的位置，`bisect_right` 找第一个 `> target` 的位置：
 
@@ -5903,7 +5911,7 @@ print(binary_search([-1, 0, 3, 5, 9, 12], 2))  # -1
 
 对应力扣：704. 二分查找、35. 搜索插入位置、34. 在排序数组中查找元素的第一个和最后一个位置。
 
-### 38.9 itertools、functools 与 math
+### 39.4 itertools、functools 与 math
 
 前缀和、组合、排列和笛卡尔积：
 
@@ -5953,7 +5961,7 @@ print(math.comb(5, 2))         # 10
 print(math.perm(5, 2))         # 20
 ```
 
-### 38.10 位运算常用公式
+### 39.5 位运算常用公式
 
 ```python
 n = 10
@@ -5990,223 +5998,11 @@ print(is_power_of_two(18))  # False
 
 对应力扣：136. 只出现一次的数字、191. 位 1 的个数、231. 2 的幂、338. 比特位计数。
 
-### 38.11 数组与字符串模板
-
-#### 38.11.1 双指针（对撞）
-
-```python
-def two_sum_sorted(nums: list[int], target: int) -> list[int]:
-    left, right = 0, len(nums) - 1
-    while left < right:
-        total = nums[left] + nums[right]
-        if total == target:
-            return [left, right]
-        if total < target:
-            left += 1   # 和太小，左指针右移
-        else:
-            right -= 1  # 和太大，右指针左移
-    return []
-
-print(two_sum_sorted([1, 2, 4, 7], 9))  # [1, 3]
-```
-
-#### 38.11.2 滑动窗口
-
-```python
-def longest_unique_substring(s: str) -> int:
-    left = 0
-    window = set()
-    best = 0
-
-    for right, ch in enumerate(s):
-        while ch in window:
-            window.remove(s[left])  # 左边界右移，缩小窗口
-            left += 1               # 左指针右移
-        window.add(ch)              # 当前字符加入窗口
-        best = max(best, right - left + 1)
-
-    return best
-
-print(longest_unique_substring("abcabcbb"))  # 3
-```
-
-#### 38.11.3 前缀和
-
-```python
-nums = [1, 2, 3, 4]
-
-prefix = [0]
-for num in nums:
-    prefix.append(prefix[-1] + num)  # prefix 变为 [0, 1, 3, 6, 10]
-
-print(prefix)                 # [0, 1, 3, 6, 10]
-print(prefix[3] - prefix[1])  # 5，子数组 nums[1:3] 的和
-```
-
-#### 38.11.4 单调栈
-
-```python
-def next_greater(nums: list[int]) -> list[int]:
-    result = [-1] * len(nums)
-    stack = []  # 存下标，栈内对应值单调递减
-
-    for i, num in enumerate(nums):
-        while stack and nums[stack[-1]] < num:
-            index = stack.pop()   # 弹出下标
-            result[index] = num   # 找到右侧第一个更大值
-        stack.append(i)           # 当前下标入栈
-
-    return result
-
-print(next_greater([2, 1, 2, 4, 3]))  # [4, 2, 4, -1, -1]
-```
-
-#### 38.11.5 动态规划
-
-```python
-def coin_change(coins: list[int], amount: int) -> int:
-    dp = [amount + 1] * (amount + 1)  # dp[i]：凑出金额 i 的最少硬币数
-    dp[0] = 0  # 金额 0 需要 0 枚硬币
-
-    for i in range(1, amount + 1):
-        for coin in coins:
-            if coin <= i:
-                dp[i] = min(dp[i], dp[i - coin] + 1)  # 更新最少硬币数
-
-    return dp[amount] if dp[amount] != amount + 1 else -1
-
-print(coin_change([1, 2, 5], 11))  # 3
-print(coin_change([2], 3))         # -1
-```
-
-### 38.12 图、树与链表模板
-
-#### 38.12.1 BFS 网格最短路
-
-```python
-from collections import deque
-
-def shortest_path(grid: list[list[int]], start: tuple[int, int], end: tuple[int, int]) -> int:
-    rows, cols = len(grid), len(grid[0])
-    queue = deque([(start[0], start[1], 0)])  # (row, col, distance)
-    visited = {start}
-
-    while queue:
-        r, c, dist = queue.popleft()  # 出队当前格子
-        if (r, c) == end:
-            return dist
-        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0 and (nr, nc) not in visited:
-                visited.add((nr, nc))             # 标记已访问
-                queue.append((nr, nc, dist + 1))  # 入队，距离加一
-
-    return -1
-
-grid = [
-    [0, 0, 0],
-    [1, 1, 0],
-    [0, 0, 0],
-]
-print(shortest_path(grid, (0, 0), (2, 2)))  # 4
-```
-
-#### 38.12.2 DFS 与回溯
-
-```python
-def subsets(nums: list[int]) -> list[list[int]]:
-    result = []
-    path = []
-
-    def backtrack(start: int) -> None:
-        result.append(path.copy())  # 复制当前路径，避免后续修改影响结果
-        for i in range(start, len(nums)):
-            path.append(nums[i])  # 选择当前元素
-            backtrack(i + 1)
-            path.pop()            # 回溯，撤销选择
-
-    backtrack(0)
-    return result
-
-print(subsets([1, 2, 3]))  # [[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]
-```
-
-#### 38.12.3 二叉树遍历
-
-```python
-class TreeNode:
-    def __init__(self, val: int = 0, left=None, right=None):
-        self.val = val
-        self.left = left
-        self.right = right
-
-def inorder(root: TreeNode | None) -> list[int]:
-    result = []
-
-    def dfs(node: TreeNode | None) -> None:
-        if node is None:
-            return
-        dfs(node.left)
-        result.append(node.val)  # 访问当前节点
-        dfs(node.right)
-
-    dfs(root)
-    return result
-```
-
-#### 38.12.4 反转链表
-
-```python
-class ListNode:
-    def __init__(self, val: int = 0, next: "ListNode | None" = None):
-        self.val = val
-        self.next = next
-
-def reverse_list(head: ListNode | None) -> ListNode | None:
-    prev = None
-    while head:
-        nxt = head.next   # 先记住下一个节点
-        head.next = prev  # 反转当前节点的指针
-        prev = head       # prev 前移
-        head = nxt        # head 前移
-    return prev
-```
-
-#### 38.12.5 并查集
-
-```python
-class UnionFind:
-    def __init__(self, n: int):
-        self.parent = list(range(n))  # 每个元素自成一个集合
-        self.rank = [0] * n
-
-    def find(self, x: int) -> int:
-        if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 路径压缩
-        return self.parent[x]
-
-    def union(self, a: int, b: int) -> bool:
-        root_a, root_b = self.find(a), self.find(b)
-        if root_a == root_b:
-            return False  # 已经在同一集合
-        if self.rank[root_a] < self.rank[root_b]:
-            root_a, root_b = root_b, root_a
-        self.parent[root_b] = root_a  # 合并到 root_a
-        if self.rank[root_a] == self.rank[root_b]:
-            self.rank[root_a] += 1  # 合并后秩加一
-        return True
-
-uf = UnionFind(5)
-print(uf.union(0, 1))  # True
-print(uf.union(1, 2))  # True
-print(uf.union(0, 2))  # False，已经在同一集合
-```
-
-### 38.13 常用内置函数与标准库补充
+### 39.6 常用内置函数与标准库补充
 
 除了容器和算法模板，力扣里还有一批“见到就该想到”的内置函数和标准库。它们不难，但不用就会把简单题写得很长。
 
-#### 38.13.1 `max`、`min`、`sum`、`zip`
+#### 39.6.1 `max`、`min`、`sum`、`zip`
 
 `max()` / `min()` 支持 `key`，也支持在空序列上给 `default`：
 
@@ -6246,7 +6042,7 @@ except ValueError as exc:
     print(type(exc).__name__)  # ValueError
 ```
 
-#### 38.13.2 `map`、`filter` 与推导式
+#### 39.6.2 `map`、`filter` 与推导式
 
 `map()` 对每个元素做转换，`filter()` 保留满足条件的元素：
 
@@ -6267,7 +6063,7 @@ print([x * 2 for x in nums])            # [2, 4, 6, 8]
 print([x for x in nums if x % 2 == 0])  # [2, 4]
 ```
 
-#### 38.13.3 `re`：字符串题的正则工具
+#### 39.6.3 `re`：字符串题的正则工具
 
 `re` 是标准库，处理复杂分隔、提取数字、替换空白时非常省事。先记住几个函数：
 
@@ -6318,7 +6114,7 @@ print(match.groups())  # ('2024', '06', '18')
 
 写正则时优先用原始字符串 `r"..."`，避免反斜杠被 Python 先转义。
 
-#### 38.13.4 `itertools` 补充：链条、切片、分组、相邻
+#### 39.6.4 `itertools` 补充：链条、切片、分组、相邻
 
 ```python
 from itertools import chain, islice, groupby, pairwise, zip_longest
@@ -6347,7 +6143,7 @@ import heapq
 print(list(heapq.merge([1, 3, 5], [2, 4, 6])))  # [1, 2, 3, 4, 5, 6]
 ```
 
-#### 38.13.5 `Counter` 运算、`OrderedDict` 与 `deque.rotate`
+#### 39.6.5 `Counter` 运算、`OrderedDict` 与 `deque.rotate`
 
 `Counter` 可以直接做加减和集合运算：
 
@@ -6386,7 +6182,7 @@ q.rotate(-2)  # 左移两位
 print(q)      # deque([2, 3, 4, 1])
 ```
 
-#### 38.13.6 `math` 与 `sys` 的常用常量/函数
+#### 39.6.6 `math` 与 `sys` 的常用常量/函数
 
 ```python
 import math
@@ -6409,7 +6205,7 @@ sys.setrecursionlimit(1_000_000)  # 提高递归上限，按环境谨慎使用
 print(sys.getrecursionlimit())      # 1000000
 ```
 
-#### 38.13.7 常用常量写法
+#### 39.6.7 常用常量写法
 
 ```python
 INF = float("inf")
@@ -6423,7 +6219,7 @@ print(MOD)              # 1000000007
 
 对应力扣：17. 电话号码的字母组合、22. 括号生成、46. 全排列、77. 组合、78. 子集、93. 复原 IP 地址。
 
-#### 38.13.8 list / dict / set 小方法补漏
+#### 39.6.8 list / dict / set 小方法补漏
 
 列表的 `reverse()`、`extend()`、`index()`、`count()`、`copy()`：
 
@@ -6459,7 +6255,225 @@ print(a.issuperset(b))      # True
 print(a.isdisjoint({4, 5})) # True
 ```
 
-### 38.14 高频坑与刷题流程
+---
+
+## 40. 力扣刷题常用 API（真题篇）：模板与实战
+
+这一部分把前面学过的 API 串成真题模板，最后收束刷题流程和常见坑。
+
+### 40.1 数组与字符串真题模板
+
+#### 40.1.1 双指针：两数之和 II - 输入有序数组
+
+```python
+def two_sum_sorted(nums: list[int], target: int) -> list[int]:
+    left, right = 0, len(nums) - 1
+    while left < right:
+        total = nums[left] + nums[right]
+        if total == target:
+            return [left, right]
+        if total < target:
+            left += 1   # 和太小，左指针右移
+        else:
+            right -= 1  # 和太大，右指针左移
+    return []
+
+print(two_sum_sorted([1, 2, 4, 7], 9))  # [1, 3]
+```
+
+#### 40.1.2 滑动窗口：无重复字符的最长子串
+
+```python
+def longest_unique_substring(s: str) -> int:
+    left = 0
+    window = set()
+    best = 0
+
+    for right, ch in enumerate(s):
+        while ch in window:
+            window.remove(s[left])  # 左边界右移，缩小窗口
+            left += 1               # 左指针右移
+        window.add(ch)              # 当前字符加入窗口
+        best = max(best, right - left + 1)
+
+    return best
+
+print(longest_unique_substring("abcabcbb"))  # 3
+```
+
+#### 40.1.3 前缀和：和为 K 的子数组
+
+```python
+nums = [1, 2, 3, 4]
+
+prefix = [0]
+for num in nums:
+    prefix.append(prefix[-1] + num)  # prefix 变为 [0, 1, 3, 6, 10]
+
+print(prefix)                 # [0, 1, 3, 6, 10]
+print(prefix[3] - prefix[1])  # 5，子数组 nums[1:3] 的和
+```
+
+#### 40.1.4 单调栈：下一个更大元素 I
+
+```python
+def next_greater(nums: list[int]) -> list[int]:
+    result = [-1] * len(nums)
+    stack = []  # 存下标，栈内对应值单调递减
+
+    for i, num in enumerate(nums):
+        while stack and nums[stack[-1]] < num:
+            index = stack.pop()   # 弹出下标
+            result[index] = num   # 找到右侧第一个更大值
+        stack.append(i)           # 当前下标入栈
+
+    return result
+
+print(next_greater([2, 1, 2, 4, 3]))  # [4, 2, 4, -1, -1]
+```
+
+#### 40.1.5 动态规划：零钱兑换
+
+```python
+def coin_change(coins: list[int], amount: int) -> int:
+    dp = [amount + 1] * (amount + 1)  # dp[i]：凑出金额 i 的最少硬币数
+    dp[0] = 0  # 金额 0 需要 0 枚硬币
+
+    for i in range(1, amount + 1):
+        for coin in coins:
+            if coin <= i:
+                dp[i] = min(dp[i], dp[i - coin] + 1)  # 更新最少硬币数
+
+    return dp[amount] if dp[amount] != amount + 1 else -1
+
+print(coin_change([1, 2, 5], 11))  # 3
+print(coin_change([2], 3))         # -1
+```
+
+### 40.2 图、树与链表真题模板
+
+#### 40.2.1 BFS：网格中的最短路径
+
+```python
+from collections import deque
+
+def shortest_path(grid: list[list[int]], start: tuple[int, int], end: tuple[int, int]) -> int:
+    rows, cols = len(grid), len(grid[0])
+    queue = deque([(start[0], start[1], 0)])  # (row, col, distance)
+    visited = {start}
+
+    while queue:
+        r, c, dist = queue.popleft()  # 出队当前格子
+        if (r, c) == end:
+            return dist
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0 and (nr, nc) not in visited:
+                visited.add((nr, nc))             # 标记已访问
+                queue.append((nr, nc, dist + 1))  # 入队，距离加一
+
+    return -1
+
+grid = [
+    [0, 0, 0],
+    [1, 1, 0],
+    [0, 0, 0],
+]
+print(shortest_path(grid, (0, 0), (2, 2)))  # 4
+```
+
+#### 40.2.2 DFS 与回溯：子集
+
+```python
+def subsets(nums: list[int]) -> list[list[int]]:
+    result = []
+    path = []
+
+    def backtrack(start: int) -> None:
+        result.append(path.copy())  # 复制当前路径，避免后续修改影响结果
+        for i in range(start, len(nums)):
+            path.append(nums[i])  # 选择当前元素
+            backtrack(i + 1)
+            path.pop()            # 回溯，撤销选择
+
+    backtrack(0)
+    return result
+
+print(subsets([1, 2, 3]))  # [[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]
+```
+
+#### 40.2.3 二叉树：中序遍历
+
+```python
+class TreeNode:
+    def __init__(self, val: int = 0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def inorder(root: TreeNode | None) -> list[int]:
+    result = []
+
+    def dfs(node: TreeNode | None) -> None:
+        if node is None:
+            return
+        dfs(node.left)
+        result.append(node.val)  # 访问当前节点
+        dfs(node.right)
+
+    dfs(root)
+    return result
+```
+
+#### 40.2.4 链表：反转链表
+
+```python
+class ListNode:
+    def __init__(self, val: int = 0, next: "ListNode | None" = None):
+        self.val = val
+        self.next = next
+
+def reverse_list(head: ListNode | None) -> ListNode | None:
+    prev = None
+    while head:
+        nxt = head.next   # 先记住下一个节点
+        head.next = prev  # 反转当前节点的指针
+        prev = head       # prev 前移
+        head = nxt        # head 前移
+    return prev
+```
+
+#### 40.2.5 并查集：连通分量
+
+```python
+class UnionFind:
+    def __init__(self, n: int):
+        self.parent = list(range(n))  # 每个元素自成一个集合
+        self.rank = [0] * n
+
+    def find(self, x: int) -> int:
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])  # 路径压缩
+        return self.parent[x]
+
+    def union(self, a: int, b: int) -> bool:
+        root_a, root_b = self.find(a), self.find(b)
+        if root_a == root_b:
+            return False  # 已经在同一集合
+        if self.rank[root_a] < self.rank[root_b]:
+            root_a, root_b = root_b, root_a
+        self.parent[root_b] = root_a  # 合并到 root_a
+        if self.rank[root_a] == self.rank[root_b]:
+            self.rank[root_a] += 1  # 合并后秩加一
+        return True
+
+uf = UnionFind(5)
+print(uf.union(0, 1))  # True
+print(uf.union(1, 2))  # True
+print(uf.union(0, 2))  # False，已经在同一集合
+```
+
+### 40.3 高频坑与刷题流程
 
 除法、取模和取整：
 

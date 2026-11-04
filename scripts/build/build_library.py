@@ -2366,10 +2366,10 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
             # 为几十个 Pygments 高亮块反复布局。320px 是实测代码块平均高度，接近
             # 真实文档高度，避免滚动条大幅跳动。
             long_chapter_head = ""
-            if content.count('<div class="codehilite"') > 60:
+            if content.count('<div class="codehilite"') >= 45:
                 long_chapter_head = (
                     '<style>'
-                    '.reader-body .codehilite{content-visibility:auto;contain-intrinsic-size:auto 322px;margin:16px 0;}'
+                    '.reader-body .codehilite{content-visibility:auto;contain-intrinsic-size:auto 310px;margin:16px 0;}'
                     '.reader-body .codehilite pre{margin:0;}'
                     '@media(max-width:560px){.reader-body .codehilite{contain-intrinsic-size:auto 520px;}}'
                     '</style>'
