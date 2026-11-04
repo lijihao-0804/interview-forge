@@ -5147,11 +5147,13 @@ task = asyncio.create_task(fetch(1))    # 或创建任务
 
 ## 38. 力扣刷题最常用的 Python 方法与 API
 
-这一章不是语法大全，而是一份“刷题武器清单”：把 LeetCode 里出现频率最高的容器、内置方法、标准库和代码模板集中起来。如果你已经会基本语法，但看到题还不能立刻写出代码，建议把这一章的代码亲手敲一遍、改一改，再开始刷题。
+这一章更像一本“刷题手册”，不是语法大全。目标很具体：看到一道题，能立刻想到该用什么容器、哪个内置方法、哪个标准库，以及对应的代码模板。
 
-### 38.1 输入输出与本地调试
+读法建议：先看每节开头的结论和“对应力扣题”，再亲手敲一遍代码。不要只背 API，最后一定要落到“这段代码在题目里怎么用”。
 
-力扣的函数参数由平台传入，不需要 `input()`；本地调试时可以直接调用函数并打印结果。
+### 38.1 力扣的代码形态与本地调试
+
+力扣给的是函数签名，参数由平台传入，不需要写 `input()`。本地调试时，直接调用函数、打印返回值即可：
 
 ```python
 def two_sum(nums: list[int], target: int) -> list[int]:
@@ -5159,24 +5161,28 @@ def two_sum(nums: list[int], target: int) -> list[int]:
     for i, num in enumerate(nums):
         if target - num in seen:
             return [seen[target - num], i]
-        seen[num] = i  # 记录值到下标的映射
+        seen[num] = i  # 记录“值 -> 下标”
     return []
 
 print(two_sum([2, 7, 11, 15], 9))  # [0, 1]
-print(type(two_sum([2, 7], 9)))    # <class 'list'>
+print(two_sum([3, 3], 6))          # [0, 1]
 ```
 
-调试时优先打印 `type(x)`、`len(x)` 和关键变量，而不是反复猜测：
+本地排错时，优先打印类型、长度和关键变量：
 
 ```python
 nums = [3, 1, 2]
+
+print(type(nums))    # <class 'list'>
 print(len(nums))     # 3
 print(max(nums))     # 3
 print(sorted(nums))  # [1, 2, 3]
 print(nums)          # [3, 1, 2]，sorted 不修改原列表
 ```
 
-### 38.2 list：出现频率最高的容器
+如果题目是 ACM 模式（华为 OD、牛客等），才需要自己读输入。力扣核心代码模式不要写 `input()`。
+
+### 38.2 list：数组题的绝对主力
 
 读取、切片和长度：
 
@@ -5203,19 +5209,32 @@ nums[1] = 7        # nums 变为 [9, 7, 3]
 print(nums)        # [9, 7, 3]
 ```
 
-排序：
+排序是数组题的第一高频操作。`sort()` 原地修改，`sorted()` 返回新列表：
 
 ```python
 nums = [3, 1, 2]
 
-print(sorted(nums))                          # [1, 2, 3]
-print(nums)                                  # [3, 1, 2]，原列表不变
-nums.sort()                                  # nums 变为 [1, 2, 3]
-nums.sort(reverse=True)                      # nums 变为 [3, 2, 1]
+print(sorted(nums))             # [1, 2, 3]
+print(nums)                     # [3, 1, 2]，原列表不变
 
+nums.sort()                     # nums 变为 [1, 2, 3]
+nums.sort(reverse=True)         # nums 变为 [3, 2, 1]
+print(nums)                     # [3, 2, 1]
+```
+
+按规则排序用 `key`。`key` 是“把每个元素映射成比较依据的函数”：
+
+```python
 words = ["bb", "a", "ccc"]
+
 print(sorted(words, key=len))                # ['a', 'bb', 'ccc']
 print(sorted(words, key=len, reverse=True))  # ['ccc', 'bb', 'a']
+
+users = [
+    {"name": "Ada", "score": 91},
+    {"name": "Bob", "score": 85},
+]
+print(sorted(users, key=lambda u: u["score"]))  # [{'name': 'Bob', 'score': 85}, {'name': 'Ada', 'score': 91}]
 ```
 
 二维列表必须按行创建，避免所有行共享同一个内层列表：
@@ -5230,17 +5249,27 @@ bad[0][0] = 1                       # bad 变为 [[1, 0, 0], [1, 0, 0]]
 print(bad)                          # [[1, 0, 0], [1, 0, 0]]
 ```
 
-常用聚合函数：
+矩阵转置是一个很实用的小技巧：
+
+```python
+matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+]
+print(list(zip(*matrix)))  # [(1, 4), (2, 5), (3, 6)]
+```
+
+聚合函数：
 
 ```python
 nums = [3, 1, 4, 1, 5]
 
-print(sum(nums))                     # 14
-print(min(nums), max(nums))          # 1 5
-print(nums.count(1))                 # 2
-print(1 in nums)                     # True
-print(any(x > 4 for x in nums))      # True
-print(all(x > 0 for x in nums))      # True
+print(sum(nums))                 # 14
+print(min(nums), max(nums))      # 1 5
+print(nums.count(1))             # 2
+print(1 in nums)                 # True
+print(any(x > 4 for x in nums))  # True
+print(all(x > 0 for x in nums))  # True
 ```
 
 `enumerate()` 同时拿下标和值，`zip()` 并行遍历多个序列：
@@ -5256,7 +5285,7 @@ for name, score in zip(names, scores):
     print(name, score)  # a 90 / b 80
 ```
 
-推导式用来快速构造或筛选列表：
+推导式用来快速构造、筛选和拍平：
 
 ```python
 nums = [1, 2, 3, 4]
@@ -5264,11 +5293,16 @@ nums = [1, 2, 3, 4]
 print([x * x for x in nums])            # [1, 4, 9, 16]
 print([x for x in nums if x % 2 == 0])  # [2, 4]
 print([0] * 3)                          # [0, 0, 0]
+
+matrix = [[1, 2], [3, 4]]
+print([x for row in matrix for x in row])  # [1, 2, 3, 4]
 ```
 
-### 38.3 str：不可变但方法很多
+对应力扣：26. 删除有序数组中的重复项、27. 移除元素、88. 合并两个有序数组、56. 合并区间、189. 轮转数组。
 
-索引和切片：
+### 38.3 str：字符串题的必会操作
+
+字符串不可变，索引和切片是基础：
 
 ```python
 s = "leetcode"
@@ -5277,6 +5311,7 @@ print(s[0])     # l
 print(s[-1])    # e
 print(s[1:4])   # eet
 print(s[::-1])  # edocteel
+print(len(s))   # 8
 ```
 
 拆分、连接和清理空白：
@@ -5326,6 +5361,17 @@ print(s.endswith("ba"))      # True
 print(s.replace("a", "x"))   # xbxbx
 ```
 
+更多高频字符串工具：
+
+```python
+print("AbC".lower())             # abc
+print("AbC".upper())             # ABC
+print("abc".zfill(5))            # 00abc
+print("42".rjust(4, "0"))        # 0042
+print("a,b,c".partition(","))    # ('a', ',', 'b,c')
+print("line1\nline2".splitlines())  # ['line1', 'line2']
+```
+
 回文判断的标准写法：
 
 ```python
@@ -5337,7 +5383,21 @@ print(is_palindrome("A man, a plan, a canal: Panama"))  # True
 print(is_palindrome("race a car"))                      # False
 ```
 
-### 38.4 dict 与 set：计数、分组、去重
+字母异位词可以用排序或计数判断：
+
+```python
+from collections import Counter
+
+def is_anagram(a: str, b: str) -> bool:
+    return Counter(a) == Counter(b)
+
+print(is_anagram("anagram", "nagaram"))  # True
+print(is_anagram("rat", "car"))          # False
+```
+
+对应力扣：125. 验证回文串、242. 有效的字母异位词、344. 反转字符串、151. 反转字符串中的单词、14. 最长公共前缀。
+
+### 38.4 dict 与 set：计数、分组、去重和索引
 
 字典的 `get()` 和 `setdefault()` 是刷题最常用的两个方法：
 
@@ -5367,7 +5427,7 @@ for word in ["eat", "tea", "tan"]:
 print(dict(groups))  # {'aet': ['eat', 'tea'], 'ant': ['tan']}
 ```
 
-遍历字典：
+字典的遍历、合并和推导式：
 
 ```python
 d = {"a": 1, "b": 2}
@@ -5378,6 +5438,9 @@ print(list(d.items()))   # [('a', 1), ('b', 2)]
 
 for k, v in d.items():
     print(k, v)  # a 1 / b 2
+
+print({v: k for k, v in d.items()})  # {1: 'a', 2: 'b'}
+print({"a": 1} | {"b": 2})           # {'a': 1, 'b': 2}
 ```
 
 集合用于去重、成员判断和集合运算：
@@ -5391,6 +5454,7 @@ print(3 in s)      # True
 print(s | {4, 5})  # {1, 3, 4, 5}，并集
 print(s & {3, 4})  # {3, 4}，交集
 print(s - {4})     # {1, 3}，差集
+print(s ^ {4, 5})  # {1, 3, 5}，对称差
 ```
 
 去重同时保留原顺序，用 `dict.fromkeys()`：
@@ -5402,17 +5466,35 @@ print(list(dict.fromkeys(nums)))  # [1, 2, 3]
 print(list(set(nums)))            # 顺序不保证，常见为 [1, 2, 3]
 ```
 
-### 38.5 栈、队列与堆
-
-栈直接用 list：`append()` 入栈、`pop()` 出栈。
+需要把不可变复合值当作键时，用 `tuple` 或 `frozenset`：
 
 ```python
-stack = []
+visited = set()
+visited.add((1, 2))          # 坐标可以放入 set
+visited.add(frozenset({1, 2}))  # frozenset 也可以作为键
+print((1, 2) in visited)     # True
+```
 
-stack.append(1)     # stack 变为 [1]
-stack.append(2)     # stack 变为 [1, 2]
-print(stack.pop())  # 2
-print(stack)        # [1]
+对应力扣：1. 两数之和、49. 字母异位词分组、347. 前 K 个高频元素、128. 最长连续序列、217. 存在重复元素。
+
+### 38.5 栈与队列：LIFO 和 FIFO
+
+栈直接用 list：`append()` 入栈、`pop()` 出栈。括号匹配是最典型的例子：
+
+```python
+def is_valid(s: str) -> bool:
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack = []
+    for ch in s:
+        if ch in "([{":
+            stack.append(ch)  # 左括号入栈
+        else:
+            if not stack or stack.pop() != pairs[ch]:  # 弹出栈顶并检查是否匹配
+                return False
+    return not stack
+
+print(is_valid("()[]{}"))  # True
+print(is_valid("(]"))      # False
 ```
 
 队列用 `collections.deque`，`popleft()` 是 O(1)：
@@ -5428,7 +5510,41 @@ queue.appendleft(0)     # queue 变为 deque([0, 2, 3])
 print(queue)            # deque([0, 2, 3])
 ```
 
-`heapq` 是最小堆，适合 Top K、合并 K 个有序链表和 Dijkstra：
+`deque` 也是滑动窗口最大值的标准工具：单调队列保存下标，队头始终是当前窗口最大值：
+
+```python
+from collections import deque
+
+def max_sliding_window(nums: list[int], k: int) -> list[int]:
+    q = deque()  # 存下标，对应值从队头到队尾递减
+    result = []
+    for i, num in enumerate(nums):
+        while q and nums[q[-1]] <= num:
+            q.pop()  # 比当前值小的都不可能成为最大值
+        q.append(i)  # 当前下标入队
+        if q[0] <= i - k:
+            q.popleft()  # 移出窗口
+        if i >= k - 1:
+            result.append(nums[q[0]])  # 队头就是当前窗口最大值
+    return result
+
+print(max_sliding_window([1, 3, -1, -3, 5, 3, 6, 7], 3))  # [3, 3, 5, 5, 6, 7]
+```
+
+对应力扣：20. 有效的括号、155. 最小栈、232. 用栈实现队列、239. 滑动窗口最大值。
+
+### 38.6 heapq：力扣最常用的最小堆
+
+`heapq` 是**最小堆**。它只保证 `heap[0]` 最小，不保证整个列表有序。最常用的操作：
+
+| 操作 | 写法 | 说明 |
+|---|---|---|
+| 建堆 | `heapq.heapify(nums)` | 原地 O(n) 建堆 |
+| 入堆 | `heapq.heappush(heap, x)` | O(log n) |
+| 出堆 | `heapq.heappop(heap)` | 弹出最小值 |
+| 入后出 | `heapq.heappushpop(heap, x)` | 比先 push 再 pop 更快 |
+| 出后入 | `heapq.heapreplace(heap, x)` | 弹出最小值再压入 x |
+| Top K | `heapq.nlargest(k, nums)` / `nsmallest` | 返回列表，不修改原数据 |
 
 ```python
 import heapq
@@ -5441,36 +5557,300 @@ print(heapq.heappop(heap))  # 1
 print(heap)                 # [2, 3]
 
 nums = [5, 1, 4, 2]
-heapq.heapify(nums)         # nums 变为小根堆 [1, 2, 4, 5]
-print(nums)                 # [1, 2, 4, 5]
+heapq.heapify(nums)              # nums 变为 [1, 2, 4, 5]
+print(nums)                      # [1, 2, 4, 5]
 print(heapq.nlargest(2, nums))   # [5, 4]
 print(heapq.nsmallest(2, nums))  # [1, 2]
 ```
 
-Python 没有大根堆，存负数即可：
+Python 没有大根堆，存负数即可。以「最后一块石头的重量」为例：
 
 ```python
 import heapq
 
-max_heap = []
-for num in [3, 1, 2]:
-    heapq.heappush(max_heap, -num)  # 存负数模拟大根堆
+stones = [2, 7, 4, 1, 8, 1]
+heap = [-x for x in stones]  # 存负数模拟大根堆
+heapq.heapify(heap)          # heap 变为 [-8, -7, -4, -1, -2, -1]
 
-print(-heapq.heappop(max_heap))     # 3
+while len(heap) > 1:
+    a = -heapq.heappop(heap)  # 当前最重的石头
+    b = -heapq.heappop(heap)  # 第二重的石头
+    if a != b:
+        heapq.heappush(heap, -(a - b))  # 差值放回堆
+
+print(-heap[0] if heap else 0)  # 1
 ```
 
-Top K 一行写法：
+#### 38.6.1 用最小堆求第 K 大
+
+维护一个大小为 `k` 的最小堆：堆里始终保存当前最大的 k 个元素，堆顶就是第 k 大。
 
 ```python
 import heapq
 
-def top_k(nums: list[int], k: int) -> list[int]:
-    return heapq.nlargest(k, nums)
+def find_kth_largest(nums: list[int], k: int) -> int:
+    heap = []
+    for num in nums:
+        heapq.heappush(heap, num)  # 入最小堆
+        if len(heap) > k:
+            heapq.heappop(heap)  # 丢掉当前最小的，只保留最大的 k 个
+    return heap[0]
 
-print(top_k([3, 1, 5, 2, 4], 2))  # [5, 4]
+print(find_kth_largest([3, 2, 1, 5, 6, 4], 2))  # 5
+print(find_kth_largest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4))  # 4
 ```
 
-### 38.6 bisect：有序数组的二分查找
+这是力扣 215. 数组中的第 K 个最大元素的标准解法之一，时间复杂度 O(n log k)。
+
+#### 38.6.2 堆里放元组：优先级 + 数据
+
+当堆元素是元组时，Python 按元组顺序比较。常见写法是 `(优先级, 数据)`：
+
+```python
+import heapq
+
+tasks = [(2, "homework"), (1, "eat"), (1, "brush")]
+heapq.heapify(tasks)  # 按第一个元素排序，第一个相同再比第二个
+
+print(heapq.heappop(tasks))  # (1, 'brush')
+print(heapq.heappop(tasks))  # (1, 'eat')
+print(heapq.heappop(tasks))  # (2, 'homework')
+```
+
+如果数据本身不可比较（例如自定义对象），加一个自增下标做“稳定排序”：
+
+```python
+import heapq
+import itertools
+
+counter = itertools.count()  # 生成 0, 1, 2...
+heap = []
+heapq.heappush(heap, (5, next(counter), {"name": "任务A"}))  # 5 是优先级
+heapq.heappush(heap, (3, next(counter), {"name": "任务B"}))  # 第二个任务入堆
+print(heapq.heappop(heap)[2])  # {'name': '任务B'}
+```
+
+如果希望堆元素就是自定义对象，也可以实现 `__lt__`，让 heapq 知道谁更小：
+
+```python
+import heapq
+
+class Task:
+    def __init__(self, priority: int, name: str):
+        self.priority = priority
+        self.name = name
+
+    def __lt__(self, other: "Task") -> bool:
+        return self.priority < other.priority  # 优先级小的算“更小”
+
+heap = []
+heapq.heappush(heap, Task(3, "低优先级"))  # 第 1 个任务入堆
+heapq.heappush(heap, Task(1, "高优先级"))  # 第 2 个任务入堆
+heapq.heappush(heap, Task(2, "中优先级"))  # 第 3 个任务入堆
+print(heapq.heappop(heap).name)  # 高优先级
+```
+
+`heapq` 只依赖 `<` 比较，所以实现 `__lt__` 就够了；元组方案更简单，自定义类更适合字段多、逻辑复杂的场景。
+
+#### 38.6.3 前 K 个高频元素：Counter + heap
+
+```python
+import heapq
+from collections import Counter
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    freq = Counter(nums)  # Counter({1: 3, 2: 2, 3: 1})
+    return heapq.nlargest(k, freq.keys(), key=freq.get)
+
+print(top_k_frequent([1, 1, 1, 2, 2, 3], 2))  # [1, 2]
+```
+
+对应力扣：215. 数组中的第 K 个最大元素、347. 前 K 个高频元素、1046. 最后一块石头的重量、703. 数据流中的第 K 大元素。
+
+#### 38.6.4 合并 K 个有序链表：堆的经典用法
+
+```python
+import heapq
+
+class ListNode:
+    def __init__(self, val: int = 0, next=None):
+        self.val = val
+        self.next = next
+
+def merge_k_lists(lists: list[ListNode | None]) -> ListNode | None:
+    heap = []
+    for i, node in enumerate(lists):
+        if node:
+            heapq.heappush(heap, (node.val, i, node))  # 值、链表编号、节点
+
+    dummy = ListNode(0)
+    tail = dummy
+    while heap:
+        val, i, node = heapq.heappop(heap)  # 取出当前最小节点
+        tail.next = node
+        tail = tail.next
+        if node.next:
+            heapq.heappush(heap, (node.next.val, i, node.next))  # 该链表的下一个节点入堆
+    return dummy.next
+```
+
+对应力扣：23. 合并 K 个升序链表。
+
+#### 38.6.5 Dijkstra：堆优化最短路
+
+```python
+import heapq
+
+def network_delay_time(times: list[list[int]], n: int, k: int) -> int:
+    graph = [[] for _ in range(n + 1)]
+    for u, v, w in times:
+        graph[u].append((v, w))  # 有向边 u -> v，权重 w
+
+    dist = [float("inf")] * (n + 1)  # 到每个点的最短距离
+    dist[k] = 0  # 起点距离为 0
+    heap = [(0, k)]  # (当前距离, 节点)
+
+    while heap:
+        d, node = heapq.heappop(heap)  # 取出当前距离最小的节点
+        if d > dist[node]:
+            continue  # 过期状态，跳过
+        for nxt, weight in graph[node]:
+            nd = d + weight
+            if nd < dist[nxt]:
+                dist[nxt] = nd  # 更新最短距离
+                heapq.heappush(heap, (nd, nxt))  # 更短距离入堆
+
+    answer = max(dist[1:])
+    return answer if answer < float("inf") else -1
+
+print(network_delay_time([[2, 1, 1], [2, 3, 1], [3, 4, 1]], 4, 2))  # 2
+```
+
+对应力扣：743. 网络延迟时间。
+
+### 38.7 排序与自定义比较器：能用 key 就别写 cmp
+
+`key` 是最常用的排序方式。它把每个元素映射成一个“可比较的值”：
+
+```python
+words = ["bb", "a", "ccc"]
+
+print(sorted(words, key=len))                # ['a', 'bb', 'ccc']
+print(sorted(words, key=lambda s: (len(s), s)))  # ['a', 'bb', 'ccc']
+```
+
+多字段排序时，`key` 返回元组，元组从左到右比较：
+
+```python
+users = [
+    {"name": "Ada", "dept": "A", "score": 91},
+    {"name": "Bob", "dept": "A", "score": 85},
+    {"name": "Cindy", "dept": "B", "score": 95},
+]
+
+result = sorted(users, key=lambda u: (u["dept"], -u["score"]))
+print([(u["name"], u["dept"], u["score"]) for u in result])  # [('Ada', 'A', 91), ('Bob', 'A', 85), ('Cindy', 'B', 95)]
+```
+
+注意：`reverse=True` 会把整个元组顺序反过来。如果只希望某个字段降序，常见做法是对该字段取负，或者分两次稳定排序。
+
+按元组的固定位置排序，可以用 `operator.itemgetter`，比 lambda 更简洁：
+
+```python
+from operator import itemgetter
+
+pairs = [(3, "c"), (1, "a"), (2, "b")]
+print(sorted(pairs, key=itemgetter(0)))  # [(1, 'a'), (2, 'b'), (3, 'c')]
+```
+
+#### 38.7.1 什么时候用 `cmp_to_key`
+
+Python 3 的 `sort` 没有 `cmp` 参数。如果两个元素的先后关系不能用简单的 `key` 表达，就要用 `functools.cmp_to_key` 把比较函数包装成 key。
+
+比较函数规则：
+
+- 返回负数：`a` 排在 `b` 前面；
+- 返回 0：两者相等；
+- 返回正数：`a` 排在 `b` 后面。
+
+先看最简单的降序：
+
+```python
+from functools import cmp_to_key
+
+def compare(a: int, b: int) -> int:
+    return b - a  # b 比 a 大时返回正数，所以 a 往后排
+
+nums = [3, 1, 2]
+print(sorted(nums, key=cmp_to_key(compare)))  # [3, 2, 1]
+```
+
+#### 38.7.2 经典比较器：把数字拼成最大数
+
+力扣 179. 最大数要求把数字拼成最大的字符串。比较规则不是“谁大谁在前”，而是 `a + b` 与 `b + a` 哪个更大：
+
+```python
+from functools import cmp_to_key
+
+def largest_number(nums: list[int]) -> str:
+    def compare(a: str, b: str) -> int:
+        if a + b > b + a:
+            return -1  # a 应排在 b 前面
+        if a + b < b + a:
+            return 1   # a 应排在 b 后面
+        return 0
+
+    strs = [str(x) for x in nums]
+    strs.sort(key=cmp_to_key(compare))  # 按拼接后的结果排序
+    result = "".join(strs)
+    return "0" if result[0] == "0" else result
+
+print(largest_number([10, 2]))    # 210
+print(largest_number([3, 30, 34, 5, 9]))  # 9534330
+```
+
+这类题如果只按 `key=int` 排序，会得到 `[10, 2] -> 102`，是错的。必须比较拼接后的结果。
+
+#### 38.7.3 区间题：按起点或终点排序
+
+合并区间按起点排序：
+
+```python
+def merge_intervals(intervals: list[list[int]]) -> list[list[int]]:
+    intervals.sort(key=lambda x: x[0])  # 按起点升序
+    merged = []
+    for start, end in intervals:
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])  # 新区间不重叠，直接加入
+        else:
+            merged[-1][1] = max(merged[-1][1], end)  # 合并重叠区间
+    return merged
+
+print(merge_intervals([[1, 3], [2, 6], [8, 10], [15, 18]]))  # [[1, 6], [8, 10], [15, 18]]
+```
+
+用最少数量箭引爆气球、无重叠区间这类题，通常按右端点排序：
+
+```python
+def erase_overlap_intervals(intervals: list[list[int]]) -> int:
+    if not intervals:
+        return 0
+    intervals.sort(key=lambda x: x[1])  # 按右端点升序
+    count = 0
+    end = intervals[0][1]
+    for start, stop in intervals[1:]:
+        if start < end:
+            count += 1  # 与上一个区间重叠，需要移除
+        else:
+            end = stop
+    return count
+
+print(erase_overlap_intervals([[1, 2], [2, 3], [3, 4], [1, 3]]))  # 1
+```
+
+对应力扣：56. 合并区间、435. 无重叠区间、452. 用最少数量的箭引爆气球、179. 最大数、973. 最接近原点的 K 个点。
+
+### 38.8 bisect：有序数组的二分查找
 
 `bisect_left` 找第一个 `>= target` 的位置，`bisect_right` 找第一个 `> target` 的位置：
 
@@ -5502,9 +5882,30 @@ print(lower_bound([1, 2, 2, 4], 2))  # 1
 print(lower_bound([1, 2, 2, 4], 3))  # 3
 ```
 
-### 38.7 itertools、functools 与 math
+标准二分查找：
 
-`accumulate()` 生成前缀和；`combinations()`、`permutations()`、`product()` 用于枚举：
+```python
+def binary_search(nums: list[int], target: int) -> int:
+    left, right = 0, len(nums) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if nums[mid] == target:
+            return mid
+        if nums[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+
+print(binary_search([-1, 0, 3, 5, 9, 12], 9))  # 4
+print(binary_search([-1, 0, 3, 5, 9, 12], 2))  # -1
+```
+
+对应力扣：704. 二分查找、35. 搜索插入位置、34. 在排序数组中查找元素的第一个和最后一个位置。
+
+### 38.9 itertools、functools 与 math
+
+前缀和、组合、排列和笛卡尔积：
 
 ```python
 from itertools import accumulate, combinations, permutations, product
@@ -5529,16 +5930,14 @@ def fib(n: int) -> int:
 print(fib(10))  # 55
 ```
 
-自定义排序用 `cmp_to_key`：
+`reduce` 用来把序列归约成一个值：
 
 ```python
-from functools import cmp_to_key
+from functools import reduce
+from operator import mul
 
-def compare(a: int, b: int) -> int:
-    return b - a  # 返回负数表示 a 应排在 b 前面；这里实现降序
-
-nums = [3, 1, 2]
-print(sorted(nums, key=cmp_to_key(compare)))  # [3, 2, 1]
+print(reduce(lambda a, b: a + b, [1, 2, 3, 4], 0))  # 10
+print(reduce(mul, [1, 2, 3, 4], 1))                 # 24
 ```
 
 `math` 里的常用工具：
@@ -5551,9 +5950,10 @@ print(math.isqrt(17))          # 4
 print(math.inf)                # inf
 print(float("inf") > 10**9)    # True
 print(math.comb(5, 2))         # 10
+print(math.perm(5, 2))         # 20
 ```
 
-### 38.8 位运算常用公式
+### 38.10 位运算常用公式
 
 ```python
 n = 10
@@ -5578,9 +5978,21 @@ for num in nums:
 print(result)  # 4
 ```
 
-### 38.9 数组与字符串模板
+判断一个数是不是 2 的幂：
 
-#### 38.9.1 双指针（对撞）
+```python
+def is_power_of_two(n: int) -> bool:
+    return n > 0 and (n & (n - 1)) == 0
+
+print(is_power_of_two(16))  # True
+print(is_power_of_two(18))  # False
+```
+
+对应力扣：136. 只出现一次的数字、191. 位 1 的个数、231. 2 的幂、338. 比特位计数。
+
+### 38.11 数组与字符串模板
+
+#### 38.11.1 双指针（对撞）
 
 ```python
 def two_sum_sorted(nums: list[int], target: int) -> list[int]:
@@ -5598,7 +6010,7 @@ def two_sum_sorted(nums: list[int], target: int) -> list[int]:
 print(two_sum_sorted([1, 2, 4, 7], 9))  # [1, 3]
 ```
 
-#### 38.9.2 滑动窗口
+#### 38.11.2 滑动窗口
 
 ```python
 def longest_unique_substring(s: str) -> int:
@@ -5618,7 +6030,7 @@ def longest_unique_substring(s: str) -> int:
 print(longest_unique_substring("abcabcbb"))  # 3
 ```
 
-#### 38.9.3 前缀和
+#### 38.11.3 前缀和
 
 ```python
 nums = [1, 2, 3, 4]
@@ -5631,7 +6043,7 @@ print(prefix)                 # [0, 1, 3, 6, 10]
 print(prefix[3] - prefix[1])  # 5，子数组 nums[1:3] 的和
 ```
 
-#### 38.9.4 单调栈
+#### 38.11.4 单调栈
 
 ```python
 def next_greater(nums: list[int]) -> list[int]:
@@ -5649,7 +6061,7 @@ def next_greater(nums: list[int]) -> list[int]:
 print(next_greater([2, 1, 2, 4, 3]))  # [4, 2, 4, -1, -1]
 ```
 
-#### 38.9.5 动态规划
+#### 38.11.5 动态规划
 
 ```python
 def coin_change(coins: list[int], amount: int) -> int:
@@ -5667,9 +6079,9 @@ print(coin_change([1, 2, 5], 11))  # 3
 print(coin_change([2], 3))         # -1
 ```
 
-### 38.10 图、树、链表模板
+### 38.12 图、树与链表模板
 
-#### 38.10.1 BFS 网格最短路
+#### 38.12.1 BFS 网格最短路
 
 ```python
 from collections import deque
@@ -5680,13 +6092,13 @@ def shortest_path(grid: list[list[int]], start: tuple[int, int], end: tuple[int,
     visited = {start}
 
     while queue:
-        r, c, dist = queue.popleft()
+        r, c, dist = queue.popleft()  # 出队当前格子
         if (r, c) == end:
             return dist
         for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             nr, nc = r + dr, c + dc
             if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0 and (nr, nc) not in visited:
-                visited.add((nr, nc))          # 标记已访问
+                visited.add((nr, nc))             # 标记已访问
                 queue.append((nr, nc, dist + 1))  # 入队，距离加一
 
     return -1
@@ -5699,7 +6111,7 @@ grid = [
 print(shortest_path(grid, (0, 0), (2, 2)))  # 4
 ```
 
-#### 38.10.2 DFS 与回溯
+#### 38.12.2 DFS 与回溯
 
 ```python
 def subsets(nums: list[int]) -> list[list[int]]:
@@ -5711,7 +6123,7 @@ def subsets(nums: list[int]) -> list[list[int]]:
         for i in range(start, len(nums)):
             path.append(nums[i])  # 选择当前元素
             backtrack(i + 1)
-            path.pop()              # 回溯，撤销选择
+            path.pop()            # 回溯，撤销选择
 
     backtrack(0)
     return result
@@ -5719,7 +6131,7 @@ def subsets(nums: list[int]) -> list[list[int]]:
 print(subsets([1, 2, 3]))  # [[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]
 ```
 
-#### 38.10.3 二叉树中序遍历
+#### 38.12.3 二叉树遍历
 
 ```python
 class TreeNode:
@@ -5742,7 +6154,7 @@ def inorder(root: TreeNode | None) -> list[int]:
     return result
 ```
 
-#### 38.10.4 反转链表
+#### 38.12.4 反转链表
 
 ```python
 class ListNode:
@@ -5760,7 +6172,7 @@ def reverse_list(head: ListNode | None) -> ListNode | None:
     return prev
 ```
 
-#### 38.10.5 并查集
+#### 38.12.5 并查集
 
 ```python
 class UnionFind:
@@ -5790,7 +6202,264 @@ print(uf.union(1, 2))  # True
 print(uf.union(0, 2))  # False，已经在同一集合
 ```
 
-### 38.11 高频坑与刷题流程
+### 38.13 常用内置函数与标准库补充
+
+除了容器和算法模板，力扣里还有一批“见到就该想到”的内置函数和标准库。它们不难，但不用就会把简单题写得很长。
+
+#### 38.13.1 `max`、`min`、`sum`、`zip`
+
+`max()` / `min()` 支持 `key`，也支持在空序列上给 `default`：
+
+```python
+nums = [3, 1, 4]
+
+print(sum(nums))            # 8
+print(sum(nums, 10))        # 18，第二个参数是初始值
+print(max(nums), min(nums)) # 4 1
+print(max(nums, default=0)) # 4
+print(max([], default=-1))  # -1，空列表不报错
+
+words = ["bb", "a", "ccc"]
+print(max(words, key=len))  # ccc
+print(min(words, key=len))  # a
+```
+
+`zip()` 把多个序列按位置组合，`zip(*matrix)` 可以转置矩阵：
+
+```python
+a = [1, 2, 3]
+b = ["a", "b"]
+
+print(list(zip(a, b)))          # [(1, 'a'), (2, 'b')]
+print(dict(zip(["a", "b"], [1, 2])))  # {'a': 1, 'b': 2}
+
+matrix = [[1, 2, 3], [4, 5, 6]]
+print(list(zip(*matrix)))       # [(1, 4), (2, 5), (3, 6)]
+```
+
+`zip(strict=True)` 会在长度不一致时直接报错，适合“必须成对”的场景：
+
+```python
+try:
+    list(zip([1, 2], ["a"], strict=True))
+except ValueError as exc:
+    print(type(exc).__name__)  # ValueError
+```
+
+#### 38.13.2 `map`、`filter` 与推导式
+
+`map()` 对每个元素做转换，`filter()` 保留满足条件的元素：
+
+```python
+nums = [1, 2, 3, 4]
+
+print(list(map(lambda x: x * 2, nums)))          # [2, 4, 6, 8]
+print(list(filter(lambda x: x % 2 == 0, nums)))  # [2, 4]
+print(list(map(str, nums)))                      # ['1', '2', '3', '4']
+```
+
+大多数时候，推导式比 `map/filter` 更直观：
+
+```python
+nums = [1, 2, 3, 4]
+
+print([x * 2 for x in nums])            # [2, 4, 6, 8]
+print([x for x in nums if x % 2 == 0])  # [2, 4]
+```
+
+#### 38.13.3 `re`：字符串题的正则工具
+
+`re` 是标准库，处理复杂分隔、提取数字、替换空白时非常省事。先记住几个函数：
+
+- `re.findall(pattern, text)`：找出所有匹配；
+- `re.search(pattern, text)`：找第一个匹配；
+- `re.match(pattern, text)`：从开头匹配；
+- `re.fullmatch(pattern, text)`：整个字符串完全匹配；
+- `re.sub(pattern, repl, text)`：替换；
+- `re.split(pattern, text)`：按正则拆分。
+
+```python
+import re
+
+s = "a1 b22 c333"
+
+print(re.findall(r"\d+", s))   # ['1', '22', '333']
+print(re.findall(r"[a-z]+", s))  # ['a', 'b', 'c']
+print(re.search(r"\d+", s).group())  # 1
+print(bool(re.fullmatch(r"[A-Za-z]+", "abc")))  # True
+print(re.sub(r"\s+", " ", "a   b\tc"))  # a b c
+print(re.split(r"[,;]\s*", "a, b;c"))  # ['a', 'b', 'c']
+```
+
+分组提取：
+
+```python
+import re
+
+text = "2024-06-18"
+match = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
+print(match.group(0))  # 2024-06-18
+print(match.group(1))  # 2024
+print(match.group(2))  # 06
+print(match.groups())  # ('2024', '06', '18')
+```
+
+常见正则片段：
+
+| 片段 | 含义 |
+|---|---|
+| `\d+` | 一个或多个数字 |
+| `[a-zA-Z]+` | 一个或多个英文字母 |
+| `\w+` | 字母、数字或下划线 |
+| `\s+` | 一个或多个空白 |
+| `^...$` | 从开头到结尾整体匹配 |
+| `(abc)` | 捕获分组 |
+| `a|b` | a 或 b |
+
+写正则时优先用原始字符串 `r"..."`，避免反斜杠被 Python 先转义。
+
+#### 38.13.4 `itertools` 补充：链条、切片、分组、相邻
+
+```python
+from itertools import chain, islice, groupby, pairwise, zip_longest
+
+print(list(chain([1, 2], [3, 4])))          # [1, 2, 3, 4]
+print(list(islice(range(10), 2, 5)))        # [2, 3, 4]
+print(list(pairwise([1, 2, 3])))            # [(1, 2), (2, 3)]
+print(list(zip_longest([1, 2], [3], fillvalue=0)))  # [(1, 3), (2, 0)]
+```
+
+`groupby()` 适合“连续相同元素”的分组。注意它只合并相邻的相同 key，必要时先排序：
+
+```python
+from itertools import groupby
+
+data = [("a", 1), ("a", 2), ("b", 3)]
+for key, group in groupby(data, key=lambda x: x[0]):
+    print(key, list(group))  # a [('a', 1), ('a', 2)] / b [('b', 3)]
+```
+
+合并多个已经有序的序列，用 `heapq.merge()`，不用自己手写归并：
+
+```python
+import heapq
+
+print(list(heapq.merge([1, 3, 5], [2, 4, 6])))  # [1, 2, 3, 4, 5, 6]
+```
+
+#### 38.13.5 `Counter` 运算、`OrderedDict` 与 `deque.rotate`
+
+`Counter` 可以直接做加减和集合运算：
+
+```python
+from collections import Counter
+
+a = Counter("aab")  # Counter({'a': 2, 'b': 1})
+b = Counter("abb")  # Counter({'a': 1, 'b': 2})
+print(a + b)  # Counter({'a': 3, 'b': 3})
+print(a - b)  # Counter({'a': 1})
+print(a & b)  # Counter({'a': 1, 'b': 1})
+print(a | b)  # Counter({'a': 2, 'b': 2})
+```
+
+`OrderedDict` 的 `move_to_end()` 是设计 LRU Cache 时的高频操作：
+
+```python
+from collections import OrderedDict
+
+od = OrderedDict([("a", 1), ("b", 2), ("c", 3)])
+od.move_to_end("a")          # 把 a 移到末尾
+print(list(od))              # ['b', 'c', 'a']
+od.move_to_end("c", last=False)  # 把 c 移到开头
+print(list(od))              # ['c', 'b', 'a']
+```
+
+`deque.rotate()` 用来循环移动，处理环形数组很方便：
+
+```python
+from collections import deque
+
+q = deque([1, 2, 3, 4])
+q.rotate(1)   # 每个元素右移一位
+print(q)      # deque([4, 1, 2, 3])
+q.rotate(-2)  # 左移两位
+print(q)      # deque([2, 3, 4, 1])
+```
+
+#### 38.13.6 `math` 与 `sys` 的常用常量/函数
+
+```python
+import math
+import sys
+
+print(math.prod([2, 3, 4]))   # 24
+print(math.lcm(6, 8))         # 24
+print(math.factorial(5))      # 120
+print(math.dist((0, 0), (3, 4)))  # 5.0
+print(math.inf)               # inf
+print(sys.maxsize)            # 9223372036854775807，机器相关
+```
+
+递归 DFS 很深时，Python 默认递归深度可能不够：
+
+```python
+import sys
+
+sys.setrecursionlimit(1_000_000)  # 提高递归上限，按环境谨慎使用
+print(sys.getrecursionlimit())      # 1000000
+```
+
+#### 38.13.7 常用常量写法
+
+```python
+INF = float("inf")
+NEG_INF = -float("inf")
+MOD = 10**9 + 7
+
+print(INF > 10**18)     # True
+print(NEG_INF < -10**18)  # True
+print(MOD)              # 1000000007
+```
+
+对应力扣：17. 电话号码的字母组合、22. 括号生成、46. 全排列、77. 组合、78. 子集、93. 复原 IP 地址。
+
+#### 38.13.8 list / dict / set 小方法补漏
+
+列表的 `reverse()`、`extend()`、`index()`、`count()`、`copy()`：
+
+```python
+nums = [1, 2, 3, 2]
+
+nums.reverse()          # nums 变为 [2, 3, 2, 1]
+nums.extend([4, 5])     # nums 变为 [2, 3, 2, 1, 4, 5]
+print(nums.index(2))    # 0，第一个 2 的下标
+print(nums.count(2))    # 2
+print(nums.copy())      # [2, 3, 2, 1, 4, 5]
+```
+
+字典的 `update()`、`pop()` 和 `fromkeys()`：
+
+```python
+d = {"a": 1}
+
+d.update({"b": 2, "a": 3})  # d 变为 {'a': 3, 'b': 2}
+print(d.pop("b"))           # 2，d 变为 {'a': 3}
+print(d)                    # {'a': 3}
+print(dict.fromkeys(["x", "y"], 0))  # {'x': 0, 'y': 0}
+```
+
+集合的子集、超集和不相交判断：
+
+```python
+a = {1, 2, 3}
+b = {1, 2}
+
+print(b.issubset(a))        # True
+print(a.issuperset(b))      # True
+print(a.isdisjoint({4, 5})) # True
+```
+
+### 38.14 高频坑与刷题流程
 
 除法、取模和取整：
 
@@ -5845,6 +6514,13 @@ for num in nums.copy():  # 遍历副本
 print(nums)  # [1, 3]
 ```
 
+`heapq` 的常见坑：
+
+- 默认是最小堆，大根堆要存负数；
+- 元组堆如果第一个元素相同，会继续比较后面的元素；后面的对象不可比较时要加自增下标；
+- `heapify()` 原地修改列表，不会返回新列表；
+- 空堆调用 `heappop()` 会抛 `IndexError`。
+
 最后是一张“看到需求 → 想到工具”的速查表：
 
 | 需求 | 优先使用的 Python 工具 |
@@ -5853,14 +6529,18 @@ print(nums)  # [1, 3]
 | 分组 | `collections.defaultdict(list)` |
 | 先进先出 | `collections.deque` |
 | 后进先出 | `list` 的 `append()` / `pop()` |
-| Top K / 最值流 | `heapq` |
+| Top K / 第 K 大 | `heapq`（最小堆，维护大小为 k） |
+| 最值流 | `heapq` |
 | 有序数组查找 | `bisect_left` / `bisect_right` |
 | 去重且保序 | `dict.fromkeys()` |
 | 记忆化 | `functools.lru_cache` |
-| 自定义排序 | `sorted(key=...)` / `cmp_to_key` |
+| 简单排序 | `sorted(key=...)` |
+| 多字段排序 | `key=lambda x: (x.a, -x.b)` |
+| 复杂比较器 | `functools.cmp_to_key` |
 | 前缀和 | `itertools.accumulate` 或手写 |
 | 枚举组合 | `itertools.combinations` / `permutations` |
 | 图/网格遍历 | `deque` + `visited` 集合 |
+| 最短路 | `heapq` + `dist` 数组 |
 | 并查集 | 手写 `parent` + `rank` |
 
 刷题时按这个顺序推进：
