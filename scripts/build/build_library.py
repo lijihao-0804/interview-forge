@@ -1662,6 +1662,33 @@ def clean_search_text(body: str, limit: int = 1400) -> str:
     return " ".join(lines)[:limit]
 
 
+def huawei_od_search_entries() -> list[dict[str, object]]:
+    """补入华为 OD 机试题库的全文搜索条目。
+
+    华为题库存放在 books/huawei-od/ 下，页面由 build_huawei_pages.py 单独生成，
+    不属于 LIBRARY_MODULES，因此历史上只出现在书架卡片里，没进 search-index.json。
+    这里直接读取它的 Markdown 源，标题取一级标题，URL 指向已生成的题目 HTML；
+    search.html 与 /api/search 都使用同一份索引，所以一处补入即可被系统搜索命中。
+    """
+    source = NOTES_ROOT / "huawei-od"
+    if not source.is_dir():
+        return []
+    entries: list[dict[str, object]] = []
+    for md in sorted(source.glob("*/*.md")):
+        text = md.read_text(encoding="utf-8-sig")
+        heading = re.search(r"(?m)^#\s+(.+?)\s*$", text)
+        title = heading.group(1).strip() if heading else md.stem
+        entries.append({
+            "id": f"huawei-od:{md.parent.name}:{md.stem}",
+            "module_id": "huawei-od",
+            "module_title": "华为 OD 机试题库",
+            "title": title,
+            "url": f"../books/huawei-od/{md.parent.name}/{md.stem}.html",
+            "text": clean_search_text(text),
+        })
+    return entries
+
+
 # ---------------------------------------------------------------------------
 # 全文搜索页(search.html)：
 #   - 构建期：生成 search-index.json(全部章节的 id/标题/模块名/清洗后正文，
@@ -2424,6 +2451,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     (OUTPUT_ROOT / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # 搜索资产：search-index.json 用紧凑分隔符(去掉多余空格)减小体积；
     # search.html 全文搜索页(见 search_page 的客户端评分说明)。
+    search_entries.extend(huawei_od_search_entries())
     (OUTPUT_ROOT / "search-index.json").write_text(
         json.dumps(search_entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
@@ -2497,7 +2525,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         '<div class="module-progress-row"><span class="module-note">术语知识选择测验</span></div></article>'
     )
     _huawei_card = (
-        '<article class="module-card" data-category="企业题库" data-track="面试题库" '
+        '<article class="module-card" data-module-id="huawei-od" data-category="企业题库" data-track="面试题库" '
         'data-search="华为 od 机试题库 机考 真题">'
         '<div class="card-head"><span class="module-icon" aria-hidden="true" '
         'style="color:#c0392b;background:color-mix(in srgb,#c0392b 13%,transparent)">🖥</span>'
@@ -2505,7 +2533,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         '<div class="module-meta"><span>企业题库</span><span>321 题真题</span></div>'
         '<div class="module-progress-row"><span class="module-note">华为 OD 机考真题</span></div></article>'
     )
-    module_cards = _solutions_card + _huawei_card + _oj_card + _quiz_card + "".join(f'<article class="module-card" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
+    module_cards = _solutions_card + _huawei_card + _oj_card + _quiz_card + "".join(f'<article class="module-card" data-module-id="{html.escape(str(module["id"]))}" data-category="{html.escape(module["category"])}" data-track="{html.escape(_track_of(module["category"]))}" data-search="{html.escape((module["title"] + " " + module["category"]).lower())}"><div class="card-head"><span class="module-icon" aria-hidden="true" style="color:{_cat_icon(module["category"])[1]};background:color-mix(in srgb,{_cat_icon(module["category"])[1]} 13%,transparent)">{_cat_icon(module["category"])[0]}</span><h2><a href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(module["title"])}</a></h2><span class="module-due-badge" data-module-due="{html.escape(str(module["id"]))}" hidden>待复习 0</span></div><div class="module-meta"><span>{html.escape(module["category"])}</span><span>{module["chapter_count"]} {module.get("unit", "章")}</span></div><div class="module-progress-row"><span class="module-progress-pct" data-module-pct="{module["id"]}">0%</span><div class="module-progress"><span data-module-progress="{module["id"]}" data-hue="{_cat_icon(module["category"])[1]}" style="width:0%;background:linear-gradient(90deg,{_cat_icon(module["category"])[1]},var(--success))"></span></div></div><a class="module-link" href="{html.escape(module["url"])}" target="_blank" rel="noopener noreferrer">进入课程 →</a></article>' for module in modules)
     # ---- 两层导航数据：学习形态（顶层）+ 分类（第二层）----
     # 每个形态下的分类按「模块数从多到少」排，常用的靠前。
     track_stats = []          # [(track, icon, desc, [(cat, count), ...], module_count, chapter_count)]
@@ -2576,7 +2604,11 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     [].slice.call(document.querySelectorAll("#moduleGrid .module-card")).forEach(function(c){{
       var okT=!st.track||c.dataset.track===st.track;
       var okC=!st.cat||c.dataset.category===st.cat;
-      if(okT&&okC){{var a=c.querySelector("a");if(a)allow.push(a.getAttribute("href").split("/")[0]);}}
+      if(okT&&okC){{
+        var id=c.getAttribute("data-module-id");
+        if(!id){{var a=c.querySelector("a");if(a)id=(a.getAttribute("href")||"").split("/")[0];}}
+        if(id)allow.push(id);
+      }}
     }});
     return allow;
   }}
