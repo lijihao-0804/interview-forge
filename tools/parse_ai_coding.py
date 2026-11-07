@@ -4,14 +4,19 @@
 """
 from __future__ import annotations
 
+import html as html_lib
 import json
 import re
+import sys
 import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.build.build_html_site import math_html  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "data" / "ai_exam" / "zero2leetcode_ai_pages.json"
@@ -24,6 +29,19 @@ COMPANY = {
     "ctrip": "携程", "netease": "网易", "iflytek": "科大讯飞", "oppo": "OPPO", "dewu": "得物",
 }
 ROLE = {"ai": "AI岗", "ai-coding": "AI Coding", "agent": "Agent岗", "algo": "算法岗"}
+
+
+def render_text(text: str) -> str:
+    """把纯文本中的 $...$ / $$...$$ 转成站内 MathML，其余文本做 HTML 转义。"""
+    output = []
+    cursor = 0
+    for match in re.finditer(r"\$\$([^$]+?)\$\$|\$([^$\n]+?)\$", text):
+        output.append(html_lib.escape(text[cursor:match.start()]))
+        source = match.group(1) if match.group(1) is not None else match.group(2)
+        output.append(math_html(source, display=match.group(1) is not None))
+        cursor = match.end()
+    output.append(html_lib.escape(text[cursor:]))
+    return "".join(output).replace("\n", "<br>")
 
 
 def fetch(page):
@@ -76,6 +94,7 @@ def fetch(page):
         for p in problems:
             for section in p["sections"]:
                 section["text"] = "\n".join(section["text"]).strip()
+                section["text_html"] = render_text(section["text"]) if section.get("text") else ""
             p["plain"] = "\n".join(
                 part for section in p["sections"] for part in [section.get("heading", ""), section.get("text", "")]
                 if part

@@ -9,13 +9,32 @@
 from __future__ import annotations
 
 import json
+import html as html_lib
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.build.build_html_site import math_html  # noqa: E402
+
 SRC = ROOT / "data" / "ai_exam" / "zero2leetcode_ai_pages.json"
 OUT = ROOT / "assets" / "ai-exam-quiz.json"
+
+
+def render_math_text(text: str) -> str:
+    """把题目里的 $...$ / $$...$$ 转为站内 MathML，其余内容做 HTML 转义。"""
+    output = []
+    cursor = 0
+    for match in re.finditer(r"\$\$([^$]+?)\$\$|\$([^$\n]+?)\$", text):
+        output.append(html_lib.escape(text[cursor:match.start()]))
+        source = match.group(1) if match.group(1) is not None else match.group(2)
+        output.append(math_html(source, display=match.group(1) is not None))
+        cursor = match.end()
+    output.append(html_lib.escape(text[cursor:]))
+    return "".join(output).replace("\n", "<br>")
+
 
 COMPANY = {
     "huawei": "华为", "alibaba": "阿里巴巴", "ant": "蚂蚁", "meituan": "美团",
@@ -197,6 +216,9 @@ def main() -> None:
         role_label = {"ai": "AI岗", "ai-coding": "AI Coding", "agent": "Agent岗", "algo": "算法岗"}.get(role, role)
         category = f"{company} · {date} · {role_label}"
         for serial, question in enumerate(questions, 1):
+            question["stem_html"] = render_math_text(question["stem"])
+            question["options_html"] = [render_math_text(option) for option in question["options"]]
+            question["explain_html"] = render_math_text(question["explain"])
             question.update({
                 "key": f"ai-exam:{page.get('company')}:{page.get('date')}:{page.get('slug')}:{question.get('num')}:{serial}",
                 "category": category,

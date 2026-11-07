@@ -89,6 +89,7 @@
       <select id="companyFilter" aria-label="按企业筛选" title="按企业筛选" hidden>
         <option value="">全部企业</option>
       </select>
+      <a class="btn" href="ai-exam-coding.html" style="text-decoration:none">📝 AI 岗大题</a>
       <button class="btn" id="btnWrongCenter" type="button">📕 错题中心<span id="wrongCount" style="margin-left:4px;color:#b3372f;font-weight:700"></span></button>
       <div class="mode-switch" id="modeSwitch">
         <button type="button" data-mode="study" class="on">背题模式</button>
@@ -149,6 +150,9 @@
   var progress=loadProgress();
   var wrongSet={}; Object.keys(progress).forEach(function(k){ if(progress[k]&&progress[k].correct===false) wrongSet[k]=1; });
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function qStem(q){ return q.stem_html || esc(q.stem); }
+  function qOption(q,i){ return (q.options_html && q.options_html[i]!==undefined) ? q.options_html[i] : esc(q.options[i]); }
+  function qExplain(q){ return q.explain_html || esc(q.explain); }
   function visibleQuestions(){
     var arr=DATA?DATA.questions:[];
     return companyFilter ? arr.filter(function(q){return q.company===companyFilter}) : arr;
@@ -220,17 +224,17 @@
       '<button class="btn primary" id="btnRedoWrong" type="button">✍️ 重做这 '+pool.length+' 道错题</button></div>' : '';
     var html='<section class="study-block"><h2>'+esc(title)+'<small>'+pool.length+' 题</small></h2>'+redoBtn;
     pool.forEach(function(q,qi){
-      html+='<div class="study-q" data-qi="'+qi+'"><p class="stem">'+(qi+1)+'. '+esc(q.stem)+(q.multi?' <span style="font-size:12px;color:#b06f1a">（多选）</span>':'')+'</p>';
+      html+='<div class="study-q" data-qi="'+qi+'"><p class="stem">'+(qi+1)+'. '+qStem(q)+(q.multi?' <span style="font-size:12px;color:#b06f1a">（多选）</span>':'')+'</p>';
       var ansArr=q.answer||[];
       var myPick=(progress[q.key]&&progress[q.key].pick)||[];
       q.options.forEach(function(o,i){
         var isAns=ansArr.indexOf(i)>=0;
         var cls='opt'+(isAns?' correct':'')+((!isAns&&myPick.indexOf(i)>=0)?' wrong':'');
-        html+='<div class="'+cls+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+(isAns?' ✓':'')+((!isAns&&myPick.indexOf(i)>=0)?' <span style="color:#b3372f;font-size:12px">（你的选择）</span>':'')+'</div>';
+        html+='<div class="'+cls+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+qOption(q,i)+(isAns?' ✓':'')+((!isAns&&myPick.indexOf(i)>=0)?' <span style="color:#b3372f;font-size:12px">（你的选择）</span>':'')+'</div>';
       });
       var ansText=ansArr.map(function(a){return String.fromCharCode(65+a)}).join('、');
       var pickText=myPick.length?'　<b style="color:#b3372f">你选了 '+letters(myPick)+'</b>':'';
-      html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+esc(q.explain)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
+      html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+qExplain(q)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
     html+='</section>';
     sp.innerHTML=html;
@@ -265,10 +269,10 @@
     document.getElementById('exDone').textContent=exam.answers.filter(function(a){return a&&a.length>0}).length;
     var cur=exam.answers[exam.idx]||[];
     var opts=q.options.map(function(o,i){
-      return '<button class="optbtn'+(cur.indexOf(i)>=0?' sel':'')+'" data-i="'+i+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+esc(o)+'</button>';
+      return '<button class="optbtn'+(cur.indexOf(i)>=0?' sel':'')+'" data-i="'+i+'"><span class="k">'+String.fromCharCode(65+i)+'</span>'+qOption(q,i)+'</button>';
     }).join('');
     var hint=q.multi?'<p style="margin:0 0 10px;font-size:12.5px;color:#b06f1a">多选题：可点选多项</p>':'';
-    card.innerHTML='<p class="q-stem">'+esc(q.stem)+'</p>'+hint+opts;
+    card.innerHTML='<p class="q-stem">'+qStem(q)+'</p>'+hint+opts;
     card.querySelectorAll('.optbtn').forEach(function(b){
       b.addEventListener('click',function(){
         var i=Number(b.dataset.i), arr=exam.answers[exam.idx]||[];
@@ -297,10 +301,10 @@
       var pick=exam.answers[i]||[], good=sameSet(pick,q.answer); if(good) ok++;
       progress[q.key]={correct:good, ts:Date.now(), pick:pick.slice()};
       if(good){ delete wrongSet[q.key]; } else { wrongSet[q.key]=1; }
-      rows+='<div class="res-item"><p style="margin:0 0 6px;font-weight:650">'+(i+1)+'. '+esc(q.stem)+
+      rows+='<div class="res-item"><p style="margin:0 0 6px;font-weight:650">'+(i+1)+'. '+qStem(q)+
         '<span class="res-badge '+(good?'ok':'no')+'">'+(pick.length===0?'未答':(good?'正确':'错误'))+'</span></p>'+
         '<div style="font-size:13px;color:#5a6472">你选：'+letters(pick)+'　正确答案：'+letters(q.answer)+'</div>'+
-        '<div style="margin-top:6px;padding:8px 11px;border-radius:8px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13px">'+esc(q.explain)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
+        '<div style="margin-top:6px;padding:8px 11px;border-radius:8px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13px">'+qExplain(q)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
     var rate=Math.round(ok/total*100), secs=Math.floor((Date.now()-exam.startTs)/1000);
     document.getElementById('examRun').hidden=true;
