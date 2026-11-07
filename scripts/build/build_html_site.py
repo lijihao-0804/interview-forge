@@ -1542,8 +1542,19 @@ MATH_COMMANDS = {
     "times": "×", "cdot": "·", "oplus": "⊕", "rightarrow": "→", "to": "→",
     "le": "≤", "leq": "≤", "ge": "≥", "geq": "≥", "implies": "⇒",
     "alpha": "α", "Sigma": "Σ", "sum": "∑", "infty": "∞", "neq": "≠",
+    # AI 笔试题里常见的符号（原渲染器未覆盖，统一补成可显示的 Unicode）
+    "in": "∈", "notin": "∉", "mid": "|", "lvert": "|", "rvert": "|",
+    "lVert": "‖", "rVert": "‖", "approx": "≈", "partial": "∂", "nabla": "∇",
+    "prod": "∏", "Pi": "Π", "Delta": "Δ", "delta": "δ", "mu": "μ",
+    "lambda": "λ", "theta": "θ", "sigma": "σ", "beta": "β", "gamma": "γ",
+    "omega": "ω", "varepsilon": "ε", "varphi": "φ", "phi": "φ", "rho": "ρ",
+    "tau": "τ", "eta": "η", "kappa": "κ", "pi": "π", "epsilon": "ε",
+    "lfloor": "⌊", "rfloor": "⌋", "lceil": "⌈", "rceil": "⌉", "cdots": "⋯",
+    "dots": "…", "ne": "≠", "equiv": "≡", "subseteq": "⊆", "cup": "∪",
+    "cap": "∩", "propto": "∝", "perp": "⊥", "odot": "⊙", "otimes": "⊗",
+    "varnothing": "∅", "sim": "∼", "top": "⊤", "leftarrow": "←", "leftrightarrow": "↔",
 }
-MATH_FUNCTIONS = {"log", "min", "max", "sin", "cos", "tan"}
+MATH_FUNCTIONS = {"log", "min", "max", "sin", "cos", "tan", "exp", "ln", "gcd", "det", "dim", "arg", "ker"}
 
 
 # MathMLParser：手写递归下降解析器，把轻量 LaTeX 子集字符串编译成浏览器原生
@@ -1618,7 +1629,7 @@ class MathMLParser:
         if name in {",", ";", ":", " ", "quad", "qquad"}:
             widths = {"quad": "1em", "qquad": "2em", ";": ".28em", ":": ".22em"}
             return f'<mspace width="{widths.get(name, ".17em")}"/>'
-        if name == "frac":
+        if name in {"frac", "dfrac"}:
             numerator = MathMLParser(self.raw_group()).parse()
             denominator = MathMLParser(self.raw_group()).parse()
             return f"<mfrac><mrow>{numerator}</mrow><mrow>{denominator}</mrow></mfrac>"
@@ -1626,6 +1637,28 @@ class MathMLParser:
             return f"<msqrt><mrow>{MathMLParser(self.raw_group()).parse()}</mrow></msqrt>"
         if name == "text":
             return f"<mtext>{html.escape(self.raw_group())}</mtext>"
+        if name in {"operatorname", "mathrm", "mathbf", "mathit", "mathcal", "boldsymbol"}:
+            inner = self.raw_group()
+            if name in {"operatorname", "mathrm"}:
+                return f'<mi mathvariant="normal">{html.escape(inner)}</mi>'
+            return f"<mrow>{MathMLParser(inner).parse()}</mrow>"
+        if name == "mathbb":
+            inner = self.raw_group()
+            return f'<mi mathvariant="double-struck">{html.escape(inner)}</mi>'
+        if name in {"hat", "bar", "vec", "tilde", "dot"}:
+            inner = MathMLParser(self.raw_group()).parse()
+            accent = {"hat": "^", "bar": "¯", "vec": "→", "tilde": "~", "dot": "˙"}[name]
+            return f"<mover><mrow>{inner}</mrow><mo>{accent}</mo></mover>"
+        if name in {"mathbin", "mathrel"}:
+            return f"<mrow>{MathMLParser(self.raw_group()).parse()}</mrow>"
+        if name == "binom":
+            upper = MathMLParser(self.raw_group()).parse()
+            lower = MathMLParser(self.raw_group()).parse()
+            return f"<mrow><mo>(</mo><mfrac linethickness=\"0\"><mrow>{upper}</mrow><mrow>{lower}</mrow></mfrac><mo>)</mo></mrow>"
+        if name in {"bmod", "pmod"}:
+            inner = self.raw_group()
+            text = "mod" + (f" {inner}" if inner else "")
+            return f'<mi mathvariant="normal">{html.escape(text)}</mi>'
         if name == "begin":
             environment = self.raw_group()
             end_token = rf"\end{{{environment}}}"

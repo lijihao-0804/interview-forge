@@ -8,6 +8,7 @@ import html as html_lib
 import json
 import re
 import sys
+import time
 import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,10 +36,10 @@ def render_text(text: str) -> str:
     """把纯文本中的 $...$ / $$...$$ 转成站内 MathML，其余文本做 HTML 转义。"""
     output = []
     cursor = 0
-    for match in re.finditer(r"\$\$([^$]+?)\$\$|\$([^$\n]+?)\$", text):
+    for match in re.finditer(r"\$\$([^$]+?)\$\$|\$([^$\n]+?)\$|\\\[(.+?)\\\]|\\\((.+?)\\\)", text, re.S):
         output.append(html_lib.escape(text[cursor:match.start()]))
-        source = match.group(1) if match.group(1) is not None else match.group(2)
-        output.append(math_html(source, display=match.group(1) is not None))
+        source = next((group for group in match.groups() if group is not None), "")
+        output.append(math_html(source, display=bool(match.group(1) is not None or match.group(3) is not None)))
         cursor = match.end()
     output.append(html_lib.escape(text[cursor:]))
     return "".join(output).replace("\n", "<br>")
@@ -46,8 +47,16 @@ def render_text(text: str) -> str:
 
 def fetch(page):
     try:
-        request = urllib.request.Request(page["url"], headers=UA)
-        html = urllib.request.urlopen(request, timeout=40).read().decode("utf-8", "replace")
+        html = None
+        for attempt in range(3):
+            try:
+                request = urllib.request.Request(page["url"], headers=UA)
+                html = urllib.request.urlopen(request, timeout=30).read().decode("utf-8", "replace")
+                break
+            except Exception:
+                if attempt == 2:
+                    raise
+                time.sleep(1)
         article = BeautifulSoup(html, "html.parser").find("article")
         if article is None:
             return page, []
@@ -109,7 +118,7 @@ def fetch(page):
 def main() -> None:
     pages = [page for page in json.loads(SRC.read_text(encoding="utf-8")) if page.get("slug") != "ai-exam-guide"]
     results = []
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(fetch, page): page for page in pages}
         for future in as_completed(futures):
             results.append(future.result())
