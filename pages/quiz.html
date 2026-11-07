@@ -67,6 +67,7 @@
     <a href="../index.html">题目面板</a>
     <a href="../cockpit.html">中控台</a>
     <a href="../library/index.html">学习书架</a>
+    <a href="../pages/ai-exam-coding.html">AI 岗大题</a>
     <a href="../books/hot100/00-总览/01-学习路线.html">学习路线</a>
     <a href="../books/hot100/00-总览/02-算法模式地图.html">模式地图</a>
     <a href="../books/hot100/00-总览/03-复习清单.html">复习清单</a>
@@ -84,6 +85,9 @@
       <select id="bankSelect" aria-label="选择题库" title="切换题库">
         <option value="glossary">AI 术语题库</option>
         <option value="ai-exam">AI 岗笔试真题</option>
+      </select>
+      <select id="companyFilter" aria-label="按企业筛选" title="按企业筛选" hidden>
+        <option value="">全部企业</option>
       </select>
       <button class="btn" id="btnWrongCenter" type="button">📕 错题中心<span id="wrongCount" style="margin-left:4px;color:#b3372f;font-weight:700"></span></button>
       <div class="mode-switch" id="modeSwitch">
@@ -139,18 +143,23 @@
   };
   var bankCache={};
   var STORE_KEY='forgeQuizProgress';
+  var companyFilter='';
   function loadProgress(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return {}} }
   function saveProgress(p){ try{localStorage.setItem(STORE_KEY,JSON.stringify(p))}catch(e){} }
   var progress=loadProgress();
   var wrongSet={}; Object.keys(progress).forEach(function(k){ if(progress[k]&&progress[k].correct===false) wrongSet[k]=1; });
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function visibleQuestions(){
+    var arr=DATA?DATA.questions:[];
+    return companyFilter ? arr.filter(function(q){return q.company===companyFilter}) : arr;
+  }
   function catStats(){
-    var c={}; DATA.questions.forEach(function(q){c[q.category]=(c[q.category]||0)+1});
+    var c={}; visibleQuestions().forEach(function(q){c[q.category]=(c[q.category]||0)+1});
     return c;
   }
   var MAXN=0;
   var WRONG='__wrong__';  // 错题中心特殊分类标记
-  function wrongPool(){ return DATA.questions.filter(function(q){return wrongSet[q.key]}); }
+  function wrongPool(){ return visibleQuestions().filter(function(q){return wrongSet[q.key]}); }
   function updateWrongCount(){
     var n=Object.keys(wrongSet).length, el=document.getElementById('wrongCount');
     if(el) el.textContent = n? '('+n+')' : '';
@@ -171,7 +180,7 @@
     MAXN=Math.max.apply(null,Object.values(c).concat([1]));
     var keys=Object.keys(c).sort(function(a,b){return c[b]-c[a]});
     document.getElementById('catGrid').innerHTML=keys.map(function(k){
-      var done=DATA.questions.filter(function(q){return q.category===k && progress[q.key]}).length;
+      var done=visibleQuestions().filter(function(q){return q.category===k && progress[q.key]}).length;
       var pct=c[k]?Math.round(done/c[k]*100):0;
       return '<button class="cat-card" data-cat="'+esc(k)+'"><h3>'+esc(k)+'</h3>'+
         '<div class="n">已学 '+done+' / '+c[k]+' 题 · '+pct+'%</div><div class="bar"><i style="width:'+pct+'%"></i></div></button>';
@@ -203,7 +212,7 @@
   function renderStudy(){
     document.getElementById('examPanel').hidden=true;
     var sp=document.getElementById('studyPanel'); sp.hidden=false;
-    var pool = currentCat===WRONG ? wrongPool() : DATA.questions.filter(function(q){return q.category===currentCat});
+    var pool = currentCat===WRONG ? wrongPool() : visibleQuestions().filter(function(q){return q.category===currentCat});
     if(!pool.length){ sp.innerHTML='<div class="empty">'+(currentCat===WRONG?'🎉 太棒了，当前没有错题！':'该分类暂无题目。')+'</div>'; return; }
     var title = currentCat===WRONG ? '错题中心' : currentCat;
     var redoBtn = currentCat===WRONG ? '<div style="display:flex;gap:10px;margin:6px 0 14px;flex-wrap:wrap">'+
@@ -237,7 +246,7 @@
   /* 整卷测评（限定当前分类） */
   var exam={qs:[],idx:0,answers:[],timer:null,startTs:0};
   function startExam(){
-    var pool = currentCat===WRONG ? wrongPool() : DATA.questions.filter(function(q){return q.category===currentCat});
+    var pool = currentCat===WRONG ? wrongPool() : visibleQuestions().filter(function(q){return q.category===currentCat});
     for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=pool[i];pool[i]=pool[j];pool[j]=t;}
     if(!pool.length){ alert(currentCat===WRONG?'当前没有错题':'该分类没有题目'); return; }
     exam.qs=pool; exam.idx=0; exam.answers=pool.map(function(){return [];}); exam.startTs=Date.now();
@@ -355,15 +364,28 @@
       if(k==='arrowleft'){ scrollToStudy(studyIdx-1); e.preventDefault(); return; }
     }
   });
+  function syncCompanyFilter(key){
+    var select=document.getElementById('companyFilter');
+    if(!select) return;
+    var companies=[];
+    if(key==='aiExam' && DATA && DATA.questions){
+      companies=Array.from(new Set(DATA.questions.map(function(q){return q.company}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'zh')});
+    }
+    if(!companies.length){ select.hidden=true; select.innerHTML='<option value="">全部企业</option>'; companyFilter=''; return; }
+    select.hidden=false;
+    select.innerHTML='<option value="">全部企业</option>'+companies.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>'}).join('');
+    if(companyFilter && companies.indexOf(companyFilter)<0) companyFilter='';
+    select.value=companyFilter;
+  }
   function loadBank(name){
     var key = name === 'aiExam' ? 'aiExam' : 'glossary';
     bank = key;
     var sel = document.getElementById('bankSelect');
     if(sel) sel.value = key === 'aiExam' ? 'ai-exam' : 'glossary';
     function apply(d){
-      bankCache[key] = d; DATA = d; currentCat = ''; mode = 'study';
+      bankCache[key] = d; DATA = d; currentCat = ''; mode = 'study'; companyFilter='';
       document.querySelectorAll('#modeSwitch button').forEach(function(x){x.classList.toggle('on',x.dataset.mode==='study');});
-      goHome(); updateWrongCount();
+      syncCompanyFilter(key); goHome(); updateWrongCount();
     }
     if(bankCache[key]){ apply(bankCache[key]); return; }
     fetch(BANKS[key].url,{cache:'no-store'}).then(function(r){return r.json()}).then(apply).catch(function(e){
@@ -372,6 +394,9 @@
   }
   var sel=document.getElementById('bankSelect');
   if(sel){ sel.addEventListener('change',function(){ loadBank(this.value==='ai-exam'?'aiExam':'glossary'); }); }
+  var companySel=document.getElementById('companyFilter');
+  if(companySel){ companySel.addEventListener('change',function(){ companyFilter=this.value; currentCat=''; mode='study';
+    document.querySelectorAll('#modeSwitch button').forEach(function(x){x.classList.toggle('on',x.dataset.mode==='study');}); goHome(); }); }
   var initialBank = (new URLSearchParams(location.search).get('bank')==='ai-exam') ? 'aiExam' : 'glossary';
   loadBank(initialBank);
 })();
