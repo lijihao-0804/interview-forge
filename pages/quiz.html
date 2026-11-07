@@ -81,6 +81,10 @@
       <p style="margin:0;font-size:13px;color:var(--muted)">按主题分类。<b>背题</b>整块滚动看；<b>做题</b>整卷测评，交卷判分。</p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="bankSelect" aria-label="选择题库" title="切换题库">
+        <option value="glossary">AI 术语题库</option>
+        <option value="ai-exam">AI 岗笔试真题</option>
+      </select>
       <button class="btn" id="btnWrongCenter" type="button">📕 错题中心<span id="wrongCount" style="margin-left:4px;color:#b3372f;font-weight:700"></span></button>
       <div class="mode-switch" id="modeSwitch">
         <button type="button" data-mode="study" class="on">背题模式</button>
@@ -128,7 +132,12 @@
 </div>
 <script>
 (function(){
-  var DATA=null, mode='study', currentCat='';
+  var DATA=null, mode='study', currentCat='', bank='glossary';
+  var BANKS={
+    glossary:{url:'../assets/quiz.json',label:'AI 术语题库'},
+    aiExam:{url:'../assets/ai-exam-quiz.json',label:'AI 岗笔试真题'}
+  };
+  var bankCache={};
   var STORE_KEY='forgeQuizProgress';
   function loadProgress(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return {}} }
   function saveProgress(p){ try{localStorage.setItem(STORE_KEY,JSON.stringify(p))}catch(e){} }
@@ -212,7 +221,7 @@
       });
       var ansText=ansArr.map(function(a){return String.fromCharCode(65+a)}).join('、');
       var pickText=myPick.length?'　<b style="color:#b3372f">你选了 '+letters(myPick)+'</b>':'';
-      html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+esc(q.explain)+'</div></div>';
+      html+='<div class="ans"><b>答案 '+ansText+'</b>'+pickText+'　解析：'+esc(q.explain)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
     html+='</section>';
     sp.innerHTML=html;
@@ -282,7 +291,7 @@
       rows+='<div class="res-item"><p style="margin:0 0 6px;font-weight:650">'+(i+1)+'. '+esc(q.stem)+
         '<span class="res-badge '+(good?'ok':'no')+'">'+(pick.length===0?'未答':(good?'正确':'错误'))+'</span></p>'+
         '<div style="font-size:13px;color:#5a6472">你选：'+letters(pick)+'　正确答案：'+letters(q.answer)+'</div>'+
-        '<div style="margin-top:6px;padding:8px 11px;border-radius:8px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13px">'+esc(q.explain)+'</div></div>';
+        '<div style="margin-top:6px;padding:8px 11px;border-radius:8px;background:#f7f8fd;border:1px solid #e6e9f5;font-size:13px">'+esc(q.explain)+(q.source_url?' <a href="'+esc(q.source_url)+'" target="_blank" rel="noopener noreferrer">原题</a>':'')+'</div></div>';
     });
     var rate=Math.round(ok/total*100), secs=Math.floor((Date.now()-exam.startTs)/1000);
     document.getElementById('examRun').hidden=true;
@@ -346,11 +355,25 @@
       if(k==='arrowleft'){ scrollToStudy(studyIdx-1); e.preventDefault(); return; }
     }
   });
-  fetch('../assets/quiz.json',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
-    DATA=d; renderHome(); updateWrongCount();
-  }).catch(function(e){
-    document.getElementById('catGrid').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
-  });
+  function loadBank(name){
+    var key = name === 'aiExam' ? 'aiExam' : 'glossary';
+    bank = key;
+    var sel = document.getElementById('bankSelect');
+    if(sel) sel.value = key === 'aiExam' ? 'ai-exam' : 'glossary';
+    function apply(d){
+      bankCache[key] = d; DATA = d; currentCat = ''; mode = 'study';
+      document.querySelectorAll('#modeSwitch button').forEach(function(x){x.classList.toggle('on',x.dataset.mode==='study');});
+      goHome(); updateWrongCount();
+    }
+    if(bankCache[key]){ apply(bankCache[key]); return; }
+    fetch(BANKS[key].url,{cache:'no-store'}).then(function(r){return r.json()}).then(apply).catch(function(e){
+      document.getElementById('catGrid').innerHTML='<div class="empty">题库加载失败：'+esc(e.message)+'</div>';
+    });
+  }
+  var sel=document.getElementById('bankSelect');
+  if(sel){ sel.addEventListener('change',function(){ loadBank(this.value==='ai-exam'?'aiExam':'glossary'); }); }
+  var initialBank = (new URLSearchParams(location.search).get('bank')==='ai-exam') ? 'aiExam' : 'glossary';
+  loadBank(initialBank);
 })();
 </script>
 </body>
