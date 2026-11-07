@@ -156,6 +156,9 @@ LIBRARY_MODULES = [
     {"id": "company-topics", "title": "企业高频算法题库", "category": "企业题库",
      "source": "company-topics/企业高频题库.md",
      "about": "按公司汇总互联网技术岗考察的 LeetCode 题目热度（LeetcodeTop / CodeTop 面经整理），只列 Hot 100 之外的增量题：字节、阿里、腾讯、美团、百度、快手、Shopee、微软、猿辅导、Amazon 共 10 家，覆盖算法/后端/前端/客户端/数据/测试岗位。"},
+    {"id": "ai-exam-index", "title": "AI 岗笔试真题导航（2026 大厂）", "category": "企业题库",
+     "source": "外部面经参考/AI岗笔试真题导航.md",
+     "about": "2026 年 3—10 月 13 家公司、约 97 套 AI/算法岗笔试公开题页的导航索引：按公司分章列出日期、岗位、题型、主要考点与原始链接；原题正文归原页作者，本模块不复制全文，适合先定位目标公司的笔试，再打开原页做题。"},
 ]
 
 
@@ -242,6 +245,8 @@ MODULE_ORDER = [
     # 系统与基础设施
     "ai-infra",
     "compiler-interview",
+    # 企业题库 / AI 岗笔试导航
+    "ai-exam-index",
 ]
 
 # ----------------------------------------------------------------------------
