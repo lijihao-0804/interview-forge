@@ -97,6 +97,8 @@ LIBRARY_MODULES = [
      "about": "全部课程收尾课：40 道全科八股自测总表定位薄弱点，STAR 法准备项目与简历，系统设计答题框架与秒杀/短链/IM 三母题，模拟面试高频问答与一周冲刺计划，最后给出完整学习闭环与参考资料。"},
     {"id": "python", "title": "Python 实用入门与 AI 开发", "category": "编程基础与训练", "source": "Python/Python实用入门与AI开发：语法、API、并发及工程实践.md",
      "about": "从语法、容器与类型标注讲到调用大模型 API、FastAPI 服务和并发，最后落到完整 AI 项目结构；想用 Python 做 AI 开发可一路顺读。"},
+    {"id": "ai-math-review", "title": "AI 岗数学复习手册：线代与概率速查", "category": "编程基础与训练", "source": "机器学习/AI岗数学复习手册.md",
+     "about": "面向已有课程基础、考前快速复习的线代与概率速查手册：10 章串起矩阵运算、特征值/SVD/PCA、矩阵微积分、概率公理与贝叶斯、随机变量与常见分布、参数估计、信息论与损失函数，最后附高频题型和 30 分钟速记。不是从零教材，适合 2–4 小时过一遍。"},
     {"id": "machine-learning", "title": "机器学习快速入门", "category": "编程基础与训练", "source": "机器学习/机器学习快速入门：从基本概念到完整实践.md",
      "about": "从问题定义、样本与标签讲起，走通回归、分类、无监督、模型评估与调参，并以鸢尾花案例收尾，附最小数学基础与工程陷阱附录。"},
     {"id": "deep-learning", "title": "深度学习与 Transformer", "category": "编程基础与训练", "source": "机器学习/深度学习快速入门：从神经网络到 Transformer.md",
@@ -215,6 +217,7 @@ MODULE_ORDER = [
     "interview-sprint",
     # AI 主线
     "python",
+    "ai-math-review",
     "ai-basics",
     "machine-learning",
     "deep-learning",

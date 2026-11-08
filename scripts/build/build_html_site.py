@@ -1553,6 +1553,7 @@ MATH_COMMANDS = {
     "dots": "…", "ne": "≠", "equiv": "≡", "subseteq": "⊆", "cup": "∪",
     "cap": "∩", "propto": "∝", "perp": "⊥", "odot": "⊙", "otimes": "⊗",
     "varnothing": "∅", "sim": "∼", "top": "⊤", "leftarrow": "←", "leftrightarrow": "↔",
+    "vdots": "⋮", "ddots": "⋱",
 }
 MATH_FUNCTIONS = {"log", "min", "max", "sin", "cos", "tan", "exp", "ln", "gcd", "det", "dim", "arg", "ker"}
 
