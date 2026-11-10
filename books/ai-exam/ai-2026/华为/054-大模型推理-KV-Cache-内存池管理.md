@@ -1,6 +1,6 @@
 # 大模型推理 KV Cache 内存池管理
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261023/ · 华为 · 2026-10-23 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261023/ · 华为 · 2026-10-23 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -100,3 +100,9 @@ if __name__ == "__main__":
 ## 本题小结
 
 关键是证明到达顺序不影响最终可行集合，再使用“固定数量时取最小需求”的贪心。不必套容量背包，也不必模拟复杂的缓存管理。所有请求都放不下时输出 0；恰好装满时仍应计入最后一个请求。
+
+### Java 实现
+
+```java
+import java.io.*;import java.util.*;public class Main{public static void main(String[] a)throws Exception{FS fs=new FS();if(!fs.has())return;long m=fs.nl();long k=fs.nl();int n=fs.ni();long[] len=new long[n];for(int i=0;i<n;i++)len[i]=fs.nl();long[] need=new long[n];for(int i=0;i<n;i++)need[i]=(len[i]+k-1)/k;Arrays.sort(need);long used=0;int ans=0;for(long nd:need){if(used+nd>m)break;used+=nd;ans++;}System.out.println(ans);}static class FS{byte[] d;int i=0;FS()throws IOException{d=System.in.readAllBytes();}boolean has(){while(i<d.length&&d[i]<=32)i++;return i<d.length;}String next(){while(i<d.length&&d[i]<=32)i++;int s=i;while(i<d.length&&d[i]>32)i++;return new String(d,s,i-s);}int ni(){return Integer.parseInt(next());}long nl(){return Long.parseLong(next());}}}
+```

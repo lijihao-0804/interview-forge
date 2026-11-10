@@ -117,17 +117,31 @@ def write_problem(path: Path, title: str, meta: str, sections: list[dict], trans
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def solution_text(problem: dict) -> str:
+    for section in problem.get("sections", []):
+        heading = section.get("heading", "")
+        if ("题解代码" in heading or "Python 代码" in heading or "代码" in heading) and section.get("code"):
+            return section["code"].strip()
+    codes = [section.get("code", "") for section in problem.get("sections", [])
+             if section.get("code") and "样例" not in section.get("heading", "")]
+    return max(codes, key=len).strip() if codes else ""
+
+
 def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
     data = json.loads(CODING.read_text(encoding="utf-8"))
     entries = []
     for problem in data["problems"]:
+        code = solution_text(problem)
+        # 少量页面把“选择题答案 print("C")”误当成了编程题；ACM 题库不收录这种伪代码。
+        if not code or (not re.search(r"(?m)^\s*(def|class|import|from|if __name__)", code) and len(code) < 40):
+            continue
         company = problem["company"]
         date = problem["date"]
         role = problem["role"]
         file_dir = SRC / "ai-2026" / company
         filename = f"{len(entries) + 1:03d}-{safe_name(problem['title'])}.md"
         md_path = file_dir / filename
-        meta = f"来源：{problem.get('source_url', '')} · {company} · {date or '日期未标注'} · {role or 'AI岗'}"
+        meta = f"来源：{problem.get('source_url', '')} · {company} · {date or '日期未标注'} · {role or 'AI岗'} · ACM 模式（stdin/stdout）"
         translation = translations.get(problem["key"], {})
         write_problem(md_path, problem["title"], meta, problem.get("sections", []), translation)
         languages = "Python/Java" if translation.get("java") else "Python"
@@ -183,6 +197,8 @@ def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
         group = md.parent.name
         title = md.stem.split("-", 1)[-1]
         text = md.read_text(encoding="utf-8")
+        # 企业 OJ 原文件使用 class Solution；ACM 机考统一使用 public class Main。
+        text = text.replace("public class Solution", "public class Main").replace("class Solution", "class Main")
         # 原企业 OJ 页面只有 Java 代码块；补一个语言小节，交给 site.js 做切换。
         text = re.sub(r"(?m)^##\s*解题代码\s*$\n+```java", "## 解题代码\n\n### Java 实现\n\n```java", text, count=1)
         key = f"company-oj:{group}:{md.stem}"
@@ -253,9 +269,24 @@ def build_index(entries: list[dict]) -> None:
     (SRC / "index.html").write_text(page, encoding="utf-8")
 
 
+def cleanup_stale(entries: list[dict]) -> None:
+    """删除上一次生成但已不在索引里的旧题页，避免旧的 print("C") 页面残留。"""
+    expected = {str((SRC / entry["url"]).resolve()) for entry in entries}
+    for path in list(SRC.rglob("*.html")):
+        if path.parent == SRC and path.name == "index.html":
+            continue
+        if str(path.resolve()) not in expected:
+            path.unlink()
+    expected_md = {str(Path(item).with_suffix(".md").resolve()) for item in expected}
+    for path in list(SRC.rglob("*.md")):
+        if str(path.resolve()) not in expected_md:
+            path.unlink()
+
+
 def main() -> None:
     translations = load_translations()
     entries = build_ai_coding(translations) + build_agent_doc(translations) + build_company_oj(translations)
+    cleanup_stale(entries)
     # 先渲染 AI/Agent/企业 OJ 的 Markdown；页内的语言小节由 build_html_site 处理。
     for md in (sorted((SRC / "ai-2026").glob("*/*.md")) if (SRC / "ai-2026").exists() else []):
         render_markdown(md)

@@ -1,6 +1,6 @@
 # K-Median 聚类
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261010/ · 华为 · 2026-10-10 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261010/ · 华为 · 2026-10-10 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -102,3 +102,76 @@ if __name__ == "__main__":
 
 时间复杂度 ：$O(Tnkd)$，$T\le100$ 为实际轮数；分配需要 $O(nkd)$，簇筛选为 $O(nk)$，NumPy 中位数采用选择算法，所有簇合计处理 $O(nd)$ 个坐标值。
 空间复杂度 ：$O(nk+nd+kd)$，包括距离矩阵、样本、簇成员与中心。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+import java.util.Locale;
+
+public class Main {
+    static class In {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer("");
+        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
+        int ni() { return Integer.parseInt(next()); }
+        double nd() { return Double.parseDouble(next()); }
+    }
+    static double median(double[] arr) {
+        double[] c = arr.clone();
+        Arrays.sort(c);
+        int m = c.length;
+        if (m % 2 == 1) return c[m / 2];
+        return (c[m / 2 - 1] + c[m / 2]) / 2.0;
+    }
+    public static void main(String[] args) {
+        In in = new In();
+        int n = in.ni(), d = in.ni(), k = in.ni();
+        double[][] points = new double[n][d];
+        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) points[i][j] = in.nd();
+        double[][] centers = new double[k][d];
+        for (int i = 0; i < k; i++) centers[i] = points[i].clone();
+        int[] labels = new int[n];
+        for (int iter = 0; iter < 100; iter++) {
+            for (int i = 0; i < n; i++) {
+                int best = -1;
+                double bestD = 0;
+                for (int j = 0; j < k; j++) {
+                    double s = 0;
+                    for (int ax = 0; ax < d; ax++) s += Math.abs(points[i][ax] - centers[j][ax]);
+                    if (best == -1 || s < bestD) { bestD = s; best = j; }
+                }
+                labels[i] = best;
+            }
+            double[][] updated = new double[k][d];
+            for (int j = 0; j < k; j++) {
+                List<Integer> members = new ArrayList<>();
+                for (int i = 0; i < n; i++) if (labels[i] == j) members.add(i);
+                if (members.isEmpty()) { updated[j] = centers[j].clone(); continue; }
+                double[] vals = new double[members.size()];
+                for (int ax = 0; ax < d; ax++) {
+                    for (int t = 0; t < members.size(); t++) vals[t] = points[members.get(t)][ax];
+                    updated[j][ax] = median(vals);
+                }
+            }
+            double shift = 0;
+            for (int j = 0; j < k; j++) for (int ax = 0; ax < d; ax++) shift += Math.abs(updated[j][ax] - centers[j][ax]);
+            centers = updated;
+            if (shift < 1e-4) break;
+        }
+        double inertia = 0;
+        for (int i = 0; i < n; i++) for (int ax = 0; ax < d; ax++) inertia += Math.abs(points[i][ax] - centers[labels[i]][ax]);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) { if (i > 0) sb.append(' '); sb.append(labels[i]); }
+        sb.append((char)10);
+        for (int j = 0; j < k; j++) {
+            StringBuilder line = new StringBuilder();
+            for (int ax = 0; ax < d; ax++) { if (ax > 0) line.append(' '); line.append(String.format(Locale.US, "%.6f", centers[j][ax])); }
+            sb.append(line).append((char)10);
+        }
+        sb.append(String.format(Locale.US, "%.6f", inertia)).append((char)10);
+        System.out.print(sb.toString());
+    }
+}
+```

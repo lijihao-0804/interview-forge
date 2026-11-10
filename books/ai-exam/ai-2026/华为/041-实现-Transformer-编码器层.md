@@ -1,6 +1,6 @@
 # 实现 Transformer 编码器层
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260916/ · 华为 · 2026-09-16 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260916/ · 华为 · 2026-09-16 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -121,3 +121,98 @@ solve()
 ## 易错点
 
 softmax 前应减去该行最大值，避免指数溢出。 方差除以 4，使用总体方差；不能改成样本方差。 极小负数格式化后可能成为 -0.00 ，题面要求输出 0.00 。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+import java.util.Locale;
+
+public class Main {
+    static final int D_MODEL = 4;
+    static final int D_K = 2;
+    static final double EPS = 1e-5;
+    static class In {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer("");
+        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
+        double nd() { return Double.parseDouble(next()); }
+    }
+    static double[] layerNorm(double[] values) {
+        double mean = 0.0;
+        for (double v : values) mean += v;
+        mean /= D_MODEL;
+        double variance = 0.0;
+        for (double v : values) variance += (v - mean) * (v - mean);
+        variance /= D_MODEL;
+        double scale = Math.sqrt(variance + EPS);
+        double[] out = new double[D_MODEL];
+        for (int i = 0; i < D_MODEL; i++) out[i] = (values[i] - mean) / scale;
+        return out;
+    }
+    public static void main(String[] args) {
+        In in = new In();
+        double[] values = new double[2 * D_MODEL];
+        for (int i = 0; i < values.length; i++) values[i] = in.nd();
+        double[][] x = new double[2][D_MODEL];
+        for (int i = 0; i < D_MODEL; i++) x[0][i] = values[i];
+        for (int i = 0; i < D_MODEL; i++) x[1][i] = values[D_MODEL + i];
+        double[][][] headOut = new double[2][2][D_K];
+        for (int hi = 0; hi < 2; hi++) {
+            int start = hi * D_K;
+            double[][] headValues = new double[2][D_K];
+            for (int tok = 0; tok < 2; tok++) for (int d = 0; d < D_K; d++) headValues[tok][d] = x[tok][start + d];
+            for (int qi = 0; qi < 2; qi++) {
+                double[] scores = new double[2];
+                for (int kj = 0; kj < 2; kj++) {
+                    double dot = 0.0;
+                    for (int d = 0; d < D_K; d++) dot += headValues[qi][d] * headValues[kj][d];
+                    scores[kj] = dot / Math.sqrt(D_K);
+                }
+                double maximum = scores[0];
+                for (int kj = 1; kj < 2; kj++) if (scores[kj] > maximum) maximum = scores[kj];
+                double[] w = new double[2];
+                double total = 0.0;
+                for (int kj = 0; kj < 2; kj++) { w[kj] = Math.exp(scores[kj] - maximum); total += w[kj]; }
+                for (int d = 0; d < D_K; d++) {
+                    double sum = 0.0;
+                    for (int kj = 0; kj < 2; kj++) sum += w[kj] * headValues[kj][d];
+                    headOut[hi][qi][d] = sum / total;
+                }
+            }
+        }
+        double[][] attention = new double[2][D_MODEL];
+        for (int tok = 0; tok < 2; tok++) {
+            for (int d = 0; d < D_K; d++) {
+                attention[tok][d] = headOut[0][tok][d];
+                attention[tok][D_K + d] = headOut[1][tok][d];
+            }
+        }
+        double[][] hidden = new double[2][D_MODEL];
+        for (int tok = 0; tok < 2; tok++) {
+            double[] pre = new double[D_MODEL];
+            for (int d = 0; d < D_MODEL; d++) pre[d] = x[tok][d] + attention[tok][d];
+            hidden[tok] = layerNorm(pre);
+        }
+        double[][] output = new double[2][D_MODEL];
+        for (int tok = 0; tok < 2; tok++) {
+            double[] pre = new double[D_MODEL];
+            for (int d = 0; d < D_MODEL; d++) pre[d] = hidden[tok][d] + Math.max(0.0, hidden[tok][d]);
+            output[tok] = layerNorm(pre);
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (int tok = 0; tok < 2; tok++) {
+            for (int d = 0; d < D_MODEL; d++) {
+                String text = String.format(Locale.US, "%.2f", output[tok][d]);
+                if (text.equals("-0.00")) text = "0.00";
+                if (!first) sb.append(' ');
+                first = false;
+                sb.append(text);
+            }
+        }
+        System.out.println(sb.toString());
+    }
+}
+```

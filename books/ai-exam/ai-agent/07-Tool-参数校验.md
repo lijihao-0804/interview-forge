@@ -36,3 +36,83 @@ def validate_tool_call(name: str, arguments: dict) -> list[str]:
 ```
 
 **追问**：格式合法但业务参数越权怎么办？Schema 版本升级如何兼容运行中的任务？
+
+### Java 实现
+
+```java
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+final class ToolValidator {
+    static final Map<String, Map<String, Object>> TOOLS = new LinkedHashMap<>();
+
+    static {
+        Map<String, Object> getWeather = new LinkedHashMap<>();
+        getWeather.put("required", new LinkedHashSet<>(Arrays.asList("city")));
+        getWeather.put("allowed", new LinkedHashSet<>(Arrays.asList("city", "date")));
+        getWeather.put("risk", "read");
+        TOOLS.put("get_weather", getWeather);
+
+        Map<String, Object> sendEmail = new LinkedHashMap<>();
+        sendEmail.put("required", new LinkedHashSet<>(Arrays.asList("to", "subject", "body")));
+        sendEmail.put("allowed", new LinkedHashSet<>(Arrays.asList("to", "subject", "body")));
+        sendEmail.put("risk", "write");
+        TOOLS.put("send_email", sendEmail);
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<String> validateToolCall(String name, Map<String, ?> arguments) {
+        Map<String, Object> spec = TOOLS.get(name);
+        if (spec == null) {
+            List<String> unknown = new ArrayList<>();
+            unknown.add("unknown tool");
+            return unknown;
+        }
+        List<String> errors = new ArrayList<>();
+        Set<String> required = (Set<String>) spec.get("required");
+        Set<String> allowed = (Set<String>) spec.get("allowed");
+        Set<String> provided = arguments == null ? new LinkedHashSet<>() : new LinkedHashSet<>(arguments.keySet());
+        Set<String> missing = new TreeSet<>(required);
+        missing.removeAll(provided);
+        Set<String> extra = new TreeSet<>(provided);
+        extra.removeAll(allowed);
+        if (!missing.isEmpty()) {
+            errors.add("missing: " + pyList(missing));
+        }
+        if (!extra.isEmpty()) {
+            errors.add("unexpected: " + pyList(extra));
+        }
+        if ("write".equals(spec.get("risk"))) {
+            errors.add("approval required");
+        }
+        return errors;
+    }
+
+    private static String pyList(Set<String> values) {
+        StringBuilder builder = new StringBuilder("[");
+        boolean first = true;
+        for (String value : values) {
+            if (!first) {
+                builder.append(", ");
+            }
+            builder.append('\'').append(value).append('\'');
+            first = false;
+        }
+        builder.append(']');
+        return builder.toString();
+    }
+
+    public static void main(String[] args) {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("city", "Beijing");
+        System.out.println(validateToolCall("get_weather", arguments));
+        System.out.println(validateToolCall("send_email", arguments));
+    }
+}
+```

@@ -1,6 +1,6 @@
 # Agent 执行轨迹压缩
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260715/ · 华为 · 2026-07-15 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260715/ · 华为 · 2026-07-15 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -161,3 +161,63 @@ print(shortest_path())
 设最终非零目标格数量为 $t$，其中 $t\le12$。
 时间复杂度 ：模拟原轨迹为 $O(K)$；BFS 最多访问 $n\times m\times2^t$ 个状态，每个状态扩展四个方向，总复杂度为 $O(K+n m\,2^t)$。最坏扩展次数约为 $225\times4096\times4\approx3.7\times10^6$。
 空间复杂度 ：访问标记和队列最多保存 $O(n m\,2^t)$ 个状态。
+
+### Java 实现
+
+```java
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int n = sc.nextInt(), m = sc.nextInt();
+        int stepCount = sc.nextInt();
+        int startRow = n / 2, startCol = m / 2;
+        int row = startRow, col = startCol;
+        Map<Integer,Integer> delta = new HashMap<>();
+        Map<String,int[]> dirs = new HashMap<>();
+        dirs.put("U", new int[]{-1, 0}); dirs.put("D", new int[]{1, 0}); dirs.put("L", new int[]{0, -1}); dirs.put("R", new int[]{0, 1});
+        for (int i = 0; i < stepCount; i++) {
+            String move = sc.next(); String op = sc.next(); int param = sc.nextInt();
+            int[] d = dirs.get(move);
+            int nr = row + d[0], nc = col + d[1];
+            if (nr >= 0 && nr < n && nc >= 0 && nc < m) { row = nr; col = nc; }
+            if (op.equals("I")) { int key = row * m + col; delta.put(key, delta.getOrDefault(key, 0) + param); }
+            else if (op.equals("D")) { int key = row * m + col; delta.put(key, delta.getOrDefault(key, 0) - param); }
+        }
+        int endId = row * m + col;
+        List<Integer> targets = new ArrayList<>();
+        for (Map.Entry<Integer,Integer> en : delta.entrySet()) if (en.getValue() != 0) targets.add(en.getKey());
+        Map<Integer,Integer> targetIndex = new HashMap<>();
+        for (int i = 0; i < targets.size(); i++) targetIndex.put(targets.get(i), i);
+        int stateCount = 1 << targets.size();
+        int fullMask = stateCount - 1;
+        int startId = startRow * m + startCol;
+        boolean[][] visited = new boolean[n * m][stateCount];
+        ArrayDeque<int[]> queue = new ArrayDeque<>();
+        visited[startId][0] = true;
+        queue.add(new int[]{startId, 0});
+        int distance = 0; int answer = -1;
+        int[][] dirList = {{-1,0},{1,0},{0,-1},{0,1}};
+        while (!queue.isEmpty()) {
+            int size = queue.size();
+            for (int q = 0; q < size; q++) {
+                int[] cur = queue.poll();
+                int cellId = cur[0], mask = cur[1];
+                if (cellId == endId && mask == fullMask) { answer = distance; System.out.println(answer); return; }
+                int cr = cellId / m, cc = cellId % m;
+                for (int[] d : dirList) {
+                    int nr = cr + d[0], nc = cc + d[1];
+                    if (nr < 0 || nr >= n || nc < 0 || nc >= m) continue;
+                    int nextMask = mask;
+                    Integer bi = targetIndex.get(nr * m + nc);
+                    if (bi != null) nextMask |= 1 << bi;
+                    int nid = nr * m + nc;
+                    if (!visited[nid][nextMask]) { visited[nid][nextMask] = true; queue.add(new int[]{nid, nextMask}); }
+                }
+            }
+            distance++;
+        }
+        System.out.println(-1);
+    }
+}
+```

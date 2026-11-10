@@ -1,6 +1,6 @@
 # 轻量化推理引擎中的 Masked Fused RMSNorm
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -113,3 +113,58 @@ if __name__ == "__main__":
 
 时间复杂度 ：$O(mn)$。每个样本读取长度为 $n$ 的向量，计算有效位置，并输出 $n$ 个结果；题面数值范围有限，格式化每个数的开销可视为常数。
 空间复杂度 ：$O(n)$。逐行处理样本，只保留共享向量和当前样本的输入、有效融合值、输出，不保存全部样本。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
+public class Main {
+    static class In {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer("");
+        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
+        int ni() { return Integer.parseInt(next()); }
+        double nd() { return Double.parseDouble(next()); }
+    }
+    static String formatValue(double value) {
+        if (Math.abs(value) < 0.005) return "0.00";
+        BigDecimal bd = new BigDecimal(value);
+        bd = bd.setScale(2, RoundingMode.HALF_UP);
+        return bd.toPlainString();
+    }
+    public static void main(String[] args) {
+        In in = new In();
+        int m = in.ni();
+        int n = in.ni();
+        double epsilon = in.nd();
+        double[] gamma = new double[n];
+        double[] beta = new double[n];
+        for (int i = 0; i < n; i++) gamma[i] = in.nd();
+        for (int i = 0; i < n; i++) beta[i] = in.nd();
+        StringBuilder out = new StringBuilder();
+        for (int row = 0; row < m; row++) {
+            int length = in.ni();
+            double alpha = in.nd();
+            double[] x = new double[n];
+            double[] residual = new double[n];
+            for (int i = 0; i < n; i++) x[i] = in.nd();
+            for (int i = 0; i < n; i++) residual[i] = in.nd();
+            double[] fused = new double[length];
+            double energy = 0.0;
+            for (int i = 0; i < length; i++) { fused[i] = x[i] + alpha * residual[i]; energy += fused[i] * fused[i]; }
+            double rms = Math.sqrt(energy / Math.max(length, 1) + epsilon);
+            double[] output = new double[n];
+            for (int i = 0; i < length; i++) output[i] = gamma[i] * (fused[i] / rms) + beta[i];
+            StringBuilder line = new StringBuilder();
+            for (int i = 0; i < n; i++) { if (i > 0) line.append(' '); line.append(formatValue(output[i])); }
+            line.append(" | ").append(formatValue(rms)).append(" | ").append(formatValue(energy));
+            out.append(line).append((char)10);
+        }
+        System.out.print(out.toString());
+    }
+}
+```

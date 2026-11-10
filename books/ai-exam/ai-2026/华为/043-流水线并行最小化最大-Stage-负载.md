@@ -1,6 +1,6 @@
 # 流水线并行最小化最大 Stage 负载
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260918/ · 华为 · 2026-09-18 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260918/ · 华为 · 2026-09-18 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -113,3 +113,43 @@ solve()
 ## 易错点
 
 判定要允许段数 少于 $K$，因为多出来的段总能继续拆分；写成「必须恰好等于 $K$」会漏掉可行解。 二分下界必须是 $\max f[i]$，否则最重的那一层单独成段都会超上限，判定永远不可行。 贪心装层时要把整层装进某一段，不能把一层切开分给两个 Stage，划分的连续性约束也要求切点只能落在层与层之间。 $K=N$ 与 $K=1$ 是两个边界，用 $\max f[i]$ 和 $\sum f[i]$ 作初值即可自然覆盖，不需要特判。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    static class In {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer("");
+        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
+        int ni() { return Integer.parseInt(next()); }
+        long nl() { return Long.parseLong(next()); }
+    }
+    static long[] f;
+    static long countStages(long cap) {
+        long stages = 1;
+        long load = 0;
+        for (long x : f) {
+            if (load + x > cap) { stages++; load = 0; }
+            load += x;
+        }
+        return stages;
+    }
+    public static void main(String[] args) {
+        In in = new In();
+        int n = in.ni();
+        int k = in.ni();
+        f = new long[n];
+        long lo = Long.MIN_VALUE, hi = 0;
+        for (int i = 0; i < n; i++) { f[i] = in.nl(); if (f[i] > lo) lo = f[i]; hi += f[i]; }
+        while (lo < hi) {
+            long mid = (lo + hi) / 2;
+            if (countStages(mid) <= k) hi = mid; else lo = mid + 1;
+        }
+        System.out.println(lo);
+    }
+}
+```

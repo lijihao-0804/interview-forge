@@ -1,6 +1,6 @@
 # DBSCAN 点类型判定
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/jd/algo-20260926/ · 京东 · 2026-09-26 · 算法岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/jd/algo-20260926/ · 京东 · 2026-09-26 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -66,3 +66,89 @@ if __name__ == "__main__":
 
 时间复杂度 ：$O(n^2d)$，枚举所有点对并计算各维度差值，后续布尔运算不超过 $O(n^2)$。
 空间复杂度 ：$O(n^2d)$，主要为广播得到的三维差值张量。
+
+### Java 实现
+
+```java
+import java.util.*;
+public class Main {
+    static class Json {
+        private final String s; private int i;
+        Json(String s) { this.s = s; }
+        static Object parse(String s) { Json j = new Json(s); j.ws(); return j.value(); }
+        private void ws() { while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++; }
+        private Object value() {
+            ws(); char c = s.charAt(i);
+            if (c == '{') return object();
+            if (c == '[') return array();
+            if (c == '"') return string();
+            if (c == 't') { i += 4; return Boolean.TRUE; }
+            if (c == 'f') { i += 5; return Boolean.FALSE; }
+            if (c == 'n') { i += 4; return null; }
+            return number();
+        }
+        private Map<String,Object> object() {
+            Map<String,Object> m = new LinkedHashMap<>();
+            i++; ws();
+            if (s.charAt(i) == '}') { i++; return m; }
+            while (true) {
+                ws(); String k = string(); ws(); i++;
+                Object v = value(); m.put(k, v); ws();
+                char c = s.charAt(i++); if (c == '}') break;
+            }
+            return m;
+        }
+        private List<Object> array() {
+            List<Object> a = new ArrayList<>();
+            i++; ws();
+            if (s.charAt(i) == ']') { i++; return a; }
+            while (true) {
+                a.add(value()); ws();
+                char c = s.charAt(i++); if (c == ']') break;
+            }
+            return a;
+        }
+        private String string() {
+            StringBuilder b = new StringBuilder(); i++;
+            while (true) {
+                char c = s.charAt(i++);
+                if (c == '"') break;
+                if (c == (char)92) { char e = s.charAt(i++); if (e == 'n') b.append((char)10); else b.append(e); }
+                else b.append(c);
+            }
+            return b.toString();
+        }
+        private Object number() {
+            int start = i;
+            while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) i++;
+            return Double.parseDouble(s.substring(start, i));
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
+        String line = br.readLine();
+        Map<String,Object> data = (Map<String,Object>) Json.parse(line);
+        List<Object> xObj = (List<Object>) data.get("X");
+        int n = xObj.size();
+        int d = ((List<Object>) xObj.get(0)).size();
+        double[][] x = new double[n][d];
+        for (int i = 0; i < n; i++) { List<Object> row = (List<Object>) xObj.get(i); for (int j = 0; j < d; j++) x[i][j] = ((Number) row.get(j)).doubleValue(); }
+        double eps = ((Number) data.get("eps")).doubleValue();
+        int minSamples = ((Number) data.get("min_samples")).intValue();
+        double eps2 = eps * eps;
+        boolean[] core = new boolean[n];
+        for (int i = 0; i < n; i++) { int cnt = 0; for (int j = 0; j < n; j++) { double dd = 0; for (int k = 0; k < d; k++) { double df = x[i][k] - x[j][k]; dd += df * df; } if (dd <= eps2) cnt++; } core[i] = cnt >= minSamples; }
+        int[] types = new int[n];
+        for (int i = 0; i < n; i++) {
+            boolean nearCore = false;
+            for (int j = 0; j < n; j++) { if (!core[j]) continue; double dd = 0; for (int k = 0; k < d; k++) { double df = x[i][k] - x[j][k]; dd += df * df; } if (dd <= eps2) { nearCore = true; break; } }
+            if (core[i]) types[i] = 2; else if (nearCore) types[i] = 1; else types[i] = 0;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        for (int i = 0; i < n; i++) { if (i > 0) sb.append(", "); sb.append(types[i]); }
+        sb.append(']');
+        System.out.println(sb);
+    }
+}
+```

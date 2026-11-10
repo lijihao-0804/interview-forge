@@ -1,6 +1,6 @@
 # 实现二分类的 F-Score
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/ · 网易 · 2026-09-29 · 算法岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/ · 网易 · 2026-09-29 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -81,3 +81,65 @@ if __name__ == "__main__":
 
 时间复杂度 ：$O(n)$，每对标签检查一次。
 空间复杂度 ：$O(n)$，用于读入两个列表；计数过程只使用常数个变量。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    static int[] parseInts(String s) {
+        List<Integer> list = new ArrayList<>();
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (Character.isDigit(c) || (c == '-' && i + 1 < s.length() && Character.isDigit(s.charAt(i + 1)))) {
+                int sign = 1;
+                if (c == '-') { sign = -1; i++; }
+                int val = 0;
+                while (i < s.length() && Character.isDigit(s.charAt(i))) {
+                    val = val * 10 + (s.charAt(i) - '0');
+                    i++;
+                }
+                list.add(sign * val);
+            } else {
+                i++;
+            }
+        }
+        int[] a = new int[list.size()];
+        for (int k = 0; k < a.length; k++) a[k] = list.get(k);
+        return a;
+    }
+
+    static String readNonEmpty(BufferedReader br) throws Exception {
+        String s = br.readLine();
+        while (s != null && s.trim().isEmpty()) s = br.readLine();
+        return s;
+    }
+
+    public static void main(String[] args) throws Exception {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        int[] yTrue = parseInts(readNonEmpty(br));
+        int[] yPred = parseInts(readNonEmpty(br));
+        double beta = Double.parseDouble(readNonEmpty(br).trim());
+        long tp = 0, fp = 0, fn = 0;
+        int len = Math.min(yTrue.length, yPred.length);
+        for (int i = 0; i < len; i++) {
+            int actual = yTrue[i];
+            int predicted = yPred[i];
+            if (actual == 1 && predicted == 1) tp++;
+            else if (actual == 0 && predicted == 1) fp++;
+            else if (actual == 1 && predicted == 0) fn++;
+        }
+        double score;
+        if (tp == 0) {
+            score = 0.0;
+        } else {
+            double b2 = beta * beta;
+            score = (1 + b2) * tp / ((1 + b2) * tp + b2 * fn + fp);
+        }
+        System.out.println(String.format(Locale.US, "%.3f", score));
+    }
+}
+```

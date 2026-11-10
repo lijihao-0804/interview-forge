@@ -1,6 +1,6 @@
 # KV Cache 稀疏化管理器
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260715/ · 华为 · 2026-07-15 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260715/ · 华为 · 2026-07-15 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -124,3 +124,73 @@ for _ in range(operation_count):
 设一次查询时缓存中有 $M$ 个 token，所有查询实际输出的 token 总数为 $S$。
 时间复杂度 ：每次 ADD 和淘汰均为 $O(\log K)$，每次 QUERY 为 $O(M)$，总时间复杂度为 $O(N\log K+S)$。
 空间复杂度 ：字典、最小堆与单次查询的输出缓冲区均为 $O(K)$。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.math.BigDecimal;
+import java.util.*;
+
+public class Main {
+    static final char NL = (char) 10;
+    static class Entry {
+        BigDecimal score;
+        int pos;
+        Entry(BigDecimal score, int pos) {
+            this.score = score;
+            this.pos = pos;
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringBuilder sb = new StringBuilder();
+        String first = br.readLine();
+        if (first == null) return;
+        StringTokenizer st = new StringTokenizer(first);
+        int capacity = Integer.parseInt(st.nextToken());
+        int operationCount = Integer.parseInt(st.nextToken());
+        LinkedHashMap<Integer, String[]> cache = new LinkedHashMap<>();
+        PriorityQueue<Entry> heap = new PriorityQueue<>(new Comparator<Entry>() {
+            public int compare(Entry a, Entry b) {
+                int c = a.score.compareTo(b.score);
+                if (c != 0) return c;
+                return Integer.compare(a.pos, b.pos);
+            }
+        });
+        for (int op = 0; op < operationCount; op++) {
+            String line = br.readLine();
+            if (line == null) break;
+            StringTokenizer cmd = new StringTokenizer(line);
+            if (!cmd.hasMoreTokens()) continue;
+            String command = cmd.nextToken();
+            if (command.equals("ADD")) {
+                int pos = Integer.parseInt(cmd.nextToken());
+                String scoreText = cmd.nextToken();
+                String keyText = br.readLine();
+                String valueText = br.readLine();
+                if (keyText == null) keyText = "";
+                if (valueText == null) valueText = "";
+                cache.put(pos, new String[]{scoreText, keyText, valueText});
+                heap.add(new Entry(new BigDecimal(scoreText), pos));
+                if (cache.size() > capacity) {
+                    Entry pruned = heap.poll();
+                    int prunedPos = pruned.pos;
+                    cache.remove(prunedPos);
+                    sb.append("PRUNED ").append(prunedPos).append(NL);
+                }
+            } else {
+                sb.append(cache.size()).append(NL);
+                for (Map.Entry<Integer, String[]> e : cache.entrySet()) {
+                    String[] v = e.getValue();
+                    sb.append(e.getKey()).append(' ').append(v[0]).append(NL);
+                    sb.append(v[1]).append(NL);
+                    sb.append(v[2]).append(NL);
+                }
+            }
+        }
+        System.out.print(sb);
+    }
+}
+```

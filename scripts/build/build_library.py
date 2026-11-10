@@ -2530,7 +2530,7 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
         '<div class="card-head"><span class="module-icon" aria-hidden="true" '
         'style="color:#7c3aed;background:color-mix(in srgb,#7c3aed 13%,transparent)">💻</span>'
         '<h2><a href="../books/ai-exam/index.html" target="_blank" rel="noopener noreferrer">AI 岗机试真题库</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>169 题 · 多语言代码</span></div>'
+        '<div class="module-meta"><span>企业题库</span><span>159 道 ACM 题 · Python/Java</span></div>'
         '<div class="module-progress-row"><span class="module-note">独立题目页 · 目录 · Java/Python</span></div></article>'
     )
     _huawei_card = (

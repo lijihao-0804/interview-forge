@@ -31,3 +31,89 @@ class LoRALinear(nn.Module):
 ## 第二层：检索与排序
 
 RAG 链路里的核心组件，考察工程实现与边界处理。
+
+### Java 实现
+
+```java
+import java.util.Random;
+
+final class LoRALinear {
+    private final double[][] baseWeight;
+    private final double[] baseBias;
+    private final double[][] a;
+    private final double[][] b;
+    private final double scale;
+
+    LoRALinear(double[][] baseWeight, double[] baseBias, int rank, double alpha) {
+        this.baseWeight = baseWeight;
+        this.baseBias = baseBias;
+        int inFeatures = baseWeight[0].length;
+        int outFeatures = baseWeight.length;
+        this.a = new double[rank][inFeatures];
+        this.b = new double[outFeatures][rank];
+        Random random = new Random();
+        double bound = 1.0 / Math.sqrt(inFeatures);
+        for (int i = 0; i < rank; i++) {
+            for (int j = 0; j < inFeatures; j++) {
+                a[i][j] = (random.nextDouble() * 2.0 - 1.0) * bound;
+            }
+        }
+        this.scale = alpha / rank;
+    }
+
+    private static double[][] matmul(double[][] x, double[][] y) {
+        int rows = x.length;
+        int cols = y[0].length;
+        int inner = y.length;
+        double[][] out = new double[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                double sum = 0.0;
+                for (int k = 0; k < inner; k++) {
+                    sum += x[i][k] * y[k][j];
+                }
+                out[i][j] = sum;
+            }
+        }
+        return out;
+    }
+
+    private static double[][] transpose(double[][] x) {
+        int rows = x.length;
+        int cols = x[0].length;
+        double[][] out = new double[cols][rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                out[j][i] = x[i][j];
+            }
+        }
+        return out;
+    }
+
+    double[][] forward(double[][] inputs) {
+        double[][] delta = matmul(matmul(inputs, transpose(a)), transpose(b));
+        double[][] output = matmul(inputs, transpose(baseWeight));
+        for (int i = 0; i < output.length; i++) {
+            if (baseBias != null) {
+                for (int j = 0; j < output[0].length; j++) {
+                    output[i][j] += baseBias[j];
+                }
+            }
+        }
+        for (int i = 0; i < output.length; i++) {
+            for (int j = 0; j < output[0].length; j++) {
+                output[i][j] += scale * delta[i][j];
+            }
+        }
+        return output;
+    }
+
+    public static void main(String[] args) {
+        double[][] weight = {{1.0, 2.0}, {3.0, 4.0}};
+        double[] bias = {0.5, -0.5};
+        LoRALinear layer = new LoRALinear(weight, bias, 2, 1.0);
+        double[][] out = layer.forward(new double[][]{{1.0, 1.0}});
+        System.out.println(java.util.Arrays.deepToString(out));
+    }
+}
+```

@@ -21,3 +21,39 @@ def reciprocal_rank_fusion(rankings, constant=60):
 ## 第三层：工具与 Agent 运行时
 
 Agent 工程最容易出事故的部分：参数校验、循环守卫、幂等、流式解析。
+
+### Java 实现
+
+```java
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+final class ReciprocalRankFusion {
+    static List<String> reciprocalRankFusion(List<List<String>> rankings, int constant) {
+        Map<String, Double> scores = new LinkedHashMap<>();
+        for (List<String> ranking : rankings) {
+            for (int i = 0; i < ranking.size(); i++) {
+                String docId = ranking.get(i);
+                int rank = i + 1;
+                scores.merge(docId, 1.0 / (constant + rank), Double::sum);
+            }
+        }
+        List<String> result = new ArrayList<>(scores.keySet());
+        result.sort((p, q) -> Double.compare(scores.get(q), scores.get(p)));
+        return result;
+    }
+
+    static List<String> reciprocalRankFusion(List<List<String>> rankings) {
+        return reciprocalRankFusion(rankings, 60);
+    }
+
+    public static void main(String[] args) {
+        List<List<String>> rankings = new ArrayList<>();
+        rankings.add(java.util.Arrays.asList("a", "b", "c"));
+        rankings.add(java.util.Arrays.asList("b", "c", "d"));
+        System.out.println(reciprocalRankFusion(rankings));
+    }
+}
+```

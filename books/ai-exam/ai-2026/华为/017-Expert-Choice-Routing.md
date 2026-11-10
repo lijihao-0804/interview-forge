@@ -1,6 +1,6 @@
 # Expert Choice Routing
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260612/ · 华为 · 2026-06-12 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260612/ · 华为 · 2026-06-12 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -93,3 +93,49 @@ print("\n".join(" ".join(fmt2(v) for v in row) for row in Y))
 
 时间复杂度 ：$O(N \cdot d \cdot E + E \cdot S \cdot d^2)$，门控分数 $O(N \cdot d \cdot E)$，聚合阶段共 $E \cdot S$ 次 token 变换、每次 $O(d^2)$
 空间复杂度 ：$O(N \cdot E + E \cdot d^2)$，分别存储权重矩阵和所有专家变换矩阵
+
+### Java 实现
+
+```java
+import java.util.*;
+public class Main {
+    static String fmt2(double v) { String t = String.format(Locale.US, "%.2f", v); return t.equals("-0.00") ? "0.00" : t; }
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int n = sc.nextInt(), d = sc.nextInt(), e = sc.nextInt(), s = sc.nextInt();
+        if (n < 1 || d < 1 || e < 1 || s < 1 || s > n) { System.out.println("0"); return; }
+        double[][] X = new double[n][d];
+        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) X[i][j] = sc.nextDouble();
+        double[][] Wg = new double[d][e];
+        for (int i = 0; i < d; i++) for (int j = 0; j < e; j++) Wg[i][j] = sc.nextDouble();
+        double[][][] We = new double[e][d][d];
+        for (int ee = 0; ee < e; ee++) for (int i = 0; i < d; i++) for (int j = 0; j < d; j++) We[ee][i][j] = sc.nextDouble();
+        double[][] scores = new double[n][e];
+        for (int i = 0; i < n; i++) for (int ee = 0; ee < e; ee++) { double sum = 0; for (int k = 0; k < d; k++) sum += X[i][k] * Wg[k][ee]; scores[i][ee] = sum; }
+        double[][] W = new double[n][e];
+        for (int i = 0; i < n; i++) {
+            double mx = Double.NEGATIVE_INFINITY;
+            for (int ee = 0; ee < e; ee++) if (scores[i][ee] > mx) mx = scores[i][ee];
+            double sum = 0;
+            for (int ee = 0; ee < e; ee++) { double v = Math.exp(scores[i][ee] - mx); W[i][ee] = v; sum += v; }
+            for (int ee = 0; ee < e; ee++) W[i][ee] /= sum;
+        }
+        double[][] Y = new double[n][d];
+        for (int ee = 0; ee < e; ee++) {
+            Integer[] idx = new Integer[n];
+            for (int i = 0; i < n; i++) idx[i] = i;
+            final double[][] Wf = W; final int col = ee;
+            Arrays.sort(idx, (a, b) -> { int c = Double.compare(Wf[b][col], Wf[a][col]); if (c != 0) return c; return Integer.compare(a, b); });
+            for (int t = 0; t < s; t++) {
+                int i = idx[t]; double coef = W[i][ee];
+                double[] xw = new double[d];
+                for (int k = 0; k < d; k++) { double sum = 0; for (int j = 0; j < d; j++) sum += X[i][j] * We[ee][j][k]; xw[k] = sum; }
+                for (int k = 0; k < d; k++) Y[i][k] += coef * xw[k];
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) { if (i > 0) sb.append((char)10); for (int k = 0; k < d; k++) { if (k > 0) sb.append(' '); sb.append(fmt2(Y[i][k])); } }
+        System.out.println(sb);
+    }
+}
+```

@@ -46,12 +46,15 @@
 </ul>
 </li>
 <li><a href="#top-k">Top-K 最小堆写法</a></li>
-<li><a href="#_6">复杂度分析</a></li>
+<li><a href="#_6">复杂度分析</a><ul>
+<li><a href="#java">Java 实现</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </details>
 <blockquote>
-<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260724/ · 华为 · 2026-07-24 · AI岗</p>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260724/ · 华为 · 2026-07-24 · AI岗 · ACM 模式（stdin/stdout）</p>
 </blockquote>
 <h2 id="_1">题目描述</h2>
 <p>某 Mixture of Experts（MoE）层包含 <span aria-label="E" class="plain-math">E</span> 个专家，需要依次处理 <span aria-label="N" class="plain-math">N</span> 个 token。每个 token 对每个专家都有一个路由分数。
@@ -102,30 +105,7 @@
 第四步：计算平方和
 所有 token 处理完毕后，直接累加 load * load 。最坏情况下 <span aria-label="P" class="plain-math">P</span> 可能超过 32 位有符号整数范围，Python 整数可直接处理；使用其他语言时应使用 64 位整数。</p>
 <h2 id="_5">题解代码</h2>
-<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
-<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
-
-<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
-
-<span class="n">n</span><span class="p">,</span> <span class="n">expert_count</span><span class="p">,</span> <span class="n">top_k</span><span class="p">,</span> <span class="n">capacity</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
-<span class="n">loads</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">expert_count</span>
-
-<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-    <span class="n">scores</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
-    <span class="n">experts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-        <span class="nb">range</span><span class="p">(</span><span class="n">expert_count</span><span class="p">),</span>
-        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">expert</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="n">scores</span><span class="p">[</span><span class="n">expert</span><span class="p">],</span> <span class="n">expert</span><span class="p">),</span>
-    <span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">expert</span> <span class="ow">in</span> <span class="n">experts</span><span class="p">[:</span><span class="n">top_k</span><span class="p">]:</span>
-        <span class="k">if</span> <span class="n">loads</span><span class="p">[</span><span class="n">expert</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">capacity</span><span class="p">:</span>
-            <span class="n">loads</span><span class="p">[</span><span class="n">expert</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-
-<span class="n">penalty</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">load</span> <span class="o">*</span> <span class="n">load</span> <span class="k">for</span> <span class="n">load</span> <span class="ow">in</span> <span class="n">loads</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">penalty</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">loads</span><span class="p">)</span>
-</code></pre></div>
-</div><h2 id="top-k">Top-K 最小堆写法</h2>
+<h2 id="top-k">Top-K 最小堆写法</h2>
 <p>当 <span aria-label="K" class="plain-math">K</span> 远小于 <span aria-label="E" class="plain-math">E</span> 时，也可以扫描一行分数并只维护大小为 <span aria-label="K" class="plain-math">K</span> 的最小堆。为了让堆顶表示 Top-K 中“最差”的候选，堆元素使用 (score, -expert_id) ：分数更低者更差；分数相同时，编号更大者更差。</p>
 <div class="codehilite" data-lang="text"><pre><span></span><code>import heapq
 import sys
@@ -159,7 +139,97 @@ print(*loads)
 <p>时间复杂度 ：完整排序方案中，每个 token 对 <span aria-label="E" class="plain-math">E</span> 个专家排序，复杂度为 <span aria-label="O(NE\log E)" class="plain-math">O(NElog E)</span>；容量模拟为 <span aria-label="O(NK)" class="plain-math">O(NK)</span>。
 空间复杂度 ：除输入的一行分数和排序结果外，只维护负载数组，额外空间复杂度为 <span aria-label="O(E)" class="plain-math">O(E)</span>。
 若使用上文的大小为 <span aria-label="K" class="plain-math">K</span> 的堆，计算量可降为 <span aria-label="O(NE\log K+NK\log K)" class="plain-math">O(NElog K+NKlog K)</span>，堆占用 <span aria-label="O(K)" class="plain-math">O(K)</span>。在本题 <span class="math-inline-wrap"><math aria-label="Ele100" class="math-inline"><mrow><mi>E</mi><mo>≤</mo><mn>100</mn></mrow></math></span> 的范围内，完整排序已经足够稳妥且更易实现。</p>
-</article>
+<div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
+<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+
+<span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Main</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="n">NL</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="p">)</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">class</span> <span class="nc">FastScanner</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">BufferedReader</span><span class="w"> </span><span class="n">br</span><span class="p">;</span>
+<span class="w">        </span><span class="n">StringTokenizer</span><span class="w"> </span><span class="n">st</span><span class="p">;</span>
+<span class="w">        </span><span class="n">FastScanner</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">br</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">BufferedReader</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">InputStreamReader</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">in</span><span class="p">));</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="nf">next</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">st</span><span class="p">.</span><span class="na">hasMoreTokens</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">String</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">br</span><span class="p">.</span><span class="na">readLine</span><span class="p">();</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">line</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">                </span><span class="n">st</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringTokenizer</span><span class="p">(</span><span class="n">line</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">st</span><span class="p">.</span><span class="na">nextToken</span><span class="p">();</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="nf">nextInt</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">next</span><span class="p">());</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="nf">nextLong</span><span class="p">()</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">Long</span><span class="p">.</span><span class="na">parseLong</span><span class="p">(</span><span class="n">next</span><span class="p">());</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">FastScanner</span><span class="w"> </span><span class="n">fs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">FastScanner</span><span class="p">();</span>
+<span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">.</span><span class="na">next</span><span class="p">();</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">t</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">t</span><span class="p">);</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">expertCount</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">.</span><span class="na">nextInt</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">topK</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">.</span><span class="na">nextInt</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">capacity</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">.</span><span class="na">nextInt</span><span class="p">();</span>
+<span class="w">        </span><span class="kt">long</span><span class="o">[]</span><span class="w"> </span><span class="n">loads</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">long</span><span class="o">[</span><span class="n">expertCount</span><span class="o">]</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">n</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kd">final</span><span class="w"> </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">scores</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">expertCount</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">expertCount</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">scores</span><span class="o">[</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">.</span><span class="na">nextInt</span><span class="p">();</span>
+<span class="w">            </span><span class="n">Integer</span><span class="o">[]</span><span class="w"> </span><span class="n">experts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Integer</span><span class="o">[</span><span class="n">expertCount</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">expertCount</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="n">experts</span><span class="o">[</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">;</span>
+<span class="w">            </span><span class="n">Arrays</span><span class="p">.</span><span class="na">sort</span><span class="p">(</span><span class="n">experts</span><span class="p">,</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Comparator</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">compare</span><span class="p">(</span><span class="n">Integer</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">Integer</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">scores</span><span class="o">[</span><span class="n">a</span><span class="o">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">scores</span><span class="o">[</span><span class="n">b</span><span class="o">]</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">scores</span><span class="o">[</span><span class="n">b</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">scores</span><span class="o">[</span><span class="n">a</span><span class="o">]</span><span class="p">);</span>
+<span class="w">                    </span><span class="k">return</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">);</span>
+<span class="w">                </span><span class="p">}</span>
+<span class="w">            </span><span class="p">});</span>
+<span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">limit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Math</span><span class="p">.</span><span class="na">min</span><span class="p">(</span><span class="n">topK</span><span class="p">,</span><span class="w"> </span><span class="n">expertCount</span><span class="p">);</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">limit</span><span class="p">;</span><span class="w"> </span><span class="n">k</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="kt">int</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">experts</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="p">;</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">loads</span><span class="o">[</span><span class="n">e</span><span class="o">]</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">capacity</span><span class="p">)</span><span class="w"> </span><span class="n">loads</span><span class="o">[</span><span class="n">e</span><span class="o">]++</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="kt">long</span><span class="w"> </span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">loads</span><span class="p">)</span><span class="w"> </span><span class="n">penalty</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">l</span><span class="p">;</span>
+<span class="w">        </span><span class="n">StringBuilder</span><span class="w"> </span><span class="n">sb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">StringBuilder</span><span class="p">();</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">penalty</span><span class="p">).</span><span class="na">append</span><span class="p">(</span><span class="n">NL</span><span class="p">);</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">expertCount</span><span class="p">;</span><span class="w"> </span><span class="n">e</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">e</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="sc">' '</span><span class="p">);</span>
+<span class="w">            </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">loads</span><span class="o">[</span><span class="n">e</span><span class="o">]</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">NL</span><span class="p">);</span>
+<span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="n">sb</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+</div><div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+<span class="n">n</span><span class="p">,</span> <span class="n">expert_count</span><span class="p">,</span> <span class="n">top_k</span><span class="p">,</span> <span class="n">capacity</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+<span class="n">loads</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">expert_count</span>
+
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">experts</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="nb">range</span><span class="p">(</span><span class="n">expert_count</span><span class="p">),</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">expert</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="n">scores</span><span class="p">[</span><span class="n">expert</span><span class="p">],</span> <span class="n">expert</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">expert</span> <span class="ow">in</span> <span class="n">experts</span><span class="p">[:</span><span class="n">top_k</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">loads</span><span class="p">[</span><span class="n">expert</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">capacity</span><span class="p">:</span>
+            <span class="n">loads</span><span class="p">[</span><span class="n">expert</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+<span class="n">penalty</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">load</span> <span class="o">*</span> <span class="n">load</span> <span class="k">for</span> <span class="n">load</span> <span class="ow">in</span> <span class="n">loads</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">penalty</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">loads</span><span class="p">)</span>
+</code></pre></div>
+</div></article>
 </main>
 <footer class="site-footer">Interview Forge · 在线学习站</footer>
 </div>

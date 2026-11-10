@@ -1,6 +1,6 @@
 # Certainty Forcing 训练损失计算
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260701/ · 华为 · 2026-07-01 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260701/ · 华为 · 2026-07-01 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -87,3 +87,36 @@ solve()
 ## 复杂度分析
 
 时间复杂度 ：$O(NV + NB)$，softmax 与熵 $O(NV)$，背包 $O(NB)$。 空间复杂度 ：$O(B + NV)$。
+
+### Java 实现
+
+```java
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int N = sc.nextInt(), V = sc.nextInt(), B = sc.nextInt();
+        double lam = sc.nextDouble();
+        double base = 0.0;
+        double[] f = new double[B + 1];
+        double[] g = new double[B + 1];
+        for (int it = 0; it < N; it++) {
+            double[] z = new double[V];
+            for (int j = 0; j < V; j++) z[j] = sc.nextDouble();
+            int y = sc.nextInt(); int c = sc.nextInt();
+            double mx = Double.NEGATIVE_INFINITY;
+            for (double v : z) if (v > mx) mx = v;
+            double sum = 0;
+            double[] exps = new double[V];
+            for (int j = 0; j < V; j++) { exps[j] = Math.exp(z[j] - mx); sum += exps[j]; }
+            double ce = -(z[y] - mx) + Math.log(sum);
+            double H = 0;
+            for (int j = 0; j < V; j++) { double p = exps[j] / sum; if (p > 0) H -= p * Math.log(p); }
+            base += ce;
+            for (int bb = B; bb >= c; bb--) { double cand = f[bb - c] + ce; if (cand > f[bb]) { f[bb] = cand; g[bb] = g[bb - c] + H; } }
+        }
+        double total = base + lam * g[B];
+        System.out.println(String.format(Locale.US, "%.2f", total));
+    }
+}
+```

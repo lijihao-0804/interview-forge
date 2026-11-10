@@ -1,6 +1,6 @@
 # 多 Agent 协作任务调度
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260805/ · 华为 · 2026-08-05 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260805/ · 华为 · 2026-08-05 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -136,3 +136,85 @@ if __name__ == "__main__":
 ## 易错点
 
 把问题写成普通完全背包 ：状态必须体现“上一个 Agent”，否则无法检查相邻不同约束。 次小值定义错误 ： second[j] 必须来自与 best_last[j] 不同的 Agent，而不是简单的第二个数值。 同一 Agent 刷新最小值时误改次小值 ：若最小值持有者不变，只更新 best ，不能覆盖 second 。 达到 100 后仍继续转移 ：题目在进度达到或超过 $100$ 时即完成，直接更新答案即可。 单 Agent 特例 ：若仅有一个 Agent 且 $p_1<100$，最多合法调用一次，答案为 -1 ；上述 DP 会自然得到该结果。 初始化不当 ：进度 $0$ 尚无上一个 Agent，必须允许任意 Agent 作为第一次调用。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    static class FastScanner {
+        BufferedReader br;
+        StringTokenizer st;
+        FastScanner() {
+            br = new BufferedReader(new InputStreamReader(System.in));
+        }
+        String next() throws IOException {
+            while (st == null || !st.hasMoreTokens()) {
+                String line = br.readLine();
+                if (line == null) return null;
+                st = new StringTokenizer(line);
+            }
+            return st.nextToken();
+        }
+        int nextInt() throws IOException {
+            return Integer.parseInt(next());
+        }
+        long nextLong() throws IOException {
+            return Long.parseLong(next());
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        FastScanner fs = new FastScanner();
+        String t = fs.next();
+        if (t == null) return;
+        int n = Integer.parseInt(t);
+        long[] progress = new long[n];
+        long[] cost = new long[n];
+        for (int i = 0; i < n; i++) {
+            progress[i] = fs.nextLong();
+            cost[i] = fs.nextLong();
+        }
+        long INF = Long.MAX_VALUE / 4;
+        long[] best = new long[100];
+        long[] second = new long[100];
+        int[] bestLast = new int[100];
+        Arrays.fill(best, INF);
+        Arrays.fill(second, INF);
+        Arrays.fill(bestLast, -1);
+        best[0] = 0;
+        second[0] = 0;
+        long answer = INF;
+        for (int current = 0; current < 100; current++) {
+            if (best[current] == INF) continue;
+            for (int agent = 0; agent < n; agent++) {
+                long base;
+                if (agent == bestLast[current]) base = second[current];
+                else base = best[current];
+                if (base == INF) continue;
+                long newCost = base + cost[agent];
+                long nextProgress = current + progress[agent];
+                if (nextProgress >= 100) {
+                    answer = Math.min(answer, newCost);
+                    continue;
+                }
+                int np = (int) nextProgress;
+                if (newCost < best[np]) {
+                    if (bestLast[np] == agent) {
+                        best[np] = newCost;
+                    } else {
+                        second[np] = best[np];
+                        best[np] = newCost;
+                        bestLast[np] = agent;
+                    }
+                } else if (bestLast[np] != agent && newCost < second[np]) {
+                    second[np] = newCost;
+                }
+            }
+        }
+        System.out.println(answer == INF ? -1 : answer);
+    }
+}
+```

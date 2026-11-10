@@ -1,6 +1,6 @@
 # 基于 CART 分类树预测客户购房选择
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -169,3 +169,81 @@ if __name__ == "__main__":
 设树深为 $H$。每个特征的取值数不超过 4，节点中有 $s$ 条记录时，枚举并计算全部候选需要 $O(s)$ 时间。每层节点的样本集合互不重叠，建树需要 $O(NH)$，预测需要 $O(MH)$。
 本题的取值域固定为 4、3、2、2。沿任一路径，每次有效切分都会使某个特征的剩余可能取值数至少减少 1，因此 $H\le(4-1)+(3-1)+(2-1)+(2-1)=7$。按本题固定域， 时间复杂度 为 $O(N+M)$，常数来自特征与候选枚举。如果只使用 $H\le N$ 而不利用固定域带来的更紧深度界，也可写成保守上界 $O(N^2+MN)$；这一估计仍以每个特征的候选数为常数为前提。
 空间复杂度 ：递归会保留祖先的样本列表，上界为 $O(NH)$；本题 $H\le7$，因此为 $O(N)$。树节点、训练集和输出列表同样在此范围内。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+import java.math.BigInteger;
+
+public class Main {
+    static class In {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer("");
+        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
+        int ni() { return Integer.parseInt(next()); }
+    }
+    static class Tree {
+        boolean leaf; int value; int feature; int splitValue; Tree left, right;
+        Tree(int v) { leaf = true; value = v; }
+        Tree(int f, int sv, Tree a, Tree b) { feature = f; splitValue = sv; left = a; right = b; }
+    }
+    static BigInteger[] mass(long cz, long co) {
+        long size = cz + co;
+        if (size == 0) return new BigInteger[]{BigInteger.ZERO, BigInteger.ONE};
+        return new BigInteger[]{BigInteger.valueOf(2 * cz * co), BigInteger.valueOf(size)};
+    }
+    static BigInteger[] addF(BigInteger[] a, BigInteger[] b) {
+        return new BigInteger[]{a[0].multiply(b[1]).add(b[0].multiply(a[1])), a[1].multiply(b[1])};
+    }
+    static boolean lessF(BigInteger[] a, BigInteger[] b) {
+        return a[0].multiply(b[1]).compareTo(b[0].multiply(a[1])) < 0;
+    }
+    static Tree build(List<int[]> rows) {
+        long countOne = 0;
+        for (int[] r : rows) countOne += r[4];
+        long countZero = rows.size() - countOne;
+        int majority = countOne > countZero ? 1 : 0;
+        if (countZero == 0 || countOne == 0 || rows.size() < 2) return new Tree(majority);
+        BigInteger[] bestScore = mass(countZero, countOne);
+        int bestFeature = -1, bestValue = 0;
+        for (int feature = 0; feature < 4; feature++) {
+            TreeSet<Integer> vals = new TreeSet<>();
+            for (int[] r : rows) vals.add(r[feature]);
+            for (int value : vals) {
+                long leftOne = 0, leftSize = 0;
+                for (int[] r : rows) if (r[feature] == value) { leftSize++; leftOne += r[4]; }
+                long leftZero = leftSize - leftOne;
+                BigInteger[] score = addF(mass(leftZero, leftOne), mass(countZero - leftZero, countOne - leftOne));
+                if (lessF(score, bestScore)) { bestScore = score; bestFeature = feature; bestValue = value; }
+            }
+        }
+        if (bestFeature == -1) return new Tree(majority);
+        List<int[]> left = new ArrayList<>();
+        List<int[]> right = new ArrayList<>();
+        for (int[] r : rows) { if (r[bestFeature] == bestValue) left.add(r); else right.add(r); }
+        return new Tree(bestFeature, bestValue, build(left), build(right));
+    }
+    static int predict(Tree t, int[] s) {
+        while (!t.leaf) { t = (s[t.feature] == t.splitValue) ? t.left : t.right; }
+        return t.value;
+    }
+    public static void main(String[] args) {
+        In in = new In();
+        int n = in.ni();
+        List<int[]> rows = new ArrayList<>();
+        for (int i = 0; i < n; i++) { int[] r = new int[5]; for (int j = 0; j < 5; j++) r[j] = in.ni(); rows.add(r); }
+        Tree tree = build(rows);
+        int m = in.ni();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < m; i++) {
+            int[] s = new int[4];
+            for (int j = 0; j < 4; j++) s[j] = in.ni();
+            if (i > 0) sb.append(' ');
+            sb.append(predict(tree, s));
+        }
+        System.out.println(sb.toString());
+    }
+}
+```

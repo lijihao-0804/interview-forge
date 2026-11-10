@@ -1,6 +1,6 @@
 # TF-IDF 值计算
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/ · 网易 · 2026-09-19 · 算法岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/ · 网易 · 2026-09-19 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -100,3 +100,83 @@ if __name__ == "__main__":
 ## 易错点
 
 TF 的分子是目标句内的出现次数，IDF 的 $N_{w}$ 是含该词的语句条数，两个口径不能混用。 切词后必须区分大小写， An 与 an 是两个词。 输出用 round(x, 3) 的格式，末尾的 $0$ 会被省略；手工格式化成固定三位小数反而与样例不符。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
+public class Main {
+    static List<String> extractQuoted(String s) {
+        List<String> res = new ArrayList<>();
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == (char) 39 || c == (char) 34) {
+                char q = c;
+                int j = i + 1;
+                StringBuilder sb = new StringBuilder();
+                while (j < s.length() && s.charAt(j) != q) { sb.append(s.charAt(j)); j++; }
+                res.add(sb.toString());
+                i = j + 1;
+            } else {
+                i++;
+            }
+        }
+        return res;
+    }
+
+    static String format3(double v) {
+        BigDecimal bd = new BigDecimal(v).setScale(3, RoundingMode.HALF_EVEN);
+        String s = bd.stripTrailingZeros().toPlainString();
+        if (s.indexOf('.') < 0) s += ".0";
+        return s;
+    }
+
+    static String[] splitWords(String s) {
+        s = s.trim();
+        if (s.isEmpty()) return new String[0];
+        StringTokenizer st = new StringTokenizer(s);
+        String[] arr = new String[st.countTokens()];
+        for (int i = 0; i < arr.length; i++) arr[i] = st.nextToken();
+        return arr;
+    }
+
+    public static void main(String[] args) throws Exception {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String sentencesLine = br.readLine();
+        String queryLine = br.readLine();
+        List<String> sentences = extractQuoted(sentencesLine);
+        List<String> q = extractQuoted(queryLine);
+        String word = q.get(0);
+        StringBuilder rest = new StringBuilder();
+        boolean inQuote = false;
+        char qc = 0;
+        for (int i = 0; i < queryLine.length(); i++) {
+            char c = queryLine.charAt(i);
+            if (inQuote) { if (c == qc) inQuote = false; continue; }
+            if (c == (char) 39 || c == (char) 34) { inQuote = true; qc = c; continue; }
+            rest.append(c);
+        }
+        int idx = 0;
+        StringTokenizer qt = new StringTokenizer(rest.toString(), "[],() ");
+        if (qt.hasMoreTokens()) idx = Integer.parseInt(qt.nextToken());
+        int n = sentences.size();
+        String[][] docs = new String[n][];
+        for (int i = 0; i < n; i++) docs[i] = splitWords(sentences.get(i));
+        String[] target = docs[idx];
+        int occurrences = 0;
+        for (String w : target) if (w.equals(word)) occurrences++;
+        double tf = (double) occurrences / target.length;
+        int nw = 0;
+        for (String[] d : docs) {
+            for (String w : d) if (w.equals(word)) { nw++; break; }
+        }
+        double idf = Math.log((double) n / (nw + 1) + 1.0);
+        System.out.println(format3(tf * idf));
+    }
+}
+```

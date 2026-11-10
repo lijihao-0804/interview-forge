@@ -1,6 +1,6 @@
 # CLIP 对比学习损失
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/ · 拼多多 · 2026-07-02 · 算法岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/ · 拼多多 · 2026-07-02 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -61,3 +61,9 @@ solve()
 ## 复杂度分析
 
 时间复杂度 ：$O(N^2 D)$，主要开销是相似度矩阵的矩阵乘法。 空间复杂度 ：$O(N^2)$，存储 logits 矩阵。
+
+### Java 实现
+
+```java
+import java.io.*;import java.util.*;public class Main{static class Json{String s;int i=0;Json(String s){this.s=s;}Object parse(){return value();}void ws(){while(i<s.length()&&Character.isWhitespace(s.charAt(i)))i++;}Object value(){ws();char c=s.charAt(i);if(c=='{')return obj();if(c=='[')return arr();if(c=='"')return str();if(c=='t'){i+=4;return Boolean.TRUE;}if(c=='f'){i+=5;return Boolean.FALSE;}if(c=='n'){i+=4;return null;}int st=i;while(i<s.length()&&"-+.eE0123456789".indexOf(s.charAt(i))>=0)i++;return Double.parseDouble(s.substring(st,i));}Map<String,Object> obj(){Map<String,Object> m=new LinkedHashMap<>();i++;ws();if(s.charAt(i)=='}'){i++;return m;}while(true){ws();String k=str();ws();i++;Object v=value();m.put(k,v);ws();char c=s.charAt(i);i++;if(c=='}')break;}return m;}List<Object> arr(){List<Object> l=new ArrayList<>();i++;ws();if(s.charAt(i)==']'){i++;return l;}while(true){l.add(value());ws();char c=s.charAt(i);i++;if(c==']')break;}return l;}String str(){StringBuilder sb=new StringBuilder();i++;while(s.charAt(i)!='"'){sb.append(s.charAt(i));i++;}i++;return sb.toString();}}static double[][] toMat(List<Object> l){double[][] m=new double[l.size()][];for(int i=0;i<l.size();i++){List<Object> row=(List<Object>)l.get(i);m[i]=new double[row.size()];for(int j=0;j<row.size();j++)m[i][j]=((Number)row.get(j)).doubleValue();}return m;}static double crossEntropy(double[][] m){int n=m.length;double sum=0;for(int i=0;i<n;i++){double mx=Double.NEGATIVE_INFINITY;for(int j=0;j<m[i].length;j++)mx=Math.max(mx,m[i][j]);double s=0;for(int j=0;j<m[i].length;j++)s+=Math.exp(m[i][j]-mx);sum+=(mx+Math.log(s))-m[i][i];}return sum/n;}static double[][] transpose(double[][] a){int r=a.length,c=a[0].length;double[][] t=new double[c][r];for(int i=0;i<r;i++)for(int j=0;j<c;j++)t[j][i]=a[i][j];return t;}public static void main(String[] a)throws Exception{BufferedReader br=new BufferedReader(new InputStreamReader(System.in));String line=br.readLine();if(line==null)return;Object parsed=new Json(line).parse();Map<String,Object> root=(Map<String,Object>)parsed;double[][] img=toMat((List<Object>)root.get("image_embeds"));double[][] txt=toMat((List<Object>)root.get("text_embeds"));double temp=((Number)root.get("temperature")).doubleValue();int N=img.length,D=img[0].length,M=txt.length;double[][] logits=new double[N][M];for(int i=0;i<N;i++)for(int j=0;j<M;j++){double s=0;for(int k=0;k<D;k++)s+=img[i][k]*txt[j][k];logits[i][j]=s/temp;}double loss=(crossEntropy(logits)+crossEntropy(transpose(logits)))/2.0;System.out.println(String.format(Locale.ROOT,"%.6f",loss));}}
+```

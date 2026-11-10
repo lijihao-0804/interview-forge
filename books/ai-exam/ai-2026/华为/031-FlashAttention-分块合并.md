@@ -1,6 +1,6 @@
 # FlashAttention 分块合并
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260819/ · 华为 · 2026-08-19 · AI岗
+> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260819/ · 华为 · 2026-08-19 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
@@ -132,3 +132,109 @@ if __name__ == "__main__":
 ## 易错点
 
 必须先减去公共最大值再取指数，避免上溢。 区间查询应保持块的原始顺序。 输出的是合并后的 v / d ，不是三元组本身。 使用 None 作为单位元比猜测一个足够小的有限哨兵更稳健。
+
+### Java 实现
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    static final char NL = (char) 10;
+    static class FastScanner {
+        BufferedReader br;
+        StringTokenizer st;
+        FastScanner() {
+            br = new BufferedReader(new InputStreamReader(System.in));
+        }
+        String next() throws IOException {
+            while (st == null || !st.hasMoreTokens()) {
+                String line = br.readLine();
+                if (line == null) return null;
+                st = new StringTokenizer(line);
+            }
+            return st.nextToken();
+        }
+        int nextInt() throws IOException {
+            return Integer.parseInt(next());
+        }
+        double nextDouble() throws IOException {
+            return Double.parseDouble(next());
+        }
+    }
+
+    static double[] merge(double[] left, double[] right) {
+        if (left == null) return right;
+        if (right == null) return left;
+        double maximum = Math.max(left[0], right[0]);
+        double ls = Math.exp(left[0] - maximum);
+        double rs = Math.exp(right[0] - maximum);
+        return new double[]{maximum, left[1] * ls + right[1] * rs, left[2] * ls + right[2] * rs};
+    }
+
+    static double[] query(double[][] tree, int size, int left, int right) {
+        left += size;
+        right += size;
+        double[] lr = null;
+        double[] rr = null;
+        while (left < right) {
+            if ((left & 1) == 1) {
+                lr = merge(lr, tree[left]);
+                left++;
+            }
+            if ((right & 1) == 1) {
+                right--;
+                rr = merge(tree[right], rr);
+            }
+            left >>= 1;
+            right >>= 1;
+        }
+        return merge(lr, rr);
+    }
+
+    public static void main(String[] args) throws IOException {
+        FastScanner fs = new FastScanner();
+        String t = fs.next();
+        if (t == null) return;
+        int blockCount = Integer.parseInt(t);
+        int queryCount = fs.nextInt();
+        double[][] blocks = new double[blockCount][];
+        for (int i = 0; i < blockCount; i++) {
+            blocks[i] = new double[]{fs.nextDouble(), fs.nextDouble(), fs.nextDouble()};
+        }
+        int size = 1;
+        while (size < blockCount) size <<= 1;
+        double[][] tree = new double[2 * size][];
+        for (int i = 0; i < blockCount; i++) tree[size + i] = blocks[i];
+        for (int i = size - 1; i >= 1; i--) tree[i] = merge(tree[2 * i], tree[2 * i + 1]);
+        StringBuilder sb = new StringBuilder();
+        boolean firstOut = true;
+        for (int q = 0; q < queryCount; q++) {
+            String op = fs.next();
+            if (op.equals("1")) {
+                int position = fs.nextInt() - 1;
+                double m = fs.nextDouble();
+                double d = fs.nextDouble();
+                double v = fs.nextDouble();
+                int idx = size + position;
+                tree[idx] = new double[]{m, d, v};
+                idx >>= 1;
+                while (idx >= 1) {
+                    tree[idx] = merge(tree[2 * idx], tree[2 * idx + 1]);
+                    idx >>= 1;
+                }
+            } else {
+                int left = fs.nextInt() - 1;
+                int right = fs.nextInt();
+                double[] res = query(tree, size, left, right);
+                double denom = res[1];
+                double numer = res[2];
+                if (!firstOut) sb.append(NL);
+                firstOut = false;
+                sb.append(String.format(Locale.US, "%.6f", numer / denom));
+            }
+        }
+        System.out.print(sb);
+    }
+}
+```
