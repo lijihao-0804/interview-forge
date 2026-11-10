@@ -2254,7 +2254,7 @@ def transform_solution_page(
     右栏 On This Page（toc）；窄屏断点退化为单列（见 SITE_CSS）。"""
     from bs4 import BeautifulSoup
 
-    is_solution = "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts
+    is_solution = "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts or "ai-exam" in source.parts
     soup = BeautifulSoup(page, "html.parser")
     body = soup.find("article", class_="markdown-body")
     if body is None:
@@ -2357,8 +2357,9 @@ def transform_solution_page(
             '<a class="sol-nav-item' + (" current" if cur else "") + '" href="' + href + '"' + (' aria-current="page"' if cur else "") + ">" + label + "</a>"
             for href, label, cur in siblings
         )
+        left_title = "同公司题目" if "ai-exam" in source.parts else "本专题题目"
         left_rail = (
-            '<aside class="sol-rail sol-rail-left" aria-label="本专题题目"><div class="sol-rail-title">本专题题目</div>'
+            '<aside class="sol-rail sol-rail-left" aria-label="' + left_title + '"><div class="sol-rail-title">' + left_title + '</div>'
             + nav_items + "</aside>"
         )
         right_rail = '<aside class="sol-rail sol-rail-right" aria-label="本页目录"><div class="sol-rail-title">本页目录</div>' + toc_html + "</aside>"
@@ -2479,7 +2480,7 @@ def render_markdown(source: Path) -> None:
     lc_href = web_rel(output, ROOT / "pages" / "leetcode-connect.html")
     title_match = re.search(r"(?m)^#\s+(.+)$", raw)
     title = title_match.group(1).strip() if title_match else source.stem
-    is_solution = "03-题解" in source.parts
+    is_solution = "03-题解" in source.parts or "ai-exam" in source.parts
     current_navigation = active_navigation_label(source)
     site_navigation = [
         ("题目面板", root_href),
@@ -2538,6 +2539,14 @@ def render_markdown(source: Path) -> None:
 </body>
 </html>
 """
+    # AI 机试题库：三栏在常见 1280/1440 桌面视口也显示左侧公司目录，
+    # 而不是沿用题解页 <=1440 就隐藏左栏的阈值。
+    if "ai-exam" in source.parts:
+        page = page.replace(
+            "</head>",
+            "<style>@media(min-width:1101px){.site-shell-cols{grid-template-columns:200px minmax(0,1fr) 220px!important}.sol-rail-left{display:block!important}.sol-rail-right{display:block!important}}@media(max-width:1100px){.site-shell-cols{grid-template-columns:1fr!important}.sol-rail{display:none!important}}</style></head>",
+            1,
+        )
     # 图片懒加载：阅读页配图统一滚动到视口再加载
     page = page.replace("<img ", '<img loading="lazy" decoding="async" ')
     # —— 代码块语言标记（多语言题解）：按源 md 中 ```lang 围栏的出现顺序为
