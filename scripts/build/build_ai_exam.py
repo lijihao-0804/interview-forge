@@ -25,6 +25,7 @@ SRC = ROOT / "books" / "ai-exam"
 CODING = ROOT / "assets" / "ai-exam-coding.json"
 AGENT_DOC = ROOT / "books" / "外部面经参考" / "02-AI与Agent手撕代码题.md"
 COMPANY_OJ = ROOT / "books" / "company-oj"
+TRANSLATIONS = ROOT / "data" / "ai_exam" / "translations.json"
 
 STYLE = """
  body{background:var(--page-bg)}
@@ -53,15 +54,15 @@ STYLE = """
  @media(max-width:900px){.exam-shell{width:calc(100% - 24px)}.exam-layout{grid-template-columns:1fr}.exam-nav{position:static;flex-direction:row;flex-wrap:wrap}details.exam-group .exam-list{grid-template-columns:1fr}}
 """
 
-SEARCH_JS = """<script>(function(){var q=document.getElementById('q'),lang=document.getElementById('lang');
-function apply(){var v=(q&&q.value.trim().toLowerCase())||'',lv=(lang&&lang.value)||'';
+SEARCH_JS = """<script>(function(){var q=document.getElementById('q'),company=document.getElementById('company');
+function apply(){var v=(q&&q.value.trim().toLowerCase())||'',cv=(company&&company.value)||'';
 document.querySelectorAll('.exam-group').forEach(function(g){var n=0;
 g.querySelectorAll('li[data-k]').forEach(function(li){
-var ok=(!v||li.getAttribute('data-k').toLowerCase().indexOf(v)>=0)&&(!lv||li.getAttribute('data-lang')===lv);
+var ok=(!v||li.getAttribute('data-k').toLowerCase().indexOf(v)>=0)&&(!cv||li.getAttribute('data-company')===cv);
 li.style.display=ok?'':'none';if(ok)n++;});
 var empty=g.querySelector('.exam-empty');if(empty)empty.hidden=!!n;
-g.style.display=(v||lv)&&!n?'none':'';if((v||lv)&&n)g.open=true;});}
-if(q)q.oninput=apply;if(lang)lang.onchange=apply;})();</script>"""
+g.style.display=(v||cv)&&!n?'none':'';if((v||cv)&&n)g.open=true;});}
+if(q)q.oninput=apply;if(company)company.onchange=apply;})();</script>"""
 
 
 def esc(value: object) -> str:
@@ -74,7 +75,26 @@ def safe_name(value: str, limit: int = 34) -> str:
     return value[:limit] or "题目"
 
 
-def write_problem(path: Path, title: str, meta: str, sections: list[dict]) -> None:
+def load_translations() -> dict[str, dict[str, str]]:
+    """读取 data/ai_exam/translations.json；文件由翻译批次合并生成。"""
+    if not TRANSLATIONS.exists():
+        return {}
+    raw = json.loads(TRANSLATIONS.read_text(encoding="utf-8"))
+    if isinstance(raw, dict) and "translations" in raw:
+        entries = raw["translations"]
+    elif isinstance(raw, list):
+        entries = raw
+    else:
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    for item in entries:
+        key, lang, code = item.get("key"), item.get("target_lang"), item.get("code")
+        if key and lang and code:
+            result.setdefault(key, {})[lang] = code
+    return result
+
+
+def write_problem(path: Path, title: str, meta: str, sections: list[dict], translation: dict[str, str] | None = None) -> None:
     lines = [f"# {title}", "", f"> {meta}", ""]
     for section in sections:
         heading = (section.get("heading") or "").strip()
@@ -91,11 +111,13 @@ def write_problem(path: Path, title: str, meta: str, sections: list[dict]) -> No
                 lines += ["### Python 实现", "", "```python", code, "```", ""]
             else:
                 lines += ["```text", code, "```", ""]
+    if translation and translation.get("java"):
+        lines += ["### Java 实现", "", "```java", translation["java"], "```", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def build_ai_coding() -> list[dict]:
+def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
     data = json.loads(CODING.read_text(encoding="utf-8"))
     entries = []
     for problem in data["problems"]:
@@ -106,21 +128,23 @@ def build_ai_coding() -> list[dict]:
         filename = f"{len(entries) + 1:03d}-{safe_name(problem['title'])}.md"
         md_path = file_dir / filename
         meta = f"来源：{problem.get('source_url', '')} · {company} · {date or '日期未标注'} · {role or 'AI岗'}"
-        write_problem(md_path, problem["title"], meta, problem.get("sections", []))
+        translation = translations.get(problem["key"], {})
+        write_problem(md_path, problem["title"], meta, problem.get("sections", []), translation)
+        languages = "Python/Java" if translation.get("java") else "Python"
         entries.append({
             "group": "ai-2026",
             "title": problem["title"],
             "company": company,
             "date": date,
             "role": role,
-            "lang": "Python",
+            "lang": languages,
             "url": f"ai-2026/{company}/{filename[:-3]}.html",
-            "key": f"{company} {problem['title']} Python",
+            "key": f"{company} {problem['title']} {languages}",
         })
     return entries
 
 
-def build_agent_doc() -> list[dict]:
+def build_agent_doc(translations: dict[str, dict[str, str]]) -> list[dict]:
     text = AGENT_DOC.read_text(encoding="utf-8")
     matches = list(re.finditer(r"(?m)^### 题目\s*(\d+)[：:]\s*(.+?)\s*$", text))
     entries = []
@@ -133,36 +157,51 @@ def build_agent_doc() -> list[dict]:
         title = match.group(2).strip()
         if "```python" in body and not re.search(r"(?m)^###\s+\w+\s*实现", body):
             body = body.replace("```python", "### Python 实现\n\n```python", 1)
+        translation = translations.get(f"ai-agent:{index}", {})
+        if translation.get("java"):
+            body += "\n\n### Java 实现\n\n```java\n" + translation["java"] + "\n```"
         path = SRC / "ai-agent" / f"{index:02d}-{safe_name(title)}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {title}\n\n> 来源：外部面经参考/02-AI与Agent手撕代码题.md · AI/Agent 手撕题\n\n{body}\n", encoding="utf-8")
+        languages = "Python/Java" if translation.get("java") else "Python"
         entries.append({
             "group": "ai-agent",
             "title": title,
             "company": "AI/Agent 手撕",
             "date": "",
             "role": "AI/Agent",
-            "lang": "Python",
+            "lang": languages,
             "url": f"ai-agent/{index:02d}-{safe_name(title)}.html",
-            "key": f"AI/Agent {title} Python",
+            "key": f"AI/Agent {title} {languages}",
         })
     return entries
 
 
-def build_company_oj() -> list[dict]:
+def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
     entries = []
     for md in sorted(COMPANY_OJ.glob("*/*.md")):
         group = md.parent.name
         title = md.stem.split("-", 1)[-1]
+        text = md.read_text(encoding="utf-8")
+        # 原企业 OJ 页面只有 Java 代码块；补一个语言小节，交给 site.js 做切换。
+        text = re.sub(r"(?m)^##\s*解题代码\s*$\n+```java", "## 解题代码\n\n### Java 实现\n\n```java", text, count=1)
+        key = f"company-oj:{group}:{md.stem}"
+        translation = translations.get(key, {})
+        if translation.get("python"):
+            text += "\n\n### Python 实现\n\n```python\n" + translation["python"] + "\n```\n"
+        out = SRC / "company-oj" / group / f"{md.stem}.md"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        languages = "Java/Python" if translation.get("python") else "Java"
         entries.append({
             "group": "company-oj",
             "title": title,
             "company": group,
             "date": "",
             "role": "企业机考",
-            "lang": "Java",
-            "url": f"../company-oj/{group}/{md.stem}.html",
-            "key": f"{group} {title} Java",
+            "lang": languages,
+            "url": f"company-oj/{group}/{md.stem}.html",
+            "key": f"{group} {title} {languages}",
         })
     return entries
 
@@ -171,7 +210,7 @@ def build_index(entries: list[dict]) -> None:
     groups = [
         ("ai-2026", "① 2026 大厂 AI 岗机试", "按公司分组，来源页披露的题干、思路与代码"),
         ("ai-agent", "② AI/Agent 手撕代码题", "模型基础算子、检索排序、工具/Agent 运行时、可观测与多 Agent"),
-        ("company-oj", "③ 企业机考真题（Java）", "既有企业机考题库，Java 实现；点击进入原题页"),
+        ("company-oj", "③ 企业机考真题（Java/Python）", "既有企业机考题库，补 Python 实现；每道题独立页面"),
     ]
     names = {"ai-2026": {}, "ai-agent": {}, "company-oj": {}}
     for entry in entries:
@@ -188,12 +227,12 @@ def build_index(entries: list[dict]) -> None:
                 company_entries = [entry for entry in group_entries if entry["company"] == company]
                 rows.append(f'<li class="exam-sub"><b>{esc(company)}</b> · {len(company_entries)} 题</li>')
                 rows += [
-                    f'<li data-k="{esc(entry["key"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["date"] or "")}</span></a></li>'
+                    f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["date"] or "")} · {esc(entry["lang"])}</span></a></li>'
                     for entry in sorted(company_entries, key=lambda item: (item["date"], item["title"]))
                 ]
         else:
             rows = [
-                f'<li data-k="{esc(entry["key"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["company"])} · {esc(entry["lang"])}</span></a></li>'
+                f'<li data-k="{esc(entry["key"])}" data-company="{esc(entry["company"])}" data-lang="{esc(entry["lang"])}"><a href="{esc(entry["url"])}">{esc(entry["title"])}<span class="meta">{esc(entry["company"])} · {esc(entry["lang"])}</span></a></li>'
                 for entry in sorted(group_entries, key=lambda item: item["title"])
             ]
         sections.append(
@@ -208,18 +247,21 @@ def build_index(entries: list[dict]) -> None:
         '<header class="site-topbar" style="max-width:1180px;width:calc(100% - 100px);margin:16px auto 6px"><a class="site-brand" href="../../index.html">Hot 100 深度学习库</a><nav aria-label="主导航" class="site-nav"><a href="../../index.html">题目面板</a><a href="../../cockpit.html">中控台</a><a href="../../library/index.html">学习书架</a><a href="../../books/hot100/00-总览/01-学习路线.html">学习路线</a><a href="../../books/hot100/00-总览/02-算法模式地图.html">模式地图</a><a href="../../books/hot100/00-总览/03-复习清单.html">复习清单</a><a href="../../pages/leetcode-connect.html">力扣连接</a></nav></header>'
         '<div class="exam-shell"><nav class="page-nav" aria-label="面包屑"><a href="../../library/index.html">📚 学习书架</a><span aria-hidden="true">›</span><span aria-current="page">AI 岗机试真题库</span></nav>'
         '<header style="margin:8px 0 18px"><h1 style="margin:0 0 6px;font-size:26px">AI 岗机试真题库</h1><p style="margin:0;font-size:13.5px;color:var(--muted)">共 ' + str(len(entries)) + ' 题：2026 大厂 AI/算法岗机试 + AI/Agent 手撕题 + 企业机考真题。每道题有独立页面与目录；代码语言按题目可用项显示。</p></header>'
-        '<div class="exam-tools"><input id="q" class="exam-search" type="search" placeholder="搜索题目、公司或关键词（如 华为 / 动态规划 / Agent）"><select id="lang" class="exam-select"><option value="">全部语言</option><option value="Python">Python</option><option value="Java">Java</option></select></div>'
+        '<div class="exam-tools"><input id="q" class="exam-search" type="search" placeholder="搜索题目、公司或关键词（如 华为 / 动态规划 / Agent）"><select id="company" class="exam-select"><option value="">全部公司</option>' + ''.join(f'<option value="{esc(name)}">{esc(name)}</option>' for name in sorted({entry["company"] for entry in entries})) + '</select></div>'
         '<div class="exam-layout"><nav class="exam-nav" aria-label="分组">' + ''.join(nav) + '</nav><div>' + ''.join(sections) + '</div></div></div>' + SEARCH_JS + '</body></html>'
     )
     (SRC / "index.html").write_text(page, encoding="utf-8")
 
 
 def main() -> None:
-    entries = build_ai_coding() + build_agent_doc() + build_company_oj()
-    # 先渲染 AI/Agent 的 Markdown；company-oj 已有自己的生成页。
+    translations = load_translations()
+    entries = build_ai_coding(translations) + build_agent_doc(translations) + build_company_oj(translations)
+    # 先渲染 AI/Agent/企业 OJ 的 Markdown；页内的语言小节由 build_html_site 处理。
     for md in (sorted((SRC / "ai-2026").glob("*/*.md")) if (SRC / "ai-2026").exists() else []):
         render_markdown(md)
     for md in (sorted((SRC / "ai-agent").glob("*.md")) if (SRC / "ai-agent").exists() else []):
+        render_markdown(md)
+    for md in (sorted((SRC / "company-oj").glob("*/*.md")) if (SRC / "company-oj").exists() else []):
         render_markdown(md)
     build_index(entries)
     print("AI 岗机试题库：", len(entries), "题；页面已生成", SRC)
