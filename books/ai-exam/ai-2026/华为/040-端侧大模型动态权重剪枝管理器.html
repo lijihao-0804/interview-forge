@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>端侧大模型动态权重剪枝管理器 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">端侧大模型动态权重剪枝管理器</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">样例</a></li>
+<li><a href="#_6">补充自测</a></li>
+<li><a href="#_7">思路分析</a></li>
+<li><a href="#_8">正确性说明</a></li>
+<li><a href="#_9">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_10">复杂度分析</a></li>
+<li><a href="#_11">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260911/ · 华为 · 2026-09-11 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>有 n 个按顺序排列的参数块，第 i 块的重要度为正整数 a[i]，内存占用为正整数 b[i]。只能保留一个连续区间，内存预算为 M。
+计算两个最大重要度之和：
+不修改任何参数块，区间总内存不超过 M。 允许将所选区间中重要度最小的一块深度量化：该块内存变为原来的一半并向下取整，重要度变为 0；也允许不使用量化。
+最小重要度并列时，为获得最多的内存节省，选择其中内存最大的块即可。无法保留有正收益的区间时答案为 0。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行 n、M；第二行 n 个重要度；第三行 n 个内存占用。数据范围：<span aria-label="1\le n\le 10^5" class="plain-math">1≤ n≤ 10<sup>5</sup></span>，<span aria-label="1\le M\le 10^9" class="plain-math">1≤ M≤ 10<sup>9</sup></span>，<span aria-label="1\le a[i],b[i]\le 10^4" class="plain-math">1≤ a[i],b[i]≤ 10<sup>4</sup></span>。</p>
+<h2 id="_4">输出描述</h2>
+<p>一行两个整数，依次表示普通模式和允许量化模式的最大重要度之和。</p>
+<h2 id="_5">样例</h2>
+<p>输入
+输出
+普通模式保留后三块；量化模式保留前三块并折损中间块，内存为 11，重要度为 200。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>4 11
+100 10 100 10
+5 2 5 2
+120 200
+</code></pre></div>
+<h2 id="_6">补充自测</h2>
+<p>输入
+输出
+不量化时只能保留单块；量化中间块后，前两块内存为 5、得分为 5，而三块内存仍为 8，不能保留。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3 6
+5 1 4
+3 4 3
+5 5
+</code></pre></div>
+<h2 id="_7">思路分析</h2>
+<p>第一步：普通模式。 因为所有内存与重要度都为正数，固定右端点时，满足预算的最靠左窗口就是得分最大的窗口。右端依次扩展，内存超限就移动左端，总共只需线性扫描。
+第二步：写出量化后的预算。 若区间内存和为 B，折损块为 p，节省量为 (b[p] + 1) // 2 ，合法条件为 B - (b[p] + 1) // 2 &lt;= M 。得分为重要度和减去 a[p]。注意节省量是向上取整的一半，而剩余内存才是向下取整的一半。
+第三步：证明窗口仍可单调收缩。 删除的不是折损块时，折损候选不变，内存只会减少。删除折损块时，删除的完整内存不小于原先节省量，还可对剩余块重新量化，所以有效内存也不会增加。因此一个已经超限的区间，向右添加元素不会重新合法，被丢弃的左端不需要回退。
+第四步：维护最合适的折损块。 单调队列按 (重要度, -内存) 递增存储下标。新块比队尾更优或相同时，旧队尾更早过期且不会更优，可以弹出。队头就是最小重要度中内存最大的块。固定右端时，扩大区间会使“重要度总和减最小重要度”不减，所以只检查最靠左合法窗口即可。</p>
+<h2 id="_8">正确性说明</h2>
+<p>普通窗口由正数性质保证最优。量化窗口的有效内存对子区间不增，得分对超区间不减，故双指针对每个右端找到的最靠左合法区间涵盖该右端的最优得分。队列比较顺序恰好实现折损规则。最后与不量化的最优值取最大，覆盖允许但不强制操作的情况。</p>
+<h2 id="_9">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">deque</span>
+
+
+<span class="k">def</span> <span class="nf">maximize</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">budget</span><span class="p">):</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="n">memory</span> <span class="o">=</span> <span class="n">score</span> <span class="o">=</span> <span class="n">ordinary</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">right</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)):</span>
+        <span class="n">memory</span> <span class="o">+=</span> <span class="n">b</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+        <span class="n">score</span> <span class="o">+=</span> <span class="n">a</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span> <span class="ow">and</span> <span class="n">memory</span> <span class="o">&gt;</span> <span class="n">budget</span><span class="p">:</span>
+            <span class="n">memory</span> <span class="o">-=</span> <span class="n">b</span><span class="p">[</span><span class="n">left</span><span class="p">]</span>
+            <span class="n">score</span> <span class="o">-=</span> <span class="n">a</span><span class="p">[</span><span class="n">left</span><span class="p">]</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">ordinary</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">ordinary</span><span class="p">,</span> <span class="n">score</span><span class="p">)</span>
+
+    <span class="n">left</span> <span class="o">=</span> <span class="n">memory</span> <span class="o">=</span> <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">compressed</span> <span class="o">=</span> <span class="n">ordinary</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="n">deque</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">right</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)):</span>
+        <span class="n">memory</span> <span class="o">+=</span> <span class="n">b</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+        <span class="n">score</span> <span class="o">+=</span> <span class="n">a</span><span class="p">[</span><span class="n">right</span><span class="p">]</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">right</span><span class="p">],</span> <span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="n">right</span><span class="p">])</span>
+        <span class="k">while</span> <span class="n">queue</span> <span class="ow">and</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">queue</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span> <span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="n">queue</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span> <span class="o">&gt;=</span> <span class="n">key</span><span class="p">:</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">queue</span> <span class="ow">and</span> <span class="n">memory</span> <span class="o">-</span> <span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="n">queue</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">&gt;</span> <span class="n">budget</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">queue</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
+                <span class="n">queue</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+            <span class="n">memory</span> <span class="o">-=</span> <span class="n">b</span><span class="p">[</span><span class="n">left</span><span class="p">]</span>
+            <span class="n">score</span> <span class="o">-=</span> <span class="n">a</span><span class="p">[</span><span class="n">left</span><span class="p">]</span>
+            <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">queue</span><span class="p">:</span>
+            <span class="n">compressed</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">compressed</span><span class="p">,</span> <span class="n">score</span> <span class="o">-</span> <span class="n">a</span><span class="p">[</span><span class="n">queue</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+    <span class="k">return</span> <span class="n">ordinary</span><span class="p">,</span> <span class="n">compressed</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">budget</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">maximize</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">budget</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_10">复杂度分析</h2>
+<p>时间复杂度 ：O(n)。每个下标进出窗口和队列至多各一次。
+空间复杂度 ：O(n)，包含输入数组和单调队列。</p>
+<h2 id="_11">易错点</h2>
+<p>并列最小值不能随意选，本文采用内存最大的块。 第二问必须保留不操作的选项，单块量化的重要度为 0。 内存和及重要度和应用足够宽的整数；Python 整数不会固定宽度溢出。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>实现二分类的 F-Score · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 网易</div>
+<h1 id="f-score">实现二分类的 F-Score</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#_4">样例</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">正确性说明</a></li>
+<li><a href="#_7">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_8">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/ · 网易 · 2026-09-29 · 算法岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>给定等长的真实标签数组与预测标签数组，元素为 <span aria-label="0" class="plain-math">0</span> 或 <span aria-label="1" class="plain-math">1</span>，计算二分类的 <span class="math-inline-wrap"><math aria-label="F_β" class="math-inline"><mrow><msub><mi>F</mi><mo>β</mo></msub></mrow></math></span> 指标。
+记 <span aria-label="TP" class="plain-math">TP</span> 为真实标签与预测标签均为 <span aria-label="1" class="plain-math">1</span> 的数量，<span aria-label="FP" class="plain-math">FP</span> 为真实标签为 <span aria-label="0" class="plain-math">0</span>、预测标签为 <span aria-label="1" class="plain-math">1</span> 的数量，<span aria-label="FN" class="plain-math">FN</span> 为真实标签为 <span aria-label="1" class="plain-math">1</span>、预测标签为 <span aria-label="0" class="plain-math">0</span> 的数量。精确率与召回率分别为
+某个比值的分母为 <span aria-label="0" class="plain-math">0</span> 时，该指标取 <span aria-label="0" class="plain-math">0</span>。最终结果为
+若 <span class="math-inline-wrap"><math aria-label="β^2P+R=0" class="math-inline"><mrow><msup><mo>β</mo><mn>2</mn></msup><mi>P</mi><mo>+</mo><mi>R</mi><mo>=</mo><mn>0</mn></mrow></math></span>，结果取 <span aria-label="0" class="plain-math">0</span>。</p>
+<h2 id="_2">输入描述</h2>
+<p>三行依次给出真实标签列表、预测标签列表、浮点数 <span class="math-inline-wrap"><math aria-label="β" class="math-inline"><mrow><mo>β</mo></mrow></math></span>。两个列表均为 Python 列表字面量，长度 <span aria-label="n" class="plain-math">n</span> 满足 <span class="math-inline-wrap"><math aria-label="1≤ nle1000" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>n</mi><mo>≤</mo><mn>1000</mn></mrow></math></span>，且 <span class="math-inline-wrap"><math aria-label="0&lt;βle5" class="math-inline"><mrow><mn>0</mn><mo>&lt;</mo><mo>β</mo><mo>≤</mo><mn>5</mn></mrow></math></span>。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出 F-Score，固定保留三位小数。</p>
+<h2 id="_4">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>[1, 1, 0, 0]
+[1, 0, 0, 1]
+1.0
+0.500
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>第一步：只统计三个计数。 每个样本独立贡献给 <span aria-label="TP" class="plain-math">TP</span>、<span aria-label="FP" class="plain-math">FP</span>、<span aria-label="FN" class="plain-math">FN</span> 中的一项，或者属于真负例而不影响公式。注意假正例增加精确率的分母，假负例增加召回率的分母，不可交换。
+第二步：消去中间分数。 将 <span aria-label="P,R" class="plain-math">P,R</span> 代入后，可把公式写成
+当 <span aria-label="TP=0" class="plain-math">TP=0</span> 时，题面定义的最终结果必为 <span aria-label="0" class="plain-math">0</span>，直接返回即可。当 <span aria-label="TP&gt;0" class="plain-math">TP&gt;0</span> 时，原公式涉及的两个计数分母都为正，上述化简合法，最终分母也严格为正。这样无需连续处理三个除零分支。
+<span class="math-inline-wrap"><math aria-label="β&gt;1" class="math-inline"><mrow><mo>β</mo><mo>&gt;</mo><mn>1</mn></mrow></math></span> 时对漏掉正例的惩罚更重；<span class="math-inline-wrap"><math aria-label="β=1" class="math-inline"><mrow><mo>β</mo><mo>=</mo><mn>1</mn></mrow></math></span> 时就是 F1。样例中三个计数均为 <span aria-label="1" class="plain-math">1</span>，代入得到 <span aria-label="0.5" class="plain-math">0.5</span>，但输出应为 0.500 。</p>
+<h2 id="_6">正确性说明</h2>
+<p>逐项检查两个标签，代码恰好统计定义中的三个互斥事件。<span aria-label="TP=0" class="plain-math">TP=0</span> 时按题面零分母约定返回 <span aria-label="0" class="plain-math">0</span>；否则计算代数等价的计数公式，因此结果与指定 F-Score 一致。</p>
+<h2 id="_7">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">ast</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="k">def</span> <span class="nf">f_score</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span> <span class="n">beta</span><span class="p">):</span>
+    <span class="n">tp</span> <span class="o">=</span> <span class="n">fp</span> <span class="o">=</span> <span class="n">fn</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">actual</span><span class="p">,</span> <span class="n">predicted</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">actual</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">predicted</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">tp</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">actual</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">predicted</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">fp</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">actual</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">predicted</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">fn</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">tp</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+    <span class="n">b2</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">beta</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">b2</span><span class="p">)</span> <span class="o">*</span> <span class="n">tp</span> <span class="o">/</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="n">b2</span><span class="p">)</span> <span class="o">*</span> <span class="n">tp</span> <span class="o">+</span> <span class="n">b2</span> <span class="o">*</span> <span class="n">fn</span> <span class="o">+</span> <span class="n">fp</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">y_true</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">y_pred</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f_score</span><span class="p">(</span><span class="n">y_true</span><span class="p">,</span><span class="w"> </span><span class="n">y_pred</span><span class="p">,</span><span class="w"> </span><span class="n">beta</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_8">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(n)" class="plain-math">O(n)</span>，每对标签检查一次。
+空间复杂度 ：<span aria-label="O(n)" class="plain-math">O(n)</span>，用于读入两个列表；计数过程只使用常数个变量。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

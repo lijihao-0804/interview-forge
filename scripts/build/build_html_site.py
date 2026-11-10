@@ -2559,7 +2559,7 @@ def render_markdown(source: Path) -> None:
         page = rebuilt
 
     # —— 题解页专属后处理：aside 提示框 + 徽标行 + 三栏 ——
-    if "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts:
+    if "03-题解" in source.parts or "company-solutions" in source.parts or "huawei-od" in source.parts or "ai-exam" in source.parts:
         try:
             page = transform_solution_page(page, source, toc, progress_css_href, progress_js_href)
         except Exception:

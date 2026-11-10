@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>TF-IDF 值计算 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 网易</div>
+<h1 id="tf-idf">TF-IDF 值计算</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+<li><a href="#_7">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/ · 网易 · 2026-09-19 · 算法岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>某电商平台计划借助大语言模型改善用户的购物体验，在训练模型之前，先用传统机器学习中的 TF-IDF 方法对训练数据做一次摸底分析。TF-IDF 是信息检索与文本挖掘中常用的加权技术。
+其中词频 TF 表示为「词 <span aria-label="w" class="plain-math">w</span> 在某条语句中出现的次数」除以「该语句中的总词数」；逆文档频率 IDF 表示为
+其中 <span aria-label="N" class="plain-math">N</span> 是语料库中语句的总数，<span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 是语料库中包含单词 <span aria-label="w" class="plain-math">w</span> 的语句总数。TF-IDF 表示为 TF 与 IDF 的乘积。
+注意：<span aria-label="\log" class="plain-math">log</span> 为自然对数，单词按空格切分且区分大小写。</p>
+<h2 id="_2">输入描述</h2>
+<p>输入是两个 list，各占一行，均为 Python 列表字面量，可以用 eval 函数还原。第一个 list 中的每个元素表示一条训练语句，每条语句里的词用空格隔开；第二个 list 长度为 <span aria-label="2" class="plain-math">2</span>，第一个元素表示某条训练语句在第一个 list 中的索引，第二个元素表示该语句中的某个词汇。
+语句总数 <span aria-label="N" class="plain-math">N</span> 满足 <span aria-label="1 \le N \le 100" class="plain-math">1 ≤ N ≤ 100</span>，每条语句包含 <span aria-label="1" class="plain-math">1</span> 到 <span aria-label="20" class="plain-math">20</span> 个单词，每个单词由 <span aria-label="1" class="plain-math">1</span> 到 <span aria-label="10" class="plain-math">10</span> 个英文字母组成；给定的索引合法，给定的词汇一定出现在该语句中。</p>
+<h2 id="_3">输出描述</h2>
+<p>给出在给定语句和给定 Word 下该 Word 的 TF-IDF 值，结果为 float，保留小数点后 3 位（与 round 函数的格式一致）。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出
+样例解释 ：第 1 条语句中 Apple 的 TF-IDF 值为 <span aria-label="0.424" class="plain-math">0.424</span>。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>['An Apple orange Apple','Chinese is an banana','Chinese KongFu','Apple is not pen']
+[0, 'Apple']
+0.424
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：先看清两个计数口径。 题面把 TF 和 IDF 的公式都给了，剩下的事情只有一件事——分清分子分母统计的是什么。TF 的分子是「词 <span aria-label="w" class="plain-math">w</span> 在某一条语句内出现的次数」，分母是「这条语句的词数」；IDF 里的 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 是「含 <span aria-label="w" class="plain-math">w</span> 的语句条数」，不是全语料里 <span aria-label="w" class="plain-math">w</span> 的出现总次数。两处都属于计数，但一个数词、一个数句，一旦混用就会算错。
+第二步：切词并严格区分大小写。 每条语句按空格切成词列表，比较时逐词精确匹配。样例里第 1 句同时出现了 An 和 an ，题面明确说明区分大小写，所以这两个是不同的词，不能顺手做 lower() 归一。
+第三步：算 TF。 设给定索引为 <span aria-label="k" class="plain-math">k</span>、给定词为 <span aria-label="w" class="plain-math">w</span>，目标语句是 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span>，则
+其中 <span class="math-inline-wrap"><math aria-label="operatornamecount(w, d_k)" class="math-inline"><mrow><mi mathvariant="normal">count</mi><mo>(</mo><mi>w</mi><mo>,</mo><mspace width=".18em"></mspace><msub><mi>d</mi><mi>k</mi></msub><mo>)</mo></mrow></math></span> 是 <span aria-label="w" class="plain-math">w</span> 在 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span> 中的出现次数，<span class="math-inline-wrap"><math aria-label="| d_k|" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><msub><mi>d</mi><mi>k</mi></msub><mo>|</mo></mrow></math></span> 是 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span> 的词数。如果 <span aria-label="w" class="plain-math">w</span> 在目标句里出现了两次，分子就是 <span aria-label="2" class="plain-math">2</span>。
+第四步：算 IDF，注意去重。 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 统计语句条数，同一句里出现多次也只记一次，所以每条语句先转成集合再判断成员：
+分母上的 <span aria-label="+1" class="plain-math">+1</span> 是对 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 做平滑；外层再 <span aria-label="+1" class="plain-math">+1</span>，保证对数的真数始终大于 <span aria-label="1" class="plain-math">1</span>，即使 <span aria-label="N_{w}+1&gt;N" class="plain-math">N<sub>w</sub>+1&gt;N</span> 时 IDF 也为正，不会出现负权重。若把全语料的出现总次数当作 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span>，一句里重复出现的词会被多算，IDF 随之偏小。
+第五步：乘起来并按格式输出。 两者相乘后取 3 位小数，直接打印浮点数即可，末尾的 <span aria-label="0" class="plain-math">0</span> 会被省略，例如 <span aria-label="0.5" class="plain-math">0.5</span> 不会写成 <span aria-label="0.500" class="plain-math">0.500</span>。
+手动模拟样例 ：语料共 <span aria-label="N=4" class="plain-math">N=4</span> 条语句； Apple 出现在第 1 条和第 4 条语句中，所以 <span aria-label="N_{w}=2" class="plain-math">N<sub>w</sub>=2</span>；目标语句是第 1 条，词数为 <span aria-label="4" class="plain-math">4</span>， Apple 在其中出现 <span aria-label="2" class="plain-math">2</span> 次，于是 <span aria-label="TF=2/4=0.5" class="plain-math">TF=2/4=0.5</span>，<span class="math-inline-wrap"><math aria-label="IDF=ln(4/3+1)=ln(7/3)approx0.8473" class="math-inline"><mrow><mi>IDF</mi><mo>=</mo><mi mathvariant="normal">ln</mi><mo>(</mo><mn>4</mn><mo>/</mo><mn>3</mn><mo>+</mo><mn>1</mn><mo>)</mo><mo>=</mo><mi mathvariant="normal">ln</mi><mo>(</mo><mn>7</mn><mo>/</mo><mn>3</mn><mo>)</mo><mo>≈</mo><mn>0.8473</mn></mrow></math></span>，乘积约为 <span aria-label="0.4237" class="plain-math">0.4237</span>，保留 3 位小数得 <span aria-label="0.424" class="plain-math">0.424</span>，与样例一致。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">ast</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="c1"># 统计包含 word 的语句条数，同一句里出现多次只算一次</span>
+<span class="k">def</span> <span class="nf">count_docs</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">words</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">:</span>
+        <span class="c1"># 先转集合再判断成员，一句里出现几次都只记 1</span>
+        <span class="k">if</span> <span class="n">word</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">count</span>
+
+
+<span class="c1"># 计算 word 在第 idx 条语句中的 TF-IDF 值</span>
+<span class="k">def</span> <span class="nf">tf_idf</span><span class="p">(</span><span class="n">sentences</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">word</span><span class="p">):</span>
+    <span class="c1"># 按空格切词，比较时区分大小写，apple 与 Apple 是两个词</span>
+    <span class="n">docs</span> <span class="o">=</span> <span class="p">[</span><span class="n">sentence</span><span class="o">.</span><span class="n">split</span><span class="p">()</span> <span class="k">for</span> <span class="n">sentence</span> <span class="ow">in</span> <span class="n">sentences</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span>
+
+    <span class="c1"># TF：目标句中该词的出现次数 / 目标句的词数</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">docs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+    <span class="n">tf</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">word</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+    <span class="c1"># IDF：分母 +1 做平滑，外层再 +1 保证对数的真数大于 1、结果为正</span>
+    <span class="n">nw</span> <span class="o">=</span> <span class="n">count_docs</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">word</span><span class="p">)</span>
+    <span class="n">idf</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="p">(</span><span class="n">nw</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tf</span> <span class="o">*</span> <span class="n">idf</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="c1"># 两行输入都是 Python 列表字面量，用 literal_eval 安全还原</span>
+    <span class="n">sentences</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">idx</span><span class="p">,</span> <span class="n">word</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">query</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">query</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># 输出与 round(x, 3) 的格式一致，例如 0.424、0.5</span>
+    <span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tf_idf</span><span class="p">(</span><span class="n">sentences</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">word</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(L)" class="plain-math">O(L)</span>，其中 <span aria-label="L" class="plain-math">L</span> 是全部语句的总词数。瓶颈是切词与逐句建集合，每个词只被处理常数次；统计 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 必须看遍所有语句，不可能更快。
+空间复杂度 ：<span aria-label="O(L)" class="plain-math">O(L)</span>，存放切分后的词列表与用于判重的集合。</p>
+<h2 id="_7">易错点</h2>
+<p>TF 的分子是目标句内的出现次数，IDF 的 <span aria-label="N_{w}" class="plain-math">N<sub>w</sub></span> 是含该词的语句条数，两个口径不能混用。 切词后必须区分大小写， An 与 an 是两个词。 输出用 round(x, 3) 的格式，末尾的 <span aria-label="0" class="plain-math">0</span> 会被省略；手工格式化成固定三位小数反而与样例不符。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

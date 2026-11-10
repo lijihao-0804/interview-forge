@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>流水线并行最优配置 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">流水线并行最优配置</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">样例</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260617/ · 华为 · 2026-06-17 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>在大模型流水线并行训练中，需要把模型按层切分到多个加速卡上。给定模型总层数 <span aria-label="L" class="plain-math">L</span>、单卡最大承载层数 <span aria-label="M" class="plain-math">M</span>、micro batch 数目 <span aria-label="m" class="plain-math">m</span>、硬件总卡数 <span aria-label="C" class="plain-math">C</span>，求最优流水线 stage 数 <span aria-label="PP" class="plain-math">PP</span> 和对应的气泡率。
+<span aria-label="PP" class="plain-math">PP</span> 需满足三条约束：<span class="math-inline-wrap"><math aria-label="PP ≤ C" class="math-inline"><mrow><mi>PP</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>C</mi></mrow></math></span>；<span aria-label="L / PP" class="plain-math">L / PP</span> 为整数；<span class="math-inline-wrap"><math aria-label="L / PP ≤ M" class="math-inline"><mrow><mi>L</mi><mspace width=".18em"></mspace><mo>/</mo><mspace width=".18em"></mspace><mi>PP</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>M</mi></mrow></math></span>。
+气泡率公式为 <span aria-label="(PP - 1) / (m + PP - 1)" class="plain-math">(PP - 1) / (m + PP - 1)</span>。优先最小化气泡率，相同时取 <span aria-label="PP" class="plain-math">PP</span> 更小的。
+输出最优 <span aria-label="PP" class="plain-math">PP</span> 和气泡率（四舍五入保留 4 位小数）。若无可行方案或输入不合法，输出 -1 -1 。</p>
+<h2 id="_3">样例</h2>
+<p>输入
+输出
+输入
+输出
+输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>9 2 3 4
+-1 -1
+10 5 2
+-1 -1
+8 4 3 4
+2 0.2500
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：输入校验
+参数个数必须恰为 4 个，且每个都是正整数（纯数字串，无负号/小数点/字母），数值大于 0。任一条不满足直接输出 -1 -1 。
+第二步：利用单调性
+气泡率 <span aria-label="(PP-1)/(m+PP-1)" class="plain-math">(PP-1)/(m+PP-1)</span> 对 <span aria-label="PP" class="plain-math">PP</span> 单调递增——<span aria-label="PP" class="plain-math">PP</span> 越大气泡率越高。因此从小到大枚举 <span aria-label="PP" class="plain-math">PP</span>，第一个满足三条约束的值就同时实现了”气泡率最小”和”<span aria-label="PP" class="plain-math">PP</span> 最小”两个目标。
+第三步：定点输出避免浮点舍入陷阱
+用整数算术计算：分子 <span aria-label="(PP-1) \times 10000" class="plain-math">(PP-1) × 10000</span>，整除分母 <span aria-label="(m+PP-1)" class="plain-math">(m+PP-1)</span> 得商和余数，余数过半进位。这样完全避免浮点 printf 各语言半值舍入策略不同的问题。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"-1 -1"</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tokens</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[0-9]+"</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s2">"-1 -1"</span>
+    <span class="n">layers</span><span class="p">,</span> <span class="n">max_load</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">cards</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tokens</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">layers</span><span class="p">,</span> <span class="n">max_load</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">cards</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"-1 -1"</span>
+
+    <span class="n">best_pp</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">for</span> <span class="n">pp</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">cards</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">layers</span> <span class="o">%</span> <span class="n">pp</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">layers</span> <span class="o">//</span> <span class="n">pp</span> <span class="o">&lt;=</span> <span class="n">max_load</span><span class="p">:</span>
+            <span class="n">best_pp</span> <span class="o">=</span> <span class="n">pp</span>
+            <span class="k">break</span>
+    <span class="k">if</span> <span class="n">best_pp</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"-1 -1"</span>
+
+    <span class="c1"># 整数算术四舍五入到4位小数</span>
+    <span class="n">num</span> <span class="o">=</span> <span class="p">(</span><span class="n">best_pp</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10000</span>
+    <span class="n">den</span> <span class="o">=</span> <span class="n">m</span> <span class="o">+</span> <span class="n">best_pp</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">q</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">den</span><span class="p">)</span>
+    <span class="k">if</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">r</span> <span class="o">&gt;=</span> <span class="n">den</span><span class="p">:</span>
+        <span class="n">q</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">best_pp</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">q</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">10000</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">q</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">10000</span><span class="si">:</span><span class="s2">04d</span><span class="si">}</span><span class="s2">"</span>
+
+<span class="n">line</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">solve</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(C)" class="plain-math">O(C)</span>，枚举一遍 <span aria-label="PP" class="plain-math">PP</span> 即可。<span class="math-inline-wrap"><math aria-label="C ≤ 10000" class="math-inline"><mrow><mi>C</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mn>10000</mn></mrow></math></span>。 空间复杂度 ：<span aria-label="O(1)" class="plain-math">O(1)</span>。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

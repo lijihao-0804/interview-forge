@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>密码强度字符串计数 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 得物</div>
+<h1 id="_1">密码强度字符串计数</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">样例</a></li>
+<li><a href="#_6">思路分析</a></li>
+<li><a href="#_7">正确性证明</a></li>
+<li><a href="#_8">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_9">复杂度分析</a></li>
+<li><a href="#_10">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/dewu/algo-20260829-b/ · 得物 · 2026-08-29 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>构造一个长度为 <span aria-label="n" class="plain-math">n</span>、仅含小写英文字母的字符串。字符串中不能出现超过三个连续相同的字符，也就是不能包含四个连续相同字符。例如， aaaa 、 bbbb 不符合要求，而 aaabaaa 符合要求。
+求满足条件的字符串数量，并对 <span aria-label="10^9+7" class="plain-math">10<sup>9</sup>+7</span> 取模后输出。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入整数 <span aria-label="T" class="plain-math">T</span>，表示测试数据组数，满足 <span aria-label="1\le T\le 2\times 10^5" class="plain-math">1≤ T≤ 2× 10<sup>5</sup></span>。
+接下来 <span aria-label="T" class="plain-math">T</span> 行，每行输入一个整数 <span aria-label="n" class="plain-math">n</span>，表示字符串长度，满足 <span aria-label="1\le n\le 2\times 10^5" class="plain-math">1≤ n≤ 2× 10<sup>5</sup></span>。</p>
+<h2 id="_4">输出描述</h2>
+<p>对于每组测试数据，输出一行一个整数，表示满足条件的字符串数量对 <span aria-label="10^9+7" class="plain-math">10<sup>9</sup>+7</span> 取模后的结果。</p>
+<h2 id="_5">样例</h2>
+<p>输入
+输出
+样例解释 ：
+当 <span aria-label="n=2" class="plain-math">n=2</span> 时，所有字符串都符合要求，答案为 <span aria-label="26\times 26=676" class="plain-math">26× 26=676</span>。 当 <span aria-label="n=4" class="plain-math">n=4</span> 时，总共有 <span aria-label="26^4" class="plain-math">26<sup>4</sup></span> 个字符串。不合法的字符串只有 aaaa 、 bbbb 、……、 zzzz 这 26 个，因此答案为 <span aria-label="26^4-26=456950" class="plain-math">26<sup>4</sup>-26=456950</span>。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2
+2
+4
+676
+456950
+</code></pre></div>
+<h2 id="_6">思路分析</h2>
+<p>第一步：寻找决定后续转移的信息
+向一个合法字符串末尾添加字符时，能否继续保持合法，只与当前末尾连续相同字符的长度有关。该长度只能是 1、2、3，因此无需保存整个字符串。
+定义 <span aria-label="f_{i,j}" class="plain-math">f<sub>i,j</sub></span> 表示长度为 <span aria-label="i" class="plain-math">i</span>，且末尾恰有 <span aria-label="j" class="plain-math">j</span> 个连续相同字符的合法字符串数量，其中 <span class="math-inline-wrap"><math aria-label="j∈1,2,3" class="math-inline"><mrow><mi>j</mi><mo>∈</mo><mrow><mn>1</mn><mo>,</mo><mn>2</mn><mo>,</mo><mn>3</mn></mrow></mrow></math></span>。
+长度为 1 时：
+第二步：分类讨论新字符
+从长度 <span aria-label="i-1" class="plain-math">i-1</span> 扩展到长度 <span aria-label="i" class="plain-math">i</span>：
+如果新字符与原末尾字符不同，共有 25 种选择，新的连续段长度变为 1： [f_{i,1}=25\cdot(f_{i-1,1}+f_{i-1,2}+f_{i-1,3})。] 如果新字符与原末尾字符相同，选择唯一，连续段长度增加 1： [f_{i,2}=f_{i-1,1},\qquad f_{i,3}=f_{i-1,2}。] 原末尾长度为 3 时不能再添加相同字符，否则会产生四个连续相同字符。
+如果新字符与原末尾字符不同，共有 25 种选择，新的连续段长度变为 1：
+如果新字符与原末尾字符相同，选择唯一，连续段长度增加 1：
+原末尾长度为 3 时不能再添加相同字符，否则会产生四个连续相同字符。
+长度为 <span aria-label="i" class="plain-math">i</span> 的答案为
+所有计算都需要对 <span aria-label="10^9+7" class="plain-math">10<sup>9</sup>+7</span> 取模。
+第三步：一次预处理回答多次询问
+先读入全部 <span aria-label="n" class="plain-math">n</span>，找到最大值 <span class="math-inline-wrap"><math aria-label="n_max" class="math-inline"><mrow><msub><mi>n</mi><mrow><mi mathvariant="normal">max</mi></mrow></msub></mrow></math></span>。使用三个滚动变量维护当前三种状态，并保存每个长度的总答案。这样只需递推一次，之后每个询问都能直接查表。</p>
+<h2 id="_7">正确性证明</h2>
+<p>使用数学归纳法证明：对每个 <span aria-label="i\ge 1" class="plain-math">i≥ 1</span> 和 <span class="math-inline-wrap"><math aria-label="j∈1,2,3" class="math-inline"><mrow><mi>j</mi><mo>∈</mo><mrow><mn>1</mn><mo>,</mo><mn>2</mn><mo>,</mo><mn>3</mn></mrow></mrow></math></span>，算法计算的 <span aria-label="f_{i,j}" class="plain-math">f<sub>i,j</sub></span> 恰为长度为 <span aria-label="i" class="plain-math">i</span>、末尾连续相同字符数量恰为 <span aria-label="j" class="plain-math">j</span> 的合法字符串数。
+基础情形 ：当 <span aria-label="i=1" class="plain-math">i=1</span> 时，可以选择任意一个小写字母，共 26 种，且末尾连续段长度只能为 1。因此 <span aria-label="f_{1,1}=26" class="plain-math">f<sub>1,1</sub>=26</span>、<span aria-label="f_{1,2}=f_{1,3}=0" class="plain-math">f<sub>1,2</sub>=f<sub>1,3</sub>=0</span> 正确。
+归纳步骤 ：假设长度为 <span aria-label="i-1" class="plain-math">i-1</span> 时各状态均正确。
+末尾连续段长度为 1 的字符串，必然由任意长度为 <span aria-label="i-1" class="plain-math">i-1</span> 的合法字符串添加一个不同于原末尾的字符得到。每个原字符串恰有 25 种选择，所以转移到 <span aria-label="f_{i,1}" class="plain-math">f<sub>i,1</sub></span> 的计数既无遗漏也无重复。 末尾连续段长度为 2 的字符串，删去最后一个字符后，其末尾连续段长度必为 1；反之，在该字符串末尾添加相同字符会唯一得到前者。因此 <span aria-label="f_{i,2}=f_{i-1,1}" class="plain-math">f<sub>i,2</sub>=f<sub>i-1,1</sub></span>。 同理，末尾连续段长度为 3 的字符串与长度为 <span aria-label="i-1" class="plain-math">i-1</span>、末尾连续段长度为 2 的字符串一一对应，因此 <span aria-label="f_{i,3}=f_{i-1,2}" class="plain-math">f<sub>i,3</sub>=f<sub>i-1,2</sub></span>。 不从长度为 3 的末尾状态继续添加相同字符，恰好排除了所有新产生四连相同字符的情况。
+所以长度为 <span aria-label="i" class="plain-math">i</span> 的三个状态均正确。它们互斥并覆盖所有合法字符串，故三者之和就是长度为 <span aria-label="i" class="plain-math">i</span> 的合法字符串总数。归纳完成，算法正确。</p>
+<h2 id="_8">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+<span class="n">MOD</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="mi">9</span> <span class="o">+</span> <span class="mi">7</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">test_cases</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">lengths</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">test_cases</span><span class="p">)]</span>
+    <span class="n">max_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">lengths</span><span class="p">)</span>
+
+    <span class="n">answers</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">max_length</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">end_one</span><span class="p">,</span> <span class="n">end_two</span><span class="p">,</span> <span class="n">end_three</span> <span class="o">=</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="n">answers</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">26</span>
+
+    <span class="k">for</span> <span class="n">length</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_length</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="p">(</span><span class="n">end_one</span> <span class="o">+</span> <span class="n">end_two</span> <span class="o">+</span> <span class="n">end_three</span><span class="p">)</span> <span class="o">%</span> <span class="n">MOD</span>
+        <span class="n">end_one</span><span class="p">,</span> <span class="n">end_two</span><span class="p">,</span> <span class="n">end_three</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">total</span> <span class="o">*</span> <span class="mi">25</span> <span class="o">%</span> <span class="n">MOD</span><span class="p">,</span>
+            <span class="n">end_one</span><span class="p">,</span>
+            <span class="n">end_two</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">answers</span><span class="p">[</span><span class="n">length</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">end_one</span> <span class="o">+</span> <span class="n">end_two</span> <span class="o">+</span> <span class="n">end_three</span><span class="p">)</span> <span class="o">%</span> <span class="n">MOD</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">answers</span><span class="p">[</span><span class="n">length</span><span class="p">])</span> <span class="k">for</span> <span class="n">length</span> <span class="ow">in</span> <span class="n">lengths</span><span class="p">))</span>
+
+
+<span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_9">复杂度分析</h2>
+<p>设询问中的最大字符串长度为 <span class="math-inline-wrap"><math aria-label="n_max" class="math-inline"><mrow><msub><mi>n</mi><mrow><mi mathvariant="normal">max</mi></mrow></msub></mrow></math></span>。
+时间复杂度 ：<span class="math-inline-wrap"><math aria-label="O(n_max+T)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msub><mi>n</mi><mrow><mi mathvariant="normal">max</mi></mrow></msub><mo>+</mo><mi>T</mi><mo>)</mo></mrow></math></span>。预处理每个长度一次，每次询问为 <span aria-label="O(1)" class="plain-math">O(1)</span> 查表。
+空间复杂度 ：<span class="math-inline-wrap"><math aria-label="O(n_max+T)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msub><mi>n</mi><mrow><mi mathvariant="normal">max</mi></mrow></msub><mo>+</mo><mi>T</mi><mo>)</mo></mrow></math></span>。答案表占 <span class="math-inline-wrap"><math aria-label="O(n_max)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msub><mi>n</mi><mrow><mi mathvariant="normal">max</mi></mrow></msub><mo>)</mo></mrow></math></span>，询问和输出占 <span aria-label="O(T)" class="plain-math">O(T)</span>；DP 状态本身仅占 <span aria-label="O(1)" class="plain-math">O(1)</span>。</p>
+<h2 id="_10">易错点</h2>
+<p>“不能超过三个连续一样”表示允许连续 1、2、3 个相同字符，但禁止连续 4 个。 添加不同字符时不是 26 种选择，而是排除当前末尾字符后的 25 种。 从末尾连续长度为 3 的状态不能再添加相同字符。 递推和答案求和都要对 <span aria-label="10^9+7" class="plain-math">10<sup>9</sup>+7</span> 取模。 <span aria-label="T" class="plain-math">T</span> 和 <span aria-label="n" class="plain-math">n</span> 都可达到 <span aria-label="2\times 10^5" class="plain-math">2× 10<sup>5</sup></span>，不能为每个询问重新执行一遍 DP。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>稀疏局部注意力机制 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">稀疏局部注意力机制</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">正确性说明</a></li>
+<li><a href="#_7">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_8">复杂度分析</a></li>
+<li><a href="#_9">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260918/ · 华为 · 2026-09-18 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>给定三个整数矩阵 <span aria-label="Q" class="plain-math">Q</span>、<span aria-label="K" class="plain-math">K</span>、<span aria-label="V" class="plain-math">V</span>，大小均为 <span aria-label="L\times D" class="plain-math">L× D</span>，再给定 <span aria-label="G" class="plain-math">G</span> 个全局位置，组成集合 <span aria-label="P" class="plain-math">P</span>。
+对于位置 <span aria-label="i" class="plain-math">i</span>，可参与注意力计算的位置集合 <span aria-label="C_{i}" class="plain-math">C<sub>i</sub></span> 定义为
+集合中的同一位置只计算一次。
+对 <span class="math-inline-wrap"><math aria-label="j∈ C_i" class="math-inline"><mrow><mi>j</mi><mo>∈</mo><mspace width=".18em"></mspace><msub><mi>C</mi><mrow><mi>i</mi></mrow></msub></mrow></math></span>，注意力分数定义为
+只保留分数严格大于 <span aria-label="0" class="plain-math">0</span> 的位置，并从中选出最多 <span aria-label="T" class="plain-math">T</span> 个分数最大的候选；分数相同时，下标 <span aria-label="j" class="plain-math">j</span> 较小的位置优先。设最终选中的位置集合为 <span aria-label="A_{i}" class="plain-math">A<sub>i</sub></span>，若有效候选数量不超过 <span aria-label="T" class="plain-math">T</span> 则全部保留。
+输出矩阵 <span aria-label="O" class="plain-math">O</span> 定义为
+若 <span aria-label="A_{i}" class="plain-math">A<sub>i</sub></span> 为空，则 <span aria-label="O[i][x]=0" class="plain-math">O[i][x]=0</span>。请输出最终的 <span aria-label="L\times D" class="plain-math">L× D</span> 矩阵 <span aria-label="O" class="plain-math">O</span>。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行包含五个整数 <span aria-label="L,D,G,W,T" class="plain-math">L,D,G,W,T</span>，含义为序列长度、特征维度、全局位置数量、局部窗口单侧大小和每个位置最多保留的候选数量，满足 <span class="math-inline-wrap"><math aria-label="1≤ Lle10000" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>L</mi><mo>≤</mo><mn>10000</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ Dle64" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>D</mi><mo>≤</mo><mn>64</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="0≤ G≤min(L,32)" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>G</mi><mo>≤</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>L</mi><mo>,</mo><mn>32</mn><mo>)</mo></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="0≤ Wle128" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>W</mi><mo>≤</mo><mn>128</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ T≤min(L,16)" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>T</mi><mo>≤</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>L</mi><mo>,</mo><mn>16</mn><mo>)</mo></mrow></math></span>。
+若 <span aria-label="G&gt;0" class="plain-math">G&gt;0</span>，下一行包含 <span aria-label="G" class="plain-math">G</span> 个互不相同的整数 <span aria-label="p_{1},p_{2},\dots,p_{G}" class="plain-math">p<sub>1</sub>,p<sub>2</sub>,…,p<sub>G</sub></span>，满足 <span aria-label="0\le p_{i}&lt;L" class="plain-math">0≤ p<sub>i</sub>&lt;L</span>，表示全局位置；若 <span aria-label="G=0" class="plain-math">G=0</span> 则不输入这一行，直接输入矩阵 <span aria-label="Q" class="plain-math">Q</span>。
+接下来 <span aria-label="L" class="plain-math">L</span> 行，每行 <span aria-label="D" class="plain-math">D</span> 个整数 <span aria-label="Q[i][j]" class="plain-math">Q[i][j]</span>，表示矩阵 <span aria-label="Q" class="plain-math">Q</span>；随后同样格式的 <span aria-label="L" class="plain-math">L</span> 行表示矩阵 <span aria-label="K" class="plain-math">K</span>，再 <span aria-label="L" class="plain-math">L</span> 行表示矩阵 <span aria-label="V" class="plain-math">V</span>。三个矩阵的元素都在 <span aria-label="[-10,10]" class="plain-math">[-10,10]</span> 内。
+所有矩阵和序列下标均从 <span aria-label="0" class="plain-math">0</span> 开始，全局位置的输入顺序不影响计算结果。保证所有中间结果和最终结果均在 64 位有符号整数范围内。</p>
+<h2 id="_4">输出描述</h2>
+<p>输出 <span aria-label="L" class="plain-math">L</span> 行，每行 <span aria-label="D" class="plain-math">D</span> 个整数，表示最终矩阵 <span aria-label="O" class="plain-math">O</span>。同一行中的整数之间用一个空格分隔。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出
+样例解释 ：全局位置集合为 <span aria-label="P={2}" class="plain-math">P=2</span>。
+对 <span aria-label="i=0" class="plain-math">i=0</span>，<span aria-label="C_{0}={0,1,2}" class="plain-math">C<sub>0</sub>=0,1,2</span>，三个位置的分数分别为 <span aria-label="1,2,3" class="plain-math">1,2,3</span>。由于 <span aria-label="T=2" class="plain-math">T=2</span>，选择位置 <span aria-label="2" class="plain-math">2</span> 和位置 <span aria-label="1" class="plain-math">1</span>：
+对全局位置 <span aria-label="i=2" class="plain-math">i=2</span>，<span aria-label="C_{2}={0,1,2,3}" class="plain-math">C<sub>2</sub>=0,1,2,3</span>，分数最大的两个位置是 <span aria-label="3" class="plain-math">3</span> 和 <span aria-label="2" class="plain-math">2</span>：</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>4 2 1 1 2
+2
+1 0
+1 0
+1 0
+1 0
+1 0
+2 0
+3 0
+4 0
+1 10
+2 20
+3 30
+4 40
+13 130
+13 130
+25 250
+25 250
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出
+样例解释 ：本例 <span aria-label="G=0" class="plain-math">G=0</span>，不存在全局位置。对任意位置 <span aria-label="i" class="plain-math">i</span>，局部窗口覆盖整个序列，三个位置的分数分别为 <span aria-label="2,2,1" class="plain-math">2,2,1</span>。由于 <span aria-label="T=1" class="plain-math">T=1</span>，只保留分数最高的那一个候选；<span aria-label="j=0" class="plain-math">j=0</span> 与 <span aria-label="j=1" class="plain-math">j=1</span> 分数并列最高，按下标较小的优先，取 <span aria-label="j=0" class="plain-math">j=0</span>，于是 <span class="math-inline-wrap"><math aria-label="O[i]=2times10=20" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>=</mo><mn>2</mn><mo>×</mo><mn>10</mn><mo>=</mo><mn>20</mn></mrow></math></span>。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3 1 0 2 1
+1
+1
+1
+2
+2
+1
+10
+20
+30
+20
+20
+20
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>第一步：圈出每个位置能看的地方。 全局位置看全部 <span aria-label="L" class="plain-math">L</span> 个下标；普通位置看窗口 <span class="math-inline-wrap"><math aria-label="[max(0,i-W),min(L-1,i+W)]" class="math-inline"><mrow><mo>[</mo><mi mathvariant="normal">max</mi><mo>(</mo><mn>0</mn><mo>,</mo><mi>i</mi><mo>-</mo><mi>W</mi><mo>)</mo><mo>,</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>L</mi><mo>-</mo><mn>1</mn><mo>,</mo><mi>i</mi><mo>+</mo><mi>W</mi><mo>)</mo><mo>]</mo></mrow></math></span>，再补上落在窗口之外的全局位置。全局位置若本来就在窗口里，补的时候跳过，这就保证了「同一位置只计算一次」。
+第二步：打分并筛出候选。 对每个候选 <span aria-label="j" class="plain-math">j</span> 用 <span aria-label="D" class="plain-math">D</span> 维点积算出 <span class="math-inline-wrap"><math aria-label="operatornamescore(i,j)" class="math-inline"><mrow><mi mathvariant="normal">score</mi><mo>(</mo><mi>i</mi><mo>,</mo><mi>j</mi><mo>)</mo></mrow></math></span>，丢掉 <span class="math-inline-wrap"><math aria-label="operatornamescore(i,j)le0" class="math-inline"><mrow><mi mathvariant="normal">score</mi><mo>(</mo><mi>i</mi><mo>,</mo><mi>j</mi><mo>)</mo><mo>≤</mo><mn>0</mn></mrow></math></span> 的，剩下的按「分数降序、同分下标升序」排序后取前 <span class="math-inline-wrap"><math aria-label="min(T,operatornamecnt)" class="math-inline"><mrow><mi mathvariant="normal">min</mi><mo>(</mo><mi>T</mi><mo>,</mo><mi mathvariant="normal">cnt</mi><mo>)</mo></mrow></math></span> 个，其中 <span class="math-inline-wrap"><math aria-label="operatornamecnt" class="math-inline"><mrow><mi mathvariant="normal">cnt</mi></mrow></math></span> 是正分候选的个数。<span class="math-inline-wrap"><math aria-label="operatornamecnt=0" class="math-inline"><mrow><mi mathvariant="normal">cnt</mi><mo>=</mo><mn>0</mn></mrow></math></span> 时这一行不累加任何东西，自然输出全 <span aria-label="0" class="plain-math">0</span>。
+第三步：加权求和。 把选中的项按 <span class="math-inline-wrap"><math aria-label="O[i][x]=sum_j∈ A_ioperatornamescore(i,j)· V[j][x]" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>[</mo><mi>x</mi><mo>]</mo><mo>=</mo><msub><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mspace width=".18em"></mspace><msub><mi>A</mi><mrow><mi>i</mi></mrow></msub></mrow></msub><mi mathvariant="normal">score</mi><mo>(</mo><mi>i</mi><mo>,</mo><mi>j</mi><mo>)</mo><mo>·</mo><mspace width=".18em"></mspace><mi>V</mi><mo>[</mo><mi>j</mi><mo>]</mo><mo>[</mo><mi>x</mi><mo>]</mo></mrow></math></span> 累加，得到第 <span aria-label="i" class="plain-math">i</span> 行的 <span aria-label="D" class="plain-math">D</span> 个输出值。
+第四步：实现要点。 全量注意力的打分是 <span aria-label="O(L^{2}D)" class="plain-math">O(L<sup>2</sup>D)</span>，而候选集把每个普通位置的候选压到 <span aria-label="2W+1+G" class="plain-math">2W+1+G</span> 个以内，全局位置才需要看整段序列。Python 的纯循环点积在最大数据上要跑上亿次乘法，因此每行只把点积交给 NumPy：取出候选的 <span aria-label="K" class="plain-math">K</span> 行与 <span aria-label="Q[i]" class="plain-math">Q[i]</span> 相乘，一次得到全部分数；排序用 np.lexsort ，以分数降序为主键、下标升序为次键。单个分数最大为 <span class="math-inline-wrap"><math aria-label="64times100" class="math-inline"><mrow><mn>64</mn><mo>×</mo><mn>100</mn></mrow></math></span>，再乘 <span aria-label="V" class="plain-math">V</span> 并按 <span aria-label="T" class="plain-math">T</span> 项累加，仍远小于 <span aria-label="2^{63}" class="plain-math">2<sup>63</sup></span>，用 64 位整数不会溢出。</p>
+<h2 id="_6">正确性说明</h2>
+<p>候选集的构造与题面定义逐条对应：全局位置取全部下标，普通位置取窗口内下标并补上窗口外的全局位置，且同一位置只出现一次；窗口两端按 <span aria-label="0" class="plain-math">0</span> 与 <span aria-label="L-1" class="plain-math">L-1</span> 截断。打分只保留严格正分的候选，再按「分数降序、同分下标升序」取不超过 <span aria-label="T" class="plain-math">T</span> 个，与题面的筛选规则一致；候选不足 <span aria-label="T" class="plain-math">T</span> 个时切片自动全部保留。最后按定义式把 <span class="math-inline-wrap"><math aria-label="operatornamescore(i,j)" class="math-inline"><mrow><mi mathvariant="normal">score</mi><mo>(</mo><mi>i</mi><mo>,</mo><mi>j</mi><mo>)</mo></mrow></math></span> 与 <span aria-label="V[j]" class="plain-math">V[j]</span> 加权求和，空集时输出全 <span aria-label="0" class="plain-math">0</span>。三处都与定义一致，因此输出矩阵与题面要求完全相同。</p>
+<h2 id="_7">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<span class="c1"># 构造位置 i 的候选集：全局位置取全部下标，其余位置取窗口并补上窗口外的全局位置</span>
+<span class="k">def</span> <span class="nf">build_candidates</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">is_global</span><span class="p">,</span> <span class="n">global_list</span><span class="p">):</span>
+    <span class="c1"># 全局位置能看整个序列，候选就是 0..L-1</span>
+    <span class="k">if</span> <span class="n">is_global</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">length</span><span class="p">)</span>
+    <span class="c1"># 窗口在两端被截断到 [0, L-1]</span>
+    <span class="n">lo</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span> <span class="o">-</span> <span class="n">window</span><span class="p">)</span>
+    <span class="n">hi</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">length</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="n">window</span><span class="p">)</span>
+    <span class="n">cand</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="c1"># 已在窗口里的全局位置跳过，保证同一位置只算一次</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">global_list</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="n">lo</span> <span class="ow">or</span> <span class="n">p</span> <span class="o">&gt;</span> <span class="n">hi</span><span class="p">:</span>
+            <span class="n">cand</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">cand</span><span class="p">)</span>
+
+
+<span class="c1"># 对候选打分，取前 T 个正分位置，加权求和得到输出行</span>
+<span class="k">def</span> <span class="nf">attend_row</span><span class="p">(</span><span class="n">cand</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">top_t</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+    <span class="c1"># 一次矩阵乘法算出全部候选的点积：(m, D) @ (D,) -&gt; (m,)</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">cand</span><span class="p">]</span> <span class="o">@</span> <span class="n">query</span>
+    <span class="c1"># 只保留严格为正的分数</span>
+    <span class="n">keep</span> <span class="o">=</span> <span class="n">scores</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">cand</span> <span class="o">=</span> <span class="n">cand</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+    <span class="n">scores</span> <span class="o">=</span> <span class="n">scores</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+    <span class="c1"># lexsort 以最后一个键为主键：先按分数降序，同分再按下标升序</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">((</span><span class="n">cand</span><span class="p">,</span> <span class="o">-</span><span class="n">scores</span><span class="p">))[:</span><span class="n">top_t</span><span class="p">]</span>
+    <span class="c1"># 一个有效候选都没有时，这一行输出全 0</span>
+    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="c1"># 有效候选不足 T 个时，切片自动全部保留</span>
+    <span class="k">return</span> <span class="n">scores</span><span class="p">[</span><span class="n">order</span><span class="p">]</span> <span class="o">@</span> <span class="n">values</span><span class="p">[</span><span class="n">cand</span><span class="p">[</span><span class="n">order</span><span class="p">]]</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">length</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">global_count</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">top_t</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">pos</span><span class="p">:</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">5</span><span class="p">])</span>
+    <span class="n">pos</span> <span class="o">+=</span> <span class="mi">5</span>
+    <span class="n">global_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># G = 0 时没有全局位置这一行，按 G 决定是否读取</span>
+    <span class="k">if</span> <span class="n">global_count</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">global_list</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">pos</span><span class="p">:</span><span class="n">pos</span> <span class="o">+</span> <span class="n">global_count</span><span class="p">]]</span>
+        <span class="n">pos</span> <span class="o">+=</span> <span class="n">global_count</span>
+    <span class="n">is_global</span> <span class="o">=</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">length</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">global_list</span><span class="p">:</span>
+        <span class="n">is_global</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">length</span> <span class="o">*</span> <span class="n">dim</span>
+    <span class="c1"># 依次读入 Q、K、V 三个 L x D 矩阵，用 int64 防止累加溢出</span>
+    <span class="n">flat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromiter</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="n">pos</span><span class="p">:</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">size</span><span class="p">]),</span>
+                       <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">3</span> <span class="o">*</span> <span class="n">size</span><span class="p">)</span>
+    <span class="n">q_mat</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[:</span><span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+    <span class="n">k_mat</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="n">size</span><span class="p">:</span><span class="mi">2</span> <span class="o">*</span> <span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+    <span class="n">v_mat</span> <span class="o">=</span> <span class="n">flat</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">size</span><span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+
+    <span class="c1"># 每个位置独立计算：建候选、打分排序取前 T 个、加权求和，逐行输出</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">length</span><span class="p">):</span>
+        <span class="n">cand</span> <span class="o">=</span> <span class="n">build_candidates</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">is_global</span><span class="p">,</span> <span class="n">global_list</span><span class="p">)</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="n">attend_row</span><span class="p">(</span><span class="n">cand</span><span class="p">,</span> <span class="n">q_mat</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">k_mat</span><span class="p">,</span> <span class="n">v_mat</span><span class="p">,</span> <span class="n">top_t</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">row</span><span class="o">.</span><span class="n">tolist</span><span class="p">()))</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_8">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O((L\cdot(2W+1+G)+G\cdot L)\cdot D)" class="plain-math">O((L·(2W+1+G)+G· L)· D)</span>。瓶颈是打分：普通位置至多 <span aria-label="2W+1+G" class="plain-math">2W+1+G</span> 个候选，全局位置有 <span aria-label="L" class="plain-math">L</span> 个候选，每个候选要做一次 <span aria-label="D" class="plain-math">D</span> 维点积；排序的元素个数比打分少一个因子 <span aria-label="D" class="plain-math">D</span>。
+空间复杂度 ：<span aria-label="O(L\cdot D)" class="plain-math">O(L· D)</span>，存下三个矩阵；每行的候选与分数另占 <span aria-label="O(L)" class="plain-math">O(L)</span>，可以随用随弃。</p>
+<h2 id="_9">易错点</h2>
+<p>只保留 严格大于 <span aria-label="0" class="plain-math">0</span> 的分数，<span aria-label="0" class="plain-math">0</span> 分候选必须剔除；剔除后一个都不剩时输出全 <span aria-label="0" class="plain-math">0</span> 行。 候选集要去重：全局位置落在局部窗口内时不能重复计入，否则同一位置的分数会被算两次。 排序口径是「分数降序、同分下标升序」，两次比较不能写反。 <span aria-label="G=0" class="plain-math">G=0</span> 时输入里没有全局位置那一行，多读一行会把矩阵整体错位。 输出是每行 <span aria-label="D" class="plain-math">D</span> 个整数、行内空格分隔，不要输出成 Python 的列表格式。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

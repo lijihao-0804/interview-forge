@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>FlashAttention 分块合并 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="flashattention">FlashAttention 分块合并</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">样例</a></li>
+<li><a href="#_3">思路分析</a></li>
+<li><a href="#_4">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_5">复杂度分析</a></li>
+<li><a href="#_6">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260819/ · 华为 · 2026-08-19 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>每个序列块维护状态三元组 <span aria-label="(m,d,v)" class="plain-math">(m,d,v)</span>：
+<span aria-label="m" class="plain-math">m</span>：该块打分的最大值； <span aria-label="d" class="plain-math">d</span>：以 <span aria-label="m" class="plain-math">m</span> 为基准重缩放后的权重和； <span aria-label="v" class="plain-math">v</span>：以 <span aria-label="m" class="plain-math">m</span> 为基准重缩放后的加权值之和。
+该状态对应的注意力结果为 <span aria-label="v/d" class="plain-math">v/d</span>。相邻状态 <span aria-label="A=(m_a,d_a,v_a)" class="plain-math">A=(m<sub>a</sub>,d<sub>a</sub>,v<sub>a</sub>)</span> 与 <span aria-label="B=(m_b,d_b,v_b)" class="plain-math">B=(m<sub>b</sub>,d<sub>b</sub>,v<sub>b</sub>)</span> 合并时，令
+该合并运算满足结合律。给定 <span aria-label="B" class="plain-math">B</span> 个按顺序排列的块，支持 <span aria-label="Q" class="plain-math">Q</span> 次操作：
+1 i m d v ：把第 i 个块替换为新状态； 2 l r ：依次合并第 l 到第 r 个块，输出结果 <span aria-label="v/d" class="plain-math">v/d</span>，保留 6 位小数。</p>
+<h2 id="_2">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 3
+1.0 2.0 8.0
+1.0 2.0 12.0
+2 1 2
+2 1 1
+2 2 2
+5.000000
+4.000000
+6.000000
+</code></pre></div>
+<h2 id="_3">思路分析</h2>
+<p>合并运算满足结合律，所以可以用线段树让每个节点保存对应区间的合并状态：
+单点更新只需重算叶子到根路径，复杂度 <span aria-label="O(\log B)" class="plain-math">O(log B)</span>； 区间查询由 <span aria-label="O(\log B)" class="plain-math">O(log B)</span> 个线段树节点组成。
+尽管该公式在数学上还满足交换律，下面仍使用通用的“左累积 + 右累积”迭代查询写法，严格保持区间顺序，也便于迁移到只满足结合律而不满足交换律的算子。
+为便于处理补齐叶子，定义空状态为 None ；它与任意真实状态合并都返回另一方。这样不需要依赖某个有限的负数模拟负无穷，也避免题目数值范围未知时哨兵不够小的问题。
+合并时统一减去两侧最大值，两个指数都不大于 0，可避免指数上溢；至少一侧指数严格为 1。只要输入状态的 d 为正，合并后的分母也为正。</p>
+<h2 id="_4">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">exp</span>
+
+
+<span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">left</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">right</span>
+    <span class="k">if</span> <span class="n">right</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">left</span>
+
+    <span class="n">lm</span><span class="p">,</span> <span class="n">ld</span><span class="p">,</span> <span class="n">lv</span> <span class="o">=</span> <span class="n">left</span>
+    <span class="n">rm</span><span class="p">,</span> <span class="n">rd</span><span class="p">,</span> <span class="n">rv</span> <span class="o">=</span> <span class="n">right</span>
+    <span class="n">maximum</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">lm</span><span class="p">,</span> <span class="n">rm</span><span class="p">)</span>
+    <span class="n">left_scale</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="n">lm</span> <span class="o">-</span> <span class="n">maximum</span><span class="p">)</span>
+    <span class="n">right_scale</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="n">rm</span> <span class="o">-</span> <span class="n">maximum</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">maximum</span><span class="p">,</span>
+        <span class="n">ld</span> <span class="o">*</span> <span class="n">left_scale</span> <span class="o">+</span> <span class="n">rd</span> <span class="o">*</span> <span class="n">right_scale</span><span class="p">,</span>
+        <span class="n">lv</span> <span class="o">*</span> <span class="n">left_scale</span> <span class="o">+</span> <span class="n">rv</span> <span class="o">*</span> <span class="n">right_scale</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">readline</span>
+    <span class="n">block_count</span><span class="p">,</span> <span class="n">query_count</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="n">blocks</span> <span class="o">=</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">block_count</span><span class="p">)]</span>
+
+    <span class="n">size</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="n">block_count</span><span class="p">:</span>
+        <span class="n">size</span> <span class="o">&lt;&lt;=</span> <span class="mi">1</span>
+
+    <span class="n">tree</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">size</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">blocks</span><span class="p">):</span>
+        <span class="n">tree</span><span class="p">[</span><span class="n">size</span> <span class="o">+</span> <span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">block</span>
+    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">tree</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="n">index</span> <span class="o">*</span> <span class="mi">2</span><span class="p">],</span> <span class="n">tree</span><span class="p">[</span><span class="n">index</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">size</span> <span class="o">+</span> <span class="n">position</span>
+        <span class="n">tree</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span>
+        <span class="n">index</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+        <span class="k">while</span> <span class="n">index</span><span class="p">:</span>
+            <span class="n">tree</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="n">index</span> <span class="o">*</span> <span class="mi">2</span><span class="p">],</span> <span class="n">tree</span><span class="p">[</span><span class="n">index</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">index</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">query</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+        <span class="c1"># 查询半开区间 [left, right)。</span>
+        <span class="n">left</span> <span class="o">+=</span> <span class="n">size</span>
+        <span class="n">right</span> <span class="o">+=</span> <span class="n">size</span>
+        <span class="n">left_result</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">right_result</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">left</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">left_result</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">left_result</span><span class="p">,</span> <span class="n">tree</span><span class="p">[</span><span class="n">left</span><span class="p">])</span>
+                <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">right</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">right_result</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="n">right</span><span class="p">],</span> <span class="n">right_result</span><span class="p">)</span>
+            <span class="n">left</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+            <span class="n">right</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">merge</span><span class="p">(</span><span class="n">left_result</span><span class="p">,</span> <span class="n">right_result</span><span class="p">)</span>
+
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">query_count</span><span class="p">):</span>
+        <span class="n">operation</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">operation</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">"1"</span><span class="p">:</span>
+            <span class="n">position</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">operation</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">state</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">operation</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">5</span><span class="p">]))</span>
+            <span class="n">update</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">operation</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">right</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">operation</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">denominator</span><span class="p">,</span> <span class="n">numerator</span> <span class="o">=</span> <span class="n">query</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">numerator</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">denominator</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_5">复杂度分析</h2>
+<p>建树时间复杂度 ：<span aria-label="O(B)" class="plain-math">O(B)</span>； 每次更新或查询时间复杂度 ：<span aria-label="O(\log B)" class="plain-math">O(log B)</span>； 空间复杂度 ：<span aria-label="O(B)" class="plain-math">O(B)</span>。</p>
+<h2 id="_6">易错点</h2>
+<p>必须先减去公共最大值再取指数，避免上溢。 区间查询应保持块的原始顺序。 输出的是合并后的 v / d ，不是三元组本身。 使用 None 作为单位元比猜测一个足够小的有限哨兵更稳健。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

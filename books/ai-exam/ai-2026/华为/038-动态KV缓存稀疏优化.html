@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>动态KV缓存稀疏优化 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="kv">动态KV缓存稀疏优化</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#1">样例1</a></li>
+<li><a href="#2">样例2</a></li>
+<li><a href="#_4">题解：排序贪心</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">算法实现</a></li>
+<li><a href="#_7">复杂度分析</a></li>
+<li><a href="#_8">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_9">正确性说明</a></li>
+<li><a href="#_10">易错点与边界</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260909/ · 华为 · 2026-09-09 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>在大型语言模型（LLM）的实时推理场景中（如长文档生成、无限对话系统），KV 缓存会随序列增长消耗大量显存。为解决显存瓶颈，需要对 KV 缓存进行稀疏化处理：在全局显存预算约束下，为每层每个注意力头选择重要性较高的 token 保留其 KV 缓存，且每层可保留不同数量的 token。
+约束要求如下：
+必须保留当前正在生成的 token（位置索引 ）的 KV 缓存。 其他剩余位置的 KV，按注意力分数从高到低全局排序，优先保留注意力分数高的 token。 当注意力分数相同时，按以下优先级选择：层索引 从低到高排序，头索引 从低到高排序，token 索引 从低到高排序。例如 与 ，则优先保留 内的 token。 总保留 token 数不超过显存预算 ，本题中显存预算保证每层每头至少保留 个 token。
+核心解题步骤如下：
+计算必须保留的 token 数 （即每层每头位置 各一个），从预算中减去必须保留的 token 数： 。 对除位置 之外的所有注意力分数进行全局从高到低排序，取注意力分数前 的数值，记录对应的层索引 、头索引 、token 索引 。 如遇到注意力分数相同且超出显存预算的情况，按照约束要求 的规则选择。 输出符合要求的每层每头最终保留的 token 索引 。</p>
+<h2 id="_2">输入描述</h2>
+<p>第一行包含四个整数 ，其中 为层数、 为头数、 为序列长度、 为显存预算。
+随后 行：每行包含 个浮点数（空格分隔），表示该层所有头的注意力分数，每头连续 个浮点数，按照头索引顺序排列，每个注意力分数满足 且最多保留 位小数。
+最后一行： ，表示当前生成位置索引。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出 行，每行表示一层，包含 个字符串，字符串之间用空格分隔。
+每个字符串表示该层该头保留的 token 索引 ，索引按照升序排列，以逗号分隔。</p>
+<h2 id="1">样例1</h2>
+<p>输入
+输出
+样例解释
+共 层 头，每层每头都必须保留位置 ，占掉 个预算，剩余预算为 。
+除位置 之外的候选按分数从高到低排列为：第 层第 头的位置 与第 层第 头的位置 分数同为 ，随后是四个分数为 的候选，最后是两个分数为 的候选。
+取前 个候选，得到第 层第 头的位置 、第 层第 头的位置 ，以及四个 候选中层索引与头索引最小的第 层第 头的位置 。因此第 层两个头分别保留 与 ，第 层两个头都保留 。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 2 3 7
+0.1 0.2 0.1 0.3 0.3 0.3
+0.3 0.4 0.6 0.3 0.5 0.6
+1
+1 0,1
+1,2 1,2
+</code></pre></div>
+<h2 id="2">样例2</h2>
+<p>输入
+输出
+样例解释
+必须保留的位置 占掉 个预算，剩余预算为 。
+候选中分数为 的有三个，分别位于第 层第 头的位置 、第 层第 头的位置 、第 层第 头的位置 。按层索引、头索引、token 索引依次比较，第 层第 头的位置 排在最前，唯一的剩余预算给了它。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 1 3 3
+0.5 0.1 0.5
+0.5 0.2 0.4
+1
+0,1
+1
+</code></pre></div>
+<h2 id="_4">题解：排序贪心</h2>
+<h2 id="_5">思路分析</h2>
+<p>每层每个注意力头都有 个 token 的注意力分数，全局只允许保留 份 KV 缓存，其中每层每头当前生成位置 的那份必须保留。问每层每头最终留下哪些 token 索引。
+这是一道规则已经写死、难点在读懂规则的排序贪心题：要看清剩余名额是跨层跨头统一竞争的，以及同分时那条三级优先级怎么落到比较器上。</p>
+<h2 id="_6">算法实现</h2>
+<p>先看名额怎么分。位置 无条件保留，每层每头各占一个，这是刚性开销：
+题面保证每层每头至少留 个，故 。
+剩下的名额给谁，约束二写的是”全局排序”。全局二字是关键：它不是给每层各切一份预算，而是把 个候选丢进同一个池子排队，所以每层保留的数量才会互不相同。
+朴素做法是每轮扫全表挑出当前最优，重复 轮，复杂度 ；两个因子都可达 ，乘起来约 次比较必然超时。这些轮次其实在反复求同一个序的前几名，一次全局排序就能一并算完。
+于是把候选写成三元组 （ ），排序键取
+第一维取负把分数降序与索引升序统一成一次升序排序；分数相同时依次比 、 、 ，正好是约束三的三级优先级。这个键构成全序，排序结果与答案都唯一。
+算法实现上分三步：
+第一步，给每层每头放入 ，并算出 。
+第二步，把 的候选按上面的键升序排序，取前 个按各自的 归位。
+第三步，每个头内部把索引升序排一次，同层的 个字符串用空格连接后逐行输出。
+第三步不能省： 是最先塞进去的，某个头后来抢到比 小的索引时，不排就会输出 这种逆序。</p>
+<h2 id="_7">复杂度分析</h2>
+<p>时间复杂度 ： 。瓶颈是候选池排序；建池与归位各 、末尾每头再排一次合计 ，量级都更低。候选数上限 ，约 次比较，远在限时之内。
+空间复杂度 ： ，分数矩阵与候选池各占这个量级。</p>
+<h2 id="_8">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="n">C</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""在显存预算 M 之内，算出每层每头最终保留的 token 索引。"""</span>
+    <span class="n">kept</span> <span class="o">=</span> <span class="p">[[[</span><span class="n">C</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">H</span><span class="p">)]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">)]</span>
+    <span class="n">remaining</span> <span class="o">=</span> <span class="n">M</span> <span class="o">-</span> <span class="n">L</span> <span class="o">*</span> <span class="n">H</span>
+
+    <span class="n">cands</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">H</span><span class="p">):</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="n">scores</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">h</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="n">C</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">cands</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="o">-</span><span class="n">row</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">l</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+    <span class="n">cands</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">l</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">cands</span><span class="p">[:</span><span class="nb">max</span><span class="p">(</span><span class="n">remaining</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]:</span>
+        <span class="n">kept</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">h</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">H</span><span class="p">):</span>
+            <span class="n">kept</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">h</span><span class="p">]</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">kept</span>
+
+<span class="n">L</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">M</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+
+<span class="n">scores</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">scores</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">row</span><span class="p">[</span><span class="n">h</span> <span class="o">*</span> <span class="n">N</span><span class="p">:(</span><span class="n">h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">N</span><span class="p">]</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">H</span><span class="p">)])</span>
+<span class="n">C</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+
+<span class="n">kept</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="n">C</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">' '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">','</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">kept</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">h</span><span class="p">]))</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">H</span><span class="p">)))</span>
+</code></pre></div>
+</div><h2 id="_9">正确性说明</h2>
+<p>先保留所有强制位置是可行解的必要条件。余下候选的比较键是题面规定的全序，取其前 remaining 个恰好执行规则；最终只对各头索引重排，不改变被选集合。</p>
+<h2 id="_10">易错点与边界</h2>
+<p>全局预算不是每头均分；强制位置不能在候选池再次选中；分数相同时依次比较层、头、位置。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

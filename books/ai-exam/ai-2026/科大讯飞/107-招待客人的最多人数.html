@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>招待客人的最多人数 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 科大讯飞</div>
+<h1 id="_1">招待客人的最多人数</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例1</a></li>
+<li><a href="#2">样例2</a></li>
+<li><a href="#_5">题解：排序贪心</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/iflytek/algo-20260906/ · 科大讯飞 · 2026-09-06 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入两个正整数 ，分别表示天数和食物总量。
+第二行输入  个正整数 ，表示每个人每天的食物消耗量。</p>
+<h2 id="_4">输出描述</h2>
+<p>输出一个整数表示答案。</p>
+<h2 id="1">样例1</h2>
+<p>输入
+输出
+样例解释</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3 10
+2 4 3
+2
+</code></pre></div>
+<h2 id="2">样例2</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>5 75
+1 1 1 1 1
+5
+</code></pre></div>
+<h2 id="_5">题解：排序贪心</h2>
+<p>一共  天，第  个人在第  天到访并住到第  天，住期内每天吃掉  份食物。总食物为 ，可以任意回绝一些人，问最多能接受几个人。
+这是一道把决策先化成独立代价、再排序取前缀的贪心题：难点不在实现，而在看出每个人的总花费与接受了谁无关，从而把”选哪些人”退化成”选哪些数”。
+先算每个人的代价。第  个人从第  天住到第  天，共  天，每天  份，所以总花费为
+这个值只由  与  决定，不含任何与其他人有关的项，因此  个人的花费互不干扰，问题变成：从  个正数里选尽量多个，使它们的和不超过 。
+再看该选哪些数。枚举子集是 ， 到  时不可行；但目标只数人数、不管花掉多少，所以人数同为  的方案总能换成花费最小的那  个：把已选中最贵的一个换成没被选中且更便宜的人，总花费只减不增，方案依然合法，反复替换即得。
+于是把  升序排序，从最便宜的开始逐个累加，装得下就计数加一。
+扫到第一个装不下的人时可以直接停：排序后它之后的  都不小于它，前缀和严格递增，当前前缀既已超过 ，更长的前缀只会更大。
+小于最小的  时一个人都请不起，循环第一轮就退出，计数保持 。
+时间复杂度 ：。瓶颈是排序，求  与累加各只需一趟  扫描； 时总量微乎其微。 空间复杂度 ：，存放  个人的  数组。 Python</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>## 招待客人的最多人数 - 排序贪心
+
+## 计算每个人从到访日住到第 n 天的总食物消耗
+def build_costs(n, a):
+    costs = []
+    for i in range(n):
+        # 第 i+1 个人第 i+1 天来，住到第 n 天，共 n - i 天
+        days = n - i
+        costs.append(a[i] * days)
+    return costs
+
+## 在总消耗不超过 m 的前提下，最多能接受几个人
+def max_guests(costs, m):
+    # 答案只关心"接受几个人"，不关心接受谁，所以永远优先挑最便宜的
+    costs.sort()
+    total = 0
+    cnt = 0
+    for c in costs:
+        # 一旦装不下当前这个最便宜的人，后面的更贵，直接停
+        if total + c &gt; m:
+            break
+        total += c
+        cnt += 1
+    return cnt
+
+n, m = map(int, input().split())
+a = list(map(int, input().split()))
+print(max_guests(build_costs(n, a), m))
+</code></pre></div>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

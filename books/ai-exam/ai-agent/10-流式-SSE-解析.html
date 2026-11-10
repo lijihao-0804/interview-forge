@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>流式 SSE 解析 · InterviewForge</title>
+<link href="../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-agent</div>
+<h1 id="sse">流式 SSE 解析</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#python">Python 实现</a></li>
+<li><a href="#agent">第四层：可观测与多 Agent 协作</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：外部面经参考/02-AI与Agent手撕代码题.md · AI/Agent 手撕题</p>
+</blockquote>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="k">def</span> <span class="nf">parse_sse</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"event"</span><span class="p">:</span> <span class="s2">"message"</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="p">[]}</span>
+    <span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"data"</span><span class="p">]:</span>
+                <span class="k">yield</span> <span class="p">{</span><span class="s2">"event"</span><span class="p">:</span> <span class="n">event</span><span class="p">[</span><span class="s2">"event"</span><span class="p">],</span> <span class="s2">"data"</span><span class="p">:</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">event</span><span class="p">[</span><span class="s2">"data"</span><span class="p">])}</span>
+            <span class="n">event</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"event"</span><span class="p">:</span> <span class="s2">"message"</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="p">[]}</span>
+        <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"event:"</span><span class="p">):</span>
+            <span class="n">event</span><span class="p">[</span><span class="s2">"event"</span><span class="p">]</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">6</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"data:"</span><span class="p">):</span>
+            <span class="n">event</span><span class="p">[</span><span class="s2">"data"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">5</span><span class="p">:]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">())</span>
+</code></pre></div>
+<p><strong>追问</strong>：断线重连如何避免漏事件？<code>Last-Event-ID</code> 如何使用？SSE 与 WebSocket 如何选择？</p>
+</div><h2 id="agent">第四层：可观测与多 Agent 协作</h2>
+<p>面向生产的问题：追踪聚合与并发冲突。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

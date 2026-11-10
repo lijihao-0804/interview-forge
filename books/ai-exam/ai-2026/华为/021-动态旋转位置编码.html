@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>动态旋转位置编码 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">动态旋转位置编码</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">样例</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260624/ · 华为 · 2026-06-24 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>实现 Dynamic NTK-aware Scaled RoPE：根据当前序列长度 <span aria-label="T" class="plain-math">T</span> 动态调整基频，对位置 <span aria-label="m" class="plain-math">m</span> 处的向量逐对施加二维旋转。
+动态缩放因子：<span class="math-inline-wrap"><math aria-label="s = max(1, T/L)" class="math-inline"><mrow><mi>s</mi><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi mathvariant="normal">max</mi><mo>(</mo><mn>1</mn><mo>,</mo><mspace width=".18em"></mspace><mi>T</mi><mo>/</mo><mi>L</mi><mo>)</mo></mrow></math></span>，其中 <span aria-label="L" class="plain-math">L</span> 为原始预训练长度 基频变换：<span class="math-inline-wrap"><math aria-label="base’ = b · s^D/(D-2)" class="math-inline"><mrow><mtext>base</mtext><mo>’</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>b</mi><mspace width=".18em"></mspace><mo>·</mo><mspace width=".18em"></mspace><msup><mi>s</mi><mrow><mi>D</mi><mo>/</mo><mo>(</mo><mi>D</mi><mo>-</mo><mn>2</mn><mo>)</mo></mrow></msup></mrow></math></span> 第 <span aria-label="i" class="plain-math">i</span> 对维度的旋转角：<span class="math-inline-wrap"><math aria-label="theta_i = m · base’^-2i/D" class="math-inline"><mrow><msub><mo>θ</mo><mi>i</mi></msub><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>m</mi><mspace width=".18em"></mspace><mo>·</mo><mspace width=".18em"></mspace><mtext>base</mtext><msup><mo>’</mo><mrow><mo>-</mo><mn>2</mn><mi>i</mi><mo>/</mo><mi>D</mi></mrow></msup></mrow></math></span> 旋转变换：<span class="math-inline-wrap"><math aria-label="x’ 2i = x 2i costheta_i - x_2i+1 sintheta_i" class="math-inline"><mrow><mi>x</mi><mo>’</mo><mspace width=".18em"></mspace><mrow><mn>2</mn><mi>i</mi></mrow><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>x</mi><mspace width=".18em"></mspace><mrow><mn>2</mn><mi>i</mi></mrow><mspace width=".18em"></mspace><mi mathvariant="normal">cos</mi><msub><mo>θ</mo><mi>i</mi></msub><mspace width=".18em"></mspace><mo>-</mo><mspace width=".18em"></mspace><msub><mi>x</mi><mrow><mn>2</mn><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mspace width=".18em"></mspace><mi mathvariant="normal">sin</mi><msub><mo>θ</mo><mi>i</mi></msub></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="x’ 2i+1 = x 2i sintheta_i + x_2i+1 costheta_i" class="math-inline"><mrow><mi>x</mi><mo>’</mo><mspace width=".18em"></mspace><mrow><mn>2</mn><mi>i</mi><mo>+</mo><mn>1</mn></mrow><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>x</mi><mspace width=".18em"></mspace><mrow><mn>2</mn><mi>i</mi></mrow><mspace width=".18em"></mspace><mi mathvariant="normal">sin</mi><msub><mo>θ</mo><mi>i</mi></msub><mspace width=".18em"></mspace><mo>+</mo><mspace width=".18em"></mspace><msub><mi>x</mi><mrow><mn>2</mn><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mspace width=".18em"></mspace><mi mathvariant="normal">cos</mi><msub><mo>θ</mo><mi>i</mi></msub></mrow></math></span>
+输出保留 4 位小数。</p>
+<h2 id="_3">样例</h2>
+<p>输入
+输出
+输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>368 276 16 1450.9560044215173 209
+-1.8728 1.3494 1.2030 -0.5053 -1.0223 -0.4466 1.5474 0.0967 0.0820 -2.1588 0.9543 0.0011 -0.0810 0.4860 -0.0258 0.2101
+-1.1873 -1.9795 0.3002 -1.2698 -1.0961 -0.2079 1.3933 -0.6801 -2.1600 0.0418 -0.2163 0.9295 -0.3734 0.3215 -0.0806 0.1957
+20 10 16 100.0 12
+1.0 0.0 -1.0 0.5 0.3 -0.2 1.0 0.0 -1.0 0.5 0.3 -0.2 1.0 0.0 -1.0 0.5
+0.8439 -0.5366 -0.9001 0.6631 -0.2941 0.2085 -0.0147 0.9999 -1.0526 -0.3769 0.3549 -0.0634 0.9781 0.2080 -1.0476 0.3907
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：理解 NTK-aware RoPE
+标准 RoPE 用固定基频 <span aria-label="b = 10000" class="plain-math">b = 10000</span> 对不同维度对赋予不同频率的旋转。当推理序列超过预训练长度时，需要动态内插：通过放大基频来拉伸低频分量的波长，使更长上下文中仍能区分相对位置。
+第二步：三步公式直接模拟
+计算缩放因子 <span aria-label="s" class="plain-math">s</span>（仅当 <span aria-label="T &gt; L" class="plain-math">T &gt; L</span> 时放大） 计算新基频 <span class="math-inline-wrap"><math aria-label="base’ = b · s^D/(D-2)" class="math-inline"><mrow><mtext>base</mtext><mo>’</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>b</mi><mspace width=".18em"></mspace><mo>·</mo><mspace width=".18em"></mspace><msup><mi>s</mi><mrow><mi>D</mi><mo>/</mo><mo>(</mo><mi>D</mi><mo>-</mo><mn>2</mn><mo>)</mo></mrow></msup></mrow></math></span> 对 <span aria-label="D/2" class="plain-math">D/2</span> 对维度依次计算旋转角 <span class="math-inline-wrap"><math aria-label="theta_i" class="math-inline"><mrow><msub><mo>θ</mo><mi>i</mi></msub></mrow></math></span> 并做二维旋转
+第三步：精度注意
+全程使用 float64，输出统一 4 位小数，注意 -0.0000 要输出为 0.0000 。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">math</span>
+
+<span class="n">first</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+<span class="n">T</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span> <span class="n">L</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span> <span class="n">D</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">b</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span> <span class="n">m</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+<span class="n">x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+
+<span class="n">s</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">T</span> <span class="o">/</span> <span class="n">L</span><span class="p">)</span>
+<span class="n">base</span> <span class="o">=</span> <span class="n">b</span> <span class="o">*</span> <span class="n">s</span> <span class="o">**</span> <span class="p">(</span><span class="n">D</span> <span class="o">/</span> <span class="p">(</span><span class="n">D</span> <span class="o">-</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="n">out</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">D</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">D</span> <span class="o">//</span> <span class="mi">2</span><span class="p">):</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">m</span> <span class="o">*</span> <span class="n">base</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">i</span> <span class="o">/</span> <span class="n">D</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">sn</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">i</span>
+    <span class="n">out</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">*</span> <span class="n">c</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">sn</span>
+    <span class="n">out</span><span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">*</span> <span class="n">sn</span> <span class="o">+</span> <span class="n">x</span><span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">c</span>
+
+<span class="k">def</span> <span class="nf">fmt</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="s2">"0.0000"</span> <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"-0.0000"</span> <span class="k">else</span> <span class="n">t</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">fmt</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">out</span><span class="p">))</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(D)" class="plain-math">O(D)</span>，遍历 <span aria-label="D/2" class="plain-math">D/2</span> 对维度。 空间复杂度 ：<span aria-label="O(D)" class="plain-math">O(D)</span>。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

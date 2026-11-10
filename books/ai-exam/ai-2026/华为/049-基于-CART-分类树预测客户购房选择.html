@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>基于 CART 分类树预测客户购房选择 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="cart">基于 CART 分类树预测客户购房选择</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_2">思路分析</a></li>
+<li><a href="#_3">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_4">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>给定客户训练数据，按指定规则构建 CART 二叉分类树，预测待测客户是否购房。每条训练记录包含 4 个整数枚举特征和 1 个二分类标签：
+特征 1：年龄段，0 为 18—30 岁，1 为 31—40 岁，2 为 41—55 岁，3 为 56 岁及以上。 特征 2：婚姻状况，0 为单身，1 为恋爱，2 为已婚。 特征 3：是否有房，0 为无，1 为有。 特征 4：是否有工作，0 为无，1 为有。 标签：是否购房，0 为否，1 为是。
+对特征 <span aria-label="A" class="plain-math">A</span> 和候选取值 <span aria-label="v" class="plain-math">v</span>，左子集为 <span class="math-inline-wrap"><math aria-label="D_1=s∈ D:s_A=v" class="math-inline"><mrow><msub><mi>D</mi><mn>1</mn></msub><mo>=</mo><mrow><mi>s</mi><mo>∈</mo><mspace width=".18em"></mspace><mi>D</mi><mo>:</mo><msub><mi>s</mi><mi>A</mi></msub><mo>=</mo><mi>v</mi></mrow></mrow></math></span>，右子集为 <span class="math-inline-wrap"><math aria-label="D_2=s∈ D:s_A≠ v" class="math-inline"><mrow><msub><mi>D</mi><mn>2</mn></msub><mo>=</mo><mrow><mi>s</mi><mo>∈</mo><mspace width=".18em"></mspace><mi>D</mi><mo>:</mo><msub><mi>s</mi><mi>A</mi></msub><mo>≠</mo><mspace width=".18em"></mspace><mi>v</mi></mrow></mrow></math></span>。候选值取当前节点出现的特征值。
+对于包含 <span aria-label="K" class="plain-math">K</span> 个类别的数据集 <span aria-label="D" class="plain-math">D</span>，第 <span aria-label="k" class="plain-math">k</span> 类占比为 <span aria-label="p_k" class="plain-math">p<sub>k</sub></span>，基尼指数为
+切分的加权基尼指数为
+选择加权基尼指数最小的切分。多个候选同分时先选特征编号较小的；同一特征同分时选取值较小的。满足以下任一条件即停止，生成叶子：
+所有样本标签相同。 样本数小于 2。 没有切分能够使基尼指数严格降低。
+叶子预测多数类别；类别数相同时预测编号较小的 0。预测时特征值等于切分值走左支，否则走右支。
+输入格式 ：第一行为 <span aria-label="N" class="plain-math">N</span>，<span class="math-inline-wrap"><math aria-label="4≤ Nle20" class="math-inline"><mrow><mn>4</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>N</mi><mo>≤</mo><mn>20</mn></mrow></math></span>；随后 <span aria-label="N" class="plain-math">N</span> 行各含 5 个整数，前 4 个为特征，最后一个为标签。再输入 <span aria-label="M" class="plain-math">M</span>，<span class="math-inline-wrap"><math aria-label="1≤ Mle10" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>M</mi><mo>≤</mo><mn>10</mn></mrow></math></span>，随后 <span aria-label="M" class="plain-math">M</span> 行各含 4 个测试特征。
+输出格式 ：输出一行 <span aria-label="M" class="plain-math">M</span> 个预测标签，用空格分隔。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>8
+0 0 0 0 0
+0 1 0 1 1
+1 0 0 1 1
+1 1 1 0 1
+2 2 1 1 1
+2 0 0 0 0
+3 2 1 0 0
+3 2 0 1 1
+3
+2 0 0 0
+1 1 1 0
+3 2 1 0
+0 1 0
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>20
+0 0 0 1 1
+0 0 1 0 0
+0 1 0 0 0
+0 1 1 1 1
+0 2 0 1 1
+1 0 0 0 0
+1 0 1 1 1
+1 1 0 1 1
+1 1 1 0 0
+1 2 1 0 0
+2 0 0 1 1
+2 0 1 0 1
+2 1 0 0 0
+2 1 1 1 1
+2 2 0 0 0
+3 0 0 0 0
+3 0 1 1 0
+3 1 0 1 1
+3 1 1 0 0
+3 2 0 1 0
+10
+1 1 1 0
+2 0 0 1
+3 2 0 1
+0 0 0 1
+1 2 1 0
+2 1 0 0
+3 0 1 1
+0 1 1 1
+1 0 0 0
+2 2 0 0
+0 1 0 1 0 0 0 1 0 0
+</code></pre></div>
+<h2 id="_2">思路分析</h2>
+<p>第一步：把训练过程视为确定性的递归规则。
+本题不是寻找全局最优决策树，也不进行剪枝或随机选特征。对每个节点枚举规定的二元切分，选择当前最优，再递归处理左右子集即可。某个特征可以重复使用，因为先分出一种取值后，右侧仍可能包含该特征的其他取值。
+第二步：用分数精确比较基尼指数。
+设节点中标签 0、1 的数量分别为 <span aria-label="c_0,c_1" class="plain-math">c<sub>0</sub>,c<sub>1</sub></span>，样本数为 <span aria-label="s=c_0+c_1" class="plain-math">s=c<sub>0</sub>+c<sub>1</sub></span>。定义
+空集的 mass 约定为 0。对于同一个父节点，所有候选的加权基尼都有相同的分母 <span class="math-inline-wrap"><math aria-label="| D|" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><mi>D</mi><mo>|</mo></mrow></math></span>，所以可以比较
+代码保存分数的分子和分母，不需要浮点运算。比较 <span aria-label="a/b&lt;c/d" class="plain-math">a/b&lt;c/d</span> 时判断 <span aria-label="ad&lt;cb" class="plain-math">ad&lt;cb</span>；两分数相加使用 <span aria-label="(ad+cb)/(bd)" class="plain-math">(ad+cb)/(bd)</span>。这样不会把数学上的平局误判成微小差异。
+第三步：用遍历顺序落实平局规则。
+按特征 1 到 4、取值从小到大枚举，只在新分数严格更小时更新最优项。同分候选不覆盖旧候选，自然保留较小特征编号和较小取值。
+最优切分仍必须严格优于父节点的 mass，否则直接返回多数类叶子。全体样本落到一侧的候选不会降低基尼，可以跳过。标签不纯也可能停止：例如异或型标签，两侧类别比例与父节点一致时，任何一步都不能降低基尼；不能为了以后可能变纯而强行继续切分。
+第四步：核对样例与预测路径。
+样例 1 的根节点标签数量为 3 个 0、5 个 1，基尼为 0.46875。以“特征 4 等于 0”切分，左侧标签为 0、1、0、0，右侧全为 1，加权基尼为 0.1875。左右互换的取值 1 得到同分，因此选取值 0。左侧再按“特征 1 等于 1”切分，两侧变纯。三个测试客户最终预测为 0、1、0。
+训练时没有出现的测试取值，也按“不等于当前切分值”走右支，不需要单独建立未知类别分支。</p>
+<h2 id="_3">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="k">def</span> <span class="nf">mass</span><span class="p">(</span><span class="n">count_zero</span><span class="p">,</span> <span class="n">count_one</span><span class="p">):</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">count_zero</span> <span class="o">+</span> <span class="n">count_one</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">count_zero</span> <span class="o">*</span> <span class="n">count_one</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span> <span class="k">if</span> <span class="n">size</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">add_fraction</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">less_fraction</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">build_tree</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+    <span class="n">count_one</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">)</span>
+    <span class="n">count_zero</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">-</span> <span class="n">count_one</span>
+    <span class="n">majority</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">count_one</span> <span class="o">&gt;</span> <span class="n">count_zero</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">count_zero</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">count_one</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">majority</span><span class="p">,)</span>
+
+    <span class="n">best_score</span> <span class="o">=</span> <span class="n">mass</span><span class="p">(</span><span class="n">count_zero</span><span class="p">,</span> <span class="n">count_one</span><span class="p">)</span>
+    <span class="n">best_feature</span> <span class="o">=</span> <span class="n">best_value</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">feature</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">row</span><span class="p">[</span><span class="n">feature</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">}):</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">feature</span><span class="p">]</span> <span class="o">==</span> <span class="n">value</span><span class="p">]</span>
+            <span class="n">left_one</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">left</span><span class="p">)</span>
+            <span class="n">left_zero</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">left</span><span class="p">)</span> <span class="o">-</span> <span class="n">left_one</span>
+            <span class="n">score</span> <span class="o">=</span> <span class="n">add_fraction</span><span class="p">(</span>
+                <span class="n">mass</span><span class="p">(</span><span class="n">left_zero</span><span class="p">,</span> <span class="n">left_one</span><span class="p">),</span>
+                <span class="n">mass</span><span class="p">(</span><span class="n">count_zero</span> <span class="o">-</span> <span class="n">left_zero</span><span class="p">,</span> <span class="n">count_one</span> <span class="o">-</span> <span class="n">left_one</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">less_fraction</span><span class="p">(</span><span class="n">score</span><span class="p">,</span> <span class="n">best_score</span><span class="p">):</span>
+                <span class="n">best_score</span> <span class="o">=</span> <span class="n">score</span>
+                <span class="n">best_feature</span><span class="p">,</span> <span class="n">best_value</span> <span class="o">=</span> <span class="n">feature</span><span class="p">,</span> <span class="n">value</span>
+
+    <span class="k">if</span> <span class="n">best_feature</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">majority</span><span class="p">,)</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">best_feature</span><span class="p">]</span> <span class="o">==</span> <span class="n">best_value</span><span class="p">]</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">best_feature</span><span class="p">]</span> <span class="o">!=</span> <span class="n">best_value</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">best_feature</span><span class="p">,</span> <span class="n">best_value</span><span class="p">,</span> <span class="n">build_tree</span><span class="p">(</span><span class="n">left</span><span class="p">),</span> <span class="n">build_tree</span><span class="p">(</span><span class="n">right</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">sample</span><span class="p">):</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">feature</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="n">tree</span>
+        <span class="n">tree</span> <span class="o">=</span> <span class="n">left</span> <span class="k">if</span> <span class="n">sample</span><span class="p">[</span><span class="n">feature</span><span class="p">]</span> <span class="o">==</span> <span class="n">value</span> <span class="k">else</span> <span class="n">right</span>
+    <span class="k">return</span> <span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">build_tree</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">answers</span> <span class="o">=</span> <span class="p">[</span><span class="n">predict</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">answers</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_4">复杂度分析</h2>
+<p>设树深为 <span aria-label="H" class="plain-math">H</span>。每个特征的取值数不超过 4，节点中有 <span aria-label="s" class="plain-math">s</span> 条记录时，枚举并计算全部候选需要 <span aria-label="O(s)" class="plain-math">O(s)</span> 时间。每层节点的样本集合互不重叠，建树需要 <span aria-label="O(NH)" class="plain-math">O(NH)</span>，预测需要 <span aria-label="O(MH)" class="plain-math">O(MH)</span>。
+本题的取值域固定为 4、3、2、2。沿任一路径，每次有效切分都会使某个特征的剩余可能取值数至少减少 1，因此 <span aria-label="H\le(4-1)+(3-1)+(2-1)+(2-1)=7" class="plain-math">H≤(4-1)+(3-1)+(2-1)+(2-1)=7</span>。按本题固定域， 时间复杂度 为 <span aria-label="O(N+M)" class="plain-math">O(N+M)</span>，常数来自特征与候选枚举。如果只使用 <span aria-label="H\le N" class="plain-math">H≤ N</span> 而不利用固定域带来的更紧深度界，也可写成保守上界 <span aria-label="O(N^2+MN)" class="plain-math">O(N<sup>2</sup>+MN)</span>；这一估计仍以每个特征的候选数为常数为前提。
+空间复杂度 ：递归会保留祖先的样本列表，上界为 <span aria-label="O(NH)" class="plain-math">O(NH)</span>；本题 <span class="math-inline-wrap"><math aria-label="Hle7" class="math-inline"><mrow><mi>H</mi><mo>≤</mo><mn>7</mn></mrow></math></span>，因此为 <span aria-label="O(N)" class="plain-math">O(N)</span>。树节点、训练集和输出列表同样在此范围内。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

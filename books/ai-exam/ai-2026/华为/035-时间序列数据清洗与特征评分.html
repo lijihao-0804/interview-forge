@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>时间序列数据清洗与特征评分 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">时间序列数据清洗与特征评分</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">样例</a></li>
+<li><a href="#_6">算法</a></li>
+<li><a href="#_7">正确性证明</a></li>
+<li><a href="#python-acm">Python ACM 题解</a></li>
+<li><a href="#_8">复杂度分析</a></li>
+<li><a href="#_9">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260904/ · 华为 · 2026-09-04 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>给定 <span aria-label="n" class="plain-math">n</span> 条按时间戳严格递增的记录 <span aria-label="(t_i,v_i,q_i)" class="plain-math">(t<sub>i</sub>,v<sub>i</sub>,q<sub>i</sub>)</span>。质量标记中，0 表示有效、1 表示可疑、2 表示无效。依次执行：
+插值 ：仅处理 <span aria-label="q_i=2" class="plain-math">q<sub>i</sub>=2</span> 的记录，前继/后继锚点只认 <span aria-label="q=0" class="plain-math">q=0</span>。两侧都有锚点 <span aria-label="(t_a,v_a),(t_b,v_b)" class="plain-math">(t<sub>a</sub>,v<sub>a</sub>),(t<sub>b</sub>,v<sub>b</sub>)</span> 时令
+(v_i=v_a+(v_b-v_a)\frac{t_i-t_a}{t_b-t_a};)
+只有一侧时复制该侧值；两侧都没有则保留原值。 异常平滑 ：窗口大小 <span aria-label="w" class="plain-math">w</span> 为奇数。位置 <span aria-label="i" class="plain-math">i</span> 的窗口是序列范围与 <span aria-label="[i-(w-1)/2,i+(w-1)/2]" class="plain-math">[i-(w-1)/2,i+(w-1)/2]</span> 的交集。窗口均值、总体标准差都由步骤 1 的同一份快照计算；若 <span class="math-inline-wrap"><math aria-label="| v_i-μ|&gt;kσ" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><msub><mi>v</mi><mi>i</mi></msub><mo>-</mo><mo>μ</mo><mo>|</mo><mo>&gt;</mo><mi>k</mi><mo>σ</mo></mrow></math></span>，则把该点替换为 <span class="math-inline-wrap"><math aria-label="μ" class="math-inline"><mrow><mo>μ</mo></mrow></math></span>。所有替换统一写入新序列。 标准化 ：对步骤 2 的序列计算总体均值 <span class="math-inline-wrap"><math aria-label="bar v" class="math-inline"><mrow><mover><mrow></mrow><mo>¯</mo></mover><mi>v</mi></mrow></math></span> 和总体标准差 <span aria-label="s" class="plain-math">s</span>，令 <span class="math-inline-wrap"><math aria-label="z_i=(v_i-bar v)/s" class="math-inline"><mrow><msub><mi>z</mi><mi>i</mi></msub><mo>=</mo><mo>(</mo><msub><mi>v</mi><mi>i</mi></msub><mo>-</mo><mover><mrow></mrow><mo>¯</mo></mover><mi>v</mi><mo>)</mo><mo>/</mo><mi>s</mi></mrow></math></span>；若 <span aria-label="s=0" class="plain-math">s=0</span>，所有 <span aria-label="z_i=0" class="plain-math">z<sub>i</sub>=0</span>。 评分 ：质量权重 <span aria-label="p_i" class="plain-math">p<sub>i</sub></span> 在 <span aria-label="q_i=0,1,2" class="plain-math">q<sub>i</sub>=0,1,2</span> 时分别为 <span aria-label="1,0.5,0.25" class="plain-math">1,0.5,0.25</span>。令
+(w_i=\frac{p_i\lvert v_i\rvert}{\sum_jp_j\lvert v_j\rvert},\qquad S=\sum_iw_i\lvert z_i\rvert.)
+若分母为 0，则 <span aria-label="S=0" class="plain-math">S=0</span>。输出 <span class="math-inline-wrap"><math aria-label="Stimes100" class="math-inline"><mrow><mi>S</mi><mo>×</mo><mn>100</mn></mrow></math></span> 四舍五入后的整数，恰为 0.5 时向上取整。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入 <span aria-label="n,w,k" class="plain-math">n,w,k</span>，其中
+接下来 <span aria-label="n" class="plain-math">n</span> 行输入 <span aria-label="t_i,v_i,q_i" class="plain-math">t<sub>i</sub>,v<sub>i</sub>,q<sub>i</sub></span>，满足
+且 <span aria-label="t_i" class="plain-math">t<sub>i</sub></span> 严格递增，至少有一条 <span aria-label="q_i=0" class="plain-math">q<sub>i</sub>=0</span> 的记录。</p>
+<h2 id="_4">输出描述</h2>
+<p>输出最终评分乘 100 后按题意取整的整数。</p>
+<h2 id="_5">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>6 3 2
+1 10 0
+2 15 2
+3 20 0
+4 18 0
+5 100 0
+6 12 0
+152
+</code></pre></div>
+<h2 id="_6">算法</h2>
+<p>插值用正反两次扫描得到最近有效锚点。异常检测若使用“平方和减均值平方”，当数据整体很大但波动很小时会发生灾难性消减。为兼顾 <span aria-label="n=10^4" class="plain-math">n=10<sup>4</sup></span> 与数值稳定性，使用两层分块：
+每块维护值的总和、块均值与块内离差平方和 <span aria-label="M_2" class="plain-math">M<sub>2</sub></span>； 查询窗口时，把完整块通过 Chan 合并公式加入统计量，窗口两端不足整块的元素逐个加入； 这样不再相减两个约 <span aria-label="10^{18}" class="plain-math">10<sup>18</sup></span> 的近似数，方差由中心化离差直接得到。
+块长取约 <span class="math-inline-wrap"><math aria-label="n" class="math-inline"><mrow><msqrt><mrow></mrow></msqrt><mi>n</mi></mrow></math></span>，每个窗口访问 <span class="math-inline-wrap"><math aria-label="O( n)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msqrt><mrow></mrow></msqrt><mi>n</mi><mo>)</mo></mrow></math></span> 个完整块与边缘元素，总复杂度 <span class="math-inline-wrap"><math aria-label="O(n n)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><msqrt><mrow></mrow></msqrt><mi>n</mi><mo>)</mo></mrow></math></span>，在 <span aria-label="n=10^4" class="plain-math">n=10<sup>4</sup></span> 时可行。全局标准化同样用 Welford 在线算法计算稳定方差。</p>
+<h2 id="_7">正确性证明</h2>
+<p>最近锚点扫描显然给出每个位置左右最近的 <span aria-label="q=0" class="plain-math">q=0</span> 记录，因此步骤 1 严格按题意插值。
+对步骤 2，Welford 单点更新维护样本数、均值和离差平方和。Chan 公式精确描述两个不交集合统计量合并后的均值与离差平方和；每个窗口被拆成互不重叠的边缘单点和完整块，合并后覆盖且仅覆盖该窗口，因此得到窗口总体均值与方差。所有查询只读取插值后的 cleaned ，结果另存，满足快照要求。
+步骤 3 的 Welford 统计覆盖平滑后全部元素，故得到题定总体均值和标准差。步骤 4 逐项代入权重公式并按 floor(x+0.5) 取整。四步均正确，最终输出正确。</p>
+<h2 id="python-acm">Python ACM 题解</h2>
+<div class="codehilite" data-lang="text"><pre><span></span><code>import math
+import sys
+
+
+def merge_stats(a, b):
+    na, ma, m2a = a
+    nb, mb, m2b = b
+    if na == 0:
+        return b
+    if nb == 0:
+        return a
+    delta = mb - ma
+    n = na + nb
+    mean = ma + delta * nb / n
+    m2 = m2a + m2b + delta * delta * na * nb / n
+    return n, mean, m2
+
+
+def add_value(stat, x):
+    n, mean, m2 = stat
+    n2 = n + 1
+    delta = x - mean
+    mean2 = mean + delta / n2
+    return n2, mean2, m2 + delta * (x - mean2)
+
+
+def clean_values(ts, raw, quality):
+    n = len(raw)
+    previous = [-1] * n
+    following = [-1] * n
+    last = -1
+    for i in range(n):
+        previous[i] = last
+        if quality[i] == 0:
+            last = i
+    last = -1
+    for i in range(n - 1, -1, -1):
+        following[i] = last
+        if quality[i] == 0:
+            last = i
+
+    values = [float(x) for x in raw]
+    for i in range(n):
+        if quality[i] != 2:
+            continue
+        left, right = previous[i], following[i]
+        if left != -1 and right != -1:
+            ratio = (ts[i] - ts[left]) / (ts[right] - ts[left])
+            values[i] = raw[left] + (raw[right] - raw[left]) * ratio
+        elif left != -1:
+            values[i] = float(raw[left])
+        elif right != -1:
+            values[i] = float(raw[right])
+    return values
+
+
+def smooth_values(values, window, threshold):
+    n = len(values)
+    block_size = max(1, math.isqrt(n))
+    block_stats = []
+    for start in range(0, n, block_size):
+        stat = (0, 0.0, 0.0)
+        for x in values[start:start + block_size]:
+            stat = add_value(stat, x)
+        block_stats.append(stat)
+
+    def range_stats(left, right):
+        stat = (0, 0.0, 0.0)
+        while left &lt;= right and left % block_size:
+            stat = add_value(stat, values[left])
+            left += 1
+        while left + block_size - 1 &lt;= right:
+            stat = merge_stats(stat, block_stats[left // block_size])
+            left += block_size
+        while left &lt;= right:
+            stat = add_value(stat, values[left])
+            left += 1
+        return stat
+
+    half = (window - 1) // 2
+    result = values.copy()
+    for i, value in enumerate(values):
+        left = max(0, i - half)
+        right = min(n - 1, i + half)
+        count, mean, m2 = range_stats(left, right)
+        variance = max(0.0, m2 / count)
+        if abs(value - mean) &gt; threshold * math.sqrt(variance):
+            result[i] = mean
+    return result
+
+
+def score(values, quality):
+    stat = (0, 0.0, 0.0)
+    for x in values:
+        stat = add_value(stat, x)
+    n, mean, m2 = stat
+    standard_deviation = math.sqrt(max(0.0, m2 / n))
+
+    quality_weight = (1.0, 0.5, 0.25)
+    denominator = sum(quality_weight[q] * abs(x) for x, q in zip(values, quality))
+    if denominator == 0.0 or standard_deviation == 0.0:
+        return 0
+
+    total = 0.0
+    for x, q in zip(values, quality):
+        weight = quality_weight[q] * abs(x) / denominator
+        total += weight * abs((x - mean) / standard_deviation)
+    return math.floor(total * 100 + 0.5)
+
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    n, window, threshold = data[:3]
+    ts, raw, quality = [], [], []
+    pointer = 3
+    for _ in range(n):
+        t, value, q = data[pointer:pointer + 3]
+        pointer += 3
+        ts.append(t)
+        raw.append(value)
+        quality.append(q)
+
+    cleaned = clean_values(ts, raw, quality)
+    smoothed = smooth_values(cleaned, window, threshold)
+    print(score(smoothed, quality))
+
+
+if __name__ == "__main__":
+    solve()
+</code></pre></div>
+<h2 id="_8">复杂度分析</h2>
+<p>时间复杂度 ：<span class="math-inline-wrap"><math aria-label="O(n n)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>n</mi><msqrt><mrow></mrow></msqrt><mi>n</mi><mo>)</mo></mrow></math></span>；插值、建块、标准化和评分为 <span aria-label="O(n)" class="plain-math">O(n)</span>，<span aria-label="n" class="plain-math">n</span> 个窗口查询各为 <span class="math-inline-wrap"><math aria-label="O( n)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><msqrt><mrow></mrow></msqrt><mi>n</mi><mo>)</mo></mrow></math></span>。
+空间复杂度 ：<span aria-label="O(n)" class="plain-math">O(n)</span>。</p>
+<h2 id="_9">易错点</h2>
+<p>无效点只能使用原始质量为 0 的点作为插值锚点。 窗口统计必须全部读取步骤 1 的同一快照，不能边算边改。 标准差采用总体口径，分母是窗口长度或 <span aria-label="n" class="plain-math">n</span>，不是减 1。 sum(x<em>x)/n - mean</em>mean 对大基线、小波动数据会数值消减，简单截零不能修复误差。 Python round 使用银行家舍入；题目要求 0.5 向上，应使用 floor(x + 0.5) 。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

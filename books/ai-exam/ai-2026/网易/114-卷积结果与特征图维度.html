@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>卷积结果与特征图维度 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 网易</div>
+<h1 id="_1">卷积结果与特征图维度</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_7">复杂度分析</a></li>
+<li><a href="#_8">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/ · 网易 · 2026-09-19 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>零售行业可以在商品识别与计价、货架库存管理等场景中使用图像相关技术，以卷积网络（CNN）为基础的机器学习模型在这些场景中广泛使用。要求编程实现与 CNN 相关的子功能。
+补充说明：卷积核是一个小的权重矩阵，让它逐步在输入的图像矩阵上扫描，计算权重矩阵与扫描到的子矩阵的内积，再把结果汇总成一个输出像素，这也是引入卷积的重要原因——在保证足够精度的前提下减少全连接网络的计算量。填充是为了减少输入矩阵边界信息的损失，在输入矩阵上下左右的 4 条边界上填充一些数值，通常用 <span aria-label="0" class="plain-math">0</span> 填充。步长是每次滑动卷积核时往右滑动的列数或往下滑动的行数，它对信息的压缩程度与输出矩阵的尺寸至关重要。偏置项与全连接网络的偏置项作用一致；为了简化计算，本题不考虑偏置项 bias。</p>
+<h2 id="_3">输入描述</h2>
+<p>输入是 3 个 list。第一个输入是一个 3 维 list，用于表示图像数据，形如 [ [ [0, 1, 0, 0, 2],[1, 2, 1, 2, 1],[1, 0, 1, 0, 0],[0, 1, 2, 0, 0],[1, 1, 0, 0, 2] ] ] ，其中所有 list 组成的都是方阵，示例给出的即为一个 <span class="math-inline-wrap"><math aria-label="5times5" class="math-inline"><mrow><mn>5</mn><mo>×</mo><mn>5</mn></mrow></math></span> 的图像。第二个输入是卷积核矩阵，也是一个 3 维 list，形如 [ [ [0, 1, 1], [0, 0, 1], [1, 1, 0] ] ] 。
+第三个输入是和卷积相关的一维 list 参数，长度固定为 6，形如 [0, 0, 3, 3, 0, 1] ；这 6 个元素分别表示当前卷积框对应最左上角的位置索引横坐标 <span aria-label="i" class="plain-math">i</span> 和纵坐标 <span aria-label="j" class="plain-math">j</span>、卷积框的宽度和高度（宽度等于高度）、填充数 padding_size 和卷积步长 stride。
+图像的形状为 <span aria-label="C\times n\times n" class="plain-math">C× n× n</span>，卷积核的形状为 <span aria-label="C\times k\times k" class="plain-math">C× k× k</span>，多通道时卷积结果为各通道内积之和。<span aria-label="i,j" class="plain-math">i,j</span> 是卷积框左上角在填充后矩阵中的行下标与列下标（从 <span aria-label="0" class="plain-math">0</span> 开始），保证卷积框完整落在填充后的矩阵内。数据范围：<span aria-label="1 \le C \le 3" class="plain-math">1 ≤ C ≤ 3</span>、<span aria-label="1 \le n \le 20" class="plain-math">1 ≤ n ≤ 20</span>、<span aria-label="1 \le k \le n+2p" class="plain-math">1 ≤ k ≤ n+2p</span>、<span aria-label="0 \le p \le 3" class="plain-math">0 ≤ p ≤ 3</span>、<span aria-label="1 \le s \le 3" class="plain-math">1 ≤ s ≤ 3</span>；图像元素取值为 <span aria-label="[0,9]" class="plain-math">[0,9]</span> 内的整数，卷积核元素取值为 <span aria-label="[-3,3]" class="plain-math">[-3,3]</span> 内的整数。</p>
+<h2 id="_4">输出描述</h2>
+<p>返回 2 个 int 类型的整数：第一个返回值是在当前索引 <span aria-label="i" class="plain-math">i</span> 和 <span aria-label="j" class="plain-math">j</span> 下经过卷积核计算的结果，第二个返回值是经过卷积操作以后的输出 feature_map 的维度。两个整数在同一行输出，以一个空格分隔。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出
+样例解释 ：不填充时卷积框左上角在 <span aria-label="(0,0)" class="plain-math">(0,0)</span>，覆盖的子矩阵为 <span aria-label="[[0,1,0],[1,2,1],[1,0,1]]" class="plain-math">[[0,1,0],[1,2,1],[1,0,1]]</span>，与卷积核逐元素相乘再求和为 <span aria-label="1+1+1=3" class="plain-math">1+1+1=3</span>。输出特征图的边长为 <span class="math-inline-wrap"><math aria-label="⌊ (5+2 × 0-3)/1⌋+1=3" class="math-inline"><mrow><mo>⌊</mo><mspace width=".18em"></mspace><mo>(</mo><mn>5</mn><mo>+</mo><mn>2</mn><mspace width=".18em"></mspace><mo>×</mo><mspace width=".18em"></mspace><mn>0</mn><mo>-</mo><mn>3</mn><mo>)</mo><mo>/</mo><mn>1</mn><mo>⌋</mo><mo>+</mo><mn>1</mn><mo>=</mo><mn>3</mn></mrow></math></span>。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>[ [ [0, 1, 0, 0, 2],[1, 2, 1, 2, 1],[1, 0, 1, 0, 0],[0, 1, 2, 0, 0],[1, 1, 0, 0, 2] ] ]
+[ [ [0, 1, 1], [0, 0, 1], [1, 1, 0] ] ]
+[0, 0, 3, 3, 0, 1]
+3 3
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>第一步：先做零填充。 在每个通道的上下左右各补 <span aria-label="p" class="plain-math">p</span> 圈 <span aria-label="0" class="plain-math">0</span>，只补高、宽两个轴，通道轴不补，图像由 <span aria-label="(C,n,n)" class="plain-math">(C,n,n)</span> 变成 <span aria-label="(C,n+2p,n+2p)" class="plain-math">(C,n+2p,n+2p)</span>。题目给出的 <span aria-label="(i,j)" class="plain-math">(i,j)</span> 就是这张填充后矩阵里的行、列下标，可以直接拿去切片，不必再换算回原图坐标；坐标轴不能补错，否则整体会错位一圈。
+第二步：算单点卷积值。 取出以 <span aria-label="(i,j)" class="plain-math">(i,j)</span> 为左上角、边长为 <span aria-label="k" class="plain-math">k</span> 的窗口，与卷积核逐元素相乘，再对通道和窗口内全部位置求和：
+窗口的形状是 <span aria-label="(C,k,k)" class="plain-math">(C,k,k)</span>，与卷积核形状相同，逐元素相乘后仍是 <span aria-label="(C,k,k)" class="plain-math">(C,k,k)</span>，全部加总成一个标量。多通道时各通道结果必须相加而不是各算各的，因为只有一组卷积核，只输出一张特征图。窗口伸进填充区的部分乘的都是 <span aria-label="0" class="plain-math">0</span>，所以卷积框完全落在填充圈里时结果恰为 <span aria-label="0" class="plain-math">0</span>。
+第三步：算特征图边长。 窗口起点从 <span aria-label="0" class="plain-math">0</span> 开始每次跳 <span aria-label="s" class="plain-math">s</span> 格，最后一个起点不能超过 <span aria-label="n+2p-k" class="plain-math">n+2p-k</span>，起点个数就是输出边长：
+剩下不足一步的尾巴放不下完整窗口，直接丢弃，所以这里是向下取整而不是四舍五入。例如 <span aria-label="n=5,p=1,k=3" class="plain-math">n=5,p=1,k=3</span> 时填充后边长为 <span aria-label="7" class="plain-math">7</span>，<span aria-label="s=2" class="plain-math">s=2</span> 得 <span class="math-inline-wrap"><math aria-label="L=⌊ 4/2⌋+1=3" class="math-inline"><mrow><mi>L</mi><mo>=</mo><mo>⌊</mo><mspace width=".18em"></mspace><mn>4</mn><mo>/</mo><mn>2</mn><mo>⌋</mo><mo>+</mo><mn>1</mn><mo>=</mo><mn>3</mn></mrow></math></span>；改成 <span aria-label="s=3" class="plain-math">s=3</span> 得 <span class="math-inline-wrap"><math aria-label="L=⌊ 4/3⌋+1=2" class="math-inline"><mrow><mi>L</mi><mo>=</mo><mo>⌊</mo><mspace width=".18em"></mspace><mn>4</mn><mo>/</mo><mn>3</mn><mo>⌋</mo><mo>+</mo><mn>1</mn><mo>=</mo><mn>2</mn></mrow></math></span>，最后一列只被第二个窗口覆盖到一部分。
+第四步：按格式输出。 两个结果都是整数，在同一行用空格分隔输出即可。</p>
+<h2 id="_6">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">ast</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="c1"># 在填充后的图像上取出 (i, j) 处的卷积框，与卷积核逐元素相乘后求和</span>
+<span class="k">def</span> <span class="nf">conv_value</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+    <span class="c1"># 只在高、宽两个轴的四周补 p 圈 0，通道轴不补</span>
+    <span class="n">padded</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">p</span><span class="p">),</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">p</span><span class="p">)),</span> <span class="n">mode</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">)</span>
+    <span class="c1"># (C, n+2p, n+2p) 切片 -&gt; (C, k, k)，i、j 已是填充后坐标，直接切</span>
+    <span class="n">window</span> <span class="o">=</span> <span class="n">padded</span><span class="p">[:,</span> <span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">k</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span><span class="n">j</span> <span class="o">+</span> <span class="n">k</span><span class="p">]</span>
+    <span class="c1"># 逐元素相乘后把通道与窗口位置全部加起来，得到一个标量</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">window</span> <span class="o">*</span> <span class="n">kernel</span><span class="p">))</span>
+
+
+<span class="c1"># 计算输出特征图的边长：能完整放下卷积框的起点个数</span>
+<span class="k">def</span> <span class="nf">feature_size</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+    <span class="c1"># 填充后边长为 n+2p，框占 k 格，起点每次跳 s 格，不足一步的尾巴丢掉所以向下取整</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">p</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span> <span class="o">//</span> <span class="n">s</span> <span class="o">+</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="c1"># 三行 list 字面量，literal_eval 能容忍行内的多余空格</span>
+    <span class="n">image</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="c1"># 参数依次是 i、j、宽高、padding、stride</span>
+    <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">params</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">params</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">params</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">params</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">conv_value</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">),</span> <span class="n">feature_size</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_7">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(C\times(n+2p)^{2}+C\times k^{2})" class="plain-math">O(C×(n+2p)<sup>2</sup>+C× k<sup>2</sup>)</span>。瓶颈是构造填充后的矩阵，单点卷积只碰 <span aria-label="C\times k^{2}" class="plain-math">C× k<sup>2</sup></span> 个元素，边长公式是 <span aria-label="O(1)" class="plain-math">O(1)</span>。
+空间复杂度 ：<span aria-label="O(C\times(n+2p)^{2})" class="plain-math">O(C×(n+2p)<sup>2</sup>)</span>，存放填充后的图像；卷积核与参数都是常数规模。</p>
+<h2 id="_8">易错点</h2>
+<p><span aria-label="(i,j)" class="plain-math">(i,j)</span> 是填充后矩阵的坐标，再换算回原图坐标会整体错位。 通道轴不能填充， np.pad 的三个轴宽度要写成 ((0, 0), (p, p), (p, p)) 。 边长公式里的除法是向下取整，不是四舍五入。 多通道要先分别做内积再相加，得到一个输出值，不要输出成每个通道一个数。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

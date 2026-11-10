@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>智能物流定价引擎 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">智能物流定价引擎</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">样例</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260603/ · 华为 · 2026-06-03 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>你在一家同城物流平台负责运费估计引擎。平台记录历史订单，每条有运输距离 <span aria-label="x" class="plain-math">x</span> 和成交运费 <span aria-label="y" class="plain-math">y</span>。系统使用一元线性回归模型 <span class="math-inline-wrap"><math aria-label="haty = ax + b" class="math-inline"><mrow><mover><mrow><mi>y</mi></mrow><mo>^</mo></mover><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>ax</mi><mspace width=".18em"></mspace><mo>+</mo><mspace width=".18em"></mspace><mi>b</mi></mrow></math></span>，需要实现一个在线学习模块，支持两种操作：
+ADD x y ：新增一条历史样本 <span aria-label="(x, y)" class="plain-math">(x, y)</span> QUERY x0 ：基于当前所有样本拟合最小二乘直线，输出在 <span aria-label="x_0" class="plain-math">x<sub>0</sub></span> 处的预测值
+退化规则：若样本数为 0 输出 0；若所有 <span aria-label="x" class="plain-math">x</span> 相同（解不唯一），使用常数模型 <span class="math-inline-wrap"><math aria-label="haty = bary" class="math-inline"><mrow><mover><mrow><mi>y</mi></mrow><mo>^</mo></mover><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mover><mrow><mi>y</mi></mrow><mo>¯</mo></mover></mrow></math></span>。</p>
+<h2 id="_3">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>8
+ADD 10 35
+ADD 20 55
+QUERY 15
+ADD 30 78
+QUERY 25
+ADD 25 69
+QUERY 40
+QUERY 5
+45.000000
+66.750000
+100.285714
+23.685714
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：观察题目性质
+样本不断加入，每次查询都要给出当前所有样本拟合出的最小二乘直线在某点的预测值。<span aria-label="n" class="plain-math">n</span> 最大到 <span aria-label="10^5" class="plain-math">10<sup>5</sup></span>，每次查询必须 <span aria-label="O(1)" class="plain-math">O(1)</span> 完成，不能重新扫描全部样本。
+第二步：问题转化
+最小二乘法的闭式解只依赖四个累加量：<span class="math-inline-wrap"><math aria-label="S_x = ∑ x_i" class="math-inline"><mrow><msub><mi>S</mi><mi>x</mi></msub><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>∑</mo><mspace width=".18em"></mspace><msub><mi>x</mi><mi>i</mi></msub></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="S_y = ∑ y_i" class="math-inline"><mrow><msub><mi>S</mi><mi>y</mi></msub><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>∑</mo><mspace width=".18em"></mspace><msub><mi>y</mi><mi>i</mi></msub></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="S_xx = ∑ x_i^2" class="math-inline"><mrow><msub><mi>S</mi><mrow><mi>xx</mi></mrow></msub><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>∑</mo><mspace width=".18em"></mspace><msup><msub><mi>x</mi><mi>i</mi></msub><mn>2</mn></msup></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="S_xy = ∑ x_i y_i" class="math-inline"><mrow><msub><mi>S</mi><mrow><mi>xy</mi></mrow></msub><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>∑</mo><mspace width=".18em"></mspace><msub><mi>x</mi><mi>i</mi></msub><mspace width=".18em"></mspace><msub><mi>y</mi><mi>i</mi></msub></mrow></math></span>。我们不需要保存每条样本，只需增量维护这四个值。
+第三步：算法选择
+每次 ADD 操作 <span aria-label="O(1)" class="plain-math">O(1)</span> 累加四个统计量。QUERY 时用正规方程直接计算：
+第四步：实现要点
+分母 <span aria-label="n \cdot S_{xx} - S_x^2" class="plain-math">n · S<sub>xx</sub> - S<sub>x</sub><sup>2</sup></span> 为 0 等价于所有 <span aria-label="x" class="plain-math">x</span> 相同，此时解不唯一。用布尔标记 same_x 判断是否退化，避免浮点比较。 极限数据下 <span aria-label="S_{xx}" class="plain-math">S<sub>xx</sub></span> 与 <span aria-label="S_x^2" class="plain-math">S<sub>x</sub><sup>2</sup></span> 可能超出 64 位整型，先转浮点再相乘相减。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]);</span> <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">Sx</span> <span class="o">=</span> <span class="n">Sy</span> <span class="o">=</span> <span class="n">Sxx</span> <span class="o">=</span> <span class="n">Sxy</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">first_x</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">same_x</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
+        <span class="n">op</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">];</span> <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="sa">b</span><span class="s2">"ADD"</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]);</span> <span class="n">y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]);</span> <span class="n">idx</span> <span class="o">+=</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">first_x</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="k">elif</span> <span class="n">x</span> <span class="o">!=</span> <span class="n">first_x</span><span class="p">:</span>
+                <span class="n">same_x</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">Sx</span> <span class="o">+=</span> <span class="n">x</span><span class="p">;</span> <span class="n">Sy</span> <span class="o">+=</span> <span class="n">y</span><span class="p">;</span> <span class="n">Sxx</span> <span class="o">+=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">;</span> <span class="n">Sxy</span> <span class="o">+=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]);</span> <span class="n">idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"0.000000"</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">same_x</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">Sy</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">n</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">num</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">*</span> <span class="n">Sxy</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">Sx</span><span class="p">)</span> <span class="o">*</span> <span class="n">Sy</span>
+                <span class="n">den</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">*</span> <span class="n">Sxx</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">Sx</span><span class="p">)</span> <span class="o">*</span> <span class="n">Sx</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">num</span> <span class="o">/</span> <span class="n">den</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">Sy</span><span class="p">)</span> <span class="o">-</span> <span class="n">a</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">Sx</span><span class="p">))</span> <span class="o">/</span> <span class="n">n</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">a</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">x0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out</span><span class="p">))</span>
+
+<span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(q)" class="plain-math">O(q)</span>，ADD 和 QUERY 均为 <span aria-label="O(1)" class="plain-math">O(1)</span> 空间复杂度 ：<span aria-label="O(1)" class="plain-math">O(1)</span>，只维护五个累加量与一个退化标志</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

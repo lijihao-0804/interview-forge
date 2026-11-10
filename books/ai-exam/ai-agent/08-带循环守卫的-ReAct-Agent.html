@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>带循环守卫的 ReAct Agent · InterviewForge</title>
+<link href="../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-agent</div>
+<h1 id="react-agent">带循环守卫的 ReAct Agent</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：外部面经参考/02-AI与Agent手撕代码题.md · AI/Agent 手撕题</p>
+</blockquote>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">json</span>
+
+
+<span class="k">def</span> <span class="nf">action_fingerprint</span><span class="p">(</span><span class="n">action</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">run_agent</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">tools</span><span class="p">,</span> <span class="n">objective</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">repeat_limit</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="n">messages</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">objective</span><span class="p">}]</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_steps</span><span class="p">):</span>
+        <span class="n">decision</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">tools</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">decision</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"final"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"completed"</span><span class="p">,</span> <span class="s2">"answer"</span><span class="p">:</span> <span class="n">decision</span><span class="p">[</span><span class="s2">"answer"</span><span class="p">],</span> <span class="s2">"steps"</span><span class="p">:</span> <span class="n">step</span><span class="p">}</span>
+
+        <span class="n">fingerprint</span> <span class="o">=</span> <span class="n">action_fingerprint</span><span class="p">(</span><span class="n">decision</span><span class="p">)</span>
+        <span class="n">counts</span><span class="p">[</span><span class="n">fingerprint</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fingerprint</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">counts</span><span class="p">[</span><span class="n">fingerprint</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">repeat_limit</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"blocked"</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"repeated_action"</span><span class="p">,</span> <span class="s2">"action"</span><span class="p">:</span> <span class="n">decision</span><span class="p">}</span>
+
+        <span class="n">tool</span> <span class="o">=</span> <span class="n">tools</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">decision</span><span class="p">[</span><span class="s2">"tool"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">tool</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">observation</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="s2">"unknown_tool"</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">observation</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"result"</span><span class="p">:</span> <span class="n">tool</span><span class="p">(</span><span class="o">**</span><span class="n">decision</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"arguments"</span><span class="p">,</span> <span class="p">{}))}</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="n">observation</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">}</span>
+
+        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">decision</span><span class="p">})</span>
+        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"content"</span><span class="p">:</span> <span class="n">observation</span><span class="p">})</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"blocked"</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="s2">"step_budget_exhausted"</span><span class="p">}</span>
+</code></pre></div>
+<p><strong>追问</strong>：如何检测 A→B→A→B 的路径震荡？怎样保存 Checkpoint？工具有副作用时如何恢复？</p>
+</div></article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

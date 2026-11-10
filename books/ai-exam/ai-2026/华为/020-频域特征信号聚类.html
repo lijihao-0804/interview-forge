@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>频域特征信号聚类 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">频域特征信号聚类</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">样例</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260617/ · 华为 · 2026-06-17 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>设计一个基于频域特征的 K-Means 聚类系统，三步流水线：
+DFT 频域变换 ：对 <span aria-label="N" class="plain-math">N</span> 组长度为 <span aria-label="L" class="plain-math">L</span> 的信号做离散傅里叶变换 提取特征 ：从 <span aria-label="k = 1" class="plain-math">k = 1</span> 到 <span aria-label="L/2 - 1" class="plain-math">L/2 - 1</span> 的频点中，取幅值最大的 3 个频率索引 <span aria-label="k" class="plain-math">k</span> 作为特征向量（按幅值降序，幅值相同时索引小的优先） K-Means 聚类 ：给定 <span aria-label="K" class="plain-math">K</span> 个初始中心索引，使用欧氏距离做分配，均值用银行家舍入取整作为新中心，空簇保留原中心，最多迭代 100 次或中心不变时停止
+输出收敛后的 <span aria-label="K" class="plain-math">K</span> 个聚类中心，按字典序排序。</p>
+<h2 id="_3">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>15 16 4
+4.9 1.9 1.3 0.5 -3.0 -0.9 -1.3 -1.6 1.1 -1.6 -1.3 -0.9 -3.0 0.5 1.3 1.9
+3.0 -0.5 -1.5 -0.0 -0.5 1.8 -0.0 -1.3 1.0 -1.3 -0.0 1.8 -0.5 -0.0 -1.5 -0.5
+4.1 0.7 -0.4 -0.1 -1.4 2.0 0.4 -2.6 -1.4 -2.6 0.4 2.0 -1.4 -0.1 -0.4 0.7
+3.8 0.6 -0.4 -0.1 -1.3 1.9 0.4 -2.4 -1.2 -2.4 0.4 1.9 -1.2 -0.1 -0.4 0.6
+3.8 2.3 0.1 -0.3 -0.3 -1.5 -2.1 -0.5 0.8 -0.5 -2.1 -1.5 -0.2 -0.3 0.1 2.3
+4.9 1.0 -2.3 -0.7 -1.6 -1.6 2.3 1.3 -1.6 1.3 2.3 -1.6 -1.6 -0.7 -2.3 1.0
+4.1 -0.3 0.2 2.7 -1.6 -0.4 -0.2 -2.0 -0.9 -2.0 -0.2 -0.4 -1.6 2.7 0.2 -0.3
+4.1 0.6 -1.3 2.0 1.1 -2.0 -0.9 -0.6 -1.9 -0.6 -0.9 -2.0 1.1 2.0 -1.3 0.6
+5.6 1.2 -2.8 -1.4 -1.6 -0.9 2.8 1.1 -2.4 1.1 2.8 -0.9 -1.6 -1.4 -2.8 1.2
+6.0 1.7 -1.4 1.2 -0.0 -1.2 1.4 -1.7 -6.0 -1.7 1.4 -1.2 0.0 1.2 -1.4 1.7
+4.9 1.0 -2.3 -0.7 -1.6 -1.6 2.3 1.3 -1.6 1.3 2.3 -1.6 -1.6 -0.7 -2.3 1.0
+6.0 1.3 -3.0 -1.5 -1.8 -1.0 3.0 1.1 -2.5 1.1 3.0 -1.0 -1.7 -1.5 -3.0 1.3
+3.8 1.6 1.1 0.4 -2.3 -0.8 -1.1 -1.2 0.8 -1.2 -1.1 -0.8 -2.2 0.4 1.1 1.6
+3.4 -0.3 0.2 2.2 -1.4 -0.3 -0.2 -1.7 -0.6 -1.7 -0.2 -0.3 -1.4 2.2 0.2 -0.3
+5.6 0.2 -0.3 2.2 -0.5 0.8 -3.0 -3.2 1.9 -3.2 -3.0 0.8 -0.5 2.2 -0.3 0.2
+0 1 3 10
+1 2 5
+3 6 2
+5 2 3
+6 1 4
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：DFT 频域变换
+对每组信号 <span aria-label="x[n]" class="plain-math">x[n]</span>，计算 <span class="math-inline-wrap"><math aria-label="X[k] = sum_n=0^L-1 x[n] · e^-j2π kn/L" class="math-inline"><mrow><mi>X</mi><mo>[</mo><mi>k</mi><mo>]</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><msup><msub><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><mn>0</mn></mrow></msub><mrow><mi>L</mi><mo>-</mo><mn>1</mn></mrow></msup><mspace width=".18em"></mspace><mi>x</mi><mo>[</mo><mi>n</mi><mo>]</mo><mspace width=".18em"></mspace><mo>·</mo><mspace width=".18em"></mspace><msup><mi>e</mi><mrow><mo>-</mo><mi>j</mi><mn>2</mn><mo>π</mo><mspace width=".18em"></mspace><mi>kn</mi><mo>/</mo><mi>L</mi></mrow></msup></mrow></math></span>。展开为实部 <span class="math-inline-wrap"><math aria-label="Re[k] = ∑ x[n] cos(2π kn/L)" class="math-inline"><mrow><mtext>Re</mtext><mo>[</mo><mi>k</mi><mo>]</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>∑</mo><mspace width=".18em"></mspace><mi>x</mi><mo>[</mo><mi>n</mi><mo>]</mo><mspace width=".18em"></mspace><mi mathvariant="normal">cos</mi><mo>(</mo><mn>2</mn><mo>π</mo><mspace width=".18em"></mspace><mi>kn</mi><mo>/</mo><mi>L</mi><mo>)</mo></mrow></math></span> 和虚部 <span class="math-inline-wrap"><math aria-label="Im[k] = -∑ x[n] sin(2π kn/L)" class="math-inline"><mrow><mtext>Im</mtext><mo>[</mo><mi>k</mi><mo>]</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mo>-</mo><mo>∑</mo><mspace width=".18em"></mspace><mi>x</mi><mo>[</mo><mi>n</mi><mo>]</mo><mspace width=".18em"></mspace><mi mathvariant="normal">sin</mi><mo>(</mo><mn>2</mn><mo>π</mo><mspace width=".18em"></mspace><mi>kn</mi><mo>/</mo><mi>L</mi><mo>)</mo></mrow></math></span>。
+用 NumPy 向量化：构建角度矩阵后一次矩阵乘法得到所有频点的实部和虚部。
+第二步：提取频域特征
+幅值 <span class="math-inline-wrap"><math aria-label="| X[k] | = Re[k]^2 + Im[k]^2" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><mi>X</mi><mo>[</mo><mi>k</mi><mo>]</mo><mspace width=".18em"></mspace><mo>|</mo><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><msqrt><mrow><mtext>Re</mtext><mo>[</mo><mi>k</mi><msup><mo>]</mo><mn>2</mn></msup><mspace width=".18em"></mspace><mo>+</mo><mspace width=".18em"></mspace><mtext>Im</mtext><mo>[</mo><mi>k</mi><msup><mo>]</mo><mn>2</mn></msup></mrow></msqrt></mrow></math></span>。只看 <span aria-label="k = 1" class="plain-math">k = 1</span> 到 <span aria-label="L/2 - 1" class="plain-math">L/2 - 1</span>（排除直流分量 <span aria-label="k=0" class="plain-math">k=0</span> 和奈奎斯特频率 <span aria-label="k=L/2" class="plain-math">k=L/2</span>）。按幅值降序排序取前 3 个频率索引作为特征向量。
+第三步：K-Means 聚类细节
+分配阶段 ：用平方欧氏距离（整数运算精确）比远近 更新阶段 ：银行家舍入（四舍六入五成双）——用整数算术判断余数与分母的关系，恰好一半时凑偶数 空簇处理 ：保持原中心不变 收敛判定 ：中心都是整数，前后完全相同即收敛
+银行家舍入的整数实现：设 <span class="math-inline-wrap"><math aria-label="sum/cnt" class="math-inline"><mrow><mtext>sum</mtext><mo>/</mo><mtext>cnt</mtext></mrow></math></span> 得商 <span aria-label="q" class="plain-math">q</span> 余 <span aria-label="r" class="plain-math">r</span>，若 <span class="math-inline-wrap"><math aria-label="2r &lt; cnt" class="math-inline"><mrow><mn>2</mn><mi>r</mi><mspace width=".18em"></mspace><mo>&lt;</mo><mspace width=".18em"></mspace><mtext>cnt</mtext></mrow></math></span> 舍去；<span class="math-inline-wrap"><math aria-label="2r &gt; cnt" class="math-inline"><mrow><mn>2</mn><mi>r</mi><mspace width=".18em"></mspace><mo>&gt;</mo><mspace width=".18em"></mspace><mtext>cnt</mtext></mrow></math></span> 进位；<span class="math-inline-wrap"><math aria-label="2r = cnt" class="math-inline"><mrow><mn>2</mn><mi>r</mi><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mtext>cnt</mtext></mrow></math></span> 时 <span aria-label="q" class="plain-math">q</span> 为偶则舍、为奇则进。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<span class="k">def</span> <span class="nf">banker_round</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">den</span><span class="p">):</span>
+    <span class="n">q</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">num</span><span class="p">,</span> <span class="n">den</span><span class="p">)</span>
+    <span class="n">twice</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">r</span>
+    <span class="k">if</span> <span class="n">twice</span> <span class="o">&lt;</span> <span class="n">den</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">q</span>
+    <span class="k">if</span> <span class="n">twice</span> <span class="o">&gt;</span> <span class="n">den</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">q</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">q</span> <span class="k">if</span> <span class="n">q</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">q</span> <span class="o">+</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">feature_of</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">L</span><span class="p">):</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">kmax</span> <span class="o">=</span> <span class="n">L</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">ks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">kmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">L</span><span class="p">)</span>
+    <span class="n">ang</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">ks</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="n">L</span>
+    <span class="n">re</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">ang</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">ang</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">re</span> <span class="o">*</span> <span class="n">re</span> <span class="o">+</span> <span class="n">im</span> <span class="o">*</span> <span class="n">im</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ks</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="n">mag</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">ks</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span>
+    <span class="k">return</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">ks</span><span class="p">[</span><span class="n">order</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">ks</span><span class="p">[</span><span class="n">order</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">ks</span><span class="p">[</span><span class="n">order</span><span class="p">[</span><span class="mi">2</span><span class="p">]])]</span>
+
+
+<span class="k">def</span> <span class="nf">sq_dist</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">((</span><span class="n">a</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]);</span> <span class="n">L</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">]);</span> <span class="n">K</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="o">+</span><span class="mi">2</span><span class="p">]);</span> <span class="n">idx</span> <span class="o">+=</span> <span class="mi">3</span>
+    <span class="n">signals</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">L</span><span class="p">)]</span>
+        <span class="n">idx</span> <span class="o">+=</span> <span class="n">L</span>
+        <span class="n">signals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+    <span class="n">init</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="n">j</span><span class="p">])</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+
+    <span class="n">features</span> <span class="o">=</span> <span class="p">[</span><span class="n">feature_of</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">L</span><span class="p">)</span> <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="n">signals</span><span class="p">]</span>
+    <span class="n">centers</span> <span class="o">=</span> <span class="p">[</span><span class="n">features</span><span class="p">[</span><span class="n">i</span><span class="p">][:]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">init</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">):</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">features</span><span class="p">:</span>
+            <span class="n">best</span><span class="p">,</span> <span class="n">best_d</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">):</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">sq_dist</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">centers</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">best_d</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="n">best_d</span><span class="p">:</span>
+                    <span class="n">best_d</span><span class="p">,</span> <span class="n">best</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">j</span>
+            <span class="n">clusters</span><span class="p">[</span><span class="n">best</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">new_centers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">clusters</span><span class="p">[</span><span class="n">j</span><span class="p">]:</span>
+                <span class="n">new_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">centers</span><span class="p">[</span><span class="n">j</span><span class="p">][:])</span>
+                <span class="k">continue</span>
+            <span class="n">cnt</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">clusters</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+            <span class="n">nc</span> <span class="o">=</span> <span class="p">[</span><span class="n">banker_round</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">[</span><span class="n">j</span><span class="p">]),</span> <span class="n">cnt</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span>
+            <span class="n">new_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nc</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_centers</span> <span class="o">==</span> <span class="n">centers</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">centers</span> <span class="o">=</span> <span class="n">new_centers</span>
+
+    <span class="n">centers_sorted</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">centers</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">centers_sorted</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：DFT 为 <span aria-label="O(N \times L^2)" class="plain-math">O(N × L<sup>2</sup>)</span>，K-Means 每轮 <span aria-label="O(N \times K)" class="plain-math">O(N × K)</span> 最多 100 轮，总计 <span aria-label="O(N \times L^2 + 100 \times N \times K)" class="plain-math">O(N × L<sup>2</sup> + 100 × N × K)</span>。 空间复杂度 ：<span aria-label="O(N \times L)" class="plain-math">O(N × L)</span> 存信号和角度矩阵。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>多多的营救行动 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 拼多多</div>
+<h1 id="_1">多多的营救行动</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">样例</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/ · 拼多多 · 2026-07-02 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>地牢中有 <span aria-label="n" class="plain-math">n</span> 个守卫，每个守卫站在自己的区域并监视若干其他区域。多多可以单杀或双杀守卫：
+单杀 ：守卫所在区域没有被其他存活守卫监视 双杀 ：两个守卫彼此且仅彼此监视（各自只被对方监视），可同时打倒
+被打倒的守卫不再具备监视能力。问能否打倒所有守卫？若不能，输出最少剩余数量。</p>
+<h2 id="_3">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2
+1 1 2
+2 0
+SUCCESS
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：建成有向图
+把”守卫 <span aria-label="j" class="plain-math">j</span> 监视区域 <span aria-label="r" class="plain-math">r</span>”看作一条有向边 <span class="math-inline-wrap"><math aria-label="j → r" class="math-inline"><mrow><mi>j</mi><mspace width=".18em"></mspace><mo>→</mo><mspace width=".18em"></mspace><mi>r</mi></mrow></math></span>。用 monitored_by[r] 记录当前存活守卫中监视区域 <span aria-label="r" class="plain-math">r</span> 的集合。
+第二步：两种安全操作对应两种结构
+单杀：区域 <span aria-label="i" class="plain-math">i</span> 的 monitored_by[i] 为空（入度为 0），可以安全打倒守卫 <span aria-label="i" class="plain-math">i</span> 双杀：守卫 <span aria-label="i" class="plain-math">i</span> 只被 <span aria-label="j" class="plain-math">j</span> 监视，且 <span aria-label="j" class="plain-math">j</span> 也只被 <span aria-label="i" class="plain-math">i</span> 监视，互为唯一监视者
+第三步：剥离到不动点
+反复执行：先尽量单杀所有入度为 0 的守卫，没有可单杀的再找一对可双杀的。每次打倒守卫只会让其他守卫的条件更容易满足（从别人的 monitored_by 中移除），不会制造新阻碍，因此贪心到底最优。
+第四步：剩余守卫
+剥离停止时若还有存活守卫，它们一定卡在相互纠缠的结构里（如三元环），无法安全消除。</p>
+<h2 id="_5">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">watch</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">watch</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span> <span class="o">+</span> <span class="n">m</span><span class="p">]</span>
+
+    <span class="n">monitored_by</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">watch</span><span class="p">[</span><span class="n">j</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">r</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">r</span> <span class="o">!=</span> <span class="n">j</span><span class="p">:</span>
+                <span class="n">monitored_by</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+
+    <span class="n">alive</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="n">cnt</span> <span class="o">=</span> <span class="n">n</span>
+
+    <span class="k">def</span> <span class="nf">kill</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+        <span class="k">nonlocal</span> <span class="n">cnt</span>
+        <span class="n">alive</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">cnt</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">watch</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">r</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+                <span class="n">monitored_by</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="n">changed</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">while</span> <span class="n">changed</span><span class="p">:</span>
+        <span class="n">changed</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">alive</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">monitored_by</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                <span class="n">kill</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">changed</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">changed</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">alive</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">monitored_by</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">j</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">monitored_by</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                <span class="k">if</span> <span class="n">alive</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="ow">and</span> <span class="n">monitored_by</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="n">i</span><span class="p">}:</span>
+                    <span class="n">kill</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                    <span class="n">kill</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+                    <span class="n">changed</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"SUCCESS"</span> <span class="k">if</span> <span class="n">cnt</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">cnt</span><span class="p">)</span>
+
+<span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(n \cdot E)" class="plain-math">O(n · E)</span>，<span aria-label="E" class="plain-math">E</span> 为监视关系总数，每轮剥离至少消除一个守卫。 空间复杂度 ：<span aria-label="O(n + E)" class="plain-math">O(n + E)</span>。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

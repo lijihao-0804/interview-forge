@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>KV Cache 稀疏化管理器 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="kv-cache">KV Cache 稀疏化管理器</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入格式</a></li>
+<li><a href="#_3">输出格式</a></li>
+<li><a href="#_4">样例</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_7">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260715/ · 华为 · 2026-07-15 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>在大语言模型（LLM）的自回归推理中，KV Cache 用于缓存历史 token 的 Key 和 Value 张量，其显存占用随序列长度线性增长。为支持长上下文，系统设定容量上限 <span aria-label="K" class="plain-math">K</span>，仅保留注意力分数最高的 <span aria-label="K" class="plain-math">K</span> 个 token。
+需要支持两种操作：
+ADD pos score ：插入一个新 token 的 KV 对及其注意力分数。插入后若缓存数量超过 <span aria-label="K" class="plain-math">K</span>，立即淘汰分数最低的 token；若最低分并列，则淘汰位置编号 pos 最小的 token。 QUERY ：按位置编号 pos 从小到大输出当前缓存中的所有 token 及其 KV。</p>
+<h2 id="_2">输入格式</h2>
+<p>第一行包含两个整数 <span aria-label="K,N" class="plain-math">K,N</span>，分别表示容量上限和操作数量，其中 <span class="math-inline-wrap"><math aria-label="1≤ K,Nle10^5" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>K</mi><mo>,</mo><mi>N</mi><mo>≤</mo><msup><mn>10</mn><mn>5</mn></msup></mrow></math></span>。
+接下来有 <span aria-label="N" class="plain-math">N</span> 个操作：
+ADD 操作占三行。第一行是 ADD pos score ，其中 <span class="math-inline-wrap"><math aria-label="0≤ posle10^9" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>pos</mi><mo>≤</mo><msup><mn>10</mn><mn>9</mn></msup></mrow></math></span>， pos 唯一且随插入顺序严格递增，<span class="math-inline-wrap"><math aria-label="0.0≤ scorele1000.0" class="math-inline"><mrow><mn>0.0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>score</mi><mo>≤</mo><mn>1000.0</mn></mrow></math></span>；第二行是 Key 向量的 <span aria-label="4" class="plain-math">4</span> 个浮点数；第三行是 Value 向量的 <span aria-label="4" class="plain-math">4</span> 个浮点数。 QUERY 操作占一行，仅包含 QUERY 。</p>
+<h2 id="_3">输出格式</h2>
+<p>对每个 ADD 操作，如果触发淘汰，输出一行 PRUNED pos ；未触发则不输出。
+对每个 QUERY 操作，先输出当前缓存数量 <span aria-label="M" class="plain-math">M</span>，然后按 pos 升序输出 <span aria-label="M" class="plain-math">M</span> 组数据。每组占三行，依次为 pos score 、Key 向量和 Value 向量。分数与向量必须按照插入时的文本原样输出。</p>
+<h2 id="_4">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3 7
+ADD 0 5.0
+1.0 2.0 3.0 4.0
+0.1 0.2 0.3 0.4
+ADD 1 2.0
+2.0 2.0 2.0 2.0
+0.5 0.5 0.5 0.5
+ADD 2 8.0
+3.0 3.0 3.0 3.0
+0.9 0.9 0.9 0.9
+QUERY
+ADD 3 6.0
+4.0 4.0 4.0 4.0
+0.0 0.0 0.0 0.0
+QUERY
+ADD 4 9.0
+5.0 5.0 5.0 5.0
+1.0 1.0 1.0 1.0
+3
+0 5.0
+1.0 2.0 3.0 4.0
+0.1 0.2 0.3 0.4
+1 2.0
+2.0 2.0 2.0 2.0
+0.5 0.5 0.5 0.5
+2 8.0
+3.0 3.0 3.0 3.0
+0.9 0.9 0.9 0.9
+PRUNED 1
+3
+0 5.0
+1.0 2.0 3.0 4.0
+0.1 0.2 0.3 0.4
+2 8.0
+3.0 3.0 3.0 3.0
+0.9 0.9 0.9 0.9
+3 6.0
+4.0 4.0 4.0 4.0
+0.0 0.0 0.0 0.0
+PRUNED 0
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>第一步：把查询和淘汰拆成两个排序维度
+QUERY 要按 pos 递增输出，而淘汰要按 (score, pos) 递增选择。一个数据结构很难同时按两套关键字高效工作，因此分别维护缓存字典与最小堆。
+第二步：用最小堆定位淘汰项
+最小堆存放 (score, pos) 。Python 元组按第一项、第二项依次比较，所以堆顶恰好是分数最低且并列时 pos 最小的 token。分数使用 Decimal(score_text) 解析，避免二进制浮点舍入影响极接近分数的先后关系；用于输出的分数、Key 和 Value 则保留原始文本。
+第三步：利用严格递增的 pos 保持查询顺序
+题目保证 pos 唯一且随插入顺序严格递增。Python 3 的字典保持插入顺序，删除元素不会改变其余元素的相对顺序，因此直接遍历缓存字典就是按 pos 升序，无需在每次 QUERY 时重新排序。
+第四步：维护同步不变量
+每次插入同时写入字典和最小堆；超出容量时，从堆顶弹出同一个 token，并从字典删除。这样堆和缓存始终保存同一批 token，缓存数量不会超过 <span aria-label="K" class="plain-math">K</span>。
+以样例为例，前三个分数为 <span aria-label="5.0,2.0,8.0" class="plain-math">5.0,2.0,8.0</span>，缓存刚好装满。插入分数 <span aria-label="6.0" class="plain-math">6.0</span> 后，堆顶 (2.0,1) 被淘汰；再插入 <span aria-label="9.0" class="plain-math">9.0</span> 后，新的堆顶 (5.0,0) 被淘汰。</p>
+<h2 id="_6">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">heapq</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+<span class="n">capacity</span><span class="p">,</span> <span class="n">operation_count</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+<span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">min_heap</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">write</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span>
+
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">operation_count</span><span class="p">):</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">command</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"ADD"</span><span class="p">:</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">command</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">score_text</span> <span class="o">=</span> <span class="n">command</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">key_text</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">value_text</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">cache</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">score_text</span><span class="p">,</span> <span class="n">key_text</span><span class="p">,</span> <span class="n">value_text</span><span class="p">)</span>
+        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">min_heap</span><span class="p">,</span> <span class="p">(</span><span class="n">Decimal</span><span class="p">(</span><span class="n">score_text</span><span class="p">),</span> <span class="n">pos</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cache</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">capacity</span><span class="p">:</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">pruned_pos</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">min_heap</span><span class="p">)</span>
+            <span class="k">del</span> <span class="n">cache</span><span class="p">[</span><span class="n">pruned_pos</span><span class="p">]</span>
+            <span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"PRUNED </span><span class="si">{</span><span class="n">pruned_pos</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">query_output</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cache</span><span class="p">))]</span>
+        <span class="k">for</span> <span class="n">pos</span><span class="p">,</span> <span class="p">(</span><span class="n">score_text</span><span class="p">,</span> <span class="n">key_text</span><span class="p">,</span> <span class="n">value_text</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">query_output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pos</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">score_text</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">query_output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key_text</span><span class="p">)</span>
+            <span class="n">query_output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value_text</span><span class="p">)</span>
+        <span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">query_output</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+</div><h2 id="_7">复杂度分析</h2>
+<p>设一次查询时缓存中有 <span aria-label="M" class="plain-math">M</span> 个 token，所有查询实际输出的 token 总数为 <span aria-label="S" class="plain-math">S</span>。
+时间复杂度 ：每次 ADD 和淘汰均为 <span aria-label="O(\log K)" class="plain-math">O(log K)</span>，每次 QUERY 为 <span aria-label="O(M)" class="plain-math">O(M)</span>，总时间复杂度为 <span aria-label="O(N\log K+S)" class="plain-math">O(Nlog K+S)</span>。
+空间复杂度 ：字典、最小堆与单次查询的输出缓冲区均为 <span aria-label="O(K)" class="plain-math">O(K)</span>。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

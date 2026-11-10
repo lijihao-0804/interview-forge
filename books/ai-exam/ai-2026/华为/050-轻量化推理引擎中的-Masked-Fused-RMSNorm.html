@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>轻量化推理引擎中的 Masked Fused RMSNorm · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="masked-fused-rmsnorm">轻量化推理引擎中的 Masked Fused RMSNorm</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_2">思路分析</a></li>
+<li><a href="#_3">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_4">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>实现融合残差连接、RMSNorm、逐元素缩放、偏置和 padding mask 的算子。共有 <span aria-label="m" class="plain-math">m</span> 个样本，向量最大长度为 <span aria-label="n" class="plain-math">n</span>；所有样本共享缩放向量 <span class="math-inline-wrap"><math aria-label="γ" class="math-inline"><mrow><mo>γ</mo></mrow></math></span>、偏置向量 <span class="math-inline-wrap"><math aria-label="β" class="math-inline"><mrow><mo>β</mo></mrow></math></span> 和稳定项 <span class="math-inline-wrap"><math aria-label="ε" class="math-inline"><mrow><mo>ε</mo></mrow></math></span>。第 <span aria-label="k" class="plain-math">k</span> 个样本给出有效长度 <span aria-label="l_k" class="plain-math">l<sub>k</sub></span>、残差系数 <span class="math-inline-wrap"><math aria-label="alpha_k" class="math-inline"><mrow><msub><mi>α</mi><mi>k</mi></msub></mrow></math></span>、输入向量 <span aria-label="x_k" class="plain-math">x<sub>k</sub></span> 和残差向量 <span aria-label="r_k" class="plain-math">r<sub>k</sub></span>。
+先融合残差：
+只对前 <span aria-label="l_k" class="plain-math">l<sub>k</sub></span> 个有效位置统计能量与均方根：
+有效位置缩放并加偏置；padding 位置固定为 0：
+输入格式与约束 ：
+第一行为 m n epsilon ，<span class="math-inline-wrap"><math aria-label="1≤ mle200" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>m</mi><mo>≤</mo><mn>200</mn></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="1≤ nle256" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>n</mi><mo>≤</mo><mn>256</mn></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="0≤εle1" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mo>ε</mo><mo>≤</mo><mn>1</mn></mrow></math></span>。 第二、三行各有 <span aria-label="n" class="plain-math">n</span> 个浮点数，分别为 <span class="math-inline-wrap"><math aria-label="γ" class="math-inline"><mrow><mo>γ</mo></mrow></math></span> 和 <span class="math-inline-wrap"><math aria-label="β" class="math-inline"><mrow><mo>β</mo></mrow></math></span>，每项范围为 <span aria-label="[-10^3,10^3]" class="plain-math">[-10<sup>3</sup>,10<sup>3</sup>]</span>。 接下来 <span aria-label="m" class="plain-math">m</span> 行，每行格式为 l alpha x_1 ... x_n r_1 ... r_n 。 <span aria-label="0\le l\le n" class="plain-math">0≤ l≤ n</span>，<span class="math-inline-wrap"><math aria-label="-10^3≤αle10^3" class="math-inline"><mrow><mo>-</mo><msup><mn>10</mn><mn>3</mn></msup><mo>≤</mo><mi>α</mi><mo>≤</mo><msup><mn>10</mn><mn>3</mn></msup></mrow></math></span>；<span aria-label="x_i,r_i" class="plain-math">x<sub>i</sub>,r<sub>i</sub></span> 均在 <span aria-label="[-10^6,10^6]" class="plain-math">[-10<sup>6</sup>,10<sup>6</sup>]</span> 内。 时间限制：C/C++ 1000ms，其他语言 2000ms；内存限制：C/C++ 512MB，其他语言 1024MB。
+输出格式 ：每个样本输出一行 y_1 ... y_n | RMS | energy 。各项之间单个空格，竖线两侧各一个空格。所有数保留两位小数，按标准四舍五入；绝对值小于 0.005 时统一输出 0.00 ，避免 -0.00 。
+题面边界缺口 ：约束允许 <span class="math-inline-wrap"><math aria-label="ε=0" class="math-inline"><mrow><mo>ε</mo><mo>=</mo><mn>0</mn></mrow></math></span>。若 <span aria-label="l&gt;0" class="plain-math">l&gt;0</span> 且全部有效 <span aria-label="h_i=0" class="plain-math">h<sub>i</sub>=0</span>，则 <span aria-label="RMS=0" class="plain-math">RMS=0</span>，有效位置公式出现 <span aria-label="0/0" class="plain-math">0/0</span>，题面没有规定结果。下方实现只对公式有定义的输入给出答案；遇到这类未定义输入会明确报错，不擅自把输出规定为 0 或偏置。<span aria-label="l=0" class="plain-math">l=0</span> 时不执行有效位置除法，因此即使 <span class="math-inline-wrap"><math aria-label="ε=0" class="math-inline"><mrow><mo>ε</mo><mo>=</mo><mn>0</mn></mrow></math></span> 仍有定义。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 3 0.01
+1.0 0.5 -1.0
+0.0 1.0 0.0
+3 1.0 3.0 4.0 0.0 0.0 0.0 0.0
+2 0.5 -1.0 1.0 -1.0 2.0 -2.0 10.0
+1.04 1.69 0.00 | 2.89 | 25.00
+0.00 1.00 0.00 | 0.10 | 0.00
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 4 0.000001
+1.0 1.0 1.0 1.0
+0.0 0.0 0.0 0.0
+4 0.0 1.0 2.0 3.0 4.0 0.0 0.0 0.0 0.0
+0 1.0 0.0 0.0 0.0 0.0 1.0 2.0 3.0 4.0
+0.37 0.73 1.10 1.46 | 2.74 | 30.00
+0.00 0.00 0.00 0.00 | 0.00 | 0.00
+</code></pre></div>
+<h2 id="_2">思路分析</h2>
+<p>第一步：确定掩码作用范围。
+padding 不参与平方和，输出也不加偏置。可以只计算前 <span aria-label="l" class="plain-math">l</span> 个位置的融合值，并将完整输出向量初始化为 0。共享参数按位置索引，不能把缩放向量 <span class="math-inline-wrap"><math aria-label="γ" class="math-inline"><mrow><mo>γ</mo></mrow></math></span> 与样本残差向量 <span aria-label="r" class="plain-math">r</span> 混淆。
+第二步：按依赖顺序完成计算。
+先得到有效位置的 <span aria-label="h" class="plain-math">h</span>，然后累加 <span aria-label="energy" class="plain-math">energy</span>，再求 <span aria-label="RMS" class="plain-math">RMS</span>，最后计算各个有效位置的 <span aria-label="y" class="plain-math">y</span>。均方的分母是 <span class="math-inline-wrap"><math aria-label="max(l,1)" class="math-inline"><mrow><mi mathvariant="normal">max</mi><mo>(</mo><mi>l</mi><mo>,</mo><mn>1</mn><mo>)</mo></mrow></math></span>，不是向量最大长度 <span aria-label="n" class="plain-math">n</span>；稳定项位于平方根内部。不能先把 RMS 舍入到两位再计算输出，只在最终展示时舍入。
+当 <span aria-label="l=0" class="plain-math">l=0</span>，平方和为 0，RMS 为 <span class="math-inline-wrap"><math aria-label="sqrtε" class="math-inline"><mrow><msqrt><mrow></mrow></msqrt><mo>ε</mo></mrow></math></span>，输出向量全零。样例 2 的第二个样本 RMS 实际为 0.001，只是打印后显示 0.00。
+样例 1 的第一个样本得到 <span aria-label="h=[3,4,0]" class="plain-math">h=[3,4,0]</span>、<span aria-label="energy=25" class="plain-math">energy=25</span>、<span class="math-inline-wrap"><math aria-label="RMS=25/3+0.01" class="math-inline"><mrow><mi>RMS</mi><mo>=</mo><msqrt><mrow><mn>25</mn><mo>/</mo><mn>3</mn><mo>+</mo><mn>0.01</mn></mrow></msqrt></mrow></math></span>。第二个样本完整融合值为 <span aria-label="[0,0,4]" class="plain-math">[0,0,4]</span>，最后一个位置是 padding，因此平方和仍为 0；第二个有效位置的输出为偏置 1。
+第三步：处理四舍五入和负零。
+Python 的 f"{value:.2f}" 在精确中点采用 ties-to-even，并不总等价于题面所写的标准四舍五入。例如精确可表示的 0.125，前者输出 0.12，通常的四舍五入应为 0.13。这里用 Decimal.from_float 保留已经计算出的二进制浮点值，再用 ROUND_HALF_UP 定标到两位小数；计算过程仍使用双精度，最后一步才格式化。绝对值小于 0.005 的值先直接输出 0.00。
+题面没有提供恰好半分值的判题样例或特殊容差，因而无法确认隐藏判题是否也严格采用 HALF_UP；本实现按文字要求处理，而不将 ties-to-even 当作同一种规则。二进制浮点值与理想十进制实数之间仍可能有微小差异，这不是增加打印位数能够完全消除的。</p>
+<h2 id="_3">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span><span class="p">,</span> <span class="n">ROUND_HALF_UP</span>
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="k">def</span> <span class="nf">format_value</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.005</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"0.00"</span>
+    <span class="n">rounded</span> <span class="o">=</span> <span class="n">Decimal</span><span class="o">.</span><span class="n">from_float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">quantize</span><span class="p">(</span>
+        <span class="n">Decimal</span><span class="p">(</span><span class="s2">"0.01"</span><span class="p">),</span> <span class="n">rounding</span><span class="o">=</span><span class="n">ROUND_HALF_UP</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">format</span><span class="p">(</span><span class="n">rounded</span><span class="p">,</span> <span class="s2">".2f"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">masked_rms_norm</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">residual</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">):</span>
+    <span class="n">fused</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">residual</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">length</span><span class="p">)]</span>
+    <span class="n">energy</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">value</span> <span class="o">*</span> <span class="n">value</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">fused</span><span class="p">)</span>
+    <span class="n">rms</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">energy</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">epsilon</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">length</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">rms</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"题面未定义：有效长度非零且 RMS 为零"</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">length</span><span class="p">):</span>
+        <span class="n">output</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">gamma</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">fused</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">rms</span><span class="p">)</span> <span class="o">+</span> <span class="n">beta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">output</span><span class="p">,</span> <span class="n">rms</span><span class="p">,</span> <span class="n">energy</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">epsilon</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">gamma</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="n">tokens</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">length</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tokens</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">float</span><span class="p">(</span><span class="n">tokens</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span> <span class="o">+</span> <span class="n">n</span><span class="p">]))</span>
+        <span class="n">residual</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">2</span> <span class="o">+</span> <span class="n">n</span><span class="p">:</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">n</span><span class="p">]))</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">rms</span><span class="p">,</span> <span class="n">energy</span> <span class="o">=</span> <span class="n">masked_rms_norm</span><span class="p">(</span>
+            <span class="n">length</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">residual</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">epsilon</span>
+        <span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">format_value</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">output</span><span class="p">)</span>
+              <span class="o">+</span> <span class="s2">" | "</span> <span class="o">+</span> <span class="n">format_value</span><span class="p">(</span><span class="n">rms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">" | "</span> <span class="o">+</span> <span class="n">format_value</span><span class="p">(</span><span class="n">energy</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_4">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(mn)" class="plain-math">O(mn)</span>。每个样本读取长度为 <span aria-label="n" class="plain-math">n</span> 的向量，计算有效位置，并输出 <span aria-label="n" class="plain-math">n</span> 个结果；题面数值范围有限，格式化每个数的开销可视为常数。
+空间复杂度 ：<span aria-label="O(n)" class="plain-math">O(n)</span>。逐行处理样本，只保留共享向量和当前样本的输入、有效融合值、输出，不保存全部样本。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

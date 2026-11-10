@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>实现三种梯度下降 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 网易</div>
+<h1 id="_1">实现三种梯度下降</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">样例</a></li>
+<li><a href="#_6">思路分析</a></li>
+<li><a href="#_7">正确性说明</a></li>
+<li><a href="#_8">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_9">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/ · 网易 · 2026-09-29 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>线性回归的预测向量为 <span class="math-inline-wrap"><math aria-label="hat y=Xw" class="math-inline"><mrow><mover><mrow></mrow><mo>^</mo></mover><mi>y</mi><mo>=</mo><mi>Xw</mi></mrow></math></span>。给定特征矩阵、目标向量、初始权重和训练参数，以均方误差为损失，执行指定轮数的梯度下降。
+三种方法严格按以下规则更新：
+batch ：每轮使用全部 <span aria-label="m" class="plain-math">m</span> 个样本，梯度为 <span class="math-inline-wrap"><math aria-label="2mX^T(Xw-y)" class="math-inline"><mrow><mfrac><mrow><mn>2</mn></mrow><mrow><mi>m</mi></mrow></mfrac><msup><mi>X</mi><mi>T</mi></msup><mo>(</mo><mi>Xw</mi><mo>-</mo><mi>y</mi><mo>)</mo></mrow></math></span>，更新一次。 stochastic ：每轮按输入顺序逐个处理样本。第 <span aria-label="i" class="plain-math">i</span> 个样本的梯度为 <span aria-label="2x_i(x_i^Tw-y_i)" class="plain-math">2x<sub>i</sub>(x<sub>i</sub><sup>Tw</sup>-y<sub>i</sub>)</span>，算完立刻更新，不随机打乱。 mini_batch ：每轮按输入顺序分成大小为 batch_size 的连续批次。每批梯度为 <span class="math-inline-wrap"><math aria-label="2batch_sizeX_b^T(X_bw-y_b)" class="math-inline"><mrow><mfrac><mrow><mn>2</mn></mrow><mrow><msub><mi>batch</mi><mi>size</mi></msub></mrow></mfrac><msup><msub><mi>X</mi><mi>b</mi></msub><mi>T</mi></msup><mo>(</mo><msub><mi>X</mi><mi>bw</mi></msub><mo>-</mo><msub><mi>y</mi><mi>b</mi></msub><mo>)</mo></mrow></math></span>，算完立即更新。 尾批即使不足指定大小，分母仍固定为 batch_size 。
+每次更新均为 <span class="math-inline-wrap"><math aria-label="w← w-η g" class="math-inline"><mrow><mi>w</mi><mo>←</mo><mspace width=".18em"></mspace><mi>w</mi><mo>-</mo><mo>η</mo><mspace width=".18em"></mspace><mi>g</mi></mrow></math></span>，其中 <span class="math-inline-wrap"><math aria-label="η" class="math-inline"><mrow><mo>η</mo></mrow></math></span> 为学习率，不另加偏置项。</p>
+<h2 id="_3">输入描述</h2>
+<p>七行依次输入：
+X ：形状为 <span aria-label="(m,n)" class="plain-math">(m,n)</span> 的二维列表。 y ：长度为 <span aria-label="m" class="plain-math">m</span> 的列表。 weights ：长度为 <span aria-label="n" class="plain-math">n</span> 的初始权重列表。 learning_rate ：学习率。 n_iterations ：迭代轮数。 batch_size ：批量大小。 method ：带引号的字符串，为上述三种方法之一。
+数据范围：<span class="math-inline-wrap"><math aria-label="1≤ mle50" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>m</mi><mo>≤</mo><mn>50</mn></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="1≤ nle5" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>n</mi><mo>≤</mo><mn>5</mn></mrow></math></span>； X 与 y 的元素绝对值不超过 <span aria-label="10" class="plain-math">10</span>，初始权重元素绝对值不超过 <span aria-label="1" class="plain-math">1</span>；<span class="math-inline-wrap"><math aria-label="0&lt;ηle0.01" class="math-inline"><mrow><mn>0</mn><mo>&lt;</mo><mo>η</mo><mo>≤</mo><mn>0.01</mn></mrow></math></span>，<span class="math-inline-wrap"><math aria-label="1≤ n_iterationsle1000" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>n</mi><mi>iterations</mi></msub><mo>≤</mo><mn>1000</mn></mrow></math></span>，<span aria-label="1\le batch_size\le m" class="plain-math">1≤ batch<sub>size</sub>≤ m</span>。数据保证迭代过程不会发散。</p>
+<h2 id="_4">输出描述</h2>
+<p>返回最终权重向量，按 NumPy 数组默认打印格式输出，即直接 print(weights) ，不添加逗号，不自行固定小数位数。</p>
+<h2 id="_5">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>[[1, 2], [3, 4], [5, 6]]
+[2, 4, 6]
+[0.5, 0.5]
+0.01
+100
+2
+'batch'
+[0.46201996 0.63526154]
+</code></pre></div>
+<h2 id="_6">思路分析</h2>
+<p>第一步：写清一批数据的梯度。 设本次参与更新的样本下标集合为 <span aria-label="B" class="plain-math">B</span>，题目规定的归一化分母为 <span aria-label="d" class="plain-math">d</span>，则损失可表示为
+对每个权重求导，平方项产生系数 <span aria-label="2" class="plain-math">2</span>，内积对权重的导数为特征分量，因此梯度向量为
+先计算残差，再左乘转置矩阵，就能一次得到所有权重的梯度。批内所有分量必须基于同一个旧权重计算，不能更新一个分量后再计算下一个分量。
+第二步：把三种方法的差别归结为批次和分母。 批量方法一轮只有一个批次且 <span aria-label="d=m" class="plain-math">d=m</span>；随机方法每批一个样本且 <span aria-label="d=1" class="plain-math">d=1</span>；小批量方法每批最多 batch_size 个样本且 <span aria-label="d=batch_size" class="plain-math">d=batch<sub>size</sub></span>。依次处理这些批次即可复用更新公式。
+“随机”只是方法名称，本题明确要求顺序遍历，不做洗牌。后一批的残差应使用前一批更新后的权重。尾批固定分母也是本题特定口径，不能替换为常见实现中的实际尾批长度。
+第三步：保持浮点类型和输出格式。 输入矩阵与权重转为浮点数组。样例使用 batch ，所以每轮一次更新， batch_size=2 不参与该方法的梯度计算。</p>
+<h2 id="_7">正确性说明</h2>
+<p>初始权重与输入相同。假设某次更新前权重正确，代码选出的样本集合和分母与当前方法的规定一致，计算的矩阵表达式正是上述梯度，再按学习率更新，所得权重也正确。按批次、轮次归纳，完成指定轮数后得到要求的最终权重。</p>
+<h2 id="_8">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">ast</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+
+
+<span class="k">def</span> <span class="nf">gradient_descent</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">,</span>
+                     <span class="n">n_iterations</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">method</span><span class="p">):</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">"batch"</span><span class="p">:</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">m</span>
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">"stochastic"</span><span class="p">:</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">batch_size</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_iterations</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+            <span class="n">xb</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">step</span><span class="p">]</span>
+            <span class="n">yb</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">step</span><span class="p">]</span>
+            <span class="n">residual</span> <span class="o">=</span> <span class="n">xb</span> <span class="o">@</span> <span class="n">w</span> <span class="o">-</span> <span class="n">yb</span>
+            <span class="n">gradient</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="n">step</span><span class="p">)</span> <span class="o">*</span> <span class="n">xb</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">residual</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">w</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">gradient</span>
+    <span class="k">return</span> <span class="n">w</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">()),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">learning_rate</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">n_iterations</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">method</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">gradient_descent</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">,</span>
+                           <span class="n">n_iterations</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">method</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_9">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(Tmn)" class="plain-math">O(Tmn)</span>，<span aria-label="T" class="plain-math">T</span> 为迭代轮数。三种方法每轮都处理所有样本，每个样本的计算量与特征数成正比。
+空间复杂度 ：<span aria-label="O(mn)" class="plain-math">O(mn)</span>，主要用于特征矩阵以及向量；切片不需要复制整个矩阵。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

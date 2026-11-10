@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>最小奇数质因数 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 科大讯飞</div>
+<h1 id="_1">最小奇数质因数</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例1</a></li>
+<li><a href="#miller-rabin-pollards-rho">题解：Miller-Rabin + Pollard’s rho</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/iflytek/algo-20260906/ · 科大讯飞 · 2026-09-06 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>给定  个正整数 ，请找出  的最小奇数质因数。如果不存在这样的因数，则输出 。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入一个整数 ，表示测试用例数量。
+接下来的  行，每行输入一个整数 。</p>
+<h2 id="_4">输出描述</h2>
+<p>对于每个测试用例，在一行上输出一个整数，表示  的最小奇数质因数；如果  没有大于  的奇数因数，则输出 。</p>
+<h2 id="1">样例1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>3
+15
+2
+49
+3
+-1
+7
+</code></pre></div>
+<h2 id="miller-rabin-pollards-rho">题解：Miller-Rabin + Pollard’s rho</h2>
+<p>给定  个不超过  的整数 ，对每个  求它最小的奇数质因数； 形如  时没有奇因数，输出 。
+这是一道被数据范围逼着换算法的分解题：做法只有”分解质因数后取最小的奇质因子”一句，难点全在  达 、 达  时怎么在时限内分解完。
+先把因子  剥干净。 反复除以  得到奇数 ， 的质因子全是奇数，答案就是  的最小质因子； 说明  是  的幂，输出 。
+朴素做法是从  起逐个奇数试除 ，上界 ， 时合计约  次取模，Python 与 Java 都过不去。卡点在于  是大质数、或两个约  的质数之积时，试除要走满整个区间才出结果。
+绕开的办法是不顺序找因子，而是把  完全分解，再取结果里的最小值。分解要用两件工具。
+判一个数  是不是质数，用 Miller-Rabin。依据有两条： 为质数时费马小定理给出 ，且方程  只有  两个解。
+把  写成 （ 为奇数），从  出发连续平方  次恰好得到 。沿这条链检查，若中途冒出一个不等于  却平方成  的数，就找到了  的第三个平方根， 必是合数。取  这  个底数时判定在  内是确定性的，不会误判。
+从合数  里劈出一个非平凡因子（既不是  也不是  的因子），用 Pollard’s rho。造一列伪随机数 ，设  的最小质因子为 ，这列数模  只有  种取值，由生日悖论约  步就会出现重复。
+重复意味着有两项满足  却 。此时  同时整除  与 ，于是
+找这一对不必两两比较：慢指针每次走一步、快指针走两步，两者在环上必定相遇。 退化成  说明这轮  选得不巧，换一个重来。
+量级关键在于合数的最小质因子满足 ，故 ， 时只要约三千步。
+两者串成栈式流程：栈里初始只有 ，每次弹出 ，判素为真就收进候选，为假就用 rho 劈成  与  压回；栈空时候选里的最小值即答案。
+是大质数时一次判素就结束，不进 rho； 这类  的幂剥完只剩 ，第一步就返回 。
+时间复杂度 ：。瓶颈在 rho 撞环的  步，每步一次  带一个 ；Miller-Rabin 是  个底数各做  次模乘，量级远小于 rho。比试除的  快约三个数量级。 空间复杂度 ：，栈中至多存下分解链上的常数级个待分解数。 Python</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>## 最小奇数质因数 - Miller-Rabin + Pollard's rho
+from random import randrange
+from math import gcd
+
+## 这 12 个底数对 2^64 以内的数是确定性的，不会误判，所以不用随机底数
+BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
+
+## 说明：Python 整数是任意精度的，x * x 到 1e28 也不会溢出，
+## 所以不像 C++/Java/Go 那样需要单独写一个模乘函数，直接写 x * x % n 即可
+
+
+def is_prime(n):
+    # Miller-Rabin 素性判定：这 12 个底数对 2^64 以内的数是确定性的，不会误判，
+    # 因此不存在概率性出错，判一次就是定论
+    if n &lt; 2:
+        return False
+    # 底数本身必须先特判：n 恰好等于某个底数时快速幂的底会被模成 0，反而判错
+    for b in BASES:
+        if n % b == 0:
+            return n == b  # 能被小底数整除的合数在这里就出局
+    # 把 n-1 拆成 d * 2^r，d 为奇数。判定依据是"模素数意义下 1 的平方根只能是 ±1"，
+    # 要沿着 a^d, a^2d, a^4d ... 一路平方回到 a^(n-1)，检查中途有没有冒出别的平方根
+    d = n - 1
+    r = 0
+    while d % 2 == 0:
+        d //= 2
+        r += 1  # r 记录抽出了几个因子 2，也就是后面要连续平方几次
+    for b in BASES:
+        # 内置 pow 三参形式就是快速幂，指数接近 1e14 时逐次相乘会超时
+        x = pow(b, d, n)
+        # 起点已经是 ±1，整条链此后恒为 1，这个底数给不出反例，换下一个
+        if x == 1 or x == n - 1:
+            continue
+        witness = True  # 先假设该底数能证明 n 是合数，下面找反例
+        # 连续平方 r-1 次，中途出现 n-1 说明这个底数不能证伪
+        for _ in range(r - 1):
+            x = x * x % n
+            if x == n - 1:
+                witness = False
+                break
+        # 全程没出现 n-1，等于找到了 1 的非平凡平方根，n 必是合数
+        if witness:
+            return False
+    return True
+
+
+def pollard(n):
+    # Pollard's rho：用伪随机序列 x -&gt; x^2 + c 找出 n 的一个非平凡因子。
+    # 1e14 要试除到 1e7 才安全，多组询问必超时；rho 期望只需 n^(1/4) 步
+    if n % 2 == 0:
+        return 2  # 偶数直接返回因子 2，省掉一整轮随机游走
+    while True:
+        # c 决定这条伪随机序列的形状，失败时换 c 就等于换一条轨迹重试
+        c = randrange(1, n)
+        x = randrange(0, n)
+        y = x
+        d = 1
+        # 龟兔赛跑：慢指针走一步、快指针走两步，两者之差与 n 的 gcd 就是候选因子。
+        # 序列在模 n 的某个质因子 p 下会更早成环，那一刻 x≡y (mod p) 但 x≠y (mod n)，
+        # gcd(|x-y|, n) 于是恰好把 p 这一侧劈出来
+        while d == 1:
+            x = (x * x + c) % n
+            y = (y * y + c) % n
+            y = (y * y + c) % n
+            d = gcd(abs(x - y), n)
+        # d == n 说明快慢指针在模 n 下同时成环，这轮参数 c 没劈出东西，换个 c 重来
+        if d != n:
+            return d
+
+
+def min_odd_prime(n):
+    # 先除尽 2，再把剩下的奇数完全分解，取最小质因子
+    # 剥掉全部因子 2：题目只要奇质因数，留着 2 会让下面的最小值恒等于 2
+    while n % 2 == 0:
+        n //= 2
+    if n == 1:
+        return -1  # 剥完只剩 1，说明 n 是 2 的幂，没有大于 1 的奇因数
+    best = n  # n 自身若是质数就是答案，先拿它兜底
+    # 用显式栈代替递归分解，既避免深度过大爆栈，也方便随时把半成品因子塞回去
+    stack = [n]
+    while stack:
+        v = stack.pop()
+        if v == 1:
+            continue  # 1 不含质因子，跳过
+        if is_prime(v):
+            best = min(best, v)  # 只有质数才有资格更新答案
+            continue
+        # 合数就劈成两半继续分解，直到栈里只剩质数
+        d = pollard(v)
+        stack.append(d)
+        stack.append(v // d)
+    return best
+
+
+## 第一行是询问组数，之后每行一个待分解的正整数
+t = int(input())
+for _ in range(t):
+    print(min_odd_prime(int(input())))
+</code></pre></div>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

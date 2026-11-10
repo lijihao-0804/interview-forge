@@ -2526,12 +2526,12 @@ loadStatus();document.getElementById('exportChapter').addEventListener('click',a
     )
     _ai_coding_card = (
         '<article class="module-card" data-category="企业题库" data-track="面试题库" '
-        'data-search="ai 岗 笔试 大题 编程题 代码题 算法 真题">'
+        'data-search="ai 岗 机试 真题 大题 编程题 代码题 算法">'
         '<div class="card-head"><span class="module-icon" aria-hidden="true" '
         'style="color:#7c3aed;background:color-mix(in srgb,#7c3aed 13%,transparent)">💻</span>'
-        '<h2><a href="../pages/ai-exam-coding.html" target="_blank" rel="noopener noreferrer">AI 岗笔试大题</a></h2></div>'
-        '<div class="module-meta"><span>企业题库</span><span>132 道 · 按企业筛选</span></div>'
-        '<div class="module-progress-row"><span class="module-note">编程/代码大题与题解</span></div></article>'
+        '<h2><a href="../books/ai-exam/index.html" target="_blank" rel="noopener noreferrer">AI 岗机试真题库</a></h2></div>'
+        '<div class="module-meta"><span>企业题库</span><span>169 题 · 多语言代码</span></div>'
+        '<div class="module-progress-row"><span class="module-note">独立题目页 · 目录 · Java/Python</span></div></article>'
     )
     _huawei_card = (
         '<article class="module-card" data-module-id="huawei-od" data-category="企业题库" data-track="面试题库" '

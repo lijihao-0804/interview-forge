@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>最优流水线并行切分 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">最优流水线并行切分</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述与约束</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">正确性证明</a></li>
+<li><a href="#_7">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_8">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261028/ · 华为 · 2026-10-28 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>把包含 N 层的深度神经网络部署到 K 个 GPU 上，采用顺序流水线并行。第 i 层计算耗时为 T[i]，输出张量对应的通信耗时为 S[i]。
+相邻层在同一个 GPU 上，不产生层间通信耗时。 第 i 层和第 i + 1 层在不同 GPU 上，则产生 S[i] 的通信耗时，计入前一阶段，即以第 i 层结尾的 GPU。 将全部层按原顺序切分为 恰好 K 个非空连续子序列 ，每段分配给一个 GPU。 最后一个阶段后面没有下一层，不收取输出通信费用，即便输入提供了 S[N]。
+每个 GPU 的总耗时为其层计算耗时之和，加上该阶段末尾需要支付的通信耗时。求所有合法切分中，“单个 GPU 最大总耗时”的最小值。</p>
+<h2 id="_3">输入描述与约束</h2>
+<p>第一行：N 个空格分隔的整数，表示 T。 第二行：N 个空格分隔的整数，表示 S。 第三行：整数 K，表示 GPU 数量。
+输入没有单独的 N，也没有方括号或逗号。已有材料未给出 N、K、T[i]、S[i] 的明确数值上限。按“耗时”语义使用非负值；合法切分要求 <span aria-label="1\le K\le N" class="plain-math">1≤ K≤ N</span>。非法输入如何输出未披露，代码不自行约定返回 -1。由于上限未披露，下面给出与材料一致的 <span aria-label="O(KN^2)" class="plain-math">O(KN<sup>2</sup>)</span> 解法，不宣称它能处理任意大规模数据。</p>
+<h2 id="_4">输出描述</h2>
+<p>输出一个整数，表示最优切分的最大 GPU 总耗时。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出
+解释 ：只有一层、一个 GPU，不发生跨卡通信，答案就是该层计算耗时。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>10
+0
+1
+10
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出
+解释 ：一种最优切分为第 1～3 层、第 4 层、第 5 层：
+GPU1：计算耗时 <span aria-label="10+20+15" class="plain-math">10+20+15</span>，通信耗时 <span aria-label="5" class="plain-math">5</span>，总耗时 <span aria-label="50" class="plain-math">50</span>。 GPU2：计算耗时 <span aria-label="25" class="plain-math">25</span>，通信耗时 <span aria-label="20" class="plain-math">20</span>，总耗时 <span aria-label="45" class="plain-math">45</span>。 GPU3：计算耗时 <span aria-label="30" class="plain-math">30</span>，无末尾通信，总耗时 <span aria-label="30" class="plain-math">30</span>。
+因此该方案的瓶颈为 50，动态规划会在全部合法切分中得到这一最小值。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>10 20 15 25 30
+5 10 5 20 0
+3
+50
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>第一步：为什么普通分段贪心不适用？ 没有通信开销时，把非负序列多切一刀不会增大任一段的和。因此常见做法可以二分答案，再贪心检查能否用至多 K 段装下。
+本题增加一个切口，会给左段新增一笔段尾通信。材料给出的反例是 T = [1, 1] 、 S = [100, 0] 、 K = 2 ：一段时耗时为 2，恰好两段时瓶颈却为 101。因此上限 2 对“至多两段”可行，对“恰好两段”不可行。失败的是这个贪心判定与段数替换，不是答案上限本身失去了可行性的单调性。
+第二步：用前缀和表达一段的代价。 以下公式使用从 1 开始的层编号，令：
+设上一段结束于 b，本段为第 b + 1 到 i 层，则：
+段内通信免费，只看末尾是否连接下一张 GPU。代码数组从零开始，因此公式中的 S[i] 对应 s[i - 1] 。
+第三步：把段数写进状态。 令 <span aria-label="f[j][i]" class="plain-math">f[j][i]</span> 表示前 i 层恰好组成 j 段时，这些阶段最大总耗时的最小值。特别注意：若 <span aria-label="i&lt;N" class="plain-math">i&lt;N</span>，当前前缀的最后一段也需要支付向第 i + 1 层发送的费用；只有到达整网末尾 N 才免通信。
+初始状态为 <span aria-label="f[0][0]=0" class="plain-math">f[0][0]=0</span>，其他状态为正无穷。枚举最后一个切口 b：
+下界 <span aria-label="b\ge j-1" class="plain-math">b≥ j-1</span> 保证前 j - 1 段至少各有一层。 上界 <span aria-label="b&lt;i" class="plain-math">b&lt;i</span> 保证最后一段非空。 内层 max 计算某一种切法的瓶颈；外层 min 选择最优切法。 最终答案是 <span aria-label="f[K][N]" class="plain-math">f[K][N]</span>，而不是在所有不超过 K 的段数中取最小值。
+第四步：滚动数组。 第 j 行只依赖第 j - 1 行，用 prev 保存上一行、cur 保存当前行。每完成一行就令 prev = cur 。不能直接原地覆盖同一行，否则可能误用本轮状态，破坏“恰好 j 段”的语义。</p>
+<h2 id="_6">正确性证明</h2>
+<p>对阶段数 j 归纳。
+初始情况 ：零层划为零段没有耗时，对应 <span aria-label="f[0][0]=0" class="plain-math">f[0][0]=0</span>；其余零段状态不可行，设为正无穷，正确。
+归纳步骤 ：考虑前 i 层的任意合法 j 段切分，其最后一段必然是 b + 1 到 i，且 <span aria-label="j-1\le b&lt;i" class="plain-math">j-1≤ b&lt;i</span>。前 b 层恰好分为 j - 1 段。由归纳假设，这部分的最小瓶颈是 <span aria-label="f[j-1][b]" class="plain-math">f[j-1][b]</span>；最后一段的成本只取决于 b、i，与前面具体如何切分无关。
+对固定 b，将前缀替换为最优划分不会增大总瓶颈，故该切口下的最优值就是递推式中的 max。枚举范围覆盖所有合法最后切口，并且每个有限候选都能由一个合法前缀加上一个非空末段构成，因此取最小值既不会漏掉最优方案，也不会引入非法方案。
+归纳得到所有状态正确，故 <span aria-label="f[K][N]" class="plain-math">f[K][N]</span> 正是恰好 K 个阶段的最优瓶颈。滚动数组只删除后续不再使用的行，不改变递推结果。</p>
+<h2 id="_7">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+
+
+<span class="k">def</span> <span class="nf">min_max_cost</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+    <span class="n">pre</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">pre</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">pre</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">value</span>
+
+    <span class="n">inf</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">"inf"</span><span class="p">)</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="p">[</span><span class="n">inf</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">prev</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">cur</span> <span class="o">=</span> <span class="p">[</span><span class="n">inf</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">comm</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="n">inf</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">prev</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="n">inf</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">last</span> <span class="o">=</span> <span class="n">pre</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">pre</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+</span> <span class="n">comm</span>
+                <span class="n">candidate</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">prev</span><span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="n">last</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">candidate</span> <span class="o">&lt;</span> <span class="n">best</span><span class="p">:</span>
+                    <span class="n">best</span> <span class="o">=</span> <span class="n">candidate</span>
+            <span class="n">cur</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">best</span>
+        <span class="n">prev</span> <span class="o">=</span> <span class="n">cur</span>
+    <span class="k">return</span> <span class="n">prev</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">min_max_cost</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_8">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(KN^2)" class="plain-math">O(KN<sup>2</sup>)</span>。有 <span aria-label="O(KN)" class="plain-math">O(KN)</span> 个状态，每个枚举至多 N 个切口；前缀和使每段代价在常数时间内求出。
+空间复杂度 ：<span aria-label="O(N)" class="plain-math">O(N)</span>。存储输入数组、前缀和及两行 DP，不保留所有阶段数对应的状态。有效代价始终是整数，正无穷只作为不可达标记。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

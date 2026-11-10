@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>OCR 智能纠错系统迭代训练和推理 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="ocr">OCR 智能纠错系统迭代训练和推理</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述与约束</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#3">样例 3</a></li>
+<li><a href="#_4">解题思路：朴素贝叶斯计数与同步迭代</a></li>
+<li><a href="#_5">正确性证明</a></li>
+<li><a href="#python-acm">Python ACM 代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_6">复杂度分析</a></li>
+<li><a href="#_7">本题小结</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261023/ · 华为 · 2026-10-23 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>某智能终端搭载字符级 OCR 纠错系统，把“识别字符到真实字符”的纠错建模为朴素贝叶斯过程。
+字符集为小写英文字母 <span aria-label="{a,b,\ldots,z}" class="plain-math">a,b,…,z</span>，记 <span aria-label="K=26" class="plain-math">K=26</span>。模型由两组统计量描述：
+<span aria-label="emit[c][o]" class="plain-math">emit[c][o]</span>：训练语料中，真实字符 <span aria-label="c" class="plain-math">c</span> 被 OCR 识别为 <span aria-label="o" class="plain-math">o</span> 的次数。 <span aria-label="prior[c]" class="plain-math">prior[c]</span>：训练语料中，真实字符 <span aria-label="c" class="plain-math">c</span> 出现的次数。
+对发射概率和先验概率使用加 <span class="math-inline-wrap"><math aria-label="α" class="math-inline"><mrow><mi>α</mi></mrow></math></span> 拉普拉斯平滑，<span class="math-inline-wrap"><math aria-label="α" class="math-inline"><mrow><mi>α</mi></mrow></math></span> 是正整数：
+对于待纠错字符串中的每一个 OCR 字符 <span aria-label="o" class="plain-math">o</span>，独立选择使 <span class="math-inline-wrap"><math aria-label="P(o| c)P(c)" class="math-inline"><mrow><mi>P</mi><mo>(</mo><mi>o</mi><mo>|</mo><mspace width=".18em"></mspace><mi>c</mi><mo>)</mo><mi>P</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow></math></span> 最大的真实字符 <span aria-label="c" class="plain-math">c</span>。如果多个候选取得相同最大值，选择字典序最小的字符。
+除 <span aria-label="N" class="plain-math">N</span> 条带标注训练对外，还有 <span aria-label="M" class="plain-math">M</span> 条只有 OCR 输出、没有真实文本的未标注样本。初始模型仅由原始带标注样本统计得到，共进行 <span aria-label="T" class="plain-math">T</span> 轮自训练。每轮执行：
+使用当前模型对全部 <span aria-label="M" class="plain-math">M</span> 条未标注样本解码，得到伪真实文本。 使用 <span aria-label="N" class="plain-math">N</span> 条原始标注样本，加上本轮的 <span aria-label="M" class="plain-math">M</span> 条“（OCR，伪真实）”训练对， 重新统计 模型。
+每轮伪标注替换上一轮伪标注，不累积叠加；原始标注始终保留。完成 <span aria-label="T" class="plain-math">T</span> 轮后，用最终模型纠正测试 OCR 字符串并输出。
+数值稳定性要求 ：比较候选时必须用整数交叉相乘，避免浮点误差。令
+先验概率的分母对所有候选相同，可以省略。两个候选的比较为</p>
+<h2 id="_2">输入描述与约束</h2>
+<p>第一行四个整数 <span class="math-inline-wrap"><math aria-label="N,M,T,α" class="math-inline"><mrow><mi>N</mi><mo>,</mo><mi>M</mi><mo>,</mo><mi>T</mi><mo>,</mo><mi>α</mi></mrow></math></span>，依次表示带标注样本数、未标注样本数、迭代轮数和平滑系数。
+接下来 <span aria-label="N" class="plain-math">N</span> 行，每行两个等长字符串 <span aria-label="ocr_i,truth_i" class="plain-math">ocr<sub>i</sub>,truth<sub>i</sub></span>， 前者是 OCR 输出，后者是真实文本 。
+接下来 <span aria-label="M" class="plain-math">M</span> 行，每行一个未标注 OCR 字符串。最后一行是测试 OCR 字符串。
+<span aria-label="1\le N\le 100" class="plain-math">1≤ N≤ 100</span>。 <span aria-label="0\le M\le 100" class="plain-math">0≤ M≤ 100</span>。 <span aria-label="0\le T\le 20" class="plain-math">0≤ T≤ 20</span>。 <span class="math-inline-wrap"><math aria-label="1≤α≤ 10" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mi>α</mi><mo>≤</mo><mspace width=".18em"></mspace><mn>10</mn></mrow></math></span>。 所有字符串仅含小写英文字母，长度满足 <span aria-label="1\le L\le 100" class="plain-math">1≤ L≤ 100</span>。 每个标注对内的两个字符串长度相等，不要求不同样本之间等长。</p>
+<h2 id="_3">输出描述</h2>
+<p>输出一行，表示测试 OCR 字符串经过最终模型纠正后的结果。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出
+解释 ：标注对是 OCR u 、真实字符 i 。其后前五行 v 是未标注样本，最后一行 v 是测试串。初始模型对 v 没有发射观测；省略公共分母后，候选 i 的得分为 <span aria-label="2/27" class="plain-math">2/27</span>，其余候选为 <span aria-label="1/26" class="plain-math">1/26</span>，所以选 i 。
+第一轮将五个未标注 v 都标为 i ，重建后 <span aria-label="emit[i][v]=5" class="plain-math">emit[i][v]=5</span>、<span aria-label="prior[i]=6" class="plain-math">prior[i]=6</span>。第二轮替换伪标注而非再次叠加，最终输出仍为 i 。这里的判断同时考虑先验和发射分母，并非只比较先验计数。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>1 5 2 1
+u i
+v
+v
+v
+v
+v
+v
+i
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出
+解释 ：没有未标注样本，也不进行迭代。训练集中 OCR 字符 x 两次对应真实字符 b ，测试串的 x 被纠正为 b ， a 保持为 a 。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 0 0 1
+axc abc
+axd abd
+ax
+ab
+</code></pre></div>
+<h2 id="3">样例 3</h2>
+<p>输入
+输出
+解释 ：初始模型中真实字符 a 、 b 都出现两次；对于没有观测过的 z ，两者得分均为 <span aria-label="3/28" class="plain-math">3/28</span>，高于其他候选，平局选择 a 。第一轮把未标注样本 az 纠正为 aa 后重新计数，产生真实 a 被识别为 z 的观测。后续迭代保持这一预测，测试输出 aa 。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 1 2 1
+ax ab
+ay ab
+az
+az
+aa
+</code></pre></div>
+<h2 id="_4">解题思路：朴素贝叶斯计数与同步迭代</h2>
+<p>对一对 (ocr, truth) ，逐位置取真实字符 c 和识别字符 o ，增加 emit[c][o] 与 prior[c] 。再用 total[c] 记录该真实字符的发射总数。
+在本题每个真实字符恰好对应一个 OCR 字符，所以 total[c] == prior[c] 。代码保留两个数组，使发射分母和先验分子分别对应题面定义，便于核对。
+删去所有候选共有的先验分母后，得分是
+由于 <span class="math-inline-wrap"><math aria-label="α&gt;0" class="math-inline"><mrow><mi>α</mi><mo>&gt;</mo><mn>0</mn></mrow></math></span>，分母始终为正。交叉相乘可以精确判断大于和相等，不需要对数、浮点数或误差阈值。
+按 a 到 z 的顺序枚举候选，初始化最优候选为 a ，仅在新分数 严格更大 时替换。相等时保留先遇到的候选，正好实现字典序规则。Python 整数可自动扩展；其他语言实现应使用足够宽的整数，不能直接用 32 位乘积。
+同一轮内，一个 OCR 字符的预测只由字符本身和当前模型决定，与其位置、所在字符串无关。因此可以先计算
+枚举 <span aria-label="K" class="plain-math">K</span> 个识别字符及 <span aria-label="K" class="plain-math">K</span> 个真实字符，建表需要 <span aria-label="O(K^2)" class="plain-math">O(K<sup>2</sup>)</span> 时间。之后解码任何字符串只需逐字符查表。
+先由原始标注建立初始统计量。每轮先固定当前映射表，用它解码全部未标注样本；全部解码完成后，将原始标注和本轮伪标注一起传入计数函数，从零建立新统计量。
+不能解码一条就更新模型，让后续样本看到已经改变的统计量；也不能在上一轮统计量上直接累加，否则会重复计算旧伪标注。
+完成循环后必须再用最终模型建表，不能直接拿最后一轮用于产生伪标注的旧表输出测试结果。<span aria-label="T=0" class="plain-math">T=0</span> 时直接使用初始模型；<span aria-label="M=0" class="plain-math">M=0</span> 时每轮仍只统计原始标注，模型不变。</p>
+<h2 id="_5">正确性证明</h2>
+<p>引理一：计数函数正确。 每对训练字符串中的每个位置，恰好对题面定义的 <span aria-label="emit[c][o]" class="plain-math">emit[c][o]</span>、<span aria-label="prior[c]" class="plain-math">prior[c]</span> 及发射总数贡献一次。遍历所有位置后得到的统计量与定义相同。
+引理二：映射表符合解码规则。 省略的先验分母对所有候选相同且为正，不改变得分顺序；交叉相乘保持大小关系。枚举覆盖所有真实字符，只在严格更优时替换，因此最终得到最大分数及其中字典序最小的候选。逐字符查表与逐字符独立解码完全等价。
+归纳证明迭代正确。 初始计数由原始标注建立，由引理一正确。假设某轮开始时模型与规定一致，由引理二，本轮统一生成的所有伪标注正确；随后从原始标注和本轮伪标注重新统计，由引理一得到规定的新模型，且没有上一轮伪标注残留。归纳可得完成 <span aria-label="T" class="plain-math">T</span> 轮后的模型正确，再由引理二可得测试输出正确。</p>
+<h2 id="python-acm">Python ACM 代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">K</span> <span class="o">=</span> <span class="mi">26</span>
+
+
+<span class="k">def</span> <span class="nf">build_counts</span><span class="p">(</span><span class="n">pairs</span><span class="p">):</span>
+    <span class="n">emit</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">K</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">)]</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">K</span>
+    <span class="n">prior</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">K</span>
+    <span class="k">for</span> <span class="n">ocr</span><span class="p">,</span> <span class="n">truth</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">observed</span><span class="p">,</span> <span class="n">actual</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ocr</span><span class="p">,</span> <span class="n">truth</span><span class="p">):</span>
+            <span class="n">o</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">observed</span><span class="p">)</span> <span class="o">-</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">'a'</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">actual</span><span class="p">)</span> <span class="o">-</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">'a'</span><span class="p">)</span>
+            <span class="n">emit</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">o</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">total</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">prior</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span>
+
+
+<span class="k">def</span> <span class="nf">build_table</span><span class="p">(</span><span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">K</span>
+    <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">K</span><span class="p">):</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">best_num</span> <span class="o">=</span> <span class="p">(</span><span class="n">emit</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">o</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">prior</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span><span class="p">)</span>
+        <span class="n">best_den</span> <span class="o">=</span> <span class="n">total</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">K</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">K</span><span class="p">):</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="p">(</span><span class="n">emit</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">o</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">prior</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span><span class="p">)</span>
+            <span class="n">den</span> <span class="o">=</span> <span class="n">total</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">K</span>
+            <span class="k">if</span> <span class="n">num</span> <span class="o">*</span> <span class="n">best_den</span> <span class="o">&gt;</span> <span class="n">best_num</span> <span class="o">*</span> <span class="n">den</span><span class="p">:</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="n">c</span>
+                <span class="n">best_num</span> <span class="o">=</span> <span class="n">num</span>
+                <span class="n">best_den</span> <span class="o">=</span> <span class="n">den</span>
+        <span class="n">table</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">best</span>
+    <span class="k">return</span> <span class="n">table</span>
+
+
+<span class="k">def</span> <span class="nf">decode</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">''</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="nb">chr</span><span class="p">(</span><span class="nb">ord</span><span class="p">(</span><span class="s1">'a'</span><span class="p">)</span> <span class="o">+</span> <span class="n">table</span><span class="p">[</span><span class="nb">ord</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span> <span class="o">-</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">'a'</span><span class="p">)])</span>
+        <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">text</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">self_train</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">unlabeled</span><span class="p">,</span> <span class="n">rounds</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+    <span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span> <span class="o">=</span> <span class="n">build_counts</span><span class="p">(</span><span class="n">labeled</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rounds</span><span class="p">):</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">build_table</span><span class="p">(</span><span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+        <span class="n">pseudo</span> <span class="o">=</span> <span class="p">[(</span><span class="n">ocr</span><span class="p">,</span> <span class="n">decode</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">ocr</span><span class="p">))</span> <span class="k">for</span> <span class="n">ocr</span> <span class="ow">in</span> <span class="n">unlabeled</span><span class="p">]</span>
+        <span class="c1"># 从零统计：仅保留原始标注与本轮伪标注。</span>
+        <span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span> <span class="o">=</span> <span class="n">build_counts</span><span class="p">(</span><span class="n">labeled</span> <span class="o">+</span> <span class="n">pseudo</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">build_table</span><span class="p">(</span><span class="n">emit</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">prior</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">first</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">first</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">))</span>
+    <span class="n">rounds</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">))</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">))</span>
+    <span class="n">labeled</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">),</span> <span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="n">unlabeled</span> <span class="o">=</span> <span class="p">[</span><span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">self_train</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">unlabeled</span><span class="p">,</span> <span class="n">rounds</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">decode</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">test</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_6">复杂度分析</h2>
+<p>记 <span aria-label="A" class="plain-math">A</span> 为原始标注中 OCR 字符串的总长度，<span aria-label="U" class="plain-math">U</span> 为未标注字符串的总长度，<span aria-label="Q" class="plain-math">Q</span> 为测试串长度，字符集大小 <span aria-label="K=26" class="plain-math">K=26</span>。
+初始计数：<span aria-label="O(A+K^2)" class="plain-math">O(A+K<sup>2</sup>)</span>。 每轮：建表 <span aria-label="O(K^2)" class="plain-math">O(K<sup>2</sup>)</span>，生成伪标注 <span aria-label="O(U)" class="plain-math">O(U)</span>，重新计数 <span aria-label="O(A+U+K^2)" class="plain-math">O(A+U+K<sup>2</sup>)</span>。 最终建表与输出：<span aria-label="O(K^2+Q)" class="plain-math">O(K<sup>2</sup>+Q)</span>。
+总时间复杂度为
+以最大字符串长度 <span aria-label="L" class="plain-math">L</span> 表示，上界也可写为
+这包含 <span aria-label="T=0" class="plain-math">T=0</span> 时仍需执行的初始计数和最终建表，不能把所有预处理都放进乘以 <span aria-label="T" class="plain-math">T</span> 的项中。
+空间复杂度为 <span aria-label="O(A+U+Q+K^2)" class="plain-math">O(A+U+Q+K<sup>2</sup>)</span>，包括输入字符串、当前轮伪标注和计数表；每轮旧伪标注被替换，不随轮数线性增长。</p>
+<h2 id="_7">本题小结</h2>
+<p>实现重点有四个： emit[真实][识别] 的方向、整数交叉相乘、相等时不替换、每轮重新计数。映射表把同字符的重复预测合并，既降低开销，也便于保证本轮所有伪标注使用同一个模型。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

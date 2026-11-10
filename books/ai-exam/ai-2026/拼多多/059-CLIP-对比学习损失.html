@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>CLIP 对比学习损失 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 拼多多</div>
+<h1 id="clip">CLIP 对比学习损失</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">样例</a></li>
+<li><a href="#_3">思路分析</a></li>
+<li><a href="#_4">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_5">复杂度分析</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/ · 拼多多 · 2026-07-02 · 算法岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>实现 CLIP 对比学习损失函数。给定已 L2 归一化的图像嵌入矩阵（<span aria-label="N \times D" class="plain-math">N × D</span>）、文本嵌入矩阵（<span aria-label="N \times D" class="plain-math">N × D</span>）和温度参数 <span class="math-inline-wrap"><math aria-label="τ" class="math-inline"><mrow><mo>τ</mo></mrow></math></span>：
+计算相似度矩阵 <span class="math-inline-wrap"><math aria-label="S = I · T^⊤ / τ" class="math-inline"><mrow><mi>S</mi><mspace width=".18em"></mspace><mo>=</mo><mspace width=".18em"></mspace><mi>I</mi><mspace width=".18em"></mspace><mo>·</mo><mspace width=".18em"></mspace><msup><mi>T</mi><mo>⊤</mo></msup><mspace width=".18em"></mspace><mo>/</mo><mspace width=".18em"></mspace><mo>τ</mo></mrow></math></span> 标签在对角线：第 <span aria-label="i" class="plain-math">i</span> 个图像匹配第 <span aria-label="i" class="plain-math">i</span> 个文本 图像→文本方向和文本→图像方向各做 softmax 交叉熵，取平均
+输出最终损失值，保留 6 位小数。仅使用 NumPy。</p>
+<h2 id="_2">样例</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>{"image_embeds": [[1, 0], [0, 1]], "text_embeds": [[1, 0], [0, 1]], "temperature": 1.0}
+0.313262
+</code></pre></div>
+<h2 id="_3">思路分析</h2>
+<p>第一步：相似度矩阵
+图像与文本先做矩阵乘法再除以温度，得到 <span aria-label="N \times N" class="plain-math">N × N</span> 的 logits 矩阵。第 <span aria-label="i" class="plain-math">i</span> 行第 <span aria-label="j" class="plain-math">j</span> 列是图像 <span aria-label="i" class="plain-math">i</span> 与文本 <span aria-label="j" class="plain-math">j</span> 的相似度。
+第二步：对比学习的标签在对角线
+一个 batch 里第 <span aria-label="i" class="plain-math">i</span> 个图像的正确匹配就是第 <span aria-label="i" class="plain-math">i</span> 个文本，标签为 <span class="math-inline-wrap"><math aria-label="diag(0, 1, …, N-1)" class="math-inline"><mrow><mtext>diag</mtext><mo>(</mo><mn>0</mn><mo>,</mo><mspace width=".18em"></mspace><mn>1</mn><mo>,</mo><mspace width=".18em"></mspace><mo>…</mo><mo>,</mo><mspace width=".18em"></mspace><mi>N</mi><mo>-</mo><mn>1</mn><mo>)</mo></mrow></math></span>。
+第三步：数值稳定的交叉熵
+对每一行先减去行最大值再取指数（避免溢出）。单行交叉熵 = log-sum-exp - 标签位置的分数（即对角元）。对所有行求平均得该方向的损失。
+第四步：双向取平均
+图像→文本对 <span aria-label="S" class="plain-math">S</span> 的每一行做 softmax 交叉熵；文本→图像对 <span class="math-inline-wrap"><math aria-label="S^⊤" class="math-inline"><mrow><msup><mi>S</mi><mo>⊤</mo></msup></mrow></math></span> 做同样计算。最终损失为两者均值。</p>
+<h2 id="_4">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'image_embeds'</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">txt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'text_embeds'</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">temperature</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'temperature'</span><span class="p">])</span>
+
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">img</span> <span class="o">@</span> <span class="n">txt</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="n">temperature</span>
+
+    <span class="k">def</span> <span class="nf">cross_entropy</span><span class="p">(</span><span class="n">mat</span><span class="p">):</span>
+        <span class="n">row_max</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">log_sum</span> <span class="o">=</span> <span class="n">row_max</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">mat</span> <span class="o">-</span> <span class="n">row_max</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">diag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">mat</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">((</span><span class="n">log_sum</span> <span class="o">-</span> <span class="n">diag</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+
+    <span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">cross_entropy</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span> <span class="o">+</span> <span class="n">cross_entropy</span><span class="p">(</span><span class="n">logits</span><span class="o">.</span><span class="n">T</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">loss</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_5">复杂度分析</h2>
+<p>时间复杂度 ：<span aria-label="O(N^2 D)" class="plain-math">O(N<sup>2</sup> D)</span>，主要开销是相似度矩阵的矩阵乘法。 空间复杂度 ：<span aria-label="O(N^2)" class="plain-math">O(N<sup>2</sup>)</span>，存储 logits 矩阵。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>文档片段相关性判定 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">文档片段相关性判定</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">样例</a></li>
+<li><a href="#_6">补充自测</a></li>
+<li><a href="#_7">思路分析</a></li>
+<li><a href="#_8">正确性说明</a></li>
+<li><a href="#_9">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_10">复杂度分析</a></li>
+<li><a href="#_11">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260911/ · 华为 · 2026-09-11 · AI岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>将每个文档片段表示为二维点，给定邻域半径 eps 和最小点数 min_pts。一个点的邻域包含距离不超过 eps 的所有点， 包括自身 ；邻域点数至少为 min_pts 时，它是核心点。
+每一步只能从核心点走到其邻域中的点。若存在某个核心点，可以分别沿这样的路径到达两个查询点，则这两个点密度相连。非核心点只能作为路径终点，不能用于连接两个核心点簇。处于核心点邻域但不是核心点的点为边界点，其他点为噪声点；噪声点与任何点（包括自身）都不密度相连。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行依次为 n、m、eps、min_pts。接着 n 行，每行两个浮点坐标；随后 m 行，每行两个查询点编号。编号从 0 开始。
+数据范围：<span aria-label="1\le n,m\le 1000" class="plain-math">1≤ n,m≤ 1000</span>，<span aria-label="0&lt;eps\le 1000" class="plain-math">0&lt;eps≤ 1000</span>，<span aria-label="2\le min_pts\le n" class="plain-math">2≤ min<sub>pts</sub>≤ n</span>，坐标均在 <span aria-label="[-10000,10000]" class="plain-math">[-10000,10000]</span> 内。距离采用欧氏距离。</p>
+<h2 id="_4">输出描述</h2>
+<p>每个查询输出一行，密度相连为 1，否则为 0。</p>
+<h2 id="_5">样例</h2>
+<p>输入
+输出
+前五个点为同一个核心簇；最后两个点都是噪声点。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>7 4 2.0 4
+0.0 0.0
+1.0 0.0
+0.0 1.0
+1.0 1.0
+0.5 0.5
+10.0 10.0
+10.5 10.5
+0 4
+0 5
+5 6
+4 6
+1
+0
+0
+0
+</code></pre></div>
+<h2 id="_6">补充自测</h2>
+<p>输入
+输出
+前三点属于同一核心连通分量；最后一点为噪声点。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>4 4 1 2
+0 0
+1 0
+2 0
+10 0
+0 2
+0 3
+3 3
+1 1
+1
+0
+0
+1
+</code></pre></div>
+<h2 id="_7">思路分析</h2>
+<p>第一步：建立邻域并标核心点。 两两检查距离的平方即可。为避免固定浮点容差把略大于半径的距离误判为相等，代码把输入有限十进制坐标和半径统一放大为整数，以整数平方精确比较。
+第二步：只连接核心点。 两个相邻核心点可以互相到达，核心点组成的无向图可用并查集求连通分量。非核心点没有继续走出的资格，绝对不能参与合并。
+第三步：给每个点维护簇集合。 核心点的集合只有自身所在分量；边界点收集邻域内全部核心点的分量，可能有多个；噪声点集合为空。
+第四步：查询集合交集。 两个点密度相连，当且仅当它们的簇集合存在共同分量。遍历较小集合并在另一集合中检查成员，找到一个就可以返回。</p>
+<h2 id="_8">正确性说明</h2>
+<p>合法路径的非终点都是核心点，因而某个核心点能到达的核心点恰好是其核心连通分量。它能到达的非核心点恰好邻接这一分量。两个查询点可由同一个核心点到达，等价于二者都属于该核心分量的可达点集合，即簇集合有交集。</p>
+<h2 id="_9">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
+
+
+<span class="k">def</span> <span class="nf">scaled</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+    <span class="n">numbers</span> <span class="o">=</span> <span class="p">[</span><span class="n">Decimal</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span>
+    <span class="n">places</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="o">-</span><span class="n">value</span><span class="o">.</span><span class="n">as_tuple</span><span class="p">()</span><span class="o">.</span><span class="n">exponent</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">numbers</span><span class="p">))</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">numbers</span><span class="p">:</span>
+        <span class="n">sign</span><span class="p">,</span> <span class="n">digits</span><span class="p">,</span> <span class="n">exponent</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">as_tuple</span><span class="p">()</span>
+        <span class="n">coefficient</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">digit</span> <span class="ow">in</span> <span class="n">digits</span><span class="p">:</span>
+            <span class="n">coefficient</span> <span class="o">=</span> <span class="n">coefficient</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="n">digit</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">sign</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">coefficient</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="n">exponent</span> <span class="o">+</span> <span class="n">places</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">cluster_memberships</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">min_pts</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+    <span class="n">neighbors</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">points</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">points</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">u</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">y</span> <span class="o">-</span> <span class="n">v</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">&lt;=</span> <span class="n">radius</span> <span class="o">**</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">neighbors</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+    <span class="n">core</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">min_pts</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">neighbors</span><span class="p">]</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+
+    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">while</span> <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">!=</span> <span class="n">x</span><span class="p">:</span>
+            <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">parent</span><span class="p">[</span><span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]]</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">parent</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">core</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">neighbors</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">core</span><span class="p">[</span><span class="n">j</span><span class="p">]:</span>
+                <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">find</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">find</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">b</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">size</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">size</span><span class="p">[</span><span class="n">b</span><span class="p">]:</span>
+                        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span>
+                    <span class="n">parent</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span>
+                    <span class="n">size</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+=</span> <span class="n">size</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">[{</span><span class="n">find</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">row</span> <span class="k">if</span> <span class="n">core</span><span class="p">[</span><span class="n">j</span><span class="p">]}</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">neighbors</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">min_pts</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">min_pts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">min_pts</span><span class="p">)</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="p">[</span><span class="n">eps</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">tokens</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">scaled</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span>
+    <span class="n">points</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">],</span> <span class="n">values</span><span class="p">[</span><span class="mi">2</span><span class="p">::</span><span class="mi">2</span><span class="p">]))</span>
+    <span class="n">memberships</span> <span class="o">=</span> <span class="n">cluster_memberships</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">min_pts</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">input</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+        <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">memberships</span><span class="p">[</span><span class="n">a</span><span class="p">],</span> <span class="n">memberships</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">first</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">second</span><span class="p">):</span>
+            <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">second</span><span class="p">,</span> <span class="n">first</span>
+        <span class="nb">print</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">any</span><span class="p">(</span><span class="n">root</span> <span class="ow">in</span> <span class="n">second</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">first</span><span class="p">)))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_10">复杂度分析</h2>
+<p>时间复杂度 ：在定长数值运算及哈希查找均摊 O(1) 的模型下，预处理 O(n² α(n))，单次查询 O(min(s[a], s[b]))，其中 s[i] 是点 i 的簇集合大小，总计至多 O(n² α(n) + mn)。α 为反阿克曼函数。十进制缩放另需与输入数字长度相关的解析和大整数运算；任意高精度输入不能视为定长运算。
+空间复杂度 ：O(n²)，邻域列表和各点簇集合；查询逐行处理，不存储全部查询。</p>
+<h2 id="_11">易错点</h2>
+<p>边界点可以同时邻接两个不同核心簇，却不能把它们合并。 查询同一个噪声点仍输出 0。 半径边界使用“不超过”，重复坐标的不同点也要分别计数。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

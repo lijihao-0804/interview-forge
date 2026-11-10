@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>全整型量化的矩阵乘法 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="_1">全整型量化的矩阵乘法</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题面</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#_5">约束</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_6">算法</a></li>
+<li><a href="#_7">正确性证明</a></li>
+<li><a href="#python-acm">Python ACM 题解</a></li>
+<li><a href="#_8">复杂度分析</a></li>
+<li><a href="#_9">注意事项</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260902/ · 华为 · 2026-09-02 · AI岗</p>
+</blockquote>
+<h2 id="_2">题面</h2>
+<p>线性对称量化采用
+其中 8 bit 对称量化的整数范围是 <span aria-label="[-127,127]" class="plain-math">[-127,127]</span>，一列实数的缩放因子为
+缩放因子继续表示为
+对 B 的第 <span aria-label="j" class="plain-math">j</span> 列，按材料可恢复出的选择规则，取
+矩阵 A 已按行量化。若 A 的第 <span aria-label="i" class="plain-math">i</span> 行表示为整数向量 <span aria-label="q^A_i" class="plain-math">q<sup>A</sup><sub>i</sub></span> 和缩放因子 <span aria-label="a^A_i/2^{b^A_i}" class="plain-math">a<sup>A</sup><sub>i</sub>/2<sup>b<sup>A</sup><sub>i</sub></sup></span>，B 的第 <span aria-label="j" class="plain-math">j</span> 列量化为 <span aria-label="q^B_j" class="plain-math">q<sup>B</sup><sub>j</sub></span> 和 <span aria-label="a^B_j/2^{b^B_j}" class="plain-math">a<sup>B</sup><sub>j</sub>/2<sup>b<sup>B</sup><sub>j</sub></sup></span>，则
+每个 <span aria-label="C_{ij}" class="plain-math">C<sub>ij</sub></span> 输出三个整数：
+结果无需约简。</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入 m k n ，表示 A 为 <span aria-label="m\times k" class="plain-math">m× k</span>，B 为 <span aria-label="k\times n" class="plain-math">k× n</span>。
+接下来 <span aria-label="m" class="plain-math">m</span> 行描述已经量化的 A。每行包含 <span aria-label="k+2" class="plain-math">k+2</span> 个整数：前 <span aria-label="k" class="plain-math">k</span> 个是该行的量化值，最后两个是该行缩放因子的 <span aria-label="a,b" class="plain-math">a,b</span>。
+接下来 <span aria-label="n" class="plain-math">n</span> 行描述 B，每行包含 <span aria-label="k" class="plain-math">k</span> 个浮点数，表示 B 的一列。注意：B 是 按列输入 ，而不是按行输入。</p>
+<h2 id="_4">输出描述</h2>
+<p>输出 <span aria-label="m" class="plain-math">m</span> 行。每行包含 <span aria-label="n" class="plain-math">n</span> 组三元组，每组三个整数依次为该元素的 <span aria-label="q,a,b" class="plain-math">q,a,b</span>，即每行共 3n 个整数。</p>
+<h2 id="_5">约束</h2>
+<p>A 和量化后 B 的量化值范围为 <span aria-label="[-127,127]" class="plain-math">[-127,127]</span>；输入缩放因子的参数满足 <span class="math-inline-wrap"><math aria-label="0≤ ale127" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>a</mi><mo>≤</mo><mn>127</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="0≤ ble30" class="math-inline"><mrow><mn>0</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>b</mi><mo>≤</mo><mn>30</mn></mrow></math></span>。输出缩放因子无需约简，因此输出的 <span aria-label="a,b" class="plain-math">a,b</span> 可以超过单个输入缩放因子的范围。
+现有材料 没有定义或保证 以下边界：
+B 中浮点数的范围，以及是否可能出现 NaN 或无穷大； 当 B 某列全为 0 时应输出哪个 <span aria-label="b" class="plain-math">b</span>； 当缩放因子过大、连 <span aria-label="b=0" class="plain-math">b=0</span> 都无法使 <span class="math-inline-wrap"><math aria-label="ale127" class="math-inline"><mrow><mi>a</mi><mo>≤</mo><mn>127</mn></mrow></math></span> 时应如何输出； round 在负数恰好位于半整数时采用何种规则。
+为使实现确定且不暗中猜测， 本文明确采用以下约定 ：
+输入 B 必须是有限十进制数；代码用 Decimal 按输入文本精确读取。 所有 round 均采用 round half away from zero ，即取最近整数，恰好一半时向远离 0 的方向舍入。例如 <span class="math-inline-wrap"><math aria-label="63.5to64" class="math-inline"><mrow><mn>63.5</mn><mo>→</mo><mn>64</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="-63.5→-64" class="math-inline"><mrow><mo>-</mo><mn>63.5</mn><mo>→</mo><mo>-</mo><mn>64</mn></mrow></math></span>。 对全零列，规定 <span aria-label="q" class="plain-math">q</span> 全为 0，并取 <span aria-label="(a,b)=(0,30)" class="plain-math">(a,b)=(0,30)</span>。这是对未定义零列语义的本文约定，不是材料原题已经给出的规则。 对非零列，要求集合 <span class="math-inline-wrap"><math aria-label="b∈[0,30]:operatornameround(s2^b)le127" class="math-inline"><mrow><mrow><mi>b</mi><mo>∈</mo><mo>[</mo><mn>0</mn><mo>,</mo><mn>30</mn><mo>]</mo><mo>:</mo><mi mathvariant="normal">round</mi><mo>(</mo><mi>s</mi><msup><mn>2</mn><mi>b</mi></msup><mo>)</mo><mo>≤</mo><mn>127</mn></mrow></mrow></math></span> 非空。若不满足，题面没有合法输出；参考代码会显式报错，不擅自截断 <span aria-label="a" class="plain-math">a</span> 或改变缩放因子。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 2 2
+64 127 65 12
+95 127 65 11
+1.0 3.0
+2.0 4.0
+18817 6305 24 20225 4225 23
+20119 6305 23 22209 4225 22
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出
+以样例 2 为例，B 的列为 <span aria-label="[1,3]" class="plain-math">[1,3]</span>，故 <span aria-label="s=3/127" class="plain-math">s=3/127</span>，量化值为 <span aria-label="[42,127]" class="plain-math">[42,127]</span>；最大可行 <span aria-label="b=12" class="plain-math">b=12</span>，且 <span class="math-inline-wrap"><math aria-label="a=operatornameround((3/127)times4096)=97" class="math-inline"><mrow><mi>a</mi><mo>=</mo><mi mathvariant="normal">round</mi><mo>(</mo><mo>(</mo><mn>3</mn><mo>/</mo><mn>127</mn><mo>)</mo><mo>×</mo><mn>4096</mn><mo>)</mo><mo>=</mo><mn>97</mn></mrow></math></span>。第一行整数点积为 <span class="math-inline-wrap"><math aria-label="64times42+127times127=18817" class="math-inline"><mrow><mn>64</mn><mo>×</mo><mn>42</mn><mo>+</mo><mn>127</mn><mo>×</mo><mn>127</mn><mo>=</mo><mn>18817</mn></mrow></math></span>，结果缩放因子为 <span aria-label="6305/2^{24}" class="plain-math">6305/2<sup>24</sup></span>。</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2 2 1
+64 127 65 12
+95 127 65 11
+1.0 3.0
+18817 6305 24
+20119 6305 23
+</code></pre></div>
+<h2 id="_6">算法</h2>
+<p>原样保存 A 每行的整数向量及参数 <span aria-label="(a^A_i,b^A_i)" class="plain-math">(a<sup>A</sup><sub>i</sub>,b<sup>A</sup><sub>i</sub>)</span>。 对 B 的每一列求最大绝对值。非零列据此计算 <span aria-label="s" class="plain-math">s</span>，用 half-away-from-zero 计算每个 <span aria-label="q^B" class="plain-math">q<sup>B</sup></span>；再从 30 到 0 枚举 <span aria-label="b" class="plain-math">b</span>，第一个使舍入后的 <span class="math-inline-wrap"><math aria-label="ale127" class="math-inline"><mrow><mi>a</mi><mo>≤</mo><mn>127</mn></mrow></math></span> 的值就是最大可行 <span aria-label="b" class="plain-math">b</span>。全零列按本文约定直接返回全零量化向量和 <span aria-label="(0,30)" class="plain-math">(0,30)</span>。 对每个 <span aria-label="(i,j)" class="plain-math">(i,j)</span> 计算 A 第 <span aria-label="i" class="plain-math">i</span> 行与量化后 B 第 <span aria-label="j" class="plain-math">j</span> 列的纯整数点积，并输出 <span aria-label="(q^C_{ij},a^A_i a^B_j,b^A_i+b^B_j)" class="plain-math">(q<sup>C</sup><sub>ij</sub>,a<sup>A</sup><sub>i</sub> a<sup>B</sup><sub>j</sub>,b<sup>A</sup><sub>i</sub>+b<sup>B</sup><sub>j</sub>)</span>。</p>
+<h2 id="_7">正确性证明</h2>
+<p>先看 B 的单列量化。非零列的 <span class="math-inline-wrap"><math aria-label="s=max| r|/127&gt;0" class="math-inline"><mrow><mi>s</mi><mo>=</mo><mi mathvariant="normal">max</mi><mo>|</mo><mspace width=".18em"></mspace><mi>r</mi><mo>|</mo><mo>/</mo><mn>127</mn><mo>&gt;</mo><mn>0</mn></mrow></math></span>。算法对每个元素按本文明确的舍入规则计算 <span class="math-inline-wrap"><math aria-label="q=operatornameround(r/s)" class="math-inline"><mrow><mi>q</mi><mo>=</mo><mi mathvariant="normal">round</mi><mo>(</mo><mi>r</mi><mo>/</mo><mi>s</mi><mo>)</mo></mrow></math></span>，与量化公式一致；绝对值最大的元素对应幅值 127，其余元素的未舍入幅值不超过 127，因此量化值落在 <span aria-label="[-127,127]" class="plain-math">[-127,127]</span>。算法按 <span aria-label="b=30,29,\ldots,0" class="plain-math">b=30,29,…,0</span> 的顺序检查可行性，所以找到的第一个可行值正是题定最大可行 <span aria-label="b" class="plain-math">b</span>，随后计算的 <span class="math-inline-wrap"><math aria-label="a=operatornameround(s2^b)" class="math-inline"><mrow><mi>a</mi><mo>=</mo><mi mathvariant="normal">round</mi><mo>(</mo><mi>s</mi><msup><mn>2</mn><mi>b</mi></msup><mo>)</mo></mrow></math></span> 也与规则一致。对全零列，返回值严格遵循本文公开约定，并且 <span aria-label="sq=0" class="plain-math">sq=0</span>。
+对任意输出位置 <span aria-label="(i,j)" class="plain-math">(i,j)</span>，A 同一行共享缩放因子 <span aria-label="a^A_i/2^{b^A_i}" class="plain-math">a<sup>A</sup><sub>i</sub>/2<sup>b<sup>A</sup><sub>i</sub></sup></span>，B 同一列共享缩放因子 <span aria-label="a^B_j/2^{b^B_j}" class="plain-math">a<sup>B</sup><sub>j</sub>/2<sup>b<sup>B</sup><sub>j</sub></sup></span>。把二者从乘加和中提出，可得
+算法输出的三个整数分别就是该式中的整数点积、分子乘积和指数之和，因此每个三元组都正确；遍历全部行列后，整个结果矩阵正确。</p>
+<h2 id="python-acm">Python ACM 题解</h2>
+<div class="codehilite" data-lang="text"><pre><span></span><code>import sys
+from decimal import Decimal
+from fractions import Fraction
+
+QMAX = 127
+MAX_B = 30
+
+
+def round_half_away(value):
+    sign = -1 if value &lt; 0 else 1
+    numerator = abs(value.numerator)
+    denominator = value.denominator
+    quotient, remainder = divmod(numerator, denominator)
+    if 2 * remainder &gt;= denominator:
+        quotient += 1
+    return sign * quotient
+
+
+def quantize_column(tokens):
+    decimals = [Decimal(token.decode()) for token in tokens]
+    if any(not value.is_finite() for value in decimals):
+        raise ValueError("B 中只允许有限十进制数")
+    column = [Fraction(value) for value in decimals]
+
+    maximum = max(abs(value) for value in column)
+    if maximum == 0:
+        return [0] * len(column), 0, MAX_B
+
+    scale = maximum / QMAX
+    quantized = [round_half_away(value / scale) for value in column]
+
+    chosen_b = None
+    chosen_a = None
+    for b in range(MAX_B, -1, -1):
+        a = round_half_away(scale * (1 &lt;&lt; b))
+        if 0 &lt;= a &lt;= QMAX:
+            chosen_b = b
+            chosen_a = a
+            break
+    if chosen_b is None:
+        raise ValueError("该列 scale 无法在题定 a、b 范围内表示")
+
+    return quantized, chosen_a, chosen_b
+
+
+def solve():
+    input = sys.stdin.buffer.readline
+    m, k, n = map(int, input().split())
+
+    matrix_a = []
+    for _ in range(m):
+        row = list(map(int, input().split()))
+        matrix_a.append((row[:k], row[k], row[k + 1]))
+
+    matrix_b = []
+    for _ in range(n):
+        tokens = input().split()
+        matrix_b.append(quantize_column(tokens))
+
+    for qa, aa, ba in matrix_a:
+        output = []
+        for qb, ab, bb in matrix_b:
+            qc = sum(x * y for x, y in zip(qa, qb))
+            output.extend((qc, aa * ab, ba + bb))
+        print(*output)
+
+
+if __name__ == "__main__":
+    solve()
+</code></pre></div>
+<h2 id="_8">复杂度分析</h2>
+<p>时间复杂度 ：量化 B 需要 <span aria-label="O(nk+31n)" class="plain-math">O(nk+31n)</span>，全部整数点积需要 <span aria-label="O(mnk)" class="plain-math">O(mnk)</span>，总时间复杂度为 <span aria-label="O(mnk)" class="plain-math">O(mnk)</span>。
+空间复杂度 ：保存量化后的 A 与 B 需要 <span aria-label="O(mk+nk)" class="plain-math">O(mk+nk)</span>；逐行生成输出时，除输入存储外的输出暂存为 <span aria-label="O(n)" class="plain-math">O(n)</span>。</p>
+<h2 id="_9">注意事项</h2>
+<p>B 按列输入，每一行输入的是一整列。 Python 内置 round 使用 ties-to-even，不能直接实现本文约定的 half-away-from-zero； floor(x+0.5) 对负半数也会出错。 全零列会使直接计算 value / scale 除以 0，必须先按公开约定单独处理。 不能在找不到合法 <span aria-label="b" class="plain-math">b</span> 时默默返回 0，也不能把超范围的 <span aria-label="a" class="plain-math">a</span> 强行截到 127；材料未定义这种输入的输出。 量化后的 B 整数受 <span aria-label="[-127,127]" class="plain-math">[-127,127]</span> 限制，但整数点积以及输出 scale 的 <span aria-label="a,b" class="plain-math">a,b</span> 无需约简，可能超过单个量化参数的范围。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

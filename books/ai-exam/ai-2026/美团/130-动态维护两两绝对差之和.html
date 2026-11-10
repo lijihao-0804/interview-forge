@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>动态维护两两绝对差之和 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 美团</div>
+<h1 id="_1">动态维护两两绝对差之和</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_2">题目描述</a></li>
+<li><a href="#_3">输入描述</a></li>
+<li><a href="#_4">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_5">思路分析</a></li>
+<li><a href="#_6">正确性证明</a></li>
+<li><a href="#acm-python">ACM Python 代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_7">复杂度分析</a></li>
+<li><a href="#_8">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/meituan/algo-20260825/ · 美团 · 2026-08-25 · 算法岗</p>
+</blockquote>
+<h2 id="_2">题目描述</h2>
+<p>给定长度为 <span aria-label="n" class="plain-math">n</span> 的整数数组 <span aria-label="a" class="plain-math">a</span>，需要依次执行 <span aria-label="m" class="plain-math">m</span> 次操作。每次操作基于上一次操作后的数组：
+1 i x ：把 <span aria-label="a_i" class="plain-math">a<sub>i</sub></span> 修改为 <span aria-label="x" class="plain-math">x</span>； 2 ：查询当前所有无序下标对的绝对差之和</p>
+<h2 id="_3">输入描述</h2>
+<p>第一行输入测试数据组数 <span aria-label="T" class="plain-math">T</span>。
+每组数据中，第一行输入 <span aria-label="n,m" class="plain-math">n,m</span>；第二行输入 <span aria-label="n" class="plain-math">n</span> 个整数 <span aria-label="a_1,a_2,\ldots,a_n" class="plain-math">a<sub>1</sub>,a<sub>2</sub>,…,a<sub>n</sub></span>；接下来 <span aria-label="m" class="plain-math">m</span> 行每行输入一次操作。
+数据范围：
+所有测试数据中 <span aria-label="n+m" class="plain-math">n+m</span> 的总和不超过 <span class="math-inline-wrap"><math aria-label="5times10^5" class="math-inline"><mrow><mn>5</mn><mo>×</mo><msup><mn>10</mn><mn>5</mn></msup></mrow></math></span>。</p>
+<h2 id="_4">输出描述</h2>
+<p>对每次类型 2 的查询输出一行，表示当前数组的两两绝对差之和。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>2
+3 3
+1 3 6
+2
+1 2 8
+2
+2 3
+-4 4
+2
+1 1 4
+2
+10
+14
+8
+0
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>1
+4 3
+2 2 2 2
+2
+1 3 10
+2
+0
+24
+</code></pre></div>
+<h2 id="_5">思路分析</h2>
+<p>朴素查询要枚举全部数对，单次需要 <span aria-label="O(n^2)" class="plain-math">O(n<sup>2</sup>)</span>。但一次单点修改只会改变包含该下标的 <span aria-label="n-1" class="plain-math">n-1</span> 个数对，其余数对的贡献完全不变。因此可以始终维护总答案，只在修改时删除旧值的贡献、加入新值的贡献。
+设修改位置从 old 变为 new 。先把 old 从当前多重集合中删除，剩下的元素集合记为 <span aria-label="R" class="plain-math">R</span>。答案更新为
+其中
+要快速求 <span aria-label="f(v)" class="plain-math">f(v)</span>，把元素按是否不超过 <span aria-label="v" class="plain-math">v</span> 分成两部分。设 <span aria-label="c_{\le}" class="plain-math">c<sub>≤</sub></span>、<span aria-label="s_{\le}" class="plain-math">s<sub>≤</sub></span> 分别是不超过 <span aria-label="v" class="plain-math">v</span> 的元素个数与元素和，<span aria-label="c_{tot}" class="plain-math">c<sub>tot</sub></span>、<span aria-label="s_{tot}" class="plain-math">s<sub>tot</sub></span> 是集合总个数与总和，则
+这只需要“值域前缀个数”和“值域前缀和”。分别使用两棵树状数组维护即可，单点增删和前缀查询都是 <span aria-label="O(\log K)" class="plain-math">O(log K)</span>，其中 <span aria-label="K" class="plain-math">K</span> 是离散值数量。
+数组值可达 <span aria-label="10^9" class="plain-math">10<sup>9</sup></span>，不能直接作为树状数组下标。每组数据先读完全部操作，把初始值和所有修改目标一起排序去重，再做离散化。
+初始答案也不需要枚举数对。对排序后的数组从左向右扫描，当前第 <span aria-label="k" class="plain-math">k</span> 个元素 value 与前面所有元素的绝对差之和为 k * value - prefix_sum ，累加即可。</p>
+<h2 id="_6">正确性证明</h2>
+<p>引理 1 ：修改 <span aria-label="a_i" class="plain-math">a<sub>i</sub></span> 时，不包含下标 <span aria-label="i" class="plain-math">i</span> 的数对贡献保持不变。
+证明 ：这些数对的两个元素都没有被修改，其绝对差自然不变。
+引理 2 ：从集合删除旧值后，<span aria-label="f(v)" class="plain-math">f(v)</span> 的计算公式等于 <span aria-label="v" class="plain-math">v</span> 与剩余所有元素的绝对差之和。
+证明 ：对 <span aria-label="u\le v" class="plain-math">u≤ v</span>，有 <span class="math-inline-wrap"><math aria-label="| v-u|=v-u" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><mi>v</mi><mo>-</mo><mi>u</mi><mo>|</mo><mo>=</mo><mi>v</mi><mo>-</mo><mi>u</mi></mrow></math></span>，这部分总和为 <span aria-label="v\cdot c_{\le}-s_{\le}" class="plain-math">v· c<sub>≤</sub>-s<sub>≤</sub></span>；对 <span aria-label="u&gt;v" class="plain-math">u&gt;v</span>，有 <span class="math-inline-wrap"><math aria-label="| v-u|=u-v" class="math-inline"><mrow><mo>|</mo><mspace width=".18em"></mspace><mi>v</mi><mo>-</mo><mi>u</mi><mo>|</mo><mo>=</mo><mi>u</mi><mo>-</mo><mi>v</mi></mrow></math></span>，这部分总和为 <span aria-label="(s_{tot}-s_{\le})-v\cdot(c_{tot}-c_{\le})" class="plain-math">(s<sub>tot</sub>-s<sub>≤</sub>)-v·(c<sub>tot</sub>-c<sub>≤</sub>)</span>。两部分相加即为全部贡献。
+定理 ：每次查询时，算法维护的 <span aria-label="S" class="plain-math">S</span> 等于当前数组所有无序下标对的绝对差之和。
+证明 ：初始 <span aria-label="S" class="plain-math">S</span> 由排序扫描准确计算。每次修改时，由引理 1，只需调整包含被修改下标的数对；算法先减去旧值与其余元素的贡献，再加入新值与其余元素的贡献，两项均由引理 2 准确计算。因此修改后不变量仍成立，查询直接输出 <span aria-label="S" class="plain-math">S</span> 即为正确答案。</p>
+<h2 id="acm-python">ACM Python 代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">bisect</span> <span class="kn">import</span> <span class="n">bisect_left</span>
+
+
+<span class="k">def</span> <span class="nf">bit_add</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">count_delta</span><span class="p">,</span> <span class="n">sum_delta</span><span class="p">):</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">count_bit</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">index</span> <span class="o">&lt;=</span> <span class="n">size</span><span class="p">:</span>
+        <span class="n">count_bit</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">+=</span> <span class="n">count_delta</span>
+        <span class="n">sum_bit</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">+=</span> <span class="n">sum_delta</span>
+        <span class="n">index</span> <span class="o">+=</span> <span class="n">index</span> <span class="o">&amp;</span> <span class="o">-</span><span class="n">index</span>
+
+
+<span class="k">def</span> <span class="nf">bit_prefix</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="n">count_bit</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="n">total</span> <span class="o">+=</span> <span class="n">sum_bit</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="n">index</span> <span class="o">-=</span> <span class="n">index</span> <span class="o">&amp;</span> <span class="o">-</span><span class="n">index</span>
+    <span class="k">return</span> <span class="n">count</span><span class="p">,</span> <span class="n">total</span>
+
+
+<span class="k">def</span> <span class="nf">contribution</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">total_count</span><span class="p">,</span> <span class="n">total_sum</span><span class="p">):</span>
+    <span class="n">left_count</span><span class="p">,</span> <span class="n">left_sum</span> <span class="o">=</span> <span class="n">bit_prefix</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+    <span class="n">left_part</span> <span class="o">=</span> <span class="n">value</span> <span class="o">*</span> <span class="n">left_count</span> <span class="o">-</span> <span class="n">left_sum</span>
+    <span class="n">right_part</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_sum</span> <span class="o">-</span> <span class="n">left_sum</span><span class="p">)</span> <span class="o">-</span> <span class="n">value</span> <span class="o">*</span> <span class="p">(</span><span class="n">total_count</span> <span class="o">-</span> <span class="n">left_count</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">left_part</span> <span class="o">+</span> <span class="n">right_part</span>
+
+
+<span class="k">def</span> <span class="nf">initial_pair_sum</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+    <span class="n">prefix_sum</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">answer</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">values</span><span class="p">)):</span>
+        <span class="n">answer</span> <span class="o">+=</span> <span class="n">index</span> <span class="o">*</span> <span class="n">value</span> <span class="o">-</span> <span class="n">prefix_sum</span>
+        <span class="n">prefix_sum</span> <span class="o">+=</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">answer</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">cursor</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">test_cases</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span><span class="p">])</span>
+    <span class="n">cursor</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">test_cases</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span><span class="p">])</span>
+        <span class="n">operation_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">cursor</span> <span class="o">+=</span> <span class="mi">2</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">cursor</span><span class="p">:</span><span class="n">cursor</span> <span class="o">+</span> <span class="n">n</span><span class="p">]))</span>
+        <span class="n">cursor</span> <span class="o">+=</span> <span class="n">n</span>
+
+        <span class="n">operations</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">all_values</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">operation_count</span><span class="p">):</span>
+            <span class="n">operation_type</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span><span class="p">])</span>
+            <span class="n">cursor</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">operation_type</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span><span class="p">])</span>
+                <span class="n">new_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">cursor</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+                <span class="n">cursor</span> <span class="o">+=</span> <span class="mi">2</span>
+                <span class="n">operations</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">index</span><span class="p">,</span> <span class="n">new_value</span><span class="p">))</span>
+                <span class="n">all_values</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">new_value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">operations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">all_values</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">coordinates</span><span class="p">)</span>
+        <span class="n">count_bit</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">size</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">sum_bit</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">size</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">answer</span> <span class="o">=</span> <span class="n">initial_pair_sum</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">total_count</span> <span class="o">=</span> <span class="n">n</span>
+        <span class="n">total_sum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="n">position</span> <span class="o">=</span> <span class="n">bisect_left</span><span class="p">(</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">bit_add</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">operation</span> <span class="ow">in</span> <span class="n">operations</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">operation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">answer</span><span class="p">))</span>
+                <span class="k">continue</span>
+
+            <span class="n">index</span><span class="p">,</span> <span class="n">new_value</span> <span class="o">=</span> <span class="n">operation</span>
+            <span class="n">old_value</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">index</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">old_value</span> <span class="o">==</span> <span class="n">new_value</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">old_position</span> <span class="o">=</span> <span class="n">bisect_left</span><span class="p">(</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">old_value</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">new_position</span> <span class="o">=</span> <span class="n">bisect_left</span><span class="p">(</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">new_value</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+            <span class="n">bit_add</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">old_position</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="n">old_value</span><span class="p">)</span>
+            <span class="n">total_count</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="n">total_sum</span> <span class="o">-=</span> <span class="n">old_value</span>
+
+            <span class="n">answer</span> <span class="o">-=</span> <span class="n">contribution</span><span class="p">(</span>
+                <span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">old_position</span><span class="p">,</span> <span class="n">old_value</span><span class="p">,</span>
+                <span class="n">total_count</span><span class="p">,</span> <span class="n">total_sum</span>
+            <span class="p">)</span>
+            <span class="n">answer</span> <span class="o">+=</span> <span class="n">contribution</span><span class="p">(</span>
+                <span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">new_position</span><span class="p">,</span> <span class="n">new_value</span><span class="p">,</span>
+                <span class="n">total_count</span><span class="p">,</span> <span class="n">total_sum</span>
+            <span class="p">)</span>
+
+            <span class="n">bit_add</span><span class="p">(</span><span class="n">count_bit</span><span class="p">,</span> <span class="n">sum_bit</span><span class="p">,</span> <span class="n">new_position</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_value</span><span class="p">)</span>
+            <span class="n">total_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">total_sum</span> <span class="o">+=</span> <span class="n">new_value</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">index</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_value</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">))</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_7">复杂度分析</h2>
+<p>设一组数据中参与离散化的不同值数量为 <span aria-label="K" class="plain-math">K</span>，其中 <span aria-label="K\le n+m" class="plain-math">K≤ n+m</span>。
+时间复杂度：<span aria-label="O((n+m)\log(n+m))" class="plain-math">O((n+m)log(n+m))</span>。其中初始排序、离散化和树状数组操作都在该上界内；每次查询为 <span aria-label="O(1)" class="plain-math">O(1)</span>。
+空间复杂度：<span aria-label="O(n+m)" class="plain-math">O(n+m)</span>，用于保存操作、离散值和两棵树状数组。</p>
+<h2 id="_8">易错点</h2>
+<p>求和对象是 <span aria-label="i&lt;j" class="plain-math">i&lt;j</span> 的无序下标对，不能把每对计算两次。 修改时必须先删除旧值，再计算旧值和新值相对“其余元素”的贡献。 所有修改目标都要提前加入离散值集合。 相同值可能出现多次，所以既要维护元素个数，也要维护元素和。 答案可能超过 32 位整数范围；Python 可直接处理，其他语言应使用 64 位整数。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>

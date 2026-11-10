@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="light dark" name="color-scheme"/>
+<title>实现 Transformer 编码器层 · InterviewForge</title>
+<link href="../../../../assets/site.css?v=20261101-pop-bg" rel="stylesheet"/>
+<link data-interviewforge-ai="" href="../../../../assets/ai-launcher.css?v=5" rel="stylesheet"/>
+<script defer="" src="../../../../assets/navigation-policy.js?v=2"></script>
+<script defer="" src="../../../../assets/ui.js?v=20261101-pop-bg"></script>
+<link rel="stylesheet" href="../../../../assets/term-tooltip.css?v=20261101-pop-bg">
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳到正文</a>
+<div class="site-shell">
+<header class="site-topbar">
+<a class="site-brand" href="../../../../index.html" target="_blank" rel="noopener noreferrer">Hot 100 深度学习库</a>
+<nav aria-label="主导航" class="site-nav">
+<a href="../../../../index.html" target="_blank" rel="noopener noreferrer">题目面板</a>
+<a href="../../../../cockpit.html" target="_blank" rel="noopener noreferrer">中控台</a>
+<a href="../../../../library/index.html" target="_blank" rel="noopener noreferrer">学习书架</a>
+<a href="../../../hot100/00-总览/01-学习路线.html" target="_blank" rel="noopener noreferrer">学习路线</a>
+<a href="../../../hot100/00-总览/02-算法模式地图.html" target="_blank" rel="noopener noreferrer">模式地图</a>
+<a href="../../../hot100/00-总览/03-复习清单.html" target="_blank" rel="noopener noreferrer">复习清单</a>
+<a href="../../../../pages/leetcode-connect.html" target="_blank" rel="noopener noreferrer">力扣连接</a>
+</nav>
+</header>
+<main class="reader-card" id="main-content">
+<article class="markdown-body">
+<div class="page-kicker">books / ai-exam / ai-2026 / 华为</div>
+<h1 id="transformer">实现 Transformer 编码器层</h1>
+<details class="toc-box">
+<summary>本页目录</summary>
+<div class="toc">
+<ul>
+<li><a href="#_1">题目描述</a></li>
+<li><a href="#_2">输入描述</a></li>
+<li><a href="#_3">输出描述</a></li>
+<li><a href="#1">样例 1</a></li>
+<li><a href="#2">样例 2</a></li>
+<li><a href="#_4">思路分析</a></li>
+<li><a href="#_5">正确性说明</a></li>
+<li><a href="#_6">题解代码</a><ul>
+<li><a href="#python">Python 实现</a></li>
+</ul>
+</li>
+<li><a href="#_7">复杂度分析</a></li>
+<li><a href="#_8">易错点</a></li>
+</ul>
+</div>
+</details>
+<blockquote>
+<p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260916/ · 华为 · 2026-09-16 · AI岗</p>
+</blockquote>
+<h2 id="_1">题目描述</h2>
+<p>实现一个标准的 Transformer Encoder Layer。该层依次执行：
+多头自注意力； 与输入做残差相加，再做层归一化； 逐位置前馈网络； 再做一次残差相加和层归一化。
+本题固定 <span aria-label="d_{model}=4" class="plain-math">d<sub>model</sub>=4</span>、注意力头数 <span aria-label="h=2" class="plain-math">h=2</span>、每头维度 <span aria-label="d_k=2" class="plain-math">d<sub>k</sub>=2</span>，FFN 隐藏维度为 4。<span aria-label="W_Q,W_K,W_V,W_O,W_1,W_2" class="plain-math">W<sub>Q</sub>,W<sub>K</sub>,W<sub>V</sub>,W<sub>O</sub>,W<sub>1</sub>,W<sub>2</sub></span> 都是 <span class="math-inline-wrap"><math aria-label="4times4" class="math-inline"><mrow><mn>4</mn><mo>×</mo><mn>4</mn></mrow></math></span> 单位矩阵，偏置均为 0。两次层归一化的 <span class="math-inline-wrap"><math aria-label="γ=1" class="math-inline"><mrow><mo>γ</mo><mo>=</mo><mn>1</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="β=0" class="math-inline"><mrow><mo>β</mo><mo>=</mo><mn>0</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="ε=10^-5" class="math-inline"><mrow><mo>ε</mo><mo>=</mo><msup><mn>10</mn><mrow><mo>-</mo><mn>5</mn></mrow></msup></mrow></math></span>，在最后一维上按总体方差计算。
+缩放点积注意力为：</p>
+<h2 id="_2">输入描述</h2>
+<p>一行 8 个实数，表示形状为 <span aria-label="(1,2,4)" class="plain-math">(1,2,4)</span> 的输入张量按顺序展开后的结果。每个输入在 <span aria-label="[-100,100]" class="plain-math">[-100,100]</span> 内，保留两位小数。</p>
+<h2 id="_3">输出描述</h2>
+<p>一行 8 个实数，表示输出张量展开后的结果，每个数保留两位小数。</p>
+<h2 id="1">样例 1</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>11.00 12.00 3.00 1.00 15.00 16.00 10.00 11.00
+0.81 1.17 -0.95 -1.04 0.72 1.24 -1.11 -0.85
+</code></pre></div>
+<h2 id="2">样例 2</h2>
+<p>输入
+输出</p>
+<div class="codehilite" data-lang="text"><pre><span></span><code>1.00 2.00 3.00 4.00 5.00 6.00 7.00 8.00
+-1.18 -0.59 0.30 1.47 -1.18 -0.59 0.29 1.47
+</code></pre></div>
+<h2 id="_4">思路分析</h2>
+<p>第一步：拆分注意力头。 两个 token 都有 4 维，把前两维交给第一个头、后两维交给第二个头。权重全是单位矩阵，所以 <span aria-label="Q=K=V=X" class="plain-math">Q=K=V=X</span>。
+第二步：逐头计算注意力。 对每个查询 token，计算它和两个键的点积，除以 <span class="math-inline-wrap"><math aria-label="2" class="math-inline"><mrow><msqrt><mrow><mn>2</mn></mrow></msqrt></mrow></math></span> 后做数值稳定的 softmax，再对两个值向量加权求和。缩放因子使用每头维度 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span>，不是总维度 <span aria-label="d_{model}" class="plain-math">d<sub>model</sub></span>。
+第三步：完成两次 Post-LN。 拼接两个头的输出，与原输入相加并归一化。FFN 的两个权重都是单位矩阵，所以它退化为逐元素 ReLU；再次残差相加并归一化即可。</p>
+<h2 id="_5">正确性说明</h2>
+<p>代码按维度拆出两个互不混合的注意力头，并直接实现缩放点积注意力定义，因此每个头的输出正确。拼接恢复原来的特征顺序后，依题面依次执行残差、层归一化、单位权重 FFN 和第二次残差归一化，所以最终结果与给定编码器层的计算顺序完全一致。</p>
+<h2 id="_6">题解代码</h2>
+<div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">exp</span><span class="p">,</span> <span class="n">sqrt</span>
+
+
+<span class="n">D_MODEL</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="n">D_K</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">EPS</span> <span class="o">=</span> <span class="mf">1e-5</span>
+
+
+<span class="k">def</span> <span class="nf">layer_norm</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">/</span> <span class="n">D_MODEL</span>
+    <span class="n">variance</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="n">value</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">)</span> <span class="o">/</span> <span class="n">D_MODEL</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span> <span class="o">+</span> <span class="n">EPS</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[(</span><span class="n">value</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="n">scale</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="p">[</span><span class="n">values</span><span class="p">[:</span><span class="n">D_MODEL</span><span class="p">],</span> <span class="n">values</span><span class="p">[</span><span class="n">D_MODEL</span><span class="p">:]]</span>
+
+    <span class="n">head_outputs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">D_K</span><span class="p">):</span>
+        <span class="n">head_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">D_K</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">x</span><span class="p">]</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">query</span> <span class="ow">in</span> <span class="n">head_values</span><span class="p">:</span>
+            <span class="n">scores</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="nb">sum</span><span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span> <span class="o">/</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">D_K</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">head_values</span>
+            <span class="p">]</span>
+            <span class="n">maximum</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">scores</span><span class="p">)</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="p">[</span><span class="n">exp</span><span class="p">(</span><span class="n">score</span> <span class="o">-</span> <span class="n">maximum</span><span class="p">)</span> <span class="k">for</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">]</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">([</span>
+                <span class="nb">sum</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">head_values</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">/</span> <span class="n">total</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">D_K</span><span class="p">)</span>
+            <span class="p">])</span>
+        <span class="n">head_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="n">attention</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">head_outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">token</span><span class="p">]</span> <span class="o">+</span> <span class="n">head_outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">token</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">hidden</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">layer_norm</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="n">token</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="o">+</span> <span class="n">attention</span><span class="p">[</span><span class="n">token</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">D_MODEL</span><span class="p">)])</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">layer_norm</span><span class="p">([</span><span class="n">value</span> <span class="o">+</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hidden</span><span class="p">[</span><span class="n">token</span><span class="p">]])</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="p">]</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">item</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">output</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">):</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">value</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"0.00"</span> <span class="k">if</span> <span class="n">text</span> <span class="o">==</span> <span class="s2">"-0.00"</span> <span class="k">else</span> <span class="n">text</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+
+
+<span class="n">solve</span><span class="p">()</span>
+</code></pre></div>
+</div><h2 id="_7">复杂度分析</h2>
+<p>时间复杂度 ：一般序列长度为 <span aria-label="T" class="plain-math">T</span>、模型维度为 <span aria-label="d" class="plain-math">d</span> 时，注意力为 <span aria-label="O(T^2d)" class="plain-math">O(T<sup>2d</sup>)</span>，线性层为 <span aria-label="O(Td^2)" class="plain-math">O(Td<sup>2</sup>)</span>；本题 <span aria-label="T=2,d=4" class="plain-math">T=2,d=4</span>，实际为常数量级。
+空间复杂度 ：一般为 <span aria-label="O(T^2h+Td)" class="plain-math">O(T<sup>2h</sup>+Td)</span>；本题参数固定，实际为 <span aria-label="O(1)" class="plain-math">O(1)</span>。</p>
+<h2 id="_8">易错点</h2>
+<p>softmax 前应减去该行最大值，避免指数溢出。 方差除以 4，使用总体方差；不能改成样本方差。 极小负数格式化后可能成为 -0.00 ，题面要求输出 0.00 。</p>
+</article>
+</main>
+<footer class="site-footer">Interview Forge · 在线学习站</footer>
+</div>
+<script defer="" src="../../../../assets/site.js?v=20261014-code-block-visibility"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-page-context.js?v=1"></script>
+<script data-interviewforge-ai="" defer="" src="../../../../assets/ai-launcher.js?v=3"></script>
+<script src="../../../../assets/engagement-tracker.js?v=20261101-pop-bg" defer></script>
+<script src="../../../../assets/term-tooltip.js?v=20261101-pop-bg" defer></script>
+<script>(function(){function go(){if(!window.GlossaryEngine)return;GlossaryEngine.init({root:document.querySelector(".markdown-body"),glossaryUrl:"../../../../assets/glossary.json",style:"underline",trigger:"hover",scopeKey:"hot100-solution"});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",go);}else{go();}})();</script>
+</body>
+</html>
