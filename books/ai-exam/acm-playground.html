@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="../../assets/practice-playground.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
 </head>
-<body>
-  <header class="site-topbar" style="width:calc(100% - 48px);max-width:1280px;margin:16px auto 6px">
+<body class="practice-page">
+  <header class="site-topbar practice-topbar">
     <a class="site-brand" href="../../index.html">Hot 100 深度学习库</a>
     <nav aria-label="主导航" class="site-nav">
       <a href="../../index.html">题目面板</a>
@@ -20,57 +20,108 @@
   </header>
 
   <main class="practice-shell">
-    <div class="practice-head">
-      <div>
+    <section class="practice-masthead">
+      <div class="practice-masthead-copy">
+        <p class="practice-kicker">练习台 / Practice Bench</p>
         <h1 id="practiceTitle">ACM 模拟 IDE</h1>
-        <p>Python 3.12 / Java 17 · stdin/stdout 运行 · 只比较样例，不代表隐藏测试通过</p>
+        <p class="practice-lede">把题目变成可以运行、可以比较、可以重来的实验。写完代码，把样例交给它。</p>
+        <div class="practice-badges" aria-label="运行环境">
+          <span>Python 3.12</span>
+          <span>Java 17</span>
+          <span>stdin / stdout</span>
+        </div>
       </div>
-      <a class="practice-back" href="index.html">← 返回题库</a>
-    </div>
+      <div class="practice-masthead-actions">
+        <a class="practice-back" href="index.html"><span aria-hidden="true">←</span> 返回题库</a>
+        <p class="practice-note">样例通过 ≠ 隐藏测试通过</p>
+      </div>
+    </section>
 
-    <div class="practice-toolbar">
-      <label for="language">语言</label>
-      <select id="language" class="practice-select">
-        <option value="python">Python 3</option>
-        <option value="java">Java 17</option>
-      </select>
-      <button id="runBtn" class="practice-btn primary" type="button">运行代码 (Ctrl+Enter)</button>
-      <button id="resetBtn" class="practice-btn" type="button">重置当前草稿</button>
-      <span id="runtimeStatus" class="practice-runtime">就绪</span>
-    </div>
+    <section class="practice-context" id="practiceContext" hidden>
+      <span class="context-label">当前题目</span>
+      <strong id="contextTitle"></strong>
+      <span class="context-meta" id="contextMeta"></span>
+    </section>
 
-    <div class="practice-grid">
-      <section class="practice-panel">
-        <div class="practice-panel-head"><span>代码编辑器</span><span id="languageHint">Python 3 · ACM 模式</span></div>
-        <div id="editorWrap">
-          <textarea id="editorFallback" spellcheck="false" aria-label="代码编辑器"></textarea>
+    <section class="practice-workbench">
+      <div class="practice-toolbar">
+        <div class="toolbar-group">
+          <label for="language">语言</label>
+          <select id="language" class="practice-select">
+            <option value="python">Python 3</option>
+            <option value="java">Java 17</option>
+          </select>
+        </div>
+        <div class="toolbar-actions">
+          <button id="runBtn" class="practice-btn primary" type="button">
+            <span class="run-glyph" aria-hidden="true">▶</span>
+            运行代码
+            <kbd>Ctrl ↵</kbd>
+          </button>
+          <button id="resetBtn" class="practice-btn" type="button">重置草稿</button>
+        </div>
+        <span id="runtimeStatus" class="practice-runtime" role="status">就绪</span>
+      </div>
+
+      <div class="workbench-grid">
+        <section class="practice-panel code-panel">
+          <div class="panel-head">
+            <span class="panel-title"><span class="panel-dot" aria-hidden="true"></span>代码编辑器</span>
+            <span id="languageHint" class="panel-sub">Python 3 · ACM 模式</span>
+          </div>
+          <div id="editorWrap">
+            <textarea id="editorFallback" spellcheck="false" aria-label="代码编辑器"></textarea>
+          </div>
+        </section>
+
+        <section class="practice-panel test-panel">
+          <div class="panel-head">
+            <span class="panel-title">测试台</span>
+            <span class="panel-sub">输入 / 期望输出</span>
+          </div>
+          <div class="practice-io">
+            <div class="practice-field">
+              <label for="stdinArea">输入 <span>stdin</span></label>
+              <textarea id="stdinArea" class="practice-textarea" placeholder="在这里粘贴测试输入…" spellcheck="false"></textarea>
+            </div>
+            <div class="practice-field">
+              <label for="expectedArea">期望输出 <span>optional</span></label>
+              <textarea id="expectedArea" class="practice-textarea" placeholder="粘贴期望输出，运行后自动对比…" spellcheck="false"></textarea>
+            </div>
+            <div id="diffResult" class="practice-diff" aria-live="polite"></div>
+          </div>
+          <div class="test-foot">
+            <span id="sampleHint">希望这里有一组样例</span>
+          </div>
+        </section>
+      </div>
+
+      <section class="practice-panel result-panel">
+        <div class="result-head">
+          <span class="panel-title">运行结果</span>
+          <span id="runMeta" class="run-meta"></span>
+        </div>
+        <div class="result-grid">
+          <div class="console-block">
+            <label>标准输出 <span>stdout</span></label>
+            <pre id="stdoutArea">点击「运行代码」或按 Ctrl+Enter 执行</pre>
+          </div>
+          <div class="console-block">
+            <label>错误输出 <span>stderr</span></label>
+            <pre id="stderrArea" class="stderr"></pre>
+          </div>
+        </div>
+        <div class="result-foot">
+          <span id="sourceNote"></span>
+          <button id="clearOutput" class="practice-btn subtle" type="button">清空输出</button>
         </div>
       </section>
-
-      <section class="practice-panel">
-        <div class="practice-io">
-          <label for="stdinArea">输入 (stdin)</label>
-          <textarea id="stdinArea" class="practice-textarea" placeholder="在这里粘贴测试输入…" spellcheck="false"></textarea>
-          <label for="expectedArea" style="margin-top:12px">期望输出（可选，用于对比）</label>
-          <textarea id="expectedArea" class="practice-textarea" placeholder="粘贴期望输出，会自动和实际输出对比…" spellcheck="false"></textarea>
-          <div id="diffResult" class="practice-diff"></div>
-        </div>
-        <div class="practice-output">
-          <label>输出 (stdout)</label>
-          <pre id="stdoutArea">点击「运行代码」或按 Ctrl+Enter 执行</pre>
-          <label>错误 (stderr)</label>
-          <pre id="stderrArea" class="stderr"></pre>
-          <button id="clearOutput" class="practice-btn" type="button">清空输出</button>
-        </div>
-        <div class="practice-meta" id="runMeta"></div>
-        <div class="practice-meta" id="sourceNote"></div>
-      </section>
-    </div>
+    </section>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/python/python.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/clike/clike.min.js"></script>
-  <script src="../../assets/practice-playground.js?v=1"></script>
+  <script src="../../assets/practice-playground.js?v=2"></script>
 </body>
 </html>

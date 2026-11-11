@@ -205,12 +205,26 @@
   }
   function init() {
     initEditor();
+    var sampleHint = $('sampleHint');
     if (context && context.title) {
-      $('practiceTitle').textContent = context.title + ' · ACM 模拟';
-      document.title = $('practiceTitle').textContent;
+      $('practiceTitle').textContent = 'ACM 模拟 IDE';
+      if ($('contextTitle')) $('contextTitle').textContent = context.title;
+      if ($('practiceContext')) $('practiceContext').hidden = false;
+      if ($('contextMeta')) {
+        var meta = [];
+        if (context.url) meta.push(context.url);
+        if (Array.isArray(context.samples) && context.samples.length) meta.push(context.samples.length + ' 组样例');
+        $('contextMeta').textContent = meta.join(' · ');
+      }
+      document.title = context.title + ' · ACM 模拟';
       $('sourceNote').textContent = context.url ? ('来源：' + context.url) : '';
     } else {
       $('sourceNote').textContent = '未从题目页带入上下文，可直接粘贴代码运行。';
+    }
+    if (sampleHint) {
+      sampleHint.textContent = context && Array.isArray(context.samples) && context.samples.length
+        ? ('已载入 ' + context.samples.length + ' 组样例 · 可直接运行')
+        : '希望这里有一组样例';
     }
     $('language').addEventListener('change', function () {
       saveDraft();
@@ -222,6 +236,7 @@
       setOutput('', '');
       $('diffResult').textContent = '';
       $('diffResult').className = 'practice-diff';
+      setRuntime('就绪', 'idle');
     });
     $('stdinArea').addEventListener('input', scheduleSave);
     $('expectedArea').addEventListener('input', scheduleSave);

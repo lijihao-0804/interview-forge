@@ -30,7 +30,7 @@
     if (document.getElementById('practice-bridge-style')) return;
     var style = document.createElement('style');
     style.id = 'practice-bridge-style';
-    style.textContent = '.practice-run-btn{display:inline-flex;align-items:center;gap:5px;margin:4px 0 8px;padding:6px 11px;border:1px solid #5654d4;border-radius:8px;background:#5654d4;color:#fff;font:12.5px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;cursor:pointer}.practice-run-btn:hover{background:#4341b8}.practice-run-btn:disabled{opacity:.5;cursor:default}';
+    style.textContent = '.practice-run-btn{display:inline-flex;align-items:center;gap:7px;margin:6px 0 12px;padding:8px 13px;border:1px solid rgba(86,84,212,.35);border-radius:9px;background:#101827;color:#f3f6ff;font:650 12px/1.2 "Inter","PingFang SC","Microsoft YaHei",sans-serif;cursor:pointer;box-shadow:0 6px 16px rgba(16,24,39,.14);transition:background .18s ease,border-color .18s ease,transform .18s ease}.practice-run-btn:hover{background:#1b2843;border-color:#7b79e8;transform:translateY(-1px)}.practice-run-btn:active{transform:translateY(0)}.practice-run-btn:focus-visible{outline:3px solid rgba(86,84,212,.35);outline-offset:2px}.practice-run-btn:disabled{opacity:.5;cursor:default;transform:none}';
     document.head.appendChild(style);
   }
 
