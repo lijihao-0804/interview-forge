@@ -70,7 +70,8 @@
       Array.prototype.forEach.call(blocks, function (block) {
         var pre = block.querySelector('pre');
         if (!pre) return;
-        var language = headingLanguage(pre);
+        var attr = (block.getAttribute('data-lang') || '').toLowerCase();
+        var language = attr ? (attr === 'java' || attr === 'python' ? attr : '') : headingLanguage(pre);
         if (!language || !meta.codes[language]) return;
         if (block.getAttribute('data-practice-ready')) return;
         if (!Array.isArray(meta.samples) || !meta.samples.length) return;
