@@ -61,7 +61,9 @@ final class LoRALinear {
         this.b = new double[outFeatures][rank];
         Random random = new Random();
         double bound = 1.0 / Math.sqrt(inFeatures);
+        // 枚举位置 i
         for (int i = 0; i < rank; i++) {
+            // 枚举阶段 j
             for (int j = 0; j < inFeatures; j++) {
                 a[i][j] = (random.nextDouble() * 2.0 - 1.0) * bound;
             }
@@ -74,15 +76,19 @@ final class LoRALinear {
         int cols = y[0].length;
         int inner = y.length;
         double[][] out = new double[rows][cols];
+        // 枚举位置 i
         for (int i = 0; i < rows; i++) {
+            // 枚举阶段 j
             for (int j = 0; j < cols; j++) {
                 double sum = 0.0;
+                // 循环处理
                 for (int k = 0; k < inner; k++) {
                     sum += x[i][k] * y[k][j];
                 }
                 out[i][j] = sum;
             }
         }
+        // 返回结果
         return out;
     }
 
@@ -90,29 +96,38 @@ final class LoRALinear {
         int rows = x.length;
         int cols = x[0].length;
         double[][] out = new double[cols][rows];
+        // 枚举位置 i
         for (int i = 0; i < rows; i++) {
+            // 枚举阶段 j
             for (int j = 0; j < cols; j++) {
                 out[j][i] = x[i][j];
             }
         }
+        // 返回结果
         return out;
     }
 
     double[][] forward(double[][] inputs) {
         double[][] delta = matmul(matmul(inputs, transpose(a)), transpose(b));
         double[][] output = matmul(inputs, transpose(baseWeight));
+        // 枚举位置 i
         for (int i = 0; i < output.length; i++) {
+            // 条件判断
             if (baseBias != null) {
+                // 枚举阶段 j
                 for (int j = 0; j < output[0].length; j++) {
                     output[i][j] += baseBias[j];
                 }
             }
         }
+        // 枚举位置 i
         for (int i = 0; i < output.length; i++) {
+            // 枚举阶段 j
             for (int j = 0; j < output[0].length; j++) {
                 output[i][j] += scale * delta[i][j];
             }
         }
+        // 返回结果
         return output;
     }
 

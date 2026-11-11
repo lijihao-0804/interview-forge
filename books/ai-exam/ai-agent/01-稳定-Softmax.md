@@ -36,27 +36,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class StableSoftmax {
+    // 核心方法：softmax
     static List<Double> softmax(List<Double> values) {
         List<Double> result = new ArrayList<>();
+        // 条件判断
         if (values == null || values.isEmpty()) {
+            // 返回结果
             return result;
         }
         double maximum = Double.NEGATIVE_INFINITY;
+        // 循环处理
         for (double value : values) {
+            // 条件判断
             if (value > maximum) {
                 maximum = value;
             }
         }
         List<Double> exps = new ArrayList<>();
         double total = 0.0;
+        // 循环处理
         for (double value : values) {
             double e = Math.exp(value - maximum);
             exps.add(e);
             total += e;
         }
+        // 循环处理
         for (double e : exps) {
             result.add(e / total);
         }
+        // 返回结果
         return result;
     }
 

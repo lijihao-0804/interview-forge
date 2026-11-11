@@ -70,10 +70,13 @@ final class ReActAgent {
         Object run(Map<String, Object> arguments) throws Exception;
     }
 
+    // 核心方法：runAgent
     static Map<String, Object> runAgent(Model model, Map<String, Tool> tools, String objective) {
+        // 返回结果
         return runAgent(model, tools, objective, 12, 2);
     }
 
+    // 核心方法：runAgent
     static Map<String, Object> runAgent(Model model, Map<String, Tool> tools, String objective, int maxSteps, int repeatLimit) {
         List<Map<String, Object>> messages = new ArrayList<>();
         Map<String, Object> userMessage = new LinkedHashMap<>();
@@ -82,30 +85,36 @@ final class ReActAgent {
         messages.add(userMessage);
 
         Map<String, Integer> counts = new HashMap<>();
+        // 循环处理
         for (int step = 0; step < maxSteps; step++) {
             Map<String, Object> decision = model.decide(messages, new ArrayList<>(tools.keySet()));
+            // 条件判断
             if ("final".equals(decision.get("type"))) {
                 Map<String, Object> completed = new LinkedHashMap<>();
                 completed.put("status", "completed");
                 completed.put("answer", decision.get("answer"));
                 completed.put("steps", step);
+                // 返回结果
                 return completed;
             }
 
             String fingerprint = actionFingerprint(decision);
             int count = counts.getOrDefault(fingerprint, 0) + 1;
             counts.put(fingerprint, count);
+            // 条件判断
             if (count > repeatLimit) {
                 Map<String, Object> blocked = new LinkedHashMap<>();
                 blocked.put("status", "blocked");
                 blocked.put("reason", "repeated_action");
                 blocked.put("action", decision);
+                // 返回结果
                 return blocked;
             }
 
             Object toolName = decision.get("tool");
             Tool tool = toolName == null ? null : tools.get(toolName.toString());
             Map<String, Object> observation = new LinkedHashMap<>();
+            // 条件判断
             if (tool == null) {
                 observation.put("ok", false);
                 observation.put("error", "unknown_tool");
@@ -134,25 +143,32 @@ final class ReActAgent {
         Map<String, Object> blocked = new LinkedHashMap<>();
         blocked.put("status", "blocked");
         blocked.put("reason", "step_budget_exhausted");
+        // 返回结果
         return blocked;
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> arguments(Object value) {
+        // 条件判断
         if (value instanceof Map) {
+            // 返回结果
             return (Map<String, Object>) value;
         }
+        // 返回结果
         return new LinkedHashMap<>();
     }
 
+    // 核心方法：actionFingerprint
     static String actionFingerprint(Map<String, Object> action) {
         StringBuilder builder = new StringBuilder();
         writeJson(builder, action, true);
+        // 返回结果
         return builder.toString();
     }
 
     @SuppressWarnings("unchecked")
     private static void writeJson(StringBuilder builder, Object value, boolean sortKeys) {
+        // 条件判断
         if (value == null) {
             builder.append("null");
         } else if (value instanceof String) {
@@ -162,12 +178,15 @@ final class ReActAgent {
         } else if (value instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) value;
             List<String> keys = new ArrayList<>(map.keySet());
+            // 条件判断
             if (sortKeys) {
                 Collections.sort(keys);
             }
             builder.append('{');
             boolean first = true;
+            // 循环处理
             for (String key : keys) {
+                // 条件判断
                 if (!first) {
                     builder.append(", ");
                 }
@@ -180,7 +199,9 @@ final class ReActAgent {
         } else if (value instanceof Iterable) {
             builder.append('[');
             boolean first = true;
+            // 循环处理
             for (Object item : (Iterable<Object>) value) {
+                // 条件判断
                 if (!first) {
                     builder.append(", ");
                 }
@@ -195,8 +216,10 @@ final class ReActAgent {
 
     private static void writeString(StringBuilder builder, String value) {
         builder.append((char) 34);
+        // 枚举位置 i
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
+            // 条件判断
             if (c == (char) 34 || c == (char) 92) {
                 builder.append((char) 92).append(c);
             } else if (c == (char) 10) {
@@ -220,6 +243,7 @@ final class ReActAgent {
             Map<String, Object> decision = new LinkedHashMap<>();
             decision.put("type", "final");
             decision.put("answer", "done");
+            // 返回结果
             return decision;
         };
         System.out.println(runAgent(model, tools, "hello"));

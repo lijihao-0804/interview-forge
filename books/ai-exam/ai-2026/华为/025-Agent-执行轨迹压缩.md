@@ -134,16 +134,20 @@ directions = {
     "R": (0, 1),
 }
 
+# 遍历 _
 for _ in range(step_count):
     move, operation, param_text = input().split()
     param = int(param_text)
     dr, dc = directions[move]
     next_row, next_col = row + dr, col + dc
+    # 条件判断
     if 0 <= next_row < n and 0 <= next_col < m:
         row, col = next_row, next_col
 
+    # 条件判断
     if operation == "I":
         delta[(row, col)] = delta.get((row, col), 0) + param
+    # 条件判断
     elif operation == "D":
         delta[(row, col)] = delta.get((row, col), 0) - param
 
@@ -153,6 +157,7 @@ target_index = {cell: index for index, cell in enumerate(targets)}
 state_count = 1 << len(targets)
 full_mask = state_count - 1
 
+# 核心函数：shortest_path
 def shortest_path():
     start_id = start_row * m + start_col
     visited = [bytearray(state_count) for _ in range(n * m)]
@@ -160,30 +165,38 @@ def shortest_path():
     queue = deque([(start_id, 0)])
     distance = 0
 
+    # 循环处理
     while queue:
+        # 遍历 _
         for _ in range(len(queue)):
             cell_id, mask = queue.popleft()
+            # 条件判断
             if cell_id == end_id and mask == full_mask:
+                # 返回结果
                 return distance
 
             current_row, current_col = divmod(cell_id, m)
             for dr, dc in directions.values():
                 next_row = current_row + dr
                 next_col = current_col + dc
+                # 条件判断
                 if not (0 <= next_row < n and 0 <= next_col < m):
                     continue
 
                 next_mask = mask
                 bit_index = target_index.get((next_row, next_col))
+                # 条件判断
                 if bit_index is not None:
                     next_mask |= 1 << bit_index
 
                 next_id = next_row * m + next_col
+                # 条件判断
                 if not visited[next_id][next_mask]:
                     visited[next_id][next_mask] = 1
                     queue.append((next_id, next_mask))
         distance += 1
 
+    # 返回结果
     return -1
 
 
@@ -218,18 +231,23 @@ public class Main {
         Map<Integer,Integer> delta = new HashMap<>();
         Map<String,int[]> dirs = new HashMap<>();
         dirs.put("U", new int[]{-1, 0}); dirs.put("D", new int[]{1, 0}); dirs.put("L", new int[]{0, -1}); dirs.put("R", new int[]{0, 1});
+        // 枚举位置 i
         for (int i = 0; i < stepCount; i++) {
             String move = sc.next(); String op = sc.next(); int param = sc.nextInt();
             int[] d = dirs.get(move);
             int nr = row + d[0], nc = col + d[1];
+            // 条件判断
             if (nr >= 0 && nr < n && nc >= 0 && nc < m) { row = nr; col = nc; }
+            // 条件判断
             if (op.equals("I")) { int key = row * m + col; delta.put(key, delta.getOrDefault(key, 0) + param); }
             else if (op.equals("D")) { int key = row * m + col; delta.put(key, delta.getOrDefault(key, 0) - param); }
         }
         int endId = row * m + col;
         List<Integer> targets = new ArrayList<>();
+        // 循环处理
         for (Map.Entry<Integer,Integer> en : delta.entrySet()) if (en.getValue() != 0) targets.add(en.getKey());
         Map<Integer,Integer> targetIndex = new HashMap<>();
+        // 枚举位置 i
         for (int i = 0; i < targets.size(); i++) targetIndex.put(targets.get(i), i);
         int stateCount = 1 << targets.size();
         int fullMask = stateCount - 1;
@@ -240,20 +258,27 @@ public class Main {
         queue.add(new int[]{startId, 0});
         int distance = 0; int answer = -1;
         int[][] dirList = {{-1,0},{1,0},{0,-1},{0,1}};
+        // 循环处理
         while (!queue.isEmpty()) {
             int size = queue.size();
+            // 循环处理
             for (int q = 0; q < size; q++) {
                 int[] cur = queue.poll();
                 int cellId = cur[0], mask = cur[1];
+                // 条件判断
                 if (cellId == endId && mask == fullMask) { answer = distance; System.out.println(answer); return; }
                 int cr = cellId / m, cc = cellId % m;
+                // 循环处理
                 for (int[] d : dirList) {
                     int nr = cr + d[0], nc = cc + d[1];
+                    // 条件判断
                     if (nr < 0 || nr >= n || nc < 0 || nc >= m) continue;
                     int nextMask = mask;
                     Integer bi = targetIndex.get(nr * m + nc);
+                    // 条件判断
                     if (bi != null) nextMask |= 1 << bi;
                     int nid = nr * m + nc;
+                    // 条件判断
                     if (!visited[nid][nextMask]) { visited[nid][nextMask] = true; queue.add(new int[]{nid, nextMask}); }
                 }
             }

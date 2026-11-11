@@ -78,16 +78,21 @@ input = sys.stdin.readline
 
 
 # 统计包含 word 的语句条数，同一句里出现多次只算一次
+# 核心函数：count_docs
 def count_docs(docs, word):
     count = 0
+    # 遍历 words
     for words in docs:
         # 先转集合再判断成员，一句里出现几次都只记 1
+        # 条件判断
         if word in set(words):
             count += 1
+    # 返回结果
     return count
 
 
 # 计算 word 在第 idx 条语句中的 TF-IDF 值
+# 核心函数：tf_idf
 def tf_idf(sentences, idx, word):
     # 按空格切词，比较时区分大小写，apple 与 Apple 是两个词
     docs = [sentence.split() for sentence in sentences]
@@ -100,11 +105,12 @@ def tf_idf(sentences, idx, word):
     # IDF：分母 +1 做平滑，外层再 +1 保证对数的真数大于 1、结果为正
     nw = count_docs(docs, word)
     idf = math.log(n / (nw + 1) + 1)
+    # 返回结果
     return tf * idf
 
 
 # 读取输入并输出答案
-):
+def solve():
     # 两行输入都是 Python 列表字面量，用 literal_eval 安全还原
     sentences = ast.literal_eval(input())
     query = ast.literal_eval(input())
@@ -141,15 +147,19 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 public class Main {
+    // 核心方法：extractQuoted
     static List<String> extractQuoted(String s) {
         List<String> res = new ArrayList<>();
         int i = 0;
+        // 循环处理
         while (i < s.length()) {
             char c = s.charAt(i);
+            // 条件判断
             if (c == (char) 39 || c == (char) 34) {
                 char q = c;
                 int j = i + 1;
                 StringBuilder sb = new StringBuilder();
+                // 循环处理
                 while (j < s.length() && s.charAt(j) != q) { sb.append(s.charAt(j)); j++; }
                 res.add(sb.toString());
                 i = j + 1;
@@ -157,22 +167,30 @@ public class Main {
                 i++;
             }
         }
+        // 返回结果
         return res;
     }
 
+    // 核心方法：format3
     static String format3(double v) {
         BigDecimal bd = new BigDecimal(v).setScale(3, RoundingMode.HALF_EVEN);
         String s = bd.stripTrailingZeros().toPlainString();
+        // 条件判断
         if (s.indexOf('.') < 0) s += ".0";
+        // 返回结果
         return s;
     }
 
+    // 核心方法：splitWords
     static String[] splitWords(String s) {
         s = s.trim();
+        // 条件判断
         if (s.isEmpty()) return new String[0];
         StringTokenizer st = new StringTokenizer(s);
         String[] arr = new String[st.countTokens()];
+        // 枚举位置 i
         for (int i = 0; i < arr.length; i++) arr[i] = st.nextToken();
+        // 返回结果
         return arr;
     }
 
@@ -187,24 +205,32 @@ public class Main {
         StringBuilder rest = new StringBuilder();
         boolean inQuote = false;
         char qc = 0;
+        // 枚举位置 i
         for (int i = 0; i < queryLine.length(); i++) {
             char c = queryLine.charAt(i);
+            // 条件判断
             if (inQuote) { if (c == qc) inQuote = false; continue; }
+            // 条件判断
             if (c == (char) 39 || c == (char) 34) { inQuote = true; qc = c; continue; }
             rest.append(c);
         }
         int idx = 0;
         StringTokenizer qt = new StringTokenizer(rest.toString(), "[],() ");
+        // 条件判断
         if (qt.hasMoreTokens()) idx = Integer.parseInt(qt.nextToken());
         int n = sentences.size();
         String[][] docs = new String[n][];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) docs[i] = splitWords(sentences.get(i));
         String[] target = docs[idx];
         int occurrences = 0;
+        // 循环处理
         for (String w : target) if (w.equals(word)) occurrences++;
         double tf = (double) occurrences / target.length;
         int nw = 0;
+        // 循环处理
         for (String[] d : docs) {
+            // 循环处理
             for (String w : d) if (w.equals(word)) { nw++; break; }
         }
         double idf = Math.log((double) n / (nw + 1) + 1.0);

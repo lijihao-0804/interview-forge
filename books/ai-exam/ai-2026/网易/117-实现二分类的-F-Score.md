@@ -69,23 +69,30 @@ import sys
 input = sys.stdin.readline
 
 
+# 核心函数：f_score
 def f_score(y_true, y_pred, beta):
     tp = fp = fn = 0
     for actual, predicted in zip(y_true, y_pred):
+        # 条件判断
         if actual == 1 and predicted == 1:
             tp += 1
+        # 条件判断
         elif actual == 0 and predicted == 1:
             fp += 1
+        # 条件判断
         elif actual == 1 and predicted == 0:
             fn += 1
+    # 条件判断
     if tp == 0:
+        # 返回结果
         return 0.0
     b2 = beta * beta
+    # 返回结果
     return (1 + b2) * tp / ((1 + b2) * tp + b2 * fn + fp)
 
 
 # 读取输入并输出答案
-):
+def solve():
     y_true = ast.literal_eval(input())
     y_pred = ast.literal_eval(input())
     beta = float(input())
@@ -114,15 +121,20 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
+    // 核心方法：parseInts
     static int[] parseInts(String s) {
         List<Integer> list = new ArrayList<>();
         int i = 0;
+        // 循环处理
         while (i < s.length()) {
             char c = s.charAt(i);
+            // 条件判断
             if (Character.isDigit(c) || (c == '-' && i + 1 < s.length() && Character.isDigit(s.charAt(i + 1)))) {
                 int sign = 1;
+                // 条件判断
                 if (c == '-') { sign = -1; i++; }
                 int val = 0;
+                // 循环处理
                 while (i < s.length() && Character.isDigit(s.charAt(i))) {
                     val = val * 10 + (s.charAt(i) - '0');
                     i++;
@@ -133,13 +145,18 @@ public class Main {
             }
         }
         int[] a = new int[list.size()];
+        // 循环处理
         for (int k = 0; k < a.length; k++) a[k] = list.get(k);
+        // 返回结果
         return a;
     }
 
+    // 核心方法：readNonEmpty
     static String readNonEmpty(BufferedReader br) throws Exception {
         String s = br.readLine();
+        // 循环处理
         while (s != null && s.trim().isEmpty()) s = br.readLine();
+        // 返回结果
         return s;
     }
 
@@ -151,14 +168,17 @@ public class Main {
         double beta = Double.parseDouble(readNonEmpty(br).trim());
         long tp = 0, fp = 0, fn = 0;
         int len = Math.min(yTrue.length, yPred.length);
+        // 枚举位置 i
         for (int i = 0; i < len; i++) {
             int actual = yTrue[i];
             int predicted = yPred[i];
+            // 条件判断
             if (actual == 1 && predicted == 1) tp++;
             else if (actual == 0 && predicted == 1) fp++;
             else if (actual == 1 && predicted == 0) fn++;
         }
         double score;
+        // 条件判断
         if (tp == 0) {
             score = 0.0;
         } else {

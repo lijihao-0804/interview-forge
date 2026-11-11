@@ -64,10 +64,15 @@ import sys
 from math import exp
 
 
+# 核心函数：merge
 def merge(left, right):
+    # 条件判断
     if left is None:
+        # 返回结果
         return right
+    # 条件判断
     if right is None:
+        # 返回结果
         return left
 
     lm, ld, lv = left
@@ -76,6 +81,7 @@ def merge(left, right):
     left_scale = exp(lm - maximum)
     right_scale = exp(rm - maximum)
 
+    # 返回结果
     return (
         maximum,
         ld * left_scale + rd * right_scale,
@@ -84,29 +90,34 @@ def merge(left, right):
 
 
 # 读取输入并输出答案
-):
+def solve():
     input = sys.stdin.buffer.readline
     block_count, query_count = map(int, input().split())
     blocks = [tuple(map(float, input().split())) for _ in range(block_count)]
 
     size = 1
+    # 循环处理
     while size < block_count:
         size <<= 1
 
     tree = [None] * (2 * size)
     for index, block in enumerate(blocks):
         tree[size + index] = block
+    # 遍历 index
     for index in range(size - 1, 0, -1):
         tree[index] = merge(tree[index * 2], tree[index * 2 + 1])
 
+    # 核心函数：update
     def update(position, state):
         index = size + position
         tree[index] = state
         index >>= 1
+        # 循环处理
         while index:
             tree[index] = merge(tree[index * 2], tree[index * 2 + 1])
             index >>= 1
 
+    # 核心函数：query
     def query(left, right):
         # 查询半开区间 [left, right)。
         left += size
@@ -114,21 +125,27 @@ def merge(left, right):
         left_result = None
         right_result = None
 
+        # 循环处理
         while left < right:
+            # 条件判断
             if left & 1:
                 left_result = merge(left_result, tree[left])
                 left += 1
+            # 条件判断
             if right & 1:
                 right -= 1
                 right_result = merge(tree[right], right_result)
             left >>= 1
             right >>= 1
 
+        # 返回结果
         return merge(left_result, right_result)
 
     output = []
+    # 遍历 _
     for _ in range(query_count):
         operation = input().split()
+        # 条件判断
         if operation[0] == b"1":
             position = int(operation[1]) - 1
             state = tuple(map(float, operation[2:5]))
@@ -174,40 +191,53 @@ public class Main {
             br = new BufferedReader(new InputStreamReader(System.in));
         }
         String next() throws IOException {
+            // 循环处理
             while (st == null || !st.hasMoreTokens()) {
                 String line = br.readLine();
+                // 条件判断
                 if (line == null) return null;
                 st = new StringTokenizer(line);
             }
+            // 返回结果
             return st.nextToken();
         }
         int nextInt() throws IOException {
+            // 返回结果
             return Integer.parseInt(next());
         }
         double nextDouble() throws IOException {
+            // 返回结果
             return Double.parseDouble(next());
         }
     }
 
+    // 核心方法：merge
     static double[] merge(double[] left, double[] right) {
+        // 条件判断
         if (left == null) return right;
+        // 条件判断
         if (right == null) return left;
         double maximum = Math.max(left[0], right[0]);
         double ls = Math.exp(left[0] - maximum);
         double rs = Math.exp(right[0] - maximum);
+        // 返回结果
         return new double[]{maximum, left[1] * ls + right[1] * rs, left[2] * ls + right[2] * rs};
     }
 
+    // 核心方法：query
     static double[] query(double[][] tree, int size, int left, int right) {
         left += size;
         right += size;
         double[] lr = null;
         double[] rr = null;
+        // 循环处理
         while (left < right) {
+            // 条件判断
             if ((left & 1) == 1) {
                 lr = merge(lr, tree[left]);
                 left++;
             }
+            // 条件判断
             if ((right & 1) == 1) {
                 right--;
                 rr = merge(tree[right], rr);
@@ -215,6 +245,7 @@ public class Main {
             left >>= 1;
             right >>= 1;
         }
+        // 返回结果
         return merge(lr, rr);
     }
 
@@ -222,22 +253,29 @@ public class Main {
     public static void main(String[] args) throws IOException {
         FastScanner fs = new FastScanner();
         String t = fs.next();
+        // 条件判断
         if (t == null) return;
         int blockCount = Integer.parseInt(t);
         int queryCount = fs.nextInt();
         double[][] blocks = new double[blockCount][];
+        // 枚举位置 i
         for (int i = 0; i < blockCount; i++) {
             blocks[i] = new double[]{fs.nextDouble(), fs.nextDouble(), fs.nextDouble()};
         }
         int size = 1;
+        // 循环处理
         while (size < blockCount) size <<= 1;
         double[][] tree = new double[2 * size][];
+        // 枚举位置 i
         for (int i = 0; i < blockCount; i++) tree[size + i] = blocks[i];
+        // 枚举位置 i
         for (int i = size - 1; i >= 1; i--) tree[i] = merge(tree[2 * i], tree[2 * i + 1]);
         StringBuilder sb = new StringBuilder();
         boolean firstOut = true;
+        // 循环处理
         for (int q = 0; q < queryCount; q++) {
             String op = fs.next();
+            // 条件判断
             if (op.equals("1")) {
                 int position = fs.nextInt() - 1;
                 double m = fs.nextDouble();
@@ -246,6 +284,7 @@ public class Main {
                 int idx = size + position;
                 tree[idx] = new double[]{m, d, v};
                 idx >>= 1;
+                // 循环处理
                 while (idx >= 1) {
                     tree[idx] = merge(tree[2 * idx], tree[2 * idx + 1]);
                     idx >>= 1;
@@ -256,6 +295,7 @@ public class Main {
                 double[] res = query(tree, size, left, right);
                 double denom = res[1];
                 double numer = res[2];
+                // 条件判断
                 if (!firstOut) sb.append(NL);
                 firstOut = false;
                 sb.append(String.format(Locale.US, "%.6f", numer / denom));

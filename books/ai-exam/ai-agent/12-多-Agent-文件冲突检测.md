@@ -45,17 +45,22 @@ final class FileConflictDetector {
         }
     }
 
+    // 核心方法：detectConflicts
     static List<String> detectConflicts(List<Edit> edits) {
         Map<String, Set<String>> agentsByPath = new LinkedHashMap<>();
+        // 循环处理
         for (Edit edit : edits) {
             agentsByPath.computeIfAbsent(edit.path, key -> new LinkedHashSet<>()).add(edit.agent);
         }
         List<String> conflicts = new ArrayList<>();
+        // 循环处理
         for (Map.Entry<String, Set<String>> entry : agentsByPath.entrySet()) {
+            // 条件判断
             if (entry.getValue().size() > 1) {
                 conflicts.add(entry.getKey());
             }
         }
+        // 返回结果
         return conflicts;
     }
 

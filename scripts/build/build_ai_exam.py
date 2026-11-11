@@ -242,6 +242,81 @@ def infer_algorithm(code: str) -> str:
     return "按题意模拟"
 
 
+def annotate_code(code: str, lang: str, title: str) -> str:
+    """在关键语句前补行内注释，避免只有文件头注释。"""
+    marker = "#" if lang == "python" else "//"
+    special = {}
+    if "最优流水线并行切分" in title:
+        if lang == "python":
+            special = {
+                "pre = [0]": "前缀和：pre[i] 表示前 i 层计算耗时之和",
+                "prev = [inf]": "prev[b]：前 b 层分成 j-1 段时的最小瓶颈",
+                "cur = [inf]": "当前阶段 j 的 DP 行",
+                "for j in range": "枚举阶段数 j",
+                "for i in range": "枚举前 i 层",
+                "comm = s[i - 1]": "当前段末尾需要支付的通信耗时",
+                "for b in range": "枚举最后一段的起点 b",
+                "candidate = max": "当前切法的瓶颈 = max(前缀瓶颈, 最后一段耗时)",
+                "return prev[n]": "返回恰好 K 段覆盖 N 层的最优值",
+            }
+        else:
+            special = {
+                "long[] pre=new long": "前缀和：pre[i] 表示前 i 层计算耗时之和",
+                "long[] prev=new long": "prev[b]：前 b 层分成 j-1 段时的最小瓶颈",
+                "long[] cur=new long": "当前阶段 j 的 DP 行",
+                "for(int j=": "枚举阶段数 j",
+                "for(int i=": "枚举前 i 层",
+                "int comm=": "当前段末尾需要支付的通信耗时",
+                "for(int b=": "枚举最后一段的起点 b",
+                "long cand=Math.max": "当前切法的瓶颈 = max(前缀瓶颈, 最后一段耗时)",
+                "return prev[n]": "返回恰好 K 段覆盖 N 层的最优值",
+            }
+    out = []
+    for line in code.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(marker):
+            out.append(line)
+            continue
+        indent = line[: len(line) - len(line.lstrip())]
+        comment = ""
+        for needle_text, text in special.items():
+            if needle_text in stripped:
+                comment = text
+                break
+        if not comment and lang == "python":
+            m = re.match(r"def\s+(\w+)", stripped)
+            if m:
+                if m.group(1) != "solve":
+                    comment = f"核心函数：{m.group(1)}"
+            elif re.match(r"for\s+(\w+)\s+in", stripped):
+                var = re.match(r"for\s+(\w+)", stripped).group(1)
+                comment = {"i": "枚举位置 i", "j": "枚举阶段 j", "b": "枚举分割点 b"}.get(var, f"遍历 {var}")
+            elif re.match(r"while\s", stripped):
+                comment = "循环处理"
+            elif re.match(r"(if|elif)\s", stripped) and not stripped.startswith("if __name__"):
+                comment = "条件判断"
+            elif stripped.startswith("return"):
+                comment = "返回结果"
+        elif not comment:
+            m = re.match(r"(?:public\s+)?static\s+[^\n]+?\s+(\w+)\s*\(", stripped)
+            if m and m.group(1) != "main":
+                comment = f"核心方法：{m.group(1)}"
+            elif re.match(r"for\s*\(", stripped):
+                mvar = re.search(r"for\s*\(\s*(?:int|long|var)\s+(\w+)", stripped)
+                var = mvar.group(1) if mvar else ""
+                comment = {"i": "枚举位置 i", "j": "枚举阶段 j", "b": "枚举分割点 b"}.get(var, "循环处理")
+            elif re.match(r"while\s*\(", stripped):
+                comment = "循环处理"
+            elif re.match(r"if\s*\(", stripped):
+                comment = "条件判断"
+            elif stripped.startswith("return"):
+                comment = "返回结果"
+        if comment:
+            out.append(indent + marker + " " + comment)
+        out.append(line)
+    return "\n".join(out)
+
+
 def add_code_comments(code: str, lang: str, title: str, sections: list[dict]) -> str:
     """给题解代码加简短、准确的 ACM/算法/复杂度注释，不改动原有代码逻辑。"""
     marker = "#" if lang == "python" else "//"
@@ -271,8 +346,8 @@ def add_code_comments(code: str, lang: str, title: str, sections: list[dict]) ->
     if lang == "java":
         code = code.replace("public static void main", "// 主函数：读取输入并输出答案\n    public static void main", 1)
     else:
-        code = re.sub(r"(?m)^(def solve\()", "# 读取输入并输出答案\n\1", code, count=1, flags=re.M)
-    return header + code
+        code = re.sub(r"(?m)^(def solve\()", lambda m: "# 读取输入并输出答案\n" + m.group(1), code, count=1, flags=re.M)
+    return header + annotate_code(code, lang, title)
 
 
 def write_problem(path: Path, title: str, meta: str, sections: list[dict], translation: dict[str, str] | None = None) -> None:

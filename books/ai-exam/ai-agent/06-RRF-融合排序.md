@@ -39,9 +39,12 @@ import java.util.List;
 import java.util.Map;
 
 final class ReciprocalRankFusion {
+    // 核心方法：reciprocalRankFusion
     static List<String> reciprocalRankFusion(List<List<String>> rankings, int constant) {
         Map<String, Double> scores = new LinkedHashMap<>();
+        // 循环处理
         for (List<String> ranking : rankings) {
+            // 枚举位置 i
             for (int i = 0; i < ranking.size(); i++) {
                 String docId = ranking.get(i);
                 int rank = i + 1;
@@ -50,10 +53,13 @@ final class ReciprocalRankFusion {
         }
         List<String> result = new ArrayList<>(scores.keySet());
         result.sort((p, q) -> Double.compare(scores.get(q), scores.get(p)));
+        // 返回结果
         return result;
     }
 
+    // 核心方法：reciprocalRankFusion
     static List<String> reciprocalRankFusion(List<List<String>> rankings) {
+        // 返回结果
         return reciprocalRankFusion(rankings, 60);
     }
 

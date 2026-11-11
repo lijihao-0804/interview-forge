@@ -43,13 +43,17 @@ import java.util.List;
 import java.util.Map;
 
 final class SseParser {
+    // 核心方法：parseSse
     static List<Map<String, String>> parseSse(Iterable<String> lines) {
         List<Map<String, String>> events = new ArrayList<>();
         String eventType = "message";
         List<String> data = new ArrayList<>();
+        // 循环处理
         for (String raw : lines) {
             String line = stripTrailingNewlines(raw);
+            // 条件判断
             if (line.isEmpty()) {
+                // 条件判断
                 if (!data.isEmpty()) {
                     Map<String, String> event = new LinkedHashMap<>();
                     event.put("event", eventType);
@@ -64,22 +68,27 @@ final class SseParser {
                 data.add(stripLeadingWhitespace(line.substring(5)));
             }
         }
+        // 返回结果
         return events;
     }
 
     private static String stripTrailingNewlines(String value) {
         int end = value.length();
+        // 循环处理
         while (end > 0 && value.charAt(end - 1) == '\n') {
             end--;
         }
+        // 返回结果
         return value.substring(0, end);
     }
 
     private static String stripLeadingWhitespace(String value) {
         int start = 0;
+        // 循环处理
         while (start < value.length() && Character.isWhitespace(value.charAt(start))) {
             start++;
         }
+        // 返回结果
         return value.substring(start);
     }
 

@@ -93,21 +93,28 @@ $1\le m\le 100000$。 $1\le k\le 1000$。 $1\le n\le 100000$。 $1\le len[i]\le 
 import sys
 
 
+# 核心函数：max_accept
 def max_accept(m, k, lengths):
     needs = sorted((length + k - 1) // k for length in lengths)
     used = 0
     answer = 0
+    # 遍历 need
     for need in needs:
+        # 条件判断
         if used + need > m:
             break
         used += need
         answer += 1
+    # 返回结果
     return answer
 
 
+# 核心函数：main
 def main():
     data = list(map(int, sys.stdin.buffer.read().split()))
+    # 条件判断
     if not data:
+        # 返回结果
         return
     m, k, n = data[:3]
     print(max_accept(m, k, data[3:3 + n]))
@@ -141,18 +148,23 @@ public class Main {
     // 主函数：读取输入并输出答案
     public static void main(String[] a)throws Exception {
         FS fs=new FS();
+        // 条件判断
         if(!fs.has())return;
         long m=fs.nl();
         long k=fs.nl();
         int n=fs.ni();
         long[] len=new long[n];
+        // 枚举位置 i
         for(int i=0;i<n;i++)len[i]=fs.nl();
         long[] need=new long[n];
+        // 枚举位置 i
         for(int i=0;i<n;i++)need[i]=(len[i]+k-1)/k;
         Arrays.sort(need);
         long used=0;
         int ans=0;
+        // 循环处理
         for(long nd:need) {
+            // 条件判断
             if(used+nd>m)break;
             used+=nd;
             ans++;
@@ -166,19 +178,26 @@ public class Main {
             d=System.in.readAllBytes();
         }
         boolean has() {
+            // 循环处理
             while(i<d.length&&d[i]<=32)i++;
+            // 返回结果
             return i<d.length;
         }
         String next() {
+            // 循环处理
             while(i<d.length&&d[i]<=32)i++;
             int s=i;
+            // 循环处理
             while(i<d.length&&d[i]>32)i++;
+            // 返回结果
             return new String(d,s,i-s);
         }
         int ni() {
+            // 返回结果
             return Integer.parseInt(next());
         }
         long nl() {
+            // 返回结果
             return Long.parseLong(next());
         }
     }

@@ -40,31 +40,41 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ScaledDotProductAttention {
+    // 核心方法：dot
     static double dot(List<Double> left, List<Double> right) {
         double sum = 0.0;
         int n = Math.min(left.size(), right.size());
+        // 枚举位置 i
         for (int i = 0; i < n; i++) {
             sum += left.get(i) * right.get(i);
         }
+        // 返回结果
         return sum;
     }
 
+    // 核心方法：softmax
     static List<Double> softmax(List<Double> values) {
         List<Double> result = new ArrayList<>();
+        // 条件判断
         if (values.isEmpty()) {
+            // 返回结果
             return result;
         }
         double maximum = Double.NEGATIVE_INFINITY;
+        // 循环处理
         for (double value : values) {
             maximum = Math.max(maximum, value);
         }
         double total = 0.0;
+        // 循环处理
         for (double value : values) {
             total += Math.exp(value - maximum);
         }
+        // 循环处理
         for (double value : values) {
             result.add(Math.exp(value - maximum) / total);
         }
+        // 返回结果
         return result;
     }
 
@@ -78,22 +88,27 @@ final class ScaledDotProductAttention {
         }
     }
 
+    // 核心方法：attention
     static Result attention(List<Double> query, List<List<Double>> keys, List<List<Double>> values) {
         int dimension = query.size();
         List<Double> scores = new ArrayList<>();
+        // 循环处理
         for (List<Double> key : keys) {
             scores.add(dot(query, key) / Math.sqrt(dimension));
         }
         List<Double> weights = softmax(scores);
         int outputSize = values.get(0).size();
         double[] output = new double[outputSize];
+        // 枚举位置 i
         for (int i = 0; i < weights.size(); i++) {
             double weight = weights.get(i);
             List<Double> value = values.get(i);
+            // 枚举阶段 j
             for (int j = 0; j < outputSize; j++) {
                 output[j] += weight * value.get(j);
             }
         }
+        // 返回结果
         return new Result(output, weights);
     }
 

@@ -94,35 +94,43 @@ input = sys.stdin.readline
 
 
 # 给定每段负载上限 cap，从左往右贪心装层，返回最少要切成几段
+# 核心函数：count_stages
 def count_stages(f, cap):
     stages = 1  # 开头就有第一段
     load = 0  # 当前这一段已装入的负载
+    # 遍历 x
     for x in f:
         # 再装这一层就超上限，只能让它另起一段；cap >= max(f) 保证单层一定装得下
+        # 条件判断
         if load + x > cap:
             stages += 1
             load = 0
         load += x
+    # 返回结果
     return stages
 
 
 # 二分最大负载：cap 越大，贪心需要的段数越少，判定结果单调
+# 核心函数：min_max_load
 def min_max_load(f, k):
     lo = max(f)  # 下界：最大的那一层必须装得下
     hi = sum(f)  # 上界：所有层放进同一段
+    # 循环处理
     while lo < hi:
         mid = (lo + hi) // 2
         # 段数 <= k 就算可行：n >= k 时总能把含两层以上的段继续拆开，
         # 直到恰好 k 段且都非空；拆开后每段负载只会变小，仍不超过 mid
+        # 条件判断
         if count_stages(f, mid) <= k:
             hi = mid
         else:
             lo = mid + 1
+    # 返回结果
     return lo
 
 
 # 读取输入并输出答案
-):
+def solve():
     n, k = map(int, input().split())
     f = list(map(int, input().split()))
     print(min_max_load(f, k))
@@ -161,13 +169,17 @@ public class Main {
         long nl() { return Long.parseLong(next()); }
     }
     static long[] f;
+    // 核心方法：countStages
     static long countStages(long cap) {
         long stages = 1;
         long load = 0;
+        // 循环处理
         for (long x : f) {
+            // 条件判断
             if (load + x > cap) { stages++; load = 0; }
             load += x;
         }
+        // 返回结果
         return stages;
     }
     // 主函数：读取输入并输出答案
@@ -177,9 +189,12 @@ public class Main {
         int k = in.ni();
         f = new long[n];
         long lo = Long.MIN_VALUE, hi = 0;
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { f[i] = in.nl(); if (f[i] > lo) lo = f[i]; hi += f[i]; }
+        // 循环处理
         while (lo < hi) {
             long mid = (lo + hi) / 2;
+            // 条件判断
             if (countStages(mid) <= k) hi = mid; else lo = mid + 1;
         }
         System.out.println(lo);

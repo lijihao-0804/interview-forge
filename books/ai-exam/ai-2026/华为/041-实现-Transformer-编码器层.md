@@ -75,25 +75,30 @@ D_K = 2
 EPS = 1e-5
 
 
+# 核心函数：layer_norm
 def layer_norm(values):
     mean = sum(values) / D_MODEL
     variance = sum((value - mean) ** 2 for value in values) / D_MODEL
     scale = sqrt(variance + EPS)
+    # 返回结果
     return [(value - mean) / scale for value in values]
 
 
 # 读取输入并输出答案
-):
+def solve():
     values = list(map(float, sys.stdin.buffer.read().split()))
     x = [values[:D_MODEL], values[D_MODEL:]]
 
     head_outputs = []
+    # 遍历 start
     for start in (0, D_K):
         head_values = [row[start:start + D_K] for row in x]
         output = []
+        # 遍历 query
         for query in head_values:
             scores = [
                 sum(a * b for a, b in zip(query, key)) / sqrt(D_K)
+                # 遍历 key
                 for key in head_values
             ]
             maximum = max(scores)
@@ -101,24 +106,29 @@ def layer_norm(values):
             total = sum(weights)
             output.append([
                 sum(weights[j] * head_values[j][d] for j in range(2)) / total
+                # 遍历 d
                 for d in range(D_K)
             ])
         head_outputs.append(output)
 
     attention = [
         head_outputs[0][token] + head_outputs[1][token]
+        # 遍历 token
         for token in range(2)
     ]
     hidden = [
         layer_norm([x[token][d] + attention[token][d] for d in range(D_MODEL)])
+        # 遍历 token
         for token in range(2)
     ]
     output = [
         layer_norm([value + max(0.0, value) for value in hidden[token]])
+        # 遍历 token
         for token in range(2)
     ]
 
     result = []
+    # 遍历 value
     for value in (item for row in output for item in row):
         text = f"{value:.2f}"
         result.append("0.00" if text == "-0.00" else text)
@@ -160,75 +170,102 @@ public class Main {
         String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
         double nd() { return Double.parseDouble(next()); }
     }
+    // 核心方法：layerNorm
     static double[] layerNorm(double[] values) {
         double mean = 0.0;
+        // 循环处理
         for (double v : values) mean += v;
         mean /= D_MODEL;
         double variance = 0.0;
+        // 循环处理
         for (double v : values) variance += (v - mean) * (v - mean);
         variance /= D_MODEL;
         double scale = Math.sqrt(variance + EPS);
         double[] out = new double[D_MODEL];
+        // 枚举位置 i
         for (int i = 0; i < D_MODEL; i++) out[i] = (values[i] - mean) / scale;
+        // 返回结果
         return out;
     }
     // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         double[] values = new double[2 * D_MODEL];
+        // 枚举位置 i
         for (int i = 0; i < values.length; i++) values[i] = in.nd();
         double[][] x = new double[2][D_MODEL];
+        // 枚举位置 i
         for (int i = 0; i < D_MODEL; i++) x[0][i] = values[i];
+        // 枚举位置 i
         for (int i = 0; i < D_MODEL; i++) x[1][i] = values[D_MODEL + i];
         double[][][] headOut = new double[2][2][D_K];
+        // 循环处理
         for (int hi = 0; hi < 2; hi++) {
             int start = hi * D_K;
             double[][] headValues = new double[2][D_K];
+            // 循环处理
             for (int tok = 0; tok < 2; tok++) for (int d = 0; d < D_K; d++) headValues[tok][d] = x[tok][start + d];
+            // 循环处理
             for (int qi = 0; qi < 2; qi++) {
                 double[] scores = new double[2];
+                // 循环处理
                 for (int kj = 0; kj < 2; kj++) {
                     double dot = 0.0;
+                    // 循环处理
                     for (int d = 0; d < D_K; d++) dot += headValues[qi][d] * headValues[kj][d];
                     scores[kj] = dot / Math.sqrt(D_K);
                 }
                 double maximum = scores[0];
+                // 循环处理
                 for (int kj = 1; kj < 2; kj++) if (scores[kj] > maximum) maximum = scores[kj];
                 double[] w = new double[2];
                 double total = 0.0;
+                // 循环处理
                 for (int kj = 0; kj < 2; kj++) { w[kj] = Math.exp(scores[kj] - maximum); total += w[kj]; }
+                // 循环处理
                 for (int d = 0; d < D_K; d++) {
                     double sum = 0.0;
+                    // 循环处理
                     for (int kj = 0; kj < 2; kj++) sum += w[kj] * headValues[kj][d];
                     headOut[hi][qi][d] = sum / total;
                 }
             }
         }
         double[][] attention = new double[2][D_MODEL];
+        // 循环处理
         for (int tok = 0; tok < 2; tok++) {
+            // 循环处理
             for (int d = 0; d < D_K; d++) {
                 attention[tok][d] = headOut[0][tok][d];
                 attention[tok][D_K + d] = headOut[1][tok][d];
             }
         }
         double[][] hidden = new double[2][D_MODEL];
+        // 循环处理
         for (int tok = 0; tok < 2; tok++) {
             double[] pre = new double[D_MODEL];
+            // 循环处理
             for (int d = 0; d < D_MODEL; d++) pre[d] = x[tok][d] + attention[tok][d];
             hidden[tok] = layerNorm(pre);
         }
         double[][] output = new double[2][D_MODEL];
+        // 循环处理
         for (int tok = 0; tok < 2; tok++) {
             double[] pre = new double[D_MODEL];
+            // 循环处理
             for (int d = 0; d < D_MODEL; d++) pre[d] = hidden[tok][d] + Math.max(0.0, hidden[tok][d]);
             output[tok] = layerNorm(pre);
         }
         StringBuilder sb = new StringBuilder();
         boolean first = true;
+        // 循环处理
         for (int tok = 0; tok < 2; tok++) {
+            // 循环处理
             for (int d = 0; d < D_MODEL; d++) {
                 String text = String.format(Locale.US, "%.2f", output[tok][d]);
+                // 条件判断
                 if (text.equals("-0.00")) text = "0.00";
+                // 条件判断
                 if (!first) sb.append(' ');
                 first = false;
                 sb.append(text);

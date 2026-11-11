@@ -78,34 +78,42 @@ import sys
 import numpy as np
 
 
+# 核心函数：k_median
 def k_median(points, k):
     n, d = points.shape
     centers = points[:k].copy()
+    # 遍历 _
     for _ in range(100):
         distances = np.zeros((n, k), dtype=float)
+        # 遍历 axis
         for axis in range(d):
             distances += np.abs(points[:, axis, None] - centers[None, :, axis])
         labels = distances.argmin(axis=1)
         updated = centers.copy()
+        # 遍历 cluster
         for cluster in range(k):
             members = points[labels == cluster]
+            # 条件判断
             if len(members):
                 updated[cluster] = np.median(members, axis=0)
         shift = np.abs(updated - centers).sum()
         centers = updated
+        # 条件判断
         if shift < 1e-4:
             break
     inertia = np.abs(points - centers[labels]).sum()
+    # 返回结果
     return labels, centers, inertia
 
 
 # 读取输入并输出答案
-):
+def solve():
     input = sys.stdin.readline
     n, d, k = map(int, input().split())
     points = np.array([list(map(float, input().split())) for _ in range(n)])
     labels, centers, inertia = k_median(points, k)
     print(" ".join(map(str, labels)))
+    # 遍历 center
     for center in centers:
         print(" ".join(f"{value:.6f}" for value in center))
     print(f"{inertia:.6f}")
@@ -141,11 +149,14 @@ public class Main {
         int ni() { return Integer.parseInt(next()); }
         double nd() { return Double.parseDouble(next()); }
     }
+    // 核心方法：median
     static double median(double[] arr) {
         double[] c = arr.clone();
         Arrays.sort(c);
         int m = c.length;
+        // 条件判断
         if (m % 2 == 1) return c[m / 2];
+        // 返回结果
         return (c[m / 2 - 1] + c[m / 2]) / 2.0;
     }
     // 主函数：读取输入并输出答案
@@ -153,44 +164,62 @@ public class Main {
         In in = new In();
         int n = in.ni(), d = in.ni(), k = in.ni();
         double[][] points = new double[n][d];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) points[i][j] = in.nd();
         double[][] centers = new double[k][d];
+        // 枚举位置 i
         for (int i = 0; i < k; i++) centers[i] = points[i].clone();
         int[] labels = new int[n];
+        // 循环处理
         for (int iter = 0; iter < 100; iter++) {
+            // 枚举位置 i
             for (int i = 0; i < n; i++) {
                 int best = -1;
                 double bestD = 0;
+                // 枚举阶段 j
                 for (int j = 0; j < k; j++) {
                     double s = 0;
+                    // 循环处理
                     for (int ax = 0; ax < d; ax++) s += Math.abs(points[i][ax] - centers[j][ax]);
+                    // 条件判断
                     if (best == -1 || s < bestD) { bestD = s; best = j; }
                 }
                 labels[i] = best;
             }
             double[][] updated = new double[k][d];
+            // 枚举阶段 j
             for (int j = 0; j < k; j++) {
                 List<Integer> members = new ArrayList<>();
+                // 枚举位置 i
                 for (int i = 0; i < n; i++) if (labels[i] == j) members.add(i);
+                // 条件判断
                 if (members.isEmpty()) { updated[j] = centers[j].clone(); continue; }
                 double[] vals = new double[members.size()];
+                // 循环处理
                 for (int ax = 0; ax < d; ax++) {
+                    // 循环处理
                     for (int t = 0; t < members.size(); t++) vals[t] = points[members.get(t)][ax];
                     updated[j][ax] = median(vals);
                 }
             }
             double shift = 0;
+            // 枚举阶段 j
             for (int j = 0; j < k; j++) for (int ax = 0; ax < d; ax++) shift += Math.abs(updated[j][ax] - centers[j][ax]);
             centers = updated;
+            // 条件判断
             if (shift < 1e-4) break;
         }
         double inertia = 0;
+        // 枚举位置 i
         for (int i = 0; i < n; i++) for (int ax = 0; ax < d; ax++) inertia += Math.abs(points[i][ax] - centers[labels[i]][ax]);
         StringBuilder sb = new StringBuilder();
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { if (i > 0) sb.append(' '); sb.append(labels[i]); }
         sb.append((char)10);
+        // 枚举阶段 j
         for (int j = 0; j < k; j++) {
             StringBuilder line = new StringBuilder();
+            // 循环处理
             for (int ax = 0; ax < d; ax++) { if (ax > 0) line.append(' '); line.append(String.format(Locale.US, "%.6f", centers[j][ax])); }
             sb.append(line).append((char)10);
         }

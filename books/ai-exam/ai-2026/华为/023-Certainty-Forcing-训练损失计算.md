@@ -67,11 +67,12 @@ import math
 input = sys.stdin.readline
 
 # 读取输入并输出答案
-):
+def solve():
     first = input().split()
     N = int(first[0]); V = int(first[1]); B = int(first[2]); lam = float(first[3])
     base = 0.0
     items = []
+    # 遍历 _
     for _ in range(N):
         row = input().split()
         z = [float(row[j]) for j in range(V)]
@@ -81,8 +82,10 @@ input = sys.stdin.readline
         s = sum(exps)
         ce = -(z[y] - m) + math.log(s)
         H = 0.0
+        # 遍历 e
         for e in exps:
             p = e / s
+            # 条件判断
             if p > 0.0:
                 H -= p * math.log(p)
         base += ce
@@ -91,8 +94,10 @@ input = sys.stdin.readline
     f = [0.0] * (B + 1)
     g = [0.0] * (B + 1)
     for ce, c, H in items:
+        # 枚举分割点 b
         for b in range(B, c - 1, -1):
             cand = f[b - c] + ce
+            # 条件判断
             if cand > f[b]:
                 f[b] = cand
                 g[b] = g[b - c] + H
@@ -124,19 +129,25 @@ public class Main {
         double base = 0.0;
         double[] f = new double[B + 1];
         double[] g = new double[B + 1];
+        // 循环处理
         for (int it = 0; it < N; it++) {
             double[] z = new double[V];
+            // 枚举阶段 j
             for (int j = 0; j < V; j++) z[j] = sc.nextDouble();
             int y = sc.nextInt(); int c = sc.nextInt();
             double mx = Double.NEGATIVE_INFINITY;
+            // 循环处理
             for (double v : z) if (v > mx) mx = v;
             double sum = 0;
             double[] exps = new double[V];
+            // 枚举阶段 j
             for (int j = 0; j < V; j++) { exps[j] = Math.exp(z[j] - mx); sum += exps[j]; }
             double ce = -(z[y] - mx) + Math.log(sum);
             double H = 0;
+            // 枚举阶段 j
             for (int j = 0; j < V; j++) { double p = exps[j] / sum; if (p > 0) H -= p * Math.log(p); }
             base += ce;
+            // 循环处理
             for (int bb = B; bb >= c; bb--) { double cand = f[bb - c] + ce; if (cand > f[bb]) { f[bb] = cand; g[bb] = g[bb - c] + H; } }
         }
         double total = base + lam * g[B];

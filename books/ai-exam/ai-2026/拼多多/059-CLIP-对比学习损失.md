@@ -54,7 +54,7 @@ import json
 import numpy as np
 
 # 读取输入并输出答案
-):
+def solve():
     data = json.loads(input())
     img = np.array(data['image_embeds'], dtype=np.float64)
     txt = np.array(data['text_embeds'], dtype=np.float64)
@@ -62,10 +62,12 @@ import numpy as np
 
     logits = img @ txt.T / temperature
 
+    # 核心函数：cross_entropy
     def cross_entropy(mat):
         row_max = mat.max(axis=1, keepdims=True)
         log_sum = row_max[:, 0] + np.log(np.exp(mat - row_max).sum(axis=1))
         diag = np.diag(mat)
+        # 返回结果
         return float((log_sum - diag).mean())
 
     loss = (cross_entropy(logits) + cross_entropy(logits.T)) / 2.0
@@ -96,41 +98,57 @@ public class Main {
             this.s=s;
         }
         Object parse() {
+            // 返回结果
             return value();
         }
         void ws() {
+            // 循环处理
             while(i<s.length()&&Character.isWhitespace(s.charAt(i)))i++;
         }
         Object value() {
             ws();
             char c=s.charAt(i);
+            // 条件判断
             if(c=='{')return obj();
+            // 条件判断
             if(c=='[')return arr();
+            // 条件判断
             if(c=='"')return str();
+            // 条件判断
             if(c=='t') {
                 i+=4;
+                // 返回结果
                 return Boolean.TRUE;
             }
+            // 条件判断
             if(c=='f') {
                 i+=5;
+                // 返回结果
                 return Boolean.FALSE;
             }
+            // 条件判断
             if(c=='n') {
                 i+=4;
+                // 返回结果
                 return null;
             }
             int st=i;
+            // 循环处理
             while(i<s.length()&&"-+.eE0123456789".indexOf(s.charAt(i))>=0)i++;
+            // 返回结果
             return Double.parseDouble(s.substring(st,i));
         }
         Map<String,Object> obj() {
             Map<String,Object> m=new LinkedHashMap<>();
             i++;
             ws();
+            // 条件判断
             if(s.charAt(i)=='}') {
                 i++;
+                // 返回结果
                 return m;
             }
+            // 循环处理
             while(true) {
                 ws();
                 String k=str();
@@ -141,69 +159,91 @@ public class Main {
                 ws();
                 char c=s.charAt(i);
                 i++;
+                // 条件判断
                 if(c=='}')break;
             }
+            // 返回结果
             return m;
         }
         List<Object> arr() {
             List<Object> l=new ArrayList<>();
             i++;
             ws();
+            // 条件判断
             if(s.charAt(i)==']') {
                 i++;
+                // 返回结果
                 return l;
             }
+            // 循环处理
             while(true) {
                 l.add(value());
                 ws();
                 char c=s.charAt(i);
                 i++;
+                // 条件判断
                 if(c==']')break;
             }
+            // 返回结果
             return l;
         }
         String str() {
             StringBuilder sb=new StringBuilder();
             i++;
+            // 循环处理
             while(s.charAt(i)!='"') {
                 sb.append(s.charAt(i));
                 i++;
             }
             i++;
+            // 返回结果
             return sb.toString();
         }
     }
+    // 核心方法：toMat
     static double[][] toMat(List<Object> l) {
         double[][] m=new double[l.size()][];
+        // 枚举位置 i
         for(int i=0;i<l.size();i++) {
             List<Object> row=(List<Object>)l.get(i);
             m[i]=new double[row.size()];
+            // 枚举阶段 j
             for(int j=0;j<row.size();j++)m[i][j]=((Number)row.get(j)).doubleValue();
         }
+        // 返回结果
         return m;
     }
+    // 核心方法：crossEntropy
     static double crossEntropy(double[][] m) {
         int n=m.length;
         double sum=0;
+        // 枚举位置 i
         for(int i=0;i<n;i++) {
             double mx=Double.NEGATIVE_INFINITY;
+            // 枚举阶段 j
             for(int j=0;j<m[i].length;j++)mx=Math.max(mx,m[i][j]);
             double s=0;
+            // 枚举阶段 j
             for(int j=0;j<m[i].length;j++)s+=Math.exp(m[i][j]-mx);
             sum+=(mx+Math.log(s))-m[i][i];
         }
+        // 返回结果
         return sum/n;
     }
+    // 核心方法：transpose
     static double[][] transpose(double[][] a) {
         int r=a.length,c=a[0].length;
         double[][] t=new double[c][r];
+        // 枚举位置 i
         for(int i=0;i<r;i++)for(int j=0;j<c;j++)t[j][i]=a[i][j];
+        // 返回结果
         return t;
     }
     // 主函数：读取输入并输出答案
     public static void main(String[] a)throws Exception {
         BufferedReader br=new BufferedReader(new InputStreamReader(System.in));
         String line=br.readLine();
+        // 条件判断
         if(line==null)return;
         Object parsed=new Json(line).parse();
         Map<String,Object> root=(Map<String,Object>)parsed;
@@ -212,8 +252,10 @@ public class Main {
         double temp=((Number)root.get("temperature")).doubleValue();
         int N=img.length,D=img[0].length,M=txt.length;
         double[][] logits=new double[N][M];
+        // 枚举位置 i
         for(int i=0;i<N;i++)for(int j=0;j<M;j++) {
             double s=0;
+            // 循环处理
             for(int k=0;k<D;k++)s+=img[i][k]*txt[j][k];
             logits[i][j]=s/temp;
         }

@@ -75,11 +75,14 @@ final class ToolValidator {
     }
 
     @SuppressWarnings("unchecked")
+    // 核心方法：validateToolCall
     static List<String> validateToolCall(String name, Map<String, ?> arguments) {
         Map<String, Object> spec = TOOLS.get(name);
+        // 条件判断
         if (spec == null) {
             List<String> unknown = new ArrayList<>();
             unknown.add("unknown tool");
+            // 返回结果
             return unknown;
         }
         List<String> errors = new ArrayList<>();
@@ -90,22 +93,28 @@ final class ToolValidator {
         missing.removeAll(provided);
         Set<String> extra = new TreeSet<>(provided);
         extra.removeAll(allowed);
+        // 条件判断
         if (!missing.isEmpty()) {
             errors.add("missing: " + pyList(missing));
         }
+        // 条件判断
         if (!extra.isEmpty()) {
             errors.add("unexpected: " + pyList(extra));
         }
+        // 条件判断
         if ("write".equals(spec.get("risk"))) {
             errors.add("approval required");
         }
+        // 返回结果
         return errors;
     }
 
     private static String pyList(Set<String> values) {
         StringBuilder builder = new StringBuilder("[");
         boolean first = true;
+        // 循环处理
         for (String value : values) {
+            // 条件判断
             if (!first) {
                 builder.append(", ");
             }
@@ -113,6 +122,7 @@ final class ToolValidator {
             first = false;
         }
         builder.append(']');
+        // 返回结果
         return builder.toString();
     }
 

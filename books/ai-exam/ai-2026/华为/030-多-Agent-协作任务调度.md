@@ -94,12 +94,13 @@ import sys
 
 
 # 读取输入并输出答案
-):
+def solve():
     input = sys.stdin.readline
     n = int(input())
     progress = [0] * n
     cost = [0] * n
 
+    # 枚举位置 i
     for i in range(n):
         progress[i], cost[i] = map(int, input().split())
 
@@ -117,28 +118,36 @@ import sys
 
     answer = inf
 
+    # 遍历 current
     for current in range(100):
+        # 条件判断
         if best[current] == inf:
             continue
 
+        # 遍历 agent
         for agent in range(n):
+            # 条件判断
             if agent == best_last[current]:
                 base = second[current]
             else:
                 base = best[current]
 
+            # 条件判断
             if base == inf:
                 continue
 
             new_cost = base + cost[agent]
             next_progress = current + progress[agent]
 
+            # 条件判断
             if next_progress >= 100:
                 answer = min(answer, new_cost)
                 continue
 
             # 将“代价 new_cost、末尾 agent”合并到目标层。
+            # 条件判断
             if new_cost < best[next_progress]:
+                # 条件判断
                 if best_last[next_progress] == agent:
                     # 同一 Agent 的状态变优，不影响异 Agent 次小值。
                     best[next_progress] = new_cost
@@ -147,6 +156,7 @@ import sys
                     second[next_progress] = best[next_progress]
                     best[next_progress] = new_cost
                     best_last[next_progress] = agent
+            # 条件判断
             elif (
                 best_last[next_progress] != agent
                 and new_cost < second[next_progress]
@@ -183,17 +193,22 @@ public class Main {
             br = new BufferedReader(new InputStreamReader(System.in));
         }
         String next() throws IOException {
+            // 循环处理
             while (st == null || !st.hasMoreTokens()) {
                 String line = br.readLine();
+                // 条件判断
                 if (line == null) return null;
                 st = new StringTokenizer(line);
             }
+            // 返回结果
             return st.nextToken();
         }
         int nextInt() throws IOException {
+            // 返回结果
             return Integer.parseInt(next());
         }
         long nextLong() throws IOException {
+            // 返回结果
             return Long.parseLong(next());
         }
     }
@@ -202,10 +217,12 @@ public class Main {
     public static void main(String[] args) throws IOException {
         FastScanner fs = new FastScanner();
         String t = fs.next();
+        // 条件判断
         if (t == null) return;
         int n = Integer.parseInt(t);
         long[] progress = new long[n];
         long[] cost = new long[n];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) {
             progress[i] = fs.nextLong();
             cost[i] = fs.nextLong();
@@ -220,21 +237,29 @@ public class Main {
         best[0] = 0;
         second[0] = 0;
         long answer = INF;
+        // 循环处理
         for (int current = 0; current < 100; current++) {
+            // 条件判断
             if (best[current] == INF) continue;
+            // 循环处理
             for (int agent = 0; agent < n; agent++) {
                 long base;
+                // 条件判断
                 if (agent == bestLast[current]) base = second[current];
                 else base = best[current];
+                // 条件判断
                 if (base == INF) continue;
                 long newCost = base + cost[agent];
                 long nextProgress = current + progress[agent];
+                // 条件判断
                 if (nextProgress >= 100) {
                     answer = Math.min(answer, newCost);
                     continue;
                 }
                 int np = (int) nextProgress;
+                // 条件判断
                 if (newCost < best[np]) {
+                    // 条件判断
                     if (bestLast[np] == agent) {
                         best[np] = newCost;
                     } else {

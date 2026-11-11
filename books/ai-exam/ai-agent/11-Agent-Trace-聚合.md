@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 final class AgentTraceAggregator {
+    // 核心方法：aggregate
     static Map<String, Object> aggregate(List<Map<String, Object>> trace) {
         int totalEvents = trace.size();
         int toolCalls = 0;
@@ -33,20 +34,25 @@ final class AgentTraceAggregator {
         double totalDuration = 0.0;
         Map<String, Integer> toolCounts = new LinkedHashMap<>();
 
+        // 循环处理
         for (Map<String, Object> event : trace) {
             Object type = event.get("type");
+            // 条件判断
             if ("tool_call".equals(type)) {
                 toolCalls++;
                 Object tool = event.get("tool");
+                // 条件判断
                 if (tool != null) {
                     toolCounts.merge(tool.toString(), 1, Integer::sum);
                 }
             }
             Object error = event.get("error");
+            // 条件判断
             if ("error".equals(type) || Boolean.TRUE.equals(error)) {
                 errors++;
             }
             Object duration = event.get("duration_ms");
+            // 条件判断
             if (duration instanceof Number) {
                 totalDuration += ((Number) duration).doubleValue();
             }
@@ -58,6 +64,7 @@ final class AgentTraceAggregator {
         result.put("errors", errors);
         result.put("total_duration_ms", totalDuration);
         result.put("tool_counts", toolCounts);
+        // 返回结果
         return result;
     }
 

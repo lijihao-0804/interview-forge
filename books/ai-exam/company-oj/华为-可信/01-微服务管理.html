@@ -243,90 +243,129 @@ isServiceAvailable：一个服务可提供服务，当且仅当它自身至少�
 <span class="n">running_count</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">deps</span> <span class="o">=</span> <span class="p">{}</span>
 
+<span class="c1"># 核心函数：init</span>
 <span class="k">def</span> <span class="nf">init</span><span class="p">():</span>
     <span class="n">server_services</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
     <span class="n">running_count</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
     <span class="n">deps</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 
+<span class="c1"># 核心函数：start_service</span>
 <span class="k">def</span> <span class="nf">start_service</span><span class="p">(</span><span class="n">server_id</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
     <span class="n">s</span> <span class="o">=</span> <span class="n">server_services</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">server_id</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+        <span class="c1"># 返回结果</span>
         <span class="k">return</span> <span class="kc">False</span>
     <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
     <span class="n">running_count</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">running_count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="kc">True</span>
 
+<span class="c1"># 核心函数：reboot_servers</span>
 <span class="k">def</span> <span class="nf">reboot_servers</span><span class="p">(</span><span class="n">ids</span><span class="p">):</span>
+    <span class="c1"># 遍历 sid</span>
     <span class="k">for</span> <span class="n">sid</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
         <span class="n">s</span> <span class="o">=</span> <span class="n">server_services</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sid</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># 遍历 name</span>
             <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
                 <span class="n">running_count</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">running_count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
             <span class="n">s</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 
+<span class="c1"># 核心函数：add_dependency</span>
 <span class="k">def</span> <span class="nf">add_dependency</span><span class="p">(</span><span class="n">fr</span><span class="p">,</span> <span class="n">to</span><span class="p">):</span>
     <span class="n">s</span> <span class="o">=</span> <span class="n">deps</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">fr</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">to</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+        <span class="c1"># 返回结果</span>
         <span class="k">return</span> <span class="kc">False</span>
     <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">to</span><span class="p">)</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="kc">True</span>
 
+<span class="c1"># 核心函数：avail</span>
 <span class="k">def</span> <span class="nf">avail</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">visiting</span><span class="p">):</span>
     <span class="n">c</span> <span class="o">=</span> <span class="n">running_count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">c</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># 返回结果</span>
         <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">visiting</span><span class="p">:</span>
+        <span class="c1"># 返回结果</span>
         <span class="k">return</span> <span class="kc">True</span>
     <span class="n">visiting</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
     <span class="n">ds</span> <span class="o">=</span> <span class="n">deps</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="c1"># 条件判断</span>
     <span class="k">if</span> <span class="n">ds</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># 遍历 d</span>
         <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ds</span><span class="p">:</span>
+            <span class="c1"># 条件判断</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">avail</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">visiting</span><span class="p">):</span>
+                <span class="c1"># 返回结果</span>
                 <span class="k">return</span> <span class="kc">False</span>
     <span class="n">visiting</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="kc">True</span>
 
+<span class="c1"># 核心函数：is_service_available</span>
 <span class="k">def</span> <span class="nf">is_service_available</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="n">avail</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
 
+<span class="c1"># 核心函数：extract_quoted</span>
 <span class="k">def</span> <span class="nf">extract_quoted</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
     <span class="n">a</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="mi">34</span><span class="p">))</span>
     <span class="n">b</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="mi">34</span><span class="p">),</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="n">s</span><span class="p">[</span><span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">b</span><span class="p">]</span>
 
+<span class="c1"># 核心函数：extract_quoted_list</span>
 <span class="k">def</span> <span class="nf">extract_quoted_list</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
     <span class="n">res</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># 循环处理</span>
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
         <span class="n">a</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="mi">34</span><span class="p">),</span> <span class="n">i</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">if</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">break</span>
         <span class="n">b</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="mi">34</span><span class="p">),</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">if</span> <span class="n">b</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">break</span>
         <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">b</span><span class="p">])</span>
         <span class="n">i</span> <span class="o">=</span> <span class="n">b</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="c1"># 返回结果</span>
     <span class="k">return</span> <span class="n">res</span>
 
+<span class="c1"># 核心函数：main</span>
 <span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">init</span><span class="p">()</span>
+    <span class="c1"># 遍历 line</span>
     <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="p">:</span>
         <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
             <span class="k">continue</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'ServiceWgSys'</span><span class="p">):</span>
             <span class="n">init</span><span class="p">()</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'null'</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'rebootServers'</span><span class="p">):</span>
             <span class="n">l</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">'['</span><span class="p">)</span>
             <span class="n">r</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">']'</span><span class="p">)</span>
             <span class="n">inside</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">r</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
             <span class="n">ids</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># 条件判断</span>
             <span class="k">if</span> <span class="n">inside</span><span class="p">:</span>
                 <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">inside</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">','</span><span class="p">)]</span>
             <span class="n">reboot_servers</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'null'</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'startService'</span><span class="p">):</span>
             <span class="n">l</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">'('</span><span class="p">)</span>
             <span class="n">r</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rindex</span><span class="p">(</span><span class="s1">')'</span><span class="p">)</span>
@@ -335,16 +374,19 @@ isServiceAvailable：一个服务可提供服务，当且仅当它自身至少�
             <span class="n">sid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">inside</span><span class="p">[:</span><span class="n">comma</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">extract_quoted</span><span class="p">(</span><span class="n">inside</span><span class="p">[</span><span class="n">comma</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:])</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'true'</span> <span class="k">if</span> <span class="n">start_service</span><span class="p">(</span><span class="n">sid</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">else</span> <span class="s1">'false'</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'addDependency'</span><span class="p">):</span>
             <span class="n">l</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">'('</span><span class="p">)</span>
             <span class="n">r</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rindex</span><span class="p">(</span><span class="s1">')'</span><span class="p">)</span>
             <span class="n">q</span> <span class="o">=</span> <span class="n">extract_quoted_list</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">r</span><span class="p">])</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'true'</span> <span class="k">if</span> <span class="n">add_dependency</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">else</span> <span class="s1">'false'</span><span class="p">)</span>
+        <span class="c1"># 条件判断</span>
         <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'isServiceAvailable'</span><span class="p">):</span>
             <span class="n">l</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">'('</span><span class="p">)</span>
             <span class="n">r</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rindex</span><span class="p">(</span><span class="s1">')'</span><span class="p">)</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">extract_quoted</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">r</span><span class="p">])</span>
             <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'true'</span> <span class="k">if</span> <span class="n">is_service_available</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">else</span> <span class="s1">'false'</span><span class="p">)</span>
+    <span class="c1"># 遍历 v</span>
     <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">out</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
 

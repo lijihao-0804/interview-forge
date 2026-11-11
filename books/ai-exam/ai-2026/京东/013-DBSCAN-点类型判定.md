@@ -58,6 +58,7 @@ import json
 import numpy as np
 
 
+# 核心函数：classify_points
 def classify_points(x, eps, min_samples):
     diff = x[:, None, :] - x[None, :, :]
     adjacent = np.sum(diff * diff, axis=2) <= eps * eps
@@ -66,11 +67,12 @@ def classify_points(x, eps, min_samples):
     types = np.zeros(len(x), dtype=int)
     types[near_core & ~core] = 1
     types[core] = 2
+    # 返回结果
     return types.tolist()
 
 
 # 读取输入并输出答案
-):
+def solve():
     data = json.loads(sys.stdin.readline())
     x = np.asarray(data["X"], dtype=float)
     result = classify_points(x, float(data["eps"]), int(data["min_samples"]))
@@ -100,52 +102,72 @@ public class Main {
     static class Json {
         private final String s; private int i;
         Json(String s) { this.s = s; }
+        // 核心方法：parse
         static Object parse(String s) { Json j = new Json(s); j.ws(); return j.value(); }
         private void ws() { while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++; }
         private Object value() {
             ws(); char c = s.charAt(i);
+            // 条件判断
             if (c == '{') return object();
+            // 条件判断
             if (c == '[') return array();
+            // 条件判断
             if (c == '"') return string();
+            // 条件判断
             if (c == 't') { i += 4; return Boolean.TRUE; }
+            // 条件判断
             if (c == 'f') { i += 5; return Boolean.FALSE; }
+            // 条件判断
             if (c == 'n') { i += 4; return null; }
+            // 返回结果
             return number();
         }
         private Map<String,Object> object() {
             Map<String,Object> m = new LinkedHashMap<>();
             i++; ws();
+            // 条件判断
             if (s.charAt(i) == '}') { i++; return m; }
+            // 循环处理
             while (true) {
                 ws(); String k = string(); ws(); i++;
                 Object v = value(); m.put(k, v); ws();
                 char c = s.charAt(i++); if (c == '}') break;
             }
+            // 返回结果
             return m;
         }
         private List<Object> array() {
             List<Object> a = new ArrayList<>();
             i++; ws();
+            // 条件判断
             if (s.charAt(i) == ']') { i++; return a; }
+            // 循环处理
             while (true) {
                 a.add(value()); ws();
                 char c = s.charAt(i++); if (c == ']') break;
             }
+            // 返回结果
             return a;
         }
         private String string() {
             StringBuilder b = new StringBuilder(); i++;
+            // 循环处理
             while (true) {
                 char c = s.charAt(i++);
+                // 条件判断
                 if (c == '"') break;
+                // 条件判断
                 if (c == (char)92) { char e = s.charAt(i++); if (e == 'n') b.append((char)10); else b.append(e); }
                 else b.append(c);
             }
+            // 返回结果
             return b.toString();
         }
         private Object number() {
             int start = i;
+            // 循环处理
             while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) i++;
+            // 返回结果
             return Double.parseDouble(s.substring(start, i));
         }
     }
@@ -158,20 +180,26 @@ public class Main {
         int n = xObj.size();
         int d = ((List<Object>) xObj.get(0)).size();
         double[][] x = new double[n][d];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { List<Object> row = (List<Object>) xObj.get(i); for (int j = 0; j < d; j++) x[i][j] = ((Number) row.get(j)).doubleValue(); }
         double eps = ((Number) data.get("eps")).doubleValue();
         int minSamples = ((Number) data.get("min_samples")).intValue();
         double eps2 = eps * eps;
         boolean[] core = new boolean[n];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { int cnt = 0; for (int j = 0; j < n; j++) { double dd = 0; for (int k = 0; k < d; k++) { double df = x[i][k] - x[j][k]; dd += df * df; } if (dd <= eps2) cnt++; } core[i] = cnt >= minSamples; }
         int[] types = new int[n];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) {
             boolean nearCore = false;
+            // 枚举阶段 j
             for (int j = 0; j < n; j++) { if (!core[j]) continue; double dd = 0; for (int k = 0; k < d; k++) { double df = x[i][k] - x[j][k]; dd += df * df; } if (dd <= eps2) { nearCore = true; break; } }
+            // 条件判断
             if (core[i]) types[i] = 2; else if (nearCore) types[i] = 1; else types[i] = 0;
         }
         StringBuilder sb = new StringBuilder();
         sb.append('[');
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { if (i > 0) sb.append(", "); sb.append(types[i]); }
         sb.append(']');
         System.out.println(sb);

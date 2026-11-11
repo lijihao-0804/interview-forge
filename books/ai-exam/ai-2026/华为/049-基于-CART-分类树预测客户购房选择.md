@@ -136,29 +136,40 @@ import sys
 input = sys.stdin.readline
 
 
+# 核心函数：mass
 def mass(count_zero, count_one):
     size = count_zero + count_one
+    # 返回结果
     return (2 * count_zero * count_one, size) if size else (0, 1)
 
 
+# 核心函数：add_fraction
 def add_fraction(a, b):
+    # 返回结果
     return (a[0] * b[1] + b[0] * a[1], a[1] * b[1])
 
 
+# 核心函数：less_fraction
 def less_fraction(a, b):
+    # 返回结果
     return a[0] * b[1] < b[0] * a[1]
 
 
+# 核心函数：build_tree
 def build_tree(rows):
     count_one = sum(row[4] for row in rows)
     count_zero = len(rows) - count_one
     majority = int(count_one > count_zero)
+    # 条件判断
     if count_zero == 0 or count_one == 0 or len(rows) < 2:
+        # 返回结果
         return (majority,)
 
     best_score = mass(count_zero, count_one)
     best_feature = best_value = None
+    # 遍历 feature
     for feature in range(4):
+        # 遍历 value
         for value in sorted({row[feature] for row in rows}):
             left = [row for row in rows if row[feature] == value]
             left_one = sum(row[4] for row in left)
@@ -167,26 +178,33 @@ def build_tree(rows):
                 mass(left_zero, left_one),
                 mass(count_zero - left_zero, count_one - left_one),
             )
+            # 条件判断
             if less_fraction(score, best_score):
                 best_score = score
                 best_feature, best_value = feature, value
 
+    # 条件判断
     if best_feature is None:
+        # 返回结果
         return (majority,)
     left = [row for row in rows if row[best_feature] == best_value]
     right = [row for row in rows if row[best_feature] != best_value]
+    # 返回结果
     return (best_feature, best_value, build_tree(left), build_tree(right))
 
 
+# 核心函数：predict
 def predict(tree, sample):
+    # 循环处理
     while len(tree) != 1:
         feature, value, left, right = tree
         tree = left if sample[feature] == value else right
+    # 返回结果
     return tree[0]
 
 
 # 读取输入并输出答案
-):
+def solve():
     n = int(input())
     rows = [list(map(int, input().split())) for _ in range(n)]
     tree = build_tree(rows)
@@ -230,44 +248,65 @@ public class Main {
         Tree(int v) { leaf = true; value = v; }
         Tree(int f, int sv, Tree a, Tree b) { feature = f; splitValue = sv; left = a; right = b; }
     }
+    // 核心方法：mass
     static BigInteger[] mass(long cz, long co) {
         long size = cz + co;
+        // 条件判断
         if (size == 0) return new BigInteger[]{BigInteger.ZERO, BigInteger.ONE};
+        // 返回结果
         return new BigInteger[]{BigInteger.valueOf(2 * cz * co), BigInteger.valueOf(size)};
     }
+    // 核心方法：addF
     static BigInteger[] addF(BigInteger[] a, BigInteger[] b) {
+        // 返回结果
         return new BigInteger[]{a[0].multiply(b[1]).add(b[0].multiply(a[1])), a[1].multiply(b[1])};
     }
+    // 核心方法：lessF
     static boolean lessF(BigInteger[] a, BigInteger[] b) {
+        // 返回结果
         return a[0].multiply(b[1]).compareTo(b[0].multiply(a[1])) < 0;
     }
+    // 核心方法：build
     static Tree build(List<int[]> rows) {
         long countOne = 0;
+        // 循环处理
         for (int[] r : rows) countOne += r[4];
         long countZero = rows.size() - countOne;
         int majority = countOne > countZero ? 1 : 0;
+        // 条件判断
         if (countZero == 0 || countOne == 0 || rows.size() < 2) return new Tree(majority);
         BigInteger[] bestScore = mass(countZero, countOne);
         int bestFeature = -1, bestValue = 0;
+        // 循环处理
         for (int feature = 0; feature < 4; feature++) {
             TreeSet<Integer> vals = new TreeSet<>();
+            // 循环处理
             for (int[] r : rows) vals.add(r[feature]);
+            // 循环处理
             for (int value : vals) {
                 long leftOne = 0, leftSize = 0;
+                // 循环处理
                 for (int[] r : rows) if (r[feature] == value) { leftSize++; leftOne += r[4]; }
                 long leftZero = leftSize - leftOne;
                 BigInteger[] score = addF(mass(leftZero, leftOne), mass(countZero - leftZero, countOne - leftOne));
+                // 条件判断
                 if (lessF(score, bestScore)) { bestScore = score; bestFeature = feature; bestValue = value; }
             }
         }
+        // 条件判断
         if (bestFeature == -1) return new Tree(majority);
         List<int[]> left = new ArrayList<>();
         List<int[]> right = new ArrayList<>();
+        // 循环处理
         for (int[] r : rows) { if (r[bestFeature] == bestValue) left.add(r); else right.add(r); }
+        // 返回结果
         return new Tree(bestFeature, bestValue, build(left), build(right));
     }
+    // 核心方法：predict
     static int predict(Tree t, int[] s) {
+        // 循环处理
         while (!t.leaf) { t = (s[t.feature] == t.splitValue) ? t.left : t.right; }
+        // 返回结果
         return t.value;
     }
     // 主函数：读取输入并输出答案
@@ -275,13 +314,17 @@ public class Main {
         In in = new In();
         int n = in.ni();
         List<int[]> rows = new ArrayList<>();
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { int[] r = new int[5]; for (int j = 0; j < 5; j++) r[j] = in.ni(); rows.add(r); }
         Tree tree = build(rows);
         int m = in.ni();
         StringBuilder sb = new StringBuilder();
+        // 枚举位置 i
         for (int i = 0; i < m; i++) {
             int[] s = new int[4];
+            // 枚举阶段 j
             for (int j = 0; j < 4; j++) s[j] = in.ni();
+            // 条件判断
             if (i > 0) sb.append(' ');
             sb.append(predict(tree, s));
         }

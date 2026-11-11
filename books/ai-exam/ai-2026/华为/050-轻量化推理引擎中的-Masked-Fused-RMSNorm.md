@@ -94,34 +94,43 @@ from decimal import Decimal, ROUND_HALF_UP
 input = sys.stdin.readline
 
 
+# 核心函数：format_value
 def format_value(value):
+    # 条件判断
     if abs(value) < 0.005:
+        # 返回结果
         return "0.00"
     rounded = Decimal.from_float(value).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
+    # 返回结果
     return format(rounded, ".2f")
 
 
+# 核心函数：masked_rms_norm
 def masked_rms_norm(length, alpha, x, residual, gamma, beta, epsilon):
     fused = [x[i] + alpha * residual[i] for i in range(length)]
     energy = sum(value * value for value in fused)
     rms = math.sqrt(energy / max(length, 1) + epsilon)
+    # 条件判断
     if length > 0 and rms == 0.0:
         raise ValueError("题面未定义：有效长度非零且 RMS 为零")
     output = [0.0] * len(x)
+    # 枚举位置 i
     for i in range(length):
         output[i] = gamma[i] * (fused[i] / rms) + beta[i]
+    # 返回结果
     return output, rms, energy
 
 
 # 读取输入并输出答案
-):
+def solve():
     first = input().split()
     m, n = int(first[0]), int(first[1])
     epsilon = float(first[2])
     gamma = list(map(float, input().split()))
     beta = list(map(float, input().split()))
+    # 遍历 _
     for _ in range(m):
         tokens = input().split()
         length, alpha = int(tokens[0]), float(tokens[1])
@@ -165,10 +174,13 @@ public class Main {
         int ni() { return Integer.parseInt(next()); }
         double nd() { return Double.parseDouble(next()); }
     }
+    // 核心方法：formatValue
     static String formatValue(double value) {
+        // 条件判断
         if (Math.abs(value) < 0.005) return "0.00";
         BigDecimal bd = new BigDecimal(value);
         bd = bd.setScale(2, RoundingMode.HALF_UP);
+        // 返回结果
         return bd.toPlainString();
     }
     // 主函数：读取输入并输出答案
@@ -179,23 +191,31 @@ public class Main {
         double epsilon = in.nd();
         double[] gamma = new double[n];
         double[] beta = new double[n];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) gamma[i] = in.nd();
+        // 枚举位置 i
         for (int i = 0; i < n; i++) beta[i] = in.nd();
         StringBuilder out = new StringBuilder();
+        // 循环处理
         for (int row = 0; row < m; row++) {
             int length = in.ni();
             double alpha = in.nd();
             double[] x = new double[n];
             double[] residual = new double[n];
+            // 枚举位置 i
             for (int i = 0; i < n; i++) x[i] = in.nd();
+            // 枚举位置 i
             for (int i = 0; i < n; i++) residual[i] = in.nd();
             double[] fused = new double[length];
             double energy = 0.0;
+            // 枚举位置 i
             for (int i = 0; i < length; i++) { fused[i] = x[i] + alpha * residual[i]; energy += fused[i] * fused[i]; }
             double rms = Math.sqrt(energy / Math.max(length, 1) + epsilon);
             double[] output = new double[n];
+            // 枚举位置 i
             for (int i = 0; i < length; i++) output[i] = gamma[i] * (fused[i] / rms) + beta[i];
             StringBuilder line = new StringBuilder();
+            // 枚举位置 i
             for (int i = 0; i < n; i++) { if (i > 0) line.append(' '); line.append(formatValue(output[i])); }
             line.append(" | ").append(formatValue(rms)).append(" | ").append(formatValue(energy));
             out.append(line).append((char)10);

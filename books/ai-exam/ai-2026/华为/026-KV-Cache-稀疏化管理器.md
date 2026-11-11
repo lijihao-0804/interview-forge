@@ -114,8 +114,10 @@ cache = {}
 min_heap = []
 write = sys.stdout.write
 
+# 遍历 _
 for _ in range(operation_count):
     command = input().split()
+    # 条件判断
     if command[0] == "ADD":
         pos = int(command[1])
         score_text = command[2]
@@ -125,6 +127,7 @@ for _ in range(operation_count):
         cache[pos] = (score_text, key_text, value_text)
         heapq.heappush(min_heap, (Decimal(score_text), pos))
 
+        # 条件判断
         if len(cache) > capacity:
             _, pruned_pos = heapq.heappop(min_heap)
             del cache[pruned_pos]
@@ -174,6 +177,7 @@ public class Main {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         StringBuilder sb = new StringBuilder();
         String first = br.readLine();
+        // 条件判断
         if (first == null) return;
         StringTokenizer st = new StringTokenizer(first);
         int capacity = Integer.parseInt(st.nextToken());
@@ -182,25 +186,34 @@ public class Main {
         PriorityQueue<Entry> heap = new PriorityQueue<>(new Comparator<Entry>() {
             public int compare(Entry a, Entry b) {
                 int c = a.score.compareTo(b.score);
+                // 条件判断
                 if (c != 0) return c;
+                // 返回结果
                 return Integer.compare(a.pos, b.pos);
             }
         });
+        // 循环处理
         for (int op = 0; op < operationCount; op++) {
             String line = br.readLine();
+            // 条件判断
             if (line == null) break;
             StringTokenizer cmd = new StringTokenizer(line);
+            // 条件判断
             if (!cmd.hasMoreTokens()) continue;
             String command = cmd.nextToken();
+            // 条件判断
             if (command.equals("ADD")) {
                 int pos = Integer.parseInt(cmd.nextToken());
                 String scoreText = cmd.nextToken();
                 String keyText = br.readLine();
                 String valueText = br.readLine();
+                // 条件判断
                 if (keyText == null) keyText = "";
+                // 条件判断
                 if (valueText == null) valueText = "";
                 cache.put(pos, new String[]{scoreText, keyText, valueText});
                 heap.add(new Entry(new BigDecimal(scoreText), pos));
+                // 条件判断
                 if (cache.size() > capacity) {
                     Entry pruned = heap.poll();
                     int prunedPos = pruned.pos;
@@ -209,6 +222,7 @@ public class Main {
                 }
             } else {
                 sb.append(cache.size()).append(NL);
+                // 循环处理
                 for (Map.Entry<Integer, String[]> e : cache.entrySet()) {
                     String[] v = e.getValue();
                     sb.append(e.getKey()).append(' ').append(v[0]).append(NL);

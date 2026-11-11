@@ -136,34 +136,44 @@ MERGE_EPS = 1e-4
 BIC_EPS = 1e-9
 
 
+# 核心函数：dist2
 def dist2(a, b):
     value = 0.0
     for x, y in zip(a, b):
         delta = x - y
         value += delta * delta
+    # 返回结果
     return value
 
 
+# 核心函数：kmeans
 def kmeans(points, order, d, k):
     n = len(points)
     centers = []
+    # 枚举位置 i
     for i in range(k):
         pos = 0 if k == 1 else i * (n - 1) // (k - 1)
         centers.append(points[order[pos]][:])
 
     labels = [-1] * n
+    # 循环处理
     while True:
         new_labels = []
+        # 遍历 point
         for point in points:
             best = 0
             best_dist = dist2(point, centers[0])
+            # 遍历 c
             for c in range(1, k):
                 current = dist2(point, centers[c])
+                # 条件判断
                 if current < best_dist:
                     best, best_dist = c, current
             new_labels.append(best)
 
+        # 条件判断
         if new_labels == labels:
+            # 返回结果
             return centers, labels
         labels = new_labels
 
@@ -171,28 +181,39 @@ def kmeans(points, order, d, k):
         totals = [[0.0] * d for _ in range(k)]
         for point, c in zip(points, labels):
             counts[c] += 1
+            # 枚举阶段 j
             for j in range(d):
                 totals[c][j] += point[j]
+        # 遍历 c
         for c in range(k):
+            # 条件判断
             if counts[c]:
                 centers[c] = [v / counts[c] for v in totals[c]]
 
 
+# 核心函数：merge_centers
 def merge_centers(points, centers, labels, d):
     k = len(centers)
     parent = list(range(k))
 
+    # 核心函数：find
     def find(x):
+        # 循环处理
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
+        # 返回结果
         return x
 
     # 所有距离都使用合并前的中心，不在枚举中修改中心。
+    # 遍历 a
     for a in range(k):
+        # 枚举分割点 b
         for b in range(a + 1, k):
+            # 条件判断
             if dist2(centers[a], centers[b]) < MERGE_EPS:
                 ra, rb = find(a), find(b)
+                # 条件判断
                 if ra != rb:
                     parent[max(ra, rb)] = min(ra, rb)
 
@@ -205,38 +226,49 @@ def merge_centers(points, centers, labels, d):
     totals = [[0.0] * d for _ in range(size)]
     for point, c in zip(points, new_labels):
         counts[c] += 1
+        # 枚举阶段 j
         for j in range(d):
             totals[c][j] += point[j]
 
     merged = []
     for c, root in enumerate(representatives):
+        # 条件判断
         if counts[c]:
             merged.append([v / counts[c] for v in totals[c]])
         else:
             merged.append(centers[root][:])
+    # 返回结果
     return merged, new_labels
 
 
+# 核心函数：main
 def main():
     stream = iter(sys.stdin.buffer.read().split())
     first = next(stream, None)
+    # 条件判断
     if first is None:
+        # 返回结果
         return
     n, d = int(first), int(next(stream))
+    # 条件判断
     if n <= 0 or d <= 0:
         print(0)
+        # 返回结果
         return
     points = [[float(next(stream)) for _ in range(d)] for _ in range(n)]
     kmin, kmax = int(next(stream)), int(next(stream))
     kmax = min(kmax, n)
     kmin = min(kmin, kmax)
+    # 条件判断
     if kmin < 1:
         print(0)
+        # 返回结果
         return
 
     order = sorted(range(n), key=lambda i: points[i][0])
     best_bic = math.inf
     best_centers = best_labels = None
+    # 遍历 k
     for k in range(kmin, kmax + 1):
         centers, labels = kmeans(points, order, d, k)
         centers, labels = merge_centers(points, centers, labels, d)
@@ -244,6 +276,7 @@ def main():
                   for point, c in zip(points, labels))
         bic = (n * math.log((sse + 1e-8) / n)
                + len(centers) * (d + 1) * math.log(n))
+        # 条件判断
         if bic < best_bic - BIC_EPS:
             best_bic = bic
             best_centers, best_labels = centers, labels
@@ -252,8 +285,10 @@ def main():
                    key=lambda c: (best_centers[c][0], c))
     remap = {old: new for new, old in enumerate(order)}
     print(len(order))
+    # 遍历 c
     for c in order:
         row = []
+        # 遍历 value
         for value in best_centers[c]:
             text = f"{value:.2f}"
             row.append("0.00" if text == "-0.00" else text)
@@ -292,37 +327,49 @@ import java.util.*;
 public class Main {
     static final double MERGE_EPS=1e-4;
     static final double BIC_EPS=1e-9;
+    // 核心方法：dist2
     static double dist2(double[] a,double[] b) {
         double v=0.0;
+        // 枚举位置 i
         for(int i=0;i<a.length;i++) {
             double d=a[i]-b[i];
             v+=d*d;
         }
+        // 返回结果
         return v;
     }
+    // 核心方法：find
     static int find(int[] p,int x) {
+        // 循环处理
         while(p[x]!=x) {
             p[x]=p[p[x]];
             x=p[x];
         }
+        // 返回结果
         return x;
     }
+    // 核心方法：kmeans
     static double[][] kmeans(double[][] pts,int[] order,int d,int k,int[] outLab) {
         int n=pts.length;
         double[][] c=new double[k][];
+        // 枚举位置 i
         for(int i=0;i<k;i++) {
             int pos=(k==1)?0:i*(n-1)/(k-1);
             c[i]=pts[order[pos]].clone();
         }
         int[] lab=new int[n];
         Arrays.fill(lab,-1);
+        // 循环处理
         while(true) {
             int[] nl=new int[n];
+            // 循环处理
             for(int p=0;p<n;p++) {
                 int best=0;
                 double bd=dist2(pts[p],c[0]);
+                // 枚举阶段 j
                 for(int j=1;j<k;j++) {
                     double cur=dist2(pts[p],c[j]);
+                    // 条件判断
                     if(cur<bd) {
                         best=j;
                         bd=cur;
@@ -330,55 +377,73 @@ public class Main {
                 }
                 nl[p]=best;
             }
+            // 条件判断
             if(Arrays.equals(nl,lab)) {
                 System.arraycopy(lab,0,outLab,0,n);
+                // 返回结果
                 return c;
             }
             lab=nl;
             int[] cnt=new int[k];
             double[][] tot=new double[k][d];
+            // 循环处理
             for(int p=0;p<n;p++) {
                 int ci=lab[p];
                 cnt[ci]++;
+                // 枚举阶段 j
                 for(int j=0;j<d;j++)tot[ci][j]+=pts[p][j];
             }
+            // 循环处理
             for(int ci=0;ci<k;ci++)if(cnt[ci]!=0)for(int j=0;j<d;j++)c[ci][j]=tot[ci][j]/cnt[ci];
         }
     }
+    // 核心方法：mergeCenters
     static Object[] mergeCenters(double[][] pts,double[][] c,int[] lab,int d) {
         int k=c.length;
         int[] par=new int[k];
+        // 枚举位置 i
         for(int i=0;i<k;i++)par[i]=i;
+        // 循环处理
         for(int a=0;a<k;a++)for(int b=a+1;b<k;b++)if(dist2(c[a],c[b])<MERGE_EPS) {
             int ra=find(par,a),rb=find(par,b);
+            // 条件判断
             if(ra!=rb)par[Math.max(ra,rb)]=Math.min(ra,rb);
         }
         int[] roots=new int[k];
         TreeSet<Integer> set=new TreeSet<>();
+        // 枚举位置 i
         for(int i=0;i<k;i++) {
             roots[i]=find(par,i);
             set.add(roots[i]);
         }
         List<Integer> reps=new ArrayList<>(set);
         HashMap<Integer,Integer> num=new HashMap<>();
+        // 枚举位置 i
         for(int i=0;i<reps.size();i++)num.put(reps.get(i),i);
         int size=reps.size();
         int[] nl=new int[lab.length];
+        // 枚举位置 i
         for(int i=0;i<lab.length;i++)nl[i]=num.get(roots[lab[i]]);
         int[] cnt=new int[size];
         double[][] tot=new double[size][d];
+        // 循环处理
         for(int p=0;p<pts.length;p++) {
             int ci=nl[p];
             cnt[ci]++;
+            // 枚举阶段 j
             for(int j=0;j<d;j++)tot[ci][j]+=pts[p][j];
         }
         double[][] merged=new double[size][];
+        // 循环处理
         for(int ci=0;ci<size;ci++) {
+            // 条件判断
             if(cnt[ci]!=0) {
                 merged[ci]=new double[d];
+                // 枚举阶段 j
                 for(int j=0;j<d;j++)merged[ci][j]=tot[ci][j]/cnt[ci];
             } else merged[ci]=c[reps.get(ci)].clone();
         }
+        // 返回结果
         return new Object[] {
             merged,nl
         }
@@ -388,25 +453,32 @@ public class Main {
     public static void main(String[] args)throws Exception {
         byte[] raw=System.in.readAllBytes();
         String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8).trim();
+        // 条件判断
         if(text.isEmpty())return;
         StringTokenizer st=new StringTokenizer(text);
         int n=Integer.parseInt(st.nextToken());
         int d=Integer.parseInt(st.nextToken());
+        // 条件判断
         if(n<=0||d<=0) {
             System.out.println(0);
+            // 返回结果
             return;
         }
         double[][] pts=new double[n][d];
+        // 枚举位置 i
         for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(st.nextToken());
         int kmin=Integer.parseInt(st.nextToken());
         int kmax=Integer.parseInt(st.nextToken());
         kmax=Math.min(kmax,n);
         kmin=Math.min(kmin,kmax);
+        // 条件判断
         if(kmin<1) {
             System.out.println(0);
+            // 返回结果
             return;
         }
         Integer[] ord=new Integer[n];
+        // 枚举位置 i
         for(int i=0;i<n;i++)ord[i]=i;
         final double[][] P=pts;
         Arrays.sort(ord,(x,y)-> {
@@ -414,10 +486,12 @@ public class Main {
         }
         );
         int[] order=new int[n];
+        // 枚举位置 i
         for(int i=0;i<n;i++)order[i]=ord[i];
         double bestBic=Double.POSITIVE_INFINITY;
         double[][] bestC=null;
         int[] bestL=null;
+        // 循环处理
         for(int k=kmin;k<=kmax;k++) {
             int[] lab=new int[n];
             double[][] c=kmeans(pts,order,d,k,lab);
@@ -425,8 +499,10 @@ public class Main {
             c=(double[][])mr[0];
             lab=(int[])mr[1];
             double sse=0.0;
+            // 循环处理
             for(int p=0;p<n;p++)sse+=dist2(pts[p],c[lab[p]]);
             double bic=n*Math.log((sse+1e-8)/n)+c.length*(d+1)*Math.log(n);
+            // 条件判断
             if(bic<bestBic-BIC_EPS) {
                 bestBic=bic;
                 bestC=c;
@@ -434,6 +510,7 @@ public class Main {
             }
         }
         Integer[] co=new Integer[bestC.length];
+        // 枚举位置 i
         for(int i=0;i<co.length;i++)co[i]=i;
         final double[][] BC=bestC;
         Arrays.sort(co,(x,y)-> {
@@ -441,21 +518,28 @@ public class Main {
         }
         );
         int[] remap=new int[bestC.length];
+        // 枚举位置 i
         for(int i=0;i<co.length;i++)remap[co[i]]=i;
         StringBuilder sb=new StringBuilder();
         sb.append(co.length).append((char)10);
+        // 循环处理
         for(int oi=0;oi<co.length;oi++) {
             int ci=co[oi];
             StringBuilder row=new StringBuilder();
+            // 枚举阶段 j
             for(int j=0;j<bestC[ci].length;j++) {
                 String s=String.format(Locale.ROOT,"%.2f",bestC[ci][j]);
+                // 条件判断
                 if(s.equals("-0.00"))s="0.00";
+                // 条件判断
                 if(j>0)row.append(' ');
                 row.append(s);
             }
             sb.append(row).append((char)10);
         }
+        // 循环处理
         for(int p=0;p<bestL.length;p++) {
+            // 条件判断
             if(p>0)sb.append(' ');
             sb.append(remap[bestL[p]]);
         }

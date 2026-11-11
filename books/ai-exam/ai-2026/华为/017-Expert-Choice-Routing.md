@@ -76,12 +76,15 @@ $$Y_i = \sum_{e \in \mathcal{E}_i} W_{ie} \cdot (X_i \cdot W_e)$$
 import sys
 import numpy as np
 
+# 核心函数：fmt2
 def fmt2(v):
     s = f"{v:.2f}"
+    # 返回结果
     return "0.00" if s == "-0.00" else s
 
 data = sys.stdin.read().split()
 n = int(data[0]); d = int(data[1]); e = int(data[2]); s = int(data[3])
+# 条件判断
 if n < 1 or d < 1 or e < 1 or s < 1 or s > n:
     print("0")
     sys.exit(0)
@@ -90,6 +93,7 @@ pos = 4
 X = np.array(data[pos:pos + n * d], dtype=float).reshape(n, d); pos += n * d
 Wg = np.array(data[pos:pos + d * e], dtype=float).reshape(d, e); pos += d * e
 We = []
+# 遍历 _
 for _ in range(e):
     We.append(np.array(data[pos:pos + d * d], dtype=float).reshape(d, d))
     pos += d * d
@@ -100,9 +104,11 @@ expv = np.exp(scores - m)
 W = expv / expv.sum(axis=1, keepdims=True)
 
 Y = np.zeros((n, d))
+# 遍历 ee
 for ee in range(e):
     col = W[:, ee]
     chosen = sorted(range(n), key=lambda i: (-col[i], i))[:s]
+    # 枚举位置 i
     for i in chosen:
         Y[i] += col[i] * (X[i] @ We[ee])
 
@@ -125,42 +131,58 @@ print("\n".join(" ".join(fmt2(v) for v in row) for row in Y))
 
 import java.util.*;
 public class Main {
+    // 核心方法：fmt2
     static String fmt2(double v) { String t = String.format(Locale.US, "%.2f", v); return t.equals("-0.00") ? "0.00" : t; }
     // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         int n = sc.nextInt(), d = sc.nextInt(), e = sc.nextInt(), s = sc.nextInt();
+        // 条件判断
         if (n < 1 || d < 1 || e < 1 || s < 1 || s > n) { System.out.println("0"); return; }
         double[][] X = new double[n][d];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) X[i][j] = sc.nextDouble();
         double[][] Wg = new double[d][e];
+        // 枚举位置 i
         for (int i = 0; i < d; i++) for (int j = 0; j < e; j++) Wg[i][j] = sc.nextDouble();
         double[][][] We = new double[e][d][d];
+        // 循环处理
         for (int ee = 0; ee < e; ee++) for (int i = 0; i < d; i++) for (int j = 0; j < d; j++) We[ee][i][j] = sc.nextDouble();
         double[][] scores = new double[n][e];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) for (int ee = 0; ee < e; ee++) { double sum = 0; for (int k = 0; k < d; k++) sum += X[i][k] * Wg[k][ee]; scores[i][ee] = sum; }
         double[][] W = new double[n][e];
+        // 枚举位置 i
         for (int i = 0; i < n; i++) {
             double mx = Double.NEGATIVE_INFINITY;
+            // 循环处理
             for (int ee = 0; ee < e; ee++) if (scores[i][ee] > mx) mx = scores[i][ee];
             double sum = 0;
+            // 循环处理
             for (int ee = 0; ee < e; ee++) { double v = Math.exp(scores[i][ee] - mx); W[i][ee] = v; sum += v; }
+            // 循环处理
             for (int ee = 0; ee < e; ee++) W[i][ee] /= sum;
         }
         double[][] Y = new double[n][d];
+        // 循环处理
         for (int ee = 0; ee < e; ee++) {
             Integer[] idx = new Integer[n];
+            // 枚举位置 i
             for (int i = 0; i < n; i++) idx[i] = i;
             final double[][] Wf = W; final int col = ee;
             Arrays.sort(idx, (a, b) -> { int c = Double.compare(Wf[b][col], Wf[a][col]); if (c != 0) return c; return Integer.compare(a, b); });
+            // 循环处理
             for (int t = 0; t < s; t++) {
                 int i = idx[t]; double coef = W[i][ee];
                 double[] xw = new double[d];
+                // 循环处理
                 for (int k = 0; k < d; k++) { double sum = 0; for (int j = 0; j < d; j++) sum += X[i][j] * We[ee][j][k]; xw[k] = sum; }
+                // 循环处理
                 for (int k = 0; k < d; k++) Y[i][k] += coef * xw[k];
             }
         }
         StringBuilder sb = new StringBuilder();
+        // 枚举位置 i
         for (int i = 0; i < n; i++) { if (i > 0) sb.append((char)10); for (int k = 0; k < d; k++) { if (k > 0) sb.append(' '); sb.append(fmt2(Y[i][k])); } }
         System.out.println(sb);
     }
