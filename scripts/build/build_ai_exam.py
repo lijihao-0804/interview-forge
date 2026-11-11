@@ -384,6 +384,65 @@ def solution_text(problem: dict) -> str:
     return max(codes, key=len).strip() if codes else ""
 
 
+def split_practice_samples(codes: object) -> list[dict[str, str]]:
+    """把数据里的 [输入, 输出, 输入, 输出, ..., 题解代码] 拆成样例对。
+
+    只相信明确的成对结构；数量不足或无法成对时返回空列表，绝不虚构样例。
+    """
+    if not isinstance(codes, list):
+        return []
+    values = [str(item) for item in codes if isinstance(item, str)]
+    if len(values) < 3 or len(values) % 2 == 0:
+        return []
+    pairs = values[:-1]
+    result = []
+    for index in range(0, len(pairs) - 1, 2):
+        inp, out = pairs[index], pairs[index + 1]
+        if inp.strip() or out.strip():
+            result.append({"input": inp, "expected": out})
+    return result
+
+
+def practice_entry(entry: dict, *, python_code: str, java_code: str, samples: list[dict[str, str]]) -> dict:
+    codes = {}
+    if python_code.strip():
+        codes["python"] = python_code.strip()
+    if java_code.strip():
+        codes["java"] = java_code.strip()
+    return {
+        "id": entry["url"].replace("/", ":"),
+        "url": entry["url"],
+        "title": entry["title"],
+        "codes": codes,
+        "samples": samples,
+    }
+
+
+def parse_markdown_samples(text: str) -> list[dict[str, str]]:
+    """提取公司 OJ Markdown 中“输入/输出”代码块；没有明确成对结构则返回空。"""
+    match = re.search(
+        r"##\s*(?:示例|样例)[^\n]*\n.*?输入[：:]\s*```[^\n]*\n(.*?)```\s*输出[：:]\s*```[^\n]*\n(.*?)```",
+        text,
+        flags=re.S,
+    )
+    if not match:
+        return []
+    return [{"input": match.group(1).strip("\n"), "expected": match.group(2).strip("\n")}]
+
+
+def parse_markdown_code(text: str, language: str) -> str:
+    match = re.search(r"```" + language + r"\s*\n(.*?)```", text, flags=re.S)
+    return match.group(1).strip() if match else ""
+
+
+def write_practice_meta(entries: list[dict]) -> None:
+    items = [entry["practice"] for entry in entries if entry.get("practice") and entry["practice"].get("samples")]
+    (SRC / "practice-meta.json").write_text(
+        json.dumps(items, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
+
+
+
 def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
     data = json.loads(CODING.read_text(encoding="utf-8"))
     entries = []
@@ -407,7 +466,7 @@ def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
         translation = translations.get(problem["key"], {})
         write_problem(md_path, problem["title"], meta, problem.get("sections", []), translation)
         languages = "Python/Java" if translation.get("java") else "Python"
-        entries.append({
+        entry = {
             "group": "ai-2026",
             "title": problem["title"],
             "company": company,
@@ -416,7 +475,14 @@ def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
             "lang": languages,
             "url": f"ai-2026/{company}/{filename[:-3]}.html",
             "key": f"{company} {problem['title']} {languages}",
-        })
+        }
+        entry["practice"] = practice_entry(
+            entry,
+            python_code=solution_text(problem),
+            java_code=str(translation.get("java") or ""),
+            samples=split_practice_samples(problem.get("codes")),
+        )
+        entries.append(entry)
     return entries
 
 
@@ -475,7 +541,7 @@ def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")
         languages = "Java/Python" if translation.get("python") else "Java"
-        entries.append({
+        entry = {
             "group": "company-oj",
             "title": title,
             "company": group,
@@ -484,7 +550,14 @@ def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
             "lang": languages,
             "url": f"company-oj/{group}/{md.stem}.html",
             "key": f"{group} {title} {languages}",
-        })
+        }
+        entry["practice"] = practice_entry(
+            entry,
+            python_code=parse_markdown_code(text, "python") or str(translation.get("python") or ""),
+            java_code=parse_markdown_code(text, "java"),
+            samples=parse_markdown_samples(text),
+        )
+        entries.append(entry)
     return entries
 
 
@@ -554,8 +627,9 @@ def apply_java_overrides() -> None:
 def cleanup_stale(entries: list[dict]) -> None:
     """删除上一次生成但已不在索引里的旧题页，避免旧的 print("C") 页面残留。"""
     expected = {str((SRC / entry["url"]).resolve()) for entry in entries}
+    keep = {str((SRC / "index.html").resolve()), str((SRC / "acm-playground.html").resolve())}
     for path in list(SRC.rglob("*.html")):
-        if path.parent == SRC and path.name == "index.html":
+        if str(path.resolve()) in keep:
             continue
         if str(path.resolve()) not in expected:
             path.unlink()
@@ -578,6 +652,7 @@ def main() -> None:
     for md in (sorted((SRC / "company-oj").glob("*/*.md")) if (SRC / "company-oj").exists() else []):
         render_markdown(md)
     build_index(entries)
+    write_practice_meta(entries)
     print("AI 岗机试题库：", len(entries), "题；页面已生成", SRC)
 
 
