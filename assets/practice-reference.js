@@ -75,6 +75,13 @@
     return context && context.codes && typeof context.codes[language] === 'string'
       ? context.codes[language] : DEFAULT_CODE[language];
   }
+  function initialCode(language) {
+    var code = contextCode(language);
+    if (String(code).split(/\r?\n/).length < 4) {
+      return language === 'java' ? formatJava(code) : formatPython(code);
+    }
+    return code;
+  }
   function sampleList() {
     return context && Array.isArray(context.samples) ? context.samples : [];
   }
@@ -130,6 +137,93 @@
     if (editor) editor.setValue(code);
     else $('code-editor').value = code;
   }
+  function formatJava(source) {
+    var out = [], line = '', indent = 0, paren = 0;
+    var inString = false, inChar = false, inLineComment = false, inBlockComment = false, escape = false;
+    function emit() {
+      var trimmed = line.trim();
+      if (trimmed) out.push('    '.repeat(indent) + trimmed);
+      line = '';
+    }
+    for (var i = 0; i < source.length; i += 1) {
+      var c = source[i];
+      var next = source[i + 1];
+      if (inLineComment) {
+        if (c === '\n' || c === '\r') { inLineComment = false; emit(); }
+        else line += c;
+        continue;
+      }
+      if (inBlockComment) {
+        line += c;
+        if (c === '*' && next === '/') { line += '/'; i += 1; inBlockComment = false; }
+        continue;
+      }
+      if (inString || inChar) {
+        line += c;
+        if (escape) escape = false;
+        else if (c === '\\') escape = true;
+        else if (inString && c === '"') inString = false;
+        else if (inChar && c === "'") inChar = false;
+        continue;
+      }
+      if (c === '/' && next === '/') { inLineComment = true; line += '//'; i += 1; continue; }
+      if (c === '/' && next === '*') { inBlockComment = true; line += '/*'; i += 1; continue; }
+      if (c === '"') { inString = true; line += c; continue; }
+      if (c === "'") { inChar = true; line += c; continue; }
+      if (c === '(') paren += 1;
+      if (c === ')') paren = Math.max(0, paren - 1);
+      if (c === '{' && paren === 0) { line += c; emit(); indent += 1; continue; }
+      if (c === '}' && paren === 0) {
+        emit();
+        indent = Math.max(0, indent - 1);
+        line = '}';
+        continue;
+      }
+      if (c === ';' && paren === 0) { line += c; emit(); continue; }
+      if (c === '\n' || c === '\r') { if (line.trim()) emit(); continue; }
+      line += c;
+    }
+    emit();
+    return out.join('\n');
+  }
+  function formatPython(source) {
+    if (source.indexOf('\n') >= 0 || source.indexOf(';') < 0) return source;
+    var out = [], current = '', quote = '', escaped = false;
+    for (var i = 0; i < source.length; i += 1) {
+      var c = source[i];
+      if (quote) {
+        current += c;
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === quote) quote = '';
+      } else if (c === '"' || c === "'") {
+        quote = c;
+        current += c;
+      } else if (c === ';') {
+        out.push(current.trim());
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+    if (current.trim()) out.push(current.trim());
+    return out.join('\n');
+  }
+  function formatCode() {
+    var formatted = currentLanguage === 'java' ? formatJava(getCode()) : formatPython(getCode());
+    setCode(formatted);
+    scheduleSave();
+    clearResult();
+    setRuntimeStatus(languageLabel() + ' · 已格式化', 'ready');
+    $('status-info').textContent = '代码已格式化';
+  }
+  function restoreInitialCode() {
+    setCode(initialCode(currentLanguage));
+    scheduleSave();
+    clearResult();
+    setRuntimeStatus(languageLabel() + ' · 已恢复初始代码', 'ready');
+    $('status-info').textContent = '已恢复初始代码';
+  }
   function setEditorLanguage(language) {
     if (editor) editor.setOption('mode', language === 'java' ? 'text/x-java' : 'python');
   }
@@ -167,7 +261,7 @@
     var stdinDraft = preserveDraft ? getDraft(currentLanguage, 'stdin') : null;
     var expectedDraft = preserveDraft ? getDraft(currentLanguage, 'expected') : null;
     var sample = currentSample();
-    setCode(codeDraft != null ? codeDraft : contextCode(currentLanguage));
+    setCode(codeDraft != null ? codeDraft : initialCode(currentLanguage));
     $('stdin-area').value = stdinDraft != null ? stdinDraft : sample.input;
     $('expected-area').value = expectedDraft != null ? expectedDraft : sample.expected;
     updateLanguageUi();
@@ -377,7 +471,7 @@
   function resetCode() {
     clearDraft(currentLanguage);
     var sample = currentSample();
-    setCode(contextCode(currentLanguage));
+    setCode(initialCode(currentLanguage));
     $('stdin-area').value = sample.input;
     $('expected-area').value = sample.expected;
     clearResult();
@@ -444,6 +538,8 @@
     });
     $('run-btn').addEventListener('click', runCode);
     if ($('judge-all-btn')) $('judge-all-btn').addEventListener('click', judgeAll);
+    if ($('format-btn')) $('format-btn').addEventListener('click', formatCode);
+    if ($('initial-code-btn')) $('initial-code-btn').addEventListener('click', restoreInitialCode);
     if ($('sample-select')) {
       $('sample-select').addEventListener('change', function () {
         saveDraft();
