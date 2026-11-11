@@ -147,6 +147,20 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static String nextLine() throws IOException { return br.readLine(); }
+
     // 核心方法：extractQuoted
     static List<String> extractQuoted(String s) {
         List<String> res = new ArrayList<>();
@@ -186,19 +200,18 @@ public class Main {
         s = s.trim();
         // 条件判断
         if (s.isEmpty()) return new String[0];
-        StringTokenizer st = new StringTokenizer(s);
-        String[] arr = new String[st.countTokens()];
+        StringTokenizer sw = new StringTokenizer(s);
+        String[] arr = new String[sw.countTokens()];
         // 枚举位置 i
-        for (int i = 0; i < arr.length; i++) arr[i] = st.nextToken();
+        for (int i = 0; i < arr.length; i++) arr[i] = sw.nextToken();
         // 返回结果
         return arr;
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) throws Exception {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        String sentencesLine = br.readLine();
-        String queryLine = br.readLine();
+    public static void main(String[] args) throws IOException {
+        String sentencesLine = nextLine();
+        String queryLine = nextLine();
         List<String> sentences = extractQuoted(sentencesLine);
         List<String> q = extractQuoted(queryLine);
         String word = q.get(0);

@@ -97,8 +97,24 @@ if __name__ == "__main__":
 // 模式：ACM（stdin/stdout）
 // 复杂度：时间 O(n^2d)，枚举所有点对并计算各维度差值，后续布尔运算不超过 O(n^2)；空间 O(n^2d)，主要为广播得到的三维差值张量
 
+import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static String nextLine() throws IOException { return br.readLine(); }
+
     static class Json {
         private final String s; private int i;
         Json(String s) { this.s = s; }
@@ -172,9 +188,8 @@ public class Main {
         }
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) throws Exception {
-        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
-        String line = br.readLine();
+    public static void main(String[] args) throws IOException {
+        String line = nextLine();
         Map<String,Object> data = (Map<String,Object>) Json.parse(line);
         List<Object> xObj = (List<Object>) data.get("X");
         int n = xObj.size();

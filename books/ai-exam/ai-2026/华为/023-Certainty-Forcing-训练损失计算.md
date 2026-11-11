@@ -117,15 +117,28 @@ solve()
 // 题目：Certainty Forcing 训练损失计算
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 O(NV + NB)，softmax 与熵 O(NV)，背包 O(NB)；空间 O(B + NV)
+// 复杂度：时间 O(NV + NB)，softmax 与熵 O(NV)，背包 O(NB)；空间 O(B + NV）
 
+import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        int N = sc.nextInt(), V = sc.nextInt(), B = sc.nextInt();
-        double lam = sc.nextDouble();
+    public static void main(String[] args) throws IOException {
+        int N = nextInt(), V = nextInt(), B = nextInt();
+        double lam = Double.parseDouble(next());
         double base = 0.0;
         double[] f = new double[B + 1];
         double[] g = new double[B + 1];
@@ -133,8 +146,8 @@ public class Main {
         for (int it = 0; it < N; it++) {
             double[] z = new double[V];
             // 枚举阶段 j
-            for (int j = 0; j < V; j++) z[j] = sc.nextDouble();
-            int y = sc.nextInt(); int c = sc.nextInt();
+            for (int j = 0; j < V; j++) z[j] = Double.parseDouble(next());
+            int y = nextInt(); int c = nextInt();
             double mx = Double.NEGATIVE_INFINITY;
             // 循环处理
             for (double v : z) if (v > mx) mx = v;

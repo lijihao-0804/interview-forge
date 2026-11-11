@@ -162,6 +162,19 @@ import java.math.BigDecimal;
 import java.util.*;
 
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static String nextLine() throws IOException { return br.readLine(); }
     static final char NL = (char) 10;
     static class Entry {
         BigDecimal score;
@@ -174,14 +187,13 @@ public class Main {
 
     // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         StringBuilder sb = new StringBuilder();
-        String first = br.readLine();
+        String first = nextLine();
         // 条件判断
         if (first == null) return;
-        StringTokenizer st = new StringTokenizer(first);
-        int capacity = Integer.parseInt(st.nextToken());
-        int operationCount = Integer.parseInt(st.nextToken());
+        st = new StringTokenizer(first);
+        int capacity = nextInt();
+        int operationCount = nextInt();
         LinkedHashMap<Integer, String[]> cache = new LinkedHashMap<>();
         PriorityQueue<Entry> heap = new PriorityQueue<>(new Comparator<Entry>() {
             public int compare(Entry a, Entry b) {
@@ -194,19 +206,19 @@ public class Main {
         });
         // 循环处理
         for (int op = 0; op < operationCount; op++) {
-            String line = br.readLine();
+            String line = nextLine();
             // 条件判断
             if (line == null) break;
-            StringTokenizer cmd = new StringTokenizer(line);
+            st = new StringTokenizer(line);
             // 条件判断
-            if (!cmd.hasMoreTokens()) continue;
-            String command = cmd.nextToken();
+            if (!st.hasMoreTokens()) continue;
+            String command = next();
             // 条件判断
             if (command.equals("ADD")) {
-                int pos = Integer.parseInt(cmd.nextToken());
-                String scoreText = cmd.nextToken();
-                String keyText = br.readLine();
-                String valueText = br.readLine();
+                int pos = nextInt();
+                String scoreText = next();
+                String keyText = nextLine();
+                String valueText = nextLine();
                 // 条件判断
                 if (keyText == null) keyText = "";
                 // 条件判断

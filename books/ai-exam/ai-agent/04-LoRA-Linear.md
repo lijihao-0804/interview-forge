@@ -43,16 +43,29 @@ RAG 链路里的核心组件，考察工程实现与边界处理。
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
 
-import java.util.Random;
+import java.io.*;
+import java.util.*;
 
-final class LoRALinear {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     private final double[][] baseWeight;
     private final double[] baseBias;
     private final double[][] a;
     private final double[][] b;
     private final double scale;
 
-    LoRALinear(double[][] baseWeight, double[] baseBias, int rank, double alpha) {
+    Main(double[][] baseWeight, double[] baseBias, int rank, double alpha) {
         this.baseWeight = baseWeight;
         this.baseBias = baseBias;
         int inFeatures = baseWeight[0].length;
@@ -132,10 +145,10 @@ final class LoRALinear {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         double[][] weight = {{1.0, 2.0}, {3.0, 4.0}};
         double[] bias = {0.5, -0.5};
-        LoRALinear layer = new LoRALinear(weight, bias, 2, 1.0);
+        Main layer = new Main(weight, bias, 2, 1.0);
         double[][] out = layer.forward(new double[][]{{1.0, 1.0}});
         System.out.println(java.util.Arrays.deepToString(out));
     }

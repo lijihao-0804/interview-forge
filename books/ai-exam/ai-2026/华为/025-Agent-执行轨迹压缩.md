@@ -217,15 +217,28 @@ print(shortest_path())
 // 题目：Agent 执行轨迹压缩
 // 算法：BFS / 队列
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n m2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
+// 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n m2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m 2^t)；空间 访问标记和队列最多保存 O(n m 2^t) 个状态
 
+import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        int n = sc.nextInt(), m = sc.nextInt();
-        int stepCount = sc.nextInt();
+    public static void main(String[] args) throws IOException {
+        int n = nextInt(), m = nextInt();
+        int stepCount = nextInt();
         int startRow = n / 2, startCol = m / 2;
         int row = startRow, col = startCol;
         Map<Integer,Integer> delta = new HashMap<>();
@@ -233,7 +246,7 @@ public class Main {
         dirs.put("U", new int[]{-1, 0}); dirs.put("D", new int[]{1, 0}); dirs.put("L", new int[]{0, -1}); dirs.put("R", new int[]{0, 1});
         // 枚举位置 i
         for (int i = 0; i < stepCount; i++) {
-            String move = sc.next(); String op = sc.next(); int param = sc.nextInt();
+            String move = next(); String op = next(); int param = nextInt();
             int[] d = dirs.get(move);
             int nr = row + d[0], nc = col + d[1];
             // 条件判断

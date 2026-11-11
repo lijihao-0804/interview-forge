@@ -167,13 +167,19 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 public class Main {
-    static class In {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringTokenizer st = new StringTokenizer("");
-        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
-        int ni() { return Integer.parseInt(next()); }
-        double nd() { return Double.parseDouble(next()); }
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
     }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     // 核心方法：formatValue
     static String formatValue(double value) {
         // 条件判断
@@ -184,28 +190,27 @@ public class Main {
         return bd.toPlainString();
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        In in = new In();
-        int m = in.ni();
-        int n = in.ni();
-        double epsilon = in.nd();
+    public static void main(String[] args) throws IOException {
+        int m = nextInt();
+        int n = nextInt();
+        double epsilon = Double.parseDouble(next());
         double[] gamma = new double[n];
         double[] beta = new double[n];
         // 枚举位置 i
-        for (int i = 0; i < n; i++) gamma[i] = in.nd();
+        for (int i = 0; i < n; i++) gamma[i] = Double.parseDouble(next());
         // 枚举位置 i
-        for (int i = 0; i < n; i++) beta[i] = in.nd();
+        for (int i = 0; i < n; i++) beta[i] = Double.parseDouble(next());
         StringBuilder out = new StringBuilder();
         // 循环处理
         for (int row = 0; row < m; row++) {
-            int length = in.ni();
-            double alpha = in.nd();
+            int length = nextInt();
+            double alpha = Double.parseDouble(next());
             double[] x = new double[n];
             double[] residual = new double[n];
             // 枚举位置 i
-            for (int i = 0; i < n; i++) x[i] = in.nd();
+            for (int i = 0; i < n; i++) x[i] = Double.parseDouble(next());
             // 枚举位置 i
-            for (int i = 0; i < n; i++) residual[i] = in.nd();
+            for (int i = 0; i < n; i++) residual[i] = Double.parseDouble(next());
             double[] fused = new double[length];
             double energy = 0.0;
             // 枚举位置 i

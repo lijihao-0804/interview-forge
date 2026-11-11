@@ -20,12 +20,22 @@
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
-final class AgentTraceAggregator {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 核心方法：aggregate
     static Map<String, Object> aggregate(List<Map<String, Object>> trace) {
         int totalEvents = trace.size();
@@ -69,7 +79,7 @@ final class AgentTraceAggregator {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         List<Map<String, Object>> trace = new ArrayList<>();
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("type", "tool_call");

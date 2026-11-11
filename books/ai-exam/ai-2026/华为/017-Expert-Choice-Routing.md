@@ -129,25 +129,39 @@ print("\n".join(" ".join(fmt2(v) for v in row) for row in Y))
 // 模式：ACM（stdin/stdout）
 // 复杂度：时间 O(N d E + E S d^2)，门控分数 O(N d E)，聚合阶段共 E S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵
 
+import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     // 核心方法：fmt2
     static String fmt2(double v) { String t = String.format(Locale.US, "%.2f", v); return t.equals("-0.00") ? "0.00" : t; }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        int n = sc.nextInt(), d = sc.nextInt(), e = sc.nextInt(), s = sc.nextInt();
+    public static void main(String[] args) throws IOException {
+        int n = nextInt(), d = nextInt(), e = nextInt(), s = nextInt();
         // 条件判断
         if (n < 1 || d < 1 || e < 1 || s < 1 || s > n) { System.out.println("0"); return; }
         double[][] X = new double[n][d];
         // 枚举位置 i
-        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) X[i][j] = sc.nextDouble();
+        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) X[i][j] = Double.parseDouble(next());
         double[][] Wg = new double[d][e];
         // 枚举位置 i
-        for (int i = 0; i < d; i++) for (int j = 0; j < e; j++) Wg[i][j] = sc.nextDouble();
+        for (int i = 0; i < d; i++) for (int j = 0; j < e; j++) Wg[i][j] = Double.parseDouble(next());
         double[][][] We = new double[e][d][d];
         // 循环处理
-        for (int ee = 0; ee < e; ee++) for (int i = 0; i < d; i++) for (int j = 0; j < d; j++) We[ee][i][j] = sc.nextDouble();
+        for (int ee = 0; ee < e; ee++) for (int i = 0; i < d; i++) for (int j = 0; j < d; j++) We[ee][i][j] = Double.parseDouble(next());
         double[][] scores = new double[n][e];
         // 枚举位置 i
         for (int i = 0; i < n; i++) for (int ee = 0; ee < e; ee++) { double sum = 0; for (int k = 0; k < d; k++) sum += X[i][k] * Wg[k][ee]; scores[i][ee] = sum; }

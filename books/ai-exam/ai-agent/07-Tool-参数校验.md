@@ -48,16 +48,22 @@ def validate_tool_call(name: str, arguments: dict) -> list[str]:
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.io.*;
+import java.util.*;
 
-final class ToolValidator {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     static final Map<String, Map<String, Object>> TOOLS = new LinkedHashMap<>();
 
     static {
@@ -127,7 +133,7 @@ final class ToolValidator {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         Map<String, Object> arguments = new LinkedHashMap<>();
         arguments.put("city", "Beijing");
         System.out.println(validateToolCall("get_weather", arguments));

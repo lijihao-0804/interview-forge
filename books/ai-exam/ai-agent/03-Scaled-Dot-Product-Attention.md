@@ -36,10 +36,22 @@ def attention(query, keys, values):
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 
-final class ScaledDotProductAttention {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 核心方法：dot
     static double dot(List<Double> left, List<Double> right) {
         double sum = 0.0;
@@ -113,7 +125,7 @@ final class ScaledDotProductAttention {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         List<List<Double>> keys = new ArrayList<>();
         keys.add(java.util.Arrays.asList(1.0, 0.0));
         keys.add(java.util.Arrays.asList(0.0, 1.0));

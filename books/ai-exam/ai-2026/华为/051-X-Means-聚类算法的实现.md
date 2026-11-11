@@ -324,7 +324,21 @@ $$O\left(N\log N+\sum_{K=K_{min}}^{K_{max}} \left[T_KNKd+K^2\bigl(d+\log(K+1)\bi
 
 import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     static final double MERGE_EPS=1e-4;
     static final double BIC_EPS=1e-9;
     // 核心方法：dist2
@@ -450,14 +464,12 @@ public class Main {
         ;
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args)throws Exception {
-        byte[] raw=System.in.readAllBytes();
-        String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8).trim();
+    public static void main(String[] args) throws IOException {
+        String first = next();
         // 条件判断
-        if(text.isEmpty())return;
-        StringTokenizer st=new StringTokenizer(text);
-        int n=Integer.parseInt(st.nextToken());
-        int d=Integer.parseInt(st.nextToken());
+        if (first == null) return;
+        int n = Integer.parseInt(first);
+        int d = nextInt();
         // 条件判断
         if(n<=0||d<=0) {
             System.out.println(0);
@@ -466,9 +478,9 @@ public class Main {
         }
         double[][] pts=new double[n][d];
         // 枚举位置 i
-        for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(st.nextToken());
-        int kmin=Integer.parseInt(st.nextToken());
-        int kmax=Integer.parseInt(st.nextToken());
+        for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(next());
+        int kmin=nextInt();
+        int kmax=nextInt();
         kmax=Math.min(kmax,n);
         kmin=Math.min(kmin,kmax);
         // 条件判断

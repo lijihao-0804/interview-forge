@@ -237,12 +237,19 @@ import java.util.*;
 import java.math.BigInteger;
 
 public class Main {
-    static class In {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringTokenizer st = new StringTokenizer("");
-        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
-        int ni() { return Integer.parseInt(next()); }
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
     }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     static class Tree {
         boolean leaf; int value; int feature; int splitValue; Tree left, right;
         Tree(int v) { leaf = true; value = v; }
@@ -310,20 +317,19 @@ public class Main {
         return t.value;
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        In in = new In();
-        int n = in.ni();
+    public static void main(String[] args) throws IOException {
+        int n = nextInt();
         List<int[]> rows = new ArrayList<>();
         // 枚举位置 i
-        for (int i = 0; i < n; i++) { int[] r = new int[5]; for (int j = 0; j < 5; j++) r[j] = in.ni(); rows.add(r); }
+        for (int i = 0; i < n; i++) { int[] r = new int[5]; for (int j = 0; j < 5; j++) r[j] = nextInt(); rows.add(r); }
         Tree tree = build(rows);
-        int m = in.ni();
+        int m = nextInt();
         StringBuilder sb = new StringBuilder();
         // 枚举位置 i
         for (int i = 0; i < m; i++) {
             int[] s = new int[4];
             // 枚举阶段 j
-            for (int j = 0; j < 4; j++) s[j] = in.ni();
+            for (int j = 0; j < 4; j++) s[j] = nextInt();
             // 条件判断
             if (i > 0) sb.append(' ');
             sb.append(predict(tree, s));

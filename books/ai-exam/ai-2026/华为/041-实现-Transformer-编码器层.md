@@ -158,18 +158,24 @@ softmax 前应减去该行最大值，避免指数溢出。 方差除以 4，使
 
 import java.io.*;
 import java.util.*;
-import java.util.Locale;
 
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     static final int D_MODEL = 4;
     static final int D_K = 2;
     static final double EPS = 1e-5;
-    static class In {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringTokenizer st = new StringTokenizer("");
-        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
-        double nd() { return Double.parseDouble(next()); }
-    }
     // 核心方法：layerNorm
     static double[] layerNorm(double[] values) {
         double mean = 0.0;
@@ -188,11 +194,10 @@ public class Main {
         return out;
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        In in = new In();
+    public static void main(String[] args) throws IOException {
         double[] values = new double[2 * D_MODEL];
         // 枚举位置 i
-        for (int i = 0; i < values.length; i++) values[i] = in.nd();
+        for (int i = 0; i < values.length; i++) values[i] = Double.parseDouble(next());
         double[][] x = new double[2][D_MODEL];
         // 枚举位置 i
         for (int i = 0; i < D_MODEL; i++) x[0][i] = values[i];

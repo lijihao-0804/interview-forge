@@ -535,6 +535,22 @@ def build_index(entries: list[dict]) -> None:
     (SRC / "index.html").write_text(page, encoding="utf-8")
 
 
+def apply_java_overrides() -> None:
+    """应用 data/ai_exam/java_standardized.json 中的标准 ACM Java 实现。"""
+    path = ROOT / "data" / "ai_exam" / "java_standardized.json"
+    if not path.exists():
+        return
+    data = json.loads(path.read_text(encoding="utf-8"))
+    overrides = data.get("items", data) if isinstance(data, dict) else {}
+    for rel, code in overrides.items():
+        target = ROOT / rel
+        if not target.exists():
+            continue
+        text = target.read_text(encoding="utf-8")
+        text = re.sub(r"```java\n.*?```", "```java\n" + code.strip() + "\n```", text, count=1, flags=re.S)
+        target.write_text(text, encoding="utf-8")
+
+
 def cleanup_stale(entries: list[dict]) -> None:
     """删除上一次生成但已不在索引里的旧题页，避免旧的 print("C") 页面残留。"""
     expected = {str((SRC / entry["url"]).resolve()) for entry in entries}
@@ -552,6 +568,7 @@ def cleanup_stale(entries: list[dict]) -> None:
 def main() -> None:
     translations = load_translations()
     entries = build_ai_coding(translations) + build_agent_doc(translations) + build_company_oj(translations)
+    apply_java_overrides()
     cleanup_stale(entries)
     # 先渲染 AI/Agent/企业 OJ 的 Markdown；页内的语言小节由 build_html_site 处理。
     for md in (sorted((SRC / "ai-2026").glob("*/*.md")) if (SRC / "ai-2026").exists() else []):

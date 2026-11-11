@@ -54,14 +54,22 @@ def run_agent(model, tools, objective, max_steps=12, repeat_limit=2):
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
-final class ReActAgent {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     interface Model {
         Map<String, Object> decide(List<Map<String, Object>> messages, List<String> toolNames);
     }
@@ -236,7 +244,7 @@ final class ReActAgent {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         Map<String, Tool> tools = new LinkedHashMap<>();
         tools.put("echo", arguments -> arguments.get("text"));
         Model model = (messages, toolNames) -> {

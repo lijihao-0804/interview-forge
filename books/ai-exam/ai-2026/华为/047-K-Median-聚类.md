@@ -139,16 +139,21 @@ if __name__ == "__main__":
 
 import java.io.*;
 import java.util.*;
-import java.util.Locale;
 
 public class Main {
-    static class In {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringTokenizer st = new StringTokenizer("");
-        String next() { while (!st.hasMoreTokens()) { String l=null; try { l=br.readLine(); } catch (IOException e) { throw new RuntimeException(e); } if (l==null) return null; st=new StringTokenizer(l); } return st.nextToken(); }
-        int ni() { return Integer.parseInt(next()); }
-        double nd() { return Double.parseDouble(next()); }
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
     }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+
     // 核心方法：median
     static double median(double[] arr) {
         double[] c = arr.clone();
@@ -160,12 +165,11 @@ public class Main {
         return (c[m / 2 - 1] + c[m / 2]) / 2.0;
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
-        In in = new In();
-        int n = in.ni(), d = in.ni(), k = in.ni();
+    public static void main(String[] args) throws IOException {
+        int n = nextInt(), d = nextInt(), k = nextInt();
         double[][] points = new double[n][d];
         // 枚举位置 i
-        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) points[i][j] = in.nd();
+        for (int i = 0; i < n; i++) for (int j = 0; j < d; j++) points[i][j] = Double.parseDouble(next());
         double[][] centers = new double[k][d];
         // 枚举位置 i
         for (int i = 0; i < k; i++) centers[i] = points[i].clone();

@@ -33,12 +33,22 @@ Agent 工程最容易出事故的部分：参数校验、循环守卫、幂等�
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
-final class ReciprocalRankFusion {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 核心方法：reciprocalRankFusion
     static List<String> reciprocalRankFusion(List<List<String>> rankings, int constant) {
         Map<String, Double> scores = new LinkedHashMap<>();
@@ -64,7 +74,7 @@ final class ReciprocalRankFusion {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         List<List<String>> rankings = new ArrayList<>();
         rankings.add(java.util.Arrays.asList("a", "b", "c"));
         rankings.add(java.util.Arrays.asList("b", "c", "d"));

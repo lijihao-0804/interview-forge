@@ -121,6 +121,20 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static String nextLine() throws IOException { return br.readLine(); }
+
     // 核心方法：parseInts
     static int[] parseInts(String s) {
         List<Integer> list = new ArrayList<>();
@@ -151,21 +165,11 @@ public class Main {
         return a;
     }
 
-    // 核心方法：readNonEmpty
-    static String readNonEmpty(BufferedReader br) throws Exception {
-        String s = br.readLine();
-        // 循环处理
-        while (s != null && s.trim().isEmpty()) s = br.readLine();
-        // 返回结果
-        return s;
-    }
-
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) throws Exception {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        int[] yTrue = parseInts(readNonEmpty(br));
-        int[] yPred = parseInts(readNonEmpty(br));
-        double beta = Double.parseDouble(readNonEmpty(br).trim());
+    public static void main(String[] args) throws IOException {
+        int[] yTrue = parseInts(nextLine());
+        int[] yPred = parseInts(nextLine());
+        double beta = Double.parseDouble(nextLine().trim());
         long tp = 0, fp = 0, fn = 0;
         int len = Math.min(yTrue.length, yPred.length);
         // 枚举位置 i

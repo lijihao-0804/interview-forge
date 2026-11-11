@@ -90,7 +90,22 @@ solve()
 
 import java.io.*;
 import java.util.*;
+
 public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static String nextLine() throws IOException { return br.readLine(); }
+
     static class Json {
         String s;
         int i=0;
@@ -240,9 +255,8 @@ public class Main {
         return t;
     }
     // 主函数：读取输入并输出答案
-    public static void main(String[] a)throws Exception {
-        BufferedReader br=new BufferedReader(new InputStreamReader(System.in));
-        String line=br.readLine();
+    public static void main(String[] a) throws IOException {
+        String line=nextLine();
         // 条件判断
         if(line==null)return;
         Object parsed=new Json(line).parse();

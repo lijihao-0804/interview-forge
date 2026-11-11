@@ -37,12 +37,22 @@ def parse_sse(lines):
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
-final class SseParser {
+public class Main {
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
+        }
+        return st.nextToken();
+    }
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
     // 核心方法：parseSse
     static List<Map<String, String>> parseSse(Iterable<String> lines) {
         List<Map<String, String>> events = new ArrayList<>();
@@ -57,7 +67,8 @@ final class SseParser {
                 if (!data.isEmpty()) {
                     Map<String, String> event = new LinkedHashMap<>();
                     event.put("event", eventType);
-                    event.put("data", String.join("\n", data));
+                    event.put("data", String.join("
+", data));
                     events.add(event);
                 }
                 eventType = "message";
@@ -75,7 +86,8 @@ final class SseParser {
     private static String stripTrailingNewlines(String value) {
         int end = value.length();
         // 循环处理
-        while (end > 0 && value.charAt(end - 1) == '\n') {
+        while (end > 0 && value.charAt(end - 1) == '
+') {
             end--;
         }
         // 返回结果
@@ -93,7 +105,7 @@ final class SseParser {
     }
 
     // 主函数：读取输入并输出答案
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         List<String> lines = new ArrayList<>();
         lines.add("event: update");
         lines.add("data: hello");

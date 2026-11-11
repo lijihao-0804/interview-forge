@@ -183,34 +183,19 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
-    static final char NL = (char) 10;
-    static class FastScanner {
-        BufferedReader br;
-        StringTokenizer st;
-        FastScanner() {
-            br = new BufferedReader(new InputStreamReader(System.in));
+    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    static StringTokenizer st;
+    static String next() throws IOException {
+        while (st == null || !st.hasMoreTokens()) {
+            String line = br.readLine();
+            if (line == null) return null;
+            st = new StringTokenizer(line);
         }
-        String next() throws IOException {
-            // 循环处理
-            while (st == null || !st.hasMoreTokens()) {
-                String line = br.readLine();
-                // 条件判断
-                if (line == null) return null;
-                st = new StringTokenizer(line);
-            }
-            // 返回结果
-            return st.nextToken();
-        }
-        int nextInt() throws IOException {
-            // 返回结果
-            return Integer.parseInt(next());
-        }
-        double nextDouble() throws IOException {
-            // 返回结果
-            return Double.parseDouble(next());
-        }
+        return st.nextToken();
     }
-
+    static int nextInt() throws IOException { return Integer.parseInt(next()); }
+    static long nextLong() throws IOException { return Long.parseLong(next()); }
+    static final char NL = (char) 10;
     // 核心方法：merge
     static double[] merge(double[] left, double[] right) {
         // 条件判断
@@ -251,16 +236,15 @@ public class Main {
 
     // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
-        FastScanner fs = new FastScanner();
-        String t = fs.next();
+        String t = next();
         // 条件判断
         if (t == null) return;
         int blockCount = Integer.parseInt(t);
-        int queryCount = fs.nextInt();
+        int queryCount = nextInt();
         double[][] blocks = new double[blockCount][];
         // 枚举位置 i
         for (int i = 0; i < blockCount; i++) {
-            blocks[i] = new double[]{fs.nextDouble(), fs.nextDouble(), fs.nextDouble()};
+            blocks[i] = new double[]{Double.parseDouble(next()), Double.parseDouble(next()), Double.parseDouble(next())};
         }
         int size = 1;
         // 循环处理
@@ -274,13 +258,13 @@ public class Main {
         boolean firstOut = true;
         // 循环处理
         for (int q = 0; q < queryCount; q++) {
-            String op = fs.next();
+            String op = next();
             // 条件判断
             if (op.equals("1")) {
-                int position = fs.nextInt() - 1;
-                double m = fs.nextDouble();
-                double d = fs.nextDouble();
-                double v = fs.nextDouble();
+                int position = nextInt() - 1;
+                double m = Double.parseDouble(next());
+                double d = Double.parseDouble(next());
+                double v = Double.parseDouble(next());
                 int idx = size + position;
                 tree[idx] = new double[]{m, d, v};
                 idx >>= 1;
@@ -290,8 +274,8 @@ public class Main {
                     idx >>= 1;
                 }
             } else {
-                int left = fs.nextInt() - 1;
-                int right = fs.nextInt();
+                int left = nextInt() - 1;
+                int right = nextInt();
                 double[] res = query(tree, size, left, right);
                 double denom = res[1];
                 double numer = res[2];
