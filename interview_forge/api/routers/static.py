@@ -158,6 +158,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         if not (
             (script.startswith("/assets/auth-widget") and (path in _AUTH_WIDGET_SKIP or embedded_assistant))
             or (script.startswith("/assets/feedback-widget") and (path in _FEEDBACK_WIDGET_SKIP or embedded_assistant))
+            or (script.startswith("/assets/theme-toggle") and path == "/books/ai-exam/acm-playground.html")
         )
     )
     if path in _AI_LAUNCHER_SKIP or navigation_only:

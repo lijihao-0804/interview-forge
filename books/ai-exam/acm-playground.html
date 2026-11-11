@@ -1,119 +1,150 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="InterviewForge ACM 模拟 IDE - Python 3.12 与 Java 17，stdin/stdout，样例对比">
   <title>ACM 模拟 IDE · InterviewForge</title>
-  <link rel="stylesheet" href="../../assets/site.css">
-  <link rel="stylesheet" href="../../assets/practice-playground.css">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('forge-theme');
+      var theme = (saved === 'light' || saved === 'dark')
+        ? saved
+        : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../assets/acm-reference-style.css?v=1">
+  <link rel="stylesheet" href="../../assets/acm-reference-playground.css?v=1">
+  <link rel="stylesheet" href="../../assets/practice-reference-overrides.css?v=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/material-darker.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/eclipse.min.css">
 </head>
-<body class="practice-page">
-  <header class="site-topbar practice-topbar">
-    <a class="site-brand" href="../../index.html">Hot 100 深度学习库</a>
-    <div class="practice-topbar-right">
-      <nav aria-label="主导航" class="site-nav">
-        <a href="../../index.html">题目面板</a>
-        <a href="../../cockpit.html">中控台</a>
-        <a href="../../library/index.html">学习书架</a>
-        <a href="index.html">AI 岗机试题库</a>
-      </nav>
-      <button id="practiceThemeBtn" class="practice-theme" type="button" aria-label="切换主题">
-        <span id="practiceThemeIcon" aria-hidden="true">◐</span>
-        <span id="practiceThemeLabel">跟随系统</span>
-      </button>
-      <a class="practice-back" href="index.html"><span aria-hidden="true">←</span> 返回题库</a>
+<body class="practice-page" data-ai-surface="acm">
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="../../index.html" class="nav-logo">
+        <span class="logo-text">Hot 100 深度学习库</span>
+      </a>
+      <ul class="nav-menu">
+        <li><a href="../../index.html" class="nav-link">题目面板</a></li>
+        <li><a href="../../cockpit.html" class="nav-link">中控台</a></li>
+        <li><a href="../../library/index.html" class="nav-link">学习书架</a></li>
+        <li><a href="index.html" class="nav-link nav-link-active">AI 岗机试题库</a></li>
+      </ul>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换主题" title="切换主题">
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+        <button class="nav-toggle" id="nav-toggle" aria-label="打开菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </div>
-  </header>
+  </nav>
 
-  <main class="practice-shell">
-    <h1 class="practice-sr-only" id="practiceTitle">ACM 模拟 IDE</h1>
+  <main class="acm-main">
+    <div class="acm-toolbar">
+      <div class="toolbar-left">
+        <select id="language-select" class="template-select language-select" aria-label="编程语言" title="编程语言">
+          <option value="python">Python 3</option>
+          <option value="java">Java 17</option>
+        </select>
+        <select id="template-select" class="template-select" aria-label="输入模板" title="选择输入模板">
+          <option value="">选择输入模板...</option>
+          <option value="single">单个整数</option>
+          <option value="two">两个整数</option>
+          <option value="array">读取数组</option>
+          <option value="matrix">读取矩阵</option>
+          <option value="multi">多组测试用例</option>
+          <option value="string">读取字符串</option>
+          <option value="graph">读取图（邻接表）</option>
+        </select>
+        <span class="toolbar-divider"></span>
+        <span id="problem-context" class="problem-context" hidden></span>
+        <span class="toolbar-divider problem-divider"></span>
+        <span id="runtime-status" class="runtime-status ready">Python 3 就绪</span>
+      </div>
+      <div class="toolbar-right">
+        <button id="run-btn" class="btn btn-run" type="button">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2l10 6-10 6V2z"/></svg>
+          运行<span class="run-shortcut"> (Ctrl+Enter)</span>
+        </button>
+        <button id="reset-btn" class="btn btn-reset" type="button">重置</button>
+        <button id="save-code-btn" class="btn btn-save-code" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          保存代码
+        </button>
+      </div>
+    </div>
 
-    <section class="practice-context" id="practiceContext" hidden>
-      <span class="context-label">当前题目</span>
-      <strong id="contextTitle"></strong>
-      <span class="context-meta" id="contextMeta"></span>
-    </section>
-
-    <section class="practice-workbench">
-      <div class="practice-toolbar">
-        <div class="toolbar-group">
-          <label for="language">语言</label>
-          <select id="language" class="practice-select">
-            <option value="python">Python 3</option>
-            <option value="java">Java 17</option>
-          </select>
+    <div class="acm-layout">
+      <div class="acm-panel acm-panel-editor">
+        <div class="panel-header">
+          <span class="panel-title">代码编辑器</span>
+          <div class="panel-header-tools">
+            <span id="language-hint" class="panel-hint">Python 3 · ACM 模式</span>
+          </div>
         </div>
-        <div class="toolbar-actions">
-          <button id="runBtn" class="practice-btn primary" type="button">
-            <span class="run-glyph" aria-hidden="true">▶</span>
-            运行代码
-            <kbd>Ctrl ↵</kbd>
-          </button>
-          <button id="resetBtn" class="practice-btn" type="button">重置草稿</button>
+        <div class="panel-body editor-body">
+          <textarea id="code-editor" spellcheck="false" aria-label="代码编辑器"></textarea>
         </div>
-        <span id="runtimeStatus" class="practice-runtime" role="status">就绪</span>
       </div>
 
-      <div class="workbench-grid">
-        <section class="practice-panel code-panel">
-          <div class="panel-head">
-            <span class="panel-title"><span class="panel-dot" aria-hidden="true"></span>代码编辑器</span>
-            <span id="languageHint" class="panel-sub">Python 3 · ACM 模式</span>
+      <div class="acm-panel-right">
+        <div class="acm-panel acm-panel-input">
+          <div class="panel-header">
+            <span class="panel-title">输入 (stdin)</span>
+            <button id="clear-input-btn" class="panel-action-btn" type="button" title="清空输入">清空</button>
           </div>
-          <div id="editorWrap">
-            <textarea id="editorFallback" spellcheck="false" aria-label="代码编辑器"></textarea>
+          <div class="panel-body io-body">
+            <textarea id="stdin-area" class="io-textarea" placeholder="在这里粘贴测试输入...&#10;例如：&#10;5&#10;1 3 2 5 4" spellcheck="false"></textarea>
           </div>
-        </section>
+        </div>
 
-        <section class="practice-panel test-panel">
-          <div class="panel-head">
-            <span class="panel-title">测试台</span>
-            <span class="panel-sub">输入 / 期望输出</span>
+        <div class="acm-panel acm-panel-output">
+          <div class="panel-header">
+            <span class="panel-title">输出 (stdout)</span>
+            <span id="run-status" class="run-status"></span>
           </div>
-          <div class="practice-io">
-            <div class="practice-field">
-              <label for="stdinArea">输入 <span>stdin</span></label>
-              <textarea id="stdinArea" class="practice-textarea" placeholder="在这里粘贴测试输入…" spellcheck="false"></textarea>
-            </div>
-            <div class="practice-field">
-              <label for="expectedArea">期望输出 <span>optional</span></label>
-              <textarea id="expectedArea" class="practice-textarea" placeholder="粘贴期望输出，运行后自动对比…" spellcheck="false"></textarea>
-            </div>
-            <div id="diffResult" class="practice-diff" aria-live="polite"></div>
+          <div class="panel-body io-body">
+            <pre id="stdout-area" class="io-output placeholder-text">点击「运行」或按 Ctrl+Enter 执行代码</pre>
           </div>
-          <div class="test-foot">
-            <span id="sampleHint">希望这里有一组样例</span>
+        </div>
+
+        <div class="acm-panel acm-panel-expected">
+          <div class="panel-header">
+            <span class="panel-title">期望输出（可选，用于对比）</span>
+            <span id="diff-result" class="diff-result"></span>
           </div>
-        </section>
+          <div class="panel-body io-body">
+            <textarea id="expected-area" class="io-textarea" placeholder="粘贴期望输出，自动与实际输出对比..." spellcheck="false"></textarea>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <section class="practice-panel result-panel">
-        <div class="result-head">
-          <span class="panel-title">运行结果</span>
-          <span id="runMeta" class="run-meta"></span>
-        </div>
-        <div class="result-grid">
-          <div class="console-block">
-            <label>标准输出 <span>stdout</span></label>
-            <pre id="stdoutArea">点击「运行代码」或按 Ctrl+Enter 执行</pre>
-          </div>
-          <div class="console-block">
-            <label>错误输出 <span>stderr</span></label>
-            <pre id="stderrArea" class="stderr"></pre>
-          </div>
-        </div>
-        <div class="result-foot">
-          <span id="sourceNote"></span>
-          <button id="clearOutput" class="practice-btn subtle" type="button">清空输出</button>
-        </div>
-      </section>
-    </section>
+    <div class="acm-statusbar">
+      <span id="status-info">就绪</span>
+      <span class="statusbar-sep">|</span>
+      <span id="status-time"></span>
+      <span class="statusbar-right">
+        <span class="statusbar-tip">Ctrl+Enter 运行</span>
+        <span class="statusbar-sep">|</span>
+        <span class="runtime-credit">Python 3.12 / Java 17 · server sandbox</span>
+      </span>
+    </div>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/python/python.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/clike/clike.min.js"></script>
-  <script src="../../assets/practice-playground.js?v=3"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/selection/active-line.min.js"></script>
+  <script src="../../assets/practice-reference.js?v=1"></script>
 </body>
 </html>
