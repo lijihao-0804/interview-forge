@@ -43,6 +43,7 @@
   var editor = null;
   var context = readContext();
   var currentLanguage = initialLanguage();
+  var currentTemplate = 'array';
   var currentSampleIndex = 0;
   var saveTimer = null;
   var running = false;
@@ -75,12 +76,13 @@
     return context && context.codes && typeof context.codes[language] === 'string'
       ? context.codes[language] : DEFAULT_CODE[language];
   }
+  function templateSource(language, template) {
+    var item = TEMPLATES[template] || TEMPLATES.array;
+    var source = item && item[language] ? item[language] : DEFAULT_CODE[language];
+    return language === 'java' ? formatJava(source) : formatPython(source);
+  }
   function initialCode(language) {
-    var code = contextCode(language);
-    if (String(code).split(/\r?\n/).length < 4) {
-      return language === 'java' ? formatJava(code) : formatPython(code);
-    }
-    return code;
+    return templateSource(language, currentTemplate);
   }
   function sampleList() {
     return context && Array.isArray(context.samples) ? context.samples : [];
@@ -530,11 +532,13 @@
       loadLanguage(this.value, true);
     });
     $('template-select').addEventListener('change', function () {
-      var template = this.value;
-      if (!template || !TEMPLATES[template]) return;
-      setCode(TEMPLATES[template][currentLanguage]);
+      currentTemplate = this.value || 'array';
+      this.value = currentTemplate;
+      setCode(templateSource(currentLanguage, currentTemplate));
       scheduleSave();
-      this.value = '';
+      clearResult();
+      setRuntimeStatus(languageLabel() + ' · 已载入模板', 'ready');
+      $('status-info').textContent = '已载入输入模板';
     });
     $('run-btn').addEventListener('click', runCode);
     if ($('judge-all-btn')) $('judge-all-btn').addEventListener('click', judgeAll);
@@ -571,6 +575,7 @@
         navToggle.setAttribute('aria-expanded', String(open));
       });
     }
+    if ($('template-select')) $('template-select').value = currentTemplate;
     loadLanguage(currentLanguage, true);
     window.addEventListener('beforeunload', saveDraft);
   }
