@@ -30,6 +30,7 @@ from interview_forge.api.routers.admin_observability import router as admin_obse
 from interview_forge.api.routers.admin_operations import router as admin_operations_router
 from interview_forge.api.routers.admin_ai_config import router as admin_ai_config_router
 from interview_forge.api.routers.gym import router as gym_router
+from interview_forge.api.routers.practice import router as practice_router
 from interview_forge.core.async_http import AsyncHttpClient
 from interview_forge.runtime.task_manager import task_manager
 
@@ -217,4 +218,5 @@ app.include_router(admin_observability_router)
 app.include_router(admin_operations_router)
 app.include_router(admin_ai_config_router)
 app.include_router(gym_router)
+app.include_router(practice_router)
 app.include_router(static_router)
