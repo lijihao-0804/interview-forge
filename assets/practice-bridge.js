@@ -59,7 +59,9 @@
   function addButtons() {
     addStyle();
     loadMeta().then(function (metaMap) {
-      var meta = metaMap[location.pathname];
+      var pagePath = location.pathname;
+      try { pagePath = decodeURIComponent(pagePath); } catch (_) {}
+      var meta = metaMap[pagePath] || metaMap[location.pathname];
       if (!meta || !meta.codes) return;
       var blocks = document.querySelectorAll('div.codehilite > pre');
       Array.prototype.forEach.call(blocks, function (pre) {
