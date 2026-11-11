@@ -391,7 +391,7 @@
         lineNumbers: true,
         indentUnit: 4,
         tabSize: 4,
-        lineWrapping: false,
+        lineWrapping: true,
         styleActiveLine: true,
         extraKeys: {
           'Ctrl-Enter': runCode,
