@@ -27,6 +27,7 @@ CODING = ROOT / "assets" / "ai-exam-coding.json"
 AGENT_DOC = ROOT / "books" / "外部面经参考" / "02-AI与Agent手撕代码题.md"
 COMPANY_OJ = ROOT / "books" / "company-oj"
 TRANSLATIONS = ROOT / "data" / "ai_exam" / "translations.json"
+EXTRA_SAMPLES = ROOT / "data" / "ai_exam" / "practice-extra-samples.json"
 
 STYLE = """
  body{background:var(--page-bg)}
@@ -442,6 +443,33 @@ def write_practice_meta(entries: list[dict]) -> None:
     )
 
 
+def apply_extra_samples(entries: list[dict]) -> None:
+    """合并人工补充的可见样例；不覆盖已有样例，避免把已解析数据做二次转换。"""
+    if not EXTRA_SAMPLES.exists():
+        return
+    data = json.loads(EXTRA_SAMPLES.read_text(encoding="utf-8"))
+    extras = data.get("items", data)
+    if not isinstance(extras, dict):
+        return
+    by_url = {entry["url"]: entry for entry in entries}
+    for url, samples in extras.items():
+        entry = by_url.get(url)
+        if not entry or not entry.get("practice") or not isinstance(samples, list):
+            continue
+        if entry["practice"].get("samples"):
+            continue
+        clean = []
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            input_text = str(sample.get("input", ""))
+            expected = str(sample.get("expected", ""))
+            if input_text.strip() or expected.strip():
+                clean.append({"input": input_text, "expected": expected})
+        if clean:
+            entry["practice"]["samples"] = clean
+
+
 
 def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
     data = json.loads(CODING.read_text(encoding="utf-8"))
@@ -642,6 +670,7 @@ def cleanup_stale(entries: list[dict]) -> None:
 def main() -> None:
     translations = load_translations()
     entries = build_ai_coding(translations) + build_agent_doc(translations) + build_company_oj(translations)
+    apply_extra_samples(entries)
     apply_java_overrides()
     cleanup_stale(entries)
     # 先渲染 AI/Agent/企业 OJ 的 Markdown；页内的语言小节由 build_html_site 处理。

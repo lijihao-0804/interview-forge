@@ -43,6 +43,7 @@
   var editor = null;
   var context = readContext();
   var currentLanguage = initialLanguage();
+  var currentSampleIndex = 0;
   var saveTimer = null;
   var running = false;
 
@@ -74,9 +75,32 @@
     return context && context.codes && typeof context.codes[language] === 'string'
       ? context.codes[language] : DEFAULT_CODE[language];
   }
-  function contextSample() {
-    return context && Array.isArray(context.samples) && context.samples.length
-      ? context.samples[0] : { input: '', expected: '' };
+  function sampleList() {
+    return context && Array.isArray(context.samples) ? context.samples : [];
+  }
+  function currentSample() {
+    var items = sampleList();
+    if (!items.length) return { input: '', expected: '' };
+    if (currentSampleIndex >= items.length) currentSampleIndex = items.length - 1;
+    return items[currentSampleIndex];
+  }
+  function renderSampleSelect() {
+    var select = $('sample-select');
+    if (!select) return;
+    var items = sampleList();
+    select.innerHTML = '';
+    if (items.length <= 1) {
+      select.hidden = true;
+      return;
+    }
+    items.forEach(function (item, index) {
+      var option = document.createElement('option');
+      option.value = String(index);
+      option.textContent = '样例 ' + (index + 1) + ' / ' + items.length;
+      select.appendChild(option);
+    });
+    select.hidden = false;
+    select.value = String(currentSampleIndex);
   }
   function draftKey(language, field) {
     return DRAFT_PREFIX + (context && context.id ? context.id : 'scratch') + ':' + language + ':' + field;
@@ -142,11 +166,12 @@
     var codeDraft = preserveDraft ? getDraft(currentLanguage, 'code') : null;
     var stdinDraft = preserveDraft ? getDraft(currentLanguage, 'stdin') : null;
     var expectedDraft = preserveDraft ? getDraft(currentLanguage, 'expected') : null;
-    var sample = contextSample();
+    var sample = currentSample();
     setCode(codeDraft != null ? codeDraft : contextCode(currentLanguage));
     $('stdin-area').value = stdinDraft != null ? stdinDraft : sample.input;
     $('expected-area').value = expectedDraft != null ? expectedDraft : sample.expected;
     updateLanguageUi();
+    renderSampleSelect();
     clearResult();
   }
   function clearResult() {
@@ -258,9 +283,100 @@
       $('run-btn').disabled = false;
     }
   }
+  async function judgeAll() {
+    if (running) return;
+    var items = sampleList();
+    if (!items.length) {
+      await runCode();
+      return;
+    }
+    running = true;
+    var runBtn = $('run-btn');
+    var judgeBtn = $('judge-all-btn');
+    var code = getCode();
+    var passed = 0;
+    var total = items.length;
+    var totalCompileMs = 0;
+    var totalRunMs = 0;
+    var lines = [];
+    if (runBtn) runBtn.disabled = true;
+    if (judgeBtn) judgeBtn.disabled = true;
+    $('run-status').textContent = '评测中';
+    $('run-status').className = 'run-status running';
+    $('status-info').textContent = '评测全部样例…';
+    try {
+      for (var index = 0; index < items.length; index += 1) {
+        var sample = items[index];
+        setRuntimeStatus(languageLabel() + ' · 样例 ' + (index + 1) + '/' + total, 'loading');
+        var response = await fetch('/api/practice/run', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            language: currentLanguage,
+            code: code,
+            stdin: sample.input || ''
+          })
+        });
+        var payload = {};
+        try { payload = await response.json(); } catch (_) {}
+        var status = payload.status || 'unknown';
+        var actual = payload.stdout || '';
+        var expected = sample.expected || '';
+        var caseOk = response.ok && status === 'ok' && normalizeOutput(actual) === normalizeOutput(expected);
+        if (caseOk) passed += 1;
+        totalCompileMs += Number(payload.compile_time_ms) || 0;
+        totalRunMs += Number(payload.run_time_ms) || 0;
+        lines.push('Case ' + (index + 1) + '/' + total + ': ' + (caseOk ? 'ACCEPTED' : ({
+          ok: 'WRONG ANSWER',
+          compile_error: 'COMPILE ERROR',
+          runtime_error: 'RUNTIME ERROR',
+          timeout: 'TIME LIMIT EXCEEDED',
+          output_limit: 'OUTPUT LIMIT EXCEEDED',
+          busy: 'BUSY'
+        }[status] || (response.status === 401 ? 'UNAUTHORIZED' : 'ERROR'))));
+        if (!caseOk && payload.stderr) {
+          lines.push('  ' + String(payload.stderr).split('\n')[0].slice(0, 180));
+        }
+        if (response.status === 401) break;
+      }
+      var allPassed = passed === total;
+      lines.push('');
+      lines.push(allPassed ? '全部样例通过（' + passed + '/' + total + '）' : '样例通过 ' + passed + '/' + total);
+      showOutput(lines.join('\n'), !allPassed);
+      $('run-status').textContent = allPassed ? ('ACCEPTED ' + passed + '/' + total) : ('FAILED ' + passed + '/' + total);
+      $('run-status').className = 'run-status ' + (allPassed ? 'success' : 'error');
+      $('diff-result').textContent = allPassed ? 'ACCEPTED' : 'WRONG ANSWER';
+      $('diff-result').className = 'diff-result ' + (allPassed ? 'match' : 'mismatch');
+      setRuntimeStatus(languageLabel() + ' · 就绪', 'ready');
+      $('status-info').textContent = allPassed ? '全部样例通过' : '样例未全部通过';
+      $('status-time').textContent = [
+        totalCompileMs ? ('编译合计 ' + totalCompileMs + ' ms') : '',
+        totalRunMs ? ('运行合计 ' + totalRunMs + ' ms') : ''
+      ].filter(Boolean).join(' · ');
+    } catch (_) {
+      showOutput('无法连接执行服务。', true);
+      $('run-status').textContent = '连接失败';
+      $('run-status').className = 'run-status error';
+      setRuntimeStatus(languageLabel() + ' · 服务不可用', 'error');
+    } finally {
+      running = false;
+      if (runBtn) runBtn.disabled = false;
+      if (judgeBtn) judgeBtn.disabled = false;
+    }
+  }
+  function setSample(index) {
+    currentSampleIndex = Number(index) || 0;
+    renderSampleSelect();
+    var sample = currentSample();
+    $('stdin-area').value = sample.input || '';
+    $('expected-area').value = sample.expected || '';
+    clearResult();
+    scheduleSave();
+  }
   function resetCode() {
     clearDraft(currentLanguage);
-    var sample = contextSample();
+    var sample = currentSample();
     setCode(contextCode(currentLanguage));
     $('stdin-area').value = sample.input;
     $('expected-area').value = sample.expected;
@@ -327,6 +443,13 @@
       this.value = '';
     });
     $('run-btn').addEventListener('click', runCode);
+    if ($('judge-all-btn')) $('judge-all-btn').addEventListener('click', judgeAll);
+    if ($('sample-select')) {
+      $('sample-select').addEventListener('change', function () {
+        saveDraft();
+        setSample(this.value);
+      });
+    }
     $('reset-btn').addEventListener('click', resetCode);
     $('save-code-btn').addEventListener('click', function () {
       var blob = new Blob([getCode()], { type: 'text/plain;charset=utf-8' });
