@@ -207,7 +207,6 @@
     initEditor();
     var sampleHint = $('sampleHint');
     if (context && context.title) {
-      $('practiceTitle').textContent = 'ACM 模拟 IDE';
       if ($('contextTitle')) $('contextTitle').textContent = context.title;
       if ($('practiceContext')) $('practiceContext').hidden = false;
       if ($('contextMeta')) {
@@ -228,6 +227,11 @@
     }
     $('language').addEventListener('change', function () {
       saveDraft();
+      try {
+        var url = new URL(location.href);
+        url.searchParams.set('lang', this.value);
+        history.replaceState(null, '', url.toString());
+      } catch (_) {}
       loadLanguage(this.value, true);
     });
     $('runBtn').addEventListener('click', runCode);
