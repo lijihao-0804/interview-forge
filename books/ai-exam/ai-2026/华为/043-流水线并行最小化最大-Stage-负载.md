@@ -1,6 +1,6 @@
 # 流水线并行最小化最大 Stage 负载
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260918/ · 华为 · 2026-09-18 · AI岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260918/" target="_blank" rel="noopener noreferrer">原题解析</a> · 华为 · 2026-09-18 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

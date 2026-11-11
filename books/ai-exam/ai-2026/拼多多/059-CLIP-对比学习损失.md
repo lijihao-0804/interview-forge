@@ -1,6 +1,6 @@
 # CLIP 对比学习损失
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/ · 拼多多 · 2026-07-02 · 算法岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/pinduoduo/algo-20260702/" target="_blank" rel="noopener noreferrer">原题解析</a> · 拼多多 · 2026-07-02 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

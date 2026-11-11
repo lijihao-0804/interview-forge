@@ -1,6 +1,6 @@
 # 基于 CART 分类树预测客户购房选择
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/ · 华为 · 2026-10-14 · AI岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261014/" target="_blank" rel="noopener noreferrer">原题解析</a> · 华为 · 2026-10-14 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

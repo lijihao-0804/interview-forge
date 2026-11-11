@@ -1,6 +1,6 @@
 # 实现二分类的 F-Score
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/ · 网易 · 2026-09-29 · 算法岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260929/" target="_blank" rel="noopener noreferrer">原题解析</a> · 网易 · 2026-09-29 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -295,7 +296,12 @@ def build_ai_coding(translations: dict[str, dict[str, str]]) -> list[dict]:
         file_dir = SRC / "ai-2026" / company
         filename = f"{len(entries) + 1:03d}-{safe_name(problem['title'])}.md"
         md_path = file_dir / filename
-        meta = f"来源：{problem.get('source_url', '')} · {company} · {date or '日期未标注'} · {role or 'AI岗'} · ACM 模式（stdin/stdout）"
+        source_url = (problem.get("source_url") or "").strip()
+        source_link = (
+            f'<a href="{escape(source_url)}" target="_blank" rel="noopener noreferrer">原题解析</a>'
+            if source_url else "来源：未标注"
+        )
+        meta = f"{source_link} · {company} · {date or '日期未标注'} · {role or 'AI岗'} · ACM 模式（stdin/stdout）"
         translation = translations.get(problem["key"], {})
         write_problem(md_path, problem["title"], meta, problem.get("sections", []), translation)
         languages = "Python/Java" if translation.get("java") else "Python"

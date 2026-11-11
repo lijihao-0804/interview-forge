@@ -1,6 +1,6 @@
 # TF-IDF 值计算
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/ · 网易 · 2026-09-19 · 算法岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/netease/algo-20260919/" target="_blank" rel="noopener noreferrer">原题解析</a> · 网易 · 2026-09-19 · 算法岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

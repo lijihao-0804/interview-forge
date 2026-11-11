@@ -1,6 +1,6 @@
 # FlashAttention 分块合并
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260819/ · 华为 · 2026-08-19 · AI岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260819/" target="_blank" rel="noopener noreferrer">原题解析</a> · 华为 · 2026-08-19 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 

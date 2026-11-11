@@ -1,6 +1,6 @@
 # Certainty Forcing 训练损失计算
 
-> 来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260701/ · 华为 · 2026-07-01 · AI岗 · ACM 模式（stdin/stdout）
+> <a href="https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260701/" target="_blank" rel="noopener noreferrer">原题解析</a> · 华为 · 2026-07-01 · AI岗 · ACM 模式（stdin/stdout）
 
 ## 题目描述
 
