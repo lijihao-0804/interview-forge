@@ -8,6 +8,8 @@
 
 内存池共有 $m$ 个 Block，每个 Block 可以容纳 $k$ 个 token 的 KV 数据。现有 $n$ 个推理请求，第 $i$ 个请求处理 $len[i]$ 个 token（输入长度加生成长度），需要占用
 
+$$b_i=\left\lceil\frac{len[i]}{k}\right\rceil$$
+
 个 Block。
 
 分配规则如下：
@@ -86,7 +88,7 @@ $1\le m\le 100000$。 $1\le k\le 1000$。 $1\le n\le 100000$。 $1\le len[i]\le 
 # 题目：大模型推理 KV Cache 内存池管理
 # 算法：排序 + 扫描
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 O(n\log n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
+# 复杂度：时间 O(n n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
 
 import sys
 
@@ -131,7 +133,7 @@ if __name__ == "__main__":
 // 题目：大模型推理 KV Cache 内存池管理
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 O(n\log n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
+// 复杂度：时间 O(n n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
 
 import java.io.*;
 import java.util.*;

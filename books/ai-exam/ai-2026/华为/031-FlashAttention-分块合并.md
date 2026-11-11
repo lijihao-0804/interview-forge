@@ -10,6 +10,12 @@ $m$：该块打分的最大值； $d$：以 $m$ 为基准重缩放后的权重�
 
 该状态对应的注意力结果为 $v/d$。相邻状态 $A=(m_a,d_a,v_a)$ 与 $B=(m_b,d_b,v_b)$ 合并时，令
 
+$$m=\max(m_a,m_b),$$
+
+$$d=d_ae^{m_a-m}+d_be^{m_b-m},$$
+
+$$v=v_ae^{m_a-m}+v_be^{m_b-m}.$$
+
 该合并运算满足结合律。给定 $B$ 个按顺序排列的块，支持 $Q$ 次操作：
 
 1 i m d v ：把第 i 个块替换为新状态； 2 l r ：依次合并第 l 到第 r 个块，输出结果 $v/d$，保留 6 位小数。
@@ -52,7 +58,7 @@ $m$：该块打分的最大值； $d$：以 $m$ 为基准重缩放后的权重�
 # 题目：FlashAttention 分块合并
 # 算法：按题意模拟
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O(\log B)； 空间复杂度 ：O(B)；空间 O(B)
+# 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O( B)； 空间复杂度 ：O(B)；空间 O(B)
 
 import sys
 from math import exp
@@ -154,7 +160,7 @@ if __name__ == "__main__":
 // 题目：FlashAttention 分块合并
 // 算法：按题意模拟
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O(\log B)； 空间复杂度 ：O(B)；空间 O(B)
+// 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O( B)； 空间复杂度 ：O(B)；空间 O(B)
 
 import java.io.*;
 import java.util.*;

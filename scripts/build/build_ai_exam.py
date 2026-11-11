@@ -96,9 +96,30 @@ def load_translations() -> dict[str, dict[str, str]]:
 
 
 def format_text(text: str) -> str:
-    """把源数据里的显式换行变成 Markdown 分段，避免长段文字被浏览器压成一行。"""
-    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    paragraphs = [line for line in lines if line]
+    """把源数据里的显式换行变成 Markdown 分段，同时完整保留 \\[...\\] 公式块。"""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    parts = re.split(r"(\\\[.*?\\\]|\\\(.*?\\\)|\$\$.*?\$\$)", text, flags=re.S)
+    paragraphs: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        if re.fullmatch(r"\\\[.*?\\\]|\\\(.*?\\\)|\$\$.*?\$\$", part, flags=re.S):
+            body = part.strip()
+            if body.startswith("\\["):
+                # Markdown 会转义 \[ 的反斜杠；改成同一行 $$...$$，交给统一公式渲染。
+                body = body[2:-2]
+                body = re.sub(r"\s+", " ", body).strip()
+                paragraphs.append(f"$${body}$$")
+            elif body.startswith("\\("):
+                body = body[2:-2].strip()
+                paragraphs.append(f"${body}$")
+            else:
+                paragraphs.append(body)
+            continue
+        for line in part.split("\n"):
+            line = re.sub(r"[ \t]+", " ", line).strip()
+            if line:
+                paragraphs.append(line)
     return "\n\n".join(paragraphs)
 
 
@@ -229,13 +250,19 @@ def add_code_comments(code: str, lang: str, title: str, sections: list[dict]) ->
         if "复杂度" in (section.get("heading") or ""):
             complexity = re.sub(r"\s+", " ", (section.get("text") or "").strip())
             break
+    def clean_comment(value: str) -> str:
+        value = re.sub(r"\\\[|\\\]|\\\(|\\\)", "", value)
+        value = re.sub(r"\\[A-Za-z]+", "", value)
+        value = re.sub(r"[{}]", "", value)
+        return re.sub(r"\s+", " ", value).strip()
+
     time_part = space_part = ""
     m = re.search(r"时间复杂度\s*[：:]\s*([^。\n]+)", complexity)
     if m:
-        time_part = m.group(1).replace("$", "").strip()
+        time_part = clean_comment(m.group(1).replace("$", ""))
     m = re.search(r"空间复杂度\s*[：:]\s*([^。\n]+)", complexity)
     if m:
-        space_part = m.group(1).replace("$", "").strip()
+        space_part = clean_comment(m.group(1).replace("$", ""))
     lines = [f"{marker} 题目：{title}", f"{marker} 算法：{infer_algorithm(code)}", f"{marker} 模式：ACM（stdin/stdout）"]
     if time_part:
         suffix = f"；空间 {space_part}" if space_part else ""

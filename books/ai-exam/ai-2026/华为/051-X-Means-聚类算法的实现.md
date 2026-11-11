@@ -10,7 +10,11 @@
 
 设点 $x_i$ 的标签为 $c(i)$，中心为 $\mu_{c(i)}$，误差平方和为
 
+$$SSE=\sum_{i=1}^{N}\sum_{j=1}^{d}(x_{ij}-\mu_{c(i),j})^2.$$
+
 若合并后的实际簇数为 $k$，使用参数数目 $p=k(d+1)$，评分为
+
+$$BIC=N\ln\left(\frac{SSE}{N}\right)+k(d+1)\ln N.$$
 
 BIC 越小越好 。前一项衡量拟合误差，后一项惩罚过多的簇。计算中用 $(SSE+10^{-8})/N$ 保护对数输入。
 
@@ -103,6 +107,8 @@ $1\le N\le 2000$，$1\le d\le 10$。 每个坐标的绝对值不超过 $10^4$。
 
 1. 每一轮执行了规定的 K-Means 操作。 固定中心时，每个点选距离平方最小的中心，逐点最小化当前分配的 SSE，并按扫描顺序解决距离平局。固定标签时，对某个非空簇及任意中心 $a$，有
 
+$$\sum_{x\in C}\lVert x-a\rVert^2 =\sum_{x\in C}\lVert x-\bar x\rVert^2 +\lvert C\rvert\cdot\lVert a-\bar x\rVert^2.$$
+
 其中 $\bar x$ 为均值，故均值最小化该簇的 SSE；空簇对 SSE 无贡献，保留旧中心符合规则。因此交替操作不会增加 SSE。标签不变时，均值也不变，结果满足指定的停止条件。
 
 2. 合并符合分组口径。 并查集恰好连接所有满足阈值的中心对，其分量就是规定的合并组。重映射后每个点仍恰好属于一个组；按该组全部点求均值，得到一致的中心、标签和 SSE。
@@ -121,7 +127,7 @@ $1\le N\le 2000$，$1\le d\le 10$。 每个坐标的绝对值不超过 $10^4$。
 # 题目：X-Means 聚类算法的实现
 # 算法：排序 + 扫描
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N
+# 复杂度：时间 总时间可保守写为 O(N N+_K=K_min^K_max [T_KNKd+K^2(d+(K+1))]). 空间复杂度 ：O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N；空间 O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N
 
 import sys
 import math
@@ -267,6 +273,8 @@ if __name__ == "__main__":
 
 时间复杂度 ：总时间可保守写为
 
+$$O\left(N\log N+\sum_{K=K_{min}}^{K_{max}} \left[T_KNKd+K^2\bigl(d+\log(K+1)\bigr)\right]\right).$$
+
 空间复杂度 ：$O(Nd+K_{max}d+N)=O(Nd)$，因为截断后 $K_{max}\le N$。只保留当前候选和最佳候选，不存储全部枚举结果。
 
 性能边界 ：若允许枚举从小簇数直到 $N$，该纯 Python 直接实现的最坏代价较高。材料未披露时间限制、总迭代预算或更小的枚举跨度，不能仅凭样例通过就声称覆盖最大规模的运行时间保证；也不能为了加速擅自提前停止枚举。
@@ -277,7 +285,7 @@ if __name__ == "__main__":
 // 题目：X-Means 聚类算法的实现
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N
+// 复杂度：时间 总时间可保守写为 O(N N+_K=K_min^K_max [T_KNKd+K^2(d+(K+1))]). 空间复杂度 ：O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N；空间 O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N
 
 import java.io.*;
 import java.util.*;

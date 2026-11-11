@@ -56,7 +56,9 @@
 <p>给定 <span aria-label="N" class="plain-math">N</span> 个 <span aria-label="d" class="plain-math">d</span> 维数据点及允许的簇数范围 <span aria-label="[K_{min},K_{max}]" class="plain-math">[K<sub>min</sub>,K<sub>max</sub>]</span>，对范围内每个簇数运行确定性 K-Means，合并重合中心，再用 BIC 选出最终聚类，输出中心和每个输入点的标签。</p>
 <p>这里的“X-Means”按本题定义，是 枚举簇数并比较 BIC ，不是另行实现文献中基于局部二分裂的版本。</p>
 <p>设点 <span aria-label="x_i" class="plain-math">x<sub>i</sub></span> 的标签为 <span aria-label="c(i)" class="plain-math">c(i)</span>，中心为 <span class="math-inline-wrap"><math aria-label="mu_c(i)" class="math-inline"><mrow><msub><mo>μ</mo><mrow><mi>c</mi><mo>(</mo><mi>i</mi><mo>)</mo></mrow></msub></mrow></math></span>，误差平方和为</p>
+<p><span class="math-display-wrap"><math aria-label="SSE=sum_i=1^Nsum_j=1^d(x_ij-mu_c(i),j)^2." class="math-display" display="block"><mrow><mi>SSE</mi><mo>=</mo><msup><msub><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></msub><mrow><mi>N</mi></mrow></msup><msup><msub><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow></msub><mrow><mi>d</mi></mrow></msup><mo>(</mo><msub><mi>x</mi><mrow><mi>ij</mi></mrow></msub><mo>-</mo><msub><mo>μ</mo><mrow><mi>c</mi><mo>(</mo><mi>i</mi><mo>)</mo><mo>,</mo><mi>j</mi></mrow></msub><msup><mo>)</mo><mn>2</mn></msup><mo>.</mo></mrow></math></span></p>
 <p>若合并后的实际簇数为 <span aria-label="k" class="plain-math">k</span>，使用参数数目 <span aria-label="p=k(d+1)" class="plain-math">p=k(d+1)</span>，评分为</p>
+<p><span class="math-display-wrap"><math aria-label="BIC=Nln(SSEN)+k(d+1)ln N." class="math-display" display="block"><mrow><mi>BIC</mi><mo>=</mo><mi>N</mi><mi mathvariant="normal">ln</mi><mo>(</mo><mfrac><mrow><mi>SSE</mi></mrow><mrow><mi>N</mi></mrow></mfrac><mo>)</mo><mo>+</mo><mi>k</mi><mo>(</mo><mi>d</mi><mo>+</mo><mn>1</mn><mo>)</mo><mi mathvariant="normal">ln</mi><mspace width=".18em"></mspace><mi>N</mi><mo>.</mo></mrow></math></span></p>
 <p>BIC 越小越好 。前一项衡量拟合误差，后一项惩罚过多的簇。计算中用 <span aria-label="(SSE+10^{-8})/N" class="plain-math">(SSE+10<sup>-8</sup>)/N</span> 保护对数输入。</p>
 <p>按点的第一维坐标升序稳定排序；请求 <span aria-label="K&gt;1" class="plain-math">K&gt;1</span> 个簇时，初始中心取排序后下标 <span class="math-inline-wrap"><math aria-label="i(N-1)mathbin//(K-1)" class="math-inline"><mrow><mi>i</mi><mo>(</mo><mi>N</mi><mo>-</mo><mn>1</mn><mo>)</mo><mrow><mo>/</mo><mo>/</mo></mrow><mo>(</mo><mi>K</mi><mo>-</mo><mn>1</mn><mo>)</mo></mrow></math></span> 的点，其中 <span aria-label="i=0,\ldots,K-1" class="plain-math">i=0,…,K-1</span>。<span aria-label="K=1" class="plain-math">K=1</span> 单独取排序后的第一个点。 按欧氏距离平方分配点；距离相等时取编号最小的簇。 非空簇更新为所属点的均值；空簇保留旧中心。 交替分配、更新；一轮分配后所有标签不变时收敛。 先令 <span class="math-inline-wrap"><math aria-label="K_max=min(K_max,N)" class="math-inline"><mrow><msub><mi>K</mi><mrow><mi>max</mi></mrow></msub><mo>=</mo><mi mathvariant="normal">min</mi><mo>(</mo><msub><mi>K</mi><mrow><mi>max</mi></mrow></msub><mo>,</mo><mi>N</mi><mo>)</mo></mrow></math></span>；若此时 <span aria-label="K_{min}&gt;K_{max}" class="plain-math">K<sub>min</sub>&gt;K<sub>max</sub></span>，令 <span aria-label="K_{min}=K_{max}" class="plain-math">K<sub>min</sub>=K<sub>max</sub></span>。上下界相同时只运行一次。 收敛后，中心距离平方严格小于 <span aria-label="10^{-4}" class="plain-math">10<sup>-4</sup></span> 的簇需要合并，标签同步映射；合并后的中心使用所属全部点的均值。 用合并后的实际簇数和 SSE 计算 BIC；BIC 并列时选择较小的枚举 <span aria-label="K" class="plain-math">K</span>。实现使用 <span aria-label="10^{-9}" class="plain-math">10<sup>-9</sup></span> 的比较容差。 输出前按中心第一维升序重新编号为 <span aria-label="0,1,\ldots,k-1" class="plain-math">0,1,…,k-1</span>；第一维相同保持原编号顺序，点标签仍按输入顺序输出。</p>
 <p>实现口径 ：近邻关系不一定具有传递性，本文按材料题解的“归为同一组”实现：在合并前的中心之间连边，合并每个连通分量，然后重新求均值，不反复合并新均值。完全为空的分量保留代表中心。此细节不应被误认为所有 X-Means 实现通用的规则。</p>
@@ -115,6 +117,7 @@
 <ol>
 <li>每一轮执行了规定的 K-Means 操作。 固定中心时，每个点选距离平方最小的中心，逐点最小化当前分配的 SSE，并按扫描顺序解决距离平局。固定标签时，对某个非空簇及任意中心 <span aria-label="a" class="plain-math">a</span>，有</li>
 </ol>
+<p><span class="math-display-wrap"><math aria-label="sum_x∈ C‖ x-a‖^2 =sum_x∈ C‖ x-bar x‖^2 +| C|·‖ a-bar x‖^2." class="math-display" display="block"><mrow><msub><mo>∑</mo><mrow><mi>x</mi><mo>∈</mo><mspace width=".18em"></mspace><mi>C</mi></mrow></msub><mo>‖</mo><mspace width=".18em"></mspace><mi>x</mi><mo>-</mo><mi>a</mi><msup><mo>‖</mo><mn>2</mn></msup><mspace width=".18em"></mspace><mo>=</mo><msub><mo>∑</mo><mrow><mi>x</mi><mo>∈</mo><mspace width=".18em"></mspace><mi>C</mi></mrow></msub><mo>‖</mo><mspace width=".18em"></mspace><mi>x</mi><mo>-</mo><mover><mrow></mrow><mo>¯</mo></mover><mi>x</mi><msup><mo>‖</mo><mn>2</mn></msup><mspace width=".18em"></mspace><mo>+</mo><mo>|</mo><mspace width=".18em"></mspace><mi>C</mi><mo>|</mo><mo>·</mo><mo>‖</mo><mspace width=".18em"></mspace><mi>a</mi><mo>-</mo><mover><mrow></mrow><mo>¯</mo></mover><mi>x</mi><msup><mo>‖</mo><mn>2</mn></msup><mo>.</mo></mrow></math></span></p>
 <p>其中 <span class="math-inline-wrap"><math aria-label="bar x" class="math-inline"><mrow><mover><mrow></mrow><mo>¯</mo></mover><mi>x</mi></mrow></math></span> 为均值，故均值最小化该簇的 SSE；空簇对 SSE 无贡献，保留旧中心符合规则。因此交替操作不会增加 SSE。标签不变时，均值也不变，结果满足指定的停止条件。</p>
 <ol start="2">
 <li>
@@ -131,13 +134,14 @@
 <p>记候选簇数为 <span aria-label="K" class="plain-math">K</span>，其 K-Means 分配轮数为 <span aria-label="T_K" class="plain-math">T<sub>K</sub></span>。</p>
 <p>排序预处理：<span aria-label="O(N\log N)" class="plain-math">O(Nlog N)</span>。 固定 <span aria-label="K" class="plain-math">K</span> 的分配、更新：<span aria-label="O(T_KNKd)" class="plain-math">O(T<sub>KNKd</sub>)</span>。 合并时检查中心对的距离：<span aria-label="O(K^2d)" class="plain-math">O(K<sup>2d</sup>)</span>；并查集使用路径压缩、按较小编号连接，未使用按秩合并，保守另计 <span aria-label="O(K^2\log(K+1))" class="plain-math">O(K<sup>2log</sup>(K+1))</span> 的摊还上界。 重算均值与 SSE：<span aria-label="O(Nd+Kd)" class="plain-math">O(Nd+Kd)</span>；最终排序和重编号不超过 <span aria-label="O(K_{max}\log K_{max}+N)" class="plain-math">O(K<sub>max</sub>log K<sub>max</sub>+N)</span>。</p>
 <p>时间复杂度 ：总时间可保守写为</p>
+<p><span class="math-display-wrap"><math aria-label="O(Nlog N+sum_K=K_min^K_max [T_KNKd+K^2bigl(d+log(K+1)bigr)])." class="math-display" display="block"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>N</mi><mi mathvariant="normal">log</mi><mspace width=".18em"></mspace><mi>N</mi><mo>+</mo><msup><msub><mo>∑</mo><mrow><mi>K</mi><mo>=</mo><msub><mi>K</mi><mrow><mi>min</mi></mrow></msub></mrow></msub><mrow><msub><mi>K</mi><mrow><mi>max</mi></mrow></msub></mrow></msup><mspace width=".18em"></mspace><mo>[</mo><msub><mi>T</mi><mi>KNKd</mi></msub><mo>+</mo><msup><mi>K</mi><mn>2</mn></msup><mo>(</mo><mi>d</mi><mo>+</mo><mi mathvariant="normal">log</mi><mo>(</mo><mi>K</mi><mo>+</mo><mn>1</mn><mo>)</mo><mo>)</mo><mo>]</mo><mo>)</mo><mo>.</mo></mrow></math></span></p>
 <p>空间复杂度 ：<span aria-label="O(Nd+K_{max}d+N)=O(Nd)" class="plain-math">O(Nd+K<sub>max</sub>d+N)=O(Nd)</span>，因为截断后 <span aria-label="K_{max}\le N" class="plain-math">K<sub>max</sub>≤ N</span>。只保留当前候选和最佳候选，不存储全部枚举结果。</p>
 <p>性能边界 ：若允许枚举从小簇数直到 <span aria-label="N" class="plain-math">N</span>，该纯 Python 直接实现的最坏代价较高。材料未披露时间限制、总迭代预算或更小的枚举跨度，不能仅凭样例通过就声称覆盖最大规模的运行时间保证；也不能为了加速擅自提前停止枚举。</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：X-Means 聚类算法的实现</span>
 <span class="c1">// 算法：排序 + 扫描</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N</span>
+<span class="c1">// 复杂度：时间 总时间可保守写为 O(N N+_K=K_min^K_max [T_KNKd+K^2(d+(K+1))]). 空间复杂度 ：O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N；空间 O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
@@ -320,7 +324,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：X-Means 聚类算法的实现</span>
 <span class="c1"># 算法：排序 + 扫描</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N</span>
+<span class="c1"># 复杂度：时间 总时间可保守写为 O(N N+_K=K_min^K_max [T_KNKd+K^2(d+(K+1))]). 空间复杂度 ：O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N；空间 O(Nd+K_maxd+N)=O(Nd)，因为截断后 K_max N</span>
 
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">math</span>

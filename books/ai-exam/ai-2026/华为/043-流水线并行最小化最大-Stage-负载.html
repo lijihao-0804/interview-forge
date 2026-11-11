@@ -56,6 +56,7 @@
 <p>某深度学习团队正在训练一个大型神经网络，需要将模型的 <span aria-label="N" class="plain-math">N</span> 个层划分到 <span aria-label="K" class="plain-math">K</span> 个 GPU 上进行流水线并行训练。为了保证流水线效率，需要让各 GPU 的负载尽可能均衡。</p>
 <p>流水线并行 ：把模型按层切分为 <span aria-label="K" class="plain-math">K</span> 个部分，每个部分称为一个 Stage，分配给一个 GPU。训练时，多个微批次在流水线中接力执行：第一个微批次在 GPU0 完成前向计算后传递给 GPU1，同时 GPU0 开始处理第二个微批次，以此类推。</p>
 <p>Stage 负载 ：一个 Stage 的负载定义为该 Stage 内所有层的前向传播时间之和。若 Stage <span aria-label="s" class="plain-math">s</span> 包含层 <span aria-label="l_{1},l_{1}+1,\dots,l_{2}" class="plain-math">l<sub>1</sub>,l<sub>1</sub>+1,…,l<sub>2</sub></span>，则</p>
+<p><span class="math-display-wrap"><math aria-label="operatornameLoad_s=f[l_1]+f[l_1+1]+⋯+f[l_2]" class="math-display" display="block"><mrow><msub><mi mathvariant="normal">Load</mi><mrow><mi>s</mi></mrow></msub><mo>=</mo><mi>f</mi><mo>[</mo><msub><mi>l</mi><mrow><mn>1</mn></mrow></msub><mo>]</mo><mo>+</mo><mi>f</mi><mo>[</mo><msub><mi>l</mi><mrow><mn>1</mn></mrow></msub><mo>+</mo><mn>1</mn><mo>]</mo><mo>+</mo><mo>⋯</mo><mo>+</mo><mi>f</mi><mo>[</mo><msub><mi>l</mi><mrow><mn>2</mn></mrow></msub><mo>]</mo></mrow></math></span></p>
 <p>其中 <span aria-label="f[i]" class="plain-math">f[i]</span> 是第 <span aria-label="i" class="plain-math">i</span> 层的前向传播时间。</p>
 <p>气泡问题 ：流水线执行过程中，如果某个 Stage 负载明显高于其他 Stage，其他 GPU 就需要等待它完成，产生空闲时间，称为「气泡」。最大负载决定了气泡的上界，因此需要最小化最大负载。</p>
 <p>划分约束 ：每个 Stage 内的层编号必须连续；每层恰好属于一个 Stage；每个 Stage 至少包含一层。</p>
@@ -86,6 +87,7 @@
 <p>第一步：把问题翻译成区间划分。 题目要求把长度为 <span aria-label="N" class="plain-math">N</span> 的正整数序列切成恰好 <span aria-label="K" class="plain-math">K</span> 段连续非空的子段，让各段和的最大值尽量小。直接枚举切法要在 <span aria-label="N-1" class="plain-math">N-1</span> 个缝里选 <span aria-label="K-1" class="plain-math">K-1</span> 个，<span aria-label="N=500" class="plain-math">N=500</span> 时方案数是天文数字，不能枚举。</p>
 <p>第二步：把求最优值转成判定问题。 给定一个上限 <span class="math-inline-wrap"><math aria-label="cap" class="math-inline"><mrow><mtext>cap</mtext></mrow></math></span>，「能不能切成不超过 <span aria-label="K" class="plain-math">K</span> 段、每段和都不超过 <span class="math-inline-wrap"><math aria-label="cap" class="math-inline"><mrow><mtext>cap</mtext></mrow></math></span>」很好判断，并且 <span class="math-inline-wrap"><math aria-label="cap" class="math-inline"><mrow><mtext>cap</mtext></mrow></math></span> 越大需要的段数只会越少，判定结果单调，于是可以二分答案。</p>
 <p>第三步：写 check。 从左往右贪心装层，当前段再装一层就超过 <span class="math-inline-wrap"><math aria-label="cap" class="math-inline"><mrow><mtext>cap</mtext></mrow></math></span> 时就另起一段，得到最少段数 <span class="math-inline-wrap"><math aria-label="operatornamecnt(cap)" class="math-inline"><mrow><mi mathvariant="normal">cnt</mi><mo>(</mo><mtext>cap</mtext><mo>)</mo></mrow></math></span>。贪心之所以最少：每段都尽量往右装满，下一段的起点就尽可能靠右，剩下的层只会更少，不可能比别的切法多用段。可行条件是</p>
+<p><span class="math-display-wrap"><math aria-label="operatornamecnt(cap)≤ K" class="math-display" display="block"><mrow><mi mathvariant="normal">cnt</mi><mo>(</mo><mtext>cap</mtext><mo>)</mo><mo>≤</mo><mspace width=".18em"></mspace><mi>K</mi></mrow></math></span></p>
 <p>段数少于 <span aria-label="K" class="plain-math">K</span> 也算可行，因为 <span aria-label="N\ge K" class="plain-math">N≥ K</span>，总能把某个含两层以上的段再拆开，直到恰好 <span aria-label="K" class="plain-math">K</span> 段；拆开后每段负载只减不增，仍不超过 <span class="math-inline-wrap"><math aria-label="cap" class="math-inline"><mrow><mtext>cap</mtext></mrow></math></span>。</p>
 <p>第四步：定二分边界。 下界取 <span class="math-inline-wrap"><math aria-label="max f[i]" class="math-inline"><mrow><mi mathvariant="normal">max</mi><mspace width=".18em"></mspace><mi>f</mi><mo>[</mo><mi>i</mi><mo>]</mo></mrow></math></span>，最重的一层单独成段也得装下；上界取 <span class="math-inline-wrap"><math aria-label="∑ f[i]" class="math-inline"><mrow><mo>∑</mo><mspace width=".18em"></mspace><mi>f</mi><mo>[</mo><mi>i</mi><mo>]</mo></mrow></math></span>，所有层放进一段。若 <span class="math-inline-wrap"><math aria-label="operatornamecnt(mid)≤ K" class="math-inline"><mrow><mi mathvariant="normal">cnt</mi><mo>(</mo><mtext>mid</mtext><mo>)</mo><mo>≤</mo><mspace width=".18em"></mspace><mi>K</mi></mrow></math></span> 说明 <span class="math-inline-wrap"><math aria-label="mid" class="math-inline"><mrow><mtext>mid</mtext></mrow></math></span> 可行，答案不会更大，令 <span class="math-inline-wrap"><math aria-label="hi=mid" class="math-inline"><mrow><mtext>hi</mtext><mo>=</mo><mtext>mid</mtext></mrow></math></span>；否则段数不够用，令 <span class="math-inline-wrap"><math aria-label="lo=mid+1" class="math-inline"><mrow><mtext>lo</mtext><mo>=</mo><mtext>mid</mtext><mo>+</mo><mn>1</mn></mrow></math></span>。收敛时 <span class="math-inline-wrap"><math aria-label="lo=hi" class="math-inline"><mrow><mtext>lo</mtext><mo>=</mo><mtext>hi</mtext></mrow></math></span> 就是最小的可行上限，它恰好覆盖 <span aria-label="K=N" class="plain-math">K=N</span>（每层单独一段，答案为 <span class="math-inline-wrap"><math aria-label="max f[i]" class="math-inline"><mrow><mi mathvariant="normal">max</mi><mspace width=".18em"></mspace><mi>f</mi><mo>[</mo><mi>i</mi><mo>]</mo></mrow></math></span>）与 <span aria-label="K=1" class="plain-math">K=1</span>（答案为 <span class="math-inline-wrap"><math aria-label="∑ f[i]" class="math-inline"><mrow><mo>∑</mo><mspace width=".18em"></mspace><mi>f</mi><mo>[</mo><mi>i</mi><mo>]</mo></mrow></math></span>）两个边界。</p>
 <h2 id="_5">正确性说明</h2>
@@ -100,7 +102,7 @@
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：流水线并行最小化最大 Stage 负载</span>
 <span class="c1">// 算法：按题意模拟</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 O(N\log\sum f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量</span>
+<span class="c1">// 复杂度：时间 O(N f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
@@ -143,7 +145,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：流水线并行最小化最大 Stage 负载</span>
 <span class="c1"># 算法：按题意模拟</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 O(N\log\sum f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量</span>
+<span class="c1"># 复杂度：时间 O(N f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量</span>
 
 <span class="kn">import</span> <span class="nn">sys</span>
 

@@ -56,7 +56,11 @@ $1\le p_i\le100$； $1\le c_i\le10^4$。
 
 朴素状态可定义为：
 
+$$dp[j][i]=\text{累计进度恰为 }j\text{，且最后调用 Agent }i\text{ 的最小代价}.$$
+
 若下一次调用 Agent $k$，需要求
+
+$$\min_{i\ne k}dp[j][i]+c_k.$$
 
 完整枚举 $i,k$ 的复杂度为 $O(100N^2)$，无法通过。注意：从一层状态中排除某个 Agent 后的最小值，只可能是该层的最小值或“属于另一个 Agent 的次小值”。
 
@@ -65,6 +69,8 @@ $1\le p_i\le100$； $1\le c_i\le10^4$。
 best[j] ：这一层的最小代价； best_last[j] ：取得最小代价时最后调用的 Agent； second[j] ：最后一个 Agent 与 best_last[j] 不同的最小代价。
 
 转移到 Agent $k$ 时：
+
+$$base= \begin{cases} second[j],&k=best\_last[j],\\ best[j],&k\ne best\_last[j]. \end{cases}$$
 
 然后令 new_cost = base + c[k] 。若 $j+p_k\ge100$，用它更新答案；否则把 (new_cost, k) 合并到目标进度层的最小值/次小值中。
 

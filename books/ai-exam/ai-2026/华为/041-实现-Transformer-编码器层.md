@@ -12,6 +12,8 @@
 
 缩放点积注意力为：
 
+$$\operatorname{Attention}(Q,K,V)=\operatorname{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+
 ## 输入描述
 
 一行 8 个实数，表示形状为 $(1,2,4)$ 的输入张量按顺序展开后的结果。每个输入在 $[-100,100]$ 内，保留两位小数。

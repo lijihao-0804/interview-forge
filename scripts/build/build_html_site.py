@@ -1630,6 +1630,10 @@ class MathMLParser:
         if name in {",", ";", ":", " ", "quad", "qquad"}:
             widths = {"quad": "1em", "qquad": "2em", ";": ".28em", ":": ".22em"}
             return f'<mspace width="{widths.get(name, ".17em")}"/>'
+        if name in {"left", "right", "bigl", "bigr", "Bigl", "Bigr", "big", "Big"}:
+            # 这些命令只影响定界符尺寸；当前轻量渲染器不支持放大定界符，
+            # 直接忽略，避免把 bigl/bigr 当普通变量输出。
+            return ""
         if name in {"frac", "dfrac"}:
             numerator = MathMLParser(self.raw_group()).parse()
             denominator = MathMLParser(self.raw_group()).parse()

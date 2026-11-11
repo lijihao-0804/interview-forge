@@ -14,7 +14,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.build.build_html_site import math_html  # noqa: E402
@@ -60,11 +60,28 @@ def fetch(page):
         article = BeautifulSoup(html, "html.parser").find("article")
         if article is None:
             return page, []
-        blocks = article.find_all(["h2", "h3", "p", "pre", "ul", "ol", "table"], recursive=True)
+        # 保留 article 的文档顺序：原站的 display math（\\[...\\]）是
+        # article 的直接文本节点；代码 pre 又可能嵌在 div 里，因此用 descendants
+        # 收集正文标签，并单独收集 article 的直接公式文本。
+        allowed = ("h2", "h3", "p", "pre", "ul", "ol", "table")
+        blocks = []
+        for child in article.descendants:
+            if isinstance(child, NavigableString):
+                if child.parent is article and str(child).strip():
+                    blocks.append(child)
+            elif getattr(child, "name", None) in allowed:
+                blocks.append(child)
         problems = []
         current = None
         current_section = None
         for block in blocks:
+            if isinstance(block, NavigableString):
+                formula = str(block).strip()
+                if current is not None and current_section is not None and formula and (
+                    "\\[" in formula or "\\(" in formula or "$$" in formula
+                ):
+                    current_section["text"].append(formula)
+                continue
             name = block.name
             text = block.get_text(" ", strip=True)
             code = block.get_text().strip() if name == "pre" else ""

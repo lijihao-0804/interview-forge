@@ -96,6 +96,8 @@ R I 4
 
 搜索状态是 (当前位置, mask) 。每次向四邻格移动一步；如果落到第 $i$ 个目标格，就执行对应操作并更新：
 
+$$mask'=mask\mid 2^i.$$
+
 所有边的代价都是一步，所以使用 BFS。第一次到达 (end, full_mask) 时，当前层数就是最短轨迹长度。
 
 第四步：处理起点不能直接操作
@@ -112,7 +114,7 @@ BFS 的初始状态是 (center, 0) ，即使中心本身是非零目标，也不
 # 题目：Agent 执行轨迹压缩
 # 算法：BFS / 队列
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n\times m\times2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
+# 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n m2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
 
 import sys
 from collections import deque
@@ -202,7 +204,7 @@ print(shortest_path())
 // 题目：Agent 执行轨迹压缩
 // 算法：BFS / 队列
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n\times m\times2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
+// 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n m2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
 
 import java.util.*;
 public class Main {

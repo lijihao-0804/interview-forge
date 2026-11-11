@@ -84,15 +84,20 @@
 <h2 id="_5">思路分析</h2>
 <p>第一步：用前缀和判断一段是否合法</p>
 <p>定义</p>
+<p><span class="math-display-wrap"><math aria-label="prefix[i]=sum_j=1^itime_j, prefix[0]=0." class="math-display" display="block"><mrow><mi>prefix</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>=</mo><msup><msub><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow></msub><mrow><mi>i</mi></mrow></msup><msub><mi>time</mi><mi>j</mi></msub><mo>,</mo><mspace width="2em"></mspace><mi>prefix</mi><mo>[</mo><mn>0</mn><mo>]</mo><mo>=</mo><mn>0</mn><mo>.</mo></mrow></math></span></p>
 <p>区间任务 <span aria-label="k+1,\ldots,i" class="plain-math">k+1,…,i</span> 的总时间为 <span aria-label="prefix[i]-prefix[k]" class="plain-math">prefix[i]-prefix[k]</span>，它能作为一个阶段，当且仅当</p>
+<p><span class="math-display-wrap"><math aria-label="prefix[i]-prefix[k]≤ T." class="math-display" display="block"><mrow><mi>prefix</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>-</mo><mi>prefix</mi><mo>[</mo><mi>k</mi><mo>]</mo><mo>≤</mo><mspace width=".18em"></mspace><mi>T</mi><mo>.</mo></mrow></math></span></p>
 <p>由于所有 time 都是正数， prefix 严格递增。对固定右端点 <span aria-label="i" class="plain-math">i</span>，合法的前驱切分位置 <span aria-label="k" class="plain-math">k</span> 构成连续区间 <span aria-label="[L_i,i-1]" class="plain-math">[L<sub>i</sub>,i-1]</span>，其中 <span aria-label="L_i" class="plain-math">L<sub>i</sub></span> 是满足 <span aria-label="prefix[k]\ge prefix[i]-T" class="plain-math">prefix[k]≥ prefix[i]-T</span> 的最小位置，可用 bisect_left 求出。</p>
 <p>第二步：写出朴素动态规划</p>
 <p>令 <span aria-label="dp[s][i]" class="plain-math">dp[s][i]</span> 表示把前 <span aria-label="i" class="plain-math">i</span> 个任务恰好划分为 <span aria-label="s" class="plain-math">s</span> 个非空合法阶段的最小通信代价。最后一段若为任务 <span aria-label="k+1" class="plain-math">k+1</span> 到 <span aria-label="i" class="plain-math">i</span>，则前 <span aria-label="k" class="plain-math">k</span> 个任务已经分为 <span aria-label="s-1" class="plain-math">s-1</span> 段，并且在任务 <span aria-label="k" class="plain-math">k</span> 后产生新切口，代价为 <span aria-label="comm_k" class="plain-math">comm<sub>k</sub></span>：</p>
+<p><span class="math-display-wrap"><math aria-label="dp[s][i] =min_substacks-1≤ k&lt;iprefix[i]-prefix[k]≤ T (dp[s-1][k]+comm_k)." class="math-display" display="block"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>s</mi><mo>]</mo><mo>[</mo><mi>i</mi><mo>]</mo><mspace width=".18em"></mspace><mo>=</mo><msub><mi mathvariant="normal">min</mi><mrow><mi mathvariant="normal">substack</mi><mrow><mi>s</mi><mo>-</mo><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>k</mi><mo>&lt;</mo><mi>i</mi><mi mathvariant="normal">\</mi><mi>prefix</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>-</mo><mi>prefix</mi><mo>[</mo><mi>k</mi><mo>]</mo><mo>≤</mo><mspace width=".18em"></mspace><mi>T</mi></mrow></mrow></msub><mspace width=".18em"></mspace><mo>(</mo><mi mathvariant="normal">dp</mi><mo>[</mo><mi>s</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>k</mi><mo>]</mo><mo>+</mo><msub><mi>comm</mi><mi>k</mi></msub><mo>)</mo><mo>.</mo></mrow></math></span></p>
 <p>这里数学下标中的 <span aria-label="comm_k" class="plain-math">comm<sub>k</sub></span> 表示任务 <span aria-label="k" class="plain-math">k</span> 与 <span aria-label="k+1" class="plain-math">k+1</span> 之间的切口；在 Python 的 comm 数组中对应 comm[k - 1] 。</p>
 <p>第一段没有左侧切口，因此：</p>
+<p><span class="math-display-wrap"><math aria-label="dp[1][i]= cases 0,&amp;prefix[i]≤ T, +∞,&amp;prefix[i]&gt;T. cases" class="math-display" display="block"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>i</mi><mo>]</mo><mo>=</mo><mspace width=".18em"></mspace><mrow><mo>(</mo><mtable><mtr><mtd><mrow><mn>0</mn><mo>,</mo></mrow></mtd><mtd><mrow><mi>prefix</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>≤</mo><mspace width=".18em"></mspace><mi>T</mi><mo>,</mo></mrow></mtd></mtr><mtr><mtd><mrow><mo>+</mo><mo>∞</mo><mo>,</mo></mrow></mtd><mtd><mrow><mi>prefix</mi><mo>[</mo><mi>i</mi><mo>]</mo><mo>&gt;</mo><mi>T</mi><mo>.</mo></mrow></mtd></mtr></mtable><mo>)</mo></mrow></mrow></math></span></p>
 <p>直接枚举 <span aria-label="s,i,k" class="plain-math">s,i,k</span> 的复杂度是 <span aria-label="O(pn^2)" class="plain-math">O(pn<sup>2</sup>)</span>，当 <span aria-label="n=p=1000" class="plain-math">n=p=1000</span> 时最坏达到 <span aria-label="10^9" class="plain-math">10<sup>9</sup></span> 级别，无法接受。</p>
 <p>第三步：把转移改写为滑动窗口最小值</p>
 <p>对固定阶段数 <span aria-label="s" class="plain-math">s</span>，转移候选值</p>
+<p><span class="math-display-wrap"><math aria-label="dp[s-1][k]+comm_k" class="math-display" display="block"><mrow><mi mathvariant="normal">dp</mi><mo>[</mo><mi>s</mi><mo>-</mo><mn>1</mn><mo>]</mo><mo>[</mo><mi>k</mi><mo>]</mo><mo>+</mo><msub><mi>comm</mi><mi>k</mi></msub></mrow></math></span></p>
 <p>只由 <span aria-label="k" class="plain-math">k</span> 决定。随着右端点 <span aria-label="i" class="plain-math">i</span> 从小到大移动：</p>
 <p>新的上界是 <span aria-label="i-1" class="plain-math">i-1</span>，每次只新增一个候选 <span aria-label="k=i-1" class="plain-math">k=i-1</span>； 因为前缀和递增，合法下界 <span aria-label="L_i" class="plain-math">L<sub>i</sub></span> 单调不减，过期候选只会从窗口左端退出。</p>
 <p>使用最小堆保存三元组 (候选代价, k) 。处理每个 <span aria-label="i" class="plain-math">i</span> 时：</p>
@@ -117,7 +122,7 @@
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：流水线连续划分</span>
 <span class="c1">// 算法：动态规划（前缀和 + 滚动数组）</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 O(pn\log n)；空间 滚动数组、前缀和与最小堆均为 O(n)</span>
+<span class="c1">// 复杂度：时间 O(pn n)；空间 滚动数组、前缀和与最小堆均为 O(n)</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
@@ -217,7 +222,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：流水线连续划分</span>
 <span class="c1"># 算法：动态规划（前缀和 + 滚动数组）</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 O(pn\log n)；空间 滚动数组、前缀和与最小堆均为 O(n)</span>
+<span class="c1"># 复杂度：时间 O(pn n)；空间 滚动数组、前缀和与最小堆均为 O(n)</span>
 
 <span class="kn">import</span> <span class="nn">bisect</span>
 <span class="kn">import</span> <span class="nn">heapq</span>

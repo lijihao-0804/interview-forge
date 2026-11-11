@@ -55,7 +55,9 @@
 <h2 id="_2">题目描述</h2>
 <p>编写一个使用梯度下降执行线性回归的过程。函数以 NumPy 数组 <span aria-label="X" class="plain-math">X</span>（已带截距列的特征）和 <span aria-label="y" class="plain-math">y</span>（目标）为输入，另外接收学习率 <span class="math-inline-wrap"><math aria-label="α" class="math-inline"><mrow><mi>α</mi></mrow></math></span> 与迭代次数，返回表示线性回归模型系数的 NumPy 数组。</p>
 <p>系数初始化为全 <span aria-label="0" class="plain-math">0</span>，每次迭代使用全部样本计算均方误差的平均梯度</p>
+<p><span class="math-display-wrap"><math aria-label="∇=1mX^⊤(Xθ-y)" class="math-display" display="block"><mrow><mo>∇</mo><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>m</mi></mrow></mfrac><msup><mi>X</mi><mrow><mo>⊤</mo></mrow></msup><mo>(</mo><mi>X</mi><mo>θ</mo><mo>-</mo><mi>y</mi><mo>)</mo></mrow></math></span></p>
 <p>并按</p>
+<p><span class="math-display-wrap"><math aria-label="θ ← θ-α∇" class="math-display" display="block"><mrow><mo>θ</mo><mspace width=".18em"></mspace><mo>←</mo><mspace width=".18em"></mspace><mo>θ</mo><mo>-</mo><mi>α</mi><mo>∇</mo></mrow></math></span></p>
 <p>更新，其中 <span aria-label="m" class="plain-math">m</span> 为样本数。支持 numpy、scipy、pandas、scikit-learn 库。</p>
 <h2 id="_3">输入描述</h2>
 <p>第 1 行输入 <span aria-label="X" class="plain-math">X</span>，第 2 行输入 <span aria-label="y" class="plain-math">y</span>，第 3 行输入 <span class="math-inline-wrap"><math aria-label="α" class="math-inline"><mrow><mi>α</mi></mrow></math></span>，第 4 行输入迭代次数。</p>
@@ -75,7 +77,9 @@
 <h2 id="_5">思路分析</h2>
 <p>第一步：确认模型与初值。 线性模型为 <span class="math-inline-wrap"><math aria-label="haty=Xθ" class="math-inline"><mrow><mover><mrow><mi>y</mi></mrow><mo>^</mo></mover><mo>=</mo><mi>X</mi><mo>θ</mo></mrow></math></span>。截距已经作为第一列全 <span aria-label="1" class="plain-math">1</span> 放进 <span aria-label="X" class="plain-math">X</span>，<span class="math-inline-wrap"><math aria-label="theta_0" class="math-inline"><mrow><msub><mo>θ</mo><mrow><mn>0</mn></mrow></msub></mrow></math></span> 本身就是截距，不需要再单独维护一个偏置项。系数初值题面规定为全 <span aria-label="0" class="plain-math">0</span>，这是口径的一部分——迭代次数固定时，换初值会得到不同的中间结果。</p>
 <p>第二步：写清楚梯度是怎么来的。 损失取均方误差的一半：</p>
+<p><span class="math-display-wrap"><math aria-label="L(θ)=12msum_i=1^m(x_i^⊤θ-y_i)^2" class="math-display" display="block"><mrow><mi>L</mi><mo>(</mo><mo>θ</mo><mo>)</mo><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn><mi>m</mi></mrow></mfrac><msup><msub><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></msub><mrow><mi>m</mi></mrow></msup><mo>(</mo><msup><msub><mi>x</mi><mrow><mi>i</mi></mrow></msub><mrow><mo>⊤</mo></mrow></msup><mo>θ</mo><mo>-</mo><msub><mi>y</mi><mrow><mi>i</mi></mrow></msub><msup><mo>)</mo><mrow><mn>2</mn></mrow></msup></mrow></math></span></p>
 <p>系数 <span class="math-inline-wrap"><math aria-label="12" class="math-inline"><mrow><mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></math></span> 与求导时平方落下的 <span aria-label="2" class="plain-math">2</span> 恰好抵消，梯度里只剩 <span class="math-inline-wrap"><math aria-label="1m" class="math-inline"><mrow><mfrac><mrow><mn>1</mn></mrow><mrow><mi>m</mi></mrow></mfrac></mrow></math></span>，写成矩阵形式正是题面给出的</p>
+<p><span class="math-display-wrap"><math aria-label="∇=1mX^⊤(Xθ-y)" class="math-display" display="block"><mrow><mo>∇</mo><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mi>m</mi></mrow></mfrac><msup><mi>X</mi><mrow><mo>⊤</mo></mrow></msup><mo>(</mo><mi>X</mi><mo>θ</mo><mo>-</mo><mi>y</mi><mo>)</mo></mrow></math></span></p>
 <p>残差 <span class="math-inline-wrap"><math aria-label="Xθ-y" class="math-inline"><mrow><mi>X</mi><mo>θ</mo><mo>-</mo><mi>y</mi></mrow></math></span> 的形状是 <span aria-label="(m,)" class="plain-math">(m,)</span>；左乘 <span class="math-inline-wrap"><math aria-label="X^⊤" class="math-inline"><mrow><msup><mi>X</mi><mrow><mo>⊤</mo></mrow></msup></mrow></math></span> 把每条样本的误差按特征摊回各维，得到形状 <span aria-label="(d,)" class="plain-math">(d,)</span> 的梯度。</p>
 <p>第三步：向量化实现。 逐样本、逐维度用两层循环算梯度，单轮就是 <span aria-label="O(md)" class="plain-math">O(md)</span> 次解释器层面的操作，<span aria-label="5000" class="plain-math">5000</span> 轮下来是百万级常数；改写成两次矩阵乘向量交给底层 BLAS 执行，常数能小两个数量级，代码也更贴近公式。</p>
 <p>第四步：守住两个口径。 第一，必须跑满题面给定的轮数，不能因为梯度已经足够小就提前退出。样例在 <span aria-label="1000" class="plain-math">1000</span> 轮后得到 <span aria-label="[0.8678,1.045]" class="plain-math">[0.8678,1.045]</span>，距离真解 <span aria-label="[1,1]" class="plain-math">[1,1]</span> 还有明显差距，提前停止或者改用正规方程一步求解都会直接判错。第二，输出必须走 print(np.round(theta, 4)) ，NumPy 会自动对齐列宽并把 <span aria-label="1.045" class="plain-math">1.045</span> 补成 1.045 加一个空格；换成打印 Python 列表会得到逗号分隔的格式，与样例不一致。</p>
@@ -89,7 +93,7 @@
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：梯度下降线性回归</span>
 <span class="c1">// 算法：按题意模拟</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 O(T \times m \times d)，其中 T 是迭代次数；空间 O(md)，存放特征矩阵与目标向量；系数与梯度只占 O(d)</span>
+<span class="c1">// 复杂度：时间 O(T m d)，其中 T 是迭代次数；空间 O(md)，存放特征矩阵与目标向量；系数与梯度只占 O(d)</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
@@ -214,7 +218,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：梯度下降线性回归</span>
 <span class="c1"># 算法：按题意模拟</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 O(T \times m \times d)，其中 T 是迭代次数；空间 O(md)，存放特征矩阵与目标向量；系数与梯度只占 O(d)</span>
+<span class="c1"># 复杂度：时间 O(T m d)，其中 T 是迭代次数；空间 O(md)，存放特征矩阵与目标向量；系数与梯度只占 O(d)</span>
 
 <span class="kn">import</span> <span class="nn">ast</span>
 <span class="kn">import</span> <span class="nn">sys</span>

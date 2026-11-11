@@ -8,9 +8,15 @@
 
 先融合残差：
 
+$$h_{k,i}=x_{k,i}+\alpha_k\cdot r_{k,i}.$$
+
 只对前 $l_k$ 个有效位置统计能量与均方根：
 
+$$energy_k=\sum_{i=1}^{l_k}h_{k,i}^2,\qquad d_k=\max(l_k,1),\qquad RMS_k=\sqrt{\frac{energy_k}{d_k}+\varepsilon}.$$
+
 有效位置缩放并加偏置；padding 位置固定为 0：
+
+$$y_{k,i}=\begin{cases} \gamma_i\cdot h_{k,i}/RMS_k+\beta_i, & 1\le i\le l_k,\\ 0, & l_k<i\le n. \end{cases}$$
 
 输入格式与约束 ：
 

@@ -74,8 +74,10 @@
 <p>额外移动可以分解成连接奇度点的路径与环，正费用环可以省去。一条额外步行路径的费用不小于这条路线上最大编号边的费用，改乘同路线快线不会更贵。快线还满足下面的超度量性质，因此多段快线也可以合成一次而不增加费用。最终只需求奇度点的最小费用两两配对。</p>
 <p>第二步：按编号建重构树，不能按边权排序。 从仅含叶子 <span aria-label="1,\ldots,n" class="plain-math">1,…,n</span> 开始，按道路编号递增加边。如果合并两个不同连通块，就建立一个父节点，两个块的树根为孩子；否则不建节点。每条边的权值记到它加入后所属连通块的树节点上，节点的 <span aria-label="own" class="plain-math">own</span> 是挂在这里的所有边权的最小值。自环和成环边虽不合并，却仍然可能显著降低票价，不能丢弃。</p>
 <p>对节点 <span aria-label="v" class="plain-math">v</span> 定义</p>
+<p><span class="math-display-wrap"><math aria-label="price(v)=minbigl(own(v),price(parent(v))bigr)." class="math-display" display="block"><mrow><mi>price</mi><mo>(</mo><mi>v</mi><mo>)</mo><mo>=</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>own</mi><mo>(</mo><mi>v</mi><mo>)</mo><mo>,</mo><mi>price</mi><mo>(</mo><mi>parent</mi><mo>(</mo><mi>v</mi><mo>)</mo><mo>)</mo><mo>)</mo><mo>.</mo></mrow></math></span></p>
 <p>根的价格就是自己的 <span aria-label="own" class="plain-math">own</span>。没有挂边时 <span aria-label="own" class="plain-math">own</span> 视为正无穷。</p>
 <p>第三步：证明票价公式。 若路线最大编号为 <span aria-label="e" class="plain-math">e</span>，则在加入前 <span aria-label="e" class="plain-math">e</span> 条边的图中，两个端点和边 <span aria-label="e" class="plain-math">e</span> 属于同一连通块。反过来，只要在同一块，就能先走到边 <span aria-label="e" class="plain-math">e</span>、经过它、再到终点；允许绕路和重复使该构造合法。因此所有可能用作最大编号边的候选，正是两点最近公共祖先及其祖先节点上挂的边。于是</p>
+<p><span class="math-display-wrap"><math aria-label="cost(x,z)=price(operatornameLCA(x,z))." class="math-display" display="block"><mrow><mi>cost</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo><mo>=</mo><mi>price</mi><mo>(</mo><mi mathvariant="normal">LCA</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo><mo>)</mo><mo>.</mo></mrow></math></span></p>
 <p>沿树向上 <span aria-label="price" class="plain-math">price</span> 单调不减，故 <span class="math-inline-wrap"><math aria-label="cost(p,q)≤max(cost(p,r),cost(r,q))" class="math-inline"><mrow><mi>cost</mi><mo>(</mo><mi>p</mi><mo>,</mo><mi>q</mi><mo>)</mo><mo>≤</mo><mi mathvariant="normal">max</mi><mo>(</mo><mi>cost</mi><mo>(</mo><mi>p</mi><mo>,</mo><mi>r</mi><mo>)</mo><mo>,</mo><mi>cost</mi><mo>(</mo><mi>r</mi><mo>,</mo><mi>q</mi><mo>)</mo><mo>)</mo></mrow></math></span>。这也说明合并额外移动不会更贵。</p>
 <p>第四步：从下往上配对。 每个叶子若为奇度点，就向上交一个待配点。两个孩子各交一个时，在当前节点配成一对，支付 <span aria-label="price" class="plain-math">price</span>；否则将剩余的一个向上交。</p>
 <p>交换论证：若子树内两点 <span aria-label="p,q" class="plain-math">p,q</span> 分别与外部 <span class="math-inline-wrap"><math aria-label="p’,q’" class="math-inline"><mrow><mi>p</mi><mo>’</mo><mo>,</mo><mi>q</mi><mo>’</mo></mrow></math></span> 配对，把它们改为内部一对、外部一对。内部价格不超过原两对中较小的价格，外部一对由超度量性质不超过原两对中较大的价格，总价不增。因此每个子树最多留一个点向外配是最优的。奇度点总数为偶数，根不会剩点。</p>
@@ -89,7 +91,7 @@
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：环线巡游巡检全部道路的最小花费</span>
 <span class="c1">// 算法：按题意模拟</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 O((n+m)\alpha(n))，按编号读入即为处理顺序，树上两遍扫描均为 O(n)；空间 O(n+m)，重构树不超过 2n-1 个节点，另保存输入边</span>
+<span class="c1">// 复杂度：时间 O((n+m)(n))，按编号读入即为处理顺序，树上两遍扫描均为 O(n)；空间 O(n+m)，重构树不超过 2n-1 个节点，另保存输入边</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
@@ -193,7 +195,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：环线巡游巡检全部道路的最小花费</span>
 <span class="c1"># 算法：按题意模拟</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 O((n+m)\alpha(n))，按编号读入即为处理顺序，树上两遍扫描均为 O(n)；空间 O(n+m)，重构树不超过 2n-1 个节点，另保存输入边</span>
+<span class="c1"># 复杂度：时间 O((n+m)(n))，按编号读入即为处理顺序，树上两遍扫描均为 O(n)；空间 O(n+m)，重构树不超过 2n-1 个节点，另保存输入边</span>
 
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>

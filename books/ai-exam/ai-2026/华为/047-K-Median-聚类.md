@@ -72,7 +72,7 @@
 # 题目：K-Median 聚类
 # 算法：按题意模拟
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 O(Tnkd)，T\le100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
+# 复杂度：时间 O(Tnkd)，T100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
 
 import sys
 import numpy as np
@@ -127,7 +127,7 @@ if __name__ == "__main__":
 // 题目：K-Median 聚类
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 O(Tnkd)，T\le100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
+// 复杂度：时间 O(Tnkd)，T100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
 
 import java.io.*;
 import java.util.*;

@@ -55,6 +55,8 @@
 
 若 token $i$ 被专家集合 $\mathcal{E}_i$ 选中，则输出为：
 
+$$Y_i = \sum_{e \in \mathcal{E}_i} W_{ie} \cdot (X_i \cdot W_e)$$
+
 把输出矩阵 $Y$ 初始化为全零，没被任何专家选中的 token 自然保持零向量。
 
 第五步：合法性校验
@@ -69,7 +71,7 @@
 # 题目：Expert Choice Routing
 # 算法：排序 + 扫描
 # 模式：ACM（stdin/stdout）
-# 复杂度：时间 O(N \cdot d \cdot E + E \cdot S \cdot d^2)，门控分数 O(N \cdot d \cdot E)，聚合阶段共 E \cdot S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵
+# 复杂度：时间 O(N d E + E S d^2)，门控分数 O(N d E)，聚合阶段共 E S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵
 
 import sys
 import numpy as np
@@ -119,7 +121,7 @@ print("\n".join(" ".join(fmt2(v) for v in row) for row in Y))
 // 题目：Expert Choice Routing
 // 算法：排序 + 扫描
 // 模式：ACM（stdin/stdout）
-// 复杂度：时间 O(N \cdot d \cdot E + E \cdot S \cdot d^2)，门控分数 O(N \cdot d \cdot E)，聚合阶段共 E \cdot S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵
+// 复杂度：时间 O(N d E + E S d^2)，门控分数 O(N d E)，聚合阶段共 E S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N E + E d^2)，分别存储权重矩阵和所有专家变换矩阵
 
 import java.util.*;
 public class Main {

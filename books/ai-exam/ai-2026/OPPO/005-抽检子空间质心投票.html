@@ -56,6 +56,7 @@
 <p>给定训练特征 <span class="math-inline-wrap"><math aria-label="X∈mathbbR^n× d" class="math-inline"><mrow><mi>X</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mrow><mi>n</mi><mo>×</mo><mspace width=".18em"></mspace><mi>d</mi></mrow></msup></mrow></math></span> 和非负整数标签 <span aria-label="y" class="plain-math">y</span>，用 <span aria-label="T" class="plain-math">T</span> 个基分类器对测试集分类。输入还给出每个分类器使用的特征数 <span aria-label="m" class="plain-math">m</span> 和随机种子 seed 。只能使用 numpy 、 pandas 、 scikit-learn ，并且必须使用：</p>
 <p>构造每个基分类器时，严格依次执行：</p>
 <p>有放回抽袋 ：调用 rg.randint(0, n, size=n) 得到训练样本下标。 无放回抽特征 ：调用 rg.choice(d, size=m, replace=False) ，并将抽出的特征下标升序保存。 最近质心分类 ：在该袋样本和特征子集上，对每个类别 <span aria-label="c" class="plain-math">c</span> 计算质心 <span class="math-inline-wrap"><math aria-label="mu_c" class="math-inline"><mrow><msub><mo>μ</mo><mi>c</mi></msub></mrow></math></span>。测试点 <span aria-label="z" class="plain-math">z</span> 的预测为</p>
+<p><span class="math-display-wrap"><math aria-label="argmin_c|z-mu_c|_2^2." class="math-display" display="block"><mrow><mi mathvariant="normal">arg</mi><msub><mi mathvariant="normal">min</mi><mi>c</mi></msub><mo>|</mo><mi>z</mi><mo>-</mo><msub><mo>μ</mo><mi>c</mi></msub><msup><msub><mo>|</mo><mn>2</mn></msub><mn>2</mn></msup><mo>.</mo></mrow></math></span></p>
 <p>距离相同时取类别编号较小者。</p>
 <p>若某个类别在该袋中一次都没有抽到，不能删除该类别，而要使用完整训练集中该类别在相同特征子集上的全局质心。</p>
 <p>全部基分类器各投一票，最终选择票数最多的类别；票数并列时同样取较小的类别编号。</p>
@@ -103,7 +104,7 @@
 <h2 id="acm-python">ACM Python 代码</h2>
 <h2 id="_7">复杂度分析</h2>
 <p>设测试样本数为 <span aria-label="q" class="plain-math">q</span>、类别数为 <span aria-label="C" class="plain-math">C</span>。</p>
-<p>时间复杂度：<span class="math-inline-wrap"><math aria-label="Obigl(T(Cn+nm+qCm)bigr)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mi mathvariant="normal">bigl</mi><mo>(</mo><mi>T</mi><mo>(</mo><mi>Cn</mi><mo>+</mo><mi>nm</mi><mo>+</mo><mi>qCm</mi><mo>)</mo><mi mathvariant="normal">bigr</mi><mo>)</mo></mrow></math></span>。</p>
+<p>时间复杂度：<span class="math-inline-wrap"><math aria-label="Obigl(T(Cn+nm+qCm)bigr)" class="math-inline"><mrow><mi mathvariant="normal">O</mi><mo>(</mo><mi>T</mi><mo>(</mo><mi>Cn</mi><mo>+</mo><mi>nm</mi><mo>+</mo><mi>qCm</mi><mo>)</mo><mo>)</mo></mrow></math></span>。</p>
 <p>空间复杂度：<span aria-label="O(nd+qCm+T(n+m))" class="plain-math">O(nd+qCm+T(n+m))</span>，其中最后一项用于保存并输出每个基分类器的抽袋下标和特征下标。</p>
 <h2 id="_8">易错点</h2>
 <p>每轮必须先调用 randint 抽袋，再调用 choice 抽特征。 特征下标需要排序，抽袋下标不能排序。 袋内缺失的类别不能删除，必须改用该类别的全局质心。 距离并列和票数并列都取较小类别编号。 输出必须是紧凑 JSON，不能混入日志或解释文字。</p>
@@ -111,7 +112,7 @@
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：抽检子空间质心投票</span>
 <span class="c1">// 算法：排序 + 扫描</span>
 <span class="c1">// 模式：ACM（stdin/stdout）</span>
-<span class="c1">// 复杂度：时间 O\bigl(T(Cn+nm+qCm)\bigr)；空间 O(nd+qCm+T(n+m))，其中最后一项用于保存并输出每个基分类器的抽袋下标和特征下标</span>
+<span class="c1">// 复杂度：时间 O(T(Cn+nm+qCm))；空间 O(nd+qCm+T(n+m))，其中最后一项用于保存并输出每个基分类器的抽袋下标和特征下标</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
 <span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Main</span><span class="w"> </span><span class="p">{</span>
@@ -270,7 +271,7 @@
 <div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：抽检子空间质心投票</span>
 <span class="c1"># 算法：排序 + 扫描</span>
 <span class="c1"># 模式：ACM（stdin/stdout）</span>
-<span class="c1"># 复杂度：时间 O\bigl(T(Cn+nm+qCm)\bigr)；空间 O(nd+qCm+T(n+m))，其中最后一项用于保存并输出每个基分类器的抽袋下标和特征下标</span>
+<span class="c1"># 复杂度：时间 O(T(Cn+nm+qCm))；空间 O(nd+qCm+T(n+m))，其中最后一项用于保存并输出每个基分类器的抽袋下标和特征下标</span>
 
 <span class="kn">import</span> <span class="nn">json</span>
 <span class="kn">import</span> <span class="nn">sys</span>
