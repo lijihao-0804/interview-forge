@@ -164,8 +164,6 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         scripts = tuple(script for script in scripts if not any(
             marker in script for marker in ("ai-page-context.js", "ai-launcher.js")
         ))
-    if path.startswith("/books/ai-exam/"):
-        scripts = scripts + ("/assets/practice-bridge.js?v=1",)
     styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
     style_html = b"" if b"ai-launcher.css" in body else "".join(
         f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
