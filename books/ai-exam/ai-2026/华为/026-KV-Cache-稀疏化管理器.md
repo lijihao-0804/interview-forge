@@ -173,7 +173,6 @@ public class Main {
         return st.nextToken();
     }
     static int nextInt() throws IOException { return Integer.parseInt(next()); }
-    static long nextLong() throws IOException { return Long.parseLong(next()); }
     static String nextLine() throws IOException { return br.readLine(); }
     static final char NL = (char) 10;
     static class Entry {
