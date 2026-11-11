@@ -48,6 +48,18 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+5
+```
+
+**输出示例**
+
+```text
+5
+```
+
 两种模式不要混：
 
 - 机考默认使用 **`public class Main`**，除非平台明确要求其他类名；
@@ -126,6 +138,19 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+5
+1 2 3 4 5
+```
+
+**输出示例**
+
+```text
+15
+```
+
 ### 3.3 读字符串、long 和 double
 
 ```java
@@ -140,6 +165,18 @@ public class Main {
         System.out.println(name + " " + id + " " + String.format("%.2f", score));
     }
 }
+```
+
+**输入示例**
+
+```text
+Alice 123 95.5
+```
+
+**输出示例**
+
+```text
+Alice 123 95.50
 ```
 
 ### 3.4 T 组数据
@@ -166,6 +203,23 @@ public class Main {
 
 > 多组数据优先用 `StringBuilder` 收集输出，最后一次性输出，减少频繁 `System.out.println` 的 IO 次数。
 
+**输入示例**
+
+```text
+2
+3
+1 2 3
+2
+4 5
+```
+
+**输出示例**
+
+```text
+6
+9
+```
+
 ### 3.5 EOF 多组输入
 
 有些题没有 T，读到文件结束为止：
@@ -187,6 +241,20 @@ public class Main {
         System.out.print(out);
     }
 }
+```
+
+**输入示例**
+
+```text
+1 2
+3 4
+```
+
+**输出示例**
+
+```text
+3
+7
 ```
 
 ### 3.6 nextInt 和 nextLine 混用
@@ -218,6 +286,20 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+2
+hello world
+```
+
+**输出示例**
+
+```text
+2
+hello world
+```
+
 ### 3.7 Scanner 什么时候不要用
 
 Scanner 代码短、好记，但底层解析较慢。以下情况优先使用第 4、5 章的 `BufferedReader`：
@@ -247,6 +329,18 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+hello world
+```
+
+**输出示例**
+
+```text
+hello world
+```
+
 ### 4.2 一行多个整数
 
 ```java
@@ -268,6 +362,19 @@ public class Main {
         System.out.println(sum);
     }
 }
+```
+
+**输入示例**
+
+```text
+3
+1 2 3
+```
+
+**输出示例**
+
+```text
+6
 ```
 
 ### 4.3 数组跨多行也要安全处理
@@ -305,6 +412,21 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+5
+1 2
+3 4
+5
+```
+
+**输出示例**
+
+```text
+15
+```
+
 ### 4.4 每行格式固定：逐行解析
 
 如果每行有固定数量字段，按行读比 Token 流更清楚：
@@ -330,6 +452,21 @@ public class Main {
 
 `split("\\s+")` 能处理连续多个空格；如果题目保证单空格，`split(" ")` 也可以，但鲁棒性差一些。
 
+**输入示例**
+
+```text
+2
+1 2 3
+4 5 6
+```
+
+**输出示例**
+
+```text
+6
+15
+```
+
 ### 4.5 空行与 EOF
 
 ```java
@@ -342,6 +479,21 @@ while ((line = br.readLine()) != null) {
 ```
 
 ---
+
+**输入示例**
+
+```text
+1 2
+
+3 4
+```
+
+**输出示例**
+
+```text
+处理 1 2
+处理 3 4
+```
 
 ## 5. Java 大数据输入：快速输入模板
 
@@ -383,6 +535,19 @@ public class Main {
 }
 ```
 
+**输入示例**
+
+```text
+5
+1 2 3 4 5
+```
+
+**输出示例**
+
+```text
+15
+```
+
 ### 5.1 什么时候保留快速输入
 
 - 整数个数可能达到 `10^5`、`10^6`；
@@ -417,6 +582,19 @@ System.out.println("b");              // 自动换行
 System.out.printf("%.2f%n", 3.14159); // 保留两位小数
 ```
 
+**输入示例**
+
+```text
+无输入
+```
+
+**输出示例**
+
+```text
+ab
+3.14
+```
+
 ### 6.2 StringBuilder 收集多行输出
 
 ```java
@@ -429,6 +607,18 @@ System.out.print(out);
 ```
 
 不要在循环里大量使用 `System.out.println` 输出十万行，容易成为性能瓶颈。
+
+**输入示例**
+
+```text
+无输入（片段）
+```
+
+**输出示例**
+
+```text
+逐行输出 answer 数组
+```
 
 ### 6.3 数字格式
 
@@ -446,6 +636,20 @@ System.out.printf("%.6f%n", Math.sqrt(2));  // 六位小数
 
 ---
 
+**输入示例**
+
+```text
+无输入
+```
+
+**输出示例**
+
+```text
+1000000000000
+0.333
+1.414214
+```
+
 ## 7. Python 基础输入：input 与 sys.stdin
 
 ### 7.1 一个整数
@@ -455,11 +659,35 @@ n = int(input())
 print(n)
 ```
 
+**输入示例**
+
+```text
+5
+```
+
+**输出示例**
+
+```text
+5
+```
+
 ### 7.2 一行两个整数
 
 ```python
 a, b = map(int, input().split())
 print(a + b)
+```
+
+**输入示例**
+
+```text
+3 5
+```
+
+**输出示例**
+
+```text
+8
 ```
 
 ### 7.3 一行 n 个整数
@@ -470,6 +698,19 @@ a = list(map(int, input().split()))
 
 # 如果担心数组可能跨行，使用后面 8.2 的写法
 print(sum(a))
+```
+
+**输入示例**
+
+```text
+5
+1 2 3 4 5
+```
+
+**输出示例**
+
+```text
+15
 ```
 
 ### 7.4 多组数据 T
@@ -484,6 +725,23 @@ for _ in range(t):
 print("\n".join(out))
 ```
 
+**输入示例**
+
+```text
+2
+3
+1 2 3
+2
+4 5
+```
+
+**输出示例**
+
+```text
+6
+9
+```
+
 ### 7.5 含空格的整行字符串
 
 ```python
@@ -492,6 +750,21 @@ print(len(s), s)
 ```
 
 `input()` 本身会去掉行尾换行；用 `sys.stdin.readline().strip("\n")` 时也要注意不要误删行首/行尾有意义的空格。
+
+**输入示例**
+
+```text
+2
+hello world
+foo bar
+```
+
+**输出示例**
+
+```text
+11 hello world
+7 foo bar
+```
 
 ### 7.6 EOF 多组
 
@@ -510,6 +783,20 @@ sys.stdout.write("\n".join(out))
 ```
 
 ---
+
+**输入示例**
+
+```text
+1 2
+3 4
+```
+
+**输出示例**
+
+```text
+3
+7
+```
 
 ## 8. Python 快速输入与按行输入
 
@@ -533,6 +820,19 @@ print(sum(a))
 - `next(it)` 依次取 Token；
 - 适合 `10^5` 到 `10^6` 级整数输入。
 
+**输入示例**
+
+```text
+3
+1 2 3
+```
+
+**输出示例**
+
+```text
+6
+```
+
 ### 8.2 数组可能跨行
 
 ```python
@@ -546,6 +846,20 @@ print(sum(a))
 
 它不依赖“数组都在一行”，只要题目保证所有数字由空白分隔即可。
 
+**输入示例**
+
+```text
+3
+1 2
+3
+```
+
+**输出示例**
+
+```text
+6
+```
+
 ### 8.3 按行读
 
 ```python
@@ -556,6 +870,19 @@ input = sys.stdin.readline
 n = int(input())
 s = input().strip()      # 完整一行，保留空格用 rstrip("\n")
 print(n, s)
+```
+
+**输入示例**
+
+```text
+2
+hello world
+```
+
+**输出示例**
+
+```text
+2 hello world
 ```
 
 ### 8.4 固定格式多行
@@ -569,6 +896,21 @@ m = int(input())
 for _ in range(m):
     u, v, w = map(int, input().split())
     print(u + v + w)
+```
+
+**输入示例**
+
+```text
+2
+1 2 3
+4 5 6
+```
+
+**输出示例**
+
+```text
+6
+15
 ```
 
 ### 8.5 空行与 EOF
@@ -585,6 +927,21 @@ for line in sys.stdin:
 
 ---
 
+**输入示例**
+
+```text
+1 2
+
+3 4
+```
+
+**输出示例**
+
+```text
+处理 1 2
+处理 3 4
+```
+
 ## 9. Python 输出与多组数据
 
 ### 9.1 print 与 join
@@ -595,12 +952,36 @@ print(a, b, sep=",")           # 自定义分隔
 print("\n".join(map(str, ans))) # 一次输出多行
 ```
 
+**输入示例**
+
+```text
+3 5
+```
+
+**输出示例**
+
+```text
+3 5
+```
+
 ### 9.2 保留小数
 
 ```python
 print(f"{x:.2f}")
 print(f"{x:.6f}")
 print(format(x, ".3f"))
+```
+
+**输入示例**
+
+```text
+无输入（x=3.14159）
+```
+
+**输出示例**
+
+```text
+3.14
 ```
 
 ### 9.3 大量输出
@@ -617,6 +998,20 @@ sys.stdout.write("\n".join(out))
 不要在十万级循环中频繁 `print`，可以先收集再一次性输出。
 
 ---
+
+**输入示例**
+
+```text
+无输入（ans=[1,2,3]）
+```
+
+**输出示例**
+
+```text
+1
+2
+3
+```
 
 ## 10. 八种高频输入模型实战
 
@@ -640,6 +1035,18 @@ public class Main {
 ```python
 a, b = map(int, input().split())
 print(a + b)
+```
+
+**输入示例**
+
+```text
+3 5
+```
+
+**输出示例**
+
+```text
+8
 ```
 
 ### 10.2 模型二：T 组 A+B
@@ -669,6 +1076,21 @@ t = int(input())
 for _ in range(t):
     a, b = map(int, input().split())
     print(a + b)
+```
+
+**输入示例**
+
+```text
+2
+1 2
+3 5
+```
+
+**输出示例**
+
+```text
+3
+8
 ```
 
 ### 10.3 模型三：第一行 n，第二行 n 个整数
@@ -711,6 +1133,19 @@ n = data[0]
 print(sum(data[1:1 + n]))
 ```
 
+**输入示例**
+
+```text
+3
+1 2 3
+```
+
+**输出示例**
+
+```text
+6
+```
+
 ### 10.4 模型四：n × m 矩阵
 
 **Java**
@@ -745,6 +1180,20 @@ m = next(it)
 a = [[next(it) for _ in range(m)] for _ in range(n)]
 ```
 
+**输入示例**
+
+```text
+2 3
+1 2 3
+4 5 6
+```
+
+**输出示例**
+
+```text
+无输出（读入完成）
+```
+
 ### 10.5 模型五：一行一个含空格字符串
 
 **Java**
@@ -774,6 +1223,21 @@ n = int(input())
 for _ in range(n):
     s = input().rstrip("\n")  # 保留行内空格
     print(len(s))
+```
+
+**输入示例**
+
+```text
+2
+hello world
+foo
+```
+
+**输出示例**
+
+```text
+11
+3
 ```
 
 ### 10.6 模型六：EOF 多组
@@ -808,6 +1272,20 @@ for line in sys.stdin:
         a, b = map(int, line.split())
         out.append(str(a + b))
 print("\n".join(out))
+```
+
+**输入示例**
+
+```text
+1 2
+3 4
+```
+
+**输出示例**
+
+```text
+3
+7
 ```
 
 ### 10.7 模型七：每行长度不固定
@@ -846,6 +1324,21 @@ for _ in range(n):
     print(sum(a))
 ```
 
+**输入示例**
+
+```text
+2
+1 2 3
+4 5
+```
+
+**输出示例**
+
+```text
+6
+9
+```
+
 ### 10.8 模型八：大数据 + 多组
 
 **Java** 使用第 5 章快速输入模板；**Python** 使用：
@@ -867,6 +1360,23 @@ sys.stdout.write("\n".join(out))
 ```
 
 ---
+
+**输入示例**
+
+```text
+2
+3
+1 2 3
+2
+4 5
+```
+
+**输出示例**
+
+```text
+6
+9
+```
 
 ## 11. 常见坑与检查清单
 
