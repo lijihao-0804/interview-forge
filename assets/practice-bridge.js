@@ -35,7 +35,10 @@
   }
 
   function headingLanguage(pre) {
-    var el = pre.parentElement;
+    var block = pre.closest && pre.closest('.codehilite');
+    var attr = block && block.getAttribute('data-lang');
+    if (attr === 'java' || attr === 'python') return attr;
+    var el = block || pre.parentElement;
     if (!el) return '';
     // Walk backwards over headings/paragraphs until the previous section.
     var cursor = el.previousElementSibling;
@@ -63,11 +66,13 @@
       try { pagePath = decodeURIComponent(pagePath); } catch (_) {}
       var meta = metaMap[pagePath] || metaMap[location.pathname];
       if (!meta || !meta.codes) return;
-      var blocks = document.querySelectorAll('div.codehilite > pre');
-      Array.prototype.forEach.call(blocks, function (pre) {
+      var blocks = document.querySelectorAll('div.codehilite');
+      Array.prototype.forEach.call(blocks, function (block) {
+        var pre = block.querySelector('pre');
+        if (!pre) return;
         var language = headingLanguage(pre);
         if (!language || !meta.codes[language]) return;
-        if (pre.parentElement && pre.parentElement.getAttribute('data-practice-ready')) return;
+        if (block.getAttribute('data-practice-ready')) return;
         if (!Array.isArray(meta.samples) || !meta.samples.length) return;
         var button = document.createElement('button');
         button.type = 'button';
@@ -90,8 +95,8 @@
           var url = '/books/ai-exam/acm-playground.html?id=' + encodeURIComponent(context.id) + '&lang=' + encodeURIComponent(language);
           window.open(url, '_blank');
         });
-        pre.parentElement.setAttribute('data-practice-ready', '1');
-        pre.parentElement.parentNode.insertBefore(button, pre.parentElement);
+        block.setAttribute('data-practice-ready', '1');
+        block.parentNode.insertBefore(button, block);
       });
     });
   }
