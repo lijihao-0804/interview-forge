@@ -79,6 +79,11 @@ Stage 负载 ：一个 Stage 的负载定义为该 Stage 内所有层的前向�
 ### Python 实现
 
 ```python
+# 题目：流水线并行最小化最大 Stage 负载
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(N\log\sum f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量
+
 import sys
 
 input = sys.stdin.readline
@@ -112,7 +117,8 @@ def min_max_load(f, k):
     return lo
 
 
-def solve():
+# 读取输入并输出答案
+):
     n, k = map(int, input().split())
     f = list(map(int, input().split()))
     print(min_max_load(f, k))
@@ -134,6 +140,11 @@ solve()
 ### Java 实现
 
 ```java
+// 题目：流水线并行最小化最大 Stage 负载
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(N\log\sum f)；空间 O(N)，存下每层的前向传播时间，判定过程只用常数个变量
+
 import java.io.*;
 import java.util.*;
 
@@ -155,6 +166,7 @@ public class Main {
         }
         return stages;
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         int n = in.ni();

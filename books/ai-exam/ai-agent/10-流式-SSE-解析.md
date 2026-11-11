@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：流式 SSE 解析
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 
 def parse_sse(lines):
     event = {"event": "message", "data": []}
@@ -29,6 +33,10 @@ def parse_sse(lines):
 ### Java 实现
 
 ```java
+// 题目：流式 SSE 解析
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -75,6 +83,7 @@ final class SseParser {
         return value.substring(start);
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         List<String> lines = new ArrayList<>();
         lines.add("event: update");

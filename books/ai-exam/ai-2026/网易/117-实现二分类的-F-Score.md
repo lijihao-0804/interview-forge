@@ -52,6 +52,11 @@ $\beta>1$ 时对漏掉正例的惩罚更重；$\beta=1$ 时就是 F1。样例中
 ### Python 实现
 
 ```python
+# 题目：实现二分类的 F-Score
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(n)，每对标签检查一次；空间 O(n)，用于读入两个列表；计数过程只使用常数个变量
+
 import ast
 import sys
 
@@ -73,7 +78,8 @@ def f_score(y_true, y_pred, beta):
     return (1 + b2) * tp / ((1 + b2) * tp + b2 * fn + fp)
 
 
-def solve():
+# 读取输入并输出答案
+):
     y_true = ast.literal_eval(input())
     y_pred = ast.literal_eval(input())
     beta = float(input())
@@ -93,6 +99,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：实现二分类的 F-Score
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(n)，每对标签检查一次；空间 O(n)，用于读入两个列表；计数过程只使用常数个变量
+
 import java.io.*;
 import java.util.*;
 
@@ -126,6 +137,7 @@ public class Main {
         return s;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws Exception {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         int[] yTrue = parseInts(readNonEmpty(br));

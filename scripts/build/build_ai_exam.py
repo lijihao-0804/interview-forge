@@ -195,8 +195,56 @@ def format_java_code(code: str) -> str:
         i += 1
     text = "".join(out)
     text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"\n[ \t]*\n+", "\n", text)
     return text.strip()
+
+
+def infer_algorithm(code: str) -> str:
+    low = code.lower()
+    if "pre" in low and "prev" in low and "cur" in low:
+        return "动态规划（前缀和 + 滚动数组）"
+    if "prev" in low and "cur" in low:
+        return "动态规划（滚动数组）"
+    if "dp[" in low or "dp =" in low or "memo" in low:
+        return "动态规划"
+    if "heapq" in low or "priorityqueue" in low:
+        return "堆 / 优先队列"
+    if "deque" in low and ("bfs" in low or "queue" in low):
+        return "BFS / 队列"
+    if "dfs" in low:
+        return "DFS / 回溯"
+    if "bisect" in low:
+        return "二分查找"
+    if "sort" in low or "sorted" in low:
+        return "排序 + 扫描"
+    return "按题意模拟"
+
+
+def add_code_comments(code: str, lang: str, title: str, sections: list[dict]) -> str:
+    """给题解代码加简短、准确的 ACM/算法/复杂度注释，不改动原有代码逻辑。"""
+    marker = "#" if lang == "python" else "//"
+    complexity = ""
+    for section in sections:
+        if "复杂度" in (section.get("heading") or ""):
+            complexity = re.sub(r"\s+", " ", (section.get("text") or "").strip())
+            break
+    time_part = space_part = ""
+    m = re.search(r"时间复杂度\s*[：:]\s*([^。\n]+)", complexity)
+    if m:
+        time_part = m.group(1).replace("$", "").strip()
+    m = re.search(r"空间复杂度\s*[：:]\s*([^。\n]+)", complexity)
+    if m:
+        space_part = m.group(1).replace("$", "").strip()
+    lines = [f"{marker} 题目：{title}", f"{marker} 算法：{infer_algorithm(code)}", f"{marker} 模式：ACM（stdin/stdout）"]
+    if time_part:
+        suffix = f"；空间 {space_part}" if space_part else ""
+        lines.append(f"{marker} 复杂度：时间 {time_part}{suffix}")
+    header = "\n".join(lines) + "\n\n"
+    if lang == "java":
+        code = code.replace("public static void main", "// 主函数：读取输入并输出答案\n    public static void main", 1)
+    else:
+        code = re.sub(r"(?m)^(def solve\()", "# 读取输入并输出答案\n\1", code, count=1, flags=re.M)
+    return header + code
 
 
 def write_problem(path: Path, title: str, meta: str, sections: list[dict], translation: dict[str, str] | None = None) -> None:
@@ -213,11 +261,12 @@ def write_problem(path: Path, title: str, meta: str, sections: list[dict], trans
             lines += [text, ""]
         if code:
             if "代码" in heading or "实现" in heading:
-                lines += ["### Python 实现", "", "```python", code, "```", ""]
+                lines += ["### Python 实现", "", "```python", add_code_comments(code, "python", title, sections), "```", ""]
             else:
                 lines += ["```text", code, "```", ""]
     if translation and translation.get("java"):
-        lines += ["### Java 实现", "", "```java", format_java_code(translation["java"]), "```", ""]
+        java_code = add_code_comments(format_java_code(translation["java"]), "java", title, sections)
+        lines += ["### Java 实现", "", "```java", java_code, "```", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -276,9 +325,12 @@ def build_agent_doc(translations: dict[str, dict[str, str]]) -> list[dict]:
         title = match.group(2).strip()
         if "```python" in body and not re.search(r"(?m)^###\s+\w+\s*实现", body):
             body = body.replace("```python", "### Python 实现\n\n```python", 1)
+        # 手撕题的源码通常是函数片段；至少补上题目和接口说明注释。
+        if "```python" in body:
+            body = body.replace("```python\n", "```python\n" + add_code_comments("", "python", title, []), 1)
         translation = translations.get(f"ai-agent:{index}", {})
         if translation.get("java"):
-            body += "\n\n### Java 实现\n\n```java\n" + format_java_code(translation["java"]) + "\n```"
+            body += "\n\n### Java 实现\n\n```java\n" + add_code_comments(format_java_code(translation["java"]), "java", title, []) + "\n```"
         path = SRC / "ai-agent" / f"{index:02d}-{safe_name(title)}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {title}\n\n> 来源：外部面经参考/02-AI与Agent手撕代码题.md · AI/Agent 手撕题\n\n{body}\n", encoding="utf-8")
@@ -308,8 +360,9 @@ def build_company_oj(translations: dict[str, dict[str, str]]) -> list[dict]:
         text = re.sub(r"(?m)^##\s*解题代码\s*$\n+```java", "## 解题代码\n\n### Java 实现\n\n```java", text, count=1)
         key = f"company-oj:{group}:{md.stem}"
         translation = translations.get(key, {})
+        text = re.sub(r"```java\n", "```java\n" + add_code_comments("", "java", title, []), text, count=1)
         if translation.get("python"):
-            text += "\n\n### Python 实现\n\n```python\n" + translation["python"] + "\n```\n"
+            text += "\n\n### Python 实现\n\n```python\n" + add_code_comments(translation["python"], "python", title, []) + "\n```\n"
         out = SRC / "company-oj" / group / f"{md.stem}.md"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")

@@ -120,6 +120,10 @@
 ### Python 实现
 
 ```python
+# 题目：基于 CART 分类树预测客户购房选择
+# 算法：排序 + 扫描
+# 模式：ACM（stdin/stdout）
+
 import sys
 input = sys.stdin.readline
 
@@ -173,7 +177,8 @@ def predict(tree, sample):
     return tree[0]
 
 
-def solve():
+# 读取输入并输出答案
+):
     n = int(input())
     rows = [list(map(int, input().split())) for _ in range(n)]
     tree = build_tree(rows)
@@ -197,6 +202,10 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：基于 CART 分类树预测客户购房选择
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.io.*;
 import java.util.*;
 import java.math.BigInteger;
@@ -253,6 +262,7 @@ public class Main {
         while (!t.leaf) { t = (s[t.feature] == t.splitValue) ? t.left : t.right; }
         return t.value;
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         int n = in.ni();

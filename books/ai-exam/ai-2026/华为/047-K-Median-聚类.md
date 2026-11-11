@@ -69,6 +69,11 @@
 ### Python 实现
 
 ```python
+# 题目：K-Median 聚类
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(Tnkd)，T\le100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
+
 import sys
 import numpy as np
 
@@ -94,7 +99,8 @@ def k_median(points, k):
     return labels, centers, inertia
 
 
-def solve():
+# 读取输入并输出答案
+):
     input = sys.stdin.readline
     n, d, k = map(int, input().split())
     points = np.array([list(map(float, input().split())) for _ in range(n)])
@@ -118,6 +124,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：K-Median 聚类
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(Tnkd)，T\le100 为实际轮数；分配需要 O(nkd)，簇筛选为 O(nk)，NumPy 中位数采用选择算法，所有簇合计处理 O(nd) 个坐标值；空间 O(nk+nd+kd)，包括距离矩阵、样本、簇成员与中心
+
 import java.io.*;
 import java.util.*;
 import java.util.Locale;
@@ -137,6 +148,7 @@ public class Main {
         if (m % 2 == 1) return c[m / 2];
         return (c[m / 2 - 1] + c[m / 2]) / 2.0;
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         int n = in.ni(), d = in.ni(), k = in.ni();

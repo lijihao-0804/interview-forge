@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：RRF 融合排序
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 from collections import defaultdict
 
 
@@ -25,6 +29,10 @@ Agent 工程最容易出事故的部分：参数校验、循环守卫、幂等�
 ### Java 实现
 
 ```java
+// 题目：RRF 融合排序
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +57,7 @@ final class ReciprocalRankFusion {
         return reciprocalRankFusion(rankings, 60);
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         List<List<String>> rankings = new ArrayList<>();
         rankings.add(java.util.Arrays.asList("a", "b", "c"));

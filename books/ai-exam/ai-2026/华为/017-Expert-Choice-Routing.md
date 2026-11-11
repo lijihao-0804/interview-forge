@@ -66,6 +66,11 @@
 ### Python 实现
 
 ```python
+# 题目：Expert Choice Routing
+# 算法：排序 + 扫描
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(N \cdot d \cdot E + E \cdot S \cdot d^2)，门控分数 O(N \cdot d \cdot E)，聚合阶段共 E \cdot S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵
+
 import sys
 import numpy as np
 
@@ -111,9 +116,15 @@ print("\n".join(" ".join(fmt2(v) for v in row) for row in Y))
 ### Java 实现
 
 ```java
+// 题目：Expert Choice Routing
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(N \cdot d \cdot E + E \cdot S \cdot d^2)，门控分数 O(N \cdot d \cdot E)，聚合阶段共 E \cdot S 次 token 变换、每次 O(d^2) 空间复杂度 ：O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵；空间 O(N \cdot E + E \cdot d^2)，分别存储权重矩阵和所有专家变换矩阵
+
 import java.util.*;
 public class Main {
     static String fmt2(double v) { String t = String.format(Locale.US, "%.2f", v); return t.equals("-0.00") ? "0.00" : t; }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         int n = sc.nextInt(), d = sc.nextInt(), e = sc.nextInt(), s = sc.nextInt();

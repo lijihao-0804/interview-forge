@@ -57,11 +57,17 @@ $\text{total} = \text{base} + \lambda \cdot g[B]$，四舍五入保留两位小�
 ### Python 实现
 
 ```python
+# 题目：Certainty Forcing 训练损失计算
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(NV + NB)，softmax 与熵 O(NV)，背包 O(NB)；空间 O(B + NV)
+
 import sys
 import math
 input = sys.stdin.readline
 
-def solve():
+# 读取输入并输出答案
+):
     first = input().split()
     N = int(first[0]); V = int(first[1]); B = int(first[2]); lam = float(first[3])
     base = 0.0
@@ -103,8 +109,14 @@ solve()
 ### Java 实现
 
 ```java
+// 题目：Certainty Forcing 训练损失计算
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(NV + NB)，softmax 与熵 O(NV)，背包 O(NB)；空间 O(B + NV)
+
 import java.util.*;
 public class Main {
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         int N = sc.nextInt(), V = sc.nextInt(), B = sc.nextInt();

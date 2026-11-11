@@ -16,6 +16,10 @@
 ### Java 实现
 
 ```java
+// 题目：Agent Trace 聚合
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,6 +61,7 @@ final class AgentTraceAggregator {
         return result;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         List<Map<String, Object>> trace = new ArrayList<>();
         Map<String, Object> event = new LinkedHashMap<>();

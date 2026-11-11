@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：Tool 参数校验
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 TOOLS = {
     "get_weather": {
         "required": {"city"},
@@ -40,6 +44,10 @@ def validate_tool_call(name: str, arguments: dict) -> list[str]:
 ### Java 实现
 
 ```java
+// 题目：Tool 参数校验
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -108,6 +116,7 @@ final class ToolValidator {
         return builder.toString();
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Map<String, Object> arguments = new LinkedHashMap<>();
         arguments.put("city", "Beijing");

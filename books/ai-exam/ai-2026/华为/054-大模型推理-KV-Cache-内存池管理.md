@@ -83,6 +83,11 @@ $1\le m\le 100000$。 $1\le k\le 1000$。 $1\le n\le 100000$。 $1\le len[i]\le 
 ### Python 实现
 
 ```python
+# 题目：大模型推理 KV Cache 内存池管理
+# 算法：排序 + 扫描
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(n\log n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
+
 import sys
 
 
@@ -123,9 +128,15 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：大模型推理 KV Cache 内存池管理
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(n\log n)，排序占主导，计算需求和扫描均为 O(n)；空间 O(n)，包括输入、需求数组以及 Python 排序使用的辅助空间
+
 import java.io.*;
 import java.util.*;
 public class Main {
+    // 主函数：读取输入并输出答案
     public static void main(String[] a)throws Exception {
         FS fs=new FS();
         if(!fs.has())return;
@@ -143,40 +154,31 @@ public class Main {
             if(used+nd>m)break;
             used+=nd;
             ans++;
-
         }
         System.out.println(ans);
-
     }
     static class FS {
         byte[] d;
         int i=0;
         FS()throws IOException {
             d=System.in.readAllBytes();
-
         }
         boolean has() {
             while(i<d.length&&d[i]<=32)i++;
             return i<d.length;
-
         }
         String next() {
             while(i<d.length&&d[i]<=32)i++;
             int s=i;
             while(i<d.length&&d[i]>32)i++;
             return new String(d,s,i-s);
-
         }
         int ni() {
             return Integer.parseInt(next());
-
         }
         long nl() {
             return Long.parseLong(next());
-
         }
-
     }
-
 }
 ```

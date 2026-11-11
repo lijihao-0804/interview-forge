@@ -46,6 +46,11 @@
 ### Python 实现
 
 ```python
+# 题目：DBSCAN 点类型判定
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(n^2d)，枚举所有点对并计算各维度差值，后续布尔运算不超过 O(n^2)；空间 O(n^2d)，主要为广播得到的三维差值张量
+
 import sys
 import json
 import numpy as np
@@ -62,7 +67,8 @@ def classify_points(x, eps, min_samples):
     return types.tolist()
 
 
-def solve():
+# 读取输入并输出答案
+):
     data = json.loads(sys.stdin.readline())
     x = np.asarray(data["X"], dtype=float)
     result = classify_points(x, float(data["eps"]), int(data["min_samples"]))
@@ -82,6 +88,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：DBSCAN 点类型判定
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(n^2d)，枚举所有点对并计算各维度差值，后续布尔运算不超过 O(n^2)；空间 O(n^2d)，主要为广播得到的三维差值张量
+
 import java.util.*;
 public class Main {
     static class Json {
@@ -136,6 +147,7 @@ public class Main {
             return Double.parseDouble(s.substring(start, i));
         }
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws Exception {
         java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
         String line = br.readLine();

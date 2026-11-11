@@ -59,6 +59,11 @@
 ### Python 实现
 
 ```python
+# 题目：实现 Transformer 编码器层
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 一般序列长度为 T、模型维度为 d 时，注意力为 O(T^2d)，线性层为 O(Td^2)；本题 T=2,d=4，实际为常数量级；空间 一般为 O(T^2h+Td)；本题参数固定，实际为 O(1)
+
 import sys
 from math import exp, sqrt
 
@@ -75,7 +80,8 @@ def layer_norm(values):
     return [(value - mean) / scale for value in values]
 
 
-def solve():
+# 读取输入并输出答案
+):
     values = list(map(float, sys.stdin.buffer.read().split()))
     x = [values[:D_MODEL], values[D_MODEL:]]
 
@@ -133,6 +139,11 @@ softmax 前应减去该行最大值，避免指数溢出。 方差除以 4，使
 ### Java 实现
 
 ```java
+// 题目：实现 Transformer 编码器层
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 一般序列长度为 T、模型维度为 d 时，注意力为 O(T^2d)，线性层为 O(Td^2)；本题 T=2,d=4，实际为常数量级；空间 一般为 O(T^2h+Td)；本题参数固定，实际为 O(1)
+
 import java.io.*;
 import java.util.*;
 import java.util.Locale;
@@ -159,6 +170,7 @@ public class Main {
         for (int i = 0; i < D_MODEL; i++) out[i] = (values[i] - mean) / scale;
         return out;
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         double[] values = new double[2 * D_MODEL];

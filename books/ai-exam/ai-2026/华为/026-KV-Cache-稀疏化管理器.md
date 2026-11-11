@@ -98,6 +98,11 @@ QUERY 要按 pos 递增输出，而淘汰要按 (score, pos) 递增选择。一�
 ### Python 实现
 
 ```python
+# 题目：KV Cache 稀疏化管理器
+# 算法：堆 / 优先队列
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 每次 ADD 和淘汰均为 O(\log K)，每次 QUERY 为 O(M)，总时间复杂度为 O(N\log K+S)；空间 字典、最小堆与单次查询的输出缓冲区均为 O(K)
+
 import heapq
 import sys
 from decimal import Decimal
@@ -144,6 +149,11 @@ for _ in range(operation_count):
 ### Java 实现
 
 ```java
+// 题目：KV Cache 稀疏化管理器
+// 算法：堆 / 优先队列
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 每次 ADD 和淘汰均为 O(\log K)，每次 QUERY 为 O(M)，总时间复杂度为 O(N\log K+S)；空间 字典、最小堆与单次查询的输出缓冲区均为 O(K)
+
 import java.io.*;
 import java.math.BigDecimal;
 import java.util.*;
@@ -159,6 +169,7 @@ public class Main {
         }
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         StringBuilder sb = new StringBuilder();

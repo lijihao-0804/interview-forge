@@ -7,6 +7,10 @@
 ### Python 实现
 
 ```python
+# 题目：稳定 Softmax
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 import math
 
 
@@ -24,6 +28,10 @@ def softmax(values: list[float]) -> list[float]:
 ### Java 实现
 
 ```java
+// 题目：稳定 Softmax
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,6 +60,7 @@ final class StableSoftmax {
         return result;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         System.out.println(softmax(java.util.Arrays.asList(1.0, 2.0, 3.0)));
     }

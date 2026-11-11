@@ -101,7 +101,12 @@
 <p>时间复杂度 ：建树 <span aria-label="O(nm^2)" class="plain-math">O(nm<sup>2</sup>)</span>，预测 <span aria-label="O(km)" class="plain-math">O(km)</span>。一个节点对每个候选特征扫描该节点的样本；同一深度的样本集合不重叠，总数不超过 n，深度不超过 m。标签计数及分组使用字典，按均摊常数操作分析。</p>
 <p>空间复杂度 ：<span aria-label="O(nm+m^2)" class="plain-math">O(nm+m<sup>2</sup>)</span>，含训练数据、树、递归保留的样本引用以及每层复制的候选特征列表；测试样本逐条读取。常见简写为 <span aria-label="O(nm)" class="plain-math">O(nm)</span>，但当样本很少、很多特征为常量时，路径上的剩余特征列表仍可能累计占用 <span aria-label="O(m^2)" class="plain-math">O(m<sup>2</sup>)</span>，这里将其单独计入。</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
-<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
+<div class="codehilite" data-lang="java"><pre><span></span><code><span class="c1">// 题目：基于信息增益的决策树分类器</span>
+<span class="c1">// 算法：按题意模拟</span>
+<span class="c1">// 模式：ACM（stdin/stdout）</span>
+<span class="c1">// 复杂度：时间 建树 O(nm^2)，预测 O(km)；空间 O(nm+m^2)，含训练数据、树、递归保留的样本引用以及每层复制的候选特征列表；测试样本逐条读取</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
 <span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Main</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">final</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">EPS</span><span class="o">=</span><span class="mf">1e-9</span><span class="p">;</span>
@@ -110,17 +115,14 @@
 <span class="w">        </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">c</span><span class="p">:</span><span class="n">cs</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="kt">double</span><span class="w"> </span><span class="n">p</span><span class="o">=</span><span class="p">(</span><span class="kt">double</span><span class="p">)</span><span class="n">c</span><span class="o">/</span><span class="n">tot</span><span class="p">;</span>
 <span class="w">            </span><span class="n">s</span><span class="o">+=</span><span class="n">p</span><span class="o">*</span><span class="n">Math</span><span class="p">.</span><span class="na">log</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">/</span><span class="n">Math</span><span class="p">.</span><span class="na">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="o">-</span><span class="n">s</span><span class="p">;</span>
-
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="nf">gain</span><span class="p">(</span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">rows</span><span class="p">,</span><span class="kt">int</span><span class="w"> </span><span class="n">feat</span><span class="p">,</span><span class="kt">double</span><span class="w"> </span><span class="n">base</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">HashMap</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">HashMap</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">Integer</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">g</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
 <span class="w">        </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="n">rows</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">v</span><span class="o">=</span><span class="n">r</span><span class="o">[</span><span class="n">feat</span><span class="o">]</span><span class="p">,</span><span class="n">lab</span><span class="o">=</span><span class="n">r</span><span class="o">[</span><span class="n">r</span><span class="p">.</span><span class="na">length</span><span class="o">-</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
 <span class="w">            </span><span class="n">g</span><span class="p">.</span><span class="na">computeIfAbsent</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="n">x</span><span class="o">-&gt;</span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">()).</span><span class="na">merge</span><span class="p">(</span><span class="n">lab</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">Integer</span><span class="p">::</span><span class="n">sum</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">tot</span><span class="o">=</span><span class="n">rows</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
 <span class="w">        </span><span class="kt">double</span><span class="w"> </span><span class="n">cond</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
@@ -128,10 +130,8 @@
 <span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">sz</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
 <span class="w">            </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">x</span><span class="p">:</span><span class="n">cm</span><span class="p">.</span><span class="na">values</span><span class="p">())</span><span class="n">sz</span><span class="o">+=</span><span class="n">x</span><span class="p">;</span>
 <span class="w">            </span><span class="n">cond</span><span class="o">+=</span><span class="p">(</span><span class="kt">double</span><span class="p">)</span><span class="n">sz</span><span class="o">/</span><span class="n">tot</span><span class="o">*</span><span class="n">ent</span><span class="p">(</span><span class="n">cm</span><span class="p">.</span><span class="na">values</span><span class="p">(),</span><span class="n">sz</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">base</span><span class="o">-</span><span class="n">cond</span><span class="p">;</span>
-
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Node</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">lab</span><span class="p">,</span><span class="n">f</span><span class="p">;</span>
@@ -140,9 +140,7 @@
 <span class="w">            </span><span class="n">lab</span><span class="o">=</span><span class="n">l</span><span class="p">;</span>
 <span class="w">            </span><span class="k">this</span><span class="p">.</span><span class="na">f</span><span class="o">=</span><span class="n">f</span><span class="p">;</span>
 <span class="w">            </span><span class="n">ch</span><span class="o">=</span><span class="n">c</span><span class="p">;</span>
-
 <span class="w">        </span><span class="p">}</span>
-
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="n">Node</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;</span><span class="w"> </span><span class="n">rows</span><span class="p">,</span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">feats</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">HashMap</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">cnt</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
@@ -154,9 +152,7 @@
 <span class="w">            </span><span class="k">if</span><span class="p">(</span><span class="n">lab</span><span class="o">==</span><span class="kc">null</span><span class="o">||</span><span class="n">c</span><span class="o">&gt;</span><span class="n">bc</span><span class="o">||</span><span class="p">(</span><span class="n">c</span><span class="o">==</span><span class="n">bc</span><span class="o">&amp;&amp;</span><span class="n">v</span><span class="o">&lt;</span><span class="n">lab</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
 <span class="w">                </span><span class="n">lab</span><span class="o">=</span><span class="n">v</span><span class="p">;</span>
 <span class="w">                </span><span class="n">bc</span><span class="o">=</span><span class="n">c</span><span class="p">;</span>
-
 <span class="w">            </span><span class="p">}</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="n">cnt</span><span class="p">.</span><span class="na">size</span><span class="p">()</span><span class="o">==</span><span class="mi">1</span><span class="o">||</span><span class="n">feats</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">lab</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="kc">null</span><span class="p">);</span>
 <span class="w">        </span><span class="kt">double</span><span class="w"> </span><span class="n">base</span><span class="o">=</span><span class="n">ent</span><span class="p">(</span><span class="n">cnt</span><span class="p">.</span><span class="na">values</span><span class="p">(),</span><span class="n">rows</span><span class="p">.</span><span class="na">size</span><span class="p">());</span>
@@ -167,9 +163,7 @@
 <span class="w">            </span><span class="k">if</span><span class="p">(</span><span class="n">gg</span><span class="o">&gt;</span><span class="n">bg</span><span class="o">+</span><span class="n">EPS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">                </span><span class="n">bg</span><span class="o">=</span><span class="n">gg</span><span class="p">;</span>
 <span class="w">                </span><span class="n">bf</span><span class="o">=</span><span class="n">f</span><span class="p">;</span>
-
 <span class="w">            </span><span class="p">}</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="n">HashMap</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;&gt;</span><span class="w"> </span><span class="n">parts</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
 <span class="w">        </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">r</span><span class="p">:</span><span class="n">rows</span><span class="p">)</span><span class="n">parts</span><span class="p">.</span><span class="na">computeIfAbsent</span><span class="p">(</span><span class="n">r</span><span class="o">[</span><span class="n">bf</span><span class="o">]</span><span class="p">,</span><span class="n">x</span><span class="o">-&gt;</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">()).</span><span class="na">add</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
@@ -178,18 +172,16 @@
 <span class="w">        </span><span class="n">HashMap</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">Node</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ch</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">HashMap</span><span class="o">&lt;&gt;</span><span class="p">();</span>
 <span class="w">        </span><span class="k">for</span><span class="p">(</span><span class="n">HashMap</span><span class="p">.</span><span class="na">Entry</span><span class="o">&lt;</span><span class="n">Integer</span><span class="p">,</span><span class="n">List</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">[]&gt;&gt;</span><span class="w"> </span><span class="n">e</span><span class="p">:</span><span class="n">parts</span><span class="p">.</span><span class="na">entrySet</span><span class="p">())</span><span class="n">ch</span><span class="p">.</span><span class="na">put</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getKey</span><span class="p">(),</span><span class="n">build</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="na">getValue</span><span class="p">(),</span><span class="n">rest</span><span class="p">));</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">lab</span><span class="p">,</span><span class="n">bf</span><span class="p">,</span><span class="n">ch</span><span class="p">);</span>
-
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="n">Node</span><span class="w"> </span><span class="n">nd</span><span class="p">,</span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">feat</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="k">while</span><span class="p">(</span><span class="n">nd</span><span class="p">.</span><span class="na">f</span><span class="o">!=-</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="n">Node</span><span class="w"> </span><span class="n">c</span><span class="o">=</span><span class="n">nd</span><span class="p">.</span><span class="na">ch</span><span class="p">.</span><span class="na">get</span><span class="p">(</span><span class="n">feat</span><span class="o">[</span><span class="n">nd</span><span class="p">.</span><span class="na">f</span><span class="o">]</span><span class="p">);</span>
 <span class="w">            </span><span class="k">if</span><span class="p">(</span><span class="n">c</span><span class="o">==</span><span class="kc">null</span><span class="p">)</span><span class="k">return</span><span class="w"> </span><span class="n">nd</span><span class="p">.</span><span class="na">lab</span><span class="p">;</span>
 <span class="w">            </span><span class="n">nd</span><span class="o">=</span><span class="n">c</span><span class="p">;</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">nd</span><span class="p">.</span><span class="na">lab</span><span class="p">;</span>
-
 <span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// 主函数：读取输入并输出答案</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">a</span><span class="p">)</span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">FS</span><span class="w"> </span><span class="n">fs</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">FS</span><span class="p">();</span>
 <span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">m</span><span class="o">=</span><span class="n">fs</span><span class="p">.</span><span class="na">ni</span><span class="p">();</span>
@@ -199,7 +191,6 @@
 <span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">r</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">m</span><span class="o">+</span><span class="mi">1</span><span class="o">]</span><span class="p">;</span>
 <span class="w">            </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">j</span><span class="o">&lt;=</span><span class="n">m</span><span class="p">;</span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="n">r</span><span class="o">[</span><span class="n">j</span><span class="o">]=</span><span class="n">fs</span><span class="p">.</span><span class="na">ni</span><span class="p">();</span>
 <span class="w">            </span><span class="n">rows</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="n">List</span><span class="o">&lt;</span><span class="n">Integer</span><span class="o">&gt;</span><span class="w"> </span><span class="n">feats</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="n">ArrayList</span><span class="o">&lt;&gt;</span><span class="p">();</span>
 <span class="w">        </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="n">m</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="n">feats</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">i</span><span class="p">);</span>
@@ -210,36 +201,34 @@
 <span class="w">            </span><span class="kt">int</span><span class="o">[]</span><span class="w"> </span><span class="n">q</span><span class="o">=</span><span class="k">new</span><span class="w"> </span><span class="kt">int</span><span class="o">[</span><span class="n">m</span><span class="o">]</span><span class="p">;</span>
 <span class="w">            </span><span class="k">for</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">j</span><span class="o">&lt;</span><span class="n">m</span><span class="p">;</span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="n">q</span><span class="o">[</span><span class="n">j</span><span class="o">]=</span><span class="n">fs</span><span class="p">.</span><span class="na">ni</span><span class="p">();</span>
 <span class="w">            </span><span class="n">sb</span><span class="p">.</span><span class="na">append</span><span class="p">(</span><span class="n">predict</span><span class="p">(</span><span class="n">root</span><span class="p">,</span><span class="n">q</span><span class="p">)).</span><span class="na">append</span><span class="p">((</span><span class="kt">char</span><span class="p">)</span><span class="mi">10</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">print</span><span class="p">(</span><span class="n">sb</span><span class="p">);</span>
-
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="kd">class</span> <span class="nc">FS</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="kt">byte</span><span class="o">[]</span><span class="w"> </span><span class="n">d</span><span class="p">;</span>
 <span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
 <span class="w">        </span><span class="n">FS</span><span class="p">()</span><span class="kd">throws</span><span class="w"> </span><span class="n">IOException</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="n">d</span><span class="o">=</span><span class="n">System</span><span class="p">.</span><span class="na">in</span><span class="p">.</span><span class="na">readAllBytes</span><span class="p">();</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="nf">next</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="k">while</span><span class="p">(</span><span class="n">i</span><span class="o">&lt;</span><span class="n">d</span><span class="p">.</span><span class="na">length</span><span class="o">&amp;&amp;</span><span class="n">d</span><span class="o">[</span><span class="n">i</span><span class="o">]&lt;=</span><span class="mi">32</span><span class="p">)</span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
 <span class="w">            </span><span class="kt">int</span><span class="w"> </span><span class="n">s</span><span class="o">=</span><span class="n">i</span><span class="p">;</span>
 <span class="w">            </span><span class="k">while</span><span class="p">(</span><span class="n">i</span><span class="o">&lt;</span><span class="n">d</span><span class="p">.</span><span class="na">length</span><span class="o">&amp;&amp;</span><span class="n">d</span><span class="o">[</span><span class="n">i</span><span class="o">]&gt;</span><span class="mi">32</span><span class="p">)</span><span class="n">i</span><span class="o">++</span><span class="p">;</span>
 <span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">String</span><span class="p">(</span><span class="n">d</span><span class="p">,</span><span class="n">s</span><span class="p">,</span><span class="n">i</span><span class="o">-</span><span class="n">s</span><span class="p">);</span>
-
 <span class="w">        </span><span class="p">}</span>
 <span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="nf">ni</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">parseInt</span><span class="p">(</span><span class="n">next</span><span class="p">());</span>
-
 <span class="w">        </span><span class="p">}</span>
-
 <span class="w">    </span><span class="p">}</span>
-
 <span class="p">}</span>
 </code></pre></div>
 </div><div class="lang-section" data-lang="python"><h3 id="python">Python 实现</h3>
-<div class="codehilite" data-lang="python"><pre><span></span><code><span class="kn">import</span> <span class="nn">sys</span>
+<div class="codehilite" data-lang="python"><pre><span></span><code><span class="c1"># 题目：基于信息增益的决策树分类器</span>
+<span class="c1"># 算法：按题意模拟</span>
+<span class="c1"># 模式：ACM（stdin/stdout）</span>
+<span class="c1"># 复杂度：时间 建树 O(nm^2)，预测 O(km)；空间 O(nm+m^2)，含训练数据、树、递归保留的样本引用以及每层复制的候选特征列表；测试样本逐条读取</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span>
 <span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">log2</span>
 
@@ -297,7 +286,8 @@
     <span class="k">return</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
 
-<span class="k">def</span> <span class="nf">solve</span><span class="p">():</span>
+<span class="c1"># 读取输入并输出答案</span>
+<span class="err"></span><span class="p">):</span>
     <span class="nb">input</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span>
     <span class="n">m</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
     <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>

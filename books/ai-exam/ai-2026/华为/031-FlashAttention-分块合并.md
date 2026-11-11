@@ -49,6 +49,11 @@ $m$：该块打分的最大值； $d$：以 $m$ 为基准重缩放后的权重�
 ### Python 实现
 
 ```python
+# 题目：FlashAttention 分块合并
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O(\log B)； 空间复杂度 ：O(B)；空间 O(B)
+
 import sys
 from math import exp
 
@@ -72,7 +77,8 @@ def merge(left, right):
     )
 
 
-def solve():
+# 读取输入并输出答案
+):
     input = sys.stdin.buffer.readline
     block_count, query_count = map(int, input().split())
     blocks = [tuple(map(float, input().split())) for _ in range(block_count)]
@@ -145,6 +151,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：FlashAttention 分块合并
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(B)； 每次更新或查询时间复杂度 ：O(\log B)； 空间复杂度 ：O(B)；空间 O(B)
+
 import java.io.*;
 import java.util.*;
 
@@ -201,6 +212,7 @@ public class Main {
         return merge(lr, rr);
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
         FastScanner fs = new FastScanner();
         String t = fs.next();

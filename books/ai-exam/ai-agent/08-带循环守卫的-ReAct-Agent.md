@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：带循环守卫的 ReAct Agent
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 import json
 
 
@@ -46,6 +50,10 @@ def run_agent(model, tools, objective, max_steps=12, repeat_limit=2):
 ### Java 实现
 
 ```java
+// 题目：带循环守卫的 ReAct Agent
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -204,6 +212,7 @@ final class ReActAgent {
         builder.append((char) 34);
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Map<String, Tool> tools = new LinkedHashMap<>();
         tools.put("echo", arguments -> arguments.get("text"));

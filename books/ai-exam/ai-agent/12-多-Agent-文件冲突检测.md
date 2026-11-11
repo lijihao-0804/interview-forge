@@ -23,6 +23,10 @@
 ### Java 实现
 
 ```java
+// 题目：多 Agent 文件冲突检测
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -55,6 +59,7 @@ final class FileConflictDetector {
         return conflicts;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         List<Edit> edits = new ArrayList<>();
         edits.add(new Edit("agent-a", "src/Main.java"));

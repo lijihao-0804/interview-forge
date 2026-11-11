@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：Scaled Dot-Product Attention
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 import math
 
 
@@ -28,6 +32,10 @@ def attention(query, keys, values):
 ### Java 实现
 
 ```java
+// 题目：Scaled Dot-Product Attention
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -89,6 +97,7 @@ final class ScaledDotProductAttention {
         return new Result(output, weights);
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         List<List<Double>> keys = new ArrayList<>();
         keys.add(java.util.Arrays.asList(1.0, 0.0));

@@ -79,10 +79,16 @@ best[j] ：这一层的最小代价； best_last[j] ：取得最小代价时最�
 ### Python 实现
 
 ```python
+# 题目：多 Agent 协作任务调度
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(100N)；空间 O(N)，用于保存所有 p_i,c_i；DP 数组长度固定为 100
+
 import sys
 
 
-def solve():
+# 读取输入并输出答案
+):
     input = sys.stdin.readline
     n = int(input())
     progress = [0] * n
@@ -155,6 +161,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：多 Agent 协作任务调度
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(100N)；空间 O(N)，用于保存所有 p_i,c_i；DP 数组长度固定为 100
+
 import java.io.*;
 import java.util.*;
 
@@ -181,6 +192,7 @@ public class Main {
         }
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
         FastScanner fs = new FastScanner();
         String t = fs.next();

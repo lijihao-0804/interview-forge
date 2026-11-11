@@ -109,6 +109,11 @@ BFS 的初始状态是 (center, 0) ，即使中心本身是非零目标，也不
 ### Python 实现
 
 ```python
+# 题目：Agent 执行轨迹压缩
+# 算法：BFS / 队列
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n\times m\times2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
+
 import sys
 from collections import deque
 
@@ -194,8 +199,14 @@ print(shortest_path())
 ### Java 实现
 
 ```java
+// 题目：Agent 执行轨迹压缩
+// 算法：BFS / 队列
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 模拟原轨迹为 O(K)；BFS 最多访问 n\times m\times2^t 个状态，每个状态扩展四个方向，总复杂度为 O(K+n m\,2^t)；空间 访问标记和队列最多保存 O(n m\,2^t) 个状态
+
 import java.util.*;
 public class Main {
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         int n = sc.nextInt(), m = sc.nextInt();

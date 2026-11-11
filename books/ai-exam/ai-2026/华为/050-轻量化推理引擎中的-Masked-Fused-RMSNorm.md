@@ -77,6 +77,11 @@ Python 的 f"{value:.2f}" 在精确中点采用 ties-to-even，并不总等价�
 ### Python 实现
 
 ```python
+# 题目：轻量化推理引擎中的 Masked Fused RMSNorm
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(mn)；空间 O(n)
+
 import math
 import sys
 from decimal import Decimal, ROUND_HALF_UP
@@ -104,7 +109,8 @@ def masked_rms_norm(length, alpha, x, residual, gamma, beta, epsilon):
     return output, rms, energy
 
 
-def solve():
+# 读取输入并输出答案
+):
     first = input().split()
     m, n = int(first[0]), int(first[1])
     epsilon = float(first[2])
@@ -135,6 +141,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：轻量化推理引擎中的 Masked Fused RMSNorm
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(mn)；空间 O(n)
+
 import java.io.*;
 import java.util.*;
 import java.math.BigDecimal;
@@ -154,6 +165,7 @@ public class Main {
         bd = bd.setScale(2, RoundingMode.HALF_UP);
         return bd.toPlainString();
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         In in = new In();
         int m = in.ni();

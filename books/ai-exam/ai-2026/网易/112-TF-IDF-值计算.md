@@ -59,6 +59,11 @@
 ### Python 实现
 
 ```python
+# 题目：TF-IDF 值计算
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(L)，其中 L 是全部语句的总词数；空间 O(L)，存放切分后的词列表与用于判重的集合
+
 import ast
 import math
 import sys
@@ -92,7 +97,8 @@ def tf_idf(sentences, idx, word):
     return tf * idf
 
 
-def solve():
+# 读取输入并输出答案
+):
     # 两行输入都是 Python 列表字面量，用 literal_eval 安全还原
     sentences = ast.literal_eval(input())
     query = ast.literal_eval(input())
@@ -118,6 +124,11 @@ TF 的分子是目标句内的出现次数，IDF 的 $N_{w}$ 是含该词的语�
 ### Java 实现
 
 ```java
+// 题目：TF-IDF 值计算
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(L)，其中 L 是全部语句的总词数；空间 O(L)，存放切分后的词列表与用于判重的集合
+
 import java.io.*;
 import java.util.*;
 import java.math.BigDecimal;
@@ -159,6 +170,7 @@ public class Main {
         return arr;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) throws Exception {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         String sentencesLine = br.readLine();

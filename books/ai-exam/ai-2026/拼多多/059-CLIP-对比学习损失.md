@@ -44,11 +44,17 @@
 ### Python 实现
 
 ```python
+# 题目：CLIP 对比学习损失
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 O(N^2 D)，主要开销是相似度矩阵的矩阵乘法；空间 O(N^2)，存储 logits 矩阵
+
 import sys
 import json
 import numpy as np
 
-def solve():
+# 读取输入并输出答案
+):
     data = json.loads(input())
     img = np.array(data['image_embeds'], dtype=np.float64)
     txt = np.array(data['text_embeds'], dtype=np.float64)
@@ -75,6 +81,11 @@ solve()
 ### Java 实现
 
 ```java
+// 题目：CLIP 对比学习损失
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 O(N^2 D)，主要开销是相似度矩阵的矩阵乘法；空间 O(N^2)，存储 logits 矩阵
+
 import java.io.*;
 import java.util.*;
 public class Main {
@@ -83,15 +94,12 @@ public class Main {
         int i=0;
         Json(String s) {
             this.s=s;
-
         }
         Object parse() {
             return value();
-
         }
         void ws() {
             while(i<s.length()&&Character.isWhitespace(s.charAt(i)))i++;
-
         }
         Object value() {
             ws();
@@ -102,22 +110,18 @@ public class Main {
             if(c=='t') {
                 i+=4;
                 return Boolean.TRUE;
-
             }
             if(c=='f') {
                 i+=5;
                 return Boolean.FALSE;
-
             }
             if(c=='n') {
                 i+=4;
                 return null;
-
             }
             int st=i;
             while(i<s.length()&&"-+.eE0123456789".indexOf(s.charAt(i))>=0)i++;
             return Double.parseDouble(s.substring(st,i));
-
         }
         Map<String,Object> obj() {
             Map<String,Object> m=new LinkedHashMap<>();
@@ -126,7 +130,6 @@ public class Main {
             if(s.charAt(i)=='}') {
                 i++;
                 return m;
-
             }
             while(true) {
                 ws();
@@ -139,10 +142,8 @@ public class Main {
                 char c=s.charAt(i);
                 i++;
                 if(c=='}')break;
-
             }
             return m;
-
         }
         List<Object> arr() {
             List<Object> l=new ArrayList<>();
@@ -151,7 +152,6 @@ public class Main {
             if(s.charAt(i)==']') {
                 i++;
                 return l;
-
             }
             while(true) {
                 l.add(value());
@@ -159,10 +159,8 @@ public class Main {
                 char c=s.charAt(i);
                 i++;
                 if(c==']')break;
-
             }
             return l;
-
         }
         String str() {
             StringBuilder sb=new StringBuilder();
@@ -170,13 +168,10 @@ public class Main {
             while(s.charAt(i)!='"') {
                 sb.append(s.charAt(i));
                 i++;
-
             }
             i++;
             return sb.toString();
-
         }
-
     }
     static double[][] toMat(List<Object> l) {
         double[][] m=new double[l.size()][];
@@ -184,10 +179,8 @@ public class Main {
             List<Object> row=(List<Object>)l.get(i);
             m[i]=new double[row.size()];
             for(int j=0;j<row.size();j++)m[i][j]=((Number)row.get(j)).doubleValue();
-
         }
         return m;
-
     }
     static double crossEntropy(double[][] m) {
         int n=m.length;
@@ -198,18 +191,16 @@ public class Main {
             double s=0;
             for(int j=0;j<m[i].length;j++)s+=Math.exp(m[i][j]-mx);
             sum+=(mx+Math.log(s))-m[i][i];
-
         }
         return sum/n;
-
     }
     static double[][] transpose(double[][] a) {
         int r=a.length,c=a[0].length;
         double[][] t=new double[c][r];
         for(int i=0;i<r;i++)for(int j=0;j<c;j++)t[j][i]=a[i][j];
         return t;
-
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] a)throws Exception {
         BufferedReader br=new BufferedReader(new InputStreamReader(System.in));
         String line=br.readLine();
@@ -225,12 +216,9 @@ public class Main {
             double s=0;
             for(int k=0;k<D;k++)s+=img[i][k]*txt[j][k];
             logits[i][j]=s/temp;
-
         }
         double loss=(crossEntropy(logits)+crossEntropy(transpose(logits)))/2.0;
         System.out.println(String.format(Locale.ROOT,"%.6f",loss));
-
     }
-
 }
 ```

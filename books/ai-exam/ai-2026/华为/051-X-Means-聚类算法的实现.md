@@ -118,6 +118,11 @@ $1\le N\le 2000$，$1\le d\le 10$。 每个坐标的绝对值不超过 $10^4$。
 ### Python 实现
 
 ```python
+# 题目：X-Means 聚类算法的实现
+# 算法：排序 + 扫描
+# 模式：ACM（stdin/stdout）
+# 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N
+
 import sys
 import math
 
@@ -269,6 +274,11 @@ if __name__ == "__main__":
 ### Java 实现
 
 ```java
+// 题目：X-Means 聚类算法的实现
+// 算法：排序 + 扫描
+// 模式：ACM（stdin/stdout）
+// 复杂度：时间 总时间可保守写为 空间复杂度 ：O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N；空间 O(Nd+K_{max}d+N)=O(Nd)，因为截断后 K_{max}\le N
+
 import java.io.*;
 import java.util.*;
 public class Main {
@@ -279,19 +289,15 @@ public class Main {
         for(int i=0;i<a.length;i++) {
             double d=a[i]-b[i];
             v+=d*d;
-
         }
         return v;
-
     }
     static int find(int[] p,int x) {
         while(p[x]!=x) {
             p[x]=p[p[x]];
             x=p[x];
-
         }
         return x;
-
     }
     static double[][] kmeans(double[][] pts,int[] order,int d,int k,int[] outLab) {
         int n=pts.length;
@@ -299,7 +305,6 @@ public class Main {
         for(int i=0;i<k;i++) {
             int pos=(k==1)?0:i*(n-1)/(k-1);
             c[i]=pts[order[pos]].clone();
-
         }
         int[] lab=new int[n];
         Arrays.fill(lab,-1);
@@ -313,17 +318,13 @@ public class Main {
                     if(cur<bd) {
                         best=j;
                         bd=cur;
-
                     }
-
                 }
                 nl[p]=best;
-
             }
             if(Arrays.equals(nl,lab)) {
                 System.arraycopy(lab,0,outLab,0,n);
                 return c;
-
             }
             lab=nl;
             int[] cnt=new int[k];
@@ -332,12 +333,9 @@ public class Main {
                 int ci=lab[p];
                 cnt[ci]++;
                 for(int j=0;j<d;j++)tot[ci][j]+=pts[p][j];
-
             }
             for(int ci=0;ci<k;ci++)if(cnt[ci]!=0)for(int j=0;j<d;j++)c[ci][j]=tot[ci][j]/cnt[ci];
-
         }
-
     }
     static Object[] mergeCenters(double[][] pts,double[][] c,int[] lab,int d) {
         int k=c.length;
@@ -346,14 +344,12 @@ public class Main {
         for(int a=0;a<k;a++)for(int b=a+1;b<k;b++)if(dist2(c[a],c[b])<MERGE_EPS) {
             int ra=find(par,a),rb=find(par,b);
             if(ra!=rb)par[Math.max(ra,rb)]=Math.min(ra,rb);
-
         }
         int[] roots=new int[k];
         TreeSet<Integer> set=new TreeSet<>();
         for(int i=0;i<k;i++) {
             roots[i]=find(par,i);
             set.add(roots[i]);
-
         }
         List<Integer> reps=new ArrayList<>(set);
         HashMap<Integer,Integer> num=new HashMap<>();
@@ -367,23 +363,20 @@ public class Main {
             int ci=nl[p];
             cnt[ci]++;
             for(int j=0;j<d;j++)tot[ci][j]+=pts[p][j];
-
         }
         double[][] merged=new double[size][];
         for(int ci=0;ci<size;ci++) {
             if(cnt[ci]!=0) {
                 merged[ci]=new double[d];
                 for(int j=0;j<d;j++)merged[ci][j]=tot[ci][j]/cnt[ci];
-
             } else merged[ci]=c[reps.get(ci)].clone();
-
         }
         return new Object[] {
             merged,nl
         }
         ;
-
     }
+    // 主函数：读取输入并输出答案
     public static void main(String[] args)throws Exception {
         byte[] raw=System.in.readAllBytes();
         String text=new String(raw,java.nio.charset.StandardCharsets.UTF_8).trim();
@@ -394,7 +387,6 @@ public class Main {
         if(n<=0||d<=0) {
             System.out.println(0);
             return;
-
         }
         double[][] pts=new double[n][d];
         for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(st.nextToken());
@@ -405,7 +397,6 @@ public class Main {
         if(kmin<1) {
             System.out.println(0);
             return;
-
         }
         Integer[] ord=new Integer[n];
         for(int i=0;i<n;i++)ord[i]=i;
@@ -432,9 +423,7 @@ public class Main {
                 bestBic=bic;
                 bestC=c;
                 bestL=lab;
-
             }
-
         }
         Integer[] co=new Integer[bestC.length];
         for(int i=0;i<co.length;i++)co[i]=i;
@@ -455,20 +444,15 @@ public class Main {
                 if(s.equals("-0.00"))s="0.00";
                 if(j>0)row.append(' ');
                 row.append(s);
-
             }
             sb.append(row).append((char)10);
-
         }
         for(int p=0;p<bestL.length;p++) {
             if(p>0)sb.append(' ');
             sb.append(remap[bestL[p]]);
-
         }
         sb.append((char)10);
         System.out.print(sb);
-
     }
-
 }
 ```

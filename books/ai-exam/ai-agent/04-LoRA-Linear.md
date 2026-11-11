@@ -5,6 +5,10 @@
 ### Python 实现
 
 ```python
+# 题目：LoRA Linear
+# 算法：按题意模拟
+# 模式：ACM（stdin/stdout）
+
 import torch
 from torch import nn
 
@@ -35,6 +39,10 @@ RAG 链路里的核心组件，考察工程实现与边界处理。
 ### Java 实现
 
 ```java
+// 题目：LoRA Linear
+// 算法：按题意模拟
+// 模式：ACM（stdin/stdout）
+
 import java.util.Random;
 
 final class LoRALinear {
@@ -108,6 +116,7 @@ final class LoRALinear {
         return output;
     }
 
+    // 主函数：读取输入并输出答案
     public static void main(String[] args) {
         double[][] weight = {{1.0, 2.0}, {3.0, 4.0}};
         double[] bias = {0.5, -0.5};
