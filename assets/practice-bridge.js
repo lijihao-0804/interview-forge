@@ -30,7 +30,7 @@
     if (document.getElementById('practice-bridge-style')) return;
     var style = document.createElement('style');
     style.id = 'practice-bridge-style';
-    style.textContent = '.practice-run-btn{display:inline-flex;align-items:center;gap:7px;margin:6px 0 12px;padding:8px 13px;border:1px solid rgba(86,84,212,.35);border-radius:9px;background:#101827;color:#f3f6ff;font:650 12px/1.2 "Inter","PingFang SC","Microsoft YaHei",sans-serif;cursor:pointer;box-shadow:0 6px 16px rgba(16,24,39,.14);transition:background .18s ease,border-color .18s ease,transform .18s ease}.practice-run-btn:hover{background:#1b2843;border-color:#7b79e8;transform:translateY(-1px)}.practice-run-btn:active{transform:translateY(0)}.practice-run-btn:focus-visible{outline:3px solid rgba(86,84,212,.35);outline-offset:2px}.practice-run-btn:disabled{opacity:.5;cursor:default;transform:none}';
+    style.textContent = '.practice-run-btn{display:inline-flex;align-items:center;gap:7px;margin:6px 0 12px;padding:8px 13px;border:1px solid rgba(11,107,97,.38);border-radius:9px;background:#0b1d1a;color:#e9f4ee;font:650 12px/1.2 "Inter","PingFang SC","Microsoft YaHei",sans-serif;cursor:pointer;box-shadow:0 6px 16px rgba(8,28,24,.14);transition:background .18s ease,border-color .18s ease,transform .18s ease}.practice-run-btn:hover{background:#12362e;border-color:#3ea392;transform:translateY(-1px)}.practice-run-btn:active{transform:translateY(0)}.practice-run-btn:focus-visible{outline:3px solid rgba(11,107,97,.35);outline-offset:2px}.practice-run-btn:disabled{opacity:.5;cursor:default;transform:none}';
     document.head.appendChild(style);
   }
 
