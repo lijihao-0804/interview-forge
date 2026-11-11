@@ -39,7 +39,12 @@ _RUN_LOCK = threading.Lock()
 _JAVA_CLASS_RE = re.compile(r"\bpublic\s+(?:final\s+|abstract\s+|sealed\s+)?class\s+([A-Za-z_$][\w$]*)")
 _JAVA_ANY_CLASS_RE = re.compile(r"\bclass\s+([A-Za-z_$][\w$]*)")
 _BWRAP = os.environ.get("PRACTICE_BWRAP", "/usr/bin/bwrap")
-_PYTHON = os.environ.get("PRACTICE_PYTHON", "/usr/bin/python3")
+_VENV_PATH = Path("/opt/interview-forge/.venv")
+_VENV_MOUNT = "/opt/venv"
+_PYTHON = os.environ.get(
+    "PRACTICE_PYTHON",
+    f"{_VENV_MOUNT}/bin/python" if _VENV_PATH.exists() else "/usr/bin/python3",
+)
 _JAVA = os.environ.get("PRACTICE_JAVA", "/usr/bin/java")
 _JAVAC = os.environ.get("PRACTICE_JAVAC", "/usr/bin/javac")
 
@@ -68,6 +73,8 @@ def _bwrap_command(workdir: Path, inner: list[str], cpu_seconds: int) -> list[st
     for path in ("/etc/java-17-openjdk", "/etc/localtime"):
         if Path(path).exists():
             optional_binds += ["--ro-bind", path, path]
+    if _VENV_PATH.exists():
+        optional_binds += ["--ro-bind", str(_VENV_PATH), _VENV_MOUNT]
     return [
         _BWRAP,
         "--unshare-all",
