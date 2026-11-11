@@ -53,12 +53,12 @@
 <p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20260612/ · 华为 · 2026-06-12 · AI岗 · ACM 模式（stdin/stdout）</p>
 </blockquote>
 <h2 id="_1">题目描述</h2>
-<p>混合专家模型（MoE）中，Expert Choice Routing 让每个专家主动选择得分最高的 Top-<span aria-label="S" class="plain-math">S</span> 个 Token，保持天然的负载均衡。要求不调用深度学习库，仅用 NumPy 实现以下四步：
-门控分数与归一化权重 ：计算 <span aria-label="G = X \cdot W_g" class="plain-math">G = X · W<sub>g</sub></span>，对每个 token 在专家维度上做数值稳定 softmax 每个专家选 Top-S ：按归一化权重选最高的 <span aria-label="S" class="plain-math">S</span> 个 token，权重相等时优先序号小的 专家变换与加权聚合 ：被选中的 token 做对应专家的线性变换并以权重加权累加 零向量补全 ：未被任何专家选中的 token 输出为全零向量
-输入约束：<span aria-label="N, d, E, S" class="plain-math">N, d, E, S</span> 须均为正整数且 <span class="math-inline-wrap"><math aria-label="S ≤ N" class="math-inline"><mrow><mi>S</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>N</mi></mrow></math></span>，否则只输出一个 <span aria-label="0" class="plain-math">0</span>。</p>
+<p>混合专家模型（MoE）中，Expert Choice Routing 让每个专家主动选择得分最高的 Top-<span aria-label="S" class="plain-math">S</span> 个 Token，保持天然的负载均衡。要求不调用深度学习库，仅用 NumPy 实现以下四步：</p>
+<p>门控分数与归一化权重 ：计算 <span aria-label="G = X \cdot W_g" class="plain-math">G = X · W<sub>g</sub></span>，对每个 token 在专家维度上做数值稳定 softmax 每个专家选 Top-S ：按归一化权重选最高的 <span aria-label="S" class="plain-math">S</span> 个 token，权重相等时优先序号小的 专家变换与加权聚合 ：被选中的 token 做对应专家的线性变换并以权重加权累加 零向量补全 ：未被任何专家选中的 token 输出为全零向量</p>
+<p>输入约束：<span aria-label="N, d, E, S" class="plain-math">N, d, E, S</span> 须均为正整数且 <span class="math-inline-wrap"><math aria-label="S ≤ N" class="math-inline"><mrow><mi>S</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>N</mi></mrow></math></span>，否则只输出一个 <span aria-label="0" class="plain-math">0</span>。</p>
 <h2 id="_2">样例</h2>
-<p>输入
-输出</p>
+<p>输入</p>
+<p>输出</p>
 <div class="codehilite" data-lang="text"><pre><span></span><code>4 3 2 3
 1.0 0.5 0.2
 0.8 0.3 0.9
@@ -79,21 +79,21 @@
 0.37 0.07 0.44
 </code></pre></div>
 <h2 id="_3">思路分析</h2>
-<p>第一步：观察题目性质
-本题是一道矩阵运算模拟题，不涉及训练，只需照定义完成一次前向路由。所有比较的平局规则都钉死了，结果唯一。
-第二步：数值稳定 Softmax
-计算 <span aria-label="G = X \cdot W_g" class="plain-math">G = X · W<sub>g</sub></span> 得到 <span aria-label="(N, E)" class="plain-math">(N, E)</span> 的分数矩阵后，对每个 token 在专家维度上做 softmax。关键是减去行最大值：<span class="math-inline-wrap"><math aria-label="exp(g_ie - max_j g_ij)" class="math-inline"><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>g</mi><mrow><mi>ie</mi></mrow></msub><mspace width=".18em"></mspace><mo>-</mo><mspace width=".18em"></mspace><msub><mi mathvariant="normal">max</mi><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>g</mi><mrow><mi>ij</mi></mrow></msub><mo>)</mo></mrow></math></span>，避免指数运算上溢为 inf。
-第三步：每个专家选 Top-S
-对专家 <span aria-label="e" class="plain-math">e</span>，取其权重列中值最大的 <span aria-label="S" class="plain-math">S</span> 个 token。按 <span class="math-inline-wrap"><math aria-label="(-weight, index)" class="math-inline"><mrow><mo>(</mo><mo>-</mo><mtext>weight</mtext><mo>,</mo><mspace width=".18em"></mspace><mtext>index</mtext><mo>)</mo></mrow></math></span> 排序后取前 <span aria-label="S" class="plain-math">S</span> 个，即可在权重降序的同时让”权重相等取序号小”自动成立。
-第四步：加权聚合
-若 token <span aria-label="i" class="plain-math">i</span> 被专家集合 <span class="math-inline-wrap"><math aria-label="mathcalE_i" class="math-inline"><mrow><msub><mrow><mi>E</mi></mrow><mi>i</mi></msub></mrow></math></span> 选中，则输出为：
-把输出矩阵 <span aria-label="Y" class="plain-math">Y</span> 初始化为全零，没被任何专家选中的 token 自然保持零向量。
-第五步：合法性校验
-进入计算流程前先检查 <span aria-label="N, d, E, S" class="plain-math">N, d, E, S</span> 是否均为正整数且 <span class="math-inline-wrap"><math aria-label="S ≤ N" class="math-inline"><mrow><mi>S</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>N</mi></mrow></math></span>，不满足则直接输出 <span aria-label="0" class="plain-math">0</span>。</p>
+<p>第一步：观察题目性质</p>
+<p>本题是一道矩阵运算模拟题，不涉及训练，只需照定义完成一次前向路由。所有比较的平局规则都钉死了，结果唯一。</p>
+<p>第二步：数值稳定 Softmax</p>
+<p>计算 <span aria-label="G = X \cdot W_g" class="plain-math">G = X · W<sub>g</sub></span> 得到 <span aria-label="(N, E)" class="plain-math">(N, E)</span> 的分数矩阵后，对每个 token 在专家维度上做 softmax。关键是减去行最大值：<span class="math-inline-wrap"><math aria-label="exp(g_ie - max_j g_ij)" class="math-inline"><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>g</mi><mrow><mi>ie</mi></mrow></msub><mspace width=".18em"></mspace><mo>-</mo><mspace width=".18em"></mspace><msub><mi mathvariant="normal">max</mi><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>g</mi><mrow><mi>ij</mi></mrow></msub><mo>)</mo></mrow></math></span>，避免指数运算上溢为 inf。</p>
+<p>第三步：每个专家选 Top-S</p>
+<p>对专家 <span aria-label="e" class="plain-math">e</span>，取其权重列中值最大的 <span aria-label="S" class="plain-math">S</span> 个 token。按 <span class="math-inline-wrap"><math aria-label="(-weight, index)" class="math-inline"><mrow><mo>(</mo><mo>-</mo><mtext>weight</mtext><mo>,</mo><mspace width=".18em"></mspace><mtext>index</mtext><mo>)</mo></mrow></math></span> 排序后取前 <span aria-label="S" class="plain-math">S</span> 个，即可在权重降序的同时让”权重相等取序号小”自动成立。</p>
+<p>第四步：加权聚合</p>
+<p>若 token <span aria-label="i" class="plain-math">i</span> 被专家集合 <span class="math-inline-wrap"><math aria-label="mathcalE_i" class="math-inline"><mrow><msub><mrow><mi>E</mi></mrow><mi>i</mi></msub></mrow></math></span> 选中，则输出为：</p>
+<p>把输出矩阵 <span aria-label="Y" class="plain-math">Y</span> 初始化为全零，没被任何专家选中的 token 自然保持零向量。</p>
+<p>第五步：合法性校验</p>
+<p>进入计算流程前先检查 <span aria-label="N, d, E, S" class="plain-math">N, d, E, S</span> 是否均为正整数且 <span class="math-inline-wrap"><math aria-label="S ≤ N" class="math-inline"><mrow><mi>S</mi><mspace width=".18em"></mspace><mo>≤</mo><mspace width=".18em"></mspace><mi>N</mi></mrow></math></span>，不满足则直接输出 <span aria-label="0" class="plain-math">0</span>。</p>
 <h2 id="_4">题解代码</h2>
 <h2 id="_5">复杂度分析</h2>
-<p>时间复杂度 ：<span aria-label="O(N \cdot d \cdot E + E \cdot S \cdot d^2)" class="plain-math">O(N · d · E + E · S · d<sup>2</sup>)</span>，门控分数 <span aria-label="O(N \cdot d \cdot E)" class="plain-math">O(N · d · E)</span>，聚合阶段共 <span aria-label="E \cdot S" class="plain-math">E · S</span> 次 token 变换、每次 <span aria-label="O(d^2)" class="plain-math">O(d<sup>2</sup>)</span>
-空间复杂度 ：<span aria-label="O(N \cdot E + E \cdot d^2)" class="plain-math">O(N · E + E · d<sup>2</sup>)</span>，分别存储权重矩阵和所有专家变换矩阵</p>
+<p>时间复杂度 ：<span aria-label="O(N \cdot d \cdot E + E \cdot S \cdot d^2)" class="plain-math">O(N · d · E + E · S · d<sup>2</sup>)</span>，门控分数 <span aria-label="O(N \cdot d \cdot E)" class="plain-math">O(N · d · E)</span>，聚合阶段共 <span aria-label="E \cdot S" class="plain-math">E · S</span> 次 token 变换、每次 <span aria-label="O(d^2)" class="plain-math">O(d<sup>2</sup>)</span></p>
+<p>空间复杂度 ：<span aria-label="O(N \cdot E + E \cdot d^2)" class="plain-math">O(N · E + E · d<sup>2</sup>)</span>，分别存储权重矩阵和所有专家变换矩阵</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
 <span class="kd">public</span><span class="w"> </span><span class="kd">class</span> <span class="nc">Main</span><span class="w"> </span><span class="p">{</span>

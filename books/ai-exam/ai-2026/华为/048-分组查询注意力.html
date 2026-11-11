@@ -53,16 +53,16 @@
 <p>来源：https://onefly.top/zero2Leetcode/04_real_interviews/huawei/ai-20261010/ · 华为 · 2026-10-10 · AI岗 · ACM 模式（stdin/stdout）</p>
 </blockquote>
 <h2 id="_2">题目描述</h2>
-<p>实现 GQA：给定序列长度 <span aria-label="n" class="plain-math">n</span>、Query 头数 <span aria-label="h_q" class="plain-math">h<sub>q</sub></span>、KV 头数 <span aria-label="h_{kv}" class="plain-math">h<sub>kv</sub></span>、单个 Q/K 头维度 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span> 和单个 V 头维度 <span aria-label="d_v" class="plain-math">d<sub>v</sub></span>。保证 <span aria-label="h_q" class="plain-math">h<sub>q</sub></span> 是 <span aria-label="h_{kv}" class="plain-math">h<sub>kv</sub></span> 的整数倍，令 <span aria-label="g=h_q/h_{kv}" class="plain-math">g=h<sub>q</sub>/h<sub>kv</sub></span>，Query 头 <span aria-label="h" class="plain-math">h</span> 共享 KV 头 <span class="math-inline-wrap"><math aria-label="⌊ h/g⌋" class="math-inline"><mrow><mo>⌊</mo><mspace width=".18em"></mspace><mi>h</mi><mo>/</mo><mi>g</mi><mo>⌋</mo></mrow></math></span>。
-每个头取矩阵中的 连续列块 。对单头计算缩放分数 <span class="math-inline-wrap"><math aria-label="S=QK^T/d_k" class="math-inline"><mrow><mi>S</mi><mo>=</mo><msup><mi>QK</mi><mi>T</mi></msup><mo>/</mo><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></math></span>，掩码为 1 的位置将分数覆盖为 <span aria-label="-10^{30}" class="plain-math">-10<sup>30</sup></span>，掩码为 0 的位置保留。逐行减去最大分数，再计算 softmax 权重，与对应的 V 头加权求和。最后按 Query 头编号拼接输出。
-输入格式 ：第一行 <span aria-label="n,h_q,h_{kv},d_k,d_v" class="plain-math">n,h<sub>q</sub>,h<sub>kv</sub>,d<sub>k</sub>,d<sub>v</sub></span>，满足 <span class="math-inline-wrap"><math aria-label="1≤ nle100" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>n</mi><mo>≤</mo><mn>100</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ h_qle16" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>h</mi><mi>q</mi></msub><mo>≤</mo><mn>16</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ h_kvle8" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>h</mi><mrow><mi>kv</mi></mrow></msub><mo>≤</mo><mn>8</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ d_k,d_vle10" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub><mo>≤</mo><mn>10</mn></mrow></math></span>。然后依次输入：
-<span aria-label="n" class="plain-math">n</span> 行 Q，每行 <span aria-label="h_qd_k" class="plain-math">h<sub>qd</sub><sub>k</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行 K，每行 <span aria-label="h_{kv}d_k" class="plain-math">h<sub>kv</sub>d<sub>k</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行 V，每行 <span aria-label="h_{kv}d_v" class="plain-math">h<sub>kv</sub>d<sub>v</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行掩码，每行 <span aria-label="n" class="plain-math">n</span> 个 0 或 1。
-Q、K、V 的数值范围为 <span aria-label="[-10,10]" class="plain-math">[-10,10]</span>。
-输出格式 ：输出 <span aria-label="n" class="plain-math">n</span> 行，每行 <span aria-label="h_qd_v" class="plain-math">h<sub>qd</sub><sub>v</sub></span> 个数，保留两位小数。
-掩码边界 ：这里采用题目允许的有限替代值 <span aria-label="-10^{30}" class="plain-math">-10<sup>30</sup></span>。若某行全部被屏蔽，所有替代分数相等，softmax 会得到均匀权重；这与使用真正的负无穷时可能出现未定义值不同，不应自行把全屏蔽行改为零向量。</p>
+<p>实现 GQA：给定序列长度 <span aria-label="n" class="plain-math">n</span>、Query 头数 <span aria-label="h_q" class="plain-math">h<sub>q</sub></span>、KV 头数 <span aria-label="h_{kv}" class="plain-math">h<sub>kv</sub></span>、单个 Q/K 头维度 <span aria-label="d_k" class="plain-math">d<sub>k</sub></span> 和单个 V 头维度 <span aria-label="d_v" class="plain-math">d<sub>v</sub></span>。保证 <span aria-label="h_q" class="plain-math">h<sub>q</sub></span> 是 <span aria-label="h_{kv}" class="plain-math">h<sub>kv</sub></span> 的整数倍，令 <span aria-label="g=h_q/h_{kv}" class="plain-math">g=h<sub>q</sub>/h<sub>kv</sub></span>，Query 头 <span aria-label="h" class="plain-math">h</span> 共享 KV 头 <span class="math-inline-wrap"><math aria-label="⌊ h/g⌋" class="math-inline"><mrow><mo>⌊</mo><mspace width=".18em"></mspace><mi>h</mi><mo>/</mo><mi>g</mi><mo>⌋</mo></mrow></math></span>。</p>
+<p>每个头取矩阵中的 连续列块 。对单头计算缩放分数 <span class="math-inline-wrap"><math aria-label="S=QK^T/d_k" class="math-inline"><mrow><mi>S</mi><mo>=</mo><msup><mi>QK</mi><mi>T</mi></msup><mo>/</mo><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></math></span>，掩码为 1 的位置将分数覆盖为 <span aria-label="-10^{30}" class="plain-math">-10<sup>30</sup></span>，掩码为 0 的位置保留。逐行减去最大分数，再计算 softmax 权重，与对应的 V 头加权求和。最后按 Query 头编号拼接输出。</p>
+<p>输入格式 ：第一行 <span aria-label="n,h_q,h_{kv},d_k,d_v" class="plain-math">n,h<sub>q</sub>,h<sub>kv</sub>,d<sub>k</sub>,d<sub>v</sub></span>，满足 <span class="math-inline-wrap"><math aria-label="1≤ nle100" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><mi>n</mi><mo>≤</mo><mn>100</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ h_qle16" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>h</mi><mi>q</mi></msub><mo>≤</mo><mn>16</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ h_kvle8" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>h</mi><mrow><mi>kv</mi></mrow></msub><mo>≤</mo><mn>8</mn></mrow></math></span>、<span class="math-inline-wrap"><math aria-label="1≤ d_k,d_vle10" class="math-inline"><mrow><mn>1</mn><mo>≤</mo><mspace width=".18em"></mspace><msub><mi>d</mi><mi>k</mi></msub><mo>,</mo><msub><mi>d</mi><mi>v</mi></msub><mo>≤</mo><mn>10</mn></mrow></math></span>。然后依次输入：</p>
+<p><span aria-label="n" class="plain-math">n</span> 行 Q，每行 <span aria-label="h_qd_k" class="plain-math">h<sub>qd</sub><sub>k</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行 K，每行 <span aria-label="h_{kv}d_k" class="plain-math">h<sub>kv</sub>d<sub>k</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行 V，每行 <span aria-label="h_{kv}d_v" class="plain-math">h<sub>kv</sub>d<sub>v</sub></span> 个浮点数。 <span aria-label="n" class="plain-math">n</span> 行掩码，每行 <span aria-label="n" class="plain-math">n</span> 个 0 或 1。</p>
+<p>Q、K、V 的数值范围为 <span aria-label="[-10,10]" class="plain-math">[-10,10]</span>。</p>
+<p>输出格式 ：输出 <span aria-label="n" class="plain-math">n</span> 行，每行 <span aria-label="h_qd_v" class="plain-math">h<sub>qd</sub><sub>v</sub></span> 个数，保留两位小数。</p>
+<p>掩码边界 ：这里采用题目允许的有限替代值 <span aria-label="-10^{30}" class="plain-math">-10<sup>30</sup></span>。若某行全部被屏蔽，所有替代分数相等，softmax 会得到均匀权重；这与使用真正的负无穷时可能出现未定义值不同，不应自行把全屏蔽行改为零向量。</p>
 <h2 id="1">样例 1</h2>
-<p>输入
-输出</p>
+<p>输入</p>
+<p>输出</p>
 <div class="codehilite" data-lang="text"><pre><span></span><code>2 4 2 2 2
 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0
 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0
@@ -76,8 +76,8 @@ Q、K、V 的数值范围为 <span aria-label="[-10,10]" class="plain-math">[-10
 5.00 6.00 5.00 6.00 7.00 8.00 7.00 8.00
 </code></pre></div>
 <h2 id="2">样例 2</h2>
-<p>输入
-输出</p>
+<p>输入</p>
+<p>输出</p>
 <div class="codehilite" data-lang="text"><pre><span></span><code>2 2 1 1 1
 1.0 2.0
 3.0 4.0
@@ -91,8 +91,8 @@ Q、K、V 的数值范围为 <span aria-label="[-10,10]" class="plain-math">[-10
 7.95 7.98
 </code></pre></div>
 <h2 id="3">样例 3</h2>
-<p>输入
-输出</p>
+<p>输入</p>
+<p>输出</p>
 <div class="codehilite" data-lang="text"><pre><span></span><code>2 1 1 2 1
 1.0 2.0
 3.0 4.0
@@ -106,15 +106,15 @@ Q、K、V 的数值范围为 <span aria-label="[-10,10]" class="plain-math">[-10
 8.35
 </code></pre></div>
 <h2 id="_3">思路分析</h2>
-<p>第一步：写清楚三套列偏移。 Query 头 <span aria-label="h" class="plain-math">h</span> 的起点是 <span aria-label="hd_k" class="plain-math">hd<sub>k</sub></span>，对应 KV 头编号为 <span class="math-inline-wrap"><math aria-label="q=⌊ h/g⌋" class="math-inline"><mrow><mi>q</mi><mo>=</mo><mo>⌊</mo><mspace width=".18em"></mspace><mi>h</mi><mo>/</mo><mi>g</mi><mo>⌋</mo></mrow></math></span>，K 和 V 的起点分别是 <span aria-label="qd_k" class="plain-math">qd<sub>k</sub></span>、<span aria-label="qd_v" class="plain-math">qd<sub>v</sub></span>。不能用取模代替整除，否则会把连续分组变成交错分组。
-第二步：逐行计算稳定 softmax。 对 Query 行 <span aria-label="i" class="plain-math">i</span>，与每个 Key 行 <span aria-label="j" class="plain-math">j</span> 做点积，再除以 <span class="math-inline-wrap"><math aria-label="d_k" class="math-inline"><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></math></span>。覆盖掩码位置后，取当前行最大值 <span aria-label="s_{max}" class="plain-math">s<sub>max</sub></span>，计算 <span class="math-inline-wrap"><math aria-label="w_j=exp(S_ij-s_max)" class="math-inline"><mrow><msub><mi>w</mi><mi>j</mi></msub><mo>=</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>ij</mi></mrow></msub><mo>-</mo><msub><mi>s</mi><mrow><mi>max</mi></mrow></msub><mo>)</mo></mrow></math></span>。减去同一个常数不改变归一化结果，同时避免指数上溢。
-第三步：直接累加 V。 每个输出坐标等于 <span class="math-inline-wrap"><math aria-label="sum_j w_j V_jt/sum_j w_j" class="math-inline"><mrow><msub><mo>∑</mo><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>w</mi><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>V</mi><mrow><mi>jt</mi></mrow></msub><mo>/</mo><msub><mo>∑</mo><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>w</mi><mi>j</mi></msub></mrow></math></span>。只需保留当前行分数和权重，不必存完整注意力矩阵；把结果写入当前 Query 头对应的输出列块。
-样例二的第一行只能看到第一个 Key，因此两个 Query 头都输出 7.00 ；第二行可见两项，两个 Query 头因分数不同，分别得到 7.95 与 7.98 。
-正确性说明 ：列偏移保证每个 Query 头读取指定共享组；点积、缩放、掩码、稳定归一化、V 加权和依次对应定义。按头编号写入连续列块，正好实现最终拼接。</p>
+<p>第一步：写清楚三套列偏移。 Query 头 <span aria-label="h" class="plain-math">h</span> 的起点是 <span aria-label="hd_k" class="plain-math">hd<sub>k</sub></span>，对应 KV 头编号为 <span class="math-inline-wrap"><math aria-label="q=⌊ h/g⌋" class="math-inline"><mrow><mi>q</mi><mo>=</mo><mo>⌊</mo><mspace width=".18em"></mspace><mi>h</mi><mo>/</mo><mi>g</mi><mo>⌋</mo></mrow></math></span>，K 和 V 的起点分别是 <span aria-label="qd_k" class="plain-math">qd<sub>k</sub></span>、<span aria-label="qd_v" class="plain-math">qd<sub>v</sub></span>。不能用取模代替整除，否则会把连续分组变成交错分组。</p>
+<p>第二步：逐行计算稳定 softmax。 对 Query 行 <span aria-label="i" class="plain-math">i</span>，与每个 Key 行 <span aria-label="j" class="plain-math">j</span> 做点积，再除以 <span class="math-inline-wrap"><math aria-label="d_k" class="math-inline"><mrow><msqrt><mrow><msub><mi>d</mi><mi>k</mi></msub></mrow></msqrt></mrow></math></span>。覆盖掩码位置后，取当前行最大值 <span aria-label="s_{max}" class="plain-math">s<sub>max</sub></span>，计算 <span class="math-inline-wrap"><math aria-label="w_j=exp(S_ij-s_max)" class="math-inline"><mrow><msub><mi>w</mi><mi>j</mi></msub><mo>=</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>ij</mi></mrow></msub><mo>-</mo><msub><mi>s</mi><mrow><mi>max</mi></mrow></msub><mo>)</mo></mrow></math></span>。减去同一个常数不改变归一化结果，同时避免指数上溢。</p>
+<p>第三步：直接累加 V。 每个输出坐标等于 <span class="math-inline-wrap"><math aria-label="sum_j w_j V_jt/sum_j w_j" class="math-inline"><mrow><msub><mo>∑</mo><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>w</mi><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>V</mi><mrow><mi>jt</mi></mrow></msub><mo>/</mo><msub><mo>∑</mo><mi>j</mi></msub><mspace width=".18em"></mspace><msub><mi>w</mi><mi>j</mi></msub></mrow></math></span>。只需保留当前行分数和权重，不必存完整注意力矩阵；把结果写入当前 Query 头对应的输出列块。</p>
+<p>样例二的第一行只能看到第一个 Key，因此两个 Query 头都输出 7.00 ；第二行可见两项，两个 Query 头因分数不同，分别得到 7.95 与 7.98 。</p>
+<p>正确性说明 ：列偏移保证每个 Query 头读取指定共享组；点积、缩放、掩码、稳定归一化、V 加权和依次对应定义。按头编号写入连续列块，正好实现最终拼接。</p>
 <h2 id="_4">题解代码</h2>
 <h2 id="_5">复杂度分析</h2>
-<p>时间复杂度 ：<span aria-label="O(h_qn^2(d_k+d_v))" class="plain-math">O(h<sub>qn</sub><sup>2</sup>(d<sub>k</sub>+d<sub>v</sub>))</span>，每个头计算所有 Query/Key 点积及 V 加权和。
-空间复杂度 ：<span aria-label="O(n^2+nh_q(d_k+d_v)+nh_{kv}(d_k+d_v))" class="plain-math">O(n<sup>2</sup>+nh<sub>q</sub>(d<sub>k</sub>+d<sub>v</sub>)+nh<sub>kv</sub>(d<sub>k</sub>+d<sub>v</sub>))</span>，包括掩码、输入及输出；单行临时缓冲仅为 <span aria-label="O(n)" class="plain-math">O(n)</span>。</p>
+<p>时间复杂度 ：<span aria-label="O(h_qn^2(d_k+d_v))" class="plain-math">O(h<sub>qn</sub><sup>2</sup>(d<sub>k</sub>+d<sub>v</sub>))</span>，每个头计算所有 Query/Key 点积及 V 加权和。</p>
+<p>空间复杂度 ：<span aria-label="O(n^2+nh_q(d_k+d_v)+nh_{kv}(d_k+d_v))" class="plain-math">O(n<sup>2</sup>+nh<sub>q</sub>(d<sub>k</sub>+d<sub>v</sub>)+nh<sub>kv</sub>(d<sub>k</sub>+d<sub>v</sub>))</span>，包括掩码、输入及输出；单行临时缓冲仅为 <span aria-label="O(n)" class="plain-math">O(n)</span>。</p>
 <div class="lang-section" data-lang="java"><h3 id="java">Java 实现</h3>
 <div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.io.*</span><span class="p">;</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>

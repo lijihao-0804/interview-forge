@@ -94,11 +94,116 @@ def load_translations() -> dict[str, dict[str, str]]:
     return result
 
 
+def format_text(text: str) -> str:
+    """把源数据里的显式换行变成 Markdown 分段，避免长段文字被浏览器压成一行。"""
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    paragraphs = [line for line in lines if line]
+    return "\n\n".join(paragraphs)
+
+
+def format_java_code(code: str) -> str:
+    """部分远程题解只给出一行压缩 Java；这里补上换行和缩进。
+
+    只处理明显压缩成单行的 Java，保留已经是多行的代码原样。
+    """
+    code = code.strip()
+    if not code or code.count("\n") >= 2:
+        return code
+    out: list[str] = []
+    indent = 0
+    paren = 0
+    i = 0
+    n = len(code)
+
+    def newline() -> None:
+        while out and out[-1] in (" ", "\t"):
+            out.pop()
+        out.append("\n" + "    " * indent)
+
+    while i < n:
+        ch = code[i]
+        if ch in ('"', "'"):
+            quote = ch
+            out.append(ch)
+            i += 1
+            while i < n:
+                out.append(code[i])
+                if code[i] == "\\" and i + 1 < n:
+                    out.append(code[i + 1])
+                    i += 2
+                    continue
+                if code[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "/" and i + 1 < n and code[i + 1] == "/":
+            while i < n and code[i] != "\n":
+                out.append(code[i])
+                i += 1
+            newline()
+            continue
+        if ch == "{":
+            while out and out[-1] in (" ", "\t"):
+                out.pop()
+            if out and out[-1] not in (" ", "\n"):
+                out.append(" ")
+            out.append("{")
+            indent += 1
+            i += 1
+            while i < n and code[i] in " \t":
+                i += 1
+            newline()
+            continue
+        if ch == "}":
+            while out and out[-1] in (" ", "\t"):
+                out.pop()
+            indent = max(0, indent - 1)
+            if out and out[-1] != "\n":
+                newline()
+            out.append("}")
+            i += 1
+            while i < n and code[i] in " \t":
+                i += 1
+            if re.match(r"(else|catch|finally)\b", code[i:]):
+                out.append(" ")
+            else:
+                newline()
+            continue
+        if ch == ";":
+            out.append(";")
+            i += 1
+            if paren == 0:
+                newline()
+            continue
+        if ch == "(":
+            paren += 1
+            out.append(ch)
+            i += 1
+            continue
+        if ch == ")":
+            paren = max(0, paren - 1)
+            out.append(ch)
+            i += 1
+            continue
+        if ch in " \t\r\n":
+            if out and out[-1] not in (" ", "\n"):
+                out.append(" ")
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    text = "".join(out)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def write_problem(path: Path, title: str, meta: str, sections: list[dict], translation: dict[str, str] | None = None) -> None:
     lines = [f"# {title}", "", f"> {meta}", ""]
     for section in sections:
         heading = (section.get("heading") or "").strip()
-        text = (section.get("text") or "").strip()
+        text = format_text(section.get("text") or "")
         code = (section.get("code") or "").strip()
         if not heading and not text and not code:
             continue
@@ -112,7 +217,7 @@ def write_problem(path: Path, title: str, meta: str, sections: list[dict], trans
             else:
                 lines += ["```text", code, "```", ""]
     if translation and translation.get("java"):
-        lines += ["### Java 实现", "", "```java", translation["java"], "```", ""]
+        lines += ["### Java 实现", "", "```java", format_java_code(translation["java"]), "```", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -173,7 +278,7 @@ def build_agent_doc(translations: dict[str, dict[str, str]]) -> list[dict]:
             body = body.replace("```python", "### Python 实现\n\n```python", 1)
         translation = translations.get(f"ai-agent:{index}", {})
         if translation.get("java"):
-            body += "\n\n### Java 实现\n\n```java\n" + translation["java"] + "\n```"
+            body += "\n\n### Java 实现\n\n```java\n" + format_java_code(translation["java"]) + "\n```"
         path = SRC / "ai-agent" / f"{index:02d}-{safe_name(title)}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {title}\n\n> 来源：外部面经参考/02-AI与Agent手撕代码题.md · AI/Agent 手撕题\n\n{body}\n", encoding="utf-8")
