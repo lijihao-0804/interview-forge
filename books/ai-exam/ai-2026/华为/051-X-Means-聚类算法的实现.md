@@ -326,18 +326,6 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
-    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    static StringTokenizer st;
-    static String next() throws IOException {
-        while (st == null || !st.hasMoreTokens()) {
-            String line = br.readLine();
-            if (line == null) return null;
-            st = new StringTokenizer(line);
-        }
-        return st.nextToken();
-    }
-    static int nextInt() throws IOException { return Integer.parseInt(next()); }
-    static long nextLong() throws IOException { return Long.parseLong(next()); }
 
     static final double MERGE_EPS=1e-4;
     static final double BIC_EPS=1e-9;
@@ -465,11 +453,12 @@ public class Main {
     }
     // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
-        String first = next();
+        Scanner sc = new Scanner(System.in);
+        String first = sc.next();
         // 条件判断
         if (first == null) return;
         int n = Integer.parseInt(first);
-        int d = nextInt();
+        int d = sc.nextInt();
         // 条件判断
         if(n<=0||d<=0) {
             System.out.println(0);
@@ -478,9 +467,9 @@ public class Main {
         }
         double[][] pts=new double[n][d];
         // 枚举位置 i
-        for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(next());
-        int kmin=nextInt();
-        int kmax=nextInt();
+        for(int i=0;i<n;i++)for(int j=0;j<d;j++)pts[i][j]=Double.parseDouble(sc.next());
+        int kmin=sc.nextInt();
+        int kmax=sc.nextInt();
         kmax=Math.min(kmax,n);
         kmin=Math.min(kmin,kmax);
         // 条件判断

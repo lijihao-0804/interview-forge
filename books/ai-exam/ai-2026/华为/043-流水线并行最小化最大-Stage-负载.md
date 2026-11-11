@@ -161,18 +161,6 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
-    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    static StringTokenizer st;
-    static String next() throws IOException {
-        while (st == null || !st.hasMoreTokens()) {
-            String line = br.readLine();
-            if (line == null) return null;
-            st = new StringTokenizer(line);
-        }
-        return st.nextToken();
-    }
-    static int nextInt() throws IOException { return Integer.parseInt(next()); }
-    static long nextLong() throws IOException { return Long.parseLong(next()); }
 
     static long[] f;
     // 核心方法：countStages
@@ -190,12 +178,13 @@ public class Main {
     }
     // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
-        int n = nextInt();
-        int k = nextInt();
+        Scanner sc = new Scanner(System.in);
+        int n = sc.nextInt();
+        int k = sc.nextInt();
         f = new long[n];
         long lo = Long.MIN_VALUE, hi = 0;
         // 枚举位置 i
-        for (int i = 0; i < n; i++) { f[i] = nextLong(); if (f[i] > lo) lo = f[i]; hi += f[i]; }
+        for (int i = 0; i < n; i++) { f[i] = sc.nextLong(); if (f[i] > lo) lo = f[i]; hi += f[i]; }
         // 循环处理
         while (lo < hi) {
             long mid = (lo + hi) / 2;

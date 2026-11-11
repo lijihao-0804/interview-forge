@@ -160,18 +160,6 @@ import java.io.*;
 import java.util.*;
 
 public class Main {
-    static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    static StringTokenizer st;
-    static String next() throws IOException {
-        while (st == null || !st.hasMoreTokens()) {
-            String line = br.readLine();
-            if (line == null) return null;
-            st = new StringTokenizer(line);
-        }
-        return st.nextToken();
-    }
-    static int nextInt() throws IOException { return Integer.parseInt(next()); }
-    static long nextLong() throws IOException { return Long.parseLong(next()); }
 
     static final int D_MODEL = 4;
     static final int D_K = 2;
@@ -195,9 +183,10 @@ public class Main {
     }
     // 主函数：读取输入并输出答案
     public static void main(String[] args) throws IOException {
+        Scanner sc = new Scanner(System.in);
         double[] values = new double[2 * D_MODEL];
         // 枚举位置 i
-        for (int i = 0; i < values.length; i++) values[i] = Double.parseDouble(next());
+        for (int i = 0; i < values.length; i++) values[i] = Double.parseDouble(sc.next());
         double[][] x = new double[2][D_MODEL];
         // 枚举位置 i
         for (int i = 0; i < D_MODEL; i++) x[0][i] = values[i];
