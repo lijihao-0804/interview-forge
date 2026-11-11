@@ -4,6 +4,12 @@
   var CONTEXT_KEY = 'interviewforge.practice.context';
   var CONTEXT_PREFIX = 'interviewforge.practice.context:';
   var DRAFT_PREFIX = 'interviewforge.practice.draft:';
+  var THEME_KEY = 'forge-theme';
+  var THEME_MODES = [
+    { v: 'system', icon: '◐', label: '跟随系统' },
+    { v: 'light', icon: '☀', label: '浅色' },
+    { v: 'dark', icon: '☾', label: '深色' }
+  ];
   var DEFAULT_CODE = {
     python: 'import sys\n\n\ndef solve():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    print(sum(int(x) for x in data))\n\n\nif __name__ == "__main__":\n    solve()\n',
     java: 'import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        String line;\n        long sum = 0;\n        while ((line = br.readLine()) != null) {\n            for (String part : line.trim().split("\\\\s+")) {\n                if (!part.isEmpty()) sum += Long.parseLong(part);\n            }\n        }\n        System.out.println(sum);\n    }\n}\n'
@@ -95,6 +101,40 @@
     var el = $('runtimeStatus');
     el.textContent = message;
     el.className = 'practice-runtime ' + (state || '');
+  }
+  function getThemeMode() {
+    try {
+      var value = localStorage.getItem(THEME_KEY);
+      return THEME_MODES.some(function (item) { return item.v === value; }) ? value : 'system';
+    } catch (_) { return 'system'; }
+  }
+  function paintTheme(mode) {
+    var item = THEME_MODES.filter(function (candidate) { return candidate.v === mode; })[0] || THEME_MODES[0];
+    if ($('practiceThemeIcon')) $('practiceThemeIcon').textContent = item.icon;
+    if ($('practiceThemeLabel')) $('practiceThemeLabel').textContent = item.label;
+    if ($('practiceThemeBtn')) $('practiceThemeBtn').title = '主题：' + item.label;
+  }
+  function applyTheme(mode, persist) {
+    var root = document.documentElement;
+    if (mode === 'light' || mode === 'dark') root.setAttribute('data-theme', mode);
+    else root.removeAttribute('data-theme');
+    if (persist !== false) {
+      try { localStorage.setItem(THEME_KEY, mode); } catch (_) {}
+    }
+    paintTheme(mode);
+  }
+  function initTheme() {
+    var button = $('practiceThemeBtn');
+    if (!button) return;
+    var mode = getThemeMode();
+    applyTheme(mode, false);
+    button.addEventListener('click', function () {
+      var next = THEME_MODES[(THEME_MODES.findIndex(function (item) { return item.v === getThemeMode(); }) + 1) % THEME_MODES.length];
+      applyTheme(next.v);
+    });
+    window.addEventListener('storage', function (event) {
+      if (event.key === THEME_KEY) applyTheme(event.newValue || 'system', false);
+    });
   }
   function normalizeOutput(value) {
     return text(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
@@ -204,6 +244,7 @@
     }
   }
   function init() {
+    initTheme();
     initEditor();
     var sampleHint = $('sampleHint');
     if (context && context.title) {
