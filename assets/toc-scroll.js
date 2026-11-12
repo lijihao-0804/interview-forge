@@ -6,11 +6,30 @@
 
   function centerRail(rail, selector) {
     if (!rail || !rail.clientHeight) return;
-    var current = rail.querySelector(selector);
-    if (!current && location.hash && rail.querySelector('.toc')) {
+    var current = null;
+    // A direct #section URL is the most precise target; prefer it over the
+    // IntersectionObserver's active item, which may still be one heading behind
+    // while the browser finishes scrolling.
+    if (location.hash) {
       try {
         current = rail.querySelector('.toc a[href="' + location.hash + '"]');
       } catch (_) {}
+    }
+    if (!current) current = rail.querySelector(selector);
+    if (!current && rail.querySelector('.toc')) {
+      // No active class yet: pick the last heading whose top is above the
+      // reading midpoint, so the rail has a sensible current item immediately.
+      var links = rail.querySelectorAll('.toc a[href^="#"]');
+      var best = null;
+      var midpoint = window.innerHeight * 0.4;
+      Array.prototype.forEach.call(links, function (link) {
+        var id = (link.getAttribute('href') || '').slice(1);
+        var heading = id && document.getElementById(id);
+        if (!heading) return;
+        var top = heading.getBoundingClientRect().top;
+        if (top <= midpoint) best = link;
+      });
+      current = best;
     }
     if (!current) return;
     var railRect = rail.getBoundingClientRect();
