@@ -169,7 +169,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         scripts = scripts + ("/assets/practice-bridge.js?v=3",)
     if path.startswith("/library/"):
         scripts = scripts + (
-            "/assets/toc-scroll.js?v=3",
+            "/assets/toc-scroll.js?v=4",
             "/assets/search-target.js?v=1",
         )
     elif path.startswith("/books/"):

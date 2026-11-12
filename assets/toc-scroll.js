@@ -53,7 +53,7 @@
   if (!document.getElementById('toc-scroll-space-style')) {
     var style = document.createElement('style');
     style.id = 'toc-scroll-space-style';
-    style.textContent = '.shelf-topic-links{padding-bottom:min(40vh,240px)!important}.chapter-shell .sol-rail-right .toc,.chapter-shell .sol-rail-left .toc{padding-bottom:min(40vh,240px)!important}';
+    style.textContent = '.shelf-topic-links{padding-bottom:min(50vh,480px)!important}.chapter-shell .sol-rail-right .toc,.chapter-shell .sol-rail-left .toc{padding-bottom:min(50vh,480px)!important}';
     document.head.appendChild(style);
   }
 
