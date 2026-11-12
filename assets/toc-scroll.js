@@ -13,6 +13,10 @@
     if (location.hash) {
       try {
         current = rail.querySelector('.toc a[href="' + location.hash + '"]');
+        if (current) {
+          rail.querySelectorAll('.toc a.active').forEach(function (old) { old.classList.remove('active'); });
+          current.classList.add('active');
+        }
       } catch (_) {}
     }
     if (!current) current = rail.querySelector(selector);
