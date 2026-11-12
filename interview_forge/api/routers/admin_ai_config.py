@@ -1,6 +1,8 @@
 """Admin-only AI provider/model/business routing API."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import async_require_admin, error_response, json_response, read_json, require_admin, service_error
@@ -21,7 +23,7 @@ async def _write(request: Request, operation):
     if denied is not None: return denied
     try:
         payload = await read_json(request, max_length=16_384)
-        return json_response(operation(payload))
+        return json_response(await asyncio.to_thread(operation, payload))
     except BaseException as exc: return service_error(exc, write=True) or error_response("AI 配置操作失败", 400)
 
 

@@ -467,7 +467,9 @@ async function runLeetcodeIncrementalSync(){
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full,async:true,offset:full?leetcodeSyncCursor(true):0})
     });
     if(!start.task_id)throw new Error('task unavailable');
+    const deadline=Date.now()+180000;
     while(true){
+      if(Date.now()>deadline){const error=new Error('sync timeout');error.category='timeout';throw error;}
       await new Promise(resolve=>setTimeout(resolve,1000));
       const task=await leetcodeSyncRequest('/api/leetcode/sync/status?task_id='+encodeURIComponent(start.task_id),{cache:'no-store'});
       if(task.running)continue;
@@ -977,8 +979,9 @@ async function updateLcStatus(){
 // 离线错误态：断网时不能把故障渲染成“正常空态”（假空卡会让用户以为无事可做）。
 // 采用 cockpit 的模块级失败范式：明确报错 + 重试入口；题网格不渲染假数据。
 function renderOfflineErrors(){
-  // 四处错误态统一“明确文案 + 重试按钮”，交互保持一致
-  const wireRetry=container=>{const b=container.querySelector('[data-retry]');if(b)b.addEventListener('click',()=>refresh())};
+  // 四处错误态统一“明确文案 + 重试按钮”，交互保持一致。
+  // InterviewForgeUI.renderError 已经自己绑定重试；不要再对同一按钮额外 wireRetry，
+  // 否则一次点击会触发两次 refresh。
   if(window.InterviewForgeUI){
     InterviewForgeUI.renderError(reviewList,'暂时无法读取今日待复习，请检查网络后','重试',()=>refresh());
     InterviewForgeUI.renderError(pickCard,'计划暂时无法加载，请检查网络后','重试',()=>refresh());
@@ -989,15 +992,19 @@ function renderOfflineErrors(){
     grid.innerHTML='<div class="empty">暂时无法读取题目数据，请检查网络后<button class="round-button" type="button" data-retry>重试</button></div>';
   }
   weakList.innerHTML='<li class="history-empty">暂时无法读取薄弱清单，请检查网络后<button class="round-button" type="button" data-retry>重试</button></li>';
-  [reviewList,pickCard,weakList,grid].forEach(wireRetry);
+  const weakRetry=weakList.querySelector('[data-retry]');
+  if(weakRetry)weakRetry.addEventListener('click',()=>refresh());
   empty.hidden=true;
   document.getElementById('reviewSummary').textContent='读取失败';
 }
+let refreshSerial=0;
 async function refresh(){
+  const serial=++refreshSerial;
   try{
     const bootstrapResponse=await fetchWithTimeout('/api/bootstrap',{cache:'no-store'});
     if(!bootstrapResponse.ok)throw new Error('database unavailable');
     const boot=await bootstrapResponse.json();
+    if(serial!==refreshSerial)return;
     state.data=boot.dashboard;
     state.daily=boot.daily;
     state.settings=boot.settings;
@@ -1006,11 +1013,13 @@ async function refresh(){
     document.getElementById('connection').textContent='学习服务已连接';
     document.getElementById('serverNotice').hidden=true;
   }catch(error){
+    if(serial!==refreshSerial)return;
     state.online=false;
     document.getElementById('connection').classList.remove('online');
     document.getElementById('connection').textContent='暂时无法连接学习服务';
     document.getElementById('serverNotice').hidden=false;
   }
+  if(serial!==refreshSerial)return;
   updateLcStatus();
   if(state.online)render();else renderOfflineErrors();
   updateOnlineControls();
@@ -1067,7 +1076,11 @@ document.getElementById('remindButton').addEventListener('click',async()=>{
   document.getElementById('remindButton').textContent=permission==='granted'?'复习提醒已开启':'提醒被拒绝';
   if(permission==='granted'){showToast('复习提醒已开启，刷新页面后会通知待复习项','success');maybeNotify()}
 });
-search.addEventListener('input',renderCards);
+let searchRenderTimer;
+search.addEventListener('input',()=>{
+  clearTimeout(searchRenderTimer);
+  searchRenderTimer=setTimeout(renderCards,150);
+});
 [category,status].forEach(control=>control.addEventListener('change',renderCards));
 refresh();
 loadPick(false);

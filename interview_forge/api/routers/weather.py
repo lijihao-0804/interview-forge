@@ -1,6 +1,8 @@
 """Weather preference, lookup and forecast routes."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 
 from interview_forge.api.support import async_require_user, error_response, json_response, read_json, require_user, service_error
@@ -43,7 +45,7 @@ async def weather_preferences(request: Request):
         allowed = {"mode", "display_name", "latitude", "longitude", "timezone"}
         if any(key not in allowed for key in payload):
             raise ValueError("请求参数不正确")
-        preference = set_weather_preference(str(user["username"]), payload)
+        preference = await asyncio.to_thread(set_weather_preference, str(user["username"]), payload)
         return json_response({"preference": {key: preference[key] for key in ("mode", "display_name", "timezone")}}, 201)
     except BaseException as exc:
         return service_error(exc, write=True) or error_response("天气设置失败", 500)
