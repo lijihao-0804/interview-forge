@@ -5429,6 +5429,22 @@ for word in ["eat", "tea", "tan"]:
 print(dict(groups))  # {'aet': ['eat', 'tea'], 'ant': ['tan']}
 ```
 
+如果只是做计数，`defaultdict(int)` 更省初始化代码：第一次访问某个 key 时，它会自动把值初始化为 `0`，不需要写 `get(c, 0)`。滑动窗口题里常见：
+
+```python
+from collections import defaultdict
+
+t = "aab"
+need = defaultdict(int)
+window = defaultdict(int)
+for c in t:
+    need[c] += 1
+
+print(dict(need))  # {'a': 2, 'b': 1}
+```
+
+`Counter` 适合一次性统计整个集合；`defaultdict(int)` 适合边遍历边累加，尤其是滑动窗口里 `need[c] += 1`、`window[c] -= 1` 这种写法。
+
 字典的遍历、合并和推导式：
 
 ```python
@@ -6539,7 +6555,7 @@ print(nums)  # [1, 3]
 
 | 需求 | 优先使用的 Python 工具 |
 |---|---|
-| 计数 | `collections.Counter` |
+| 计数 | `collections.Counter`（一次性统计）/ `collections.defaultdict(int)`（边遍历边累加） |
 | 分组 | `collections.defaultdict(list)` |
 | 先进先出 | `collections.deque` |
 | 后进先出 | `list` 的 `append()` / `pop()` |
