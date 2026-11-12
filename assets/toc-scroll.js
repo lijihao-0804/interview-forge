@@ -13,10 +13,6 @@
     if (location.hash) {
       try {
         current = rail.querySelector('.toc a[href="' + location.hash + '"]');
-        if (current) {
-          rail.querySelectorAll('.toc a.active').forEach(function (old) { old.classList.remove('active'); });
-          current.classList.add('active');
-        }
       } catch (_) {}
     }
     if (!current) current = rail.querySelector(selector);
@@ -53,7 +49,21 @@
     });
   }
 
+  function syncHashActive() {
+    if (!location.hash) return;
+    document.querySelectorAll('.sol-rail-right, .sol-rail-left').forEach(function (rail) {
+      var link = null;
+      try {
+        link = rail.querySelector('.toc a[href="' + location.hash + '"]');
+      } catch (_) {}
+      if (!link || link.classList.contains('active')) return;
+      rail.querySelectorAll('.toc a.active').forEach(function (old) { old.classList.remove('active'); });
+      link.classList.add('active');
+    });
+  }
+
   function schedule() {
+    syncHashActive();
     setTimeout(centerAll, 0);
     setTimeout(centerAll, 80);
     setTimeout(centerAll, 300);
