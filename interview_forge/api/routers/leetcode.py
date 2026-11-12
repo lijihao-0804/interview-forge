@@ -89,7 +89,8 @@ async def sync(request: Request):
         if not credentials.get("leetcode_session"):
             raise LeetCodeSyncError("not_configured", "请先前往力扣连接页面填写 LEETCODE_SESSION", 409)
         if payload.get("async") in (1, True, "1", "true", "True"):
-            task_id = task_manager.submit(
+            task_id = await asyncio.to_thread(
+                task_manager.submit,
                 "leetcode", credentials, full, owner=str(user["username"]), db_path=db,
                 offset=offset,
             )
@@ -97,17 +98,24 @@ async def sync(request: Request):
         owner = str(user["username"])
         if not try_acquire_sync_owner(owner):
             raise LeetCodeSyncError("sync_in_progress", "已有力扣同步任务运行中，请稍后重试", 409)
-        try:
-            if offset:
-                result = {"ok": True, **await leetcode_sync_async(
-                    credentials, db_path=db, full=full, offset=offset
-                )}
-            else:
-                result = {"ok": True, **await leetcode_sync_async(credentials, db_path=db, full=full)}
-            invalidate_learning(db)
-        finally:
-            release_sync_owner(owner)
+        async def _run_sync():
+            # The worker thread cannot be cancelled. Keep the owner lease with
+            # the background coroutine, not the (possibly cancelled) request.
+            try:
+                if offset:
+                    return await leetcode_sync_async(
+                        credentials, db_path=db, full=full, offset=offset
+                    )
+                return await leetcode_sync_async(credentials, db_path=db, full=full)
+            finally:
+                release_sync_owner(owner)
+        sync_task = asyncio.create_task(_run_sync())
+        result = await asyncio.shield(sync_task)
+        result = {"ok": True, **result}
+        invalidate_learning(db)
         return json_response(result, 201)
+    except asyncio.CancelledError:
+        raise
     except BaseException as exc:
         return _handled(exc)
 

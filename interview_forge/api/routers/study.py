@@ -12,7 +12,7 @@ from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
 from interview_forge.ai.ai_coach import ai_capability, get_ai_quota
-from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_user, service_error, user_db
+from interview_forge.api.support import async_require_user, error_response, invalidate_dashboard, invalidate_learning, json_response, require_admin, require_user, service_error, user_db
 from interview_forge.services.auth import effective_ai_daily_limit, get_fsrs_desired_retention
 from interview_forge.services.annual_report import build_annual_report
 from interview_forge.services.favorites import (
@@ -436,8 +436,8 @@ def report_annual(request: Request, year: str | None = None):
 
 @router.get("/api/report/summary")
 def report_summary_get(request: Request, year: str | None = None):
-    """全站年度汇总（跨所有用户库）。"""
-    user, denied = _user(request)
+    """全站年度汇总（跨所有用户库），仅管理员可用。"""
+    user, denied = require_admin(request)
     if denied is not None:
         return denied
     try:

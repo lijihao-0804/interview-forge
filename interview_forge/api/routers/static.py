@@ -41,7 +41,7 @@ _WIDGET_STYLES = ("/assets/ai-launcher.css?v=5",)
 _WIDGET_SCRIPTS = (
     "/assets/time-utils.js?v=2",
     "/assets/navigation-policy.js?v=2",
-    "/assets/auth-widget.js?v=4",
+    "/assets/auth-widget.js?v=5",
     "/assets/feedback-widget.js?v=2",
     "/assets/theme-toggle.js?v=2",
     "/assets/ai-page-context.js?v=1",
@@ -112,8 +112,17 @@ def _sensitive(path: str) -> bool:
     public_docs = {"/docs/qa-report.html", "/docs/深度审查与修复报告-2026-09-08.html", "/docs/学情分析ai专项审查报告.html"}
     if lowered in public_docs:
         return False
-    sensitive_prefixes = ("/data/", "/tools/", "/.git/", "/docs/", "/qa-report/")
-    return lowered.startswith(sensitive_prefixes) or lowered in ("/data", "/tools", "/.git", "/docs", "/maintenance.html", "/guide.html.md") or lowered.startswith(("/.", "/maintenance", "/readme")) or lowered.endswith(".md")
+    # Allowlist, not a blacklist: only web-facing trees and the handful of
+    # root entry files are reachable. Source, logs, deploy files, tests,
+    # benchmarks, databases and dotfiles are all denied by default.
+    allowed_prefixes = ("/books/", "/library/", "/pages/", "/assets/", "/api/")
+    allowed_files = {
+        "/", "/index.html", "/cockpit.html", "/maintenance.html", "/guide.html",
+        "/manifest.webmanifest", "/service-worker.js", "/favicon.ico",
+    }
+    if lowered in allowed_files or lowered.startswith(allowed_prefixes):
+        return False
+    return True
 
 
 def _path(request: Request) -> str:
@@ -123,7 +132,11 @@ def _path(request: Request) -> str:
 
 def _security_headers(path: str) -> dict[str, str]:
     suffix = path.split("?", 1)[0].lower()
-    if suffix.endswith((".html", ".json", ".webmanifest")):
+    if path == "/books/ai-exam/practice-meta.json":
+        # A single 620KB metadata file is fetched by every practice page.
+        # Allow a short private cache instead of forcing a full re-download.
+        cache = "private, max-age=300"
+    elif suffix.endswith((".html", ".json", ".webmanifest")):
         cache = "no-store"
     elif suffix.endswith((".css", ".js")):
         cache = "no-cache"
@@ -166,10 +179,10 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             marker in script for marker in ("ai-page-context.js", "ai-launcher.js")
         ))
     if path.startswith("/books/ai-exam/"):
-        scripts = scripts + ("/assets/practice-bridge.js?v=3",)
+        scripts = scripts + ("/assets/practice-bridge.js?v=4",)
     if path.startswith("/library/"):
         scripts = scripts + (
-            "/assets/toc-scroll.js?v=7",
+            "/assets/toc-scroll.js?v=8",
             "/assets/search-target.js?v=1",
         )
     elif path.startswith("/books/"):

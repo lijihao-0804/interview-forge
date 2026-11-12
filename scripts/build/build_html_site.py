@@ -751,8 +751,16 @@ readerVisualFrames.forEach((frame) => {
     bar.style.width = Math.round((passed / total) * 100) + '%';
   };
   update();
-  window.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
+  let progressFrame = 0;
+  const scheduleUpdate = () => {
+    if (progressFrame) return;
+    progressFrame = requestAnimationFrame(() => {
+      progressFrame = 0;
+      update();
+    });
+  };
+  window.addEventListener('scroll', scheduleUpdate, { passive: true });
+  window.addEventListener('resize', scheduleUpdate);
   document.querySelectorAll('.table-wrap').forEach((wrap) => {
     const check = () => wrap.classList.toggle('has-overflow', wrap.scrollWidth > wrap.clientWidth + 4);
     check();

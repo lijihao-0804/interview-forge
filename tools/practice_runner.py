@@ -221,8 +221,9 @@ def _python_run(workdir: Path) -> dict:
 def run_code(language: str, code: str, stdin_text: str) -> dict:
     if not _RUN_LOCK.acquire(blocking=False):
         raise RunnerError("busy", "当前已有一次执行，请稍后再试")
-    workdir = Path(tempfile.mkdtemp(prefix="if-practice-"))
+    workdir: Path | None = None
     try:
+        workdir = Path(tempfile.mkdtemp(prefix="if-practice-"))
         os.chmod(workdir, 0o777)
         if language == "python":
             (workdir / "main.py").write_text(code, encoding="utf-8")
@@ -337,7 +338,8 @@ def run_code(language: str, code: str, stdin_text: str) -> dict:
 
         raise RunnerError("invalid_language", "只支持 python 和 java")
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        if workdir is not None:
+            shutil.rmtree(workdir, ignore_errors=True)
         _RUN_LOCK.release()
 
 

@@ -22,7 +22,7 @@
                            "SCRIPT", "STYLE", "TEXTAREA", "INPUT", "BUTTON", "SVG"]);
 
   var state = { glossary: null, index: null, style: "underline", trigger: "hover", root: null,
-              scopeKey: "", density: "once" };   // density: once=一本书一次 | all=全部标注
+              scopeKey: "", density: "once", regex: null };   // density: once=一本书一次 | all=全部标注
   var pop = null;       // 单例浮层
   var activeEl = null;  // 当前打开的术语
 
@@ -98,7 +98,7 @@
 
   function annotate() {
     if (!state.root || !state.index) return 0;
-    var re = buildRegex(state.index);
+    var re = state.regex || (state.regex = buildRegex(state.index));
     if (!re) return 0;
     var items = collectTextNodes(state.root);
     var count = 0;
@@ -310,7 +310,7 @@
   function loadGlossary(url) {
     return fetch(url, { cache: "force-cache" })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
-      .then(function (d) { state.glossary = d.entries || []; state.index = d.index || {}; return d; });
+      .then(function (d) { state.glossary = d.entries || []; state.index = d.index || {}; state.regex = null; return d; });
   }
 
   window.GlossaryEngine = {

@@ -52,7 +52,7 @@ def _call_runner(payload: dict) -> tuple[int, dict]:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=25) as response:
             parsed = json.loads(response.read().decode("utf-8"))
             return int(response.status), parsed if isinstance(parsed, dict) else {"error": "执行服务返回格式异常"}
     except urllib.error.HTTPError as exc:

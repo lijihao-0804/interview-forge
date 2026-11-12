@@ -150,7 +150,8 @@ async def request_observability(request, call_next):
     except Exception as exc:
         # Exception handlers may turn this into a 500 response later, but the
         # request event must still exist even when the router never returned.
-        log_event(
+        await asyncio.to_thread(
+            log_event,
             "api_request",
             module="api",
             request_id=request_id,
@@ -186,7 +187,8 @@ async def request_observability(request, call_next):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-CSRFToken"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    log_event(
+    await asyncio.to_thread(
+        log_event,
         "api_request",
         module="api",
         request_id=request_id,

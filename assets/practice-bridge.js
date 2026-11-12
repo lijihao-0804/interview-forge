@@ -12,7 +12,7 @@
 
   function loadMeta() {
     if (!metaPromise) {
-      metaPromise = fetch(META_URL, { credentials: 'same-origin', cache: 'no-store' })
+      metaPromise = fetch(META_URL, { credentials: 'same-origin', cache: 'default' })
         .then(function (response) { return response.ok ? response.json() : []; })
         .then(function (items) {
           var map = {};

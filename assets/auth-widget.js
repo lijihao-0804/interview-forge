@@ -271,6 +271,7 @@
             });
         }
         function poll() {
+          if (document.hidden) return;
           if (chatState.pollInFlight) { chatState.pollAgain = true; return; }
           chatState.pollInFlight = true;
           var generation = panelGeneration;
@@ -605,6 +606,7 @@
         .then(function (d) { if (d && d.items && d.items.length) seenId = d.items[0].id; })
         .catch(function () {});
       unreadTimer = setInterval(function () {
+        if (document.hidden) return;
         if (document.getElementById("forge-chat-panel")) return;   // 面板自身在轮询
         if (unreadInFlight) return;
         unreadInFlight = true;

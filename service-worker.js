@@ -1,7 +1,7 @@
 /* Hot 100 学习站缓存兜底（在线优先；动态 API 一律走网络） */
 // Bump with every deploy that changes shell/runtime assets. Navigation is
 // network-first below, so clients can self-upgrade without manual cache clear.
-const VERSION = "hot100-v17-20261101";
+const VERSION = "hot100-v18-20261112";
 const STATIC_PREFIX = ["/cockpit.html", "/index.html", "/pages/", "/assets/", "/library/assets/", "/library/", "/00-总览/", "/01-基础/", "/02-专题/", "/03-题解/", "/04-模板/", "/05-可视化/", "/maintenance.html", "/guide.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -43,7 +43,7 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+      .catch(() => caches.match(event.request).then((cached) => {
         if (cached) return cached;
         // 只有页面导航允许回退到首页；CSS/JS/图片失败时不能返回 HTML。
         if (event.request.mode === "navigate") return caches.match("./index.html");

@@ -635,13 +635,17 @@ class StudyHandler(SimpleHTTPRequestHandler):
         }
         if lowered in public_docs:
             return False
-        sensitive_prefixes = ("/data/", "/tools/", "/.git/", "/docs/", "/qa-report/")
-        return (
-            lowered.startswith(sensitive_prefixes)
-            or lowered in ("/data", "/tools", "/.git", "/docs", "/maintenance.html", "/guide.html.md")
-            or lowered.startswith(("/.", "/maintenance", "/readme"))
-            or lowered.endswith(".md")
-        )
+        # Allowlist, not a blacklist: keep the same web-facing surface as the
+        # FastAPI static router. Everything else (logs, deploy, scripts,
+        # tests, benchmarks, source and databases) is denied by default.
+        allowed_prefixes = ("/books/", "/library/", "/pages/", "/assets/", "/api/")
+        allowed_files = {
+            "/", "/index.html", "/cockpit.html", "/maintenance.html", "/guide.html",
+            "/manifest.webmanifest", "/service-worker.js", "/favicon.ico",
+        }
+        if lowered in allowed_files or lowered.startswith(allowed_prefixes):
+            return False
+        return True
 
     def _access_gate(self, decoded_path: str) -> bool:
         """GET/HEAD 共用的安全门禁：敏感路径 404 + 登录门禁。
@@ -897,8 +901,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self.send_json({"error": f"年度报告数据生成失败：{exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
-        # /api/report/summary：年度报告全站汇总（?year=2026）
+        # /api/report/summary：年度报告全站汇总（?year=2026），仅管理员
         if parsed.path == "/api/report/summary":
+            if not user or str(user["role"]) != "admin":
+                self.send_json({"error": "需要管理员权限"}, HTTPStatus.FORBIDDEN)
+                return
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             self.send_json(report_summary(year=params.get("year") or None))
             return

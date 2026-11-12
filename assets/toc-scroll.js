@@ -77,11 +77,16 @@
   window.addEventListener('load', schedule);
   window.addEventListener('hashchange', schedule);
 
-  // IntersectionObserver in chapter pages changes `active` while reading.
-  if (window.MutationObserver) {
-    var observer = new MutationObserver(centerAll);
-    document.querySelectorAll('.shelf-topic-links, .sol-rail-right, .sol-rail-left').forEach(function (rail) {
-      observer.observe(rail, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  // The chapter page's IntersectionObserver changes the active class while
+  // reading. Listen to scroll + rAF instead of observing class mutations, so
+  // this helper can never create a MutationObserver feedback loop.
+  var scrollFrame = 0;
+  function onScroll() {
+    if (scrollFrame) return;
+    scrollFrame = requestAnimationFrame(function () {
+      scrollFrame = 0;
+      centerAll();
     });
   }
+  window.addEventListener('scroll', onScroll, { passive: true });
 })();
