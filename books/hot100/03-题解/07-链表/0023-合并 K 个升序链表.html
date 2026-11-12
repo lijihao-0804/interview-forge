@@ -97,8 +97,9 @@
 <p>参考体育比赛的<strong>淘汰赛赛程表</strong>。</p>
 <p>不需要一个个轮流上。让这 <span aria-label="k" class="plain-math">k</span> 个链表两两配对，进行“合并两个链表”的比赛。</p>
 <p>第一轮过后，<span aria-label="k" class="plain-math">k</span> 个链表变成了 <span aria-label="k/2" class="plain-math">k/2</span> 个；第二轮变成 <span aria-label="k/4" class="plain-math">k/4</span> 个…… 直到最后合并成 1 个总冠军！</p>
-<div class="lang-section" data-lang="java"><h3 id="java">Java 实现（优先级队列 / 最小堆版）</h3>
-<p><em>(这是面试中最受欢迎、最能体现你熟练掌握高级数据结构的解法)</em></p>
+<div class="lang-section" data-lang="java"><h3 id="java">Java 实现（分治法 / 两两归并版，推荐）</h3>
+<p>分治法的核心是复用“合并两个有序链表”：每轮把链表数组两两合并，规模减半，
+  共合并 <code>log k</code> 轮。这个版本不需要优先队列，面试中更适合作为主解法。</p>
 </div><div class="lang-section" data-lang="cpp"><h3 id="c">C++ 实现</h3>
 <blockquote>
 <p>实现来源：经典解法实现</p>
@@ -219,9 +220,7 @@
 </code></pre></div>
 </div></li>
 </ol>
-<div class="codehilite" data-lang="java"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">java.util.PriorityQueue</span><span class="p">;</span>
-
-<span class="cm">/**</span>
+<div class="codehilite" data-lang="java"><pre><span></span><code><span class="cm">/**</span>
 <span class="cm"> * Definition for singly-linked list.</span>
 <span class="cm"> * public class ListNode {</span>
 <span class="cm"> *     int val;</span>
@@ -232,54 +231,43 @@
 <span class="cm"> * }</span>
 <span class="cm"> */</span>
 <span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="c1">// 防御性编程：处理空数组的极端情况</span>
-<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lists</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
-<span class="w">        </span><span class="p">}</span>
-
-<span class="w">        </span><span class="c1">// 1. 创建一个最小堆（优先队列），容量初始化为 k</span>
-<span class="w">        </span><span class="c1">// 核心逻辑：按照节点的值（val）从小到大排序</span>
-<span class="w">        </span><span class="n">PriorityQueue</span><span class="o">&lt;</span><span class="n">ListNode</span><span class="o">&gt;</span><span class="w"> </span><span class="n">pq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">PriorityQueue</span><span class="o">&lt;&gt;</span><span class="p">(</span>
-<span class="w">            </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="p">,</span>
-<span class="w">            </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Integer</span><span class="p">.</span><span class="na">compare</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">val</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">val</span><span class="p">)</span>
-<span class="w">        </span><span class="p">);</span>
-
-<span class="w">        </span><span class="c1">// 2. 初始化擂台：把所有非空链表的头节点（各队队长）请上擂台</span>
-<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">head</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">head</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">private</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeTwo</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="na">val</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">val</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">;</span>
+<span class="w">                </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
+<span class="w">                </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
 <span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
 <span class="w">        </span><span class="p">}</span>
-
-<span class="w">        </span><span class="c1">// 3. 祭出老朋友：虚拟头节点</span>
-<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">dummy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
-<span class="w">        </span><span class="n">ListNode</span><span class="w"> </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dummy</span><span class="p">;</span>
-
-<span class="w">        </span><span class="c1">// 4. 擂台赛开始！只要擂台上还有人，就一直打</span>
-<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">pq</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="c1">// 裁判挑出当前擂台上最小的节点</span>
-<span class="w">            </span><span class="n">ListNode</span><span class="w"> </span><span class="n">minNode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pq</span><span class="p">.</span><span class="na">poll</span><span class="p">();</span>
-
-<span class="w">            </span><span class="c1">// 把最小的节点接到大部队后面</span>
-<span class="w">            </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">minNode</span><span class="p">;</span>
-<span class="w">            </span><span class="n">curr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">curr</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
-
-<span class="w">            </span><span class="c1">// 如果这个队伍后面还有人，让他顶替刚才离开的队长，上擂台！</span>
-<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">minNode</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">                </span><span class="n">pq</span><span class="p">.</span><span class="na">offer</span><span class="p">(</span><span class="n">minNode</span><span class="p">.</span><span class="na">next</span><span class="p">);</span>
-<span class="w">            </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-
-<span class="w">        </span><span class="c1">// 5. 返回总链表的车头</span>
+<span class="w">        </span><span class="n">tail</span><span class="p">.</span><span class="na">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">b</span><span class="p">;</span>
 <span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">dummy</span><span class="p">.</span><span class="na">next</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeKLists</span><span class="p">(</span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">lists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lists</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">lists</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+
+<span class="w">        </span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lists</span><span class="p">;</span>
+<span class="w">        </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">current</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">ListNode</span><span class="o">[]</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ListNode</span><span class="o">[</span><span class="p">(</span><span class="n">current</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="o">]</span><span class="p">;</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">current</span><span class="p">.</span><span class="na">length</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="n">ListNode</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">current</span><span class="p">.</span><span class="na">length</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">current</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="o">]</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">                </span><span class="n">next</span><span class="o">[</span><span class="n">i</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="o">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mergeTwo</span><span class="p">(</span><span class="n">current</span><span class="o">[</span><span class="n">i</span><span class="o">]</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">);</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">            </span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">current</span><span class="o">[</span><span class="mi">0</span><span class="o">]</span><span class="p">;</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
 <h3 id="_5">复杂度</h3>
 <ul>
-<li><strong>时间复杂度</strong>：<span aria-label="O(N \log k)" class="plain-math">O(N log k)</span>。其中 <span aria-label="N" class="plain-math">N</span> 是所有链表节点的总数，<span aria-label="k" class="plain-math">k</span> 是链表的条数。每个节点都会且仅会进出堆一次。堆的插入和删除操作时间复杂度是 <span aria-label="O(\log k)" class="plain-math">O(log k)</span>，所以总时间是 <span aria-label="N \log k" class="plain-math">N log k</span>。</li>
-<li><strong>空间复杂度</strong>：<span aria-label="O(k)" class="plain-math">O(k)</span>。优先队列（擂台）里最多只会同时存在 <span aria-label="k" class="plain-math">k</span> 个节点（每队各一人）。</li>
+<li><strong>时间复杂度</strong>：<span aria-label="O(N \log k)" class="plain-math">O(N log k)</span>。每轮把所有链表两两合并，处理节点总数为 <span aria-label="N" class="plain-math">N</span>；链表数量每轮减半，共进行 <span aria-label="\log k" class="plain-math">log k</span> 轮。</li>
+<li><strong>空间复杂度</strong>：<span aria-label="O(k)" class="plain-math">O(k)</span>。每轮保存合并后的链表数组；如果使用递归版分治，递归栈为 <span aria-label="O(\log k)" class="plain-math">O(log k)</span>。</li>
 </ul>
 <div class="aside aside-warn"><span class="aside-title">易错点与扩展（进阶的细节）</span>
 <ol>
@@ -289,7 +277,7 @@
    - <strong>秒答</strong>：分治法的时间复杂度同样是 <strong><span aria-label="O(N \log k)" class="plain-math">O(N log k)</span></strong>。因为每次合并两个链表是 <span aria-label="O(N)" class="plain-math">O(N)</span>，总共要合并 <span aria-label="\log k" class="plain-math">log k</span> 轮（树的高度）。
    - <strong>进阶对比</strong>：分治法的<strong>空间复杂度更优</strong>！如果是迭代版的分治法，不需要优先队列的 <span aria-label="O(k)" class="plain-math">O(k)</span> 空间，空间复杂度可以压缩到极致的 <strong><span aria-label="O(1)" class="plain-math">O(1)</span></strong>。但<strong>最小堆解法</strong>在工程扩展性上更好（比如处理无限数据流（Data Stream）的合并，你无法一开始拿到所有链表进行分治，只能用堆实时处理）。</li>
 </ol>
-</div><h4 id="priorityqueue">📝 补充知识点：PriorityQueue (优先队列 / 最小堆)</h4>
+</div><h4 id="priorityqueue">📝 备选思路：PriorityQueue（最小堆）</h4>
 <h3 id="_7">思路推导</h3>
 <ul>
 <li><strong>普通队列 (Queue)</strong>：就像在超市排队结账，讲究“先来后到”（FIFO：先进先出）。</li>
@@ -353,10 +341,10 @@
 <li><a href="#_2">核心不变量</a></li>
 <li><a href="#_3">完整推导</a><ul>
 <li><a href="#_4">思路推导</a></li>
-<li><a href="#java">Java 实现（优先级队列 / 最小堆版）</a></li>
+<li><a href="#java">Java 实现（分治法 / 两两归并版，推荐）</a></li>
 <li><a href="#_5">复杂度</a></li>
 <li><a href="#_6">易错点与扩展（进阶的细节）</a><ul>
-<li><a href="#priorityqueue">📝 补充知识点：PriorityQueue (优先队列 / 最小堆)</a></li>
+<li><a href="#priorityqueue">📝 备选思路：PriorityQueue（最小堆）</a></li>
 </ul>
 </li>
 <li><a href="#_7">思路推导</a></li>
@@ -385,10 +373,18 @@
   "use strict";
   var KEY = "forgeSelfTestMode";
   // 自测模式下必须遮罩的分区：推导、代码、解析、模板、复杂度、易错点、延伸。
-  // 「核心不变量」虽然看起来像"题面骨架"，但它往往直接点出了解法关键
-  //（如「滑动窗口内元素互不相同」），自测时同样会泄露思路，故一并遮罩。
-  // 只保留：题目与约束（题面）、力扣原题（链接）。
-  var KEEP = { "题目与约束": 1, "力扣原题": 1 };
+  // 题面相关分区（题目描述、输入/输出描述、示例、说明、备注）必须保持可见，
+  // 否则自测时连题目都看不到；「核心不变量」会泄露思路，仍按解法内容遮罩。
+  var KEEP = {
+    "题目与约束": 1, "力扣原题": 1,
+    "题目描述": 1, "输入描述": 1, "输出描述": 1, "示例描述": 1, "样例": 1, "样例解释": 1,
+    "备注": 1, "说明": 1, "补充说明": 1
+  };
+  function isKeepTitle(title) {
+    if (KEEP[title]) return true;
+    // 兼容「示例一/示例 1」「输入描述s」等标题变体
+    return /^(示例|样例|输入描述|输出描述|题目描述|说明|备注|提示)/.test(title);
+  }
   var toggle = document.getElementById("selftestToggle");
   if (!toggle) return;
 
@@ -493,7 +489,7 @@
     if (!on) return;
     collectSections().forEach(function (section, index) {
       // 第一段兜底保留（题面），其余按白名单；打印/复制场景不受影响
-      if (index === 0 || KEEP[section.title] || !section.nodes.length) return;
+      if (index === 0 || isKeepTitle(section.title) || !section.nodes.length) return;
       var wrap = document.createElement("div");
       wrap.className = "selftest-block";
       var content = document.createElement("div");
