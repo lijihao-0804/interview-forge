@@ -688,22 +688,26 @@ def leetcode_sync(
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", rows,
             )
         results["submissions_added"] = len(rows)
+        ac_problem_ids = {
+            int(row["problem_id"])
+            for row in connection.execute(
+                "SELECT DISTINCT problem_id FROM submissions WHERE status = 'ac'"
+            ).fetchall()
+        }
         for pair in data.get("stat_status_pairs", []):
             if pair.get("status") != "ac":
                 continue
             pid = slug_to_id.get(str(pair.get("stat", {}).get("question__title_slug") or ""))
             if pid is None:
                 continue
-            found = connection.execute(
-                "SELECT 1 FROM submissions WHERE problem_id = ? AND status = 'ac' LIMIT 1", (pid,)
-            ).fetchone()
-            if found:
+            if int(pid) in ac_problem_ids:
                 results["solved_existing"] = int(results["solved_existing"]) + 1
                 continue
             connection.execute(
                 """INSERT INTO submissions(problem_id, status, lang, submitted_at, source, lc_id)
                    VALUES (?, 'ac', '', ?, 'sync', NULL)""", (pid, runtime.now_parts()[0]),
             )
+            ac_problem_ids.add(int(pid))
             results["solved_added"] = int(results["solved_added"]) + 1
 
         # Incremental sync only considers the newest provider page. The
