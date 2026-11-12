@@ -194,7 +194,7 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
         # Search result navigation uses ?q=...; clear the old reading position
         # before the chapter page's inline restore script runs so the keyword
         # target has priority over "resume last position".
-        head_extra = b'<script>(function(){try{var q=new URLSearchParams(location.search).get("q");if(!q)return;var m=location.pathname.match(/^\\/library\\/([^/]+)\\/chapter-(\\d+)\\.html$/);if(!m)return;var key=m[1]+":"+m[2];var raw=localStorage.getItem("readingPos:v1");if(!raw)return;var all=JSON.parse(raw);if(all&&Object.prototype.hasOwnProperty.call(all,key)){delete all[key];localStorage.setItem("readingPos:v1",JSON.stringify(all));}}catch(e){}})();</script>'
+        head_extra = b'<script>(function(){try{var q=new URLSearchParams(location.search).get("q");if(!q)return;var m=location.pathname.match(/^\\/library\\/([^/]+)\\/chapter-(\\d+)\\.html$/);if(!m)return;var keys=[m[1]+":"+m[2],m[1]+":"+m[1]+":"+m[2]];var raw=localStorage.getItem("readingPos:v1");if(!raw)return;var all=JSON.parse(raw),changed=false;keys.forEach(function(k){if(all&&Object.prototype.hasOwnProperty.call(all,k)){delete all[k];changed=true;}});if(changed)localStorage.setItem("readingPos:v1",JSON.stringify(all));}catch(e){}})();</script>'
     head_marker = b"</head>"
     head_index = body.lower().find(head_marker)
     if head_index >= 0 and (icon_html or head_extra):
