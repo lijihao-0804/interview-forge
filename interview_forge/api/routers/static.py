@@ -168,7 +168,10 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
     if path.startswith("/books/ai-exam/"):
         scripts = scripts + ("/assets/practice-bridge.js?v=3",)
     if path.startswith("/library/"):
-        scripts = scripts + ("/assets/toc-scroll.js?v=1",)
+        scripts = scripts + (
+            "/assets/toc-scroll.js?v=1",
+            "/assets/search-target.js?v=1",
+        )
     styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
     style_html = b"" if b"ai-launcher.css" in body else "".join(
         f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
@@ -186,10 +189,16 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             b'<link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml">'
             b'<link rel="apple-touch-icon" href="/assets/icons/icon-180.png">'
         )
+    head_extra = b""
+    if path.startswith("/library/"):
+        # Search result navigation uses ?q=...; clear the old reading position
+        # before the chapter page's inline restore script runs so the keyword
+        # target has priority over "resume last position".
+        head_extra = b'<script>(function(){try{var q=new URLSearchParams(location.search).get("q");if(!q)return;var m=location.pathname.match(/^\\/library\\/([^/]+)\\/chapter-(\\d+)\\.html$/);if(!m)return;var key=m[1]+":"+m[2];var raw=localStorage.getItem("readingPos:v1");if(!raw)return;var all=JSON.parse(raw);if(all&&Object.prototype.hasOwnProperty.call(all,key)){delete all[key];localStorage.setItem("readingPos:v1",JSON.stringify(all));}}catch(e){}})();</script>'
     head_marker = b"</head>"
     head_index = body.lower().find(head_marker)
-    if head_index >= 0 and icon_html:
-        body = body[:head_index] + icon_html + body[head_index:]
+    if head_index >= 0 and (icon_html or head_extra):
+        body = body[:head_index] + icon_html + head_extra + body[head_index:]
     marker = b"</body>"
     index = body.lower().rfind(marker)
     return body[:index] + widget + body[index:] if index >= 0 else body + widget

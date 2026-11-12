@@ -1801,6 +1801,7 @@ input.addEventListener('input',()=>{
 // URL 携带 ?q= 时（如从书架/搜索入口跳转）自动执行一次搜索
 const initialQ=new URLSearchParams(location.search).get('q')||'';
 if(initialQ.trim()){input.value=initialQ;input.dispatchEvent(new Event('input'))}
+document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('.chapter-card a'):null;if(!a)return;var q=input.value.trim();if(!q)return;try{var u=new URL(a.href,location.href);u.searchParams.set('q',q);a.href=u.href;}catch(_){}} ,true);
 </script>'''
     body = body.replace("__TOPBAR__", topbar(".", "全文搜索")).replace("__CHAPTER_COUNT__", str(chapter_count))
     return document("全文搜索 · InterviewForge", body, "assets/library.css")
