@@ -172,6 +172,10 @@ def _inject_html(path: str, body: bytes, *, embedded: bool = False) -> bytes:
             "/assets/toc-scroll.js?v=1",
             "/assets/search-target.js?v=1",
         )
+    elif path.startswith("/books/"):
+        # Search results also cover Hot 100 / AI Exam pages; highlight the
+        # matched keyword there too (no reading-position resume on those pages).
+        scripts = scripts + ("/assets/search-target.js?v=1",)
     styles = () if path in _AI_LAUNCHER_SKIP or navigation_only else _WIDGET_STYLES
     style_html = b"" if b"ai-launcher.css" in body else "".join(
         f'<link rel="stylesheet" data-interviewforge-ai href="{style}">'
